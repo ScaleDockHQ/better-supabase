@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { auditRegistrations, renderKit } from "../../src/sql/index.ts";
+import { auditRegistrations, renderBlocks } from "../../src/sql/index.ts";
 
 const file = (text: string) => ({ text });
 
@@ -34,7 +34,7 @@ select better_supabase.audit('crm."Deals"', redact := array['secret']::text[], c
     ).toEqual([{ target: "public.a", ignore: ["x"], redact: [] }]);
   });
 
-  it("skips comments, the kit's own definitions and non-literal arguments", () => {
+  it("skips comments, the block's own definitions and non-literal arguments", () => {
     expect(
       auditRegistrations([
         file(`
@@ -59,7 +59,7 @@ describe("audit pgTAP files", () => {
   ];
 
   it("writes one test file per audited table", () => {
-    const tests = renderKit(["audit"], { auditedTables: audited }).filter(
+    const tests = renderBlocks(["audit"], { auditedTables: audited }).filter(
       (entry) => entry.kind === "test",
     );
     expect(tests.map((entry) => entry.path)).toEqual([
@@ -67,7 +67,7 @@ describe("audit pgTAP files", () => {
       "supabase/tests/900_better_supabase_audit_crm_deals.test.sql",
     ]);
     const [customers, deals] = tests.map((entry) => entry.contents);
-    expect(customers).toContain("-- @bs-kit-test audit");
+    expect(customers).toContain("-- @bs-block-test audit");
     expect(customers).toContain("select extensions.plan(7);");
     expect(customers).toContain(`like "public"."customers" including defaults`);
     expect(customers).toContain(
@@ -80,16 +80,16 @@ describe("audit pgTAP files", () => {
   });
 
   it("reads the snapshots from the restricted table and skips what an adopted log lacks", () => {
-    const restricted = renderKit(["audit"], {
+    const restricted = renderBlocks(["audit"], {
       auditedTables: audited.slice(0, 1),
-      kits: { audit: { options: { restricted: true } } },
+      blocks: { audit: { options: { restricted: true } } },
     }).find((entry) => entry.kind === "test");
     expect(restricted!.contents).toContain(
       'left join "better_supabase"."audit_events_restricted" r on r."entry_id" = l."id"',
     );
-    const bare = renderKit(["audit"], {
+    const bare = renderBlocks(["audit"], {
       auditedTables: audited.slice(0, 1),
-      kits: {
+      blocks: {
         audit: {
           mode: "adopt",
           tables: { log: "public.audit_log" },
@@ -103,7 +103,7 @@ describe("audit pgTAP files", () => {
 
   it("writes no test files without audited tables", () => {
     expect(
-      renderKit(["audit"]).filter((entry) => entry.kind === "test"),
+      renderBlocks(["audit"]).filter((entry) => entry.kind === "test"),
     ).toEqual([]);
   });
 });

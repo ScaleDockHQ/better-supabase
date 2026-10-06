@@ -64,9 +64,9 @@ describe.skipIf(!source)("doctor against the local stack", () => {
         org_id uuid not null
       );
       alter table ${SCHEMA}.projects enable row level security;
-      create function ${SCHEMA}.is_member(org uuid) returns boolean
+      create function ${SCHEMA}.is_member(organization uuid) returns boolean
         language plpgsql stable set search_path = ''
-        as $$ begin return org = ((current_setting('request.jwt.claims', true))::jsonb->>'org_id')::uuid; end $$;
+        as $$ begin return organization = ((current_setting('request.jwt.claims', true))::jsonb->>'org_id')::uuid; end $$;
       create policy projects_member on ${SCHEMA}.projects for select to authenticated
         using (${SCHEMA}.is_member(org_id));
       create policy projects_open on ${SCHEMA}.projects for select to public
@@ -84,11 +84,11 @@ describe.skipIf(!source)("doctor against the local stack", () => {
         primary key (org_id, user_id)
       );
       alter table ${SCHEMA}.members enable row level security;
-      create function ${SCHEMA}.is_admin(org uuid) returns boolean
+      create function ${SCHEMA}.is_admin(organization uuid) returns boolean
         language sql stable security definer set search_path = ''
         as $$ select exists (
           select 1 from ${SCHEMA}.members m
-          where m.org_id = org and m.user_id = auth.uid() and m.role = 'admin'
+          where m.org_id = organization and m.user_id = auth.uid() and m.role = 'admin'
         ) $$;
       create policy members_read on ${SCHEMA}.members for select to authenticated
         using ((select ${SCHEMA}.is_admin(org_id)));
@@ -125,7 +125,7 @@ describe.skipIf(!source)("doctor against the local stack", () => {
     expect(snapshot.extras.functions).toContainEqual({
       schema: SCHEMA,
       name: "is_member",
-      signature: "org uuid",
+      signature: "organization uuid",
       language: "plpgsql",
       volatility: "stable",
       securityDefiner: false,

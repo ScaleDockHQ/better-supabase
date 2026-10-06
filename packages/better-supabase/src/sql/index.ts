@@ -1,44 +1,44 @@
 export {
   customContracts,
-  isKitIdType,
-  kitDeprecations,
-  kitFilePaths,
-  kitFileVersion,
-  kitIdType,
-  KIT_ID_TYPES,
-  kitPermissionKeys,
+  isBlockIdType,
+  blockDeprecations,
+  blockFilePaths,
+  blockFileVersion,
+  blockIdType,
+  BLOCK_ID_TYPES,
+  blockPermissionKeys,
   moduleBody,
   moduleVersion,
-  renderKit,
+  renderBlocks,
   resolveModules,
-  sameKitFile,
+  sameBlockFile,
   SQL_MODULES,
   upgradePlan,
-} from "./kit.ts";
+} from "./blocks.ts";
 export type {
-  InstalledKitModule,
-  KitDeprecation,
-  KitAccessPermdock,
-  KitFile,
-  KitIdType,
-  KitLayout,
-  KitPermdock,
-  KitPermissionKey,
-  KitTestFile,
-  KitUpgrade,
-  KitUpgradePlan,
+  InstalledBlockModule,
+  BlockDeprecation,
+  BlockAccessPermdock,
+  BlockFile,
+  BlockIdType,
+  BlockLayout,
+  BlockPermdock,
+  BlockPermissionKey,
+  BlockTestFile,
+  BlockUpgrade,
+  BlockUpgradePlan,
   SqlModule,
-} from "./kit.ts";
+} from "./blocks.ts";
 export { auditRegistrations } from "./audit-registrations.ts";
 export type { AuditedTable } from "./audit-registrations.ts";
 export { contractSignature } from "./context.ts";
 export type {
-  KitContext,
-  KitContractFunction,
-  KitNames,
-  KitTableSpec,
+  BlockContext,
+  BlockContractFunction,
+  BlockNames,
+  BlockTableSpec,
 } from "./context.ts";
-export { kitLayout } from "./layout.ts";
+export { blockLayout } from "./layout.ts";
 export { migrationOptionUses } from "./migration-options.ts";
 export type { MigrationOptionUse } from "./migration-options.ts";
 export { compileReadSet, compileReadSets } from "./read-sets.ts";

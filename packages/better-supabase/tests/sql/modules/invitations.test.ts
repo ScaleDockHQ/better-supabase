@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { KitsConfig } from "../../../src/config/kits.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody, renderKit, upgradePlan } from "../../../src/sql/kit.ts";
+import {
+  moduleBody,
+  renderBlocks,
+  upgradePlan,
+} from "../../../src/sql/blocks.ts";
 
-const body = (kits: KitsConfig) => moduleBody("invitations", { kits })!;
+const body = (blocks: BlocksConfig) => moduleBody("invitations", { blocks })!;
 
 describe("invitations module", () => {
   it("keeps the 0.4 table and create_invitation signature", () => {
@@ -113,7 +117,7 @@ describe("invitations module", () => {
 
   it("shows organization branding in the preview when organizations is installed", () => {
     const sql = moduleBody("invitations", {
-      kits: {
+      blocks: {
         invitations: { options: { previewColumns: ["name", "logo_path"] } },
       },
     })!;
@@ -125,8 +129,8 @@ describe("invitations module", () => {
   });
 
   it("skips the inviter re-check under the permdock model", () => {
-    const accept = (kits: KitsConfig) =>
-      renderKit(["access", "invitations"], { kits })
+    const accept = (blocks: BlocksConfig) =>
+      renderBlocks(["access", "invitations"], { blocks })
         .map((file) => file.contents)
         .join("\n");
     expect(accept({})).toContain("better_supabase.can_user(invite.");

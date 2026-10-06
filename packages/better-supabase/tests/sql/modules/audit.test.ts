@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import type { KitModuleConfig } from "../../../src/config/kits.ts";
+import type { BlockModuleConfig } from "../../../src/config/blocks.ts";
 
 import {
   moduleBody,
-  renderKit,
+  renderBlocks,
   resolveModules,
   upgradePlan,
-} from "../../../src/sql/kit.ts";
+} from "../../../src/sql/blocks.ts";
 
-const audit = (config: KitModuleConfig = {}) =>
-  moduleBody("audit", { kits: { audit: config } })!;
+const audit = (config: BlockModuleConfig = {}) =>
+  moduleBody("audit", { blocks: { audit: config } })!;
 
 /** CentraKit's audit tables: uuid ids, no row snapshots, restricted details apart. */
-const CENTRAKIT: KitModuleConfig = {
+const CENTRAKIT: BlockModuleConfig = {
   mode: "adopt",
   tables: {
     log: "public.audit_logs",
@@ -70,9 +70,9 @@ describe("audit module", () => {
       "raise exception 'audit_event got restricted details, and the audit module has no restricted table'",
     );
     expect(sql).toContain(
-      "hint = 'Set kits.audit.options.restricted to true.'",
+      "hint = 'Set blocks.audit.options.restricted to true.'",
     );
-    const [file] = renderKit(["audit"]);
+    const [file] = renderBlocks(["audit"]);
     expect(file!.contents).toContain(
       'create or replace view "better_supabase".audit_log',
     );
@@ -137,8 +137,8 @@ describe("audit module", () => {
   });
 
   it("needs the access module only for the read policy", () => {
-    const names = (config: KitModuleConfig) =>
-      resolveModules(["audit"], { kits: { audit: config } }).map(
+    const names = (config: BlockModuleConfig) =>
+      resolveModules(["audit"], { blocks: { audit: config } }).map(
         (module) => module.name,
       );
     expect(names({})).toEqual(["audit"]);

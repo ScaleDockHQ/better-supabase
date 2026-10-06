@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { KitModuleConfig } from "../../../src/config/kits.ts";
+import type { BlockModuleConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody, resolveModules } from "../../../src/sql/kit.ts";
+import { moduleBody, resolveModules } from "../../../src/sql/blocks.ts";
 
-const support = (config: KitModuleConfig = {}) =>
-  moduleBody("support-sessions", { kits: { "support-sessions": config } })!;
+const support = (config: BlockModuleConfig = {}) =>
+  moduleBody("support-sessions", { blocks: { "support-sessions": config } })!;
 
 describe("support-sessions module", () => {
   it("owns its table and gates starts with is_platform", () => {
@@ -79,7 +79,7 @@ describe("support-sessions module", () => {
   it("writes nothing in custom mode and checks claimsHook", () => {
     expect(
       moduleBody("support-sessions", {
-        kits: { "support-sessions": { mode: "custom" } },
+        blocks: { "support-sessions": { mode: "custom" } },
       }),
     ).toBeUndefined();
     expect(() =>

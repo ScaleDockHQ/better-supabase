@@ -221,9 +221,9 @@ describe("doctor command", () => {
     ]);
   });
 
-  it("skips the read-sets kit file when config.readSets cannot load", async () => {
+  it("skips the read-sets block file when config.readSets cannot load", async () => {
     const snapshot = await parseSnapshot(fixture);
-    const config = { sql: { kit: ["read-sets"] } };
+    const config = { sql: { modules: ["read-sets"] } };
     const loaded = await doctor(
       ["--only", "BS304", "--json"],
       { snapshot },

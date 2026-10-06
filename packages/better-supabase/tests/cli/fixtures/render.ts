@@ -30,7 +30,7 @@ const fixtureConfig: BetterSupabaseConfig = {
   },
   buckets: {
     customerLogos: {
-      path: "{orgId}/{customerId}/logo/{version}.webp",
+      path: "{organizationId}/{customerId}/logo/{version}.webp",
       public: true,
       policy: "tenant",
       fileSizeLimit: "5MiB",
@@ -39,8 +39,8 @@ const fixtureConfig: BetterSupabaseConfig = {
   },
   storagePaths: { "customers.logo_path": "customerLogos" },
   topics: {
-    notifications: "org:{orgId}:notifications:{userId}",
-    customers: "org:{orgId}:customers",
+    notifications: "organization:{organizationId}:notifications:{userId}",
+    customers: "organization:{organizationId}:customers",
   },
 };
 

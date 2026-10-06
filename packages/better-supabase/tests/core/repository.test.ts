@@ -380,14 +380,18 @@ describe("writes", () => {
     const db = sbCamel.connect(client);
     const created = await db.customers
       .create(
-        { organizationId: "org", name: "Acme", primaryContactId: null },
+        {
+          organizationId: "organization",
+          name: "Acme",
+          primaryContactId: null,
+        },
         { select: ["id", "name"] },
       )
       .orThrow();
     expect(created).toEqual({ id: "new", name: "Acme" });
     expect(last().method).toBe("POST");
     expect(last().body).toEqual({
-      organization_id: "org",
+      organization_id: "organization",
       name: "Acme",
       primary_contact_id: null,
     });
@@ -401,7 +405,7 @@ describe("writes", () => {
     }));
     const db = sbCamel.connect(client);
     await db.customers.upsert(
-      { organizationId: "org", name: "Acme", kvk: "123" },
+      { organizationId: "organization", name: "Acme", kvk: "123" },
       { onConflict: "customers_organization_id_kvk_key", select: ["id"] },
     );
     expect(query(last())).toEqual([

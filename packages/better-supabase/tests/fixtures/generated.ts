@@ -437,7 +437,7 @@ export const buckets = {
   "customerLogos": {
     "id": "customer-logos",
     "public": true,
-    "path": "{orgId}/{customerId}/logo/{version}.webp",
+    "path": "{organizationId}/{customerId}/logo/{version}.webp",
     "policy": "tenant",
     "fileSizeLimit": "5MiB",
     "allowedMimeTypes": [
@@ -450,8 +450,8 @@ export const buckets = {
 
 /** Topic templates for `defineTopic` from `better-supabase/realtime`. */
 export const topics = {
-  "notifications": "org:{orgId}:notifications:{userId}",
-  "customers": "org:{orgId}:customers"
+  "notifications": "organization:{organizationId}:notifications:{userId}",
+  "customers": "organization:{organizationId}:customers"
 } as const;
 
 export const schema: Schema<Models, Database, Functions> = defineSchema(meta);

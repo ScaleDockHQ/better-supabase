@@ -1,5 +1,9 @@
-import type { KitContext, KitContractFunction, KitNames } from "../context.ts";
-import type { KitModuleDefinition } from "../kit.ts";
+import type { BlockModuleDefinition } from "../blocks.ts";
+import type {
+  BlockContext,
+  BlockContractFunction,
+  BlockNames,
+} from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { schemaPreamble, updatedAt } from "../shared.ts";
@@ -10,7 +14,7 @@ import {
   WEBHOOK_STATUSES,
 } from "./webhooks-out-sql.ts";
 
-const NAMES: KitNames = {
+const NAMES: BlockNames = {
   options: [
     "allowHttp",
     "disableAfter",
@@ -97,7 +101,7 @@ const NAMES: KitNames = {
   hooks: ["after_webhook_delivery"],
 };
 
-function tables(ctx: KitContext, n: HookNames): string {
+function tables(ctx: BlockContext, n: HookNames): string {
   if (!ctx.manages) return "";
   const id = ctx.idType;
   const d = (logical: string) => n.col("endpoints", logical);
@@ -226,7 +230,7 @@ grant select on ${n.table("deliveries")} to authenticated;${policy(
 }
 
 /** Re-enabling an endpoint clears its failure streak. */
-function reenable(ctx: KitContext, n: HookNames): string {
+function reenable(ctx: BlockContext, n: HookNames): string {
   const d = (logical: string) => n.col("endpoints", logical);
   const resets = [
     n.has("endpoints", "failingSince")
@@ -260,7 +264,7 @@ create trigger ${trigger} before update of ${d("enabled")} on ${n.table("endpoin
 }
 
 /** Deleting a secret row (or its endpoint) deletes its Vault secret. */
-function vaultCleanup(ctx: KitContext, n: HookNames): string {
+function vaultCleanup(ctx: BlockContext, n: HookNames): string {
   const t = n.table("secrets");
   const trigger = ctx.trigger("webhook_secret_vault");
   if (!n.vault) return `drop trigger if exists ${trigger} on ${t};`;
@@ -282,7 +286,7 @@ create trigger ${trigger} after delete on ${t}
   for each row execute function ${ctx.fn("drop_webhook_vault_secret")}();`;
 }
 
-function build(ctx: KitContext): string {
+function build(ctx: BlockContext): string {
   if (ctx.mode === "custom") return "";
   const n = hookNames(ctx);
   return [
@@ -293,7 +297,7 @@ function build(ctx: KitContext): string {
   ].join("\n");
 }
 
-function contract(): readonly KitContractFunction[] {
+function contract(): readonly BlockContractFunction[] {
   return [
     {
       name: "publish_webhook_event",
@@ -330,7 +334,7 @@ function contract(): readonly KitContractFunction[] {
   ];
 }
 
-export const WEBHOOKS_OUT: KitModuleDefinition = {
+export const WEBHOOKS_OUT: BlockModuleDefinition = {
   name: "webhooks-out",
   title: "Outgoing webhooks",
   description:

@@ -1,5 +1,5 @@
-import type { KitContext, KitNames } from "../context.ts";
-import type { KitModuleDefinition } from "../kit.ts";
+import type { BlockModuleDefinition } from "../blocks.ts";
+import type { BlockContext, BlockNames } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -9,10 +9,10 @@ import {
   SERVICE_CALLER,
   updatedAt,
 } from "../shared.ts";
-import { accessModel, KIT_PERMISSIONS, roleNames } from "./access-model.ts";
+import { accessModel, BLOCK_PERMISSIONS, roleNames } from "./access-model.ts";
 import { activeTenantSource, roleNameOf } from "./tenant.ts";
 
-const NAMES: KitNames = {
+const NAMES: BlockNames = {
   options: [
     "attributes",
     "deleteMode",
@@ -55,7 +55,7 @@ const NAMES: KitNames = {
   ],
 };
 
-/** The transaction-local setting that lets the kit's own writes past the guard. */
+/** The transaction-local setting that lets the block's own writes past the guard. */
 export const TRUSTED_SETTING = "better_supabase.trusted";
 
 const TRUSTED = `coalesce(current_setting('${TRUSTED_SETTING}', true), '') = 'on'`;
@@ -65,21 +65,21 @@ const trust = (on: boolean): string =>
 const DEFAULT_SLUG_PATTERN = "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$";
 
 /** Names the module reads from `tenant` and `access`, resolved once. */
-interface OrgNames {
-  readonly org: string;
+interface OrganizationNames {
+  readonly organization: string;
   readonly id: string;
   readonly m: string;
   readonly tenant: string;
   readonly user: string;
   readonly role: string;
-  /** The role name owners hold (`kits.organizations.options.ownerRole`). */
+  /** The role name owners hold (`blocks.organizations.options.ownerRole`). */
   readonly ownerRole: string;
 }
 
-function namesOf(ctx: KitContext): OrgNames {
+function namesOf(ctx: BlockContext): OrganizationNames {
   const t = ctx.of("tenant");
   return {
-    org: ctx.table("organizations"),
+    organization: ctx.table("organizations"),
     id: ctx.col("organizations", "id"),
     m: t.table("memberships"),
     tenant: t.col("memberships", "tenant"),
@@ -93,7 +93,7 @@ function namesOf(ctx: KitContext): OrgNames {
  * A role argument as the membership role column stores it: the name for the
  * roles model, the catalog role id (looked up by id or key) for `catalog`.
  */
-export function roleValue(ctx: KitContext, expr: string): string {
+export function roleValue(ctx: BlockContext, expr: string): string {
   if (accessModel(ctx) !== "catalog") return expr;
   const access = ctx.of("access");
   const rid = access.col("roles", "id");
@@ -102,8 +102,8 @@ export function roleValue(ctx: KitContext, expr: string): string {
   return `(select r.${rid} from ${access.table("roles")} r where r.${rid}::text = ${text} or r.${key} = ${text} order by (r.${rid}::text = ${text}) desc limit 1)`;
 }
 
-/** Raises `ORG_ROLE_UNKNOWN` for a role the access model doesn't know. */
-function checkRole(ctx: KitContext, expr: string): string {
+/** Raises `ORGANIZATION_ROLE_UNKNOWN` for a role the access model doesn't know. */
+function checkRole(ctx: BlockContext, expr: string): string {
   const model = accessModel(ctx);
   if (model === "permdock" || model === "custom") return "";
   const known =
@@ -112,24 +112,32 @@ function checkRole(ctx: KitContext, expr: string): string {
       : `${roleValue(ctx, expr)} is not null`;
   return `
   if not (${known}) then
-    raise exception 'Unknown role %', ${expr} using errcode = '22023', hint = 'ORG_ROLE_UNKNOWN';
+    raise exception 'Unknown role %', ${expr} using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';
   end if;`;
 }
 
-const isOwner = (ctx: KitContext, n: OrgNames, alias: string): string =>
+const isOwner = (
+  ctx: BlockContext,
+  n: OrganizationNames,
+  alias: string,
+): string =>
   `${roleNameOf(ctx.of("tenant"), alias)} = ${sqlString(n.ownerRole)}`;
 
 /** True while the organization exists and is neither deleted nor disabled. */
-function activeOrg(ctx: KitContext, n: OrgNames, org: string): string {
+function activeOrganization(
+  ctx: BlockContext,
+  n: OrganizationNames,
+  organization: string,
+): string {
   const c = (logical: string) => `o.${ctx.col("organizations", logical)}`;
   const flags = (["deletedAt", "disabledAt"] as const)
     .filter((logical) => ctx.has("organizations", logical))
     .map((logical) => ` and ${c(logical)} is null`)
     .join("");
-  return `exists (select 1 from ${n.org} o where o.${n.id} = ${org}${flags}) and not better_supabase.tenant_disabled(${org})`;
+  return `exists (select 1 from ${n.organization} o where o.${n.id} = ${organization}${flags}) and not better_supabase.tenant_disabled(${organization})`;
 }
 
-function idColumn(ctx: KitContext, column: string): string {
+function idColumn(ctx: BlockContext, column: string): string {
   switch (ctx.idType) {
     case "uuid":
       return `${column} uuid primary key default gen_random_uuid()`;
@@ -145,10 +153,10 @@ function idColumn(ctx: KitContext, column: string): string {
   }
 }
 
-function table(ctx: KitContext, n: OrgNames): string {
+function table(ctx: BlockContext, n: OrganizationNames): string {
   if (!ctx.manages) {
     return `
--- Adopted: ${n.org} belongs to the app (kits.organizations.tables.organizations).
+-- Adopted: ${n.organization} belongs to the app (blocks.organizations.tables.organizations).
 `;
   }
   const c = (logical: string) => ctx.col("organizations", logical);
@@ -156,31 +164,31 @@ function table(ctx: KitContext, n: OrgNames): string {
     ctx.has("organizations", logical) ? `,\n  ${c(logical)} ${type}` : "";
   const slugType = ctx.flag("slugCitext", false) ? "extensions.citext" : "text";
   const slugIndex = ctx.has("organizations", "slug")
-    ? `create unique index if not exists organizations_slug_idx on ${n.org} (lower(${c("slug")}::text))${ctx.has("organizations", "deletedAt") ? ` where ${c("deletedAt")} is null` : ""};\n`
+    ? `create unique index if not exists organizations_slug_idx on ${n.organization} (lower(${c("slug")}::text))${ctx.has("organizations", "deletedAt") ? ` where ${c("deletedAt")} is null` : ""};\n`
     : "";
   return `${slugType === "text" ? "" : "\ncreate extension if not exists citext with schema extensions;"}
-create table if not exists ${n.org} (
+create table if not exists ${n.organization} (
   ${idColumn(ctx, n.id)},
   ${c("name")} text not null check (length(btrim(${c("name")})) > 0)${optional("slug", `${slugType} not null`)}${optional("createdBy", "uuid references auth.users (id) on delete set null")}${optional("createdAt", "timestamptz not null default now()")}${optional("disabledAt", "timestamptz")}${optional("deletedAt", "timestamptz")}
 );
-${slugIndex}${ctx.has("organizations", "createdBy") ? `create index if not exists organizations_created_by_idx on ${n.org} (${c("createdBy")});\n` : ""}${ctx.has("organizations", "updatedAt") ? `${updatedAt(n.org, c("updatedAt"))}\n` : ""}${
+${slugIndex}${ctx.has("organizations", "createdBy") ? `create index if not exists organizations_created_by_idx on ${n.organization} (${c("createdBy")});\n` : ""}${ctx.has("organizations", "updatedAt") ? `${updatedAt(n.organization, c("updatedAt"))}\n` : ""}${
     ctx.installed("entitlements")
       ? `-- The Stripe customer the entitlements module reads (config.entitlements.customer).
-alter table ${n.org} add column if not exists stripe_customer_id text unique;
+alter table ${n.organization} add column if not exists stripe_customer_id text unique;
 `
       : ""
-  }alter table ${n.org} enable row level security;
-revoke all on ${n.org} from anon, authenticated;
-grant select on ${n.org} to authenticated;
-grant all on ${n.org} to service_role;
-drop policy if exists bs_organizations_read on ${n.org};
-create policy bs_organizations_read on ${n.org} for select to authenticated
-  using (${n.id} in (select better_supabase.member_org_ids()));
+  }alter table ${n.organization} enable row level security;
+revoke all on ${n.organization} from anon, authenticated;
+grant select on ${n.organization} to authenticated;
+grant all on ${n.organization} to service_role;
+drop policy if exists bs_organizations_read on ${n.organization};
+create policy bs_organizations_read on ${n.organization} for select to authenticated
+  using (${n.id} in (select better_supabase.member_organization_ids()));
 `;
 }
 
 /** `organization_slug_problem(slug)`: `invalid`, `reserved`, `taken` or null. */
-function slugCheck(ctx: KitContext, n: OrgNames): string {
+function slugCheck(ctx: BlockContext, n: OrganizationNames): string {
   if (!ctx.has("organizations", "slug")) return "";
   const slug = ctx.col("organizations", "slug");
   const pattern = sqlString(ctx.text("slugPattern", DEFAULT_SLUG_PATTERN));
@@ -204,9 +212,9 @@ function slugCheck(ctx: KitContext, n: OrgNames): string {
     : "";
   return `
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
--- kits.organizations.options), 'reserved' or 'taken'. except_org skips the
+-- blocks.organizations.options), 'reserved' or 'taken'. except_organization skips the
 -- organization being renamed.
-create or replace function ${ctx.fn("organization_slug_problem")}(value text, except_org ${ctx.idType} default null)
+create or replace function ${ctx.fn("organization_slug_problem")}(value text, except_organization ${ctx.idType} default null)
 returns text
 language sql
 stable
@@ -218,9 +226,9 @@ as $$
     when length(value) < ${String(min)} or length(value) > ${String(max)} or value !~ ${pattern} then 'invalid'
     when ${reserved.length > 0 ? reserved.join(" or ") : "false"} then 'reserved'
     when exists (
-      select 1 from ${n.org} o
+      select 1 from ${n.organization} o
       where lower(o.${slug}::text) = lower(value)${deleted}
-        and o.${n.id} is distinct from except_org
+        and o.${n.id} is distinct from except_organization
     ) then 'taken'
   end
 $$;
@@ -229,23 +237,23 @@ grant execute on function ${ctx.fn("organization_slug_problem")}(text, ${ctx.idT
 `;
 }
 
-const raiseSlug = (ctx: KitContext, value: string, except: string): string =>
+const raiseSlug = (ctx: BlockContext, value: string, except: string): string =>
   ctx.has("organizations", "slug")
     ? `
   case ${ctx.fn("organization_slug_problem")}(${ctx.manages ? `coalesce(${value}, '')` : value}, ${except})
-    when 'invalid' then raise exception 'Invalid slug "%"', ${value} using errcode = '23514', hint = 'ORG_SLUG_INVALID';
-    when 'reserved' then raise exception 'The slug "%" is reserved', ${value} using errcode = '23514', hint = 'ORG_SLUG_RESERVED';
-    when 'taken' then raise exception 'The slug "%" is taken', ${value} using errcode = '23505', hint = 'ORG_SLUG_TAKEN';
+    when 'invalid' then raise exception 'Invalid slug "%"', ${value} using errcode = '23514', hint = 'ORGANIZATION_SLUG_INVALID';
+    when 'reserved' then raise exception 'The slug "%" is reserved', ${value} using errcode = '23514', hint = 'ORGANIZATION_SLUG_RESERVED';
+    when 'taken' then raise exception 'The slug "%" is taken', ${value} using errcode = '23505', hint = 'ORGANIZATION_SLUG_TAKEN';
     else null;
   end case;`
     : "";
 
 /** The columns `create_organization` and `update_organization` copy from `attrs`. */
-function attributeColumns(ctx: KitContext): readonly string[] {
+function attributeColumns(ctx: BlockContext): readonly string[] {
   const extra = ctx.list("attributes", []).map((column) => {
     if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
       throw new TypeError(
-        `kits.organizations.options.attributes: "${column}" is not a valid column`,
+        `blocks.organizations.options.attributes: "${column}" is not a valid column`,
       );
     }
     return sqlIdent(column);
@@ -263,10 +271,10 @@ function attributeColumns(ctx: KitContext): readonly string[] {
 const unquoted = (ident: string): string =>
   ident.slice(1, -1).replaceAll('""', '"');
 
-const event = (org: string, user: string, extra = ""): string =>
-  `jsonb_build_object('organizationId', ${org}::text, 'userId', ${user}${extra})`;
+const event = (organization: string, user: string, extra = ""): string =>
+  `jsonb_build_object('organizationId', ${organization}::text, 'userId', ${user}${extra})`;
 
-function create(ctx: KitContext, n: OrgNames): string {
+function create(ctx: BlockContext, n: OrganizationNames): string {
   const id = ctx.idType;
   const columns = attributeColumns(ctx);
   const fixed = ctx.has("organizations", "slug") ? 2 : 1;
@@ -287,33 +295,33 @@ function create(ctx: KitContext, n: OrgNames): string {
   // Attributes missing from attrs keep their column default.
   const insert =
     optional.length === 0
-      ? `insert into ${n.org} (${required})
+      ? `insert into ${n.organization} (${required})
   select ${values("owner")}
-  from jsonb_populate_record(null::${n.org}, attrs) r
-  returning ${n.id} into org;`
+  from jsonb_populate_record(null::${n.organization}, attrs) r
+  returning ${n.id} into organization;`
       : `select coalesce(string_agg(format(', %I', c), ''), ''), coalesce(string_agg(format(', r.%I', c), ''), '')
   into extra_columns, extra_values
   from unnest(array[${optional.join(", ")}]) c
   where attrs ? c;
   execute format(
-    'insert into ${literal(n.org)} (${literal(required)}%s) select ${literal(values("$2"))}%s from jsonb_populate_record(null::${literal(n.org)}, $1) r returning ${literal(n.id)}',
+    'insert into ${literal(n.organization)} (${literal(required)}%s) select ${literal(values("$2"))}%s from jsonb_populate_record(null::${literal(n.organization)}, $1) r returning ${literal(n.id)}',
     extra_columns,
     extra_values
-  ) into org using attrs, owner;`;
+  ) into organization using attrs, owner;`;
   const permission = ctx.permissionKey("create", "");
   const createCheck =
     permission === ""
       ? ""
       : `
   if not service and not better_supabase.is_platform(${sqlString(permission)}) then
-    raise exception 'Not allowed to create an organization' using errcode = '42501', hint = 'ORG_FORBIDDEN';
+    raise exception 'Not allowed to create an organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;`;
   const slug = ctx.has("organizations", "slug")
     ? sqlString(unquoted(ctx.col("organizations", "slug")))
     : undefined;
   return `
 -- Creates an organization from attrs (its name${slug ? ", slug" : ""} and the columns in
--- kits.organizations.options.attributes) and makes the caller its owner. The
+-- blocks.organizations.options.attributes) and makes the caller its owner. The
 -- service role passes the owner as attrs.owner_id.
 create or replace function ${ctx.fn("create_organization")}(attrs jsonb)
 returns ${id}
@@ -325,13 +333,13 @@ as $$
 declare
   service boolean := ${SERVICE_CALLER};
   owner uuid := case when service then nullif(attrs ->> 'owner_id', '')::uuid else auth.uid() end;
-  org ${id};${optional.length === 0 ? "" : "\n  extra_columns text;\n  extra_values text;"}
+  organization ${id};${optional.length === 0 ? "" : "\n  extra_columns text;\n  extra_values text;"}
 begin
   if owner is null then
-    raise exception 'An organization needs an owner' using errcode = '42501', hint = 'ORG_FORBIDDEN';
+    raise exception 'An organization needs an owner' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   if better_supabase.user_disabled(owner) then
-    raise exception 'The user is disabled' using errcode = '42501', hint = 'ORG_FORBIDDEN';
+    raise exception 'The user is disabled' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;${createCheck}${slug ? raiseSlug(ctx, `attrs ->> ${slug}`, "null") : ""}
   ${ctx.hook("before_organization_create", [
     ["jsonb", "attrs"],
@@ -340,19 +348,19 @@ begin
   ${insert}
   ${trust(true)}
   insert into ${n.m} (${n.tenant}, ${n.user}, ${n.role})
-  values (org, owner, ${roleValue(ctx, sqlString(n.ownerRole))});
+  values (organization, owner, ${roleValue(ctx, sqlString(n.ownerRole))});
   ${trust(false)}
   ${ctx.hook("after_organization_create", [
-    [id, "org"],
+    [id, "organization"],
     ["uuid", "owner"],
   ])}
-  ${ctx.emit({ type: "org.created", payload: event("org", "owner", `, 'role', ${sqlString(n.ownerRole)}`), subject: "'organizations/' || org::text", tenant: "org" })}
-  return org;
+  ${ctx.emit({ type: "organization.created", payload: event("organization", "owner", `, 'role', ${sqlString(n.ownerRole)}`), subject: "'organizations/' || organization::text", tenant: "organization" })}
+  return organization;
 end;
 $$;
 
 -- Updates the name${slug ? ", slug" : ""} and attribute columns present in attrs.
-create or replace function ${ctx.fn("update_organization")}(org ${id}, attrs jsonb)
+create or replace function ${ctx.fn("update_organization")}(organization ${id}, attrs jsonb)
 returns boolean
 language plpgsql
 security definer
@@ -360,29 +368,29 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), org, ${ctx.permission("update", KIT_PERMISSIONS.organizations.update)}), false) then
-    raise exception 'Not allowed to update the organization' using errcode = '42501', hint = 'ORG_FORBIDDEN';
-  end if;${slug ? `\n  if attrs ? ${slug} then${raiseSlug(ctx, `attrs ->> ${slug}`, "org").replaceAll("\n", "\n  ")}\n  end if;` : ""}
-  update ${n.org} o
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("update", BLOCK_PERMISSIONS.organizations.update)}), false) then
+    raise exception 'Not allowed to update the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;${slug ? `\n  if attrs ? ${slug} then${raiseSlug(ctx, `attrs ->> ${slug}`, "organization").replaceAll("\n", "\n  ")}\n  end if;` : ""}
+  update ${n.organization} o
   set ${columns.map((column) => `${column} = case when attrs ? ${sqlString(unquoted(column))} then r.${column} else o.${column} end`).join(",\n    ")}
-  from jsonb_populate_record(null::${n.org}, attrs) r
-  where o.${n.id} = org;
+  from jsonb_populate_record(null::${n.organization}, attrs) r
+  where o.${n.id} = organization;
   if not found then
-    raise exception 'No organization %', org using errcode = 'P0002', hint = 'ORG_NOT_FOUND';
+    raise exception 'No organization %', organization using errcode = 'P0002', hint = 'ORGANIZATION_NOT_FOUND';
   end if;
-  ${ctx.emit({ type: "org.updated", payload: event("org", "auth.uid()"), subject: "'organizations/' || org::text", tenant: "org" })}
+  ${ctx.emit({ type: "organization.updated", payload: event("organization", "auth.uid()"), subject: "'organizations/' || organization::text", tenant: "organization" })}
   return true;
 end;
 $$;
 `;
 }
 
-function remove(ctx: KitContext, n: OrgNames): string {
+function remove(ctx: BlockContext, n: OrganizationNames): string {
   const id = ctx.idType;
   const soft = ctx.text("deleteMode", "hard") === "soft";
   if (soft && !ctx.has("organizations", "deletedAt")) {
     throw new TypeError(
-      "kits.organizations.options.deleteMode 'soft' needs the deletedAt column",
+      "blocks.organizations.options.deleteMode 'soft' needs the deletedAt column",
     );
   }
   const audit = ctx.installed("audit")
@@ -390,16 +398,16 @@ function remove(ctx: KitContext, n: OrgNames): string {
   perform better_supabase.audit_event(
     event_type => 'organization.deleted',
     category => 'organization',
-    tenant => org,
+    tenant => organization,
     metadata => jsonb_build_object('mode', ${sqlString(soft ? "soft" : "hard")})
   );`
     : "";
   const action = soft
-    ? `update ${n.org} set ${ctx.col("organizations", "deletedAt")} = now() where ${n.id} = org and ${ctx.col("organizations", "deletedAt")} is null;`
-    : `delete from ${n.org} where ${n.id} = org;`;
+    ? `update ${n.organization} set ${ctx.col("organizations", "deletedAt")} = now() where ${n.id} = organization and ${ctx.col("organizations", "deletedAt")} is null;`
+    : `delete from ${n.organization} where ${n.id} = organization;`;
   return `
--- Deletes an organization (kits.organizations.options.deleteMode: ${soft ? "soft, setting deleted_at" : "hard, with its memberships"}).
-create or replace function ${ctx.fn("delete_organization")}(org ${id})
+-- Deletes an organization (blocks.organizations.options.deleteMode: ${soft ? "soft, setting deleted_at" : "hard, with its memberships"}).
+create or replace function ${ctx.fn("delete_organization")}(organization ${id})
 returns boolean
 language plpgsql
 security definer
@@ -407,14 +415,14 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), org, ${ctx.permission("delete", KIT_PERMISSIONS.organizations.delete)}), false) then
-    raise exception 'Not allowed to delete the organization' using errcode = '42501', hint = 'ORG_FORBIDDEN';
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", BLOCK_PERMISSIONS.organizations.delete)}), false) then
+    raise exception 'Not allowed to delete the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   ${action}
   if not found then
     return false;
-  end if;${soft ? "" : `\n  delete from ${n.m} where ${n.tenant} = org;`}${audit}
-  ${ctx.emit({ type: "org.deleted", payload: event("org", "auth.uid()"), subject: "'organizations/' || org::text", tenant: "org" })}
+  end if;${soft ? "" : `\n  delete from ${n.m} where ${n.tenant} = organization;`}${audit}
+  ${ctx.emit({ type: "organization.deleted", payload: event("organization", "auth.uid()"), subject: "'organizations/' || organization::text", tenant: "organization" })}
   return true;
 end;
 $$;
@@ -422,12 +430,12 @@ $$;
 }
 
 /**
- * When the kit owns the organizations table, the tenant rows of memberships,
+ * When the block owns the organizations table, the tenant rows of memberships,
  * invitations and permission overrides go with their organization.
  */
-function tenantKeys(ctx: KitContext, n: OrgNames): string {
+function tenantKeys(ctx: BlockContext, n: OrganizationNames): string {
   if (!ctx.manages) return "";
-  const references = `${n.org} (${n.id})`;
+  const references = `${n.organization} (${n.id})`;
   const keys: string[] = [];
   const add = (
     module: string,
@@ -469,7 +477,7 @@ ${keys.join("\n")}
 }
 
 /** The deferred owner check and the role guard on the memberships table. */
-function guards(ctx: KitContext, n: OrgNames): string {
+function guards(ctx: BlockContext, n: OrganizationNames): string {
   const invariant = ctx.flag("ownerInvariant", true)
     ? `
 -- Checked at commit, so one transaction can promote one owner and demote
@@ -483,17 +491,17 @@ as $$
 begin
   -- The row lock serializes concurrent demotions and leaves, so two
   -- transactions can't each remove a different last owner.
-  perform 1 from ${n.org} o where o.${n.id} = old.${n.tenant} for update;
+  perform 1 from ${n.organization} o where o.${n.id} = old.${n.tenant} for update;
   if found and not exists (
       select 1 from ${n.m} m where m.${n.tenant} = old.${n.tenant} and ${isOwner(ctx, n, "m")}
     ) then
-    raise exception 'An organization needs an owner' using errcode = '23514', hint = 'ORG_OWNER_REQUIRED';
+    raise exception 'An organization needs an owner' using errcode = '23514', hint = 'ORGANIZATION_OWNER_REQUIRED';
   end if;
   return null;
 end;
 $$;
-drop trigger if exists ${ctx.trigger("org_owner")} on ${n.m};
-create constraint trigger ${ctx.trigger("org_owner")} after update of ${n.role}, ${n.tenant} or delete on ${n.m}
+drop trigger if exists ${ctx.trigger("organization_owner")} on ${n.m};
+create constraint trigger ${ctx.trigger("organization_owner")} after update of ${n.role}, ${n.tenant} or delete on ${n.m}
   deferrable initially deferred
   for each row execute function ${ctx.fn("ensure_organization_owner")}();
 `
@@ -501,7 +509,7 @@ create constraint trigger ${ctx.trigger("org_owner")} after update of ${n.role},
   const ceiling = `
 -- No one grants a role above their own permissions (can_assign), demotes
 -- someone above them, or changes their own role. The service role, direct
--- admin connections and the kit's own writes (${TRUSTED_SETTING}) pass.
+-- admin connections and the block's own writes (${TRUSTED_SETTING}) pass.
 create or replace function ${ctx.fn("guard_membership")}()
 returns trigger
 language plpgsql
@@ -516,49 +524,49 @@ begin
     return new;
   end if;
   if new.${n.user} = auth.uid() then
-    raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORG_SELF_ROLE';
+    raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
   end if;
   if not better_supabase.can_assign(new.${n.tenant}, new.${n.role}::text)
     or (tg_op = 'UPDATE' and not better_supabase.can_assign(old.${n.tenant}, old.${n.role}::text)) then
-    raise exception 'That role is above your own' using errcode = '42501', hint = 'ORG_ROLE_CEILING';
+    raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
   end if;
   return new;
 end;
 $$;
-drop trigger if exists ${ctx.trigger("org_role_guard")} on ${n.m};
-create trigger ${ctx.trigger("org_role_guard")} before insert or update on ${n.m}
+drop trigger if exists ${ctx.trigger("organization_role_guard")} on ${n.m};
+create trigger ${ctx.trigger("organization_role_guard")} before insert or update on ${n.m}
   for each row execute function ${ctx.fn("guard_membership")}();
 revoke execute on function ${ctx.fn("guard_membership")}() from public, anon, authenticated;
 `;
   return `${invariant}${ceiling}`;
 }
 
-function members(ctx: KitContext, n: OrgNames): string {
+function members(ctx: BlockContext, n: OrganizationNames): string {
   const id = ctx.idType;
-  const p = KIT_PERMISSIONS.organizations;
+  const p = BLOCK_PERMISSIONS.organizations;
   const can = (action: keyof typeof p) =>
-    `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), org, ${ctx.permission(action, p[action])}), false))`;
+    `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission(action, p[action])}), false))`;
   const active = `
-  if not (${activeOrg(ctx, n, "org")}) then
-    raise exception 'The organization is unavailable' using errcode = '42501', hint = 'ORG_DISABLED';
+  if not (${activeOrganization(ctx, n, "organization")}) then
+    raise exception 'The organization is unavailable' using errcode = '42501', hint = 'ORGANIZATION_DISABLED';
   end if;`;
   const change = (user: string, kind: string) =>
     ctx.hook("after_member_change", [
-      [id, "org"],
+      [id, "organization"],
       ["uuid", user],
       ["text", sqlString(kind)],
     ]);
-  const subject = "'organizations/' || org::text";
+  const subject = "'organizations/' || organization::text";
   const lastUsed = ctx.of("tenant").has("memberships", "lastUsedAt")
     ? `update ${n.m} set ${ctx.of("tenant").col("memberships", "lastUsedAt")} = now()
-  where ${n.tenant} = org and ${n.user} = auth.uid();
+  where ${n.tenant} = organization and ${n.user} = auth.uid();
   return found;`
     : "return false;";
   const former = sqlString(ctx.text("formerOwnerRole", "admin"));
   return `
--- Errors carry a code in the hint: ORG_FORBIDDEN, ORG_DISABLED, ORG_NOT_MEMBER,
--- ORG_SELF, ORG_SELF_ROLE, ORG_ROLE_CEILING, ORG_ROLE_UNKNOWN, ORG_OWNER_REQUIRED.
-create or replace function ${ctx.fn("update_member_role")}(org ${id}, member uuid, role text)
+-- Errors carry a code in the hint: ORGANIZATION_FORBIDDEN, ORGANIZATION_DISABLED, ORGANIZATION_NOT_MEMBER,
+-- ORGANIZATION_SELF, ORGANIZATION_SELF_ROLE, ORGANIZATION_ROLE_CEILING, ORGANIZATION_ROLE_UNKNOWN, ORGANIZATION_OWNER_REQUIRED.
+create or replace function ${ctx.fn("update_member_role")}(organization ${id}, member uuid, role text)
 returns boolean
 language plpgsql
 security definer
@@ -569,21 +577,21 @@ declare
   previous text;
 begin
   if not ${can("updateRole")} then
-    raise exception 'Not allowed to change roles' using errcode = '42501', hint = 'ORG_FORBIDDEN';
+    raise exception 'Not allowed to change roles' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;${active}${checkRole(ctx, "role")}
-  select ${roleNameOf(ctx.of("tenant"), "m")} into previous from ${n.m} m where m.${n.tenant} = org and m.${n.user} = member;
+  select ${roleNameOf(ctx.of("tenant"), "m")} into previous from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
   if not found then
-    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORG_NOT_MEMBER';
+    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
   update ${n.m} set ${n.role} = ${roleValue(ctx, "role")}
-  where ${n.tenant} = org and ${n.user} = member;
+  where ${n.tenant} = organization and ${n.user} = member;
   ${change("member", "role")}
-  ${ctx.emit({ type: "org.role_changed", payload: event("org", "member", ", 'role', role, 'previousRole', previous"), subject, tenant: "org" })}
+  ${ctx.emit({ type: "organization.role_changed", payload: event("organization", "member", ", 'role', role, 'previousRole', previous"), subject, tenant: "organization" })}
   return true;
 end;
 $$;
 
-create or replace function ${ctx.fn("remove_member")}(org ${id}, member uuid)
+create or replace function ${ctx.fn("remove_member")}(organization ${id}, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -594,26 +602,26 @@ declare
   current_role_value text;
 begin
   if member = auth.uid() then
-    raise exception 'Leave the organization instead' using errcode = '22023', hint = 'ORG_SELF';
+    raise exception 'Leave the organization instead' using errcode = '22023', hint = 'ORGANIZATION_SELF';
   end if;
   if not ${can("removeMember")} then
-    raise exception 'Not allowed to remove members' using errcode = '42501', hint = 'ORG_FORBIDDEN';
+    raise exception 'Not allowed to remove members' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
-  select m.${n.role}::text into current_role_value from ${n.m} m where m.${n.tenant} = org and m.${n.user} = member;
+  select m.${n.role}::text into current_role_value from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
   if not found then
-    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORG_NOT_MEMBER';
+    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
-  if not better_supabase.can_assign(org, current_role_value) then
-    raise exception 'That member''s role is above your own' using errcode = '42501', hint = 'ORG_ROLE_CEILING';
+  if not better_supabase.can_assign(organization, current_role_value) then
+    raise exception 'That member''s role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
   end if;
-  delete from ${n.m} where ${n.tenant} = org and ${n.user} = member;
+  delete from ${n.m} where ${n.tenant} = organization and ${n.user} = member;
   ${change("member", "removed")}
-  ${ctx.emit({ type: "org.member_removed", payload: event("org", "member"), subject, tenant: "org" })}
+  ${ctx.emit({ type: "organization.member_removed", payload: event("organization", "member"), subject, tenant: "organization" })}
   return true;
 end;
 $$;
 
-create or replace function ${ctx.fn("leave_organization")}(org ${id})
+create or replace function ${ctx.fn("leave_organization")}(organization ${id})
 returns boolean
 language plpgsql
 security definer
@@ -623,19 +631,19 @@ as $$
 declare
   me uuid := auth.uid();
 begin
-  delete from ${n.m} where ${n.tenant} = org and ${n.user} = me;
+  delete from ${n.m} where ${n.tenant} = organization and ${n.user} = me;
   if not found then
-    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORG_NOT_MEMBER';
+    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
   ${change("me", "left")}
-  ${ctx.emit({ type: "org.member_left", payload: event("org", "me"), subject, tenant: "org" })}
+  ${ctx.emit({ type: "organization.member_left", payload: event("organization", "me"), subject, tenant: "organization" })}
   return true;
 end;
 $$;
 
 -- Makes new_owner an owner in one transaction; a calling owner becomes
--- former_role (kits.organizations.options.formerOwnerRole).
-create or replace function ${ctx.fn("transfer_ownership")}(org ${id}, new_owner uuid, former_role text default ${former})
+-- former_role (blocks.organizations.options.formerOwnerRole).
+create or replace function ${ctx.fn("transfer_ownership")}(organization ${id}, new_owner uuid, former_role text default ${former})
 returns boolean
 language plpgsql
 security definer
@@ -646,35 +654,35 @@ declare
   me uuid := auth.uid();
 begin
   if not ${can("transferOwnership")} then
-    raise exception 'Not allowed to transfer ownership' using errcode = '42501', hint = 'ORG_FORBIDDEN';
+    raise exception 'Not allowed to transfer ownership' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   -- Only an owner hands ownership on, so the permission alone can't make its
   -- holder an owner.
   if not (${SERVICE_CALLER}) and not exists (
-    select 1 from ${n.m} m where m.${n.tenant} = org and m.${n.user} = me and ${isOwner(ctx, n, "m")}
+    select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = me and ${isOwner(ctx, n, "m")}
   ) then
-    raise exception 'Only an owner can transfer ownership' using errcode = '42501', hint = 'ORG_FORBIDDEN';
+    raise exception 'Only an owner can transfer ownership' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;${active}${checkRole(ctx, "former_role")}
-  if not exists (select 1 from ${n.m} m where m.${n.tenant} = org and m.${n.user} = new_owner) then
-    raise exception 'The new owner must be a member' using errcode = 'P0002', hint = 'ORG_NOT_MEMBER';
+  if not exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = new_owner) then
+    raise exception 'The new owner must be a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
   ${trust(true)}
   update ${n.m} set ${n.role} = ${roleValue(ctx, sqlString(n.ownerRole))}
-  where ${n.tenant} = org and ${n.user} = new_owner;
+  where ${n.tenant} = organization and ${n.user} = new_owner;
   if me is not null and me <> new_owner then
     update ${n.m} m set ${n.role} = ${roleValue(ctx, "former_role")}
-    where m.${n.tenant} = org and m.${n.user} = me and ${isOwner(ctx, n, "m")};
+    where m.${n.tenant} = organization and m.${n.user} = me and ${isOwner(ctx, n, "m")};
   end if;
   ${trust(false)}
   ${change("new_owner", "owner")}
-  ${ctx.emit({ type: "org.ownership_transferred", payload: event("org", "new_owner", `, 'role', ${sqlString(n.ownerRole)}`), subject, tenant: "org" })}
+  ${ctx.emit({ type: "organization.ownership_transferred", payload: event("organization", "new_owner", `, 'role', ${sqlString(n.ownerRole)}`), subject, tenant: "organization" })}
   return true;
 end;
 $$;
 
 -- Records that the caller opened the organization (the last_used_at column of
 -- memberships, when it has one), for "recent organizations" lists.
-create or replace function ${ctx.fn("mark_used")}(org ${id})
+create or replace function ${ctx.fn("mark_used")}(organization ${id})
 returns boolean
 language plpgsql
 security definer
@@ -689,36 +697,36 @@ $$;
 }
 
 /**
- * `switch_organization(org)`: makes org the caller's active tenant through
- * `kits.access.activeTenant`. A claim source writes \`app_metadata\` and
+ * `switch_organization(organization)`: makes organization the caller's active tenant through
+ * `blocks.access.activeTenant`. A claim source writes \`app_metadata\` and
  * returns refresh = true, so the client refreshes its session.
  */
-function switcher(ctx: KitContext, n: OrgNames): string {
+function switcher(ctx: BlockContext, n: OrganizationNames): string {
   const source = activeTenantSource(ctx);
   let write: string;
   let refresh = "false";
   if (source === "claim") {
     write = `update auth.users
-  set raw_app_meta_data = coalesce(raw_app_meta_data, '{}') || jsonb_build_object(${sqlString(ctx.claims.tenant)}, org::text)
+  set raw_app_meta_data = coalesce(raw_app_meta_data, '{}') || jsonb_build_object(${sqlString(ctx.claims.tenant)}, organization::text)
   where id = me;`;
     refresh = "true";
   } else if (source === "resolver") {
     write = "-- The server's tenant resolver picks the tenant per request.";
   } else {
     const profile = columnRef(
-      "kits.access.activeTenant.profileColumn",
+      "blocks.access.activeTenant.profileColumn",
       source.profileColumn,
     );
-    write = `update ${profile.table} set ${profile.column} = org where ${sqlIdent(source.key ?? "id")} = me;`;
+    write = `update ${profile.table} set ${profile.column} = organization where ${sqlIdent(source.key ?? "id")} = me;`;
   }
-  const tenantKit = ctx.of("tenant");
-  const lastUsed = tenantKit.has("memberships", "lastUsedAt")
+  const tenantBlock = ctx.of("tenant");
+  const lastUsed = tenantBlock.has("memberships", "lastUsedAt")
     ? `
-  update ${n.m} set ${tenantKit.col("memberships", "lastUsedAt")} = now() where ${n.tenant} = org and ${n.user} = me;`
+  update ${n.m} set ${tenantBlock.col("memberships", "lastUsedAt")} = now() where ${n.tenant} = organization and ${n.user} = me;`
     : "";
   return `
--- Makes org the caller's active organization (kits.access.activeTenant).
-create or replace function ${ctx.fn("switch_organization")}(org ${ctx.idType})
+-- Makes organization the caller's active organization (blocks.access.activeTenant).
+create or replace function ${ctx.fn("switch_organization")}(organization ${ctx.idType})
 returns jsonb
 language plpgsql
 security definer
@@ -728,15 +736,15 @@ as $$
 declare
   me uuid := auth.uid();
 begin
-  if me is null or not exists (select 1 from ${n.m} m where m.${n.tenant} = org and m.${n.user} = me) then
-    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORG_NOT_MEMBER';
+  if me is null or not exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = me) then
+    raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
-  if not (${activeOrg(ctx, n, "org")}) then
-    raise exception 'The organization is unavailable' using errcode = '42501', hint = 'ORG_DISABLED';
+  if not (${activeOrganization(ctx, n, "organization")}) then
+    raise exception 'The organization is unavailable' using errcode = '42501', hint = 'ORGANIZATION_DISABLED';
   end if;
   ${write}${lastUsed}
-  ${ctx.emit({ type: "org.switched", payload: event("org", "me"), subject: "'organizations/' || org::text", tenant: "org" })}
-  return jsonb_build_object('organization_id', org, 'refresh', ${refresh});
+  ${ctx.emit({ type: "organization.switched", payload: event("organization", "me"), subject: "'organizations/' || organization::text", tenant: "organization" })}
+  return jsonb_build_object('organization_id', organization, 'refresh', ${refresh});
 end;
 $$;
 `;
@@ -754,7 +762,7 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["switch_organization", id],
 ];
 
-function organizationsSql(ctx: KitContext): string {
+function organizationsSql(ctx: BlockContext): string {
   const n = namesOf(ctx);
   const grants = FUNCTIONS(ctx.idType)
     .map(
@@ -770,7 +778,7 @@ ${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${remo
 ${grants}`;
 }
 
-export const ORGANIZATIONS: KitModuleDefinition = {
+export const ORGANIZATIONS: BlockModuleDefinition = {
   name: "organizations",
   title: "Organizations",
   description:

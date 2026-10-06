@@ -2,7 +2,7 @@ import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
-import type { KitEvent } from "../../src/core/kit-events.ts";
+import type { BlockEvent } from "../../src/core/block-events.ts";
 import type {
   BetterPostgres,
   SessionOptions,
@@ -56,10 +56,14 @@ const admin = (claims: Record<string, unknown> = {}): AuthState => ({
 
 function setup(options: Parameters<typeof createServer>[1] = {}) {
   const betterSupabase = defineSupabase(schema);
-  const events: KitEvent[] = [];
-  betterSupabase.events.on("kit", (event) => events.push(event));
+  const events: BlockEvent[] = [];
+  betterSupabase.events.on("block", (event) => events.push(event));
   const store = memorySupportStore({
-    [TARGET]: { role: "authenticated", email: "member@acme.test", org: "o1" },
+    [TARGET]: {
+      role: "authenticated",
+      email: "member@acme.test",
+      organization: "o1",
+    },
   });
   const pg = fakePostgres();
   const server = createServer(betterSupabase, {
@@ -233,7 +237,7 @@ describe("support sessions on the server", () => {
     expect(pg.claims[0]).toEqual({
       role: "authenticated",
       email: "member@acme.test",
-      org: "o1",
+      organization: "o1",
       sub: TARGET,
       act: {
         kind: "support",
@@ -319,7 +323,7 @@ describe("support sessions on the server", () => {
     const { server, store } = setup({
       auth: {
         jwks: signer.jwks as never,
-        claims: v.object({ org: v.literal("o2") }),
+        claims: v.object({ organization: v.literal("o2") }),
       },
     });
     const { session } = await server.support
@@ -337,7 +341,7 @@ describe("support sessions on the server", () => {
         user: { id: TARGET },
       } as AuthState),
     ).toBeUndefined();
-    // The target's claims fail the app's claims schema (org is o1).
+    // The target's claims fail the app's claims schema (organization is o1).
     expect(await server.support.current(cookie, admin())).toBeUndefined();
     expect(server.support.sessionIdOf(cookie)).toBe(session.id);
     expect(server.support.clearCookie()).toContain("Max-Age=0");

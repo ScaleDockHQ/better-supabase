@@ -59,8 +59,8 @@ describe.skipIf(!live)("MCP tools against the local stack", () => {
     }
   });
 
-  const call = async (orgId: string, name: string, args: unknown) => {
-    const token = await signLocalJwt({ sub: USER, tenant_id: orgId });
+  const call = async (organizationId: string, name: string, args: unknown) => {
+    const token = await signLocalJwt({ sub: USER, tenant_id: organizationId });
     const response = await mcp.fetch(
       new Request("http://127.0.0.1/mcp", {
         method: "POST",

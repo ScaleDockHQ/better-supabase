@@ -16,7 +16,7 @@ import {
 } from "../../../src/cli/doctor/rules.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeSql, pgError, type SqlRule } from "../fixtures/fake-sql.ts";
-import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
+import { blockSnapshotFixture as fixture } from "../fixtures/library.ts";
 
 const snapshot = await parseSnapshot(fixture);
 

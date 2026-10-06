@@ -281,7 +281,10 @@ describe("rules()", () => {
         files: {
           id: "files",
           public: false,
-          path: ["{orgId}/exports/{exportId}.zip", "{orgId}/archive/{...rest}"],
+          path: [
+            "{organizationId}/exports/{exportId}.zip",
+            "{organizationId}/archive/{...rest}",
+          ],
         },
       },
       tables: {

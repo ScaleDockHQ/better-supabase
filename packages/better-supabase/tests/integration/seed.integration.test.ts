@@ -32,22 +32,22 @@ describe.skipIf(!live)("seed against the local database", () => {
   afterAll(() => pool.end());
 
   it("inserts fixtures in dependency order and is re-runnable", async () => {
-    const org = crypto.randomUUID();
+    const organization = crypto.randomUUID();
     const customer = crypto.randomUUID();
     const seed = defineSeed(defineSupabase(schema), {
       customers: {
         first: {
           id: customer,
-          organizationId: org,
+          organizationId: organization,
           name: "Seed's first",
           metadata: { tier: "pro" },
         },
       },
       organizations: {
         seeded: {
-          id: org,
-          name: "Seeded org",
-          slug: `seeded-${org.slice(0, 8)}`,
+          id: organization,
+          name: "Seeded organization",
+          slug: `seeded-${organization.slice(0, 8)}`,
         },
       },
     });
@@ -72,7 +72,7 @@ describe.skipIf(!live)("seed against the local database", () => {
         {
           name: "Seed's first",
           metadata: { tier: "pro" },
-          organization_id: org,
+          organization_id: organization,
         },
       ]);
     } finally {

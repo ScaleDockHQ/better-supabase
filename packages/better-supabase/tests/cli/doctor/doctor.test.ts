@@ -39,8 +39,8 @@ import {
   type SupabaseToml,
 } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { kitPermissionKeys, SQL_MODULES } from "../../../src/sql/index.ts";
-import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
+import { blockPermissionKeys, SQL_MODULES } from "../../../src/sql/index.ts";
+import { blockSnapshotFixture as fixture } from "../fixtures/library.ts";
 import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
 const base = await parseSnapshot(fixture);
@@ -304,7 +304,7 @@ describe("doctor rules", () => {
       functions: ["auth.uid"],
     };
 
-    it("flags memberships.role that has_org_role reads when members may update their row", async () => {
+    it("flags memberships.role that has_organization_role reads when members may update their row", async () => {
       const snap = withTable("memberships", (memberships) => {
         memberships.policies = [...memberships.policies, updatePolicy];
         memberships.grants = [
@@ -322,7 +322,9 @@ describe("doctor rules", () => {
       expect(message).toContain(
         "authenticated may update org_id, role, user_id",
       );
-      expect(message).toContain("better_supabase.member_org_ids reads them");
+      expect(message).toContain(
+        "better_supabase.member_organization_ids reads them",
+      );
       expect(message).toContain(
         "revoke update on better_supabase.memberships from authenticated;\ngrant update (created_at) on better_supabase.memberships to authenticated;",
       );
@@ -596,7 +598,7 @@ describe("doctor rules", () => {
     const helper = (overrides: Partial<ExtrasFunction>): ExtrasFunction => ({
       schema: "private",
       name: "is_member",
-      signature: "org uuid",
+      signature: "organization uuid",
       language: "plpgsql",
       volatility: "stable",
       securityDefiner: true,
@@ -1014,7 +1016,7 @@ uri = "https://example.com/hook"
       expect(base.extras.functions).toContainEqual(
         expect.objectContaining({
           schema: "better_supabase",
-          name: "has_org_role",
+          name: "has_organization_role",
           securityDefiner: true,
           execute: ["authenticated"],
         }),
@@ -1369,22 +1371,22 @@ uri = "https://example.com/hook"
       ]);
     });
 
-    it("flags a kit hook next to PermDock (BS407)", async () => {
-      const kitHook = hookFn({
+    it("flags a block hook next to PermDock (BS407)", async () => {
+      const blockHook = hookFn({
         source:
           "begin claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims(uid)); end",
       });
-      expect(await codes(hookContext(withHook([kitHook])), "BS407")).toEqual(
+      expect(await codes(hookContext(withHook([blockHook])), "BS407")).toEqual(
         [],
       );
       expect(
         await codes(
-          hookContext(withHook([kitHook]), { permdock: PERMDOCK }),
+          hookContext(withHook([blockHook]), { permdock: PERMDOCK }),
           "BS407",
         ),
       ).toEqual(["BS407"]);
       const both = hookFn({
-        source: `${kitHook.source ?? ""} perform permdock.permdock_claims(event);`,
+        source: `${blockHook.source ?? ""} perform permdock.permdock_claims(event);`,
       });
       expect(await codes(hookContext(withHook([both])), "BS407")).toEqual([
         "BS407",
@@ -1554,7 +1556,7 @@ uri = "https://example.com/hook"
   describe("PermDock helpers for entitlements (BS408)", () => {
     const only = RULES.filter((rule) => rule.code === "BS408");
     const parsed = parseManifest(manifest);
-    // The fixture's example fills `features` from its own function; the kit's needs better_supabase.feature_claims.
+    // The fixture's example fills `features` from its own function; the block's needs better_supabase.feature_claims.
     const project: PermdockProject = {
       ...PERMDOCK,
       manifest: {
@@ -1567,7 +1569,7 @@ uri = "https://example.com/hook"
       },
     };
     const entitlementsConfig: Parameters<typeof resolveConfig>[0] = {
-      sql: { kit: ["entitlements"] },
+      sql: { modules: ["entitlements"] },
     };
     const check = (
       extra: Partial<DoctorContext> = {},
@@ -1591,12 +1593,12 @@ uri = "https://example.com/hook"
 
     it("passes when the manifest and the database have both helpers", async () => {
       expect(await check({ snapshot: withHelpers })).toEqual([]);
-      expect(await check({}, { sql: { kit: ["audit"] } })).toEqual([]);
+      expect(await check({}, { sql: { modules: ["audit"] } })).toEqual([]);
       expect(
         await check(
           {},
           {
-            sql: { kit: ["entitlements"] },
+            sql: { modules: ["entitlements"] },
             entitlements: { permdock: false },
           },
         ),
@@ -1874,7 +1876,7 @@ uri = "https://example.com/hook"
         await check(
           {},
           {
-            sql: { kit: ["entitlements"] },
+            sql: { modules: ["entitlements"] },
             entitlements: { permdock: { scope: "team" } },
           },
         ),
@@ -1915,7 +1917,7 @@ uri = "https://example.com/hook"
             {
               buckets: {
                 docs: {
-                  path: "{orgId}/{file}",
+                  path: "{organizationId}/{file}",
                   policy: {
                     permdock: { read: "docs.read", write: "docs.write" },
                     scope: "organization",
@@ -1957,7 +1959,7 @@ uri = "https://example.com/hook"
           {
             buckets: {
               docs: {
-                path: "{orgId}/{file}",
+                path: "{organizationId}/{file}",
                 policy: {
                   permdock: { read: "docs.read", write: "docs.write" },
                   ...policy,
@@ -2023,7 +2025,7 @@ uri = "https://example.com/hook"
             {
               buckets: {
                 docs: {
-                  path: "{orgId}/{file}",
+                  path: "{organizationId}/{file}",
                   policy: {
                     permdock: { read: "docs.read", write: "docs.list" },
                     scope: "organization",
@@ -2154,7 +2156,7 @@ uri = "https://example.com/hook"
   describe("PermDock access model (BS411)", () => {
     const only = RULES.filter((rule) => rule.code === "BS411");
     const allScopeOnly = (): PermdockProject["catalog"] => ({
-      permissions: kitPermissionKeys(
+      permissions: blockPermissionKeys(
         { access: { model: "permdock" } },
         Object.keys(SQL_MODULES),
       ).map((entry) => ({ key: entry.key, rowConditions: false })),
@@ -2171,15 +2173,15 @@ uri = "https://example.com/hook"
     const run = async (
       access: object = {},
       extra: Partial<DoctorContext> = {},
-      kit: string[] = ["access", "organizations"],
+      block: string[] = ["access", "organizations"],
     ) =>
       runRules(
         context(withHelpers, {
           permdock: project,
           config: resolveConfig(
             {
-              sql: { kit },
-              kits: {
+              sql: { modules: block },
+              blocks: {
                 access: {
                   model: "permdock",
                   functions: {
@@ -2215,15 +2217,15 @@ uri = "https://example.com/hook"
     it("reports a manifest that can't back the model", async () => {
       expect(await run({}, { permdock: PERMDOCK })).toMatchObject([
         {
-          target: "kits.access.permdock",
+          target: "blocks.access.permdock",
           message: expect.stringContaining("has no rls block"),
         },
       ]);
       expect(await run({ permdock: { scope: "tenant" } })).toMatchObject([
         {
-          target: "kits.access.permdock",
+          target: "blocks.access.permdock",
           message: expect.stringContaining(
-            'kits.access.permdock.scope is "tenant"',
+            'blocks.access.permdock.scope is "tenant"',
           ),
         },
       ]);
@@ -2275,7 +2277,7 @@ uri = "https://example.com/hook"
       ]);
     });
 
-    it("reports kit permission keys the catalog doesn't mark scope-only", async () => {
+    it("reports block permission keys the catalog doesn't mark scope-only", async () => {
       const findings = await run(
         {},
         {
@@ -2292,13 +2294,13 @@ uri = "https://example.com/hook"
       expect(findings).toContainEqual(
         expect.objectContaining({
           severity: "error",
-          target: "kits.organizations.permissions.update",
+          target: "blocks.organizations.permissions.update",
           message: expect.stringContaining("has row conditions"),
         }),
       );
       expect(findings).toContainEqual(
         expect.objectContaining({
-          target: "kits.organizations.permissions.delete",
+          target: "blocks.organizations.permissions.delete",
           message: expect.stringContaining(
             "is not in permissions.catalog.json",
           ),
@@ -2311,7 +2313,7 @@ uri = "https://example.com/hook"
       expect(findings).toMatchObject([
         {
           severity: "warning",
-          target: "kits.access.functions.canAssign",
+          target: "blocks.access.functions.canAssign",
           message: expect.stringContaining(
             'Set canAssign: "public.permdock_can_assign({role}, {tenant}::text)"',
           ),
@@ -2337,7 +2339,10 @@ uri = "https://example.com/hook"
         {
           plugins: { softDelete: { column: "archived_at" } },
           buckets: {
-            customerLogos: { path: "{orgId}/logo.webp", fileSizeLimit: "1MiB" },
+            customerLogos: {
+              path: "{organizationId}/logo.webp",
+              fileSizeLimit: "1MiB",
+            },
             avatars: { path: "{userId}.png" },
           },
         },
@@ -2388,7 +2393,7 @@ uri = "https://example.com/hook"
         {
           buckets: {
             customerLogos: {
-              path: "{orgId}/logo.webp",
+              path: "{organizationId}/logo.webp",
               fileSizeLimit: "1MiB",
               allowedMimeTypes: ["image/webp"],
             },

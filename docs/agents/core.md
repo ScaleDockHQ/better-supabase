@@ -43,13 +43,13 @@ symbol that JSON can't produce and `$with` copies. `tenant()` and tenant
 buckets check it with `spansAllTenants`; per-call opt-outs stay
 `{ allTenants: true }` in the call options.
 
-## Kit extension points
+## Block extension points
 
-Every kit uses the same four extension points, so a new kit adds entries
+Every block uses the same four extension points, so a new block adds entries
 instead of a new mechanism:
 
-- **Events.** Add the type to `KitEventMap` (`src/core/kit-events.ts`) and
-  call `emitKitEvent` after the work succeeds or is refused. The data never
+- **Events.** Add the type to `BlockEventMap` (`src/core/block-events.ts`) and
+  call `emitBlockEvent` after the work succeeds or is refused. The data never
   holds secrets (invitation tokens, webhook secrets), and handlers only
   observe.
 - **Policies.** A decision the app can make is a `Policy` run through

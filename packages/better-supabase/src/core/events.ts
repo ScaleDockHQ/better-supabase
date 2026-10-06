@@ -1,6 +1,6 @@
 import type { Operation } from "../ir/types.ts";
+import type { BlockEvent } from "./block-events.ts";
 import type { DbError } from "./errors.ts";
-import type { KitEvent } from "./kit-events.ts";
 import type { MutationIntent, MutationKind, RequestContext } from "./plugin.ts";
 
 import { consoleLogger, type Logger } from "./logger.ts";
@@ -79,7 +79,7 @@ export interface BetterSupabaseEvents {
   auth: AuthEvent;
   refresh: RefreshEvent;
   /** Support sessions, organizations, invitations, notifications and webhooks. */
-  kit: KitEvent;
+  block: BlockEvent;
 }
 
 export type EventName = keyof BetterSupabaseEvents;

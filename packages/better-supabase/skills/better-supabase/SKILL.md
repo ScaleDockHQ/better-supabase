@@ -23,8 +23,8 @@ is no separate CLI package to add.
 2. For a new table in an exposed schema, in the same file: `enable row level
 security`, a policy per role and command the app uses, and an index on
    every column a policy filters by. Write tenant checks as
-   `organization_id in (select better_supabase.member_org_ids())`, which
-   Postgres runs once per statement, not `has_org_role(organization_id)`,
+   `organization_id in (select better_supabase.member_organization_ids())`, which
+   Postgres runs once per statement, not `has_organization_role(organization_id)`,
    which runs once per row. List the table in `expose` in
    `better-supabase.config.ts` and run `pnpm better-supabase sql add grants`:
    new tables get no Data API grants on their own.
@@ -56,7 +56,7 @@ stay hidden.
 1. Run `pnpm better-supabase codemod <version> --dry-run` for each minor
    version you crossed (`codemod` without a name lists them), then without
    `--dry-run`, and fix the lines it lists for review.
-2. Run `pnpm better-supabase sql upgrade`, so the kit modules get the
+2. Run `pnpm better-supabase sql upgrade`, so the block modules get the
    release's SQL and any forward steps land in a migration, then write a
    migration from the changed files.
 3. Run `pnpm better-supabase gen` and commit the result. Since 0.3, a

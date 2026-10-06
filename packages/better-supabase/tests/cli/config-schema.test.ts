@@ -41,19 +41,19 @@ describe("configIssues", () => {
     ]);
   });
 
-  it("takes the access keys only under kits.access", () => {
+  it("takes the access keys only under blocks.access", () => {
     expect(
       configIssues({
-        kits: {
+        blocks: {
           access: { model: "catalog", activeTenant: "claim" },
           organizations: { mode: "adopt", options: { ownerRole: "owner" } },
         },
       }),
     ).toEqual([]);
     expect(
-      configIssues({ kits: { organizations: { model: "catalog" } } }),
+      configIssues({ blocks: { organizations: { model: "catalog" } } }),
     ).toEqual([
-      expect.stringMatching(/^kits\.organizations\.model: Invalid key/),
+      expect.stringMatching(/^blocks\.organizations\.model: Invalid key/),
     ]);
   });
 });

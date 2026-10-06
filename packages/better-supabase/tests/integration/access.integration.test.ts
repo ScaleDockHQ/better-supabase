@@ -1,9 +1,9 @@
 import { Pool, type PoolClient } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { KitLayout } from "../../src/sql/kit.ts";
+import type { BlockLayout } from "../../src/sql/blocks.ts";
 
-import { renderKit } from "../../src/sql/kit.ts";
+import { renderBlocks } from "../../src/sql/blocks.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -40,7 +40,7 @@ async function inTransaction<T>(
   pool: Pool,
   setup: string,
   names: readonly string[],
-  layout: KitLayout,
+  layout: BlockLayout,
   run: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await pool.connect();
@@ -52,7 +52,7 @@ async function inTransaction<T>(
       [USER, `access-${USER}@example.test`],
     );
     if (setup) await client.query(setup);
-    for (const file of renderKit(names, layout))
+    for (const file of renderBlocks(names, layout))
       await client.query(file.contents);
     return await run(client);
   } finally {
@@ -120,26 +120,26 @@ describe.skipIf(!live)("access contract against the local database", () => {
 
   it("adopts a CentraKit-shaped catalog: deny overrides, platform roles, disabled tenants and a resolved tenant", async () => {
     const setup = `
-      create table public.bs_access_orgs (id uuid primary key, disabled_at timestamptz);
+      create table public.bs_access_organizations (id uuid primary key, disabled_at timestamptz);
       create table public.bs_access_roles (id uuid primary key, key text not null);
       create table public.bs_access_permissions (id uuid primary key, key text not null unique);
       create table public.bs_access_role_permissions (role_id uuid, permission_id uuid, primary key (role_id, permission_id));
       create table public.bs_access_overrides (organization_id uuid, role_id uuid, permission_id uuid, granted boolean not null, primary key (organization_id, role_id, permission_id));
       create table public.bs_access_user_roles (user_id uuid, role_id uuid, primary key (user_id, role_id));
-      create table public.bs_access_org_users (user_id uuid, organization_id uuid, role_id uuid, created_at timestamptz default now(), unique (user_id, organization_id));
-      insert into public.bs_access_orgs values ('${ORG}', null);
+      create table public.bs_access_organization_users (user_id uuid, organization_id uuid, role_id uuid, created_at timestamptz default now(), unique (user_id, organization_id));
+      insert into public.bs_access_organizations values ('${ORG}', null);
       insert into public.bs_access_roles values ('${ADMIN_ROLE}', 'admin'), ('${SUPPORT_ROLE}', 'system-support');
       insert into public.bs_access_permissions values ('${INVITE}', 'organization.members.invite'), ('${BILLING}', 'organization.billing.manage'), ('${USERS_MANAGE}', 'system.users.manage');
       insert into public.bs_access_role_permissions values ('${ADMIN_ROLE}', '${INVITE}'), ('${ADMIN_ROLE}', '${BILLING}'), ('${SUPPORT_ROLE}', '${USERS_MANAGE}');
       insert into public.bs_access_overrides values ('${ORG}', '${ADMIN_ROLE}', '${BILLING}', false);
       insert into public.bs_access_user_roles values ('${USER}', '${SUPPORT_ROLE}');
-      insert into public.bs_access_org_users (user_id, organization_id, role_id) values ('${USER}', '${ORG}', '${ADMIN_ROLE}');
+      insert into public.bs_access_organization_users (user_id, organization_id, role_id) values ('${USER}', '${ORG}', '${ADMIN_ROLE}');
     `;
-    const layout: KitLayout = {
-      kits: {
+    const layout: BlockLayout = {
+      blocks: {
         tenant: {
           mode: "adopt",
-          tables: { memberships: "public.bs_access_org_users" },
+          tables: { memberships: "public.bs_access_organization_users" },
           columns: {
             memberships: {
               tenant: "organization_id",
@@ -159,7 +159,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
             platformAssignments: "public.bs_access_user_roles",
           },
           columns: { overrides: { tenant: "organization_id" } },
-          disabled: { tenant: "public.bs_access_orgs.disabled_at" },
+          disabled: { tenant: "public.bs_access_organizations.disabled_at" },
           activeTenant: "resolver",
         },
       },
@@ -179,7 +179,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
             better_supabase.can('organization', $1, 'organization.billing.manage') as billing,
             better_supabase.is_platform('system.users.manage') as platform,
             better_supabase.current_tenant_id() as active,
-            better_supabase.has_org_role($1, '{admin}') as admin,
+            better_supabase.has_organization_role($1, '{admin}') as admin,
             better_supabase.permission_claims($2) as claims,
             better_supabase.membership_claims($2) as memberships`;
         const first = await client.query<Record<string, unknown>>(query, [
@@ -187,7 +187,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
           USER,
         ]);
         await client.query(
-          "update public.bs_access_orgs set disabled_at = now() where id = $1",
+          "update public.bs_access_organizations set disabled_at = now() where id = $1",
           [ORG],
         );
         const second = await client.query<Record<string, unknown>>(query, [
@@ -219,7 +219,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
       pool,
       "",
       ["tenant"],
-      { kits: { access: { activeTenant: "resolver" } } },
+      { blocks: { access: { activeTenant: "resolver" } } },
       async (client) => {
         await asUser(client);
         await client.query(
@@ -243,7 +243,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
        create function public.bs_access_platform(perm text) returns boolean language sql as $$ select perm = 'ok' $$;`,
       ["access"],
       {
-        kits: {
+        blocks: {
           access: {
             model: "custom",
             functions: {

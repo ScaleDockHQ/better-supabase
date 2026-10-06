@@ -76,7 +76,7 @@ export interface ExtrasHookFunction extends ExtrasFunction {
 export interface ExtrasFunction {
   readonly schema: string;
   readonly name: string;
-  /** Identity arguments, e.g. `org uuid`. */
+  /** Identity arguments, e.g. `organization uuid`. */
   readonly signature: string;
   /** `sql`, `plpgsql`, `c`, ... */
   readonly language: string;

@@ -1,19 +1,19 @@
 import { Pool, type PoolClient } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { KitLayout } from "../../src/sql/kit.ts";
 import type {
   WebhookRequest,
   WebhookTransport,
-} from "../../src/webhooks/index.ts";
+} from "../../src/blocks/webhooks/index.ts";
+import type { SqlClient } from "../../src/postgres/executor.ts";
+import type { BlockLayout } from "../../src/sql/blocks.ts";
 
-import { renderKit } from "../../src/sql/kit.ts";
 import {
   createWebhooks,
   sqlTransport,
   verifyWebhook,
-} from "../../src/webhooks/index.ts";
+} from "../../src/blocks/webhooks/index.ts";
+import { renderBlocks } from "../../src/sql/blocks.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -43,8 +43,8 @@ const USERS = {
 } as const;
 type Who = keyof typeof USERS;
 
-const LAYOUT: KitLayout = {
-  kits: { "webhooks-out": { options: { disableAfter: "2 days" } } },
+const LAYOUT: BlockLayout = {
+  blocks: { "webhooks-out": { options: { disableAfter: "2 days" } } },
 };
 
 class Session {
@@ -129,26 +129,26 @@ describe.skipIf(!live)("webhooks-out", () => {
           [USERS[who], `${who}-${USERS[who]}@example.test`],
         );
       }
-      for (const file of renderKit(
+      for (const file of renderBlocks(
         ["organizations", "outbox", "webhooks-out"],
         LAYOUT,
       ))
         await client.query(file.contents);
 
       await s.as("owner");
-      const org = await s.value<string>(
+      const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-wh-${USERS.owner.slice(0, 8)}` }],
       );
       await client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
-        [org, USERS.member],
+        [organization, USERS.member],
       );
       const endpoint = async (url: string, types: string[]) => {
         const { rows } = await client.query<{ id: string }>(
           `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
            values ($1, 'Hook', $2, $3) returning id`,
-          [org, url, types],
+          [organization, url, types],
         );
         return rows[0]!.id;
       };
@@ -156,15 +156,16 @@ describe.skipIf(!live)("webhooks-out", () => {
         "invoice.*",
       ]);
       const all = await endpoint("https://all.example.com/hook", ["*"]);
-      const orgs = await endpoint("https://orgs.example.com/hook", [
-        "org.created",
-      ]);
+      const organizations = await endpoint(
+        "https://organizations.example.com/hook",
+        ["organization.created"],
+      );
       const billingSecret = await s.value<string>(
         "better_supabase.rotate_webhook_secret($1)",
         [billing],
       );
       expect(billingSecret).toMatch(/^whsec_/);
-      for (const id of [all, orgs])
+      for (const id of [all, organizations])
         await client.query("select better_supabase.rotate_webhook_secret($1)", [
           id,
         ]);
@@ -237,7 +238,7 @@ describe.skipIf(!live)("webhooks-out", () => {
           .publish({
             type: "invoice.paid",
             data: { id: 7 },
-            tenant: org,
+            tenant: organization,
             id: "evt-1",
           })
           .orThrow(),
@@ -247,7 +248,7 @@ describe.skipIf(!live)("webhooks-out", () => {
           .publish({
             type: "invoice.paid",
             data: { id: 7 },
-            tenant: org,
+            tenant: organization,
             id: "evt-1",
           })
           .orThrow(),
@@ -263,7 +264,7 @@ describe.skipIf(!live)("webhooks-out", () => {
       ).toBe(0);
       const direct = await webhooks
         .dispatch({
-          endpointId: orgs,
+          endpointId: organizations,
           type: "run.finished",
           data: { ok: true },
           runId: "run-1",
@@ -273,7 +274,7 @@ describe.skipIf(!live)("webhooks-out", () => {
       expect(
         await webhooks
           .dispatch({
-            endpointId: orgs,
+            endpointId: organizations,
             type: "run.finished",
             data: {},
             eventId: "evt-2",
@@ -328,7 +329,12 @@ describe.skipIf(!live)("webhooks-out", () => {
         [all],
       );
       await webhooks
-        .publish({ type: "invoice.void", data: {}, tenant: org, id: "evt-3" })
+        .publish({
+          type: "invoice.void",
+          data: {},
+          tenant: organization,
+          id: "evt-3",
+        })
         .orThrow();
       await client.query(
         "update better_supabase.webhook_deliveries set available_at = now() where status = 'retrying'",
@@ -348,11 +354,15 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       // Deliveries to a disabled endpoint are canceled; enabling it again clears the streak.
       await webhooks
-        .publish({ type: "org.renamed", data: {}, tenant: org })
+        .publish({
+          type: "organization.renamed",
+          data: {},
+          tenant: organization,
+        })
         .orThrow();
       await client.query(
         "insert into better_supabase.webhook_deliveries (organization_id, endpoint_id, event_type) values ($1, $2, 'late')",
-        [org, all],
+        [organization, all],
       );
       expect(await webhooks.deliver()).toMatchObject({ succeeded: 0 });
       expect(
@@ -388,7 +398,7 @@ describe.skipIf(!live)("webhooks-out", () => {
       // A worker that died on the last attempt still used it up.
       await client.query(
         "insert into better_supabase.webhook_deliveries (organization_id, endpoint_id, event_type, status, attempt, leased_until) values ($1, $2, 'crashed', 'delivering', 8, now() - interval '1 minute')",
-        [org, orgs],
+        [organization, organizations],
       );
       expect(await webhooks.deliver()).toMatchObject({ succeeded: 0 });
       expect(
@@ -400,7 +410,11 @@ describe.skipIf(!live)("webhooks-out", () => {
       // Prefix patterns match nested types too.
       expect(
         await webhooks
-          .publish({ type: "invoice.line.added", data: {}, tenant: org })
+          .publish({
+            type: "invoice.line.added",
+            data: {},
+            tenant: organization,
+          })
           .orThrow(),
       ).toBe(2);
 

@@ -19,7 +19,7 @@ const ARRAY_FLAGS = new Set([
   "only",
   "ignore",
   "agent",
-  "kit",
+  "block",
   "with",
   "explain",
 ]);

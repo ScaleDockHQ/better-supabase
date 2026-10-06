@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { KitsConfig } from "../../../src/config/kits.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import {
   customContracts,
   moduleBody,
-  renderKit,
-} from "../../../src/sql/kit.ts";
+  renderBlocks,
+} from "../../../src/sql/blocks.ts";
 
-const body = (kits: KitsConfig = {}) => moduleBody("webhooks-out", { kits })!;
+const body = (blocks: BlocksConfig = {}) =>
+  moduleBody("webhooks-out", { blocks })!;
 
-const CENTRAKIT: KitsConfig = {
+const CENTRAKIT: BlocksConfig = {
   "webhooks-out": {
     mode: "adopt",
     schema: "public",
@@ -74,11 +75,11 @@ describe("webhooks-out module", () => {
     expect(
       body({ "webhooks-out": { options: { allowHttp: true } } }),
     ).not.toContain(`"url" ~* '^https://'`);
-    const plain = renderKit(["webhooks-out"]).at(-1)!.contents;
+    const plain = renderBlocks(["webhooks-out"]).at(-1)!.contents;
     expect(plain).not.toContain("better_supabase.can(");
     expect(plain).not.toContain("tenant_ids_with(");
-    const sql = renderKit(["access", "outbox", "webhooks-out"]).find((file) =>
-      file.path.includes("webhooks_out"),
+    const sql = renderBlocks(["access", "outbox", "webhooks-out"]).find(
+      (file) => file.path.includes("webhooks_out"),
     )!.contents;
     expect(sql).toContain("better_supabase.can('tenant', ");
     expect(sql).toContain(
@@ -136,9 +137,9 @@ describe("webhooks-out module", () => {
   });
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
-    const custom: KitsConfig = { "webhooks-out": { mode: "custom" } };
-    expect(moduleBody("webhooks-out", { kits: custom })).toBe(undefined);
-    const [contract] = customContracts(["webhooks-out"], { kits: custom });
+    const custom: BlocksConfig = { "webhooks-out": { mode: "custom" } };
+    expect(moduleBody("webhooks-out", { blocks: custom })).toBe(undefined);
+    const [contract] = customContracts(["webhooks-out"], { blocks: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "publish_webhook_event",
       "dispatch_webhook",

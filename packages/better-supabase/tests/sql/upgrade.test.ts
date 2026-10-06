@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { createKitContext } from "../../src/sql/context.ts";
 import {
   deprecationWrappers,
-  kitDeprecations,
+  blockDeprecations,
   type SqlModule,
   upgradePlan,
-} from "../../src/sql/kit.ts";
+} from "../../src/sql/blocks.ts";
+import { createBlockContext } from "../../src/sql/context.ts";
 
 const widget: SqlModule = {
   name: "widget",
@@ -81,7 +81,7 @@ describe("upgradePlan", () => {
   it("renders steps for the module's configured schema", () => {
     const [plan] = upgradePlan(
       [{ module: "widget", version: 3 }],
-      { kits: { widget: { schema: "app" } } },
+      { blocks: { widget: { schema: "app" } } },
       modules,
     );
     expect(plan!.steps.map((step) => step.sql)).toEqual([
@@ -126,7 +126,7 @@ describe("upgradePlan", () => {
     expect(
       upgradePlan(
         [{ module: "widget", version: 1 }],
-        { kits: { widget: { mode: "custom" } } },
+        { blocks: { widget: { mode: "custom" } } },
         modules,
       ),
     ).toEqual([]);
@@ -153,7 +153,7 @@ describe("upgradePlan", () => {
 
 describe("deprecations", () => {
   it("writes wrappers only for symbols not removed yet", () => {
-    const ctx = createKitContext("widget", () => undefined);
+    const ctx = createBlockContext("widget", () => undefined);
     const wrappers = deprecationWrappers(widget, ctx);
     expect(wrappers).toContain(
       "-- Deprecated since 0.5.0: use better_supabase.widget_total().",
@@ -168,12 +168,12 @@ describe("deprecations", () => {
   });
 
   it("lists every deprecated symbol with its module", () => {
-    expect(kitDeprecations(modules).map((entry) => entry.symbol)).toEqual([
+    expect(blockDeprecations(modules).map((entry) => entry.symbol)).toEqual([
       "better_supabase.widget_count",
       "widget_ids",
       "better_supabase.old_widget",
     ]);
-    expect(kitDeprecations()).toContainEqual(
+    expect(blockDeprecations()).toContainEqual(
       expect.objectContaining({
         module: "tenant",
         symbol: "better_supabase.current_org_id",

@@ -88,6 +88,9 @@
       "BetterResultOk",
       "BetterResultValue",
       "BetterSupabaseEvents",
+      "BlockEvent",
+      "BlockEventMap",
+      "BlockEventType",
       "CacheAdapter",
       "CacheTarget",
       "CallOptions",
@@ -122,9 +125,6 @@
       "HookArgs",
       "InferReadSetParams",
       "InferResult",
-      "KitEvent",
-      "KitEventMap",
-      "KitEventType",
       "LogFields",
       "Logger",
       "ManyResult",
@@ -207,10 +207,13 @@
     ],
     "types": [
       "* from ./snapshot.ts",
-      "AccessKitConfig",
+      "AccessBlockConfig",
       "ActiveTenantSource",
       "ActorConfig",
       "BetterSupabaseConfig",
+      "BlockMode",
+      "BlockModuleConfig",
+      "BlocksConfig",
       "BucketConfig",
       "Casing",
       "ClaimsConfig",
@@ -227,9 +230,6 @@
       "JsonSchemaGeneratorOptions",
       "JsonSchemaSource",
       "JsonTypeConfig",
-      "KitMode",
-      "KitModuleConfig",
-      "KitsConfig",
       "OpenApiConfig",
       "PermdockPathsConfig",
       "PluginFlagsConfig",
@@ -332,14 +332,12 @@
     "values": [
       "BetterSupabaseProvider",
       "createHooks",
-      "hasEntitlement",
       "SessionProvider",
       "supportOf",
       "useAuth",
       "useBroadcast",
       "useLiveCount",
       "useLiveQuery",
-      "useNotifications",
       "useSession",
       "useSupabase",
       "useSupportSession"
@@ -351,19 +349,15 @@
       "BroadcastOptions",
       "ClaimsOf",
       "ClientLike",
-      "EntitlementKey",
       "Impersonator",
       "LiveCount",
       "LiveCountHookOptions",
       "LiveCountSeed",
       "LiveQueryHookOptions",
       "MembershipClaim",
-      "NotificationSource",
-      "NotificationsState",
       "ProfileOf",
       "SessionProviderProps",
-      "SupportView",
-      "UseNotificationsOptions"
+      "SupportView"
     ]
   },
   "./query": {
@@ -555,7 +549,6 @@
       "applyCookieWrites",
       "AUTH_CACHE_HEADERS",
       "authContext",
-      "hasEntitlement",
       "parseCookies",
       "readSession",
       "refreshSession",
@@ -573,7 +566,6 @@
       "CookieOptions",
       "CookieRecord",
       "CookieWrite",
-      "EntitlementKey",
       "MembershipClaim",
       "RefreshOptions",
       "RefreshOutcome",
@@ -584,7 +576,6 @@
   "./next": {
     "values": [
       "createNext",
-      "hasEntitlement",
       "nextCache",
       "REQUEST_ID_HEADER",
       "requireAal",
@@ -611,7 +602,6 @@
       "CachedOptions",
       "DbBudget",
       "DbStats",
-      "EntitlementKey",
       "GuardOptions",
       "Impersonator",
       "LiveCountSeed",
@@ -745,17 +735,13 @@
       "ToolRegistrar"
     ]
   },
-  "./jobs": {
+  "./blocks/jobs": {
     "values": [
       "assertCron",
       "createIdempotency",
       "createInbox",
       "createJobs",
-      "createOutbox",
-      "entitlementMembers",
-      "ENTITLEMENTS_UPDATED",
       "nextCronRun",
-      "outboxCloudEvent",
       "pgmqPublicBackend",
       "purgeAuditLog",
       "sqlQueueBackend"
@@ -767,10 +753,8 @@
       "DrainRouteOptions",
       "DrainRouteResult",
       "DueSchedule",
-      "EmitOptions",
       "EnqueueOptions",
       "FailOptions",
-      "HistoryFilter",
       "Idempotency",
       "IdempotencyOptions",
       "IdempotencyState",
@@ -781,58 +765,69 @@
       "JobContext",
       "JobHandler",
       "Jobs",
-      "Outbox",
-      "OutboxEvent",
-      "OutboxOptions",
-      "OutboxRouteOptions",
-      "OutboxRouteResult",
       "PurgeAuditLogOptions",
       "QueueBackend",
       "QueueMessageBody",
       "QueueMessageRow",
       "QueueRpcClient",
       "QueueSchemas",
-      "RegisterOptions",
-      "RelayOptions",
-      "RelayResult",
       "RunSchedulesOptions",
       "ScheduleOptions",
       "SqlClient",
       "WorkOptions"
     ]
   },
-  "./orgs": {
+  "./blocks/outbox": {
     "values": [
-      "createOrgs",
+      "createOutbox",
+      "outboxCloudEvent"
+    ],
+    "types": [
+      "EmitOptions",
+      "HistoryFilter",
+      "Outbox",
+      "OutboxEvent",
+      "OutboxOptions",
+      "OutboxRouteOptions",
+      "OutboxRouteResult",
+      "RegisterOptions",
+      "RelayOptions",
+      "RelayResult",
+      "SqlClient"
+    ]
+  },
+  "./blocks/organizations": {
+    "values": [
+      "createOrganizations",
       "rpcTransport",
       "sqlTransport"
     ],
     "types": [
-      "CreateOrgOptions",
+      "BlockTransport",
+      "CreateOrganizationOptions",
       "Invitation",
       "InvitationPreview",
       "InvitationSent",
       "InvitationStatus",
       "InviteRequest",
-      "KitTransport",
-      "OrgAttributes",
-      "Orgs",
-      "OrgsOptions",
+      "OrganizationAttributes",
+      "Organizations",
+      "OrganizationsOptions",
       "RpcClient",
       "SlugProblem",
       "SwitchResult"
     ]
   },
-  "./notifications": {
+  "./blocks/notifications": {
     "values": [
       "createNotifications",
       "rpcTransport",
       "sqlTransport"
     ],
     "types": [
+      "BlockTransport",
       "DeliverOptions",
       "DeliverResult",
-      "KitTransport",
       "ListOptions",
       "NotificationChannel",
       "NotificationCounts",
@@ -848,6 +843,16 @@
       "RpcClient",
       "SendInput",
       "SubscriptionLevel"
+    ]
+  },
+  "./blocks/notifications/react": {
+    "values": [
+      "useNotifications"
+    ],
+    "types": [
+      "NotificationSource",
+      "NotificationsState",
+      "UseNotificationsOptions"
     ]
   },
   "./env": {
@@ -899,7 +904,7 @@
       "defineBuckets",
       "fromStorageError",
       "IMAGE_TYPES",
-      "orgLogoBucket",
+      "organizationLogoBucket",
       "parseSize",
       "TTL"
     ],
@@ -921,7 +926,7 @@
       "ConnectedRef",
       "ImageBucketOptions",
       "ObjectTarget",
-      "OrgLogoBucketOptions",
+      "OrganizationLogoBucketOptions",
       "PathIn",
       "PathValues",
       "PermdockBucketPolicy",
@@ -981,42 +986,42 @@
   },
   "./events": {
     "values": [
-      "forwardKitEvents",
+      "BLOCK_ATTRIBUTES",
+      "blockCloudEvent",
+      "blockEventAttributes",
+      "forwardBlockEvents",
       "forwardMutations",
       "fromHttp",
       "httpSink",
       "isCloudEvent",
-      "KIT_ATTRIBUTES",
-      "kitCloudEvent",
-      "kitEventAttributes",
-      "onKitEvent",
+      "onBlockEvent",
       "ROW_EVENT_TYPES",
       "toCloudEvents",
       "toHttp"
     ],
     "types": [
+      "BlockEvent",
+      "BlockEventMap",
+      "BlockEventMeta",
+      "BlockEventPattern",
+      "BlockEventsMatching",
+      "BlockEventType",
       "CloudEvent",
       "CloudEventOptions",
       "EventSink",
-      "ForwardKitOptions",
+      "ForwardBlockOptions",
       "ForwardOptions",
       "HttpMode",
       "HttpSinkOptions",
       "InvitationEventData",
-      "KitEvent",
-      "KitEventMap",
-      "KitEventMeta",
-      "KitEventPattern",
-      "KitEventsMatching",
-      "KitEventType",
       "NotificationEventData",
-      "OrgEventData",
+      "OrganizationEventData",
       "RowEventData",
       "SupportEventData",
       "WebhookEventData"
     ]
   },
-  "./webhooks": {
+  "./blocks/webhooks": {
     "values": [
       "authHook",
       "createWebhooks",
@@ -1042,6 +1047,7 @@
       "AuthHookError",
       "AuthHookKind",
       "AuthHooks",
+      "BlockTransport",
       "DatabaseChange",
       "DatabaseWebhookPayload",
       "DeliverWebhooksOptions",
@@ -1049,7 +1055,6 @@
       "DispatchInput",
       "FetchTransportOptions",
       "HmacSignerOptions",
-      "KitTransport",
       "PublicUrlOptions",
       "PublishInput",
       "ResolveHost",
@@ -1073,6 +1078,16 @@
       "WebhookTransport"
     ]
   },
+  "./blocks/entitlements": {
+    "values": [
+      "entitlementMembers",
+      "ENTITLEMENTS_UPDATED",
+      "hasEntitlement"
+    ],
+    "types": [
+      "EntitlementKey"
+    ]
+  },
   "./openapi": {
     "values": [
       "createOpenApi",
@@ -1091,8 +1106,8 @@
       "otel",
       "SEMCONV_VERSION",
       "traceAuth",
-      "tracedFetch",
-      "traceKitEvents"
+      "traceBlockEvents",
+      "tracedFetch"
     ],
     "types": [
       "OtelOptions"
@@ -1180,48 +1195,48 @@
   "./sql": {
     "values": [
       "auditRegistrations",
+      "BLOCK_ID_TYPES",
+      "blockDeprecations",
+      "blockFilePaths",
+      "blockFileVersion",
+      "blockIdType",
+      "blockLayout",
+      "blockPermissionKeys",
       "compileReadSet",
       "compileReadSets",
       "contractSignature",
       "customContracts",
-      "isKitIdType",
-      "KIT_ID_TYPES",
-      "kitDeprecations",
-      "kitFilePaths",
-      "kitFileVersion",
-      "kitIdType",
-      "kitLayout",
-      "kitPermissionKeys",
+      "isBlockIdType",
       "migrationOptionUses",
       "moduleBody",
       "moduleVersion",
       "PERMDOCK_SCHEMA",
       "permdockKeys",
       "permdockKeyStatus",
-      "renderKit",
+      "renderBlocks",
       "resolveModules",
-      "sameKitFile",
+      "sameBlockFile",
       "SQL_MODULES",
       "upgradePlan"
     ],
     "types": [
       "AuditedTable",
+      "BlockAccessPermdock",
+      "BlockContext",
+      "BlockContractFunction",
+      "BlockDeprecation",
+      "BlockFile",
+      "BlockIdType",
+      "BlockLayout",
+      "BlockNames",
+      "BlockPermdock",
+      "BlockPermissionKey",
+      "BlockTableSpec",
+      "BlockTestFile",
+      "BlockUpgrade",
+      "BlockUpgradePlan",
       "CompiledReadSet",
-      "InstalledKitModule",
-      "KitAccessPermdock",
-      "KitContext",
-      "KitContractFunction",
-      "KitDeprecation",
-      "KitFile",
-      "KitIdType",
-      "KitLayout",
-      "KitNames",
-      "KitPermdock",
-      "KitPermissionKey",
-      "KitTableSpec",
-      "KitTestFile",
-      "KitUpgrade",
-      "KitUpgradePlan",
+      "InstalledBlockModule",
       "MigrationOptionUse",
       "PermdockCatalog",
       "PermdockKeyStatus",

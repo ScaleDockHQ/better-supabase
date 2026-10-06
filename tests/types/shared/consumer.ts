@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Job } from "better-supabase/jobs";
+import type { Job } from "better-supabase/blocks/jobs";
 
 import { QueryClient } from "@tanstack/react-query";
 import {
@@ -18,6 +18,8 @@ import {
   silentLogger,
   toBetterResult,
 } from "better-supabase";
+import { hasEntitlement } from "better-supabase/blocks/entitlements";
+import { verifyWebhook } from "better-supabase/blocks/webhooks";
 import { createClient } from "better-supabase/client";
 import { defineConfig, zod } from "better-supabase/config";
 import { createEdge } from "better-supabase/edge";
@@ -25,12 +27,7 @@ import { parseEnv } from "better-supabase/env";
 import { forwardMutations, httpSink } from "better-supabase/events";
 import { createHono } from "better-supabase/hono";
 import { defineListQuery } from "better-supabase/list";
-import {
-  createNext,
-  hasEntitlement,
-  nextCache,
-  requireAal,
-} from "better-supabase/next";
+import { createNext, nextCache, requireAal } from "better-supabase/next";
 import { createImageLoader } from "better-supabase/next/image";
 import { createOpenApi } from "better-supabase/openapi";
 import { createOrpc } from "better-supabase/orpc";
@@ -63,7 +60,6 @@ import {
   expectTenantIsolation,
   testExecutor,
 } from "better-supabase/testing";
-import { verifyWebhook } from "better-supabase/webhooks";
 
 import {
   type Database,
@@ -94,7 +90,7 @@ const customers = defineRepository(base, "customers", (repo) => ({
 }));
 export const betterSupabase = base.use(customers);
 
-const db = betterSupabase.connect(client, { tenant: "org" });
+const db = betterSupabase.connect(client, { tenant: "organization" });
 
 export async function reads(): Promise<void> {
   const rows = await db.customers
@@ -162,11 +158,11 @@ export function integrations(): unknown[] {
   });
   const logos = defineBucket({
     id: "customer-logos",
-    path: "{orgId}/{customerId}/logo.webp",
+    path: "{organizationId}/{customerId}/logo.webp",
   });
-  const topic = defineTopic("org:{orgId}:customers");
+  const topic = defineTopic("organization:{organizationId}:customers");
   const seed = defineSeed(betterSupabase, {
-    tags: { urgent: { organizationId: "org", name: "Urgent" } },
+    tags: { urgent: { organizationId: "organization", name: "Urgent" } },
   });
   return [
     env,
@@ -187,7 +183,7 @@ export function integrations(): unknown[] {
     defineConfig({ generators: [zod()] }),
     list,
     logos.path({
-      orgId: "o",
+      organizationId: "o",
       customerId: "c",
     }) satisfies Result<StoragePath<"customer-logos">>,
     defineBuckets({ logos }).byId("customer-logos") satisfies Result<
@@ -228,7 +224,7 @@ export function integrations(): unknown[] {
     checkAal,
     createNext(betterSupabase)
       .session()
-      .then((session) => hasEntitlement(session, "org", "exports")),
+      .then((session) => hasEntitlement(session, "organization", "exports")),
     server
       .deleteAccount("u1", { buckets: [logos], cascades: ["customers"] })
       .map(({ removed }) => removed["customer-logos"]),

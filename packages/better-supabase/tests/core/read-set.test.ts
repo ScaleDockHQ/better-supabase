@@ -19,23 +19,23 @@ const USER = "00000000-0000-0000-0000-000000000001";
 const chrome = defineReadSet(
   betterSupabase,
   "app_chrome",
-  { params: { orgId: "uuid", kinds: "text[]", search: "text" } },
+  { params: { organizationId: "uuid", kinds: "text[]", search: "text" } },
   (s, p) => ({
     customers: s.customers.findMany({
       select: ["id", "name"],
-      where: { organizationId: p.orgId, name: { contains: p.search } },
+      where: { organizationId: p.organizationId, name: { contains: p.search } },
       orderBy: { name: "asc" },
       limit: 5,
     }),
     calls: s.notes.count({
       where: {
-        organizationId: p.orgId,
+        organizationId: p.organizationId,
         kind: { in: p.kinds as readonly ("call" | "email")[] },
       },
     }),
     first: s.customers.findFirst({
       select: ["id"],
-      where: { organizationId: p.orgId, status: "active" },
+      where: { organizationId: p.organizationId, status: "active" },
     }),
   }),
 );
@@ -153,7 +153,7 @@ describe("compileReadSet", () => {
     expect(sql).toContain(
       "language sql stable security invoker set search_path = ''",
     );
-    expect(sql).toContain("((p->>'orgId')::uuid)");
+    expect(sql).toContain("((p->>'organizationId')::uuid)");
     expect(sql).toContain(
       "(array(select jsonb_array_elements_text(p->'kinds'))::text[])",
     );
@@ -313,7 +313,7 @@ describe("db.$many over PostgREST", () => {
     }));
     const db = betterSupabase.connect(client);
     const result = await db.$many(chrome, {
-      orgId: USER,
+      organizationId: USER,
       kinds: ["call"],
       search: "ac",
     });
@@ -326,7 +326,7 @@ describe("db.$many over PostgREST", () => {
     expect(requests[0]!.method).toBe("GET");
     expect(requests[0]!.path).toBe("/rest/v1/rpc/rs_app_chrome");
     expect(JSON.parse(requests[0]!.params.get("p")!)).toEqual({
-      orgId: USER,
+      organizationId: USER,
       kinds: ["call"],
       search: "ac",
     });
@@ -337,7 +337,7 @@ describe("db.$many over PostgREST", () => {
     const { client, requests } = capturingClient();
     const result = await betterSupabase
       .connect(client)
-      .$many(chrome, { orgId: USER } as never);
+      .$many(chrome, { organizationId: USER } as never);
     expect(!result.ok && result.error.kind).toBe("invalid_request");
     expect(requests).toHaveLength(0);
   });
@@ -380,7 +380,7 @@ describe("db.$many with Executor.batch", () => {
   it("binds read-set parameters instead of calling a function", async () => {
     const executor = fakeExecutor();
     const result = await betterSupabase.connect(executor).$many(chrome, {
-      orgId: USER,
+      organizationId: USER,
       kinds: ["call", "email"],
       search: "ac",
     });

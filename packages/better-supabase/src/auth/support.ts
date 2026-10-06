@@ -52,7 +52,7 @@ export interface SupportListFilter {
 
 /**
  * Where support sessions live. `sqlSupportStore` uses the `support-sessions`
- * SQL kit module; implement this for another store and check it with
+ * SQL module; implement this for another store and check it with
  * `testSupportSessionStore` from `better-supabase/testing`.
  */
 export interface SupportSessionStore {
@@ -121,12 +121,12 @@ export function supportSessionFromRow(row: SupportRow): SupportSession {
 }
 
 export interface SqlSupportStoreOptions {
-  /** `kits.support-sessions.schema`. Defaults to `better_supabase`. */
+  /** `blocks.support-sessions.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
 }
 
 /**
- * Support sessions in the `support-sessions` SQL kit module. `start` runs
+ * Support sessions in the `support-sessions` SQL module. `start` runs
  * as the admin, so the module's `is_platform()` gate applies; the reads run
  * on the admin connection.
  */

@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody, SQL_MODULES, upgradePlan } from "../../../src/sql/kit.ts";
+import {
+  moduleBody,
+  SQL_MODULES,
+  upgradePlan,
+} from "../../../src/sql/blocks.ts";
 
 const jobs = (options?: Readonly<Record<string, unknown>>) =>
-  moduleBody("jobs", options ? { kits: { jobs: { options } } } : {})!;
+  moduleBody("jobs", options ? { blocks: { jobs: { options } } } : {})!;
 
 describe("jobs module", () => {
   it("defaults to pgmq and pg_cron", () => {
@@ -67,7 +71,7 @@ describe("jobs module", () => {
   it("dead-letters lost last attempts, jitters retries and replays dead letters", () => {
     for (const backend of ["pgmq", "table"]) {
       const sql = moduleBody("jobs", {
-        kits: { jobs: { options: { backend } } },
+        blocks: { jobs: { options: { backend } } },
       })!;
       expect(sql).toContain("The lease ran out on the last attempt");
       expect(sql).toContain(

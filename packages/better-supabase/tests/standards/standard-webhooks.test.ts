@@ -1,12 +1,12 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
-import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import {
   signWebhook,
   timingSafeEqual,
   verifyWebhook,
-} from "../../src/webhooks/index.ts";
+} from "../../src/blocks/webhooks/index.ts";
+import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 // Reference vector from the Standard Webhooks specification test suite.
 const SECRET = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw";

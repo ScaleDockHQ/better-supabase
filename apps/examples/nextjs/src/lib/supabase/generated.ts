@@ -425,7 +425,7 @@ export const buckets = {
   "customerLogos": {
     "id": "customer-logos",
     "public": true,
-    "path": "{orgId}/{customerId}/logo/{version}.webp",
+    "path": "{organizationId}/{customerId}/logo/{version}.webp",
     "policy": "tenant",
     "fileSizeLimit": "5MiB",
     "allowedMimeTypes": [

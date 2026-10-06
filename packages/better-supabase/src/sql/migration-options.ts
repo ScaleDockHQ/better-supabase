@@ -1,4 +1,4 @@
-import type { KitModuleConfig, KitsConfig } from "../config/kits.ts";
+import type { BlockModuleConfig, BlocksConfig } from "../config/blocks.ts";
 
 /** A module option that only fits a schema being adopted. */
 interface MigrationOption {
@@ -38,9 +38,9 @@ const MIGRATION_OPTIONS: readonly MigrationOption[] = [
   },
   {
     module: "outbox",
-    option: "kitSource",
+    option: "blockSource",
     departs: (value) => value !== "better-supabase/{module}",
-    effect: "replaces the CloudEvents source of kit events",
+    effect: "replaces the CloudEvents source of block events",
   },
   {
     module: "outbox",
@@ -56,19 +56,19 @@ export interface MigrationOptionUse {
   readonly option: string;
   readonly value: unknown;
   readonly adopted: boolean;
-  /** `kits.<module>.options.<option> ... It <effect>.` */
+  /** `blocks.<module>.options.<option> ... It <effect>.` */
   readonly message: string;
 }
 
 /**
- * The migration-only options `kits` sets to a value other than the managed
+ * The migration-only options `blocks` sets to a value other than the managed
  * default. They are accepted in `adopt` mode only; doctor warns about each.
  */
 export function migrationOptionUses(
-  kits: KitsConfig = {},
+  blocks: BlocksConfig = {},
 ): MigrationOptionUse[] {
   return MIGRATION_OPTIONS.flatMap((entry) => {
-    const config: KitModuleConfig | undefined = kits[entry.module];
+    const config: BlockModuleConfig | undefined = blocks[entry.module];
     const options = config?.options ?? {};
     if (!(entry.option in options)) return [];
     const value = options[entry.option];
@@ -79,7 +79,7 @@ export function migrationOptionUses(
         option: entry.option,
         value,
         adopted: config?.mode === "adopt",
-        message: `kits.${entry.module}.options.${entry.option} is ${JSON.stringify(value)}. It ${entry.effect}.`,
+        message: `blocks.${entry.module}.options.${entry.option} is ${JSON.stringify(value)}. It ${entry.effect}.`,
       },
     ];
   });

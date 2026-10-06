@@ -1,6 +1,6 @@
 import type { SqlClient } from "better-supabase/postgres";
 
-import { renderKit } from "better-supabase/sql";
+import { renderBlocks } from "better-supabase/sql";
 import { readFile } from "node:fs/promises";
 import { DatabaseError, Pool, type PoolClient, type QueryResultRow } from "pg";
 
@@ -133,7 +133,7 @@ export class Session {
     return "no error";
   }
 
-  /** `SqlClient` for the kit transports; each call runs in a savepoint. */
+  /** `SqlClient` for the block transports; each call runs in a savepoint. */
   get sql(): SqlClient {
     const client = this.client;
     return {
@@ -153,7 +153,7 @@ export class Session {
   }
 }
 
-/** Runs `body` against CentraKit's tables with the kit installed, then rolls back. */
+/** Runs `body` against CentraKit's tables with the block installed, then rolls back. */
 export async function withCentraKit(
   pool: Pool,
   body: (session: Session) => Promise<void>,
@@ -187,9 +187,9 @@ export async function withCentraKit(
       "insert into centrakit.user_roles (user_id, role_id) values ($1, $2)",
       [USERS.support, ROLES.systemSupport],
     );
-    for (const file of renderKit(
-      config.sql?.kit ?? [],
-      config.kits ? { kits: config.kits } : {},
+    for (const file of renderBlocks(
+      config.sql?.modules ?? [],
+      config.blocks ? { blocks: config.blocks } : {},
     ))
       await client.query(file.contents);
     await client.query(

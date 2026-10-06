@@ -5,7 +5,7 @@ import type {
   PermdockBucketPolicy,
   SchemaMeta,
 } from "../schema/types.ts";
-import type { KitsConfig } from "./kits.ts";
+import type { BlocksConfig } from "./blocks.ts";
 import type { GeneratorMetadata, SnapshotExtras } from "./snapshot.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
@@ -118,7 +118,7 @@ export interface TenantConfig {
 }
 
 /**
- * Claim names shared by the SQL kit, codegen and the runtime defaults. They
+ * Claim names shared by the SQL modules, codegen and the runtime defaults. They
  * follow PermDock's claim contract.
  */
 export interface ClaimsConfig {
@@ -133,7 +133,7 @@ export interface ClaimsConfig {
 export interface ActorConfig {
   readonly createdBy?: string;
   readonly updatedBy?: string;
-  /** Defaults to `impersonated_by`, the column the SQL kit's `track_actor` fills. */
+  /** Defaults to `impersonated_by`, the column the SQL modules' `track_actor` fills. */
   readonly impersonatedBy?: string;
 }
 
@@ -148,7 +148,7 @@ export interface BucketConfig {
   readonly id?: string;
   readonly public?: boolean;
   /**
-   * Path template with `{placeholders}`, e.g. `{orgId}/{customerId}/logo.webp`,
+   * Path template with `{placeholders}`, e.g. `{organizationId}/{customerId}/logo.webp`,
    * or several when the bucket stores objects in more than one layout. A last
    * segment `{...rest}` matches one or more segments.
    */
@@ -172,8 +172,8 @@ export interface SqlConfig {
   readonly prefix?: string;
   /** Directory pgTAP files (the `pgtap` module) are written to. */
   readonly testsDir?: string;
-  /** SQL kit modules to keep in sync (`better-supabase sql add`). */
-  readonly kit?: readonly string[];
+  /** SQL modules to keep in sync (`better-supabase sql add`). */
+  readonly modules?: readonly string[];
 }
 
 export interface SeedConfig {
@@ -324,7 +324,7 @@ export interface RealtimeConfig {
 export interface EntitlementsConfig {
   /**
    * `table.column` (or `schema.table.column`) holding each tenant's Stripe
-   * customer id, read by the `entitlements` SQL kit module. Required
+   * customer id, read by the `entitlements` SQL module. Required
    * without the `organizations` module; with it, defaults to the
    * `stripe_customer_id` column that module adds.
    */
@@ -337,7 +337,7 @@ export interface EntitlementsConfig {
    * `member_<scope>_ids_for(user)`) instead of `better_supabase.memberships`.
    * `scope` is the PermDock scope tenants are. It defaults to the manifest's
    * root scope (the `rls.scopes` entry without `within`); `false` keeps the
-   * kit's memberships table.
+   * block's memberships table.
    */
   readonly permdock?: false | { readonly scope?: string };
 }
@@ -433,14 +433,14 @@ export interface BetterSupabaseConfig {
   /**
    * Data API grants, keyed by `table` or `schema.table`. Supabase no longer
    * grants new tables to `anon` and `authenticated` automatically; the
-   * `grants` SQL kit module writes these, and doctor (BS106) checks them.
+   * `grants` SQL module writes these, and doctor (BS106) checks them.
    * Tables not listed need `select, insert, update, delete` for
    * `authenticated` (`select` for views).
    */
   readonly expose?: Readonly<Record<string, ExposeConfig>>;
   /**
    * Modules that export `defineReadSet` results. `gen` compiles each set to
-   * a function in the `read-sets` SQL kit module. Node imports them, so
+   * a function in the `read-sets` SQL module. Node imports them, so
    * relative imports need their `.ts` extension.
    */
   readonly readSets?: readonly string[];
@@ -449,25 +449,25 @@ export interface BetterSupabaseConfig {
   readonly plugins?: PluginFlagsConfig;
   readonly claims?: ClaimsConfig;
   readonly buckets?: Readonly<Record<string, BucketConfig>>;
-  /** Realtime topic templates: `{ notifications: 'org:{orgId}:notifications' }`. */
+  /** Realtime topic templates: `{ notifications: 'organization:{organizationId}:notifications' }`. */
   readonly topics?: Readonly<Record<string, string>>;
   readonly realtime?: RealtimeConfig;
   readonly entitlements?: EntitlementsConfig;
-  /** Where PermDock's JSON outputs are, for doctor, `gen` and the SQL kit. */
+  /** Where PermDock's JSON outputs are, for doctor, `gen` and the SQL modules. */
   readonly permdock?: PermdockPathsConfig;
   /**
    * Embedding columns, keyed by `table` or `schema.table`. The
-   * `vector-search` SQL kit module writes `search_<table>(query, k)` for each,
+   * `vector-search` SQL module writes `search_<table>(query, k)` for each,
    * which `db.$search(table, { vector, k })` calls.
    */
   readonly vectorSearch?: Readonly<Record<string, VectorSearchConfig>>;
   readonly sql?: SqlConfig;
   /**
-   * How each SQL kit module maps onto the database: `managed` tables, or
+   * How each SQL module maps onto the database: `managed` tables, or
    * `adopt` and `custom` over the app's own, with table, column and
    * permission names, keyed by module name.
    */
-  readonly kits?: KitsConfig;
+  readonly blocks?: BlocksConfig;
   readonly seed?: SeedConfig;
   readonly openapi?: OpenApiConfig;
   readonly doctor?: DoctorConfig;
@@ -551,7 +551,7 @@ export interface ResolvedConfig {
   readonly topics: Readonly<Record<string, string>>;
   readonly realtime: Required<RealtimeConfig>;
   readonly sql: Required<SqlConfig>;
-  readonly kits: KitsConfig;
+  readonly blocks: BlocksConfig;
   readonly seed: Required<SeedConfig>;
   readonly openapi: Required<OpenApiConfig>;
   readonly doctor: Required<Omit<DoctorConfig, "claimsLimit">> &
@@ -663,9 +663,9 @@ export function resolveConfig(
       dir: config.sql?.dir ?? "supabase/schemas",
       prefix: config.sql?.prefix ?? "900_better_supabase",
       testsDir: config.sql?.testsDir ?? "supabase/tests",
-      kit: config.sql?.kit ?? [],
+      modules: config.sql?.modules ?? [],
     },
-    kits: config.kits ?? {},
+    blocks: config.blocks ?? {},
     seed: {
       entry: config.seed?.entry ?? "supabase/seed.ts",
       output: config.seed?.output ?? "supabase/seeds/000_better_supabase.sql",

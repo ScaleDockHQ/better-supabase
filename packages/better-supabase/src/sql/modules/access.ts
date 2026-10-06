@@ -1,5 +1,5 @@
-import type { KitContext } from "../context.ts";
-import type { KitLayout, KitModuleDefinition } from "../kit.ts";
+import type { BlockLayout, BlockModuleDefinition } from "../blocks.ts";
+import type { BlockContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -22,7 +22,7 @@ const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
 // never carries the subject's platform permissions.
 const NOT_ACTING = `(platform_can.member is distinct from auth.uid() or auth.jwt() -> 'act' is null)`;
 
-/** Fills `{name}` placeholders of a `kits.access.functions` template. */
+/** Fills `{name}` placeholders of a `blocks.access.functions` template. */
 function fill(
   template: string,
   values: Readonly<Record<string, string>>,
@@ -31,7 +31,7 @@ function fill(
     const value = values[name];
     if (value === undefined) {
       throw new TypeError(
-        `kits.access.functions: ${match} is not available here. Use ${Object.keys(
+        `blocks.access.functions: ${match} is not available here. Use ${Object.keys(
           values,
         )
           .map((key) => `{${key}}`)
@@ -49,7 +49,7 @@ interface Names {
   readonly role: string;
 }
 
-function membershipNames(ctx: KitContext): Names {
+function membershipNames(ctx: BlockContext): Names {
   const tenant = ctx.of("tenant");
   return {
     m: tenant.table("memberships"),
@@ -60,7 +60,7 @@ function membershipNames(ctx: KitContext): Names {
 }
 
 /** Whether membership row `m` grants catalog permission row `p`: deny beats grant beats the role default. */
-function catalogEffective(ctx: KitContext, n: Names): string {
+function catalogEffective(ctx: BlockContext, n: Names): string {
   const rp = ctx.table("rolePermissions");
   const fallback = `exists (select 1 from ${rp} rp where rp.${ctx.col("rolePermissions", "role")} = m.${n.role} and rp.${ctx.col("rolePermissions", "permission")} = p.${ctx.col("permissions", "id")})`;
   if (!ctx.hasTable("overrides")) return fallback;
@@ -75,16 +75,16 @@ function catalogEffective(ctx: KitContext, n: Names): string {
 }
 
 /** Whether membership row `m` grants `permission` (an SQL expression). */
-function grants(ctx: KitContext, n: Names, permission: string): string {
+function grants(ctx: BlockContext, n: Names, permission: string): string {
   if (accessModel(ctx) === "roles") {
     return `better_supabase.role_grants(m.${n.role}, ${permission})`;
   }
   return `exists (select 1 from ${ctx.table("permissions")} p where p.${ctx.col("permissions", "key")} = ${permission} and ${catalogEffective(ctx, n)})`;
 }
 
-function platformClaim(ctx: KitContext, member: string, permission: string) {
+function platformClaim(ctx: BlockContext, member: string, permission: string) {
   const claim = sqlString(
-    ctx.kits.access?.platformClaim ?? "platform_permissions",
+    ctx.blocks.access?.platformClaim ?? "platform_permissions",
   );
   return `(${member} = auth.uid() and exists (
     select 1
@@ -97,7 +97,7 @@ function platformClaim(ctx: KitContext, member: string, permission: string) {
   ))`;
 }
 
-function rolesFunctions(ctx: KitContext): string {
+function rolesFunctions(ctx: BlockContext): string {
   const roles = Object.entries(rolesOf(ctx));
   const cases =
     roles.length === 0
@@ -107,7 +107,7 @@ function rolesFunctions(ctx: KitContext): string {
     else '{}'::text[]
   end`;
   return `
--- The roles model (kits.access.roles): each role's permission keys.
+-- The roles model (blocks.access.roles): each role's permission keys.
 create or replace function better_supabase.role_permissions(role text)
 returns text[]
 language sql
@@ -134,7 +134,7 @@ grant execute on function better_supabase.role_permissions(text) to service_role
 grant execute on function better_supabase.role_grants(text, text) to service_role, supabase_auth_admin;`;
 }
 
-function catalogTables(ctx: KitContext): string {
+function catalogTables(ctx: BlockContext): string {
   if (!ctx.manages) {
     return `
 -- Adopted catalog: ${[
@@ -214,7 +214,7 @@ $$;${membershipRoleKey(ctx)}`;
 }
 
 /** A catalog role can't be deleted while a membership still holds it. */
-function membershipRoleKey(ctx: KitContext): string {
+function membershipRoleKey(ctx: BlockContext): string {
   const tenant = ctx.of("tenant");
   if (!tenant.manages) return "";
   return `
@@ -228,7 +228,7 @@ ${addForeignKey({
 }
 
 /** `member_can`, `member_permissions` and `platform_can` for the roles and catalog models. */
-function membershipFunctions(ctx: KitContext): string {
+function membershipFunctions(ctx: BlockContext): string {
   const id = ctx.idType;
   const n = membershipNames(ctx);
   const model = accessModel(ctx);
@@ -386,7 +386,7 @@ $$;`;
 }
 
 /** `platform_can_assign(member, role)`: the platform role ceiling. */
-function platformCanAssign(ctx: KitContext): string {
+function platformCanAssign(ctx: BlockContext): string {
   if (!hasPlatformRoles(ctx)) return "";
   const platformRole = roleScopeIs(ctx, "r", "platform");
   return `
@@ -415,8 +415,8 @@ revoke execute on function better_supabase.platform_can_assign(uuid, text) from 
 grant execute on function better_supabase.platform_can_assign(uuid, text) to service_role;`;
 }
 
-function permdockCanAssign(ctx: KitContext): string {
-  const template = ctx.kits.access?.functions?.canAssign;
+function permdockCanAssign(ctx: BlockContext): string {
+  const template = ctx.blocks.access?.functions?.canAssign;
   if (template) {
     return fill(template, {
       tenant: "can_assign.tenant",
@@ -425,38 +425,38 @@ function permdockCanAssign(ctx: KitContext): string {
   }
   if (!ctx.installed("tenant")) return "false";
   const owner = sqlString(ctx.of("organizations").text("ownerRole", "owner"));
-  return `can_assign.role <> ${owner} or better_supabase.has_org_role(can_assign.tenant, array[${owner}])`;
+  return `can_assign.role <> ${owner} or better_supabase.has_organization_role(can_assign.tenant, array[${owner}])`;
 }
 
 /**
  * PermDock's schema and scope for the `permdock` model: from the manifest
  * (`layout.accessPermdock`, which `sql add` reads), else both set in
- * `kits.access.permdock`. Never a default, so a project whose helpers live
+ * `blocks.access.permdock`. Never a default, so a project whose helpers live
  * elsewhere never gets functions that call helpers that don't exist.
  */
 function permdockTarget(
-  ctx: KitContext,
-  layout: KitLayout,
+  ctx: BlockContext,
+  layout: BlockLayout,
 ): { readonly schema: string; readonly scope: string } {
-  const configured = ctx.kits.access?.permdock;
+  const configured = ctx.blocks.access?.permdock;
   const manifest = layout.accessPermdock;
   if (manifest) {
     if (manifest.idType !== ctx.idType) {
       throw new TypeError(
-        `kits.access: PermDock's manifest gives scope "${manifest.scope}" the type ${manifest.idType}, but the access module renders ${ctx.idType} ids. Set kits.access.idType to "${manifest.idType}".`,
+        `blocks.access: PermDock's manifest gives scope "${manifest.scope}" the type ${manifest.idType}, but the access module renders ${ctx.idType} ids. Set blocks.access.idType to "${manifest.idType}".`,
       );
     }
     return { schema: manifest.schema, scope: manifest.scope };
   }
   if (configured?.schema === undefined || configured.scope === undefined) {
     throw new TypeError(
-      "kits.access.model 'permdock' needs PermDock's manifest (`permdock supabase inspect --out`), which `better-supabase sql add` reads, or both kits.access.permdock.schema and kits.access.permdock.scope.",
+      "blocks.access.model 'permdock' needs PermDock's manifest (`permdock supabase inspect --out`), which `better-supabase sql add` reads, or both blocks.access.permdock.schema and blocks.access.permdock.scope.",
     );
   }
   return { schema: configured.schema, scope: configured.scope };
 }
 
-function permdockFunctions(ctx: KitContext, layout: KitLayout): string {
+function permdockFunctions(ctx: BlockContext, layout: BlockLayout): string {
   const id = ctx.idType;
   const target = permdockTarget(ctx, layout);
   const schema = sqlIdent(target.schema);
@@ -474,7 +474,7 @@ set search_path = ''
 as $$
 begin
   if member is distinct from auth.uid() then
-    raise exception 'The permdock access model answers for the caller only (kits.access.model)'
+    raise exception 'The permdock access model answers for the caller only (blocks.access.model)'
       using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';
   end if;
   return not better_supabase.user_disabled(member)
@@ -514,7 +514,7 @@ as $$
     and not better_supabase.tenant_disabled(t.id::${id})
 $$;
 
--- kits.access.functions.canAssign decides who assigns which role, usually
+-- blocks.access.functions.canAssign decides who assigns which role, usually
 -- ${schema}.permdock_can_assign({role}, {tenant}::text). Without it, only the
 -- service role assigns roles, unless the tenant module is installed: then
 -- only owners assign the owner role and this check passes other roles.
@@ -538,15 +538,15 @@ as $$
 $$;`;
 }
 
-function customFunctions(ctx: KitContext): string {
+function customFunctions(ctx: BlockContext): string {
   const id = ctx.idType;
-  const functions = ctx.kits.access?.functions ?? {};
+  const functions = ctx.blocks.access?.functions ?? {};
   const missing = (
     ["can", "tenantIdsWith", "isPlatform", "canAssign"] as const
   ).filter((name) => !functions[name]);
   if (missing.length > 0) {
     throw new TypeError(
-      `kits.access.model 'custom' needs kits.access.functions.${missing.join(", ")}`,
+      `blocks.access.model 'custom' needs blocks.access.functions.${missing.join(", ")}`,
     );
   }
   const can = (member: string, tenant: string, permission: string) =>
@@ -557,7 +557,7 @@ function customFunctions(ctx: KitContext): string {
       user: member,
     });
   return `
--- The custom model: the app's own functions, from kits.access.functions.
+-- The custom model: the app's own functions, from blocks.access.functions.
 create or replace function better_supabase.member_can(member uuid, tenant ${id}, permission text)
 returns boolean
 language sql
@@ -626,7 +626,7 @@ as $$
 $$;`;
 }
 
-function accessSql(ctx: KitContext, layout: KitLayout): string {
+function accessSql(ctx: BlockContext, layout: BlockLayout): string {
   const id = ctx.idType;
   const model = accessModel(ctx);
   const scope = sqlString(tenantScope(ctx));
@@ -666,7 +666,7 @@ as $$
 $$;
 ${body}
 
--- The access contract. Policies and kit modules call these, never a model's
+-- The access contract. Policies and block modules call these, never a model's
 -- tables, so the model can change without touching them:
 --   using ((select better_supabase.can('${tenantScope(ctx)}', organization_id, 'invoices.read')))
 --   using (organization_id in (select better_supabase.tenant_ids_with('invoices.read')))
@@ -697,7 +697,7 @@ as $$${
       ? `
 begin
   if member is distinct from auth.uid() then
-    raise exception 'The permdock access model answers for the caller only (kits.access.model)'
+    raise exception 'The permdock access model answers for the caller only (blocks.access.model)'
       using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';
   end if;
   return case`
@@ -753,14 +753,14 @@ $$;
 --     better_supabase.permission_claims((event ->> 'user_id')::uuid));`;
 }
 
-export const ACCESS: KitModuleDefinition = {
+export const ACCESS: BlockModuleDefinition = {
   name: "access",
   title: "Access contract",
   description:
-    "can(), tenant_ids_with() and is_platform(): one permission contract for policies and kit modules, over a roles list, a role and permission catalog, PermDock or the app's own functions (kits.access.model).",
+    "can(), tenant_ids_with() and is_platform(): one permission contract for policies and block modules, over a roles list, a role and permission catalog, PermDock or the app's own functions (blocks.access.model).",
   requires: ["tenant"],
   dependencies: (layout) => {
-    const model = layout.kits?.access?.model ?? "roles";
+    const model = layout.blocks?.access?.model ?? "roles";
     return model === "roles" || model === "catalog" ? ["tenant"] : [];
   },
   target: "schema",

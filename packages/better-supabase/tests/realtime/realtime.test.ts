@@ -99,30 +99,30 @@ describe("defineTopic", () => {
   });
 
   it("builds and matches topic names", () => {
-    expect(notifications.topic({ orgId: "o1", userId: "u1" })).toBe(
-      "org:o1:notifications:u1",
+    expect(notifications.topic({ organizationId: "o1", userId: "u1" })).toBe(
+      "organization:o1:notifications:u1",
     );
-    expect(notifications.match("org:o1:notifications:u1")).toEqual({
-      orgId: "o1",
+    expect(notifications.match("organization:o1:notifications:u1")).toEqual({
+      organizationId: "o1",
       userId: "u1",
     });
-    expect(notifications.match("org:o1:notifications")).toBeNull();
-    expect(() => notifications.topic({ orgId: "o:1", userId: "u1" })).toThrow(
-      DbException,
-    );
-    expect(notifications.name).toBe("org_notifications");
+    expect(notifications.match("organization:o1:notifications")).toBeNull();
+    expect(() =>
+      notifications.topic({ organizationId: "o:1", userId: "u1" }),
+    ).toThrow(DbException);
+    expect(notifications.name).toBe("organization_notifications");
   });
 
   it("generates policies with tenant and owner checks", () => {
     const sql = notifications.sql();
     expect(sql).toContain(
-      'create policy "bs_topic_org_notifications_receive" on realtime.messages for select to authenticated',
+      'create policy "bs_topic_organization_notifications_receive" on realtime.messages for select to authenticated',
     );
     expect(sql).toContain(
-      'create policy "bs_topic_org_notifications_send" on realtime.messages for insert to authenticated',
+      'create policy "bs_topic_organization_notifications_send" on realtime.messages for insert to authenticated',
     );
     expect(sql).toContain(
-      "(select realtime.topic()) ~ '^org:[^:]+:notifications:[^:]+$'",
+      "(select realtime.topic()) ~ '^organization:[^:]+:notifications:[^:]+$'",
     );
     expect(sql).toContain(
       "split_part((select realtime.topic()), ':', 2) = (coalesce((select auth.jwt()) ->> 'tenant_id'",
@@ -136,7 +136,7 @@ describe("defineTopic", () => {
   });
 
   it("compiles PermDock receive and send policies", () => {
-    const board = defineTopic("org:{orgId}:board", {
+    const board = defineTopic("organization:{organizationId}:board", {
       permdock: {
         receive: "board.read",
         send: "board.write",
@@ -146,7 +146,7 @@ describe("defineTopic", () => {
     const ids = (key: string) =>
       `split_part((select realtime.topic()), ':', 2) in (select t.id::text from "permdock"."permitted_organization_ids"('${key}') as t(id))`;
     expect(board).toContain(
-      `for select to authenticated\n  using (\n    (select realtime.topic()) ~ '^org:[^:]+:board$'\n    and realtime.messages.extension in ('broadcast')\n    and ${ids("board.read")}\n  );`,
+      `for select to authenticated\n  using (\n    (select realtime.topic()) ~ '^organization:[^:]+:board$'\n    and realtime.messages.extension in ('broadcast')\n    and ${ids("board.read")}\n  );`,
     );
     expect(board).toContain(`for insert to authenticated\n  with check (`);
     expect(board).toContain(ids("board.write"));
@@ -161,7 +161,7 @@ describe("defineTopic", () => {
     );
     expect(receiveOnly).not.toContain("for insert");
     expect(() =>
-      defineTopic("org:{orgId}", {
+      defineTopic("organization:{organizationId}", {
         permdock: { receive: "x.read#1", scope: "organization" },
       }),
     ).toThrow(/splits by row condition/);
@@ -173,19 +173,19 @@ describe("defineTopic", () => {
       ],
     };
     expect(() =>
-      defineTopic("org:{orgId}:board", {
+      defineTopic("organization:{organizationId}:board", {
         permdock: { receive: "board.watch", scope: "organization" },
         catalog,
       }),
     ).toThrow(/"board\.watch" has no rowConditions flag/);
     expect(() =>
-      defineTopic("org:{orgId}:board", {
+      defineTopic("organization:{organizationId}:board", {
         permdock: { receive: "board.other", scope: "organization" },
         catalog,
       }),
     ).toThrow(/"board\.other" is not in PermDock's catalog/);
     expect(() =>
-      defineTopic("org:{orgId}:board", {
+      defineTopic("organization:{organizationId}:board", {
         permdock: {
           receive: "board.read",
           send: "board.write",
@@ -195,7 +195,7 @@ describe("defineTopic", () => {
       }),
     ).toThrow(/"board\.write" has row conditions/);
     expect(
-      defineTopic("org:{orgId}:board", {
+      defineTopic("organization:{organizationId}:board", {
         permdock: { receive: "board.read", scope: "organization" },
         catalog,
       }).sql(),
@@ -207,18 +207,18 @@ describe("defineTopic", () => {
       betterSupabase,
       "customers",
       {
-        values: { orgId: "organizationId" },
+        values: { organizationId: "organizationId" },
       },
     );
     expect(sql).toContain('create schema if not exists "better_supabase";');
     expect(sql).toContain(
-      'create or replace function "better_supabase"."bs_broadcast_org_customers_customers"()',
+      'create or replace function "better_supabase"."bs_broadcast_organization_customers_customers"()',
     );
     expect(sql).toContain(
-      "'org:' || rec.\"organization_id\"::text || ':customers',",
+      "'organization:' || rec.\"organization_id\"::text || ':customers',",
     );
     expect(sql).toContain(
-      'create trigger "bs_broadcast_org_customers" after insert or update or delete on "public"."customers"',
+      'create trigger "bs_broadcast_organization_customers" after insert or update or delete on "public"."customers"',
     );
   });
 
@@ -230,15 +230,18 @@ describe("defineTopic", () => {
     {
       using subscription = notifications.subscribe(
         client,
-        { orgId: "o1", userId: "u1" },
+        { organizationId: "o1", userId: "u1" },
         { created, "*": other },
         { onInvalid },
       );
       await subscription.ready;
       expect(raw.realtime.setAuth).toHaveBeenCalled();
-      expect(raw.channel).toHaveBeenCalledWith("org:o1:notifications:u1", {
-        config: { private: true, broadcast: { self: false } },
-      });
+      expect(raw.channel).toHaveBeenCalledWith(
+        "organization:o1:notifications:u1",
+        {
+          config: { private: true, broadcast: { self: false } },
+        },
+      );
       emit("created", { title: "Hi", extra: 1 });
       emit("created", { nope: true });
       emit("deleted", { id: 1 });
@@ -249,7 +252,7 @@ describe("defineTopic", () => {
       {
         event: "created",
         payload: { title: "Hi", extra: 1 },
-        topic: "org:o1:notifications:u1",
+        topic: "organization:o1:notifications:u1",
       },
     );
     expect(onInvalid).toHaveBeenCalledWith(
@@ -268,7 +271,7 @@ describe("defineTopic", () => {
     const statuses: string[] = [];
     const subscription = notifications.subscribe(
       client,
-      { orgId: "o1", userId: "u1" },
+      { organizationId: "o1", userId: "u1" },
       {},
       { onStatus: (status) => statuses.push(status) },
     );
@@ -280,14 +283,16 @@ describe("defineTopic", () => {
     const { client, channel } = fakeClient();
     const invalid = await notifications.send(
       client,
-      { orgId: "o1", userId: "u1" },
+      { organizationId: "o1", userId: "u1" },
       "created",
       {},
     );
     expect(invalid.error?.kind).toBe("validation");
     expect(channel.httpSend).not.toHaveBeenCalled();
     await notifications
-      .send(client, { orgId: "o1", userId: "u1" }, "created", { title: "Hi" })
+      .send(client, { organizationId: "o1", userId: "u1" }, "created", {
+        title: "Hi",
+      })
       .orThrow();
     expect(channel.httpSend).toHaveBeenCalledWith("created", { title: "Hi" });
   });
@@ -296,13 +301,15 @@ describe("defineTopic", () => {
     const { client, raw } = fakeClient();
     const subscription = notifications.subscribe(
       client,
-      { orgId: "o1", userId: "u1" },
+      { organizationId: "o1", userId: "u1" },
       {},
     );
     await subscription.ready;
     raw.realtime.setAuth.mockClear();
     await notifications
-      .send(client, { orgId: "o1", userId: "u1" }, "created", { title: "Hi" })
+      .send(client, { organizationId: "o1", userId: "u1" }, "created", {
+        title: "Hi",
+      })
       .orThrow();
     expect(raw.removeChannel).not.toHaveBeenCalled();
     expect(raw.realtime.setAuth).not.toHaveBeenCalled();
@@ -361,7 +368,7 @@ describe("defineTopic", () => {
     const created = vi.fn();
     const subscription = notifications.subscribe(
       client,
-      { orgId: "o1", userId: "u1" },
+      { organizationId: "o1", userId: "u1" },
       { created },
     );
     await subscription.ready;
@@ -412,7 +419,7 @@ describe("defineTopic", () => {
     const statuses: string[] = [];
     const subscription = notifications.subscribe(
       closed.client,
-      { orgId: "o1", userId: "u1" },
+      { organizationId: "o1", userId: "u1" },
       {},
       { onStatus: (status) => statuses.push(status) },
     );
@@ -423,15 +430,18 @@ describe("defineTopic", () => {
     await expect(
       notifications.subscribe(
         timedOut.client,
-        { orgId: "o1", userId: "u1" },
+        { organizationId: "o1", userId: "u1" },
         {},
       ).ready,
-    ).rejects.toThrow("Realtime timed_out on org:o1:notifications:u1");
+    ).rejects.toThrow("Realtime timed_out on organization:o1:notifications:u1");
 
     const weird = fakeClient("WEIRD", null);
     await expect(
-      notifications.subscribe(weird.client, { orgId: "o1", userId: "u1" }, {})
-        .ready,
+      notifications.subscribe(
+        weird.client,
+        { organizationId: "o1", userId: "u1" },
+        {},
+      ).ready,
     ).rejects.toThrow("Unknown realtime status WEIRD");
   });
 
@@ -448,7 +458,7 @@ describe("defineTopic", () => {
     );
     const subscription = notifications.subscribe(
       client,
-      { orgId: "o1", userId: "u1" },
+      { organizationId: "o1", userId: "u1" },
       {},
     );
     await subscription.unsubscribe();
@@ -464,7 +474,7 @@ describe("defineTopic", () => {
     {
       await using subscription = notifications.subscribe(
         client,
-        { orgId: "o1", userId: "u1" },
+        { organizationId: "o1", userId: "u1" },
         {},
       );
       await subscription.ready;
@@ -488,37 +498,41 @@ describe("defineTopic policies", () => {
       "split_part((select realtime.topic()), ':', 2) = ((select auth.jwt()) -> 'app_metadata' ->> 'team_id')",
     );
     expect(
-      defineTopic("org:{orgId}", { tenant: { sql: "private.org_id()" } }).sql(),
+      defineTopic("organization:{organizationId}", {
+        tenant: { sql: "private.org_id()" },
+      }).sql(),
     ).toContain(
       "split_part((select realtime.topic()), ':', 2) = (private.org_id())",
     );
   });
 
   it("throws when a checked parameter is not a whole segment", () => {
-    expect(() => defineTopic("org-{orgId}", { tenant: {} })).toThrow(
-      /the tenant check needs \{orgId\} as a whole segment in "org-\{orgId\}"/,
+    expect(() =>
+      defineTopic("organization-{organizationId}", { tenant: {} }),
+    ).toThrow(
+      /the tenant check needs \{organizationId\} as a whole segment in "organization-\{organizationId\}"/,
     );
     expect(() => defineTopic("user-{userId}", { owner: {} })).toThrow(
       /the owner check needs \{userId\}/,
     );
     expect(() =>
-      defineTopic("org-{orgId}", {
+      defineTopic("organization-{organizationId}", {
         permdock: { receive: "a.read", scope: "organization" },
       }),
-    ).toThrow(/the PermDock check needs \{orgId\}/);
+    ).toThrow(/the PermDock check needs \{organizationId\}/);
   });
 
   it("drops the tenant and owner checks when disabled", () => {
-    const sql = defineTopic("org:{orgId}:inbox:{userId}", {
+    const sql = defineTopic("organization:{organizationId}:inbox:{userId}", {
       tenant: false,
       owner: false,
     }).sql();
     expect(sql).not.toContain("split_part");
   });
 
-  it("uses an explicit PermDock segment and the default orgId without a tenant", () => {
+  it("uses an explicit PermDock segment and the default organizationId without a tenant", () => {
     expect(
-      defineTopic("x:{a}:{orgId}", {
+      defineTopic("x:{a}:{organizationId}", {
         tenant: false,
         permdock: { receive: "a.read", scope: "organization" },
       }).sql(),
@@ -547,33 +561,35 @@ describe("triggerSql", () => {
   it("rejects unknown tables and unmapped parameters", () => {
     expect(() =>
       // @ts-expect-error unknown table
-      customers.triggerSql(betterSupabase, "nope", { values: { orgId: "id" } }),
+      customers.triggerSql(betterSupabase, "nope", {
+        values: { organizationId: "id" },
+      }),
     ).toThrow('defineTopic: unknown table "nope"');
     expect(() =>
       customers.triggerSql(betterSupabase, "customers", {
         // @ts-expect-error missing value
         values: {},
       }),
-    ).toThrow('defineTopic: no column for {orgId} on "customers"');
+    ).toThrow('defineTopic: no column for {organizationId} on "customers"');
     expect(() =>
       customers.triggerSql(betterSupabase, "customers", {
         // @ts-expect-error unknown column
-        values: { orgId: "missing" },
+        values: { organizationId: "missing" },
       }),
-    ).toThrow('defineTopic: no column for {orgId} on "customers"');
+    ).toThrow('defineTopic: no column for {organizationId} on "customers"');
   });
 
   it("uses the given events and function schema", () => {
     const sql = customers.triggerSql(betterSupabase, "customers", {
-      values: { orgId: "organizationId" },
+      values: { organizationId: "organizationId" },
       events: ["insert"],
       functionSchema: "private",
     });
     expect(sql).toContain(
-      'create or replace function "private"."bs_broadcast_org_customers_customers"()',
+      'create or replace function "private"."bs_broadcast_organization_customers_customers"()',
     );
     expect(sql).toContain(
-      'create trigger "bs_broadcast_org_customers" after insert on "public"."customers"',
+      'create trigger "bs_broadcast_organization_customers" after insert on "public"."customers"',
     );
   });
 });
@@ -582,7 +598,7 @@ describe("rowChange", () => {
   it("maps broadcast_changes payloads to app casing", () => {
     const message = {
       event: "UPDATE",
-      topic: "org:o1:customers",
+      topic: "organization:o1:customers",
       payload: {
         schema: "public",
         table: "customers",
@@ -604,7 +620,7 @@ describe("rowChange", () => {
     expect(
       rowChange(betterSupabase, "customers", {
         event: "INSERT",
-        topic: "org:o1:customers",
+        topic: "organization:o1:customers",
         payload: { table: "customers", record: { id: "c1" }, old_record: null },
       }),
     ).toEqual({

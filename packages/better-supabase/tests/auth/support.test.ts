@@ -59,12 +59,12 @@ describe("supportClaims", () => {
   it("keeps the target's claims and names the admin in act", () => {
     const claims = supportClaims(
       { id: "s", adminId: "a", targetUserId: "t", reason: "r", readOnly: true },
-      { sub: "ignored", role: "", org_roles: { o: "member" } },
+      { sub: "ignored", role: "", organization_roles: { o: "member" } },
     );
     expect(claims).toEqual({
       sub: "t",
       role: "authenticated",
-      org_roles: { o: "member" },
+      organization_roles: { o: "member" },
       act: {
         kind: "support",
         sub: "a",

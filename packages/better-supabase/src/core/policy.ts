@@ -1,5 +1,5 @@
 /**
- * A callback that decides something a kit would otherwise allow or refuse
+ * A callback that decides something a block would otherwise allow or refuse
  * by default: `authorize`, `canInvite`, `shouldDeliver`, `allowUrl`. Only
  * `true` allows; `false`, any other value, a throw or a rejection denies.
  */
@@ -20,7 +20,7 @@ const ALLOWED: PolicyDecision = { allowed: true };
 const DENIED: PolicyDecision = { allowed: false, reason: "denied" };
 
 /**
- * Runs `policy` and fails closed. Without a policy the kit's default
+ * Runs `policy` and fails closed. Without a policy the block's default
  * applies: `fallback` is true to allow.
  */
 export async function decide<A extends readonly unknown[]>(

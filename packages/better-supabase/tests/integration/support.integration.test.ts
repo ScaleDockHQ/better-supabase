@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { sqlSupportStore, supportClaims } from "../../src/auth/support.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
-import { renderKit } from "../../src/sql/kit.ts";
+import { renderBlocks } from "../../src/sql/blocks.ts";
 import { testSupportSessionStore } from "../../src/testing/conformance.ts";
 import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 
@@ -45,7 +45,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
   beforeAll(async () => {
     await postgres.admin.queryRaw(
       [
-        ...renderKit(["support-sessions"], {}).map((file) => file.contents),
+        ...renderBlocks(["support-sessions"], {}).map((file) => file.contents),
         FIXTURE_TENANT_SQL,
       ].join("\n;\n"),
     );

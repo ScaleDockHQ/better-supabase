@@ -24,7 +24,7 @@ import {
   withBetterSupabase,
 } from "../../src/server/middleware.ts";
 import { createServer } from "../../src/server/server.ts";
-import { SQL_MODULES } from "../../src/sql/kit.ts";
+import { SQL_MODULES } from "../../src/sql/blocks.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { deleteAudit } from "./audit-cleanup.ts";
 

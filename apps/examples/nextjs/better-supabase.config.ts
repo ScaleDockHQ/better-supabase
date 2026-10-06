@@ -20,12 +20,12 @@ export default defineConfig({
     notifications: crud,
     organizations: ["select"],
   },
-  // Topics per organization: `bs:t:public.notifications:<org id>`.
+  // Topics per organization: `bs:t:public.notifications:<organization id>`.
   plugins: { tenant: { column: "organization_id" } },
   realtime: { tables: ["notifications"] },
   buckets: {
     customerLogos: {
-      path: "{orgId}/{customerId}/logo/{version}.webp",
+      path: "{organizationId}/{customerId}/logo/{version}.webp",
       public: true,
       policy: "tenant",
       fileSizeLimit: "5MiB",
@@ -37,10 +37,10 @@ export default defineConfig({
   readSets: ["src/lib/read-sets.ts"],
   // `search_notes(query, k)` for `db.$search('notes', …)`.
   vectorSearch: { notes: "embedding" },
-  // The kit files live in the repo's fixture, so the stack runs them.
+  // The block files live in the repo's fixture, so the stack runs them.
   sql: {
     dir: "../../../supabase/schemas",
-    kit: [
+    modules: [
       "updated-at",
       "read-sets",
       "realtime-tables",

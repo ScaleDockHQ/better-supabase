@@ -1,7 +1,7 @@
 import type {
   NotificationChannel,
   NotificationMessage,
-} from "../notifications/channel.ts";
+} from "../blocks/notifications/channel.ts";
 
 import { temporal } from "../core/temporal-required.ts";
 import { type ConformanceReport, conform, expect } from "./conformance.ts";
@@ -10,8 +10,8 @@ export interface TestNotificationChannelOptions {
   /** The recipient's email in the sample message. Defaults to `null`. */
   readonly email?: string | null;
   /**
-   * The delivery ids the provider received, read after the kit sends. When
-   * given, the kit checks that the sample message arrived.
+   * The delivery ids the provider received, read after the block sends. When
+   * given, the block checks that the sample message arrived.
    */
   readonly received?: () => Promise<readonly string[]>;
 }

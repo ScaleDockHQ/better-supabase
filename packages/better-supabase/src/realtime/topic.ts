@@ -41,8 +41,8 @@ export interface TopicOptions<E extends EventSchemas> {
   /** Private channels are authorized by `realtime.messages` policies. Defaults to `true`. */
   readonly private?: boolean;
   /**
-   * Tenant check for the generated policy. Defaults to `{orgId}` against
-   * `tenant_id` / `app_metadata.tenant_id` when the template has `{orgId}`.
+   * Tenant check for the generated policy. Defaults to `{organizationId}` against
+   * `tenant_id` / `app_metadata.tenant_id` when the template has `{organizationId}`.
    */
   readonly tenant?:
     | false
@@ -261,10 +261,10 @@ function sendError(status: number, message: string): DbError {
  * private channels, row-change triggers, and disposable subscriptions.
  *
  * ```ts
- * export const notifications = defineTopic('org:{orgId}:notifications:{userId}', {
+ * export const notifications = defineTopic('organization:{organizationId}:notifications:{userId}', {
  *   events: { created: v.object({ id: v.string(), title: v.string() }) },
  * });
- * using sub = notifications.subscribe(supabase, { orgId, userId }, { created: (n) => toast(n.title) });
+ * using sub = notifications.subscribe(supabase, { organizationId, userId }, { created: (n) => toast(n.title) });
  * ```
  */
 export function defineTopic<
@@ -289,14 +289,16 @@ export function defineTopic<
   const checks: string[] = [];
   const permdock = options.permdock;
   const tenantParam =
-    options.tenant === false ? undefined : (options.tenant?.param ?? "orgId");
+    options.tenant === false
+      ? undefined
+      : (options.tenant?.param ?? "organizationId");
   const permdockChecks = ((): { receive: string; send: string } | undefined => {
     if (!permdock) return undefined;
     const where = `defineTopic(${template})`;
     const id =
       permdock.scope === "global"
         ? undefined
-        : `split_part((select realtime.topic()), ':', ${String(permdock.segment ?? segment(tenantParam ?? "orgId", "PermDock"))})`;
+        : `split_part((select realtime.topic()), ':', ${String(permdock.segment ?? segment(tenantParam ?? "organizationId", "PermDock"))})`;
     const receive = permdockCheck(
       where,
       permdock,

@@ -4,15 +4,19 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
 import type {
-  KitAccessPermdock,
-  KitIdType,
-  KitPermdock,
-  KitPermissionKey,
+  BlockAccessPermdock,
+  BlockIdType,
+  BlockPermdock,
+  BlockPermissionKey,
   PermdockCatalog,
   PermdockKeyStatus,
 } from "../sql/index.ts";
 
-import { KIT_ID_TYPES, kitIdType, permdockKeyStatus } from "../sql/index.ts";
+import {
+  BLOCK_ID_TYPES,
+  blockIdType,
+  permdockKeyStatus,
+} from "../sql/index.ts";
 
 const PERMDOCK_CONFIGS = [
   "permdock.config.ts",
@@ -382,10 +386,10 @@ export function parseGrantsMarker(
   return { version: Number(match[1]), ...(schema ? { schema } : {}) };
 }
 
-/** How the `entitlements` kit module finds memberships. */
+/** How the `entitlements` block module finds memberships. */
 export type EntitlementsMode =
   | { readonly kind: "tenant" }
-  | { readonly kind: "permdock"; readonly permdock: KitPermdock }
+  | { readonly kind: "permdock"; readonly permdock: BlockPermdock }
   | { readonly kind: "invalid"; readonly problem: string };
 
 /** Who resolves a PermDock scope, for the messages `manifestScope` writes. */
@@ -406,7 +410,7 @@ type ManifestScope =
       readonly manifest: PermdockManifest;
       readonly rls: NonNullable<PermdockManifest["rls"]>;
       readonly scope: string;
-      readonly idType: KitIdType;
+      readonly idType: BlockIdType;
     }
   | { readonly kind: "invalid"; readonly problem: string };
 
@@ -414,7 +418,7 @@ type ManifestScope =
  * The PermDock scope tenants are: `explicit`, which must be one of the
  * manifest's `rls.scopes`, else the one scope without `within`. A missing or
  * unreadable manifest, no `rls` block, no root scope or several, and a scope
- * without a type this kit renders are invalid rather than a guess.
+ * without a type this block renders are invalid rather than a guess.
  */
 function manifestScope(
   project: PermdockProject,
@@ -467,11 +471,11 @@ function manifestScope(
       problem: `${project.manifestPath} gives scope "${scope}" no type, so ${subject} can't tell its id type. Run \`permdock supabase inspect --out\` with a current PermDock.`,
     };
   }
-  const idType = kitIdType(declared);
+  const idType = blockIdType(declared);
   if (idType === undefined) {
     return {
       kind: "invalid",
-      problem: `${project.manifestPath} gives scope "${scope}" the type ${declared}, but ${subject} renders only ${KIT_ID_TYPES.join(", ").replace(/, (?=[^,]*$)/, " or ")} ids.`,
+      problem: `${project.manifestPath} gives scope "${scope}" the type ${declared}, but ${subject} renders only ${BLOCK_ID_TYPES.join(", ").replace(/, (?=[^,]*$)/, " or ")} ids.`,
     };
   }
   return { kind: "ok", manifest: project.manifest, rls, scope, idType };
@@ -544,33 +548,33 @@ export function entitlementsMode(
 /** How the `access` module's `permdock` model reaches PermDock's helpers. */
 export type AccessPermdockMode =
   | { readonly kind: "off" }
-  | { readonly kind: "permdock"; readonly access: KitAccessPermdock }
+  | { readonly kind: "permdock"; readonly access: BlockAccessPermdock }
   | { readonly kind: "invalid"; readonly problem: string };
 
 /**
  * The `permdock` access model's helpers, read from the manifest whatever
  * `entitlements` says: `rls.schema`, the root scope (or
- * `kits.access.permdock.scope`, which the manifest must declare) and that
+ * `blocks.access.permdock.scope`, which the manifest must declare) and that
  * scope's id type. `off` when another model is chosen. Without a PermDock
  * project or a usable manifest the model is invalid, never a default.
  */
 export function accessPermdockMode(
-  config: Pick<ResolvedConfig, "kits">,
+  config: Pick<ResolvedConfig, "blocks">,
   project: PermdockProject | undefined,
 ): AccessPermdockMode {
-  const access = config.kits.access;
+  const access = config.blocks.access;
   if (access?.model !== "permdock") return { kind: "off" };
-  const optOut = "or choose another kits.access.model.";
+  const optOut = "or choose another blocks.access.model.";
   if (!project) {
     return {
       kind: "invalid",
-      problem: `kits.access.model is "permdock", but there is no PermDock project here (no permdock.config.ts and no manifest). Run \`permdock supabase inspect --out\` to write the manifest, ${optOut}`,
+      problem: `blocks.access.model is "permdock", but there is no PermDock project here (no permdock.config.ts and no manifest). Run \`permdock supabase inspect --out\` to write the manifest, ${optOut}`,
     };
   }
   const chosen = manifestScope(project, access.permdock?.scope, {
     subject: "the permdock access model",
     helpers: "permission helpers",
-    setting: "kits.access.permdock",
+    setting: "blocks.access.permdock",
     optOut,
   });
   if (chosen.kind === "invalid") return chosen;
@@ -578,15 +582,15 @@ export function accessPermdockMode(
   if (schema !== undefined && schema !== chosen.rls.schema) {
     return {
       kind: "invalid",
-      problem: `kits.access.permdock.schema is "${schema}", but ${project.manifestPath} puts PermDock's helpers in "${chosen.rls.schema}". Set it to "${chosen.rls.schema}", or remove it to use the manifest's.`,
+      problem: `blocks.access.permdock.schema is "${schema}", but ${project.manifestPath} puts PermDock's helpers in "${chosen.rls.schema}". Set it to "${chosen.rls.schema}", or remove it to use the manifest's.`,
     };
   }
   const idType =
-    access.idType === undefined ? undefined : kitIdType(access.idType);
+    access.idType === undefined ? undefined : blockIdType(access.idType);
   if (idType !== undefined && idType !== chosen.idType) {
     return {
       kind: "invalid",
-      problem: `kits.access.idType is "${access.idType}", but ${project.manifestPath} gives scope "${chosen.scope}" the type ${chosen.idType}. Set kits.access.idType to "${chosen.idType}", or remove it to use the manifest's.`,
+      problem: `blocks.access.idType is "${access.idType}", but ${project.manifestPath} gives scope "${chosen.scope}" the type ${chosen.idType}. Set blocks.access.idType to "${chosen.idType}", or remove it to use the manifest's.`,
     };
   }
   return {
@@ -649,24 +653,24 @@ export function unsafeKey(
   }
 }
 
-/** A kit permission key PermDock's helpers can't answer for fully, or a catalog that can't tell. */
-export interface KitKeyProblem {
-  /** `kits.<module>.permissions.<action>`, or the catalog path. */
+/** A block permission key PermDock's helpers can't answer for fully, or a catalog that can't tell. */
+export interface BlockKeyProblem {
+  /** `blocks.<module>.permissions.<action>`, or the catalog path. */
   readonly target: string;
   readonly message: string;
 }
 
 /**
- * Checks the keys the kit modules pass to PermDock's helpers against
+ * Checks the keys the block modules pass to PermDock's helpers against
  * `permissions.catalog.json`, with the statuses bucket policies use: only
  * `rowConditions: false` passes. A missing or unreadable catalog is a
  * problem too, since every key is then unknown.
  */
-export function kitKeyProblems(
+export function blockKeyProblems(
   project: PermdockProject,
-  keys: readonly KitPermissionKey[],
-  access: KitAccessPermdock,
-): KitKeyProblem[] {
+  keys: readonly BlockPermissionKey[],
+  access: BlockAccessPermdock,
+): BlockKeyProblem[] {
   if (keys.length === 0) return [];
   const catalog = project.catalog;
   if (!catalog) {
@@ -677,19 +681,19 @@ export function kitKeyProblems(
       {
         target: project.catalogPath,
         message: unreadable
-          ? `Could not read PermDock's catalog: ${unreadable}. The permdock access model passes ${keys.length} kit permission keys to PermDock's helpers, so whether they have row conditions is unknown. Run \`permdock catalog\` with a current PermDock.`
-          : `The permdock access model passes ${keys.length} kit permission keys to PermDock's helpers, but there is no ${project.catalogPath}, so whether they have row conditions is unknown. Run \`permdock catalog\`, or set permdock.catalog in the config.`,
+          ? `Could not read PermDock's catalog: ${unreadable}. The permdock access model passes ${keys.length} block permission keys to PermDock's helpers, so whether they have row conditions is unknown. Run \`permdock catalog\` with a current PermDock.`
+          : `The permdock access model passes ${keys.length} block permission keys to PermDock's helpers, but there is no ${project.catalogPath}, so whether they have row conditions is unknown. Run \`permdock catalog\`, or set permdock.catalog in the config.`,
       },
     ];
   }
-  return keys.flatMap((entry): KitKeyProblem[] => {
+  return keys.flatMap((entry): BlockKeyProblem[] => {
     const problem = unsafeKey(catalog, entry.key, project.catalogPath);
     if (!problem) return [];
     const helper =
       entry.scope === "platform"
         ? `${access.schema}.permdock_has`
         : `${access.schema}.permitted_${access.scope}_ids`;
-    const setting = `kits.${entry.module}.permissions.${entry.action}`;
+    const setting = `blocks.${entry.module}.permissions.${entry.action}`;
     const fix =
       problem.status === "row-conditions"
         ? `PermDock's SQL helpers check role and scope, not row conditions, so the module would grant it everywhere in the scope. Set ${setting} to a permission whose catalog entry has rowConditions: false.`
@@ -705,7 +709,7 @@ export function kitKeyProblems(
 
 /** A helper the `permdock` access model calls, as `schema.name`, and the role it runs as. */
 export const accessRequirements = (
-  access: KitAccessPermdock,
+  access: BlockAccessPermdock,
 ): readonly { readonly helper: string; readonly role: "authenticated" }[] => [
   {
     helper: `${access.schema}.permitted_${access.scope}_ids`,
@@ -714,7 +718,7 @@ export const accessRequirements = (
   { helper: `${access.schema}.permdock_has`, role: "authenticated" },
 ];
 
-/** A helper PermDock mode calls (`schema.name`), the kit function that calls it and the role it runs as. */
+/** A helper PermDock mode calls (`schema.name`), the block function that calls it and the role it runs as. */
 export interface EntitlementRequirement {
   readonly kind: "member" | "member-for";
   readonly helper: string;
@@ -729,7 +733,7 @@ export interface EntitlementRequirement {
  * as `supabase_auth_admin`.
  */
 export const entitlementRequirements = (
-  permdock: KitPermdock,
+  permdock: BlockPermdock,
 ): readonly EntitlementRequirement[] => [
   {
     kind: "member",

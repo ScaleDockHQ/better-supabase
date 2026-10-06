@@ -8,7 +8,7 @@ const sample = `# better-supabase
 
 ### Minor Changes
 
-- 258e0aa: Add the storage kit.
+- 258e0aa: Add the storage block.
 - Thread casing through includes,
   including nested filters.
 
@@ -30,7 +30,7 @@ describe("parseChangelog", () => {
     expect(releases[0]).toMatchObject({ version: "0.2.0", kind: "Minor" });
     expect(releases[0]?.changes[0]).toEqual({
       hash: "258e0aa",
-      text: "Add the storage kit.",
+      text: "Add the storage block.",
     });
     expect(releases[1]?.kind).toBe("Patch");
     expect(releases[2]?.version).toBe("0.1.0");

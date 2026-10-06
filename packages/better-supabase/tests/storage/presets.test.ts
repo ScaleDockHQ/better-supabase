@@ -4,7 +4,7 @@ import {
   avatarBucket,
   defineBucket,
   IMAGE_TYPES,
-  orgLogoBucket,
+  organizationLogoBucket,
 } from "../../src/storage/index.ts";
 
 describe("avatarBucket", () => {
@@ -45,11 +45,11 @@ describe("avatarBucket", () => {
   });
 });
 
-describe("orgLogoBucket", () => {
+describe("organizationLogoBucket", () => {
   it("checks the update permission through the access contract", () => {
-    const logos = orgLogoBucket();
+    const logos = organizationLogoBucket();
     expect(logos.id).toBe("organization-logos");
-    expect(logos.tenant).toBe("orgId");
+    expect(logos.tenant).toBe("organizationId");
     const sql = logos.sql();
     expect(sql).toContain(
       "split_part(name, '/', 1) in (select t::text from better_supabase.tenant_ids_with('organization.update') t)",
@@ -59,11 +59,11 @@ describe("orgLogoBucket", () => {
   });
 
   it("takes another permission, no tenant guard or a policy of its own", () => {
-    expect(orgLogoBucket({ permission: "branding.manage" }).sql()).toContain(
-      "tenant_ids_with('branding.manage')",
-    );
-    expect(orgLogoBucket({ tenant: false }).tenant).toBeUndefined();
-    expect(orgLogoBucket({ policy: "tenant" }).sql()).toContain(
+    expect(
+      organizationLogoBucket({ permission: "branding.manage" }).sql(),
+    ).toContain("tenant_ids_with('branding.manage')");
+    expect(organizationLogoBucket({ tenant: false }).tenant).toBeUndefined();
+    expect(organizationLogoBucket({ policy: "tenant" }).sql()).toContain(
       "split_part(name, '/', 1) = (",
     );
   });
@@ -109,6 +109,6 @@ describe("access bucket policies", () => {
         path: "{file}",
         policy: { access: { read: "a", write: "b" } },
       }),
-    ).toThrow(/a permission policy needs \{orgId\}/);
+    ).toThrow(/a permission policy needs \{organizationId\}/);
   });
 });

@@ -24,7 +24,7 @@ function defaultActor(context: RequestContext): string | undefined {
  * `updatedBy` on insert and update. Soft deletes are updates, so they record
  * who deleted the row. `impersonatedBy` gets `context.actor.impersonator` on
  * an impersonated insert or update and is left alone otherwise, so a user's
- * own update keeps the stamp, like the SQL kit's `track_actor`. Without an
+ * own update keeps the stamp, like the SQL modules' `track_actor`. Without an
  * actor (anonymous requests) nothing is set.
  */
 export function actor(options: ActorOptions = {}): Plugin<"actor"> {

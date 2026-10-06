@@ -28,7 +28,7 @@ export type AvatarBucketOptions<
   Id extends string,
 > = ImageBucketOptions<P, Id>;
 
-export interface OrgLogoBucketOptions<
+export interface OrganizationLogoBucketOptions<
   P extends string,
   Id extends string,
 > extends ImageBucketOptions<P, Id> {
@@ -41,13 +41,13 @@ export interface OrgLogoBucketOptions<
   /**
    * The tenant segment connected clients are held to. `false` lets one
    * client upload for any organization the policy allows. Defaults to
-   * `{ param: 'orgId' }`.
+   * `{ param: 'organizationId' }`.
    */
   readonly tenant?: BucketConfig["tenant"] | false;
 }
 
 const AVATAR_PATH = "{userId}/avatar-{version}.{ext}";
-const LOGO_PATH = "{orgId}/logo-{version}.{ext}";
+const LOGO_PATH = "{organizationId}/logo-{version}.{ext}";
 
 /**
  * A bucket for profile pictures: `{userId}/avatar-{version}.{ext}`, public,
@@ -70,19 +70,19 @@ export function avatarBucket<
 }
 
 /**
- * A bucket for organization logos: `{orgId}/logo-{version}.{ext}`, public,
+ * A bucket for organization logos: `{organizationId}/logo-{version}.{ext}`, public,
  * 2 MiB of images, written by members with the update permission through
  * the access contract (`tenant_ids_with`), so it follows the app's roles.
  */
-export function orgLogoBucket<
+export function organizationLogoBucket<
   const P extends string = typeof LOGO_PATH,
   const Id extends string = "organization-logos",
->(options: OrgLogoBucketOptions<P, Id> = {}): Bucket<P, Id> {
+>(options: OrganizationLogoBucketOptions<P, Id> = {}): Bucket<P, Id> {
   const permission = options.permission ?? "organization.update";
   const tenant =
     options.tenant === false
       ? undefined
-      : (options.tenant ?? { param: "orgId" });
+      : (options.tenant ?? { param: "organizationId" });
   return defineBucket<P, Id>({
     // SAFETY: without options.id, Id is its default.
     id: options.id ?? ("organization-logos" as Id),

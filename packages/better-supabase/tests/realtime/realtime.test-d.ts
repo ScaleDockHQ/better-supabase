@@ -18,11 +18,11 @@ describe("topic types", () => {
       events: { created: title },
     });
     expectTypeOf(notifications.params).toEqualTypeOf<
-      readonly ("orgId" | "userId")[]
+      readonly ("organizationId" | "userId")[]
     >();
     notifications.subscribe(
       client,
-      { orgId: "o", userId: "u" },
+      { organizationId: "o", userId: "u" },
       {
         created: (payload) =>
           expectTypeOf(payload).toEqualTypeOf<{ title: string; at: Date }>(),
@@ -30,19 +30,29 @@ describe("topic types", () => {
     );
     notifications.subscribe(
       client,
-      { orgId: "o", userId: "u" },
+      { organizationId: "o", userId: "u" },
       // @ts-expect-error unknown event
       { deleted: () => undefined },
     );
-    void notifications.send(client, { orgId: "o", userId: "u" }, "created", {
-      title: "x",
-    });
-    void notifications.send(client, { orgId: "o", userId: "u" }, "created", {
-      // @ts-expect-error wrong payload
-      name: "x",
-    });
+    void notifications.send(
+      client,
+      { organizationId: "o", userId: "u" },
+      "created",
+      {
+        title: "x",
+      },
+    );
+    void notifications.send(
+      client,
+      { organizationId: "o", userId: "u" },
+      "created",
+      {
+        // @ts-expect-error wrong payload
+        name: "x",
+      },
+    );
     // @ts-expect-error missing userId
-    notifications.topic({ orgId: "o" });
+    notifications.topic({ organizationId: "o" });
   });
 
   it("allows any event without schemas", () => {
@@ -58,7 +68,7 @@ describe("topic types", () => {
   it("keeps generated bucket paths typed", () => {
     const logos = defineBucket(buckets.customerLogos);
     expectTypeOf(logos.params).toEqualTypeOf<
-      readonly ("orgId" | "customerId" | "version")[]
+      readonly ("organizationId" | "customerId" | "version")[]
     >();
   });
 });

@@ -10,7 +10,7 @@ the other.
 | -------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Access token hook    | none                                                        | `permdock supabase hook generate`, the only hook                                       |
 | Claims               | `features`, through `supabase.hook.claims`                  | `user_role`, `roles`, `memberships`, the tenant claim, `attrs`, `authz_ver`            |
-| SQL helpers          | the SQL kit (`better_supabase.*`)                           | `permdock rls generate`: `permdock_has`, `permitted_<scope>_ids`, `member_<scope>_ids` |
+| SQL helpers          | the SQL modules (`better_supabase.*`)                       | `permdock rls generate`: `permdock_has`, `permitted_<scope>_ids`, `member_<scope>_ids` |
 | Storage and Realtime | `defineBucket`, `defineTopic` with a `permdock` policy mode | the helpers those policies call                                                        |
 | MCP                  | `createMcp` with `authorize` and `visible`                  | the permissions in each tool's `meta`                                                  |
 
@@ -77,11 +77,13 @@ the other.
   import { cacheLifeFor, snapshotTag } from "permdock/next";
   import { subjectFromSupabaseSession } from "permdock/supabase";
 
-  export async function loadSnapshot(orgId: string) {
+  export async function loadSnapshot(organizationId: string) {
     "use cache: private";
-    const { session } = await bs.cached({ tags: [`org:${orgId}`] });
+    const { session } = await bs.cached({
+      tags: [`organization:${organizationId}`],
+    });
     const snapshot = snapshotFor(policy, subjectFromSupabaseSession(session), {
-      tenant: orgId,
+      tenant: organizationId,
     });
     if (session.kind === "user") cacheTag(snapshotTag(session.user.id));
     cacheLife(cacheLifeFor(snapshot));
@@ -96,15 +98,15 @@ the other.
 
 - Doctor BS405 measures `memberships` plus `attrs` against PermDock's 1 KB
   budget and the whole token against 2 KB; run `doctor --as <user id>`.
-- For the SQL kit, set `kits.access.model: 'permdock'` and
-  `kits.access.functions.canAssign: 'permdock.permdock_can_assign({role}, {tenant}::text)'`
+- For the SQL modules, set `blocks.access.model: 'permdock'` and
+  `blocks.access.functions.canAssign: 'permdock.permdock_can_assign({role}, {tenant}::text)'`
   (use the manifest's `rls.schema`), then run `permdock supabase inspect --out`
-  before `sql add`. The kit reads the schema, the root scope and its id type
+  before `sql add`. The block reads the schema, the root scope and its id type
   from `permdock.manifest.json`, and `sql add` stops instead of guessing when
-  the manifest can't give them. Every permission key the kit modules check
-  (`kitPermissionKeys` from `better-supabase/sql`) must be
+  the manifest can't give them. Every permission key the block modules check
+  (`blockPermissionKeys` from `better-supabase/sql`) must be
   `rowConditions: false` in `permissions.catalog.json`; map others with
-  `kits.<module>.permissions`. Doctor reports BS411.
+  `blocks.<module>.permissions`. Doctor reports BS411.
 - Under that model `can_user()` and `member_can()` answer for the caller only
   and raise SQLSTATE `0A000` for another user. Invitations skip the inviter
   re-check at accept time and notifications don't filter recipients by read

@@ -177,7 +177,7 @@ export interface BroadcastOptions extends Omit<SubscribeOptions, "onStatus"> {
  * resubscribes when the topic or the signed-in user changes.
  *
  * ```ts
- * useBroadcast(customersTopic, orgId ? { orgId } : null, {}, { invalidate: ['customers'] });
+ * useBroadcast(customersTopic, organizationId ? { organizationId } : null, {}, { invalidate: ['customers'] });
  * ```
  */
 export function useBroadcast<P extends string, E extends EventSchemas>(

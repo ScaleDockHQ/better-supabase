@@ -48,8 +48,8 @@ function claimsLimits(context: DoctorContext): {
     : { token: configured ?? HOOK_CLAIMS_LIMIT, budget: undefined };
 }
 
-/** The kit function that fills PermDock's `memberships` claim. */
-const KIT_MEMBERSHIPS = /better_supabase\s*\.\s*membership_claims\b/i;
+/** The block function that fills PermDock's `memberships` claim. */
+const BLOCK_MEMBERSHIPS = /better_supabase\s*\.\s*membership_claims\b/i;
 const PERMDOCK_CALL = /\bpermdock\w*\s*\(|permdock\s*\./i;
 /** Only PermDock's generated hook sets this claim, so it marks that hook's body. */
 const PERMDOCK_HOOK = /'\{\s*(?:claims\s*,\s*)?memberships_truncated\s*\}'/i;
@@ -668,7 +668,7 @@ export const HOOK_RULES: readonly Rule[] = [
         ) {
           findings.push({
             severity: "info",
-            message: `${project.config} is present but ${project.manifestPath} is not, so doctor and the SQL kit can't see PermDock's hook, helpers and membership sources. Run \`permdock supabase inspect --out\`, and \`permdock supabase inspect --check\` in CI.`,
+            message: `${project.config} is present but ${project.manifestPath} is not, so doctor and the SQL modules can't see PermDock's hook, helpers and membership sources. Run \`permdock supabase inspect --out\`, and \`permdock supabase inspect --check\` in CI.`,
             target: project.manifestPath,
           });
         }
@@ -678,13 +678,13 @@ export const HOOK_RULES: readonly Rule[] = [
         if (config.hook !== "custom_access_token" || !extras) continue;
         for (const fn of extras.functions) {
           if (fn.source === undefined || isPermdockHook(context, fn)) continue;
-          const kit = KIT_MEMBERSHIPS.test(fn.source);
+          const block = BLOCK_MEMBERSHIPS.test(fn.source);
           const wrapper = wrapsPermdockHook(context, fn.source);
           const written = writtenClaims(fn.source, [
             ...ownedClaims(context),
             ...(wrapper ? registered.keys() : []),
           ]);
-          if (!kit && written.length === 0) continue;
+          if (!block && written.length === 0) continue;
           const permdock = project
             ? permdockSource(project)
             : PERMDOCK_CALL.test(fn.source)
@@ -693,7 +693,7 @@ export const HOOK_RULES: readonly Rule[] = [
           if (!permdock) continue;
           const location = hookLocation(context, config.hook);
           const what = [
-            ...(kit ? ["calls better_supabase.membership_claims"] : []),
+            ...(block ? ["calls better_supabase.membership_claims"] : []),
             ...(written.length > 0 ? [`writes ${written.join(", ")}`] : []),
           ].join(" and ");
           const extra = written.filter((claim) => registered.has(claim));
@@ -719,7 +719,7 @@ export const HOOK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "HTTP auth hooks",
     description:
-      "Auth calls an `http://` or `https://` hook with a request signed by the Standard Webhooks secret in `secrets` (`v1,whsec_<base64>`, several joined with `|`). Doctor can't read the endpoint's code, so it reports each HTTP hook and checks what it can: the secret's format, that it comes from `env()` rather than the committed file, and that a non-local endpoint uses https. Verify the request in the endpoint with `authHook` from `better-supabase/webhooks`.",
+      "Auth calls an `http://` or `https://` hook with a request signed by the Standard Webhooks secret in `secrets` (`v1,whsec_<base64>`, several joined with `|`). Doctor can't read the endpoint's code, so it reports each HTTP hook and checks what it can: the secret's format, that it comes from `env()` rather than the committed file, and that a non-local endpoint uses https. Verify the request in the endpoint with `authHook` from `better-supabase/blocks/webhooks`.",
     check: (context) => {
       const toml = context.configToml;
       if (!toml) return [];
@@ -730,7 +730,7 @@ export const HOOK_RULES: readonly Rule[] = [
         const findings: FindingInput[] = [
           {
             severity: "info",
-            message: `${target} calls ${uri.origin}${uri.pathname} over HTTP. Doctor can't check its code; verify the signature there with authHook from better-supabase/webhooks.`,
+            message: `${target} calls ${uri.origin}${uri.pathname} over HTTP. Doctor can't check its code; verify the signature there with authHook from better-supabase/blocks/webhooks.`,
             target,
             ...at,
           },

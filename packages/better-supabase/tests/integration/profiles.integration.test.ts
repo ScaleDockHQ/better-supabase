@@ -1,8 +1,11 @@
 import { Pool, type PoolClient } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { renderKit } from "../../src/sql/kit.ts";
-import { avatarBucket, orgLogoBucket } from "../../src/storage/index.ts";
+import { renderBlocks } from "../../src/sql/blocks.ts";
+import {
+  avatarBucket,
+  organizationLogoBucket,
+} from "../../src/storage/index.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -68,7 +71,7 @@ describe.skipIf(!live)("profiles", () => {
     try {
       await client.query("begin");
       const layout = {
-        kits: {
+        blocks: {
           tenant: { schema: SCHEMA },
           access: { schema: SCHEMA },
           profiles: {
@@ -78,7 +81,7 @@ describe.skipIf(!live)("profiles", () => {
           },
         },
       };
-      for (const file of renderKit(["tenant", "access", "profiles"], layout))
+      for (const file of renderBlocks(["tenant", "access", "profiles"], layout))
         await client.query(file.contents);
 
       const meta = {
@@ -149,10 +152,10 @@ describe.skipIf(!live)("profiles", () => {
           )
         ).rows.map((row) => row.id);
       expect(await visible("ada")).toEqual([USERS.ada]);
-      const org = crypto.randomUUID();
+      const organization = crypto.randomUUID();
       await client.query(
         `insert into ${SCHEMA}.memberships (organization_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')`,
-        [org, USERS.ada, USERS.bob],
+        [organization, USERS.ada, USERS.bob],
       );
       expect(await visible("ada")).toEqual([USERS.ada, USERS.bob].toSorted());
       expect(await visible("eve")).toEqual([USERS.eve]);
@@ -228,11 +231,11 @@ describe.skipIf(!live)("profiles", () => {
     }
   });
 
-  it("lets org logos follow the access contract", async () => {
+  it("lets organization logos follow the access contract", async () => {
     const client = await pool.connect();
     try {
       await client.query("begin");
-      for (const file of renderKit(["tenant", "access"], {}))
+      for (const file of renderBlocks(["tenant", "access"], {}))
         await client.query(file.contents);
       for (const who of ["ada", "bob"] as const) {
         await client.query(
@@ -241,17 +244,21 @@ describe.skipIf(!live)("profiles", () => {
           [USERS[who], `${who}-${USERS[who]}@example.test`],
         );
       }
-      const org = crypto.randomUUID();
+      const organization = crypto.randomUUID();
       await client.query(
         "insert into better_supabase.organizations (id, name, slug) values ($1::uuid, 'Test', 'test-' || left($1::text, 8)) on conflict do nothing",
-        [org],
+        [organization],
       );
       await client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')",
-        [org, USERS.ada, USERS.bob],
+        [organization, USERS.ada, USERS.bob],
       );
-      const logos = orgLogoBucket({ id: `logos-${org.slice(0, 8)}` });
-      const avatars = avatarBucket({ id: `avatars-${org.slice(0, 8)}` });
+      const logos = organizationLogoBucket({
+        id: `logos-${organization.slice(0, 8)}`,
+      });
+      const avatars = avatarBucket({
+        id: `avatars-${organization.slice(0, 8)}`,
+      });
       await client.query(logos.sql());
       await client.query(avatars.sql());
 
@@ -262,7 +269,7 @@ describe.skipIf(!live)("profiles", () => {
           "insert into storage.objects (bucket_id, name, owner_id) values ($1, $2, $3) returning name",
           [bucket, name, USERS[who]],
         );
-      const logo = logos.path({ orgId: org, version: "v1", ext: "png" }).data!;
+      const logo = logos.path({ organizationId: organization, version: "v1", ext: "png" }).data!;
       expect((await upload("ada", logos.id, logo)).rows).toHaveLength(1);
       expect((await upload("bob", logos.id, logo)).error?.code).toBe("42501");
       const avatar = (who: Who) =>

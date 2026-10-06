@@ -1,4 +1,4 @@
-import type { KitContext } from "./context.ts";
+import type { BlockContext } from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
 
@@ -12,8 +12,8 @@ grant usage on schema better_supabase to anon, authenticated, service_role;`;
 export const SERVICE_CALLER =
   "coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
 
-/** Creates the module's schema when it isn't `better_supabase`, then the kit schema. */
-export function schemaPreamble(ctx: KitContext): string {
+/** Creates the module's schema when it isn't `better_supabase`, then the block schema. */
+export function schemaPreamble(ctx: BlockContext): string {
   if (ctx.schemaName === "better_supabase") return SCHEMA;
   return `${SCHEMA}
 create schema if not exists ${ctx.schema};
@@ -87,10 +87,10 @@ create trigger bs_updated_at before update on ${table}
 }
 
 /**
- * Upgrade-step renames for a kit table in `schema`. Each runs only while the
+ * Upgrade-step renames for a block table in `schema`. Each runs only while the
  * old name exists and the new one doesn't, so a step can run again.
  */
-export interface KitRenames {
+export interface BlockRenames {
   readonly schema: string;
   /** The table's current name; `table` in `tables` renames it first. */
   readonly table: string;
@@ -104,7 +104,7 @@ export interface KitRenames {
   ])[];
 }
 
-export function renameSql(renames: KitRenames): string {
+export function renameSql(renames: BlockRenames): string {
   const schema = sqlString(renames.schema);
   const q = (name: string): string =>
     `${sqlIdent(renames.schema)}.${sqlIdent(name)}`;
@@ -147,40 +147,43 @@ $$;`;
 }
 
 /**
- * A SQL condition true when `org` names no row of the installed
+ * A SQL condition true when `organization` names no row of the installed
  * organizations table. False without the organizations module.
  */
-export function organizationMissing(ctx: KitContext, org: string): string {
+export function organizationMissing(
+  ctx: BlockContext,
+  organization: string,
+): string {
   if (!ctx.installed("organizations")) return "false";
-  const orgs = ctx.of("organizations");
-  return `not exists (select 1 from ${orgs.table("organizations")} o where o.${orgs.col("organizations", "id")} = ${org})`;
+  const organizations = ctx.of("organizations");
+  return `not exists (select 1 from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${organization})`;
 }
 
 /**
  * `tenant_disabled(id)` and `user_disabled(uuid)` from
- * `kits.access.disabled`. Without a column they return false, so callers
+ * `blocks.access.disabled`. Without a column they return false, so callers
  * don't need to know whether it is configured.
  */
-export function disabledHelpers(ctx: KitContext): string {
-  const disabled = ctx.kits.access?.disabled ?? {};
+export function disabledHelpers(ctx: BlockContext): string {
+  const disabled = ctx.blocks.access?.disabled ?? {};
   const id = ctx.idType;
   const tenant = disabled.tenant
-    ? columnRef("kits.access.disabled.tenant", disabled.tenant)
+    ? columnRef("blocks.access.disabled.tenant", disabled.tenant)
     : undefined;
   const user = disabled.user
-    ? columnRef("kits.access.disabled.user", disabled.user)
+    ? columnRef("blocks.access.disabled.user", disabled.user)
     : undefined;
   const userKey = sqlIdent(disabled.userKey ?? "id");
-  const orgs = managedOrganizations(ctx);
+  const organizations = managedOrganizations(ctx);
   let tenantCheck = "false";
   if (tenant) {
     tenantCheck = `exists (select 1 from ${tenant.table} t where t."id" = tenant_disabled.tenant and t.${tenant.column} is not null)`;
-  } else if (orgs) {
-    tenantCheck = `exists (select 1 from ${orgs.table} t where t.${orgs.id} = tenant_disabled.tenant and (${orgs.flags.map((column) => `t.${column} is not null`).join(" or ")}))`;
+  } else if (organizations) {
+    tenantCheck = `exists (select 1 from ${organizations.table} t where t.${organizations.id} = tenant_disabled.tenant and (${organizations.flags.map((column) => `t.${column} is not null`).join(" or ")}))`;
   }
   return `
 -- Disabled tenants and users get no permissions and no membership claims
--- (kits.access.disabled; with the managed organizations module, its
+-- (blocks.access.disabled; with the managed organizations module, its
 -- disabled_at and deleted_at columns).
 create or replace function better_supabase.tenant_disabled(tenant ${id})
 returns boolean
@@ -212,15 +215,15 @@ grant execute on function better_supabase.user_disabled(uuid) to service_role, s
  * Whether `disabledHelpers` reads the managed organizations table, which a
  * later file creates: the caller turns `check_function_bodies` off around it.
  */
-export function disabledHelpersNeedLaterTables(ctx: KitContext): boolean {
+export function disabledHelpersNeedLaterTables(ctx: BlockContext): boolean {
   return (
-    !ctx.kits.access?.disabled?.tenant &&
+    !ctx.blocks.access?.disabled?.tenant &&
     managedOrganizations(ctx) !== undefined
   );
 }
 
 /** The managed organizations table and its disabling columns, when installed and managed. */
-function managedOrganizations(ctx: KitContext):
+function managedOrganizations(ctx: BlockContext):
   | {
       readonly table: string;
       readonly id: string;
@@ -228,28 +231,28 @@ function managedOrganizations(ctx: KitContext):
     }
   | undefined {
   if (!ctx.installed("organizations")) return undefined;
-  const orgs = ctx.of("organizations");
-  if (!orgs.manages) return undefined;
+  const organizations = ctx.of("organizations");
+  if (!organizations.manages) return undefined;
   const flags = ["disabledAt", "deletedAt"]
-    .filter((logical) => orgs.has("organizations", logical))
-    .map((logical) => orgs.col("organizations", logical));
+    .filter((logical) => organizations.has("organizations", logical))
+    .map((logical) => organizations.col("organizations", logical));
   if (flags.length === 0) return undefined;
   return {
-    table: orgs.table("organizations"),
-    id: orgs.col("organizations", "id"),
+    table: organizations.table("organizations"),
+    id: organizations.col("organizations", "id"),
     flags,
   };
 }
 
 /**
  * Another row trigger on `target` whose function name matches `pattern` does
- * the kit trigger's job twice. `track_*` warns about it, or drops it with
+ * the block trigger's job twice. `track_*` warns about it, or drops it with
  * `replace_trigger => true`.
  */
 export const EQUIVALENT_TRIGGERS = `
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
-  kit_trigger text,
+  block_trigger text,
   pattern text,
   replace_trigger boolean
 )
@@ -266,14 +269,14 @@ begin
     join pg_catalog.pg_proc p on p.oid = t.tgfoid
     where t.tgrelid = replace_equivalent_triggers.target
       and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.kit_trigger
+      and t.tgname <> replace_equivalent_triggers.block_trigger
       and p.proname ~* replace_equivalent_triggers.pattern
   loop
     if replace_trigger then
       execute format('drop trigger %I on %s', found.name, target);
     else
       raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, kit_trigger;
+        target, found.name, found.fn, block_trigger;
     end if;
   end loop;
 end;

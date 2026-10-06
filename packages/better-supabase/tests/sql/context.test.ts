@@ -1,17 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { contractSignature, createKitContext } from "../../src/sql/context.ts";
 import {
-  checkKits,
+  checkBlocks,
   customContracts,
-  isKitDataFile,
-  kitContext,
-  kitFileVersion,
+  isBlockDataFile,
+  blockContext,
+  blockFileVersion,
   moduleBody,
-  renderKit,
+  renderBlocks,
   resolveModules,
   SQL_MODULES,
-} from "../../src/sql/kit.ts";
+} from "../../src/sql/blocks.ts";
+import {
+  contractSignature,
+  createBlockContext,
+} from "../../src/sql/context.ts";
 
 const names = {
   tables: {
@@ -25,9 +28,9 @@ const names = {
   options: ["flavour", "size", "on", "list", "missing"],
 };
 
-describe("createKitContext", () => {
+describe("createBlockContext", () => {
   it("resolves default names in the module schema", () => {
-    const ctx = createKitContext("demo", () => names);
+    const ctx = createBlockContext("demo", () => names);
     expect(ctx.mode).toBe("managed");
     expect(ctx.manages).toBe(true);
     expect(ctx.table("items")).toBe('"better_supabase"."items"');
@@ -38,9 +41,9 @@ describe("createKitContext", () => {
     expect(ctx.hasTable("extras")).toBe(true);
   });
 
-  it("maps tables, columns, schema, id type and permissions from kits", () => {
-    const ctx = createKitContext("demo", () => names, {
-      kits: {
+  it("maps tables, columns, schema, id type and permissions from blocks", () => {
+    const ctx = createBlockContext("demo", () => names, {
+      blocks: {
         demo: {
           mode: "adopt",
           schema: "app",
@@ -80,7 +83,7 @@ describe("createKitContext", () => {
 
   it("rejects unknown tables and columns, required nulls and bad names", () => {
     const build = (demo: object) => () =>
-      createKitContext("demo", () => names, { kits: { demo } });
+      createBlockContext("demo", () => names, { blocks: { demo } });
     expect(build({ tables: { nope: "x" } })).toThrow(/unknown table "nope"/);
     expect(build({ columns: { nope: {} } })).toThrow(/unknown table "nope"/);
     expect(build({ columns: { items: { nope: "x" } } })).toThrow(
@@ -94,14 +97,14 @@ describe("createKitContext", () => {
     expect(build({ schema: "1x" })).toThrow(/not a valid identifier/);
     expect(build({ idType: "jsonb" })).toThrow(/idType/);
     expect(build({ options: { flavor: "map" } })).toThrow(
-      'kits.demo.options: unknown option "flavor". Options: flavour, size, on, list, missing',
+      'blocks.demo.options: unknown option "flavor". Options: flavour, size, on, list, missing',
     );
     expect(() =>
-      createKitContext("bare", () => undefined, {
-        kits: { bare: { options: { size: 1 } } },
+      createBlockContext("bare", () => undefined, {
+        blocks: { bare: { options: { size: 1 } } },
       }),
-    ).toThrow('kits.bare.options: unknown option "size". Options: none');
-    const ctx = createKitContext("demo", () => names);
+    ).toThrow('blocks.bare.options: unknown option "size". Options: none');
+    const ctx = createBlockContext("demo", () => names);
     expect(() => ctx.table("nope")).toThrow(/no table/);
     expect(() => ctx.col("items", "nope")).toThrow(/no column/);
     expect(() => ctx.hasTable("nope")).toThrow(/no table/);
@@ -111,20 +114,20 @@ describe("createKitContext", () => {
     expect(ctx.option("size")).toBeUndefined();
   });
 
-  it("takes the id type from kits.access, then PermDock", () => {
+  it("takes the id type from blocks.access, then PermDock", () => {
     expect(
-      createKitContext("demo", () => names, {
-        kits: { access: { idType: "text" } },
+      createBlockContext("demo", () => names, {
+        blocks: { access: { idType: "text" } },
       }).idType,
     ).toBe("text");
     expect(
-      createKitContext("demo", () => names, { permdockIdType: "integer" })
+      createBlockContext("demo", () => names, { permdockIdType: "integer" })
         .idType,
     ).toBe("integer");
   });
 
   it("knows the modules installed with it and reaches other modules", () => {
-    const ctx = kitContext("access", {}, ["tenant", "access"]);
+    const ctx = blockContext("access", {}, ["tenant", "access"]);
     expect(ctx.installed("tenant")).toBe(true);
     expect(ctx.installed("outbox")).toBe(false);
     expect(ctx.of("tenant").table("memberships")).toBe(
@@ -146,7 +149,7 @@ describe("hooks and events", () => {
   const hooked = { ...names, hooks: ["after_item_create"] };
 
   it("calls the app's hook function when it exists", () => {
-    const ctx = createKitContext("demo", () => hooked);
+    const ctx = createBlockContext("demo", () => hooked);
     expect(
       ctx.hook("after_item_create", [
         ["uuid", "new_id"],
@@ -158,7 +161,7 @@ describe("hooks and events", () => {
       using new_id, auth.uid();
   end if;`);
     expect(
-      createKitContext("demo", () => ({
+      createBlockContext("demo", () => ({
         ...names,
         hooks: ["on_tick"],
       })).hook("on_tick", []),
@@ -171,8 +174,8 @@ describe("hooks and events", () => {
   });
 
   it("looks hooks up in the configured schema and functions", () => {
-    const ctx = createKitContext("demo", () => hooked, {
-      kits: {
+    const ctx = createBlockContext("demo", () => hooked, {
+      blocks: {
         demo: {
           hooks: {
             schema: "app",
@@ -185,29 +188,29 @@ describe("hooks and events", () => {
       `execute format('select %s($1::uuid)', to_regprocedure('"private"."seed_item"(uuid)')::oid::regproc)`,
     );
     expect(() =>
-      createKitContext("demo", () => hooked, {
-        kits: { demo: { hooks: { functions: { nope: "x" } } } },
+      createBlockContext("demo", () => hooked, {
+        blocks: { demo: { hooks: { functions: { nope: "x" } } } },
       }),
     ).toThrow(
-      'kits.demo.hooks.functions: unknown hook "nope". Hooks: after_item_create',
+      'blocks.demo.hooks.functions: unknown hook "nope". Hooks: after_item_create',
     );
     expect(() =>
-      createKitContext("demo", () => names, {
-        kits: { demo: { hooks: { functions: { nope: "x" } } } },
+      createBlockContext("demo", () => names, {
+        blocks: { demo: { hooks: { functions: { nope: "x" } } } },
       }),
     ).toThrow("Hooks: none");
     expect(() =>
-      createKitContext("demo", () => hooked, {
-        kits: {
+      createBlockContext("demo", () => hooked, {
+        blocks: {
           demo: { hooks: { functions: { after_item_create: "bad name" } } },
         },
       }),
     ).toThrow("is not a valid identifier");
     expect(() =>
-      createKitContext("demo", () => hooked, {
-        kits: { demo: { hooks: { schema: "1x" } } },
+      createBlockContext("demo", () => hooked, {
+        blocks: { demo: { hooks: { schema: "1x" } } },
       }),
-    ).toThrow("kits.demo.hooks.schema");
+    ).toThrow("blocks.demo.hooks.schema");
   });
 
   it("writes outbox events only with the outbox installed", () => {
@@ -215,79 +218,79 @@ describe("hooks and events", () => {
       type: "item.created",
       payload: "jsonb_build_object('id', new_id)",
       subject: "'items/' || new_id",
-      tenant: "org",
+      tenant: "organization",
     };
-    expect(createKitContext("demo", () => names).emit(event)).toBe("");
-    const ctx = createKitContext("demo", () => names, {
+    expect(createBlockContext("demo", () => names).emit(event)).toBe("");
+    const ctx = createBlockContext("demo", () => names, {
       installed: ["demo", "outbox"],
-      kits: { outbox: { schema: "events" } },
+      blocks: { outbox: { schema: "events" } },
     });
     expect(ctx.emit(event)).toBe(
-      `perform "events".emit_event('item.created', jsonb_build_object('id', new_id), 'items/' || new_id, (org)::text, null, 'better-supabase/demo');`,
+      `perform "events".emit_event('item.created', jsonb_build_object('id', new_id), 'items/' || new_id, (organization)::text, null, 'better-supabase/demo');`,
     );
     expect(ctx.emit({ type: "x", payload: "'{}'", key: "k" })).toBe(
       `perform "events".emit_event('x', '{}', null, null, k, 'better-supabase/demo');`,
     );
     expect(
-      createKitContext("demo", () => names, {
+      createBlockContext("demo", () => names, {
         installed: ["demo", "outbox"],
-        kits: { demo: { events: false } },
+        blocks: { demo: { events: false } },
       }).emit(event),
     ).toBe("");
-    const sourced = createKitContext("demo", () => names, {
+    const sourced = createBlockContext("demo", () => names, {
       installed: ["demo", "outbox"],
-      kits: { outbox: { options: { kitSource: "app/{module}" } } },
+      blocks: { outbox: { options: { blockSource: "app/{module}" } } },
     });
     expect(sourced.emit({ type: "x", payload: "'{}'" })).toContain(
       "'app/demo');",
     );
     expect(() =>
-      createKitContext("demo", () => names, {
+      createBlockContext("demo", () => names, {
         installed: ["demo", "outbox"],
-        kits: { outbox: { options: { kitSource: 1 } } },
+        blocks: { outbox: { options: { blockSource: 1 } } },
       }).emit(event),
-    ).toThrow("kitSource must be a string");
+    ).toThrow("blockSource must be a string");
   });
 });
 
-describe("kit modes", () => {
-  it("rejects kits for unknown modules and unsupported modes", () => {
+describe("block modes", () => {
+  it("rejects blocks for unknown modules and unsupported modes", () => {
     expect(() => {
-      checkKits({ nope: {} });
-    }).toThrow(/no SQL kit module "nope"/);
+      checkBlocks({ nope: {} });
+    }).toThrow(/no SQL module "nope"/);
     expect(() => {
-      checkKits({ mfa: { mode: "adopt" } });
+      checkBlocks({ mfa: { mode: "adopt" } });
     }).toThrow(/supports managed, not adopt/);
     expect(() =>
-      renderKit(["mfa"], { kits: { mfa: { mode: "custom" } } }),
+      renderBlocks(["mfa"], { blocks: { mfa: { mode: "custom" } } }),
     ).toThrow(/supports managed/);
   });
 
   it("accepts migration-only options in adopt mode only", () => {
     expect(() => {
-      checkKits({ invitations: { options: { tokenStorage: "plain" } } });
+      checkBlocks({ invitations: { options: { tokenStorage: "plain" } } });
     }).toThrow(
-      'kits.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. Only adopt mode accepts it: set kits.invitations.mode to "adopt" while you migrate an existing schema, or remove the option.',
+      'blocks.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. Only adopt mode accepts it: set blocks.invitations.mode to "adopt" while you migrate an existing schema, or remove the option.',
     );
     expect(() => {
-      checkKits({ outbox: { options: { kitSource: "domain" } } });
-    }).toThrow(/outbox\.options\.kitSource/);
+      checkBlocks({ outbox: { options: { blockSource: "domain" } } });
+    }).toThrow(/outbox\.options\.blockSource/);
     expect(() => {
-      checkKits({ "webhooks-out": { options: { eventIdType: "uuid" } } });
+      checkBlocks({ "webhooks-out": { options: { eventIdType: "uuid" } } });
     }).toThrow(/eventIdType/);
-    checkKits({
+    checkBlocks({
       invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
     });
-    checkKits({
+    checkBlocks({
       outbox: {
         options: {
           settle: "2 seconds",
-          kitSource: "better-supabase/{module}",
+          blockSource: "better-supabase/{module}",
           defaultSource: "",
         },
       },
     });
-    checkKits({
+    checkBlocks({
       "webhooks-out": {
         options: { secretStorage: "vault", eventIdType: "text" },
       },
@@ -295,56 +298,56 @@ describe("kit modes", () => {
   });
 
   it("stamps the module version and mode, and records the module", () => {
-    const tenant = renderKit(["tenant"]).filter(
-      (kit) => kit.module === "tenant",
+    const tenant = renderBlocks(["tenant"]).filter(
+      (block) => block.module === "tenant",
     );
-    const file = tenant.find((kit) => kit.kind === "schema");
-    expect(file!.contents).toContain("-- @bs-kit tenant@2 managed\n");
-    expect(kitFileVersion(file!.contents)).toEqual({
+    const file = tenant.find((block) => block.kind === "schema");
+    expect(file!.contents).toContain("-- @bs-block tenant@2 managed\n");
+    expect(blockFileVersion(file!.contents)).toEqual({
       module: "tenant",
       version: 2,
     });
-    expect(kitFileVersion("-- no marker")).toBeUndefined();
+    expect(blockFileVersion("-- no marker")).toBeUndefined();
     expect(file!.contents).not.toContain("insert into");
     expect(file!.contents).toContain(
-      "create table if not exists better_supabase.kit_modules",
+      "create table if not exists better_supabase.block_modules",
     );
-    const data = tenant.find((kit) => kit.kind === "data");
+    const data = tenant.find((block) => block.kind === "data");
     expect(data).toMatchObject({
       kind: "data",
       path: "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
     });
-    expect(data!.contents).toContain("-- @bs-kit-data tenant\n");
+    expect(data!.contents).toContain("-- @bs-block-data tenant\n");
     expect(data!.contents).toContain("values ('tenant', 2, 'managed')");
-    expect(isKitDataFile(data!.contents)).toBe(true);
-    expect(isKitDataFile(file!.contents)).toBe(false);
-    const dataPath = (layout: Parameters<typeof renderKit>[1]) =>
-      renderKit(["tenant"], layout).find(
-        (kit) => kit.kind === "data" && kit.module === "tenant",
+    expect(isBlockDataFile(data!.contents)).toBe(true);
+    expect(isBlockDataFile(file!.contents)).toBe(false);
+    const dataPath = (layout: Parameters<typeof renderBlocks>[1]) =>
+      renderBlocks(["tenant"], layout).find(
+        (block) => block.kind === "data" && block.module === "tenant",
       )!.path;
     expect(dataPath({ dir: "supabase/schemas/_custom/better_supabase" })).toBe(
       "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
     );
-    expect(dataPath({ dir: "./supabase/schemas/kit/" })).toBe(
+    expect(dataPath({ dir: "./supabase/schemas/block/" })).toBe(
       "./supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
     );
     expect(
       dataPath({
-        dir: "supabase/declarative/kit",
+        dir: "supabase/declarative/block",
         schemasDir: "supabase/declarative",
       }),
     ).toBe("supabase/better-supabase-data/900_better_supabase_04_tenant.sql");
-    expect(dataPath({ dir: "db/kit" })).toBe(
+    expect(dataPath({ dir: "db/block" })).toBe(
       "db/better-supabase-data/900_better_supabase_04_tenant.sql",
     );
-    const pgtap = renderKit(["pgtap"]);
+    const pgtap = renderBlocks(["pgtap"]);
     expect(pgtap.map((entry) => entry.kind)).toEqual(["test"]);
-    expect(pgtap[0]!.contents).not.toContain("kit_modules");
+    expect(pgtap[0]!.contents).not.toContain("block_modules");
   });
 
   it("writes no file in custom mode and lists the contract instead", () => {
-    const layout = { kits: { tenant: { mode: "custom" as const } } };
-    const files = renderKit(["invitations"], layout);
+    const layout = { blocks: { tenant: { mode: "custom" as const } } };
+    const files = renderBlocks(["invitations"], layout);
     expect(
       files.filter((file) => file.kind === "schema").map((file) => file.module),
     ).toEqual(["updated-at", "invitations", "access"]);
@@ -354,13 +357,15 @@ describe("kit modes", () => {
       module: "tenant",
       schema: "better_supabase",
     });
-    expect(contract!.functions.map((fn) => fn.name)).toContain("has_org_role");
+    expect(contract!.functions.map((fn) => fn.name)).toContain(
+      "has_organization_role",
+    );
     expect(customContracts(["mfa"])).toEqual([]);
   });
 
   it("adopts an existing memberships table without creating it", () => {
     const sql = moduleBody("tenant", {
-      kits: {
+      blocks: {
         tenant: {
           mode: "adopt",
           tables: { memberships: "public.organization_users" },
@@ -373,11 +378,13 @@ describe("kit modes", () => {
     expect(sql).not.toMatch(/create table/);
     expect(sql).not.toContain("bs_memberships_read");
     expect(sql).toContain('from "public"."organization_users" m');
-    expect(sql).toContain('m."organization_id" = has_org_role.org');
+    expect(sql).toContain(
+      'm."organization_id" = has_organization_role.organization',
+    );
     expect(sql).toContain("Adopted:");
   });
 
-  it("keeps the managed tenant module's names and takes roles from kits.access", () => {
+  it("keeps the managed tenant module's names and takes roles from blocks.access", () => {
     const sql = SQL_MODULES["tenant"]!.sql;
     expect(sql).toContain(
       'create table if not exists "better_supabase"."memberships"',
@@ -386,21 +393,21 @@ describe("kit modes", () => {
       `check ("role" in ('owner', 'admin', 'member', 'viewer'))`,
     );
     const custom = moduleBody("tenant", {
-      kits: { access: { roles: { lead: ["*"], guest: [] } } },
+      blocks: { access: { roles: { lead: ["*"], guest: [] } } },
     })!;
     expect(custom).toContain(`check ("role" in ('lead', 'guest'))`);
   });
 
   it("renders the membership claim as a map on request", () => {
     const sql = moduleBody("tenant", {
-      kits: { tenant: { options: { claimFormat: "map" } } },
+      blocks: { tenant: { options: { claimFormat: "map" } } },
     })!;
     expect(sql).toContain('jsonb_object_agg(m."organization_id"::text');
   });
 
   it("reads the active tenant from the configured source, members only", () => {
     const claim = moduleBody("tenant", {
-      kits: { access: { activeTenant: "claim" } },
+      blocks: { access: { activeTenant: "claim" } },
     })!;
     expect(claim).toContain("auth.jwt() ->> 'tenant_id'");
     expect(claim).not.toContain("x-bs-tenant");
@@ -413,7 +420,7 @@ describe("kit modes", () => {
     );
     expect(resolver).toContain("->> 'x-bs-tenant'");
     const profile = moduleBody("tenant", {
-      kits: {
+      blocks: {
         access: {
           activeTenant: {
             profileColumn: "public.profiles.active_organization_id",
@@ -427,14 +434,14 @@ describe("kit modes", () => {
     );
     expect(() =>
       moduleBody("tenant", {
-        kits: { access: { activeTenant: { profileColumn: "profiles.x" } } },
+        blocks: { access: { activeTenant: { profileColumn: "profiles.x" } } },
       }),
     ).toThrow(/schema.table.column/);
   });
 
   it("honours disabled tenants and users", () => {
     const sql = moduleBody("tenant", {
-      kits: {
+      blocks: {
         access: {
           disabled: {
             tenant: "public.organizations.disabled_at",
@@ -454,7 +461,7 @@ describe("kit modes", () => {
 
   it("pulls in tenant for the roles and catalog models only", () => {
     const names = (model: "roles" | "catalog" | "permdock" | "custom") =>
-      resolveModules(["access"], { kits: { access: { model } } }).map(
+      resolveModules(["access"], { blocks: { access: { model } } }).map(
         (module) => module.name,
       );
     expect(names("roles")).toEqual(["updated-at", "tenant", "access"]);

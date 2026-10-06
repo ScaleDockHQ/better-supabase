@@ -296,7 +296,7 @@ export interface CachedOptions {
     readonly revalidate?: number;
     readonly expire?: number;
   };
-  /** More `cacheTag`s for the entry, e.g. `snapshotTag(sub)` or `org:<id>`. */
+  /** More `cacheTag`s for the entry, e.g. `snapshotTag(sub)` or `organization:<id>`. */
   readonly tags?: readonly string[];
 }
 

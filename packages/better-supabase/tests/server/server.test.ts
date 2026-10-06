@@ -145,16 +145,16 @@ describe("createServer claims", () => {
       env,
       auth: { jwks: signer.jwks as never },
     });
-    const org = "22222222-2222-4222-8222-222222222222";
+    const organization = "22222222-2222-4222-8222-222222222222";
     const permdock = {
-      tenant_id: org,
+      tenant_id: organization,
       user_role: "member",
       roles: ["support"],
       memberships: [
         {
           scope: "project",
           id: "p1",
-          within: { organization: org },
+          within: { organization: organization },
           roles: ["editor"],
           expiresAt: 1_900_000_000,
         },
@@ -435,7 +435,7 @@ describe("createServer tenant", () => {
     const { postgres, sessions } = fakePostgres();
     const resolver = vi.fn(
       async (request: Request) =>
-        new URL(request.url).searchParams.get("org") ?? undefined,
+        new URL(request.url).searchParams.get("organization") ?? undefined,
     );
     const server = createServer(defineSupabase(schema), {
       env,
@@ -443,7 +443,7 @@ describe("createServer tenant", () => {
       tenant: resolver,
     });
     const ctx = await server.context(
-      new Request(`https://app.test/?org=${TENANT}`),
+      new Request(`https://app.test/?organization=${TENANT}`),
     );
     expect(resolver).toHaveBeenCalledWith(expect.any(Request), ctx.auth);
     expect(ctx.db.$context.tenant).toBe(TENANT);
@@ -633,11 +633,11 @@ describe("createServer forContext", () => {
     const sync = createServer(defineSupabase(schema), {
       env,
       postgres,
-      claimsFor: () => ({ org_ids: [TENANT] }),
+      claimsFor: () => ({ organization_ids: [TENANT] }),
     });
     await sync.forContext({ actor: userActor }).orThrow();
     expect(claims[1]).toEqual({
-      org_ids: [TENANT],
+      organization_ids: [TENANT],
       role: "authenticated",
       sub: USER,
     });

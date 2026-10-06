@@ -237,7 +237,7 @@ OPTIONS
 `;
 
 exports[`help > documents sql 1`] = `
-"Lists, adds, syncs, upgrades and prints SQL kit modules, and writes their data migration (better-supabase sql v<version>)
+"Lists, adds, syncs, upgrades and prints SQL modules, and writes their data migration (better-supabase sql v<version>)
 
 USAGE better-supabase sql [OPTIONS] [ACTION]
 
@@ -259,7 +259,7 @@ OPTIONS
 `;
 
 exports[`help > lists the commands and the global options 1`] = `
-"Typed Supabase: codegen, doctor, the SQL kit and project setup (better-supabase v<version>)
+"Typed Supabase: codegen, doctor, the SQL modules and project setup (better-supabase v<version>)
 
 USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|seed|doctor|sql|config|codemod
 
@@ -282,7 +282,7 @@ COMMANDS
      openapi    Writes the document your createOpenApi() module exports, so CI can check it for drift                  
         seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                                
       doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict 
-         sql    Lists, adds, syncs, upgrades and prints SQL kit modules                                                
+         sql    Lists, adds, syncs, upgrades and prints SQL modules                                                    
       config    Prints the resolved config: the file it came from and every option with its default                    
      codemod    Rewrites imports and calls for renamed better-supabase APIs                                            
 

@@ -12,7 +12,7 @@ import { bs } from "@/lib/supabase/server";
 /**
  * Mutations invalidate `bs:customers` with `updateTag` (see `createNext`).
  * With `select better_supabase.set_rate_limit('/customers', 30)` (the
- * `rate-limit` kit module), a burst of creates returns `rate_limited`.
+ * `rate-limit` block module), a burst of creates returns `rate_limited`.
  */
 export const createCustomer = bs.action(
   {
@@ -54,9 +54,9 @@ export const uploadCustomerLogo = bs.action(
     if (!can(toSession(auth), "customers.write")) {
       return err(dbError("forbidden", "You cannot change customers"));
     }
-    const orgId =
+    const organizationId =
       auth.kind === "user" ? auth.claims.app_metadata?.tenant_id : undefined;
-    if (!orgId) {
+    if (!organizationId) {
       return err(dbError("forbidden", "Your account has no organization"));
     }
     // A better-result value with an AppError, converted back for the action.
@@ -66,10 +66,14 @@ export const uploadCustomerLogo = bs.action(
     if (customer.isErr()) return fromBetterResult(customer);
     return logos
       .connect(supabase)
-      .replace({ orgId, customerId, version: crypto.randomUUID() }, logo, {
-        contentType: logo.type,
-        previous: customer.value.logoPath,
-        commit: (path) => db.customers.update(customerId, { logoPath: path }),
-      });
+      .replace(
+        { organizationId, customerId, version: crypto.randomUUID() },
+        logo,
+        {
+          contentType: logo.type,
+          previous: customer.value.logoPath,
+          commit: (path) => db.customers.update(customerId, { logoPath: path }),
+        },
+      );
   },
 );

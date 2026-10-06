@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import type { KitsConfig } from "../../../src/config/kits.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
 import {
   customContracts,
   moduleBody,
-  renderKit,
-} from "../../../src/sql/kit.ts";
+  renderBlocks,
+} from "../../../src/sql/blocks.ts";
 
-const body = (kits: KitsConfig = {}) => moduleBody("notifications", { kits })!;
+const body = (blocks: BlocksConfig = {}) =>
+  moduleBody("notifications", { blocks })!;
 
-const CENTRAKIT: KitsConfig = {
+const CENTRAKIT: BlocksConfig = {
   notifications: {
     mode: "adopt",
     schema: "public",
@@ -20,7 +21,7 @@ const CENTRAKIT: KitsConfig = {
       recipients: { user: "recipient_user_id" },
     },
     options: {
-      topic: "org:{tenantId}:notifications:{userId}",
+      topic: "organization:{tenantId}:notifications:{userId}",
       channels: ["in_app", "email"],
     },
   },
@@ -51,7 +52,7 @@ describe("notifications module", () => {
     expect(sql).not.toContain("create table if not exists");
     expect(sql).toContain('"public"."notification_events"');
     expect(sql).toContain(
-      `'org:' || new."organization_id"::text || ':notifications:' || new."recipient_user_id"::text`,
+      `'organization:' || new."organization_id"::text || ':notifications:' || new."recipient_user_id"::text`,
     );
     expect(sql).toContain("'notification_created'");
     expect(sql).toContain("'notification_updated'");
@@ -82,10 +83,10 @@ describe("notifications module", () => {
   });
 
   it("checks permissions and emits through the outbox when they are installed", () => {
-    const plain = renderKit(["notifications"]).at(-1)!.contents;
+    const plain = renderBlocks(["notifications"]).at(-1)!.contents;
     expect(plain).not.toContain("member_can");
     expect(plain).not.toContain("emit_event");
-    const files = renderKit(["access", "outbox", "notifications"]);
+    const files = renderBlocks(["access", "outbox", "notifications"]);
     const sql = files.find((file) =>
       file.path.includes("notifications"),
     )!.contents;
@@ -150,7 +151,7 @@ describe("notifications module", () => {
     expect(() =>
       body({
         notifications: {
-          options: { topic: "org:{tenantId}:{userId}" },
+          options: { topic: "organization:{tenantId}:{userId}" },
           columns: { recipients: { tenant: null } },
         },
       }),
@@ -161,9 +162,9 @@ describe("notifications module", () => {
   });
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
-    const custom: KitsConfig = { notifications: { mode: "custom" } };
-    expect(moduleBody("notifications", { kits: custom })).toBe(undefined);
-    const [contract] = customContracts(["notifications"], { kits: custom });
+    const custom: BlocksConfig = { notifications: { mode: "custom" } };
+    expect(moduleBody("notifications", { blocks: custom })).toBe(undefined);
+    const [contract] = customContracts(["notifications"], { blocks: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "notify",
       "notification_enabled",
@@ -179,7 +180,7 @@ describe("notifications module", () => {
       "complete_notification_delivery",
     ]);
     const [minimal] = customContracts(["notifications"], {
-      kits: {
+      blocks: {
         notifications: {
           mode: "custom",
           tables: { deliveries: null, subscriptions: null, preferences: null },
@@ -191,8 +192,8 @@ describe("notifications module", () => {
   });
 
   it("skips the recipient read filter under the permdock model", () => {
-    const notify = (kits: KitsConfig) =>
-      renderKit(["access", "notifications"], { kits }).find((file) =>
+    const notify = (blocks: BlocksConfig) =>
+      renderBlocks(["access", "notifications"], { blocks }).find((file) =>
         file.path.includes("notifications"),
       )!.contents;
     expect(notify({})).toContain("better_supabase.member_can(x, v_tenant,");

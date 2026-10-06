@@ -24,8 +24,8 @@ import {
   type BetterSupabaseConfig,
   resolveConfig,
 } from "../../../src/config/index.ts";
-import { renderKit } from "../../../src/sql/index.ts";
-import { kitLayout } from "../../../src/sql/index.ts";
+import { renderBlocks } from "../../../src/sql/index.ts";
+import { blockLayout } from "../../../src/sql/index.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
 const base = await parseSnapshot(fixture);
@@ -229,7 +229,7 @@ describe("BS107 without the tenant plugin", () => {
         policy("contacts_read", "select", "true"),
       ];
       table(tables, "locations").policies = [
-        policy("locations_read", "select", "is_member(org)", {
+        policy("locations_read", "select", "is_member(organization)", {
           roles: ["anon"],
         }),
       ];
@@ -312,7 +312,7 @@ describe("BS302 bucket drift in config.toml", () => {
   const config: BetterSupabaseConfig = {
     buckets: {
       docs: {
-        path: "{orgId}/{file}",
+        path: "{organizationId}/{file}",
         public: false,
         fileSizeLimit: "1KiB",
         allowedMimeTypes: ["application/pdf"],
@@ -389,7 +389,7 @@ describe("BS302 bucket drift in config.toml", () => {
   });
 });
 
-describe("generated and kit files (BS303, BS304)", () => {
+describe("generated and block files (BS303, BS304)", () => {
   let root: string;
 
   beforeEach(async () => {
@@ -439,10 +439,10 @@ describe("generated and kit files (BS303, BS304)", () => {
     );
   });
 
-  it("checks the SQL kit modules in sql.kit", async () => {
+  it("checks the SQL modules in sql.modules", async () => {
     expect(await run("BS304", rooted())).toEqual([]);
-    const ctx = rooted({ sql: { kit: ["updated-at", "audit"] } });
-    const files = renderKit(ctx.config.sql.kit, kitLayout(ctx.config));
+    const ctx = rooted({ sql: { modules: ["updated-at", "audit"] } });
+    const files = renderBlocks(ctx.config.sql.modules, blockLayout(ctx.config));
     const missing = await run("BS304", ctx);
     expect(missing.map((finding) => finding.target)).toEqual(
       files.map((file) => file.path),
@@ -480,13 +480,13 @@ describe("generated and kit files (BS303, BS304)", () => {
   });
 
   it("reports a module behind its version in BS311, not BS304", async () => {
-    const ctx = rooted({ sql: { kit: ["tenant"] } });
-    const files = renderKit(["tenant"], kitLayout(ctx.config));
-    for (const kit of files) await write(kit.path, kit.contents);
+    const ctx = rooted({ sql: { modules: ["tenant"] } });
+    const files = renderBlocks(["tenant"], blockLayout(ctx.config));
+    for (const block of files) await write(block.path, block.contents);
     const file = files.find(
-      (kit) => kit.module === "tenant" && kit.kind === "schema",
+      (block) => block.module === "tenant" && block.kind === "schema",
     );
-    await write(file!.path, file!.contents.replace(/^-- @bs-kit .*\n/m, ""));
+    await write(file!.path, file!.contents.replace(/^-- @bs-block .*\n/m, ""));
     expect(await run("BS304", ctx)).toEqual([]);
     expect(await run("BS311", ctx)).toEqual([
       expect.objectContaining({
@@ -501,8 +501,8 @@ describe("generated and kit files (BS303, BS304)", () => {
     expect(await run("BS311", ctx)).toEqual([]);
   });
 
-  it("reads kit_modules on a live database in BS311", async () => {
-    const ctx = rooted({ sql: { kit: ["tenant", "mfa"] } });
+  it("reads block_modules on a live database in BS311", async () => {
+    const ctx = rooted({ sql: { modules: ["tenant", "mfa"] } });
     const live = (rows: Record<string, unknown>[] | Error) => ({
       ...ctx,
       database: {
@@ -525,7 +525,7 @@ describe("generated and kit files (BS303, BS304)", () => {
       ),
     ).toEqual([
       expect.objectContaining({
-        target: "better_supabase.kit_modules.tenant",
+        target: "better_supabase.block_modules.tenant",
         message: expect.stringContaining(
           "The database has tenant version 1; this release ships version 2.",
         ),
@@ -535,7 +535,7 @@ describe("generated and kit files (BS303, BS304)", () => {
   });
 
   it("skips the read-sets module when the read sets could not be loaded", async () => {
-    const ctx = rooted({ sql: { kit: ["read-sets"] } });
+    const ctx = rooted({ sql: { modules: ["read-sets"] } });
     expect(
       (await run("BS304", { ...ctx, readSets: { skipped: "no config" } })).map(
         (finding) => finding.message,
@@ -546,17 +546,19 @@ describe("generated and kit files (BS303, BS304)", () => {
         (finding) => finding.target,
       ),
     ).toEqual(
-      renderKit(["read-sets"], kitLayout(ctx.config)).map((file) => file.path),
+      renderBlocks(["read-sets"], blockLayout(ctx.config)).map(
+        (file) => file.path,
+      ),
     );
   });
 });
 
-describe("kit upgrades (BS309, BS310)", () => {
-  it("reports deprecated kit symbols in schema files and policies", async () => {
+describe("block upgrades (BS309, BS310)", () => {
+  it("reports deprecated block symbols in schema files and policies", async () => {
     const snap = snapshot((tables) => {
       table(tables, "notes").policies = [
         {
-          name: "org members",
+          name: "organization members",
           command: "select",
           roles: ["authenticated"],
           permissive: true,
@@ -581,11 +583,11 @@ describe("kit upgrades (BS309, BS310)", () => {
             },
             {
               path: "supabase/schemas/900_better_supabase_04_tenant.sql",
-              text: "-- @bs-kit tenant@2 managed\nselect better_supabase.current_org_id();",
+              text: "-- @bs-block tenant@2 managed\nselect better_supabase.current_org_id();",
             },
           ],
         },
-        { sql: { kit: ["tenant"] } },
+        { sql: { modules: ["tenant"] } },
       ),
     );
     expect(
@@ -595,7 +597,7 @@ describe("kit upgrades (BS309, BS310)", () => {
         "supabase/schemas/100_notes.sql:better_supabase.current_org_id",
         { file: "supabase/schemas/100_notes.sql", line: 2 },
       ],
-      ["public.notes.org members:org_id", undefined],
+      ["public.notes.organization members:org_id", undefined],
     ]);
     expect(findings[0]!.message).toContain(
       "removed in 0.2.0. Use better_supabase.current_tenant_id().",
@@ -606,14 +608,14 @@ describe("kit upgrades (BS309, BS310)", () => {
         context(
           snap,
           {},
-          { sql: { kit: ["tenant"] }, claims: { tenant: "org_id" } },
+          { sql: { modules: ["tenant"] }, claims: { tenant: "org_id" } },
         ),
       ),
     ).toEqual([]);
     expect(await run("BS309", context(snap))).toEqual([]);
   });
 
-  it("reports a renamed kit column used unqualified next to its table", async () => {
+  it("reports a renamed block column used unqualified next to its table", async () => {
     const snap = snapshot((tables) => {
       table(tables, "notes").policies = [
         {
@@ -639,7 +641,7 @@ describe("kit upgrades (BS309, BS310)", () => {
     ];
     const findings = await run(
       "BS309",
-      context(snap, { sqlFiles }, { sql: { kit: ["tenant"] } }),
+      context(snap, { sqlFiles }, { sql: { modules: ["tenant"] } }),
     );
     expect(
       findings.map((finding) => [finding.target, finding.location]),
@@ -656,13 +658,16 @@ describe("kit upgrades (BS309, BS310)", () => {
         context(
           snap,
           { sqlFiles },
-          { sql: { kit: ["tenant"] }, kits: { tenant: { mode: "adopt" } } },
+          {
+            sql: { modules: ["tenant"] },
+            blocks: { tenant: { mode: "adopt" } },
+          },
         ),
       ),
     ).toEqual([]);
   });
 
-  it("reports a table with a kit trigger and an equivalent one", async () => {
+  it("reports a table with a block trigger and an equivalent one", async () => {
     const trigger = (name: string, fn: string) => ({
       name,
       timing: "before" as const,
@@ -691,18 +696,18 @@ describe("kit upgrades (BS309, BS310)", () => {
   });
 });
 
-describe("exposed kit schemas (BS312)", () => {
+describe("exposed block schemas (BS312)", () => {
   const api = toml('[api]\nschemas = ["public", "better_supabase", "crm"]\n');
 
-  it("reports better_supabase and kits.*.schema in [api] schemas", async () => {
+  it("reports better_supabase and blocks.*.schema in [api] schemas", async () => {
     const findings = await run(
       "BS312",
       context(
         base,
         { configToml: api },
         {
-          sql: { kit: ["tenant", "audit"] },
-          kits: { audit: { schema: "crm" } },
+          sql: { modules: ["tenant", "audit"] },
+          blocks: { audit: { schema: "crm" } },
         },
       ),
     );
@@ -713,7 +718,7 @@ describe("exposed kit schemas (BS312)", () => {
     expect(findings[0]!.severity).toBe("error");
   });
 
-  it("skips projects without kit modules or exposed kit schemas", async () => {
+  it("skips projects without block modules or exposed block schemas", async () => {
     expect(await run("BS312", context(base, { configToml: api }))).toEqual([]);
     expect(
       await run(
@@ -721,7 +726,10 @@ describe("exposed kit schemas (BS312)", () => {
         context(
           base,
           { configToml: toml('[api]\nschemas = ["public"]\n') },
-          { sql: { kit: ["tenant"] }, schemas: ["public", "better_supabase"] },
+          {
+            sql: { modules: ["tenant"] },
+            schemas: ["public", "better_supabase"],
+          },
         ),
       ),
     ).toEqual([]);
@@ -731,7 +739,10 @@ describe("exposed kit schemas (BS312)", () => {
         context(
           base,
           {},
-          { sql: { kit: ["tenant"] }, schemas: ["public", "better_supabase"] },
+          {
+            sql: { modules: ["tenant"] },
+            schemas: ["public", "better_supabase"],
+          },
         ),
       ),
     ).toHaveLength(1);
@@ -740,10 +751,10 @@ describe("exposed kit schemas (BS312)", () => {
 
 describe("rate limits wired to PostgREST (BS313)", () => {
   const live = (
-    kit: string[],
+    block: string[],
     rows: Record<string, unknown>[] | Error,
   ): Parameters<typeof run>[1] => ({
-    ...context(base, {}, { sql: { kit } }),
+    ...context(base, {}, { sql: { modules: block } }),
     database: {
       describe: "test",
       session: true,
@@ -776,7 +787,7 @@ describe("rate limits wired to PostgREST (BS313)", () => {
     );
   });
 
-  it("passes the kit hook, a chaining hook, and projects without the module or a database", async () => {
+  it("passes the block hook, a chaining hook, and projects without the module or a database", async () => {
     for (const row of [
       { hook: "better_supabase.check_request", calls: false },
       { hook: "public.pre_request", calls: true },
@@ -789,26 +800,29 @@ describe("rate limits wired to PostgREST (BS313)", () => {
       await run("BS313", live(["rate-limit"], new Error("denied"))),
     ).toEqual([]);
     expect(
-      await run("BS313", context(base, {}, { sql: { kit: ["rate-limit"] } })),
+      await run(
+        "BS313",
+        context(base, {}, { sql: { modules: ["rate-limit"] } }),
+      ),
     ).toEqual([]);
   });
 });
 
-describe("migration-only kit options (BS314)", () => {
-  it("warns about each weakening option on a module in sql.kit", async () => {
+describe("migration-only block options (BS314)", () => {
+  it("warns about each weakening option on a module in sql.modules", async () => {
     const findings = await run(
       "BS314",
       context(
         base,
         {},
         {
-          sql: { kit: ["invitations", "outbox"] },
-          kits: {
+          sql: { modules: ["invitations", "outbox"] },
+          blocks: {
             invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
             outbox: {
               mode: "adopt",
               options: {
-                kitSource: "better-supabase/{module}",
+                blockSource: "better-supabase/{module}",
                 defaultSource: "domain",
               },
             },
@@ -823,12 +837,14 @@ describe("migration-only kit options (BS314)", () => {
     expect(findings).toEqual([
       expect.objectContaining({
         severity: "warning",
-        target: "kits.invitations.options.tokenStorage",
+        target: "blocks.invitations.options.tokenStorage",
       }),
-      expect.objectContaining({ target: "kits.outbox.options.defaultSource" }),
+      expect.objectContaining({
+        target: "blocks.outbox.options.defaultSource",
+      }),
     ]);
     expect(findings[0]!.message).toBe(
-      'kits.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. It exists to adopt an existing schema; remove it once your data matches the managed default.',
+      'blocks.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. It exists to adopt an existing schema; remove it once your data matches the managed default.',
     );
   });
 
@@ -840,8 +856,8 @@ describe("migration-only kit options (BS314)", () => {
           base,
           {},
           {
-            sql: { kit: ["invitations"] },
-            kits: { invitations: { options: { tokenStorage: "sha256" } } },
+            sql: { modules: ["invitations"] },
+            blocks: { invitations: { options: { tokenStorage: "sha256" } } },
           },
         ),
       ),
@@ -879,7 +895,7 @@ describe("tables without an audit trigger (BS315)", () => {
     });
     const findings = await run(
       "BS315",
-      context(audited, {}, { sql: { kit: ["audit"] } }),
+      context(audited, {}, { sql: { modules: ["audit"] } }),
     );
     expect(findings.map((finding) => finding.target)).toEqual(
       publicTables.filter(
@@ -891,11 +907,11 @@ describe("tables without an audit trigger (BS315)", () => {
       object: { kind: "table", schema: "public" },
     });
     expect(findings[0]!.message).toContain(
-      "or list it in kits.audit.options.exempt",
+      "or list it in blocks.audit.options.exempt",
     );
   });
 
-  it("skips exempt globs, adopted kit tables and projects without the module", async () => {
+  it("skips exempt globs, adopted block tables and projects without the module", async () => {
     const [first = "", ...rest] = publicTables;
     expect(
       await run(
@@ -904,8 +920,8 @@ describe("tables without an audit trigger (BS315)", () => {
           base,
           {},
           {
-            sql: { kit: ["audit"] },
-            kits: {
+            sql: { modules: ["audit"] },
+            blocks: {
               audit: { options: { exempt: rest } },
               tenant: { mode: "adopt", tables: { memberships: first } },
             },
@@ -920,8 +936,8 @@ describe("tables without an audit trigger (BS315)", () => {
           base,
           {},
           {
-            sql: { kit: ["audit"] },
-            kits: { audit: { options: { exempt: ["public.*"] } } },
+            sql: { modules: ["audit"] },
+            blocks: { audit: { options: { exempt: ["public.*"] } } },
           },
         ),
       ),

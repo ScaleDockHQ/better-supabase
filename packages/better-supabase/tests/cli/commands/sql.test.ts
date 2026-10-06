@@ -16,15 +16,15 @@ import {
   resolveConfig,
 } from "../../../src/config/index.ts";
 import {
-  kitPermissionKeys,
-  renderKit,
+  blockPermissionKeys,
+  renderBlocks,
   SQL_MODULES,
 } from "../../../src/sql/index.ts";
-import { kitLayout } from "../../../src/sql/index.ts";
+import { blockLayout } from "../../../src/sql/index.ts";
 
 const fixtures = resolve(import.meta.dirname, "../fixtures");
 
-describe("kitLayout", () => {
+describe("blockLayout", () => {
   it("turns expose into grants per role and json schemas into column checks", () => {
     const config = resolveConfig(
       {
@@ -43,8 +43,8 @@ describe("kitLayout", () => {
       },
       "/p",
     );
-    const kit = kitLayout(config, "tests/sql");
-    expect(kit.grants).toEqual([
+    const block = blockLayout(config, "tests/sql");
+    expect(block.grants).toEqual([
       { table: "public.posts", role: "anon", privileges: ["select"] },
       {
         table: "public.posts",
@@ -54,15 +54,15 @@ describe("kitLayout", () => {
       { table: "public.notes", role: "anon", privileges: [] },
       { table: "public.notes", role: "authenticated", privileges: ["select"] },
     ]);
-    expect(kit.jsonSchemas).toEqual([
+    expect(block.jsonSchemas).toEqual([
       { table: "public.posts", column: "meta", schema: { type: "object" } },
     ]);
-    expect(kit).toMatchObject({
+    expect(block).toMatchObject({
       testsDir: "tests/sql",
       version: VERSION,
       tenantColumn: "org_id",
     });
-    expect(kit).not.toHaveProperty("permdock");
+    expect(block).not.toHaveProperty("permdock");
   });
 });
 
@@ -109,20 +109,20 @@ describe("runSql", () => {
     expect((await sql(["print", "nope"])).code).toBe(2);
   });
 
-  it("has nothing to sync for an empty sql.kit", async () => {
+  it("has nothing to sync for an empty sql.modules", async () => {
     expect(await sql(["sync"])).toEqual({
       code: 0,
-      output: "sql.kit is empty; nothing to sync.",
+      output: "sql.modules is empty; nothing to sync.",
     });
   });
 
   it("writes the rows a schema diff skips into a data migration", async () => {
     expect(await sql(["data"])).toEqual({
       code: 0,
-      output: "sql.kit is empty; nothing to write.",
+      output: "sql.modules is empty; nothing to write.",
     });
     const config: BetterSupabaseConfig = {
-      sql: { kit: ["tenant", "rate-limit"] },
+      sql: { modules: ["tenant", "rate-limit"] },
     };
     const synced = await sql(["sync"], config);
     expect(synced.output).toContain(
@@ -132,12 +132,12 @@ describe("runSql", () => {
     expect((await sql(["sync"], config)).output).not.toContain("sql data");
 
     expect((await sql(["data", "--dry-run"], config)).output).toMatch(
-      /^Would write supabase\/migrations\/\d{14}_better_supabase_kit_data\.sql$/,
+      /^Would write supabase\/migrations\/\d{14}_better_supabase_block_data\.sql$/,
     );
     const wrote = await sql(["data"], config);
     const path = wrote.output!.replace("Wrote ", "");
     expect(path).toMatch(
-      /^supabase\/migrations\/\d{14}_better_supabase_kit_data\.sql$/,
+      /^supabase\/migrations\/\d{14}_better_supabase_block_data\.sql$/,
     );
     const migration = await readFile(join(root, path), "utf8");
     expect(migration).toContain("values ('tenant', 2, 'managed')");
@@ -153,7 +153,7 @@ describe("runSql", () => {
   });
 
   it("writes a pgTAP file per audited table and removes the ones it no longer writes", async () => {
-    const config: BetterSupabaseConfig = { sql: { kit: ["audit"] } };
+    const config: BetterSupabaseConfig = { sql: { modules: ["audit"] } };
     const schemas = join(root, "supabase/schemas");
     const migrations = join(root, "supabase/migrations");
     await mkdir(schemas, { recursive: true });
@@ -194,10 +194,10 @@ describe("runSql", () => {
       '[experimental.pgdelta]\nenabled = true\ndeclarative_schema_path = "./declarative"\n',
     );
     const synced = await sql(["sync"], {
-      sql: { kit: ["tenant"], dir: "supabase/declarative/kit" },
+      sql: { modules: ["tenant"], dir: "supabase/declarative/block" },
     });
     expect(synced.output).toContain(
-      "Wrote supabase/declarative/kit/900_better_supabase_04_tenant.sql (tenant)",
+      "Wrote supabase/declarative/block/900_better_supabase_04_tenant.sql (tenant)",
     );
     expect(synced.output).toContain(
       "Wrote supabase/better-supabase-data/900_better_supabase_04_tenant.sql (tenant)",
@@ -205,15 +205,15 @@ describe("runSql", () => {
   });
 
   it("stamps the data migration after the newest migration", async () => {
-    const config: BetterSupabaseConfig = { sql: { kit: ["tenant"] } };
+    const config: BetterSupabaseConfig = { sql: { modules: ["tenant"] } };
     await sql(["sync"], config);
     await mkdir(join(root, "supabase/migrations"), { recursive: true });
     await writeFile(
-      join(root, "supabase/migrations/29991231235959_kit.sql"),
+      join(root, "supabase/migrations/29991231235959_block.sql"),
       "",
     );
     expect((await sql(["data"], config)).output).toBe(
-      "Wrote supabase/migrations/30000101000000_better_supabase_kit_data.sql",
+      "Wrote supabase/migrations/30000101000000_better_supabase_block_data.sql",
     );
   });
 
@@ -238,23 +238,23 @@ describe("runSql", () => {
   });
 
   it("upgrades modules installed before versioned headers", async () => {
-    const config: BetterSupabaseConfig = { sql: { kit: ["tenant"] } };
+    const config: BetterSupabaseConfig = { sql: { modules: ["tenant"] } };
     expect(await sql(["upgrade"])).toEqual({
       code: 0,
-      output: "sql.kit is empty; nothing to upgrade.",
+      output: "sql.modules is empty; nothing to upgrade.",
     });
     expect(await sql(["upgrade", "--check"], config)).toEqual({
       code: 0,
-      output: "SQL kit modules are at their current versions.",
+      output: "SQL modules are at their current versions.",
     });
     await sql(["sync"], config);
-    const file = renderKit(
+    const file = renderBlocks(
       ["tenant"],
-      kitLayout(resolveConfig(config, root)),
-    ).find((kit) => kit.module === "tenant" && kit.kind === "schema");
+      blockLayout(resolveConfig(config, root)),
+    ).find((block) => block.module === "tenant" && block.kind === "schema");
     const path = join(root, file!.path);
     const legacy = (await readFile(path, "utf8")).replace(
-      /^-- @bs-kit .*\n/m,
+      /^-- @bs-block .*\n/m,
       "",
     );
     await writeFile(path, legacy);
@@ -275,16 +275,19 @@ describe("runSql", () => {
       "Renames memberships.org_id to organization_id",
     );
     expect(done.output).toContain("Then create a migration:");
-    expect(await readFile(path, "utf8")).toContain("-- @bs-kit tenant@2");
+    expect(await readFile(path, "utf8")).toContain("-- @bs-block tenant@2");
     expect((await sql(["upgrade"], config)).output).toBe(
-      "SQL kit modules are at their current versions.",
+      "SQL modules are at their current versions.",
     );
   });
 
   it("reports a stale file at the current version in upgrade --check", async () => {
-    const config: BetterSupabaseConfig = { sql: { kit: ["mfa"] } };
+    const config: BetterSupabaseConfig = { sql: { modules: ["mfa"] } };
     await sql(["sync"], config);
-    const [file] = renderKit(["mfa"], kitLayout(resolveConfig(config, root)));
+    const [file] = renderBlocks(
+      ["mfa"],
+      blockLayout(resolveConfig(config, root)),
+    );
     await writeFile(
       join(root, file!.path),
       `${await readFile(join(root, file!.path), "utf8")}\n-- edited\n`,
@@ -310,11 +313,11 @@ describe("runSql", () => {
 
   it("prints the contract of a custom-mode module", async () => {
     const printed = await sql(["print", "tenant"], {
-      kits: { tenant: { mode: "custom", schema: "app" } },
+      blocks: { tenant: { mode: "custom", schema: "app" } },
     });
     expect(printed.code).toBe(0);
     expect(printed.output).toMatch(
-      /^-- kits\.tenant is in custom mode: the app writes these functions\.\n-- app\./,
+      /^-- blocks\.tenant is in custom mode: the app writes these functions\.\n-- app\./,
     );
   });
 
@@ -370,7 +373,7 @@ describe("runSql", () => {
         join(root, "permdock.manifest.json"),
         JSON.stringify(manifest),
       );
-      const keys = kitPermissionKeys(
+      const keys = blockPermissionKeys(
         { access: { model: "permdock" } },
         Object.keys(SQL_MODULES),
       ).map((entry) => ({ key: entry.key, rowConditions: false }));
@@ -382,7 +385,7 @@ describe("runSql", () => {
     const permdock = (
       extra: BetterSupabaseConfig = {},
     ): BetterSupabaseConfig => ({
-      kits: { access: { model: "permdock" } },
+      blocks: { access: { model: "permdock" } },
       ...extra,
     });
 
@@ -423,7 +426,7 @@ describe("runSql", () => {
       );
     });
 
-    it("stops on a kit permission key the catalog doesn't mark scope-only", async () => {
+    it("stops on a block permission key the catalog doesn't mark scope-only", async () => {
       await writeProject(undefined, [
         { key: "organization.update", rowConditions: true },
       ]);

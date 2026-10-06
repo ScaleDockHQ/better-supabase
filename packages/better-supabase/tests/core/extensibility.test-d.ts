@@ -4,6 +4,13 @@ import type { QueryClient } from "@tanstack/react-query";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthResolver } from "../../src/auth/resolve.ts";
+import type { QueueBackend } from "../../src/blocks/jobs/index.ts";
+import type { NotificationChannel } from "../../src/blocks/notifications/index.ts";
+import type {
+  WebhookSecretStore,
+  WebhookSigner,
+  WebhookTransport,
+} from "../../src/blocks/webhooks/index.ts";
 import type { Generator } from "../../src/config/index.ts";
 import type { CacheAdapter } from "../../src/core/cache.ts";
 import type { Compiler } from "../../src/core/compiler.ts";
@@ -18,15 +25,18 @@ import type {
 import type { AsyncResult } from "../../src/core/result.ts";
 import type { EventSink } from "../../src/events/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
-import type { QueueBackend } from "../../src/jobs/index.ts";
-import type { NotificationChannel } from "../../src/notifications/index.ts";
 import type { SupportSessionStore } from "../../src/server/index.ts";
-import type {
-  WebhookSecretStore,
-  WebhookSigner,
-  WebhookTransport,
-} from "../../src/webhooks/index.ts";
 
+import {
+  pgmqPublicBackend,
+  sqlQueueBackend,
+} from "../../src/blocks/jobs/index.ts";
+import {
+  fetchTransport,
+  hmacSigner,
+  sqlSecretStore,
+  standardWebhooks,
+} from "../../src/blocks/webhooks/index.ts";
 import { jsonSchema } from "../../src/config/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
 import { postgrestCompiler } from "../../src/core/compiler.ts";
@@ -37,7 +47,6 @@ import { postgrestExecutor } from "../../src/core/postgrest-executor.ts";
 import { httpSink } from "../../src/events/index.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
-import { pgmqPublicBackend, sqlQueueBackend } from "../../src/jobs/index.ts";
 import { nextCache } from "../../src/next/index.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
@@ -45,12 +54,6 @@ import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { postgresExecutor, sqlCompiler } from "../../src/postgres/index.ts";
 import { queryCache } from "../../src/query/index.ts";
 import { sqlSupportStore } from "../../src/server/index.ts";
-import {
-  fetchTransport,
-  hmacSigner,
-  sqlSecretStore,
-  standardWebhooks,
-} from "../../src/webhooks/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;

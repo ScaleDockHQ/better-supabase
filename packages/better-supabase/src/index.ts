@@ -125,7 +125,11 @@ export type {
   RefreshEvent,
   RpcNotice,
 } from "./core/events.ts";
-export type { KitEvent, KitEventMap, KitEventType } from "./core/kit-events.ts";
+export type {
+  BlockEvent,
+  BlockEventMap,
+  BlockEventType,
+} from "./core/block-events.ts";
 export type { Policy, PolicyDecision } from "./core/policy.ts";
 export type {
   ConflictTarget,

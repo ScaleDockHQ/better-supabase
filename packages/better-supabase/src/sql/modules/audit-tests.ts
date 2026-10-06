@@ -1,6 +1,6 @@
 import type { AuditedTable } from "../audit-registrations.ts";
-import type { KitContext } from "../context.ts";
-import type { KitTestFile } from "../kit.ts";
+import type { BlockTestFile } from "../blocks.ts";
+import type { BlockContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 
@@ -76,7 +76,7 @@ $$;`;
  * values masked.
  */
 function auditTableTest(
-  ctx: KitContext,
+  ctx: BlockContext,
   table: AuditedTable,
   restricted: boolean,
 ): string {
@@ -158,10 +158,10 @@ rollback;`;
 
 /** One pgTAP file per table in `audited`, named after the table. */
 export function auditTests(
-  ctx: KitContext,
+  ctx: BlockContext,
   audited: readonly AuditedTable[],
   restricted: boolean,
-): KitTestFile[] {
+): BlockTestFile[] {
   return audited.map((table) => ({
     name: table.target.toLowerCase().replaceAll(/[^a-z0-9]+/g, "_"),
     sql: auditTableTest(ctx, table, restricted),

@@ -190,7 +190,7 @@
       }
     },
     "claims": {
-      "description": "Claim names shared by the SQL kit, codegen and runtime defaults (PermDock's claim contract).",
+      "description": "Claim names shared by the SQL modules, codegen and runtime defaults (PermDock's claim contract).",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -218,7 +218,7 @@
           "id": { "type": "string" },
           "public": { "type": "boolean" },
           "path": {
-            "description": "Path template, e.g. `{orgId}/{customerId}/logo.webp`, or several for a bucket that stores objects in more than one layout. A last segment `{...rest}` matches one or more segments.",
+            "description": "Path template, e.g. `{organizationId}/{customerId}/logo.webp`, or several for a bucket that stores objects in more than one layout. A last segment `{...rest}` matches one or more segments.",
             "oneOf": [
               { "type": "string" },
               { "type": "array", "items": { "type": "string" }, "minItems": 1 }
@@ -289,7 +289,7 @@
       }
     },
     "expose": {
-      "description": "Data API grants keyed by `table` or `schema.table`: privileges for authenticated, or per role. Written by the `grants` SQL kit module and checked by doctor (BS106).",
+      "description": "Data API grants keyed by `table` or `schema.table`: privileges for authenticated, or per role. Written by the `grants` SQL module and checked by doctor (BS106).",
       "type": "object",
       "additionalProperties": {
         "oneOf": [
@@ -306,12 +306,12 @@
       }
     },
     "readSets": {
-      "description": "Modules exporting `defineReadSet` results. `gen` compiles them into the `read-sets` SQL kit module.",
+      "description": "Modules exporting `defineReadSet` results. `gen` compiles them into the `read-sets` SQL module.",
       "type": "array",
       "items": { "type": "string" }
     },
     "entitlements": {
-      "description": "Where the `entitlements` SQL kit module finds each tenant's Stripe customer.",
+      "description": "Where the `entitlements` SQL module finds each tenant's Stripe customer.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -326,7 +326,7 @@
           "default": "id"
         },
         "permdock": {
-          "description": "With a PermDock manifest, read PermDock's memberships for this scope instead of better_supabase.memberships; false keeps the kit's table.",
+          "description": "With a PermDock manifest, read PermDock's memberships for this scope instead of better_supabase.memberships; false keeps the block's table.",
           "oneOf": [
             { "const": false },
             {
@@ -361,7 +361,7 @@
       }
     },
     "vectorSearch": {
-      "description": "Embedding columns keyed by `table` or `schema.table`. The `vector-search` SQL kit module writes `search_<table>(query, k)` for each.",
+      "description": "Embedding columns keyed by `table` or `schema.table`. The `vector-search` SQL module writes `search_<table>(query, k)` for each.",
       "type": "object",
       "additionalProperties": {
         "oneOf": [
@@ -405,16 +405,16 @@
         "dir": { "type": "string", "default": "supabase/schemas" },
         "prefix": { "type": "string", "default": "900_better_supabase" },
         "testsDir": { "type": "string", "default": "supabase/tests" },
-        "kit": { "type": "array", "items": { "type": "string" } }
+        "modules": { "type": "array", "items": { "type": "string" } }
       }
     },
-    "kits": {
+    "blocks": {
       "type": "object",
-      "description": "How each SQL kit module maps onto the database, keyed by module name.",
+      "description": "How each SQL module maps onto the database, keyed by module name.",
       "properties": {
-        "access": { "$ref": "#/$defs/accessKit" }
+        "access": { "$ref": "#/$defs/accessBlock" }
       },
-      "additionalProperties": { "$ref": "#/$defs/kitModule" }
+      "additionalProperties": { "$ref": "#/$defs/blockModule" }
     },
     "seed": {
       "type": "object",
@@ -455,7 +455,7 @@
       "type": "object",
       "additionalProperties": { "type": "string" }
     },
-    "kitModuleProperties": {
+    "blockModuleProperties": {
       "mode": { "enum": ["managed", "adopt", "custom"], "default": "managed" },
       "schema": { "type": "string", "default": "better_supabase" },
       "tables": {
@@ -474,36 +474,36 @@
       "permissions": { "$ref": "#/$defs/stringRecord" },
       "options": { "type": "object" }
     },
-    "kitModule": {
+    "blockModule": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "mode": { "$ref": "#/$defs/kitModuleProperties/mode" },
-        "schema": { "$ref": "#/$defs/kitModuleProperties/schema" },
-        "tables": { "$ref": "#/$defs/kitModuleProperties/tables" },
-        "columns": { "$ref": "#/$defs/kitModuleProperties/columns" },
-        "idType": { "$ref": "#/$defs/kitModuleProperties/idType" },
+        "mode": { "$ref": "#/$defs/blockModuleProperties/mode" },
+        "schema": { "$ref": "#/$defs/blockModuleProperties/schema" },
+        "tables": { "$ref": "#/$defs/blockModuleProperties/tables" },
+        "columns": { "$ref": "#/$defs/blockModuleProperties/columns" },
+        "idType": { "$ref": "#/$defs/blockModuleProperties/idType" },
         "triggerPrefix": {
-          "$ref": "#/$defs/kitModuleProperties/triggerPrefix"
+          "$ref": "#/$defs/blockModuleProperties/triggerPrefix"
         },
-        "permissions": { "$ref": "#/$defs/kitModuleProperties/permissions" },
-        "options": { "$ref": "#/$defs/kitModuleProperties/options" }
+        "permissions": { "$ref": "#/$defs/blockModuleProperties/permissions" },
+        "options": { "$ref": "#/$defs/blockModuleProperties/options" }
       }
     },
-    "accessKit": {
+    "accessBlock": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "mode": { "$ref": "#/$defs/kitModuleProperties/mode" },
-        "schema": { "$ref": "#/$defs/kitModuleProperties/schema" },
-        "tables": { "$ref": "#/$defs/kitModuleProperties/tables" },
-        "columns": { "$ref": "#/$defs/kitModuleProperties/columns" },
-        "idType": { "$ref": "#/$defs/kitModuleProperties/idType" },
+        "mode": { "$ref": "#/$defs/blockModuleProperties/mode" },
+        "schema": { "$ref": "#/$defs/blockModuleProperties/schema" },
+        "tables": { "$ref": "#/$defs/blockModuleProperties/tables" },
+        "columns": { "$ref": "#/$defs/blockModuleProperties/columns" },
+        "idType": { "$ref": "#/$defs/blockModuleProperties/idType" },
         "triggerPrefix": {
-          "$ref": "#/$defs/kitModuleProperties/triggerPrefix"
+          "$ref": "#/$defs/blockModuleProperties/triggerPrefix"
         },
-        "permissions": { "$ref": "#/$defs/kitModuleProperties/permissions" },
-        "options": { "$ref": "#/$defs/kitModuleProperties/options" },
+        "permissions": { "$ref": "#/$defs/blockModuleProperties/permissions" },
+        "options": { "$ref": "#/$defs/blockModuleProperties/options" },
         "model": {
           "enum": ["roles", "catalog", "permdock", "custom"],
           "default": "roles"

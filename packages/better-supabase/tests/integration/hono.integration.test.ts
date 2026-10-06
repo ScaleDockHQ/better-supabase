@@ -74,17 +74,17 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
     }
   });
 
-  const tokenFor = (orgId: string) =>
-    signLocalJwt({ sub: USER, tenant_id: orgId });
+  const tokenFor = (organizationId: string) =>
+    signLocalJwt({ sub: USER, tenant_id: organizationId });
   const call = async (
-    orgId: string,
+    organizationId: string,
     path: string,
     init: { method?: string; body?: unknown } = {},
   ) =>
     app.request(path, {
       method: init.method ?? "GET",
       headers: {
-        authorization: `Bearer ${await tokenFor(orgId)}`,
+        authorization: `Bearer ${await tokenFor(organizationId)}`,
         ...(init.body === undefined
           ? {}
           : { "content-type": "application/json" }),

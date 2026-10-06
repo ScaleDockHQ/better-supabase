@@ -457,8 +457,8 @@ import { schema } from ${JSON.stringify(join(packageRoot, "tests/fixtures/genera
 
 const betterSupabase = defineSupabase(schema);
 
-export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { orgId: 'uuid' } }, (s, p) => ({
-  customers: s.customers.count({ where: { organizationId: p.orgId, status: 'active' } }),
+export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organizationId: 'uuid' } }, (s, p) => ({
+  customers: s.customers.count({ where: { organizationId: p.organizationId, status: 'active' } }),
 }));
 `;
 
@@ -466,7 +466,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { orgId:
     await project(
       {},
       {
-        "better-supabase.config.ts": `export default { readSets: ['src/read-sets.ts'], sql: { kit: ['read-sets'] } };\n`,
+        "better-supabase.config.ts": `export default { readSets: ['src/read-sets.ts'], sql: { modules: ['read-sets'] } };\n`,
         "src/read-sets.ts": readSetModule,
       },
     );
@@ -480,7 +480,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { orgId:
     expect(sql).toContain(
       "create or replace function public.rs_chrome(p jsonb)",
     );
-    expect(sql).toContain("((p->>'orgId')::uuid)");
+    expect(sql).toContain("((p->>'organizationId')::uuid)");
     expect((await run(["sql", "sync", "--check", "--cwd", dir])).code).toBe(0);
 
     await writeFile(path, sql.replace("'active'", "'lead'"));

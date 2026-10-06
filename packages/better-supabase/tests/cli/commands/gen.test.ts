@@ -22,8 +22,8 @@ const READ_SETS = `import { defineSupabase } from ${JSON.stringify(join(src, "co
 import { defineReadSet } from ${JSON.stringify(join(src, "core/read-set.ts"))};
 import { schema } from ${JSON.stringify(join(fixtures, "generated-camel.ts"))};
 
-export const chrome = defineReadSet(defineSupabase(schema), "chrome", { params: { orgId: "uuid" } }, (s, p) => ({
-  customers: s.customers.count({ where: { organizationId: p.orgId } }),
+export const chrome = defineReadSet(defineSupabase(schema), "chrome", { params: { organizationId: "uuid" } }, (s, p) => ({
+  customers: s.customers.count({ where: { organizationId: p.organizationId } }),
 }));
 `;
 const READ_SET_FILE = "supabase/schemas/900_better_supabase_14_read_sets.sql";

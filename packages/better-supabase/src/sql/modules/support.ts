@@ -1,11 +1,11 @@
-import type { KitContext, KitNames } from "../context.ts";
-import type { KitModuleDefinition } from "../kit.ts";
+import type { BlockModuleDefinition } from "../blocks.ts";
+import type { BlockContext, BlockNames } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SCHEMA, SERVICE_CALLER } from "../shared.ts";
-import { hasPlatformRoles, KIT_PERMISSIONS } from "./access-model.ts";
+import { hasPlatformRoles, BLOCK_PERMISSIONS } from "./access-model.ts";
 
-const NAMES: KitNames = {
+const NAMES: BlockNames = {
   options: [
     "allowPlatformTargets",
     "allowWrites",
@@ -37,7 +37,7 @@ const NAMES: KitNames = {
 };
 
 /** The session as the jsonb every function returns, with fixed keys whatever the column names. */
-function sessionJson(ctx: KitContext, row: string): string {
+function sessionJson(ctx: BlockContext, row: string): string {
   const c = (logical: string) => `${row}.${ctx.col("sessions", logical)}`;
   const optional = (logical: string, fallback: string) =>
     ctx.has("sessions", logical) ? c(logical) : fallback;
@@ -56,7 +56,7 @@ function sessionJson(ctx: KitContext, row: string): string {
   )`;
 }
 
-function table(ctx: KitContext): string {
+function table(ctx: BlockContext): string {
   if (!ctx.manages) return "";
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
@@ -87,7 +87,7 @@ grant select on ${sessions} to service_role;
 -- Platform staff read every session.
 drop policy if exists bs_support_read on ${sessions};
 create policy bs_support_read on ${sessions} for select to authenticated
-  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", KIT_PERMISSIONS["support-sessions"].view)})));
+  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", BLOCK_PERMISSIONS["support-sessions"].view)})));
 grant select on ${sessions} to authenticated;
 `;
 }
@@ -97,9 +97,9 @@ grant select on ${sessions} to authenticated;
  * `app_metadata`, or a platform role under the catalog model. Claims your
  * access token hook adds from elsewhere are not seen here.
  */
-function platformTarget(ctx: KitContext): string {
+function platformTarget(ctx: BlockContext): string {
   const claim = sqlString(
-    ctx.kits.access?.platformClaim ?? "platform_permissions",
+    ctx.blocks.access?.platformClaim ?? "platform_permissions",
   );
   const claimed = `exists (
     select 1 from auth.users u
@@ -115,7 +115,7 @@ function platformTarget(ctx: KitContext): string {
 }
 
 /** `start_support_session`: the admin is the caller, or `admin_id` for the service role. */
-function start(ctx: KitContext): string {
+function start(ctx: BlockContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   const id = ctx.idType;
@@ -166,7 +166,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not ${isPlatform}(${ctx.permission("start", KIT_PERMISSIONS["support-sessions"].start)}) then
+      or not ${isPlatform}(${ctx.permission("start", BLOCK_PERMISSIONS["support-sessions"].start)}) then
       raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -191,7 +191,7 @@ begin
       ? ""
       : `
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (kits.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks.support-sessions.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;`
   }${
     requireReason
@@ -238,7 +238,7 @@ end;
 $$;`;
 }
 
-function end(ctx: KitContext): string {
+function end(ctx: BlockContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
@@ -274,7 +274,7 @@ begin
   }
   where s.${c("id")} = session_id and s.${c("endedAt")} is null
     and (service or s.${c("admin")} = auth.uid()
-      or ${isPlatform}(${ctx.permission("revoke", KIT_PERMISSIONS["support-sessions"].revoke)}))
+      or ${isPlatform}(${ctx.permission("revoke", BLOCK_PERMISSIONS["support-sessions"].revoke)}))
   returning ${sessionJson(ctx, "s")} into ended;
   if not service then
     ended_by := case when (ended ->> 'admin_id')::uuid = auth.uid() then 'admin' else 'revoked' end;
@@ -303,7 +303,7 @@ end;
 $$;`;
 }
 
-function reads(ctx: KitContext): string {
+function reads(ctx: BlockContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
@@ -328,7 +328,7 @@ as $$
     and s.${c("endedAt")} is null
     and s.${c("expiresAt")} > now()
     and case when ${SERVICE_CALLER} then s.${c("admin")} = $2
-      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", KIT_PERMISSIONS["support-sessions"].start)})
+      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", BLOCK_PERMISSIONS["support-sessions"].start)})
     end
 $$;
 
@@ -348,7 +348,7 @@ as $$
   select ${sessionJson(ctx, "s")}
   from ${sessions} s
   where (${SERVICE_CALLER}
-      or ${isPlatform}(${ctx.permission("view", KIT_PERMISSIONS["support-sessions"].view)}))
+      or ${isPlatform}(${ctx.permission("view", BLOCK_PERMISSIONS["support-sessions"].view)}))
     and ($1 is null or s.${c("admin")} = $1)
     and ($2 is null or s.${c("target")} = $2)
     and ($3 is null
@@ -360,11 +360,11 @@ $$;`;
 
 /**
  * `support_target_claims(target)`: the claims the target would get. With
- * `kits.support.options.claimsHook`, the app's custom access token hook
+ * `blocks.support.options.claimsHook`, the app's custom access token hook
  * builds them from a synthetic event, so the session sees exactly what the
  * user sees and none of the admin's claims.
  */
-function claims(ctx: KitContext): string {
+function claims(ctx: BlockContext): string {
   const hook = ctx.text("claimsHook", "");
   const apply =
     hook === ""
@@ -405,7 +405,7 @@ end;
 $$;`;
 }
 
-function grants(ctx: KitContext): string {
+function grants(ctx: BlockContext): string {
   const id = ctx.idType;
   const shared = [
     `${ctx.fn("start_support_session")}(uuid, text, interval, boolean, jsonb, ${id}, uuid)`,
@@ -424,7 +424,7 @@ grant execute on function ${claimsFn} to service_role;`,
   ].join("\n");
 }
 
-function build(ctx: KitContext): string {
+function build(ctx: BlockContext): string {
   if (ctx.mode === "custom") return "";
   const claimsHook = ctx.text("claimsHook", "");
   if (
@@ -432,7 +432,7 @@ function build(ctx: KitContext): string {
     !/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(claimsHook)
   ) {
     throw new TypeError(
-      `kits.support-sessions.options.claimsHook must be schema.function, not "${claimsHook}"`,
+      `blocks.support-sessions.options.claimsHook must be schema.function, not "${claimsHook}"`,
     );
   }
   return [
@@ -445,7 +445,7 @@ function build(ctx: KitContext): string {
   ].join("\n\n");
 }
 
-export const SUPPORT_SESSIONS: KitModuleDefinition = {
+export const SUPPORT_SESSIONS: BlockModuleDefinition = {
   name: "support-sessions",
   title: "Support sessions",
   description:

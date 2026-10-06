@@ -137,20 +137,31 @@
       "types": "./dist/mcp/sdk/index.d.ts",
       "default": "./dist/mcp/sdk/index.js"
     },
-    "./jobs": {
-      "@better-supabase/source": "./src/jobs/index.ts",
-      "types": "./dist/jobs/index.d.ts",
-      "default": "./dist/jobs/index.js"
+    "./blocks/jobs": {
+      "@better-supabase/source": "./src/blocks/jobs/index.ts",
+      "types": "./dist/blocks/jobs/index.d.ts",
+      "default": "./dist/blocks/jobs/index.js"
     },
-    "./orgs": {
-      "@better-supabase/source": "./src/orgs/index.ts",
-      "types": "./dist/orgs/index.d.ts",
-      "default": "./dist/orgs/index.js"
+    "./blocks/outbox": {
+      "@better-supabase/source": "./src/blocks/outbox/index.ts",
+      "types": "./dist/blocks/outbox/index.d.ts",
+      "default": "./dist/blocks/outbox/index.js"
     },
-    "./notifications": {
-      "@better-supabase/source": "./src/notifications/index.ts",
-      "types": "./dist/notifications/index.d.ts",
-      "default": "./dist/notifications/index.js"
+    "./blocks/organizations": {
+      "@better-supabase/source": "./src/blocks/organizations/index.ts",
+      "types": "./dist/blocks/organizations/index.d.ts",
+      "default": "./dist/blocks/organizations/index.js"
+    },
+    "./blocks/notifications": {
+      "@better-supabase/source": "./src/blocks/notifications/index.ts",
+      "types": "./dist/blocks/notifications/index.d.ts",
+      "default": "./dist/blocks/notifications/index.js"
+    },
+    "./blocks/notifications/react": {
+      "@better-supabase/source": "./src/blocks/notifications/react/index.ts",
+      "types": "./dist/blocks/notifications/react/index.d.ts",
+      "react-server": "./dist/blocks/notifications/react/server.js",
+      "default": "./dist/blocks/notifications/react/index.js"
     },
     "./env": {
       "@better-supabase/source": "./src/env/index.ts",
@@ -177,10 +188,15 @@
       "types": "./dist/events/index.d.ts",
       "default": "./dist/events/index.js"
     },
-    "./webhooks": {
-      "@better-supabase/source": "./src/webhooks/index.ts",
-      "types": "./dist/webhooks/index.d.ts",
-      "default": "./dist/webhooks/index.js"
+    "./blocks/webhooks": {
+      "@better-supabase/source": "./src/blocks/webhooks/index.ts",
+      "types": "./dist/blocks/webhooks/index.d.ts",
+      "default": "./dist/blocks/webhooks/index.js"
+    },
+    "./blocks/entitlements": {
+      "@better-supabase/source": "./src/blocks/entitlements/index.ts",
+      "types": "./dist/blocks/entitlements/index.d.ts",
+      "default": "./dist/blocks/entitlements/index.js"
     },
     "./openapi": {
       "@better-supabase/source": "./src/openapi/index.ts",
@@ -319,17 +335,26 @@
         "types": "./dist/mcp/sdk/index.d.ts",
         "default": "./dist/mcp/sdk/index.js"
       },
-      "./jobs": {
-        "types": "./dist/jobs/index.d.ts",
-        "default": "./dist/jobs/index.js"
+      "./blocks/jobs": {
+        "types": "./dist/blocks/jobs/index.d.ts",
+        "default": "./dist/blocks/jobs/index.js"
       },
-      "./orgs": {
-        "types": "./dist/orgs/index.d.ts",
-        "default": "./dist/orgs/index.js"
+      "./blocks/outbox": {
+        "types": "./dist/blocks/outbox/index.d.ts",
+        "default": "./dist/blocks/outbox/index.js"
       },
-      "./notifications": {
-        "types": "./dist/notifications/index.d.ts",
-        "default": "./dist/notifications/index.js"
+      "./blocks/organizations": {
+        "types": "./dist/blocks/organizations/index.d.ts",
+        "default": "./dist/blocks/organizations/index.js"
+      },
+      "./blocks/notifications": {
+        "types": "./dist/blocks/notifications/index.d.ts",
+        "default": "./dist/blocks/notifications/index.js"
+      },
+      "./blocks/notifications/react": {
+        "types": "./dist/blocks/notifications/react/index.d.ts",
+        "react-server": "./dist/blocks/notifications/react/server.js",
+        "default": "./dist/blocks/notifications/react/index.js"
       },
       "./env": {
         "types": "./dist/env/index.d.ts",
@@ -351,9 +376,13 @@
         "types": "./dist/events/index.d.ts",
         "default": "./dist/events/index.js"
       },
-      "./webhooks": {
-        "types": "./dist/webhooks/index.d.ts",
-        "default": "./dist/webhooks/index.js"
+      "./blocks/webhooks": {
+        "types": "./dist/blocks/webhooks/index.d.ts",
+        "default": "./dist/blocks/webhooks/index.js"
+      },
+      "./blocks/entitlements": {
+        "types": "./dist/blocks/entitlements/index.d.ts",
+        "default": "./dist/blocks/entitlements/index.js"
       },
       "./openapi": {
         "types": "./dist/openapi/index.d.ts",

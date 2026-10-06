@@ -1,7 +1,7 @@
 {
   "name": "@better-supabase/validation-centrakit",
   "private": true,
-  "description": "CentraKit's schema adopting every SaaS kit module, against the local stack.",
+  "description": "CentraKit's schema adopting every SaaS block module, against the local stack.",
   "type": "module",
   "scripts": {
     "lint": "oxlint",
