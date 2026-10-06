@@ -65,6 +65,7 @@ export const MODULE_PERMISSIONS = {
   "api-keys": { manage: "api_keys.manage", own: "api_keys.own" },
   settings: { read: "settings.read", update: "settings.update" },
   usage: { read: "usage.read" },
+  billing: { read: "billing.read", manage: "billing.manage" },
 } as const;
 
 /**
@@ -102,6 +103,7 @@ export const MODULE_PERMISSION_SCOPES: {
   "api-keys": { manage: "tenant", own: "tenant" },
   settings: { read: "tenant", update: "tenant" },
   usage: { read: "tenant" },
+  billing: { read: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

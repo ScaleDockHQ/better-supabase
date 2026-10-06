@@ -1,0 +1,164 @@
+---
+title: Billing
+description: Stripe customers per tenant, Checkout and the customer portal, seat sync from membership events, and Stripe webhook handling that links customers and refreshes sessions.
+---
+
+The `billing` block connects each tenant to a Stripe customer. It opens
+Checkout and the customer portal, keeps a per-seat subscription's quantity in
+step with the tenant's members, and handles the Stripe events that change a
+plan. Subscriptions are read from the
+[Stripe Sync Engine](/docs/blocks/entitlements) tables that `entitlements`
+uses, so the block never calls Stripe to find out what a tenant pays for.
+
+```bash
+better-supabase sql add billing entitlements   # adds tenant and access as well
+pnpm add stripe                                # optional: or pass your own client
+```
+
+`billing_customers` maps `organization_id` to `stripe_customer_id`. With
+`billing` installed, the `entitlements` module reads it as its customer
+source, so you don't set `entitlements.customer`. Members with `billing.read`
+can read their tenant's row and `billing_status`; the default `admin` role
+has `billing.*`. The other functions are granted to `service_role` only.
+
+## Setup
+
+```ts title="src/lib/billing.ts"
+import { createBilling, sqlTransport } from "better-supabase/blocks/billing";
+
+export const billing = createBilling({
+  stripe: { secretKey: env.STRIPE_SECRET_KEY },
+  transport: sqlTransport(postgres.admin),
+  events: bs.events, // billing.* block events
+  seatPrice: env.STRIPE_SEAT_PRICE,
+  sessions: {
+    sql: postgres.admin,
+    invalidate: (id) => bs.invalidateSession(id),
+  },
+});
+```
+
+`stripe` takes a secret key, which loads the optional `stripe` package with
+its fetch HTTP client so it runs on every runtime, or a Stripe client you
+created. Check the caller's permission (`billing.manage`) in your route before
+you call `checkout`, `portal` or `syncSeats`: they act as the service role.
+
+## Checkout and the portal
+
+```ts title="app/billing/actions.ts"
+const { url } = await billing
+  .checkout(organizationId, {
+    price: env.STRIPE_SEAT_PRICE,
+    quantity: "seats", // the tenant's seat count
+    successUrl: `${origin}/billing?done=1`,
+    cancelUrl: `${origin}/billing`,
+    email: user.email,
+  })
+  .orThrow();
+redirect(url!);
+
+const portal = await billing.portal(organizationId, {
+  returnUrl: `${origin}/billing`,
+});
+```
+
+`checkout` creates the Stripe customer the first time, with the tenant id in
+`metadata.organization_id`, and links it. When two checkouts race, the first
+link wins and both use that customer. The session carries the tenant in
+`client_reference_id` and in the subscription's metadata, so the webhook can
+link it even if the customer was created elsewhere. `params` merges more
+Checkout Session parameters. `portal` returns `not_found`
+(`BILLING_NO_CUSTOMER`) before the tenant has a customer.
+
+## Seats
+
+`billing_seat_count(tenant)` counts the tenant's memberships, or only those
+with a role in `options.seatRoles`:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: {
+    modules: {
+      billing: { options: { seatRoles: ["owner", "admin", "member"] } },
+    },
+  },
+});
+```
+
+`syncSeats(organizationId)` sets the active subscription item's quantity
+(the `seatPrice` item, or the first one) to that count. Relay the membership
+events from the [outbox](/docs/blocks/outbox) to `seatSink()` to keep it in
+step:
+
+```ts title="app/api/cron/outbox/route.ts"
+await outbox.register("billing-seats", {
+  types: [
+    "organization.member_added",
+    "organization.member_removed",
+    "organization.member_left",
+    "organization.role_changed",
+  ],
+});
+export const GET = outbox.relayRoute({
+  secret: env.CRON_SECRET,
+  consumers: { "billing-seats": billing.seatSink() },
+});
+```
+
+The sink syncs each tenant once per batch. The Stripe idempotency key holds
+the item, the old and new quantity and the outbox event id, so a relay that
+retries the batch doesn't change the subscription twice. A failed update
+throws, which leaves the batch for the next run.
+
+## Stripe webhooks
+
+Store Stripe events in the webhook inbox, then hand them to
+`handleStripeEvent`:
+
+```ts title="app/api/stripe/route.ts"
+import { stripeInboxVerify } from "better-supabase/blocks/billing";
+import { createInbox } from "better-supabase/blocks/jobs";
+
+export const inbox = createInbox(postgres.admin, {
+  source: "stripe",
+  verify: stripeInboxVerify(env.STRIPE_WEBHOOK_SECRET),
+});
+export const POST = (request: Request) => inbox.receive(request);
+
+// In the inbox cron route:
+await inbox.process((message) =>
+  billing.handleStripeEvent(message.payload).orThrow(),
+);
+```
+
+| Stripe event                    | What the block does                                                                                            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `checkout.session.completed`    | Links the customer to the tenant; emits `billing.checkout_completed`                                           |
+| `customer.subscription.created` | Links from `metadata.organization_id` if needed; emits `billing.subscription_created` and invalidates sessions |
+| `customer.subscription.updated` | Emits `billing.subscription_updated` and invalidates sessions                                                  |
+| `customer.subscription.deleted` | Emits `billing.subscription_deleted` and invalidates sessions                                                  |
+
+Other events are ignored. Session invalidation uses
+[`entitlementMembers`](/docs/blocks/entitlements), so members read the new
+plan's entitlements on their next request. `verifyStripeWebhook` checks the
+`Stripe-Signature` header with WebCrypto, without the `stripe` package.
+
+## Block events
+
+`billing.customer_linked`, `billing.checkout_completed`,
+`billing.subscription_created`, `billing.subscription_updated`,
+`billing.subscription_deleted` and `billing.seats_synced` carry
+`organizationId` and, where they apply, `customerId`, `subscriptionId`,
+`status`, `quantity`, `previousQuantity` and `stripeEventId`. Listen with
+`onBlockEvent(bs, "billing.*", handler)`.
+
+## Functions
+
+| Function                                   | Granted to                      | Returns                                                   |
+| ------------------------------------------ | ------------------------------- | --------------------------------------------------------- |
+| `billing_customer(tenant)`                 | `authenticated`, `service_role` | the customer id, for callers with `billing.read`          |
+| `billing_status(tenant)`                   | `authenticated`, `service_role` | `{ customer, seats, subscription }`                       |
+| `link_billing_customer(tenant, customer)`  | `service_role`                  | the linked customer                                       |
+| `billing_customer_tenant(customer)`        | `service_role`                  | the tenant id                                             |
+| `billing_seat_count(tenant)`               | `service_role`                  | the seat count                                            |
+| `billing_subscription_item(tenant, price)` | `service_role`                  | `{ subscription, item, price, quantity, status }` or null |

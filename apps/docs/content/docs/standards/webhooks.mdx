@@ -56,6 +56,26 @@ the signing time.
 To send webhooks to your customers' endpoints, with subscriptions, retries
 and a delivery log, use the [outgoing webhooks block](/docs/blocks/webhooks-out).
 
+## Stripe webhooks
+
+Stripe signs with its own `Stripe-Signature` header (`t=…,v1=…`).
+`verifyStripeWebhook(request, secret)` checks it with WebCrypto, so it runs
+without the `stripe` package and on every runtime, and returns the parsed
+event. Pass an array while rolling the endpoint secret. For the webhook
+inbox, `stripeInboxVerify(secret)` is the `verify` option:
+
+```ts
+import { createInbox } from "better-supabase/blocks/jobs";
+import { stripeInboxVerify } from "better-supabase/blocks/webhooks";
+
+const inbox = createInbox(postgres.admin, {
+  source: "stripe",
+  verify: stripeInboxVerify(process.env.STRIPE_WEBHOOK_SECRET!),
+});
+```
+
+`signStripeWebhook(secret, body)` builds the header for tests.
+
 ## Database webhooks
 
 Database webhooks (`pg_net`) aren't signed. Add a secret header when you

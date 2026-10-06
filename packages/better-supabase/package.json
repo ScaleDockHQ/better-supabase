@@ -248,6 +248,11 @@
       "types": "./dist/blocks/usage/index.d.ts",
       "default": "./dist/blocks/usage/index.js"
     },
+    "./blocks/billing": {
+      "@better-supabase/source": "./src/blocks/billing/index.ts",
+      "types": "./dist/blocks/billing/index.d.ts",
+      "default": "./dist/blocks/billing/index.js"
+    },
     "./openapi": {
       "@better-supabase/source": "./src/openapi/index.ts",
       "types": "./dist/openapi/index.d.ts",
@@ -473,6 +478,10 @@
       "./blocks/usage": {
         "types": "./dist/blocks/usage/index.d.ts",
         "default": "./dist/blocks/usage/index.js"
+      },
+      "./blocks/billing": {
+        "types": "./dist/blocks/billing/index.d.ts",
+        "default": "./dist/blocks/billing/index.js"
       },
       "./openapi": {
         "types": "./dist/openapi/index.d.ts",

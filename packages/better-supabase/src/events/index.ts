@@ -337,6 +337,7 @@ export {
   onBlockEvent,
 } from "../core/block-events.ts";
 export type {
+  BillingEventData,
   InvitationEventData,
   BlockEvent,
   BlockEventMap,
