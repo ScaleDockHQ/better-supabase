@@ -34,6 +34,7 @@ import {
 } from "../shared.ts";
 import { verifySharedSecret } from "../webhooks/verify.ts";
 import {
+  millis,
   type QueueBackend,
   type QueueMessageRow,
   type QueueRpcClient,
@@ -374,10 +375,6 @@ export interface Jobs<Q extends QueueSchemas> {
 
 /** Marks a payload that carries a job context; pgmq stores it as the payload. */
 const ENVELOPE = "$bs";
-
-/** Schedule times are stored to the millisecond, the precision `Date` reads back. */
-const millis = (instant: Temporal.Instant): Temporal.Instant =>
-  instant.round({ smallestUnit: "millisecond", roundingMode: "floor" });
 
 function withContext(
   payload: unknown,

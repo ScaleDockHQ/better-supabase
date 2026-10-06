@@ -2,7 +2,10 @@ import type { SqlClient } from "../../postgres/executor.ts";
 import type { Job, ScheduleFilter, ScheduleInfo } from "./queue.ts";
 
 import { dbError, DbException } from "../../core/errors.ts";
+import { temporal } from "../../core/temporal-required.ts";
+import { nowInstant } from "../../core/temporal.ts";
 import { toInstant } from "../shared.ts";
+import { nextCronRun } from "./cron.ts";
 
 /** The body of a queued message, on pgmq and the table backend alike. */
 export interface QueueMessageBody {
@@ -120,7 +123,27 @@ interface ScheduleRow {
   readonly timezone: string;
   readonly queue: string;
   readonly payload: unknown;
-  readonly next_run: Date | string;
+  readonly next_run: Date | string | null;
+  readonly first_after?: Date | string | null;
+}
+
+/** Schedule times are stored to the millisecond, the precision `Date` reads back. */
+export const millis = (instant: Temporal.Instant): Temporal.Instant =>
+  instant.round({ smallestUnit: "millisecond", roundingMode: "floor" });
+
+/** The first run of a schedule written without one, or undefined for a cron the drain can't read. */
+function firstRun(row: ScheduleRow): Temporal.Instant | undefined {
+  try {
+    return millis(
+      nextCronRun(
+        row.schedule,
+        row.timezone,
+        row.first_after ? toInstant(row.first_after) : nowInstant(),
+      ),
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -229,14 +252,31 @@ export function sqlQueueBackend(sql: SqlClient): QueueBackend {
         "select * from better_supabase.claim_due_schedules($1, $2)",
         [lease, batch],
       );
-      return rows.map((row) => ({
-        name: row.job_name,
-        cron: row.schedule,
-        timeZone: row.timezone,
-        queue: row.queue,
-        payload: row.payload,
-        nextRun: toInstant(row.next_run),
-      }));
+      const due: DueSchedule[] = [];
+      for (const row of rows) {
+        const schedule = {
+          name: row.job_name,
+          cron: row.schedule,
+          timeZone: row.timezone,
+          queue: row.queue,
+          payload: row.payload,
+        };
+        if (row.next_run !== null) {
+          due.push({ ...schedule, nextRun: toInstant(row.next_run) });
+          continue;
+        }
+        const first = firstRun(row);
+        if (first === undefined) continue;
+        if (temporal().Instant.compare(first, nowInstant()) <= 0) {
+          due.push({ ...schedule, nextRun: first });
+        } else {
+          await sql.queryRaw(
+            "select better_supabase.advance_schedule($1, null, $2)",
+            [row.job_name, first.toString()],
+          );
+        }
+      }
+      return due;
     },
     async advanceSchedule(name, ran, next) {
       const [row] = await sql.queryRaw<{ advanced: boolean }>(

@@ -39,7 +39,9 @@ drop function if exists better_supabase.schedule_job(text, text, text, jsonb);
 -- purge_job_archive before dead letters had their own retention.
 drop function if exists better_supabase.purge_job_archive(text, interval, integer);
 -- schedule_job before schedules had a tenant.
-drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);`;
+drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
+-- claim_due_schedules returns first_after now; create or replace can't change a return type.
+drop function if exists better_supabase.claim_due_schedules(integer, integer);`;
 
 const PGMQ = `-- Supabase Queues. Messages are {payload, max_attempts, dedupe_key?, last_error?};
 -- pgmq's read_ct is the attempt number and vt the lease.
@@ -549,12 +551,12 @@ $$;
 
 -- pg_cron enqueues the runs itself, so the drain route has no schedules to claim.
 create or replace function better_supabase.claim_due_schedules(lease integer default 60, batch integer default 100)
-returns table (job_name text, schedule text, timezone text, queue text, payload jsonb, next_run timestamptz)
+returns table (job_name text, schedule text, timezone text, queue text, payload jsonb, next_run timestamptz, first_after timestamptz)
 language sql
 security definer
 set search_path = ''
 as $$
-  select null::text, null::text, null::text, null::text, null::jsonb, null::timestamptz where false;
+  select null::text, null::text, null::text, null::text, null::jsonb, null::timestamptz, null::timestamptz where false;
 $$;
 
 create or replace function better_supabase.advance_schedule(job_name text, ran timestamptz, next_run timestamptz)
@@ -598,7 +600,9 @@ $$;`;
 
 const DRAIN = `-- Recurring jobs without pg_cron: the drain route (jobs.drainRoute) claims due
 -- schedules, enqueues a run and moves next_run on. Times are computed in
--- TypeScript, in each schedule's time zone.
+-- TypeScript, in each schedule's time zone. A schedule written in SQL without a
+-- next run (a trigger calling schedule_job) keeps next_run null and first_after
+-- set, and the next drain computes its first run after first_after.
 create table if not exists better_supabase.job_schedules (
   job_name text primary key,
   schedule text not null,
@@ -613,14 +617,17 @@ create table if not exists better_supabase.job_schedules (
 -- The tenant a schedule runs for, so a tenant's schedules can be listed and
 -- removed together (unschedule_tenant).
 alter table better_supabase.job_schedules add column if not exists tenant text;
+alter table better_supabase.job_schedules add column if not exists first_after timestamptz;
+alter table better_supabase.job_schedules alter column next_run drop not null;
 create index if not exists job_schedules_due_idx on better_supabase.job_schedules (next_run);
 create index if not exists job_schedules_tenant_idx on better_supabase.job_schedules (tenant) where tenant is not null;
 alter table better_supabase.job_schedules enable row level security;
 revoke all on better_supabase.job_schedules from anon, authenticated;
 
--- next_run defaults to now (the next drain); jobs.schedule passes the next cron time.
--- Writing a schedule again with the same cron and time zone keeps its next run,
--- so a run that is due but not yet drained still happens.
+-- jobs.schedule passes the next cron time. Without next_run, the next drain
+-- computes the first run after now. Writing a schedule again with the same
+-- cron and time zone keeps its next run, so a run that is due but not yet
+-- drained still happens.
 create or replace function better_supabase.schedule_job(
   job_name text,
   schedule text,
@@ -639,8 +646,13 @@ begin
   if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = timezone) then
     raise exception 'Unknown time zone %', timezone;
   end if;
-  insert into better_supabase.job_schedules (job_name, schedule, timezone, queue, payload, next_run, tenant)
-  values (job_name, schedule, timezone, queue, payload, date_trunc('milliseconds', coalesce(next_run, now())), tenant)
+  if schedule !~* '^[[:space:]]*(@(yearly|annually|monthly|weekly|daily|midnight|hourly)|[0-9]+[[:space:]]+(second|minute|hour)s?|[^[:space:]]+([[:space:]]+[^[:space:]]+){4})[[:space:]]*$' then
+    raise exception 'Invalid schedule %: expected five cron fields, a macro such as @daily, or an interval such as 5 minutes', schedule
+      using errcode = '22023';
+  end if;
+  insert into better_supabase.job_schedules (job_name, schedule, timezone, queue, payload, next_run, first_after, tenant)
+  values (job_name, schedule, timezone, queue, payload, date_trunc('milliseconds', next_run),
+    case when next_run is null then date_trunc('milliseconds', now()) end, tenant)
   on conflict on constraint job_schedules_pkey do update
     set schedule = excluded.schedule,
         timezone = excluded.timezone,
@@ -650,6 +662,11 @@ begin
           when job_schedules.schedule = excluded.schedule and job_schedules.timezone = excluded.timezone
             then job_schedules.next_run
           else excluded.next_run
+        end,
+        first_after = case
+          when job_schedules.schedule = excluded.schedule and job_schedules.timezone = excluded.timezone
+            then job_schedules.first_after
+          else excluded.first_after
         end,
         tenant = excluded.tenant,
         locked_until = null;
@@ -699,8 +716,9 @@ as $$
 $$;
 
 -- Leases due schedules for lease seconds, so concurrent drains don't run one twice.
+-- A schedule without a next run is claimed so the drain computes its first run.
 create or replace function better_supabase.claim_due_schedules(lease integer default 60, batch integer default 100)
-returns table (job_name text, schedule text, timezone text, queue text, payload jsonb, next_run timestamptz)
+returns table (job_name text, schedule text, timezone text, queue text, payload jsonb, next_run timestamptz, first_after timestamptz)
 language plpgsql
 security definer
 set search_path = ''
@@ -711,9 +729,9 @@ begin
     with due as (
       select s.job_name
       from better_supabase.job_schedules s
-      where s.next_run <= clock_timestamp()
+      where (s.next_run is null or s.next_run <= clock_timestamp())
         and (s.locked_until is null or s.locked_until < clock_timestamp())
-      order by s.next_run
+      order by s.next_run nulls first
       limit greatest(batch, 1)
       for update skip locked
     )
@@ -721,13 +739,14 @@ begin
     set locked_until = clock_timestamp() + make_interval(secs => lease)
     from due
     where s.job_name = due.job_name
-    returning s.job_name, s.schedule, s.timezone, s.queue, s.payload, s.next_run;
+    returning s.job_name, s.schedule, s.timezone, s.queue, s.payload, s.next_run, s.first_after;
 end;
 $$;
 
 -- Moves a schedule on after its run was enqueued. Times are kept to the
--- millisecond, the precision JavaScript reads them back with. False when it was
--- rescheduled or another drain advanced it since the claim.
+-- millisecond, the precision JavaScript reads them back with. A schedule
+-- without a next run takes its first one (ran is null when nothing ran).
+-- False when it was rescheduled or another drain advanced it since the claim.
 create or replace function better_supabase.advance_schedule(job_name text, ran timestamptz, next_run timestamptz)
 returns boolean
 language sql
@@ -736,9 +755,15 @@ set search_path = ''
 as $$
   with advanced as (
     update better_supabase.job_schedules s
-    set next_run = date_trunc('milliseconds', advance_schedule.next_run), last_run = ran, locked_until = null
+    set next_run = date_trunc('milliseconds', advance_schedule.next_run),
+        last_run = coalesce(ran, s.last_run),
+        first_after = null,
+        locked_until = null
     where s.job_name = advance_schedule.job_name
-      and date_trunc('milliseconds', s.next_run) = date_trunc('milliseconds', ran)
+      and (
+        date_trunc('milliseconds', s.next_run) = date_trunc('milliseconds', ran)
+        or (s.next_run is null and s.first_after is not null)
+      )
     returning 1
   )
   select exists (select 1 from advanced);
@@ -794,7 +819,7 @@ export const JOBS: ModuleDefinition = {
     "Typed jobs on Supabase Queues (pgmq) or a plain table (modules.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, and schedules with pg_cron or the drain route.",
   requires: [],
   target: "schema",
-  version: 4,
+  version: 5,
   names: { tables: {}, options: ["backend", "scheduler"] },
   extensions: (ctx) => (jobsBackend(ctx) === "pgmq" ? ["pgmq"] : []),
   data: (ctx) =>
@@ -822,6 +847,13 @@ export const JOBS: ModuleDefinition = {
         "Schedules record a tenant (job_schedules.tenant); list_schedules and unschedule_tenant list and remove them.",
       sql: () =>
         "drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);",
+    },
+    {
+      from: 4,
+      description:
+        "A schedule written in SQL without a next run gets its first run from the drain; claim_due_schedules returns first_after.",
+      sql: () =>
+        "drop function if exists better_supabase.claim_due_schedules(integer, integer);",
     },
   ],
   build: jobsSql,

@@ -59,7 +59,7 @@ describe("jobs module", () => {
 
   it("drops the old schedule_job signature when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "jobs", version: 1 }]);
-    expect(plan).toMatchObject({ module: "jobs", from: 1, to: 4 });
+    expect(plan).toMatchObject({ module: "jobs", from: 1, to: 5 });
     expect(plan!.steps[0]!.sql).toContain(
       "drop function if exists better_supabase.schedule_job(text, text, text, jsonb);",
     );
@@ -68,6 +68,9 @@ describe("jobs module", () => {
     );
     expect(plan!.steps[2]!.sql).toContain(
       "drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);",
+    );
+    expect(plan!.steps[3]!.sql).toContain(
+      "drop function if exists better_supabase.claim_due_schedules(integer, integer);",
     );
   });
 

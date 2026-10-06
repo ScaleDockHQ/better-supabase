@@ -823,6 +823,56 @@ describe("schedules with the drain scheduler", () => {
     expect(String(advance!.values[2])).toMatch(/:00:00Z$/);
   });
 
+  it("computes the first run of a schedule written in SQL without one", async () => {
+    const pending = (
+      name: string,
+      schedule: string,
+      firstAfter: string | null,
+    ) => ({
+      job_name: name,
+      schedule,
+      timezone: "UTC",
+      queue: "reports",
+      payload: { day: "mon" },
+      next_run: null,
+      first_after: firstAfter,
+    });
+    const fake = fakeSql([
+      [
+        "claim_due_schedules",
+        [
+          pending("past", "0 * * * *", "2026-01-01T10:30:00Z"),
+          pending("future", "0 0 1 1 *", null),
+          pending("broken", "not a cron", "2026-01-01T10:30:00Z"),
+        ],
+      ],
+      ["enqueue_job", [{ id: 1 }]],
+      ["advance_schedule", [{ advanced: true }]],
+    ]);
+    expect(await createJobs(fake.sql, queues).runSchedules().orThrow()).toBe(1);
+    const calls = fake.calls.map((call) => [
+      /\.(\w+)\(/.exec(call.text)![1],
+      call.values,
+    ]);
+    expect(calls[1]).toEqual([
+      "advance_schedule",
+      ["future", expect.stringMatching(/-01-01T00:00:00Z$/)],
+    ]);
+    expect(fake.calls[1]!.text).toContain("advance_schedule($1, null, $2)");
+    expect(calls[2]![1]).toEqual([
+      "reports",
+      '{"day":"mon"}',
+      0,
+      5,
+      "schedule:past:2026-01-01T11:00:00Z",
+    ]);
+    expect((calls[3]![1] as unknown[]).slice(0, 2)).toEqual([
+      "past",
+      "2026-01-01T11:00:00Z",
+    ]);
+    expect(calls).toHaveLength(4);
+  });
+
   it("counts a schedule another drain advanced as not run", async () => {
     const fake = fakeSql([
       [

@@ -252,6 +252,29 @@ const result = await jobs
 Definitions take the same `timeZone`, `tenant` and `context` as `schedule`;
 one without a tenant gets the `tenant` option.
 
+#### Schedules from SQL
+
+Under the drain scheduler, a database trigger or function can schedule a job
+itself with `better_supabase.schedule_job`. Leave out `next_run`: the
+schedule is stored without one, and the next drain computes its first run
+in the schedule's time zone, counted from when it was written, so a run
+that falls between the write and the drain still happens.
+
+```sql
+select better_supabase.schedule_job(
+  'reminder:' || new.id,
+  '0 9 * * MON',
+  'send_reminder',
+  jsonb_build_object('id', new.id),
+  'Europe/Amsterdam'
+);
+```
+
+`schedule_job` rejects a schedule that isn't five cron fields, a macro or an
+interval. A cron that passes that check but that the drain can't read (a
+field out of range) stays without a next run, and `listSchedules` shows its
+`nextRun` as null.
+
 #### External schedulers
 
 The drain scheduler needs no database extension: any scheduler that calls the

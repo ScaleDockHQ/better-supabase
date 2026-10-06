@@ -1762,6 +1762,64 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("runs a schedule a SQL trigger wrote without a next run", async () => {
+    const queue = `block_${RUN}_sqlsched`;
+    const name = `sqlsched-${RUN}`;
+    await pool.query(
+      moduleBody("jobs", {
+        modules: {
+          jobs: { options: { backend: "table", scheduler: "drain" } },
+        },
+      })!,
+    );
+    try {
+      await expect(
+        pool.query(
+          "select better_supabase.schedule_job('x', 'every day', 'q', '{}')",
+        ),
+      ).rejects.toThrow(/Invalid schedule/);
+      await pool.query(
+        "select better_supabase.schedule_job($1, '0 * * * *', $2, '{\"n\": 1}')",
+        [name, queue],
+      );
+      const pending = await pool.query<{ next_run: Date | null }>(
+        "select next_run from better_supabase.job_schedules where job_name = $1",
+        [name],
+      );
+      expect(pending.rows[0]!.next_run).toBeNull();
+      const jobs = createJobs(postgres.admin, {
+        [queue]: v.object({ n: v.number() }),
+      });
+      expect(await jobs.runSchedules().orThrow()).toBe(0);
+      const first = await pool.query<{ minute: number; ahead: boolean }>(
+        "select extract(minute from next_run)::int as minute, next_run > now() as ahead from better_supabase.job_schedules where job_name = $1",
+        [name],
+      );
+      expect(first.rows[0]).toEqual({ minute: 0, ahead: true });
+      await pool.query(
+        `update better_supabase.job_schedules
+         set next_run = null, first_after = now() - interval '2 hours'
+         where job_name = $1`,
+        [name],
+      );
+      expect(await jobs.runSchedules().orThrow()).toBe(1);
+      expect(await jobs.drain(queue, () => undefined)).toEqual({
+        succeeded: 1,
+        failed: 0,
+      });
+    } finally {
+      await pool.query(
+        "delete from better_supabase.job_messages where queue = $1",
+        [queue],
+      );
+      await pool.query(
+        "delete from better_supabase.job_schedules where job_name = $1",
+        [name],
+      );
+      await pool.query(SQL_MODULES["jobs"]!.sql);
+    }
+  });
+
   it("replays idempotent requests and rejects reuse", async () => {
     const idempotency = createIdempotency(postgres.admin, { scope: RUN });
     let runs = 0;
