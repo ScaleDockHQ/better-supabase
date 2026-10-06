@@ -65,6 +65,15 @@ function setup(
 }
 
 describe("deleteAccount", () => {
+  it("takes the service client itself, from the server entry", async () => {
+    const { betterSupabase, deleteUser, service } = setup();
+    const server = await import("../../src/server/index.ts");
+    expect(
+      await server.deleteAccount(betterSupabase, service(), USER).orThrow(),
+    ).toEqual({ userId: USER, removed: {} });
+    expect(deleteUser).toHaveBeenCalledWith(USER);
+  });
+
   it("removes the user's objects, deletes the user and announces it", async () => {
     const { betterSupabase, storage, deleteUser, notices, service } = setup({
       files: {

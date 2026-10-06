@@ -1,3 +1,4 @@
+export { deleteAccount } from "./delete-account.ts";
 export type {
   DeleteAccountOptions,
   DeleteAccountResult,

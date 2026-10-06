@@ -72,6 +72,10 @@ function fromAuthError(raw: unknown): DbError {
 /**
  * Removes a user's Storage objects, then the Auth user, then announces the
  * delete. Rows referencing `auth.users` follow their foreign keys.
+ *
+ * `server.deleteAccount` calls it with the server's service client. Apps on
+ * the `@supabase/server` pipeline call it with theirs:
+ * `deleteAccount(betterSupabase, ctx.supabaseAdmin, userId)`.
  */
 export function deleteAccount<
   M extends AnyModels,
@@ -81,12 +85,12 @@ export function deleteAccount<
   C,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C>,
-  service: () => SupabaseClient,
+  service: SupabaseClient | (() => SupabaseClient),
   userId: string,
   options: DeleteAccountOptions = {},
 ): AsyncResult<DeleteAccountResult> {
   return AsyncResult.from(async () => {
-    const client = service();
+    const client = typeof service === "function" ? service() : service;
     const removed: Record<string, number> = {};
     for (const bucket of options.buckets ?? []) {
       const param = bucket.owner;

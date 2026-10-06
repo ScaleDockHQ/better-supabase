@@ -37,6 +37,21 @@ export const deleteMyAccount = bs.action(
 It is on every server (`createServer`, `createNext`, Hono, oRPC, edge, MCP) and
 needs `SUPABASE_SECRET_KEY`. Without one it returns an `unexpected` error.
 
+Apps on the `@supabase/server` pipeline, without a better-supabase server,
+import it from `better-supabase/server` and pass their service-role client:
+
+```ts
+import { deleteAccount } from "better-supabase/server";
+
+pipeline(
+  [withSupabase({ auth: "user" }), withBetterSupabase(betterSupabase)],
+  (req, ctx) =>
+    deleteAccount(betterSupabase, ctx.supabaseAdmin, ctx.userClaims.id, {
+      buckets: [avatars, documents],
+    }),
+);
+```
+
 ## Ended sessions
 
 better-supabase verifies access tokens locally, so a token stays valid until
