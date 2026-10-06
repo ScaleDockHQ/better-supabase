@@ -146,6 +146,11 @@ extra round trips:
   `timestamptz` columns are read exactly (as `bigint`, `string` or
   `Temporal.Instant`; `timestamp` becomes `Temporal.PlainDateTime`), and the
   generated validators match. See [Temporal](/docs/concepts/temporal).
+- **Function arguments and results.** Every argument in `Functions` accepts
+  `null`, since Postgres passes `null` to any function, and arguments with a
+  default are optional. Functions that return rows of a table or a
+  `returns table (...)` record get a `result` entry, so `db.$rpc` returns them
+  in your [casing](/docs/concepts/casing#function-results).
 
 ## Documentation in the validators
 

@@ -391,27 +391,27 @@ export type Models = {
 export type Functions = {
   customer_note_counts: {
     Args: {
-      p_customer_ids?: string[];
+      p_customer_ids?: string[] | null;
     };
     Returns: { "customer_id": string; "last_note_at": string; "note_count": number }[];
   };
   customers_by_status: {
     Args: {
-      p_limit?: number;
-      p_status: string;
+      p_limit?: number | null;
+      p_status: string | null;
     };
     Returns: (Models["customers"]['Row'])[];
   };
   rs_workspace_summary: {
     Args: {
-      p: Json;
+      p: Json | null;
     };
     Returns: Json;
   };
   search_notes: {
     Args: {
-      k?: number;
-      query: string;
+      k?: number | null;
+      query: string | null;
     };
     Returns: (Models["notes"]['Row'])[];
   };

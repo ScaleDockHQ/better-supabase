@@ -37,9 +37,11 @@ function updateEntries(
   });
 }
 
+/** Postgres passes `null` to any argument, so every argument accepts it. */
 function argEntries(fn: FunctionModel): string[] {
   return fn.args.map(
-    (arg) => `${prop(arg.name)}${arg.optional ? "?" : ""}: ${arg.tsType};`,
+    (arg) =>
+      `${prop(arg.name)}${arg.optional ? "?" : ""}: ${nullable(arg.tsType, true)};`,
   );
 }
 

@@ -16931,122 +16931,122 @@ export type Models = {
 export type Functions = {
   accept_organization_invitation: {
     Args: {
-      p_token: string;
+      p_token: string | null;
     };
     Returns: Json;
   };
   accept_quote_for_portal: {
     Args: {
-      p_ip?: string;
-      p_org_slug: string;
-      p_payload: Json;
-      p_quote_id: string;
-      p_user_agent?: string;
+      p_ip?: string | null;
+      p_org_slug: string | null;
+      p_payload: Json | null;
+      p_quote_id: string | null;
+      p_user_agent?: string | null;
     };
     Returns: string;
   };
   accrue_time_off: {
     Args: {
-      p_on?: string;
-      p_organization_id: string;
+      p_on?: string | null;
+      p_organization_id: string | null;
     };
     Returns: number;
   };
   acknowledge_equipment_assignment: {
     Args: {
-      p_assignment_id: string;
+      p_assignment_id: string | null;
     };
     Returns: boolean;
   };
   actor_may_assign_role: {
     Args: {
-      p_actor_user_id: string;
-      p_organization_id: string;
-      p_role_id: string;
+      p_actor_user_id: string | null;
+      p_organization_id: string | null;
+      p_role_id: string | null;
     };
     Returns: boolean;
   };
   add_task_material_from_quote: {
     Args: {
-      p_organization_id: string;
-      p_product_id: string;
-      p_quantity: number;
-      p_quote_id: string;
-      p_task_id: string;
+      p_organization_id: string | null;
+      p_product_id: string | null;
+      p_quantity: number | null;
+      p_quote_id: string | null;
+      p_task_id: string | null;
     };
     Returns: string;
   };
   agenda_default_time_zone: {
     Args: {
-      p_organization_id: string;
-      p_prefer_profile?: boolean;
-      p_user_id?: string;
+      p_organization_id: string | null;
+      p_prefer_profile?: boolean | null;
+      p_user_id?: string | null;
     };
     Returns: string;
   };
   agenda_user_has_org_permission: {
     Args: {
-      p_organization_id: string;
-      p_permission: string;
-      p_user_id: string;
+      p_organization_id: string | null;
+      p_permission: string | null;
+      p_user_id: string | null;
     };
     Returns: boolean;
   };
   allocate_order: {
     Args: {
-      p_order_id: string;
-      p_organization_id: string;
+      p_order_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   allocate_order_lines: {
     Args: {
-      p_order_id: string;
-      p_organization_id: string;
+      p_order_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   allocate_product_stock: {
     Args: {
-      p_created_by: string;
-      p_invoice_id: string;
-      p_invoice_line_id: string;
-      p_location_id?: string;
-      p_order_line_id?: string;
-      p_organization_id: string;
-      p_product_id: string;
-      p_quantity: number;
-      p_quote_id: string;
-      p_quote_version_line_id: string;
-      p_reason: string;
-      p_task_material_id: string;
+      p_created_by: string | null;
+      p_invoice_id: string | null;
+      p_invoice_line_id: string | null;
+      p_location_id?: string | null;
+      p_order_line_id?: string | null;
+      p_organization_id: string | null;
+      p_product_id: string | null;
+      p_quantity: number | null;
+      p_quote_id: string | null;
+      p_quote_version_line_id: string | null;
+      p_reason: string | null;
+      p_task_material_id: string | null;
     };
     Returns: number;
   };
   allocate_username: {
     Args: {
-      p_base: string;
-      p_user_id: string;
+      p_base: string | null;
+      p_user_id: string | null;
     };
     Returns: string;
   };
   allocation_owner_quantity: {
     Args: {
-      p_invoice_line_id: string;
-      p_organization_id: string;
-      p_quote_version_line_id: string;
-      p_state: "reserved" | "consumed" | "backordered";
-      p_task_material_id: string;
+      p_invoice_line_id: string | null;
+      p_organization_id: string | null;
+      p_quote_version_line_id: string | null;
+      p_state: "reserved" | "consumed" | "backordered" | null;
+      p_task_material_id: string | null;
     };
     Returns: number;
   };
   allocation_owner_variant: {
     Args: {
-      p_invoice_line_id: string;
-      p_order_line_id?: string;
-      p_product_id: string;
-      p_quote_version_line_id: string;
-      p_task_material_id: string;
+      p_invoice_line_id: string | null;
+      p_order_line_id?: string | null;
+      p_product_id: string | null;
+      p_quote_version_line_id: string | null;
+      p_task_material_id: string | null;
     };
     Returns: string;
   };
@@ -17056,701 +17056,701 @@ export type Functions = {
   };
   apply_task_material_consumption: {
     Args: {
-      p_consume: boolean;
-      p_organization_id: string;
-      p_task_id: string;
+      p_consume: boolean | null;
+      p_organization_id: string | null;
+      p_task_id: string | null;
     };
     Returns: undefined;
   };
   apply_task_parts_hold: {
     Args: {
-      p_organization_id: string;
-      p_task_id: string;
+      p_organization_id: string | null;
+      p_task_id: string | null;
     };
     Returns: undefined;
   };
   array_to_halfvec: {
     Args: {
-      arg1: number[];
-      arg2: number;
-      arg3: boolean;
+      arg1: number[] | null;
+      arg2: number | null;
+      arg3: boolean | null;
     };
     Returns: unknown;
   };
   array_to_sparsevec: {
     Args: {
-      arg1: number;
-      arg2: boolean;
-      arg3: number[];
+      arg1: number | null;
+      arg2: boolean | null;
+      arg3: number[] | null;
     };
     Returns: unknown;
   };
   array_to_vector: {
     Args: {
-      arg1: number[];
-      arg2: number;
-      arg3: boolean;
+      arg1: number[] | null;
+      arg2: number | null;
+      arg3: boolean | null;
     };
     Returns: string;
   };
   assign_task_agenda_projection: {
     Args: {
-      p_calendar_id: string;
-      p_ends_at: string;
-      p_organization_id: string;
-      p_starts_at: string;
-      p_task_id: string;
-      p_user_ids: string[];
+      p_calendar_id: string | null;
+      p_ends_at: string | null;
+      p_organization_id: string | null;
+      p_starts_at: string | null;
+      p_task_id: string | null;
+      p_user_ids: string[] | null;
     };
     Returns: string;
   };
   attach_permissions: {
     Args: {
-      p_permission_keys: string[];
-      p_role_id: string;
+      p_permission_keys: string[] | null;
+      p_role_id: string | null;
     };
     Returns: undefined;
   };
   authorize_scope: {
     Args: {
-      p_permission: string;
-      p_scope: "system" | "organization" | "user" | "team";
-      p_scope_id: string;
+      p_permission: string | null;
+      p_scope: "system" | "organization" | "user" | "team" | null;
+      p_scope_id: string | null;
     };
     Returns: boolean;
   };
   authorize_scope_batch: {
     Args: {
-      p_permissions: string[];
-      p_scope: "system" | "organization" | "user" | "team";
-      p_scope_id: string;
+      p_permissions: string[] | null;
+      p_scope: "system" | "organization" | "user" | "team" | null;
+      p_scope_id: string | null;
     };
     Returns: string[];
   };
   begin_ai_chat_turn: {
     Args: {
-      p_active_stream_id: string;
-      p_approval_responses: Json;
-      p_dispatch_id: string;
-      p_event_payload: Json;
-      p_expected_active_stream_id: string;
-      p_history_limit?: number;
-      p_message_id: string;
-      p_mode: string;
-      p_model: string;
-      p_organization_id: string;
-      p_request_id: string;
-      p_route: string;
-      p_run_id: string;
-      p_run_metadata: Json;
-      p_target_message_id: string;
-      p_thread_id: string;
-      p_trigger: string;
-      p_user_client_message_id: string;
-      p_user_message_parts: Json;
+      p_active_stream_id: string | null;
+      p_approval_responses: Json | null;
+      p_dispatch_id: string | null;
+      p_event_payload: Json | null;
+      p_expected_active_stream_id: string | null;
+      p_history_limit?: number | null;
+      p_message_id: string | null;
+      p_mode: string | null;
+      p_model: string | null;
+      p_organization_id: string | null;
+      p_request_id: string | null;
+      p_route: string | null;
+      p_run_id: string | null;
+      p_run_metadata: Json | null;
+      p_target_message_id: string | null;
+      p_thread_id: string | null;
+      p_trigger: string | null;
+      p_user_client_message_id: string | null;
+      p_user_message_parts: Json | null;
     };
     Returns: Json;
   };
   binary_quantize: {
     Args: {
-      arg1: unknown;
+      arg1: unknown | null;
     };
     Returns: unknown;
   };
   can_access_agent_run: {
     Args: {
-      p_run_id: string;
+      p_run_id: string | null;
     };
     Returns: boolean;
   };
   can_access_employee: {
     Args: {
-      p_employee_id: string;
-      p_permission: string;
+      p_employee_id: string | null;
+      p_permission: string | null;
     };
     Returns: boolean;
   };
   can_access_file_storage_object: {
     Args: {
-      p_bucket_id: string;
-      p_object_name: string;
-      p_operation: string;
+      p_bucket_id: string | null;
+      p_object_name: string | null;
+      p_operation: string | null;
     };
     Returns: boolean;
   };
   can_create_file_child: {
     Args: {
-      p_drive_id: string;
-      p_organization_id: string;
-      p_parent_id: string;
+      p_drive_id: string | null;
+      p_organization_id: string | null;
+      p_parent_id: string | null;
     };
     Returns: boolean;
   };
   can_decide_approval_request: {
     Args: {
-      p_request: Database["public"]['Tables']["approval_requests"]['Row'];
+      p_request: Database["public"]['Tables']["approval_requests"]['Row'] | null;
     };
     Returns: boolean;
   };
   can_emit_workflow_event: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: boolean;
   };
   can_read_knowledge_collection_row: {
     Args: {
-      p_collection_id: string;
-      p_created_by: string;
-      p_organization_id: string;
-      p_visibility: string;
+      p_collection_id: string | null;
+      p_created_by: string | null;
+      p_organization_id: string | null;
+      p_visibility: string | null;
     };
     Returns: boolean;
   };
   can_read_workflow_definition_row: {
     Args: {
-      p_created_by: string;
-      p_definition_id: string;
-      p_organization_id: string;
-      p_owner_scope: string;
-      p_status: string;
-      p_visibility: string;
+      p_created_by: string | null;
+      p_definition_id: string | null;
+      p_organization_id: string | null;
+      p_owner_scope: string | null;
+      p_status: string | null;
+      p_visibility: string | null;
     };
     Returns: boolean;
   };
   cancel_order: {
     Args: {
-      p_order_id: string;
-      p_organization_id: string;
-      p_reason?: string;
+      p_order_id: string | null;
+      p_organization_id: string | null;
+      p_reason?: string | null;
     };
     Returns: "draft" | "confirmed" | "on_hold" | "completed" | "cancelled";
   };
   cancel_shipment: {
     Args: {
-      p_organization_id: string;
-      p_shipment_id: string;
+      p_organization_id: string | null;
+      p_shipment_id: string | null;
     };
     Returns: undefined;
   };
   check_inventory_allocation_integrity: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: undefined;
   };
   citext: {
     Args: {
-      arg1: boolean;
+      arg1: boolean | null;
     };
     Returns: string;
   };
   citext_cmp: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: number;
   };
   citext_eq: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   citext_ge: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   citext_gt: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   citext_hash: {
     Args: {
-      arg1: string;
+      arg1: string | null;
     };
     Returns: number;
   };
   citext_hash_extended: {
     Args: {
-      arg1: string;
-      arg2: number;
+      arg1: string | null;
+      arg2: number | null;
     };
     Returns: number;
   };
   citext_larger: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: string;
   };
   citext_le: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   citext_lt: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   citext_ne: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   citext_pattern_cmp: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: number;
   };
   citext_pattern_ge: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   citext_pattern_gt: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   citext_pattern_le: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   citext_pattern_lt: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   citext_smaller: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: string;
   };
   citextin: {
     Args: {
-      arg1: unknown;
+      arg1: unknown | null;
     };
     Returns: string;
   };
   citextout: {
     Args: {
-      arg1: string;
+      arg1: string | null;
     };
     Returns: unknown;
   };
   citextsend: {
     Args: {
-      arg1: string;
+      arg1: string | null;
     };
     Returns: string;
   };
   claim_agenda_external_calendars_for_sync: {
     Args: {
-      p_limit?: number;
-      p_min_age_seconds?: number;
-      p_stale_seconds?: number;
+      p_limit?: number | null;
+      p_min_age_seconds?: number | null;
+      p_stale_seconds?: number | null;
     };
     Returns: { "agendaCollectionId": string; "organizationId": string }[];
   };
   claim_ai_agent_tool_checkpoint: {
     Args: {
-      p_call_key: string;
-      p_input_hash: string;
-      p_run_id: string;
-      p_tool_name: string;
+      p_call_key: string | null;
+      p_input_hash: string | null;
+      p_run_id: string | null;
+      p_tool_name: string | null;
     };
     Returns: Json;
   };
   claim_ai_message_dispatch: {
     Args: {
-      p_dispatch_id: string;
-      p_message_id: string;
-      p_organization_id: string;
-      p_thread_id: string;
+      p_dispatch_id: string | null;
+      p_message_id: string | null;
+      p_organization_id: string | null;
+      p_thread_id: string | null;
     };
     Returns: boolean;
   };
   claim_due_people_reminders: {
     Args: {
-      p_on: string;
+      p_on: string | null;
     };
     Returns: { "dueOn": string; "employeeId": string; "employeeName": string; "kind": string; "label": string; "organizationId": string; "recipientUserIds": string[]; "subjectId": string }[];
   };
   claim_due_workflow_schedules: {
     Args: {
-      p_lease_for_ms?: number;
-      p_limit?: number;
-      p_now: string;
+      p_lease_for_ms?: number | null;
+      p_limit?: number | null;
+      p_now: string | null;
     };
     Returns: (Models["workflowSchedules"]['Row'])[];
   };
   claim_inbox_automation: {
     Args: {
-      p_channel_thread_id: string;
-      p_lease_seconds?: number;
-      p_lease_token: string;
-      p_organization_id: string;
-      p_source_message_id: string;
+      p_channel_thread_id: string | null;
+      p_lease_seconds?: number | null;
+      p_lease_token: string | null;
+      p_organization_id: string | null;
+      p_source_message_id: string | null;
     };
     Returns: Json;
   };
   claim_inbox_webhook_jobs: {
     Args: {
-      p_lease_seconds?: number;
-      p_limit?: number;
+      p_lease_seconds?: number | null;
+      p_limit?: number | null;
     };
     Returns: (Models["inboxWebhookJobs"]['Row'])[];
   };
   claim_stripe_webhook_event: {
     Args: {
-      p_livemode: boolean;
-      p_stripe_created_at: string;
-      p_stripe_event_id: string;
-      p_type: string;
+      p_livemode: boolean | null;
+      p_stripe_created_at: string | null;
+      p_stripe_event_id: string | null;
+      p_type: string | null;
     };
     Returns: { "claimId": string; "disposition": string; "eventId": string; "processingStartedAt": string }[];
   };
   claim_webhook_deliveries: {
     Args: {
-      p_lease_seconds?: number;
-      p_limit?: number;
+      p_lease_seconds?: number | null;
+      p_limit?: number | null;
     };
     Returns: (Models["webhookDeliveries"]['Row'])[];
   };
   close_purchase_order_short: {
     Args: {
-      p_organization_id: string;
-      p_purchase_order_id: string;
+      p_organization_id: string | null;
+      p_purchase_order_id: string | null;
     };
     Returns: undefined;
   };
   commit_promotion_redemptions: {
     Args: {
-      p_subject_id: string;
-      p_subject_type: "quote" | "order" | "invoice";
+      p_subject_id: string | null;
+      p_subject_type: "quote" | "order" | "invoice" | null;
     };
     Returns: undefined;
   };
   complete_stripe_webhook_event: {
     Args: {
-      p_claim_id: string;
-      p_error_message?: string;
-      p_event_id: string;
-      p_succeeded: boolean;
+      p_claim_id: string | null;
+      p_error_message?: string | null;
+      p_event_id: string | null;
+      p_succeeded: boolean | null;
     };
     Returns: boolean;
   };
   compute_customer_sort_name: {
     Args: {
-      p_customer_id: number;
+      p_customer_id: number | null;
     };
     Returns: string;
   };
   compute_time_off_hours: {
     Args: {
-      p_employee_id: string;
-      p_end_part: "full" | "morning" | "afternoon" | "hours";
-      p_end_time?: string;
-      p_ends_on: string;
-      p_start_part: "full" | "morning" | "afternoon" | "hours";
-      p_start_time?: string;
-      p_starts_on: string;
+      p_employee_id: string | null;
+      p_end_part: "full" | "morning" | "afternoon" | "hours" | null;
+      p_end_time?: string | null;
+      p_ends_on: string | null;
+      p_start_part: "full" | "morning" | "afternoon" | "hours" | null;
+      p_start_time?: string | null;
+      p_starts_on: string | null;
     };
     Returns: number;
   };
   confirm_order: {
     Args: {
-      p_order_id: string;
-      p_organization_id: string;
+      p_order_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   consume_allocations: {
     Args: {
-      p_created_by: string;
-      p_invoice_id: string;
-      p_invoice_line_id: string;
-      p_organization_id: string;
-      p_quote_id: string;
-      p_quote_version_line_id: string;
-      p_reason: string;
-      p_task_material_id: string;
+      p_created_by: string | null;
+      p_invoice_id: string | null;
+      p_invoice_line_id: string | null;
+      p_organization_id: string | null;
+      p_quote_id: string | null;
+      p_quote_version_line_id: string | null;
+      p_reason: string | null;
+      p_task_material_id: string | null;
     };
     Returns: number;
   };
   consume_approval_request: {
     Args: {
-      p_input_fingerprint?: string;
-      p_request_id: string;
+      p_input_fingerprint?: string | null;
+      p_request_id: string | null;
     };
     Returns: Models["approvalRequests"]['Row'];
   };
   consume_free_product_stock: {
     Args: {
-      p_created_by: string;
-      p_invoice_id: string;
-      p_invoice_line_id: string;
-      p_organization_id: string;
-      p_product_id: string;
-      p_quantity: number;
-      p_reason: string;
+      p_created_by: string | null;
+      p_invoice_id: string | null;
+      p_invoice_line_id: string | null;
+      p_organization_id: string | null;
+      p_product_id: string | null;
+      p_quantity: number | null;
+      p_reason: string | null;
     };
     Returns: number;
   };
   copy_comment_thread: {
     Args: {
-      p_from_subject_id: string;
-      p_from_subject_type: string;
-      p_organization_id: string;
-      p_to_subject_id: string;
-      p_to_subject_type: string;
+      p_from_subject_id: string | null;
+      p_from_subject_type: string | null;
+      p_organization_id: string | null;
+      p_to_subject_id: string | null;
+      p_to_subject_type: string | null;
     };
     Returns: undefined;
   };
   cosine_distance: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   count_unread_inbox_threads: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: number;
   };
   create_agenda_item_aggregate: {
     Args: {
-      p_item: Json;
-      p_metadata: Json;
-      p_organization_id: string;
-      p_user_ids: string[];
+      p_item: Json | null;
+      p_metadata: Json | null;
+      p_organization_id: string | null;
+      p_user_ids: string[] | null;
     };
     Returns: string;
   };
   create_ai_contextual_artifact: {
     Args: {
-      p_action_id: string;
-      p_action_version: string;
-      p_actor_user_id: string;
-      p_apply_handler: string;
-      p_context_fingerprint: string;
-      p_context_kinds: Json;
-      p_idempotency_key: string;
-      p_kind: string;
-      p_message_id: string;
-      p_organization_id: string;
-      p_origin_execution_policy: string;
-      p_origin_permission: string;
-      p_origin_risk: string;
-      p_origin_route: string;
-      p_payload: Json;
-      p_run_id: string;
-      p_schema_version: number;
-      p_source_references: Json;
-      p_thread_id: string;
+      p_action_id: string | null;
+      p_action_version: string | null;
+      p_actor_user_id: string | null;
+      p_apply_handler: string | null;
+      p_context_fingerprint: string | null;
+      p_context_kinds: Json | null;
+      p_idempotency_key: string | null;
+      p_kind: string | null;
+      p_message_id: string | null;
+      p_organization_id: string | null;
+      p_origin_execution_policy: string | null;
+      p_origin_permission: string | null;
+      p_origin_risk: string | null;
+      p_origin_route: string | null;
+      p_payload: Json | null;
+      p_run_id: string | null;
+      p_schema_version: number | null;
+      p_source_references: Json | null;
+      p_thread_id: string | null;
     };
     Returns: Json;
   };
   create_customer_contact: {
     Args: {
-      p_customer_id: number;
-      p_display_name: string;
-      p_email: string;
-      p_first_name: string;
-      p_is_primary: boolean;
-      p_job_title: string;
-      p_last_name: string;
-      p_org_id: string;
-      p_phone: string;
+      p_customer_id: number | null;
+      p_display_name: string | null;
+      p_email: string | null;
+      p_first_name: string | null;
+      p_is_primary: boolean | null;
+      p_job_title: string | null;
+      p_last_name: string | null;
+      p_org_id: string | null;
+      p_phone: string | null;
     };
     Returns: string;
   };
   create_file_copy_operation: {
     Args: {
-      p_conflict_strategy?: string;
-      p_destination_drive_id: string;
-      p_destination_parent_id: string;
-      p_idempotency_key: string;
-      p_operation_id: string;
-      p_organization_id: string;
-      p_source_node_ids: string[];
+      p_conflict_strategy?: string | null;
+      p_destination_drive_id: string | null;
+      p_destination_parent_id: string | null;
+      p_idempotency_key: string | null;
+      p_operation_id: string | null;
+      p_organization_id: string | null;
+      p_source_node_ids: string[] | null;
     };
     Returns: Models["fileCopyOperations"]['Row'];
   };
   create_file_version: {
     Args: {
-      p_byte_size: number;
-      p_checksum?: string;
-      p_etag?: string;
-      p_media_type: string;
-      p_node_id: string;
-      p_source_modified_at?: string;
-      p_storage_bucket: string;
-      p_storage_path: string;
+      p_byte_size: number | null;
+      p_checksum?: string | null;
+      p_etag?: string | null;
+      p_media_type: string | null;
+      p_node_id: string | null;
+      p_source_modified_at?: string | null;
+      p_storage_bucket: string | null;
+      p_storage_path: string | null;
     };
     Returns: Models["fileVersions"]['Row'];
   };
   create_file_zip_export: {
     Args: {
-      p_direct_max_bytes: number;
-      p_direct_max_items: number;
-      p_export_id: string;
-      p_file_name: string;
-      p_idempotency_key: string;
-      p_organization_id: string;
-      p_source_node_ids: string[];
+      p_direct_max_bytes: number | null;
+      p_direct_max_items: number | null;
+      p_export_id: string | null;
+      p_file_name: string | null;
+      p_idempotency_key: string | null;
+      p_organization_id: string | null;
+      p_source_node_ids: string[] | null;
     };
     Returns: Models["fileZipExports"]['Row'];
   };
   create_invoice_aggregate: {
     Args: {
-      p_header: Json;
-      p_lines: Json;
-      p_organization_id: string;
-      p_task_ids: string[];
+      p_header: Json | null;
+      p_lines: Json | null;
+      p_organization_id: string | null;
+      p_task_ids: string[] | null;
     };
     Returns: string;
   };
   create_organization_for_current_user: {
     Args: {
-      p_address_city?: string;
-      p_address_country?: string;
-      p_address_line1?: string;
-      p_address_line2?: string;
-      p_address_postal_code?: string;
-      p_address_state?: string;
-      p_brand_primary_color?: string;
-      p_brand_secondary_color?: string;
-      p_name: string;
-      p_slug: string;
-      p_socials?: Json;
-      p_website?: string;
+      p_address_city?: string | null;
+      p_address_country?: string | null;
+      p_address_line1?: string | null;
+      p_address_line2?: string | null;
+      p_address_postal_code?: string | null;
+      p_address_state?: string | null;
+      p_brand_primary_color?: string | null;
+      p_brand_secondary_color?: string | null;
+      p_name: string | null;
+      p_slug: string | null;
+      p_socials?: Json | null;
+      p_website?: string | null;
     };
     Returns: string;
   };
   create_purchase_orders_from_reorder: {
     Args: {
-      p_organization_id: string;
-      p_variant_ids?: string[];
+      p_organization_id: string | null;
+      p_variant_ids?: string[] | null;
     };
     Returns: string[];
   };
   create_shipment: {
     Args: {
-      p_direction: "outbound" | "inbound" | "return";
-      p_header?: Json;
-      p_lines?: Json;
-      p_order_id?: string;
-      p_organization_id: string;
-      p_purchase_order_id?: string;
+      p_direction: "outbound" | "inbound" | "return" | null;
+      p_header?: Json | null;
+      p_lines?: Json | null;
+      p_order_id?: string | null;
+      p_organization_id: string | null;
+      p_purchase_order_id?: string | null;
     };
     Returns: string;
   };
   current_employee_id: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: string;
   };
   custom_access_token_hook: {
     Args: {
-      event: Json;
+      event: Json | null;
     };
     Returns: Json;
   };
   customer_portal_assert_access: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: undefined;
   };
   customer_portal_get_asset: {
     Args: {
-      p_customer_asset_id: number;
-      p_organization_id: string;
+      p_customer_asset_id: number | null;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   customer_portal_get_context: {
     Args: {
-      p_organization_slug: string;
+      p_organization_slug: string | null;
     };
     Returns: Json;
   };
   customer_portal_get_dashboard: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   customer_portal_get_invoice: {
     Args: {
-      p_invoice_id: string;
-      p_organization_id: string;
+      p_invoice_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   customer_portal_get_order: {
     Args: {
-      p_order_id: string;
-      p_organization_id: string;
+      p_order_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   customer_portal_get_quote: {
     Args: {
-      p_organization_id: string;
-      p_quote_id: string;
+      p_organization_id: string | null;
+      p_quote_id: string | null;
     };
     Returns: Json;
   };
   customer_portal_list_assets: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   customer_portal_list_invoices: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   customer_portal_list_orders: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
@@ -17760,102 +17760,102 @@ export type Functions = {
   };
   customer_portal_list_quotes: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   customer_portal_open_download: {
     Args: {
-      p_grant_id: string;
-      p_organization_id: string;
+      p_grant_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   decide_ai_contextual_artifact: {
     Args: {
-      p_apply_claim_id: string;
-      p_artifact_id: string;
-      p_decision: string;
-      p_expected_context_fingerprint: string;
-      p_idempotency_key: string;
-      p_metadata: Json;
+      p_apply_claim_id: string | null;
+      p_artifact_id: string | null;
+      p_decision: string | null;
+      p_expected_context_fingerprint: string | null;
+      p_idempotency_key: string | null;
+      p_metadata: Json | null;
     };
     Returns: Json;
   };
   decide_approval_request: {
     Args: {
-      p_approved: boolean;
-      p_comment?: string;
-      p_request_id: string;
+      p_approved: boolean | null;
+      p_comment?: string | null;
+      p_request_id: string | null;
     };
     Returns: Models["approvalRequests"]['Row'];
   };
   delete_organization_for_current_user: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: undefined;
   };
   delete_task_material: {
     Args: {
-      p_organization_id: string;
-      p_task_material_id: string;
+      p_organization_id: string | null;
+      p_task_material_id: string | null;
     };
     Returns: undefined;
   };
   derive_username_base: {
     Args: {
-      p_email: string;
-      p_first_name: string;
-      p_full_name: string;
-      p_last_name: string;
+      p_email: string | null;
+      p_first_name: string | null;
+      p_full_name: string | null;
+      p_last_name: string | null;
     };
     Returns: string;
   };
   easter_sunday: {
     Args: {
-      p_year: number;
+      p_year: number | null;
     };
     Returns: string;
   };
   employee_contract_on: {
     Args: {
-      p_date: string;
-      p_employee_id: string;
+      p_date: string | null;
+      p_employee_id: string | null;
     };
     Returns: Models["employeeContracts"]['Row'];
   };
   employee_cycle_week: {
     Args: {
-      p_date: string;
-      p_employee_id: string;
+      p_date: string | null;
+      p_employee_id: string | null;
     };
     Returns: number;
   };
   employee_hourly_cost: {
     Args: {
-      p_date: string;
-      p_employee_id: string;
+      p_date: string | null;
+      p_employee_id: string | null;
     };
     Returns: number;
   };
   employee_scheduled_hours: {
     Args: {
-      p_date: string;
-      p_employee_id: string;
+      p_date: string | null;
+      p_employee_id: string | null;
     };
     Returns: number;
   };
   employee_week_summary: {
     Args: {
-      p_employee_id: string;
-      p_week_start: string;
+      p_employee_id: string | null;
+      p_week_start: string | null;
     };
     Returns: { "day": string; "isHoliday": boolean; "loggedHours": number; "scheduledHours": number; "timeOffHours": number }[];
   };
   ensure_agenda_planning_calendar: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: string;
   };
@@ -17865,52 +17865,52 @@ export type Functions = {
   };
   ensure_comment_thread: {
     Args: {
-      p_customer_asset_id?: number;
-      p_customer_id?: number;
-      p_organization_id: string;
-      p_subject_id: string;
-      p_subject_type: string;
-      p_task_id?: string;
+      p_customer_asset_id?: number | null;
+      p_customer_id?: number | null;
+      p_organization_id: string | null;
+      p_subject_id: string | null;
+      p_subject_type: string | null;
+      p_task_id?: string | null;
     };
     Returns: string;
   };
   ensure_contact_profile_for_user: {
     Args: {
-      p_user_id: string;
+      p_user_id: string | null;
     };
     Returns: string;
   };
   ensure_customer_file_folder: {
     Args: {
-      p_customer_id: number;
-      p_organization_id: string;
+      p_customer_id: number | null;
+      p_organization_id: string | null;
     };
     Returns: Models["fileNodes"]['Row'];
   };
   ensure_customer_file_folders: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: number;
   };
   ensure_customers_file_drive: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: string;
   };
   ensure_notification_subscription: {
     Args: {
-      p_organization_id: string;
-      p_subject_id: string;
-      p_subject_type: string;
-      p_user_id: string;
+      p_organization_id: string | null;
+      p_subject_id: string | null;
+      p_subject_type: string | null;
+      p_user_id: string | null;
     };
     Returns: string;
   };
   ensure_people_defaults: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: undefined;
   };
@@ -17920,878 +17920,878 @@ export type Functions = {
   };
   ensure_user_file_drives: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: { "companyDriveId": string; "personalDriveId": string }[];
   };
   evaluate_promotion: {
     Args: {
-      p_code?: string;
-      p_customer_id: number;
-      p_organization_id: string;
-      p_promotion_id?: string;
-      p_quantity?: number;
-      p_subject_id?: string;
-      p_subject_type: "quote" | "order" | "invoice";
-      p_subtotal?: number;
+      p_code?: string | null;
+      p_customer_id: number | null;
+      p_organization_id: string | null;
+      p_promotion_id?: string | null;
+      p_quantity?: number | null;
+      p_subject_id?: string | null;
+      p_subject_type: "quote" | "order" | "invoice" | null;
+      p_subtotal?: number | null;
     };
     Returns: Json;
   };
   file_access_role_rank: {
     Args: {
-      p_role: string;
+      p_role: string | null;
     };
     Returns: number;
   };
   fill_backorders: {
     Args: {
-      p_location_id?: string;
-      p_organization_id: string;
-      p_variant_id: string;
+      p_location_id?: string | null;
+      p_organization_id: string | null;
+      p_variant_id: string | null;
     };
     Returns: number;
   };
   fill_variant_backorders: {
     Args: {
-      p_location_id: string;
-      p_organization_id: string;
-      p_variant_id: string;
+      p_location_id: string | null;
+      p_organization_id: string | null;
+      p_variant_id: string | null;
     };
     Returns: number;
   };
   finalize_file_copy_item: {
     Args: {
-      p_item_id: string;
-      p_storage_bucket: string;
-      p_storage_path: string;
+      p_item_id: string | null;
+      p_storage_bucket: string | null;
+      p_storage_path: string | null;
     };
     Returns: Models["fileCopyOperationItems"]['Row'];
   };
   finalize_file_upload: {
     Args: {
-      p_actual_bytes: number;
-      p_checksum?: string;
-      p_etag?: string;
-      p_reservation_id: string;
+      p_actual_bytes: number | null;
+      p_checksum?: string | null;
+      p_etag?: string | null;
+      p_reservation_id: string | null;
     };
     Returns: Models["fileUploadReservations"]['Row'];
   };
   find_expense_duplicates: {
     Args: {
-      p_expense_id: string;
+      p_expense_id: string | null;
     };
     Returns: { "expenseId": string; "reason": string }[];
   };
   finish_ai_agent_tool: {
     Args: {
-      p_active_stream_id: string;
-      p_actor_user_id: string;
-      p_completed_at: string;
-      p_duration_ms: number;
-      p_error: Json;
-      p_metadata: Json;
-      p_model: string;
-      p_organization_id: string;
-      p_output: Json;
-      p_request_id: string;
-      p_run_id: string;
-      p_status: string;
-      p_step_id: string;
-      p_thread_id: string;
-      p_title: string;
-      p_tool_call_id: string;
-      p_tool_name: string;
-      p_workflow_run_id: string;
+      p_active_stream_id: string | null;
+      p_actor_user_id: string | null;
+      p_completed_at: string | null;
+      p_duration_ms: number | null;
+      p_error: Json | null;
+      p_metadata: Json | null;
+      p_model: string | null;
+      p_organization_id: string | null;
+      p_output: Json | null;
+      p_request_id: string | null;
+      p_run_id: string | null;
+      p_status: string | null;
+      p_step_id: string | null;
+      p_thread_id: string | null;
+      p_title: string | null;
+      p_tool_call_id: string | null;
+      p_tool_name: string | null;
+      p_workflow_run_id: string | null;
     };
     Returns: boolean;
   };
   finish_inbox_automation: {
     Args: {
-      p_channel_thread_id: string;
-      p_lease_token: string;
-      p_payload: Json;
-      p_source_message_id: string;
-      p_status: string;
+      p_channel_thread_id: string | null;
+      p_lease_token: string | null;
+      p_payload: Json | null;
+      p_source_message_id: string | null;
+      p_status: string | null;
     };
     Returns: boolean;
   };
   fulfill_digital_order: {
     Args: {
-      p_order_id: string;
-      p_organization_id: string;
+      p_order_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   get_admin_analytics: {
     Args: {
-      p_comparison: string;
-      p_currencies: string[];
-      p_end_date: string;
-      p_granularity: string;
-      p_start_date: string;
-      p_time_zone: string;
+      p_comparison: string | null;
+      p_currencies: string[] | null;
+      p_end_date: string | null;
+      p_granularity: string | null;
+      p_start_date: string | null;
+      p_time_zone: string | null;
     };
     Returns: Json;
   };
   get_admin_operations_attention: {
     Args: {
-      p_now?: string;
+      p_now?: string | null;
     };
     Returns: Json;
   };
   get_admin_operations_metrics: {
     Args: {
-      p_now?: string;
+      p_now?: string | null;
     };
     Returns: Json;
   };
   get_admin_operations_plans: {
     Args: {
-      p_now?: string;
+      p_now?: string | null;
     };
     Returns: Json;
   };
   get_agenda_feed_by_token: {
     Args: {
-      p_token: string;
+      p_token: string | null;
     };
     Returns: Json;
   };
   get_ai_agent_execution_manifest: {
     Args: {
-      p_active_stream_id: string;
-      p_actor_user_id: string;
-      p_delegation_id: string;
-      p_organization_id: string;
-      p_run_id: string;
-      p_thread_id: string;
-      p_workflow_run_id: string;
+      p_active_stream_id: string | null;
+      p_actor_user_id: string | null;
+      p_delegation_id: string | null;
+      p_organization_id: string | null;
+      p_run_id: string | null;
+      p_thread_id: string | null;
+      p_workflow_run_id: string | null;
     };
     Returns: { "authorizedIntegrationIds": string[]; "organizationPermissionKeys": string[]; "systemPermissionKeys": string[] }[];
   };
   get_ai_chat_suggestion_snapshot: {
     Args: {
-      p_organization_slug: string;
-      p_route_domain: string;
-      p_surface: string;
+      p_organization_slug: string | null;
+      p_route_domain: string | null;
+      p_surface: string | null;
     };
     Returns: Json;
   };
   get_ai_usage_allowance: {
     Args: {
-      p_at?: string;
-      p_organization_id: string;
+      p_at?: string | null;
+      p_organization_id: string | null;
     };
     Returns: { "allowed": boolean; "code": string; "reason": string }[];
   };
   get_employee_history: {
     Args: {
-      p_employee_id: string;
-      p_limit?: number;
+      p_employee_id: string | null;
+      p_limit?: number | null;
     };
     Returns: { "actorDisplayName": string; "actorId": string; "eventType": string; "id": string; "occurredAt": string; "targetId": string; "targetType": string }[];
   };
   get_file_node_path: {
     Args: {
-      p_max_depth?: number;
-      p_node_id: string;
+      p_max_depth?: number | null;
+      p_node_id: string | null;
     };
     Returns: { "createdAt": string; "createdBy": string; "currentVersionId": string; "deletedAt": string; "depth": number; "driveId": string; "externalId": string; "externalMetadata": Json; "id": string; "kind": string; "name": string; "organizationId": string; "parentId": string; "source": string; "updatedAt": string }[];
   };
   get_file_retention_days: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: number;
   };
   get_file_storage_quota_bytes: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: number;
   };
   get_file_storage_summary: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: { "availableBytes": number; "quotaBytes": number; "reservedBytes": number; "retentionDays": number; "segments": Json; "storedBytes": number }[];
   };
   get_invitation_by_token: {
     Args: {
-      p_token: string;
+      p_token: string | null;
     };
     Returns: Json;
   };
   get_invoice_for_portal: {
     Args: {
-      p_invoice_id: string;
-      p_org_slug: string;
+      p_invoice_id: string | null;
+      p_org_slug: string | null;
     };
     Returns: Json;
   };
   get_organization_analytics: {
     Args: {
-      p_comparison: string;
-      p_currencies: string[];
-      p_end_date: string;
-      p_granularity: string;
-      p_organization_id: string;
-      p_start_date: string;
-      p_time_zone: string;
+      p_comparison: string | null;
+      p_currencies: string[] | null;
+      p_end_date: string | null;
+      p_granularity: string | null;
+      p_organization_id: string | null;
+      p_start_date: string | null;
+      p_time_zone: string | null;
     };
     Returns: Json;
   };
   get_organization_dashboard_totals: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   get_product_for_portal: {
     Args: {
-      p_org_slug: string;
-      p_product_id: string;
+      p_org_slug: string | null;
+      p_product_id: string | null;
     };
     Returns: Json;
   };
   get_quote_for_portal: {
     Args: {
-      p_org_slug: string;
-      p_quote_id: string;
-      p_version?: number;
+      p_org_slug: string | null;
+      p_quote_id: string | null;
+      p_version?: number | null;
     };
     Returns: Json;
   };
   get_time_off_feed_by_token: {
     Args: {
-      p_token: string;
+      p_token: string | null;
     };
     Returns: Json;
   };
   halfvec: {
     Args: {
-      arg1: unknown;
-      arg2: boolean;
-      arg3: number;
+      arg1: unknown | null;
+      arg2: boolean | null;
+      arg3: number | null;
     };
     Returns: unknown;
   };
   halfvec_accum: {
     Args: {
-      arg1: unknown;
-      arg2: number[];
+      arg1: unknown | null;
+      arg2: number[] | null;
     };
     Returns: number[];
   };
   halfvec_add: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: unknown;
   };
   halfvec_avg: {
     Args: {
-      arg1: number[];
+      arg1: number[] | null;
     };
     Returns: unknown;
   };
   halfvec_cmp: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   halfvec_combine: {
     Args: {
-      arg1: number[];
-      arg2: number[];
+      arg1: number[] | null;
+      arg2: number[] | null;
     };
     Returns: number[];
   };
   halfvec_concat: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: unknown;
   };
   halfvec_eq: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   halfvec_ge: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   halfvec_gt: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   halfvec_in: {
     Args: {
-      arg1: unknown;
-      arg2: number;
-      arg3: unknown;
+      arg1: unknown | null;
+      arg2: number | null;
+      arg3: unknown | null;
     };
     Returns: unknown;
   };
   halfvec_l2_squared_distance: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   halfvec_le: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   halfvec_lt: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   halfvec_mul: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: unknown;
   };
   halfvec_ne: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   halfvec_negative_inner_product: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   halfvec_out: {
     Args: {
-      arg1: unknown;
+      arg1: unknown | null;
     };
     Returns: unknown;
   };
   halfvec_send: {
     Args: {
-      arg1: unknown;
+      arg1: unknown | null;
     };
     Returns: string;
   };
   halfvec_spherical_distance: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   halfvec_sub: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: unknown;
   };
   halfvec_to_float4: {
     Args: {
-      arg1: unknown;
-      arg2: number;
-      arg3: boolean;
+      arg1: unknown | null;
+      arg2: number | null;
+      arg3: boolean | null;
     };
     Returns: number[];
   };
   halfvec_to_sparsevec: {
     Args: {
-      arg1: boolean;
-      arg2: unknown;
-      arg3: number;
+      arg1: boolean | null;
+      arg2: unknown | null;
+      arg3: number | null;
     };
     Returns: unknown;
   };
   halfvec_to_vector: {
     Args: {
-      arg1: number;
-      arg2: unknown;
-      arg3: boolean;
+      arg1: number | null;
+      arg2: unknown | null;
+      arg3: boolean | null;
     };
     Returns: string;
   };
   halfvec_typmod_in: {
     Args: {
-      arg1: unknown[];
+      arg1: unknown[] | null;
     };
     Returns: number;
   };
   hamming_distance: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   has_agenda_collection_access: {
     Args: {
-      p_calendar_id: string;
-      p_min_role?: string;
-      p_organization_id: string;
+      p_calendar_id: string | null;
+      p_min_role?: string | null;
+      p_organization_id: string | null;
     };
     Returns: boolean;
   };
   has_any_org_permission: {
     Args: {
-      p_org_id: string;
-      p_permissions: string[];
+      p_org_id: string | null;
+      p_permissions: string[] | null;
     };
     Returns: boolean;
   };
   has_chat_thread_access: {
     Args: {
-      p_thread_id: string;
+      p_thread_id: string | null;
     };
     Returns: boolean;
   };
   has_comment_subject_permission: {
     Args: {
-      p_action: string;
-      p_organization_id: string;
-      p_subject_type: string;
+      p_action: string | null;
+      p_organization_id: string | null;
+      p_subject_type: string | null;
     };
     Returns: boolean;
   };
   has_comment_thread_permission: {
     Args: {
-      p_action: string;
-      p_thread_id: string;
+      p_action: string | null;
+      p_thread_id: string | null;
     };
     Returns: boolean;
   };
   has_file_drive_access: {
     Args: {
-      p_drive_id: string;
-      p_min_role?: string;
+      p_drive_id: string | null;
+      p_min_role?: string | null;
     };
     Returns: boolean;
   };
   has_file_node_access: {
     Args: {
-      p_min_role?: string;
-      p_node_id: string;
+      p_min_role?: string | null;
+      p_node_id: string | null;
     };
     Returns: boolean;
   };
   has_knowledge_collection_access: {
     Args: {
-      p_collection_id: string;
+      p_collection_id: string | null;
     };
     Returns: boolean;
   };
   has_org_permission: {
     Args: {
-      p_org_id: string;
-      p_permission: string;
+      p_org_id: string | null;
+      p_permission: string | null;
     };
     Returns: boolean;
   };
   has_workflow_definition_access: {
     Args: {
-      p_definition_id: string;
+      p_definition_id: string | null;
     };
     Returns: boolean;
   };
   has_workflow_run_access: {
     Args: {
-      p_run_id: string;
+      p_run_id: string | null;
     };
     Returns: boolean;
   };
   hydrate_task_list_items: {
     Args: {
-      p_task_ids: string[];
+      p_task_ids: string[] | null;
     };
     Returns: Json;
   };
   inner_product: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   inventory_reorder_suggestions: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: { "available": number; "currency": string; "incoming": number; "productId": string; "productName": string; "productSupplierLinkId": string; "reorderPoint": number; "sku": string; "suggestedQuantity": number; "supplierId": string; "supplierName": string; "supplierSku": string; "unitCost": number; "variantId": string; "variantTitle": string }[];
   };
   inventory_variant_incoming: {
     Args: {
-      p_variant_id: string;
+      p_variant_id: string | null;
     };
     Returns: number;
   };
   inventory_variant_levels: {
     Args: {
-      p_organization_id: string;
-      p_product_ids?: string[];
+      p_organization_id: string | null;
+      p_product_ids?: string[] | null;
     };
     Returns: { "allocated": number; "available": number; "backordered": number; "incoming": number; "isDefault": boolean; "onHand": number; "productId": string; "reorderPoint": number; "sku": string; "stockStatus": string; "variantId": string; "variantPosition": number; "variantTitle": string }[];
   };
   is_agenda_collection_subscribed: {
     Args: {
-      p_calendar_id: string;
-      p_organization_id: string;
+      p_calendar_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: boolean;
   };
   is_approval_approver: {
     Args: {
-      p_request: Database["public"]['Tables']["approval_requests"]['Row'];
+      p_request: Database["public"]['Tables']["approval_requests"]['Row'] | null;
     };
     Returns: boolean;
   };
   is_approval_requester: {
     Args: {
-      p_request: Database["public"]['Tables']["approval_requests"]['Row'];
+      p_request: Database["public"]['Tables']["approval_requests"]['Row'] | null;
     };
     Returns: boolean;
   };
   is_employee_manager_of: {
     Args: {
-      p_employee_id: string;
+      p_employee_id: string | null;
     };
     Returns: boolean;
   };
   is_org_staff_member: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: boolean;
   };
   is_own_employee: {
     Args: {
-      p_employee_id: string;
+      p_employee_id: string | null;
     };
     Returns: boolean;
   };
   is_system_user_with: {
     Args: {
-      p_permission: string;
+      p_permission: string | null;
     };
     Returns: boolean;
   };
   jaccard_distance: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   l1_distance: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   l2_distance: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   l2_norm: {
     Args: {
-      arg1: unknown;
+      arg1: unknown | null;
     };
     Returns: number;
   };
   l2_normalize: {
     Args: {
-      arg1: unknown;
+      arg1: unknown | null;
     };
     Returns: unknown;
   };
   lifecycle_subject_view_permission: {
     Args: {
-      p_subject_type: string;
+      p_subject_type: string | null;
     };
     Returns: string;
   };
   link_ai_agent_workflow_ownership: {
     Args: {
-      p_active_stream_id: string;
-      p_dispatch_id: string;
-      p_message_id: string;
-      p_organization_id: string;
-      p_run_id: string;
-      p_thread_id: string;
-      p_workflow_run_id: string;
+      p_active_stream_id: string | null;
+      p_dispatch_id: string | null;
+      p_message_id: string | null;
+      p_organization_id: string | null;
+      p_run_id: string | null;
+      p_thread_id: string | null;
+      p_workflow_run_id: string | null;
     };
     Returns: boolean;
   };
   link_ai_message_dispatch: {
     Args: {
-      p_dispatch_id: string;
-      p_message_id: string;
-      p_organization_id: string;
-      p_thread_id: string;
-      p_workflow_run_id: string;
+      p_dispatch_id: string | null;
+      p_message_id: string | null;
+      p_organization_id: string | null;
+      p_thread_id: string | null;
+      p_workflow_run_id: string | null;
     };
     Returns: boolean;
   };
   link_expenses_to_invoice: {
     Args: {
-      p_expense_ids: string[];
-      p_invoice_id: string;
-      p_organization_id: string;
+      p_expense_ids: string[] | null;
+      p_invoice_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: number;
   };
   list_admin_billing: {
     Args: {
-      p_limit?: number;
-      p_offset?: number;
-      p_plan_keys?: string[];
-      p_search?: string;
-      p_statuses?: string[];
+      p_limit?: number | null;
+      p_offset?: number | null;
+      p_plan_keys?: string[] | null;
+      p_search?: string | null;
+      p_statuses?: string[] | null;
     };
     Returns: Json;
   };
   list_agenda_collections_for_user: {
     Args: {
-      p_calendar_id?: string;
-      p_organization_id: string;
+      p_calendar_id?: string | null;
+      p_organization_id: string | null;
     };
     Returns: { "canEdit": boolean; "canManage": boolean; "color": string; "createdAt": string; "createdBy": string; "defaultTimeZone": string; "description": string; "externalCalendarId": string; "id": string; "isDefault": boolean; "isSubscribed": boolean; "kind": string; "name": string; "organizationId": string; "ownerUserId": string; "position": number; "prefIsVisible": boolean; "prefPosition": number; "source": string; "updatedAt": string; "visibility": string }[];
   };
   list_decidable_approval_requests: {
     Args: {
-      p_limit?: number;
-      p_organization_id: string;
+      p_limit?: number | null;
+      p_organization_id: string | null;
     };
     Returns: (Models["approvalRequests"]['Row'])[];
   };
   list_document_promotions: {
     Args: {
-      p_customer_id: number;
-      p_organization_id: string;
-      p_subject_type: "quote" | "order" | "invoice";
+      p_customer_id: number | null;
+      p_organization_id: string | null;
+      p_subject_type: "quote" | "order" | "invoice" | null;
     };
     Returns: Json;
   };
   list_inbox_threads: {
     Args: {
-      p_limit?: number;
-      p_offset?: number;
-      p_organization_id: string;
+      p_limit?: number | null;
+      p_offset?: number | null;
+      p_organization_id: string | null;
     };
     Returns: { "archivedAt": string; "assignedTeamId": number; "assignedUserId": string; "chatThreadId": string; "chatThreadTitle": string; "connectionId": string; "connectionKind": string; "connectionName": string; "connectionStatus": string; "contactAvatarPath": string; "contactDisplayName": string; "contactEmail": string; "contactFirstName": string; "contactLastName": string; "contactPhone": string; "continuationCursor": string; "createdAt": string; "customerId": number; "externalActorId": string; "externalChannelId": string; "externalThreadId": string; "id": string; "lastDeliveryError": string; "lastDeliveryStatus": string; "lastMessageAt": string; "lastMessageId": string; "lastMessageRole": string; "lastMessageText": string; "metadata": Json; "organizationId": string; "pinnedAt": string; "readAt": string; "streamStatus": string; "takeoverAt": string; "takeoverReason": string; "takeoverStatus": string; "unread": boolean; "updatedAt": string }[];
   };
   list_notification_ignored_user_ids: {
     Args: {
-      p_organization_id: string;
-      p_subject_id: string;
-      p_subject_type: string;
+      p_organization_id: string | null;
+      p_subject_id: string | null;
+      p_subject_type: string | null;
     };
     Returns: string[];
   };
   list_notification_subscriber_user_ids: {
     Args: {
-      p_activity?: string;
-      p_organization_id: string;
-      p_subject_id: string;
-      p_subject_type: string;
+      p_activity?: string | null;
+      p_organization_id: string | null;
+      p_subject_id: string | null;
+      p_subject_type: string | null;
     };
     Returns: string[];
   };
   list_org_working_hour_profiles: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: { "employeeId": string; "isFlexible": boolean; "scheduleCycleAnchor": string; "timezone": string; "userId": string }[];
   };
   list_promotions: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   list_workflow_fan_out_organizations: {
     Args: {
-      p_definition_key: string;
+      p_definition_key: string | null;
     };
     Returns: string[];
   };
   lock_product_stock: {
     Args: {
-      p_organization_id: string;
-      p_product_id: string;
+      p_organization_id: string | null;
+      p_product_id: string | null;
     };
     Returns: undefined;
   };
   managed_employee_ids: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: string[];
   };
   mark_ai_memory_items_used: {
     Args: {
-      p_memory_ids: string[];
-      p_used_at: string;
-      p_why_used: string;
+      p_memory_ids: string[] | null;
+      p_used_at: string | null;
+      p_why_used: string | null;
     };
     Returns: number;
   };
   mark_organization_used_for_current_user: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: undefined;
   };
   move_file_node: {
     Args: {
-      p_node_id: string;
-      p_parent_id: string;
+      p_node_id: string | null;
+      p_parent_id: string | null;
     };
     Returns: Models["fileNodes"]['Row'];
   };
   next_organization_number: {
     Args: {
-      p_entity: string;
-      p_organization_id: string;
-      p_period?: string;
+      p_entity: string | null;
+      p_organization_id: string | null;
+      p_period?: string | null;
     };
     Returns: number;
   };
   normalize_username_component: {
     Args: {
-      p_value: string;
+      p_value: string | null;
     };
     Returns: string;
   };
   order_digital_overview: {
     Args: {
-      p_order_id: string;
-      p_organization_id: string;
+      p_order_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   order_line_progress: {
     Args: {
-      p_order_id: string;
-      p_organization_id: string;
+      p_order_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: { "allocated": number; "backordered": number; "fulfilled": number; "invoiced": number; "orderLineId": string; "returned": number }[];
   };
   org_permission_holder_user_ids: {
     Args: {
-      p_organization_id: string;
-      p_permission: string;
+      p_organization_id: string | null;
+      p_permission: string | null;
     };
     Returns: string[];
   };
   patch_ai_message_outbox_metadata: {
     Args: {
-      p_active_stream_id: string;
-      p_actor_user_id: string;
-      p_expected_state: string;
-      p_message_id: string;
-      p_organization_id: string;
-      p_run_id: string;
-      p_state: string;
-      p_thread_id: string;
-      p_workflow_run_id: string;
+      p_active_stream_id: string | null;
+      p_actor_user_id: string | null;
+      p_expected_state: string | null;
+      p_message_id: string | null;
+      p_organization_id: string | null;
+      p_run_id: string | null;
+      p_state: string | null;
+      p_thread_id: string | null;
+      p_workflow_run_id: string | null;
     };
     Returns: boolean;
   };
   process_open_sick_leave: {
     Args: {
-      p_on?: string;
+      p_on?: string | null;
     };
     Returns: { "caseId": string; "employeeId": string; "needsFollowUp": boolean; "organizationId": string; "reportedOn": string }[];
   };
   product_default_variant_id: {
     Args: {
-      p_product_id: string;
+      p_product_id: string | null;
     };
     Returns: string;
   };
   promotion_document_basis: {
     Args: {
-      p_subject_id: string;
-      p_subject_type: "quote" | "order" | "invoice";
+      p_subject_id: string | null;
+      p_subject_type: "quote" | "order" | "invoice" | null;
     };
     Returns: Record<string, unknown>;
   };
   promotion_is_inherited: {
     Args: {
-      p_promotion_id: string;
-      p_row: Json;
-      p_table: string;
+      p_promotion_id: string | null;
+      p_row: Json | null;
+      p_table: string | null;
     };
     Returns: boolean;
   };
   promotion_redemption_amount: {
     Args: {
-      p_promotion_id: string;
-      p_subject_id: string;
-      p_subject_type: "quote" | "order" | "invoice";
+      p_promotion_id: string | null;
+      p_subject_id: string | null;
+      p_subject_type: "quote" | "order" | "invoice" | null;
     };
     Returns: number;
   };
   promotion_rejection: {
     Args: {
-      p_check_limits?: boolean;
-      p_customer_id: number;
-      p_promotion_id: string;
-      p_quantity?: number;
-      p_subject_id?: string;
-      p_subject_type: "quote" | "order" | "invoice";
-      p_subtotal?: number;
+      p_check_limits?: boolean | null;
+      p_customer_id: number | null;
+      p_promotion_id: string | null;
+      p_quantity?: number | null;
+      p_subject_id?: string | null;
+      p_subject_type: "quote" | "order" | "invoice" | null;
+      p_subtotal?: number | null;
     };
     Returns: string;
   };
   publish_quote_version: {
     Args: {
-      p_actor_user_id?: string;
-      p_quote_id: string;
+      p_actor_user_id?: string | null;
+      p_quote_id: string | null;
     };
     Returns: number;
   };
   publish_workflow_definition: {
     Args: {
-      p_definition_id: string;
+      p_definition_id: string | null;
     };
     Returns: Models["workflowDefinitions"]['Row'];
   };
   purge_expired_audit_logs: {
     Args: {
-      p_batch_size?: number;
-      p_now?: string;
+      p_batch_size?: number | null;
+      p_now?: string | null;
     };
     Returns: number;
   };
@@ -18801,760 +18801,760 @@ export type Functions = {
   };
   reassign_personal_file_drive: {
     Args: {
-      p_drive_id: string;
-      p_new_owner_user_id: string;
+      p_drive_id: string | null;
+      p_new_owner_user_id: string | null;
     };
     Returns: Models["fileDrives"]['Row'];
   };
   receive_inbound_shipment: {
     Args: {
-      p_location_id?: string;
-      p_organization_id: string;
-      p_shipment_id: string;
+      p_location_id?: string | null;
+      p_organization_id: string | null;
+      p_shipment_id: string | null;
     };
     Returns: Json;
   };
   receive_purchase_order: {
     Args: {
-      p_allow_over_receipt?: boolean;
-      p_lines: Json;
-      p_location_id?: string;
-      p_organization_id: string;
-      p_purchase_order_id: string;
-      p_shipment_id?: string;
+      p_allow_over_receipt?: boolean | null;
+      p_lines: Json | null;
+      p_location_id?: string | null;
+      p_organization_id: string | null;
+      p_purchase_order_id: string | null;
+      p_shipment_id?: string | null;
     };
     Returns: Json;
   };
   receive_return_shipment: {
     Args: {
-      p_location_id?: string;
-      p_organization_id: string;
-      p_shipment_id: string;
+      p_location_id?: string | null;
+      p_organization_id: string | null;
+      p_shipment_id: string | null;
     };
     Returns: Json;
   };
   recompute_invoice_amounts: {
     Args: {
-      p_invoice_id: string;
+      p_invoice_id: string | null;
     };
     Returns: undefined;
   };
   recompute_invoice_totals: {
     Args: {
-      p_invoice_id: string;
+      p_invoice_id: string | null;
     };
     Returns: undefined;
   };
   recompute_order_totals: {
     Args: {
-      p_order_id: string;
+      p_order_id: string | null;
     };
     Returns: undefined;
   };
   recompute_purchase_order_totals: {
     Args: {
-      p_purchase_order_id: string;
+      p_purchase_order_id: string | null;
     };
     Returns: undefined;
   };
   recompute_quote_totals: {
     Args: {
-      p_quote_id: string;
-      p_selected_optional_line_ids?: Json;
+      p_quote_id: string | null;
+      p_selected_optional_line_ids?: Json | null;
     };
     Returns: undefined;
   };
   reconcile_owner_allocations: {
     Args: {
-      p_created_by: string;
-      p_invoice_id: string;
-      p_invoice_line_id: string;
-      p_organization_id: string;
-      p_product_id: string;
-      p_quote_id: string;
-      p_quote_version_line_id: string;
-      p_reason: string;
-      p_target_quantity: number;
-      p_task_material_id: string;
+      p_created_by: string | null;
+      p_invoice_id: string | null;
+      p_invoice_line_id: string | null;
+      p_organization_id: string | null;
+      p_product_id: string | null;
+      p_quote_id: string | null;
+      p_quote_version_line_id: string | null;
+      p_reason: string | null;
+      p_target_quantity: number | null;
+      p_task_material_id: string | null;
     };
     Returns: number;
   };
   reconcile_quote_version_stock: {
     Args: {
-      p_actor_user_id: string;
-      p_quote_id: string;
-      p_version_id: string;
+      p_actor_user_id: string | null;
+      p_quote_id: string | null;
+      p_version_id: string | null;
     };
     Returns: undefined;
   };
   record_ai_turn_usage: {
     Args: {
-      p_at?: string;
-      p_duration_ms: number;
-      p_function_id: string;
-      p_idempotency_key: string;
-      p_input_tokens: number;
-      p_metadata: Json;
-      p_model: string;
-      p_name: string;
-      p_organization_id: string;
-      p_output_tokens: number;
-      p_provider: string;
-      p_request_id: string;
-      p_source_id: string;
-      p_status: string;
-      p_thread_id: string;
-      p_user_id: string;
-      p_workflow_run_id: string;
+      p_at?: string | null;
+      p_duration_ms: number | null;
+      p_function_id: string | null;
+      p_idempotency_key: string | null;
+      p_input_tokens: number | null;
+      p_metadata: Json | null;
+      p_model: string | null;
+      p_name: string | null;
+      p_organization_id: string | null;
+      p_output_tokens: number | null;
+      p_provider: string | null;
+      p_request_id: string | null;
+      p_source_id: string | null;
+      p_status: string | null;
+      p_thread_id: string | null;
+      p_user_id: string | null;
+      p_workflow_run_id: string | null;
     };
     Returns: Json;
   };
   record_audit_log_event: {
     Args: {
-      p_actor_display_name: string;
-      p_actor_id: string;
-      p_actor_is_platform_admin: boolean;
-      p_actor_kind: string;
-      p_category: string;
-      p_correlation_id?: string;
-      p_event_type: string;
-      p_idempotency_key?: string;
-      p_ip_address?: unknown;
-      p_organization_id: string;
-      p_outcome: string;
-      p_request_id?: string;
-      p_restricted_metadata?: Json;
-      p_safe_metadata?: Json;
-      p_scope: string;
-      p_session_id?: string;
-      p_source: string;
-      p_summary?: string;
-      p_target_display_name?: string;
-      p_target_id?: string;
-      p_target_type?: string;
-      p_user_agent?: string;
+      p_actor_display_name: string | null;
+      p_actor_id: string | null;
+      p_actor_is_platform_admin: boolean | null;
+      p_actor_kind: string | null;
+      p_category: string | null;
+      p_correlation_id?: string | null;
+      p_event_type: string | null;
+      p_idempotency_key?: string | null;
+      p_ip_address?: unknown | null;
+      p_organization_id: string | null;
+      p_outcome: string | null;
+      p_request_id?: string | null;
+      p_restricted_metadata?: Json | null;
+      p_safe_metadata?: Json | null;
+      p_scope: string | null;
+      p_session_id?: string | null;
+      p_source: string | null;
+      p_summary?: string | null;
+      p_target_display_name?: string | null;
+      p_target_id?: string | null;
+      p_target_type?: string | null;
+      p_user_agent?: string | null;
     };
     Returns: string;
   };
   record_document_view: {
     Args: {
-      p_org_slug: string;
-      p_subject_id: string;
-      p_subject_type: "quote" | "invoice" | "order";
+      p_org_slug: string | null;
+      p_subject_id: string | null;
+      p_subject_type: "quote" | "invoice" | "order" | null;
     };
     Returns: number;
   };
   record_usage_events_bulk: {
     Args: {
-      p_at?: string;
-      p_events: Json;
-      p_organization_id: string;
+      p_at?: string | null;
+      p_events: Json | null;
+      p_organization_id: string | null;
     };
     Returns: Json;
   };
   refresh_ai_chat_suggestion_snapshot: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: boolean;
   };
   refresh_customer_sort_name: {
     Args: {
-      p_customer_id: number;
+      p_customer_id: number | null;
     };
     Returns: undefined;
   };
   refresh_integration_definition_usage_count: {
     Args: {
-      target_definition_id: string;
+      target_definition_id: string | null;
     };
     Returns: undefined;
   };
   refresh_order_status: {
     Args: {
-      p_order_id: string;
-      p_organization_id: string;
+      p_order_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: "draft" | "confirmed" | "on_hold" | "completed" | "cancelled";
   };
   refresh_purchase_order_status: {
     Args: {
-      p_purchase_order_id: string;
+      p_purchase_order_id: string | null;
     };
     Returns: "draft" | "sent" | "partially_received" | "received" | "closed" | "cancelled";
   };
   regexp_match: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: string[];
   };
   regexp_matches: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: (string[])[];
   };
   regexp_replace: {
     Args: {
-      arg1: string;
-      arg2: string;
-      arg3: string;
+      arg1: string | null;
+      arg2: string | null;
+      arg3: string | null;
     };
     Returns: string;
   };
   regexp_split_to_array: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: string[];
   };
   regexp_split_to_table: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: string[];
   };
   reject_quote_for_portal: {
     Args: {
-      p_ip?: string;
-      p_org_slug: string;
-      p_payload: Json;
-      p_quote_id: string;
-      p_user_agent?: string;
+      p_ip?: string | null;
+      p_org_slug: string | null;
+      p_payload: Json | null;
+      p_quote_id: string | null;
+      p_user_agent?: string | null;
     };
     Returns: string;
   };
   release_ai_message_dispatch: {
     Args: {
-      p_dispatch_id: string;
-      p_message_id: string;
-      p_organization_id: string;
-      p_thread_id: string;
+      p_dispatch_id: string | null;
+      p_message_id: string | null;
+      p_organization_id: string | null;
+      p_thread_id: string | null;
     };
     Returns: boolean;
   };
   release_allocations: {
     Args: {
-      p_created_by: string;
-      p_invoice_line_id: string;
-      p_organization_id: string;
-      p_quantity: number;
-      p_quote_version_line_id: string;
-      p_reason: string;
-      p_task_material_id: string;
+      p_created_by: string | null;
+      p_invoice_line_id: string | null;
+      p_organization_id: string | null;
+      p_quantity: number | null;
+      p_quote_version_line_id: string | null;
+      p_reason: string | null;
+      p_task_material_id: string | null;
     };
     Returns: number;
   };
   release_order_line_allocations: {
     Args: {
-      p_order_line_id: string;
-      p_organization_id: string;
-      p_quantity: number;
-      p_reason: string;
+      p_order_line_id: string | null;
+      p_organization_id: string | null;
+      p_quantity: number | null;
+      p_reason: string | null;
     };
     Returns: number;
   };
   release_promotion_redemptions: {
     Args: {
-      p_subject_id: string;
-      p_subject_type: "quote" | "order" | "invoice";
+      p_subject_id: string | null;
+      p_subject_type: "quote" | "order" | "invoice" | null;
     };
     Returns: undefined;
   };
   release_quote_allocations: {
     Args: {
-      p_organization_id: string;
-      p_quote_id: string;
+      p_organization_id: string | null;
+      p_quote_id: string | null;
     };
     Returns: undefined;
   };
   remember_private_ai_memory: {
     Args: {
-      p_confidence: number;
-      p_content: string;
-      p_embedding?: unknown;
-      p_expires_at: string;
-      p_kind: string;
-      p_metadata?: Json;
-      p_now?: string;
-      p_organization_id: string;
-      p_scope: string;
-      p_source: string;
-      p_subject_id: string;
-      p_subject_type: string;
-      p_thread_id: string;
-      p_user_id: string;
+      p_confidence: number | null;
+      p_content: string | null;
+      p_embedding?: unknown | null;
+      p_expires_at: string | null;
+      p_kind: string | null;
+      p_metadata?: Json | null;
+      p_now?: string | null;
+      p_organization_id: string | null;
+      p_scope: string | null;
+      p_source: string | null;
+      p_subject_id: string | null;
+      p_subject_type: string | null;
+      p_thread_id: string | null;
+      p_user_id: string | null;
     };
     Returns: Models["aiMemoryItems"]['Row'];
   };
   replace: {
     Args: {
-      arg1: string;
-      arg2: string;
-      arg3: string;
+      arg1: string | null;
+      arg2: string | null;
+      arg3: string | null;
     };
     Returns: string;
   };
   replace_agenda_collection_grants: {
     Args: {
-      p_calendar_id: string;
-      p_created_by?: string;
-      p_grants: Json;
-      p_organization_id: string;
+      p_calendar_id: string | null;
+      p_created_by?: string | null;
+      p_grants: Json | null;
+      p_organization_id: string | null;
     };
     Returns: (Models["agendaCollectionGrants"]['Row'])[];
   };
   replace_agenda_collection_notification_settings: {
     Args: {
-      p_calendar_id: string;
-      p_organization_id: string;
-      p_preferences: Json;
-      p_reminders: Json;
+      p_calendar_id: string | null;
+      p_organization_id: string | null;
+      p_preferences: Json | null;
+      p_reminders: Json | null;
     };
     Returns: undefined;
   };
   replace_agenda_item_children: {
     Args: {
-      p_agenda_item_id: string;
-      p_metadata: Json;
-      p_organization_id: string;
-      p_user_ids: string[];
+      p_agenda_item_id: string | null;
+      p_metadata: Json | null;
+      p_organization_id: string | null;
+      p_user_ids: string[] | null;
     };
     Returns: undefined;
   };
   replace_customer_assignees: {
     Args: {
-      p_customer_id: number;
-      p_organization_id: string;
-      p_user_ids: string[];
+      p_customer_id: number | null;
+      p_organization_id: string | null;
+      p_user_ids: string[] | null;
     };
     Returns: undefined;
   };
   replace_invoice_aggregate_children: {
     Args: {
-      p_invoice_id: string;
-      p_lines: Json;
-      p_organization_id: string;
-      p_replace_lines: boolean;
-      p_replace_tasks: boolean;
-      p_task_ids: string[];
+      p_invoice_id: string | null;
+      p_lines: Json | null;
+      p_organization_id: string | null;
+      p_replace_lines: boolean | null;
+      p_replace_tasks: boolean | null;
+      p_task_ids: string[] | null;
     };
     Returns: undefined;
   };
   replace_organization_ai_policy: {
     Args: {
-      p_action_policies: Json;
-      p_organization_id: string;
-      p_policy: Json;
+      p_action_policies: Json | null;
+      p_organization_id: string | null;
+      p_policy: Json | null;
     };
     Returns: boolean;
   };
   replace_organization_vat_rates: {
     Args: {
-      p_organization_id: string;
-      p_rates: Json;
+      p_organization_id: string | null;
+      p_rates: Json | null;
     };
     Returns: undefined;
   };
   replace_role_permissions: {
     Args: {
-      p_permission_ids: string[];
-      p_role_id: string;
+      p_permission_ids: string[] | null;
+      p_role_id: string | null;
     };
     Returns: undefined;
   };
   replace_task_assignees: {
     Args: {
-      p_organization_id: string;
-      p_task_id: string;
-      p_user_ids: string[];
+      p_organization_id: string | null;
+      p_task_id: string | null;
+      p_user_ids: string[] | null;
     };
     Returns: undefined;
   };
   replace_workflow_grants: {
     Args: {
-      p_created_by?: string;
-      p_definition_id: string;
-      p_organization_id: string;
-      p_team_ids: number[];
-      p_user_ids: string[];
+      p_created_by?: string | null;
+      p_definition_id: string | null;
+      p_organization_id: string | null;
+      p_team_ids: number[] | null;
+      p_user_ids: string[] | null;
     };
     Returns: (Models["workflowGrants"]['Row'])[];
   };
   request_quote_changes_for_portal: {
     Args: {
-      p_ip?: string;
-      p_org_slug: string;
-      p_payload: Json;
-      p_quote_id: string;
-      p_user_agent?: string;
+      p_ip?: string | null;
+      p_org_slug: string | null;
+      p_payload: Json | null;
+      p_quote_id: string | null;
+      p_user_agent?: string | null;
     };
     Returns: string;
   };
   reserve_file_upload: {
     Args: {
-      p_drive_id: string;
-      p_expected_bytes: number;
-      p_expires_at: string;
-      p_file_name: string;
-      p_idempotency_key: string;
-      p_media_type: string;
-      p_node_id: string;
-      p_organization_id: string;
-      p_parent_id: string;
-      p_storage_bucket: string;
-      p_storage_path: string;
+      p_drive_id: string | null;
+      p_expected_bytes: number | null;
+      p_expires_at: string | null;
+      p_file_name: string | null;
+      p_idempotency_key: string | null;
+      p_media_type: string | null;
+      p_node_id: string | null;
+      p_organization_id: string | null;
+      p_parent_id: string | null;
+      p_storage_bucket: string | null;
+      p_storage_path: string | null;
     };
     Returns: Models["fileUploadReservations"]['Row'];
   };
   resolve_actor_scope_permissions: {
     Args: {
-      p_actor_user_id: string;
-      p_permissions: string[];
-      p_scope: "system" | "organization" | "user" | "team";
-      p_scope_id: string;
+      p_actor_user_id: string | null;
+      p_permissions: string[] | null;
+      p_scope: "system" | "organization" | "user" | "team" | null;
+      p_scope_id: string | null;
     };
     Returns: string[];
   };
   resolve_lifecycle_definition: {
     Args: {
-      p_organization_id: string;
-      p_subject_type: string;
-      p_template_id?: string;
+      p_organization_id: string | null;
+      p_subject_type: string | null;
+      p_template_id?: string | null;
     };
     Returns: Models["workflowDefinitions"]['Row'];
   };
   resolve_notification_recipients: {
     Args: {
-      p_organization_id: string;
-      p_subject_id: string;
-      p_subject_type: string;
-      p_type: string;
+      p_organization_id: string | null;
+      p_subject_id: string | null;
+      p_subject_type: string | null;
+      p_type: string | null;
     };
     Returns: number;
   };
   restore_allocations: {
     Args: {
-      p_created_by: string;
-      p_invoice_id: string;
-      p_invoice_line_id: string;
-      p_organization_id: string;
-      p_quote_id: string;
-      p_quote_version_line_id: string;
-      p_reason: string;
-      p_task_material_id: string;
+      p_created_by: string | null;
+      p_invoice_id: string | null;
+      p_invoice_line_id: string | null;
+      p_organization_id: string | null;
+      p_quote_id: string | null;
+      p_quote_version_line_id: string | null;
+      p_reason: string | null;
+      p_task_material_id: string | null;
     };
     Returns: number;
   };
   restore_file_node: {
     Args: {
-      p_node_id: string;
+      p_node_id: string | null;
     };
     Returns: number;
   };
   restore_file_version: {
     Args: {
-      p_node_id: string;
-      p_version_id: string;
+      p_node_id: string | null;
+      p_version_id: string | null;
     };
     Returns: Models["fileVersions"]['Row'];
   };
   return_consumed_allocations: {
     Args: {
-      p_created_by: string;
-      p_invoice_id: string;
-      p_invoice_line_id: string;
-      p_organization_id: string;
-      p_quantity: number;
-      p_reason: string;
+      p_created_by: string | null;
+      p_invoice_id: string | null;
+      p_invoice_line_id: string | null;
+      p_organization_id: string | null;
+      p_quantity: number | null;
+      p_reason: string | null;
     };
     Returns: number;
   };
   return_invoice_stock: {
     Args: {
-      p_credit_note_id?: string;
-      p_invoice_id: string;
-      p_organization_id: string;
+      p_credit_note_id?: string | null;
+      p_invoice_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: number;
   };
   safe_uuid: {
     Args: {
-      p_value: string;
+      p_value: string | null;
     };
     Returns: string;
   };
   search_knowledge_chunks: {
     Args: {
-      p_collection_ids?: string[];
-      p_include_system?: boolean;
-      p_limit?: number;
-      p_organization_id?: string;
-      p_query: string;
-      p_query_embedding?: unknown;
+      p_collection_ids?: string[] | null;
+      p_include_system?: boolean | null;
+      p_limit?: number | null;
+      p_organization_id?: string | null;
+      p_query: string | null;
+      p_query_embedding?: unknown | null;
     };
     Returns: { "chunkId": string; "chunkPosition": number; "collectionId": string; "content": string; "fileId": string; "organizationId": string; "score": number }[];
   };
   search_private_ai_memory: {
     Args: {
-      p_limit?: number;
-      p_now?: string;
-      p_organization_id: string;
-      p_query: string;
-      p_query_embedding?: unknown;
-      p_scopes: string[];
-      p_thread_id: string;
-      p_user_id: string;
+      p_limit?: number | null;
+      p_now?: string | null;
+      p_organization_id: string | null;
+      p_query: string | null;
+      p_query_embedding?: unknown | null;
+      p_scopes: string[] | null;
+      p_thread_id: string | null;
+      p_user_id: string | null;
     };
     Returns: { "confidence": number; "content": string; "contentHash": string; "createdAt": string; "createdBy": string; "deletedAt": string; "expiresAt": string; "id": string; "kind": string; "lastUsedAt": string; "metadata": Json; "organizationId": string; "scope": string; "score": number; "source": string; "subjectId": string; "subjectType": string; "threadId": string; "updatedAt": string; "useCount": number; "userId": string; "visibility": string }[];
   };
   seed_organization_document_templates: {
     Args: {
-      p_created_by?: string;
-      p_organization_id: string;
+      p_created_by?: string | null;
+      p_organization_id: string | null;
     };
     Returns: undefined;
   };
   seed_organization_task_hold_reasons: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: undefined;
   };
   seed_organization_vat_rates: {
     Args: {
-      p_organization_id: string;
+      p_organization_id: string | null;
     };
     Returns: undefined;
   };
   seed_public_holidays: {
     Args: {
-      p_organization_id: string;
-      p_year: number;
+      p_organization_id: string | null;
+      p_year: number | null;
     };
     Returns: number;
   };
   set_default_system_lifecycle: {
     Args: {
-      p_definition_id: string;
+      p_definition_id: string | null;
     };
     Returns: Models["workflowDefinitions"]['Row'];
   };
   set_expenses_billable: {
     Args: {
-      p_billable: boolean;
-      p_expense_ids: string[];
-      p_organization_id: string;
+      p_billable: boolean | null;
+      p_expense_ids: string[] | null;
+      p_organization_id: string | null;
     };
     Returns: number;
   };
   set_product_options: {
     Args: {
-      p_options: Json;
-      p_product_id: string;
+      p_options: Json | null;
+      p_product_id: string | null;
     };
     Returns: undefined;
   };
   set_task_billing_items_billable: {
     Args: {
-      p_billable: boolean;
-      p_organization_id: string;
-      p_task_ids: string[];
+      p_billable: boolean | null;
+      p_organization_id: string | null;
+      p_task_ids: string[] | null;
     };
     Returns: undefined;
   };
   set_task_material_billable: {
     Args: {
-      p_billable: boolean;
-      p_material_id: string;
-      p_organization_id: string;
-      p_task_id: string;
+      p_billable: boolean | null;
+      p_material_id: string | null;
+      p_organization_id: string | null;
+      p_task_id: string | null;
     };
     Returns: string;
   };
   set_task_status_with_materials: {
     Args: {
-      p_organization_id: string;
-      p_position?: number;
-      p_status: "todo" | "in_progress" | "on_hold" | "done";
-      p_task_id: string;
+      p_organization_id: string | null;
+      p_position?: number | null;
+      p_status: "todo" | "in_progress" | "on_hold" | "done" | null;
+      p_task_id: string | null;
     };
     Returns: undefined;
   };
   set_task_time_entry_billable: {
     Args: {
-      p_billable: boolean;
-      p_entry_id: string;
-      p_organization_id: string;
+      p_billable: boolean | null;
+      p_entry_id: string | null;
+      p_organization_id: string | null;
     };
     Returns: string;
   };
   ship_shipment: {
     Args: {
-      p_organization_id: string;
-      p_shipment_id: string;
-      p_status?: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled";
+      p_organization_id: string | null;
+      p_shipment_id: string | null;
+      p_status?: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled" | null;
     };
     Returns: Json;
   };
   sparsevec: {
     Args: {
-      arg1: boolean;
-      arg2: number;
-      arg3: unknown;
+      arg1: boolean | null;
+      arg2: number | null;
+      arg3: unknown | null;
     };
     Returns: unknown;
   };
   sparsevec_cmp: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   sparsevec_eq: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   sparsevec_ge: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   sparsevec_gt: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   sparsevec_in: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
-      arg3: number;
+      arg1: unknown | null;
+      arg2: unknown | null;
+      arg3: number | null;
     };
     Returns: unknown;
   };
   sparsevec_l2_squared_distance: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   sparsevec_le: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   sparsevec_lt: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   sparsevec_ne: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: boolean;
   };
   sparsevec_negative_inner_product: {
     Args: {
-      arg1: unknown;
-      arg2: unknown;
+      arg1: unknown | null;
+      arg2: unknown | null;
     };
     Returns: number;
   };
   sparsevec_out: {
     Args: {
-      arg1: unknown;
+      arg1: unknown | null;
     };
     Returns: unknown;
   };
   sparsevec_send: {
     Args: {
-      arg1: unknown;
+      arg1: unknown | null;
     };
     Returns: string;
   };
   sparsevec_to_halfvec: {
     Args: {
-      arg1: unknown;
-      arg2: boolean;
-      arg3: number;
+      arg1: unknown | null;
+      arg2: boolean | null;
+      arg3: number | null;
     };
     Returns: unknown;
   };
   sparsevec_to_vector: {
     Args: {
-      arg1: unknown;
-      arg2: boolean;
-      arg3: number;
+      arg1: unknown | null;
+      arg2: boolean | null;
+      arg3: number | null;
     };
     Returns: string;
   };
   sparsevec_typmod_in: {
     Args: {
-      arg1: unknown[];
+      arg1: unknown[] | null;
     };
     Returns: number;
   };
   split_part: {
     Args: {
-      arg1: string;
-      arg2: string;
-      arg3: number;
+      arg1: string | null;
+      arg2: string | null;
+      arg3: number | null;
     };
     Returns: string;
   };
   start_ai_agent_tool: {
     Args: {
-      p_active_stream_id: string;
-      p_actor_user_id: string;
-      p_input: Json;
-      p_metadata: Json;
-      p_model: string;
-      p_organization_id: string;
-      p_request_id: string;
-      p_run_id: string;
-      p_sequence: number;
-      p_step_id: string;
-      p_thread_id: string;
-      p_title: string;
-      p_tool_call_id: string;
-      p_tool_name: string;
-      p_workflow_run_id: string;
+      p_active_stream_id: string | null;
+      p_actor_user_id: string | null;
+      p_input: Json | null;
+      p_metadata: Json | null;
+      p_model: string | null;
+      p_organization_id: string | null;
+      p_request_id: string | null;
+      p_run_id: string | null;
+      p_sequence: number | null;
+      p_step_id: string | null;
+      p_thread_id: string | null;
+      p_title: string | null;
+      p_tool_call_id: string | null;
+      p_tool_name: string | null;
+      p_workflow_run_id: string | null;
     };
     Returns: string;
   };
   strpos: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: number;
   };
   subvector: {
     Args: {
-      arg1: unknown;
-      arg2: number;
-      arg3: number;
+      arg1: unknown | null;
+      arg2: number | null;
+      arg3: number | null;
     };
     Returns: unknown;
   };
@@ -19564,430 +19564,430 @@ export type Functions = {
   };
   sync_employee_for_member: {
     Args: {
-      p_organization_id: string;
-      p_user_id: string;
+      p_organization_id: string | null;
+      p_user_id: string | null;
     };
     Returns: string;
   };
   sync_order_line_backorder: {
     Args: {
-      p_order_line_id: string;
-      p_organization_id: string;
-      p_shortfall: number;
+      p_order_line_id: string | null;
+      p_organization_id: string | null;
+      p_shortfall: number | null;
     };
     Returns: boolean;
   };
   sync_promotion_redemptions: {
     Args: {
-      p_subject_id: string;
-      p_subject_type: "quote" | "order" | "invoice";
+      p_subject_id: string | null;
+      p_subject_type: "quote" | "order" | "invoice" | null;
     };
     Returns: undefined;
   };
   sync_task_material_backorder: {
     Args: {
-      p_organization_id: string;
-      p_shortfall: number;
-      p_task_material_id: string;
+      p_organization_id: string | null;
+      p_shortfall: number | null;
+      p_task_material_id: string | null;
     };
     Returns: undefined;
   };
   texticlike: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   texticnlike: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   texticregexeq: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   texticregexne: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   time_off_balance: {
     Args: {
-      p_employee_id: string;
-      p_on?: string;
-      p_time_off_type_id: string;
+      p_employee_id: string | null;
+      p_on?: string | null;
+      p_time_off_type_id: string | null;
     };
     Returns: number;
   };
   time_off_requires_approval: {
     Args: {
-      p_time_off_type_id: string;
+      p_time_off_type_id: string | null;
     };
     Returns: boolean;
   };
   transfer_allocations: {
     Args: {
-      p_created_by: string;
-      p_from_invoice_line_id: string;
-      p_from_quote_version_line_id: string;
-      p_from_task_material_id: string;
-      p_organization_id: string;
-      p_product_id: string;
-      p_quantity: number;
-      p_reason: string;
-      p_to_invoice_line_id: string;
-      p_to_quote_version_line_id: string;
-      p_to_task_material_id: string;
+      p_created_by: string | null;
+      p_from_invoice_line_id: string | null;
+      p_from_quote_version_line_id: string | null;
+      p_from_task_material_id: string | null;
+      p_organization_id: string | null;
+      p_product_id: string | null;
+      p_quantity: number | null;
+      p_reason: string | null;
+      p_to_invoice_line_id: string | null;
+      p_to_quote_version_line_id: string | null;
+      p_to_task_material_id: string | null;
     };
     Returns: number;
   };
   transfer_promotion_redemptions: {
     Args: {
-      p_from_id: string;
-      p_from_type: "quote" | "order" | "invoice";
-      p_to_id: string;
-      p_to_type: "quote" | "order" | "invoice";
+      p_from_id: string | null;
+      p_from_type: "quote" | "order" | "invoice" | null;
+      p_to_id: string | null;
+      p_to_type: "quote" | "order" | "invoice" | null;
     };
     Returns: undefined;
   };
   transfer_quote_allocations_to_invoice: {
     Args: {
-      p_invoice_id: string;
-      p_organization_id: string;
-      p_quote_id: string;
+      p_invoice_id: string | null;
+      p_organization_id: string | null;
+      p_quote_id: string | null;
     };
     Returns: undefined;
   };
   transfer_quote_allocations_to_order: {
     Args: {
-      p_order_id: string;
-      p_organization_id: string;
-      p_quote_id: string;
+      p_order_id: string | null;
+      p_organization_id: string | null;
+      p_quote_id: string | null;
     };
     Returns: number;
   };
   translate: {
     Args: {
-      arg1: string;
-      arg2: string;
-      arg3: string;
+      arg1: string | null;
+      arg2: string | null;
+      arg3: string | null;
     };
     Returns: string;
   };
   trash_customer_file_folder: {
     Args: {
-      p_customer_id: number;
+      p_customer_id: number | null;
     };
     Returns: string;
   };
   trash_file_node: {
     Args: {
-      p_node_id: string;
+      p_node_id: string | null;
     };
     Returns: string;
   };
   unassign_task_agenda_projection: {
     Args: {
-      p_organization_id: string;
-      p_task_id: string;
+      p_organization_id: string | null;
+      p_task_id: string | null;
     };
     Returns: string;
   };
   update_agenda_item_aggregate: {
     Args: {
-      p_agenda_item_id: string;
-      p_item: Json;
-      p_metadata: Json;
-      p_organization_id: string;
-      p_user_ids: string[];
+      p_agenda_item_id: string | null;
+      p_item: Json | null;
+      p_metadata: Json | null;
+      p_organization_id: string | null;
+      p_user_ids: string[] | null;
     };
     Returns: string;
   };
   update_invoice_aggregate: {
     Args: {
-      p_header: Json;
-      p_invoice_id: string;
-      p_lines: Json;
-      p_organization_id: string;
-      p_replace_lines: boolean;
-      p_replace_tasks: boolean;
-      p_task_ids: string[];
+      p_header: Json | null;
+      p_invoice_id: string | null;
+      p_lines: Json | null;
+      p_organization_id: string | null;
+      p_replace_lines: boolean | null;
+      p_replace_tasks: boolean | null;
+      p_task_ids: string[] | null;
     };
     Returns: string;
   };
   update_shipment_status: {
     Args: {
-      p_occurred_at?: string;
-      p_organization_id: string;
-      p_shipment_id: string;
-      p_status: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled";
+      p_occurred_at?: string | null;
+      p_organization_id: string | null;
+      p_shipment_id: string | null;
+      p_status: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled" | null;
     };
     Returns: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled";
   };
   upsert_external_agenda_item_aggregate: {
     Args: {
-      p_etag: string;
-      p_external_calendar_id: string;
-      p_external_event_id: string;
-      p_item: Json;
-      p_metadata: Json;
-      p_organization_id: string;
-      p_status: string;
-      p_user_ids: string[];
+      p_etag: string | null;
+      p_external_calendar_id: string | null;
+      p_external_event_id: string | null;
+      p_item: Json | null;
+      p_metadata: Json | null;
+      p_organization_id: string | null;
+      p_status: string | null;
+      p_user_ids: string[] | null;
     };
     Returns: string;
   };
   upsert_reserved_allocation: {
     Args: {
-      p_invoice_line_id: string;
-      p_order_line_id?: string;
-      p_organization_id: string;
-      p_product_id: string;
-      p_quantity: number;
-      p_quote_version_line_id: string;
-      p_stock_record_id: string;
-      p_task_material_id: string;
+      p_invoice_line_id: string | null;
+      p_order_line_id?: string | null;
+      p_organization_id: string | null;
+      p_product_id: string | null;
+      p_quantity: number | null;
+      p_quote_version_line_id: string | null;
+      p_stock_record_id: string | null;
+      p_task_material_id: string | null;
     };
     Returns: undefined;
   };
   upsert_task_material: {
     Args: {
-      p_material: Json;
-      p_organization_id: string;
-      p_task_id: string;
+      p_material: Json | null;
+      p_organization_id: string | null;
+      p_task_id: string | null;
     };
     Returns: string;
   };
   vector: {
     Args: {
-      arg1: string;
-      arg2: number;
-      arg3: boolean;
+      arg1: string | null;
+      arg2: number | null;
+      arg3: boolean | null;
     };
     Returns: string;
   };
   vector_accum: {
     Args: {
-      arg1: number[];
-      arg2: string;
+      arg1: number[] | null;
+      arg2: string | null;
     };
     Returns: number[];
   };
   vector_add: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: string;
   };
   vector_avg: {
     Args: {
-      arg1: number[];
+      arg1: number[] | null;
     };
     Returns: string;
   };
   vector_cmp: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: number;
   };
   vector_combine: {
     Args: {
-      arg1: number[];
-      arg2: number[];
+      arg1: number[] | null;
+      arg2: number[] | null;
     };
     Returns: number[];
   };
   vector_concat: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: string;
   };
   vector_dims: {
     Args: {
-      arg1: unknown;
+      arg1: unknown | null;
     };
     Returns: number;
   };
   vector_eq: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   vector_ge: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   vector_gt: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   vector_in: {
     Args: {
-      arg1: unknown;
-      arg2: number;
-      arg3: unknown;
+      arg1: unknown | null;
+      arg2: number | null;
+      arg3: unknown | null;
     };
     Returns: string;
   };
   vector_l2_squared_distance: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: number;
   };
   vector_le: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   vector_lt: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   vector_mul: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: string;
   };
   vector_ne: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: boolean;
   };
   vector_negative_inner_product: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: number;
   };
   vector_norm: {
     Args: {
-      arg1: string;
+      arg1: string | null;
     };
     Returns: number;
   };
   vector_out: {
     Args: {
-      arg1: string;
+      arg1: string | null;
     };
     Returns: unknown;
   };
   vector_send: {
     Args: {
-      arg1: string;
+      arg1: string | null;
     };
     Returns: string;
   };
   vector_spherical_distance: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: number;
   };
   vector_sub: {
     Args: {
-      arg1: string;
-      arg2: string;
+      arg1: string | null;
+      arg2: string | null;
     };
     Returns: string;
   };
   vector_to_float4: {
     Args: {
-      arg1: number;
-      arg2: string;
-      arg3: boolean;
+      arg1: number | null;
+      arg2: string | null;
+      arg3: boolean | null;
     };
     Returns: number[];
   };
   vector_to_halfvec: {
     Args: {
-      arg1: number;
-      arg2: boolean;
-      arg3: string;
+      arg1: number | null;
+      arg2: boolean | null;
+      arg3: string | null;
     };
     Returns: unknown;
   };
   vector_to_sparsevec: {
     Args: {
-      arg1: boolean;
-      arg2: string;
-      arg3: number;
+      arg1: boolean | null;
+      arg2: string | null;
+      arg3: number | null;
     };
     Returns: unknown;
   };
   vector_typmod_in: {
     Args: {
-      arg1: unknown[];
+      arg1: unknown[] | null;
     };
     Returns: number;
   };
   workflow_email_recipient_allowed: {
     Args: {
-      p_email: string;
-      p_organization_id: string;
+      p_email: string | null;
+      p_organization_id: string | null;
     };
     Returns: boolean;
   };
   workflow_grant_targets_valid: {
     Args: {
-      p_definition_id: string;
-      p_organization_id: string;
-      p_team_id: number;
-      p_user_id: string;
+      p_definition_id: string | null;
+      p_organization_id: string | null;
+      p_team_id: number | null;
+      p_user_id: string | null;
     };
     Returns: boolean;
   };
   write_inventory_movement: {
     Args: {
-      p_allocated_after: number;
-      p_allocated_delta: number;
-      p_created_by: string;
-      p_invoice_id: string;
-      p_location_id: string;
-      p_movement_type: "initial_count" | "purchase_receipt" | "sale" | "reservation" | "reservation_release" | "reservation_transfer" | "adjustment" | "transfer_out" | "transfer_in" | "return" | "write_off" | "cycle_count";
-      p_on_hand_delta: number;
-      p_order_id?: string;
-      p_organization_id: string;
-      p_product_id: string;
-      p_quantity_after: number;
-      p_quote_id: string;
-      p_reason: string;
-      p_stock_record_id: string;
-      p_task_material_id: string;
+      p_allocated_after: number | null;
+      p_allocated_delta: number | null;
+      p_created_by: string | null;
+      p_invoice_id: string | null;
+      p_location_id: string | null;
+      p_movement_type: "initial_count" | "purchase_receipt" | "sale" | "reservation" | "reservation_release" | "reservation_transfer" | "adjustment" | "transfer_out" | "transfer_in" | "return" | "write_off" | "cycle_count" | null;
+      p_on_hand_delta: number | null;
+      p_order_id?: string | null;
+      p_organization_id: string | null;
+      p_product_id: string | null;
+      p_quantity_after: number | null;
+      p_quote_id: string | null;
+      p_reason: string | null;
+      p_stock_record_id: string | null;
+      p_task_material_id: string | null;
     };
     Returns: undefined;
   };
