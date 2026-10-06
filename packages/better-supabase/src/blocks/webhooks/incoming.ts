@@ -251,7 +251,9 @@ export function createIncomingWebhooks(
           }
         }
         let messageId =
-          request.headers.get("webhook-id") ?? crypto.randomUUID();
+          request.headers.get("webhook-id") ??
+          request.headers.get("svix-id") ??
+          crypto.randomUUID();
         if (endpoint.verify === "standard-webhooks") {
           const verified = await verifyWebhook(
             { headers: request.headers, body },

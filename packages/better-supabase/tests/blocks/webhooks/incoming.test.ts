@@ -96,6 +96,21 @@ describe("createIncomingWebhooks", () => {
     );
   });
 
+  it("deduplicates unverified deliveries on webhook-id or svix-id", async () => {
+    const fake = fakeSql([
+      ["incoming_webhook_by_token", [endpoint()]],
+      ["receive_webhook", [{ id: 1, duplicate: false }]],
+    ]);
+    const hooks = createIncomingWebhooks(fake.sql);
+    await hooks.receive(post("{}", { "webhook-id": "msg_std" }), "tok");
+    await hooks.receive(post("{}", { "svix-id": "msg_svix" }), "tok");
+    expect(
+      fake.calls
+        .filter((call) => call.text.includes("receive_webhook"))
+        .map((call) => call.values[1]),
+    ).toEqual(["e1:msg_std", "e1:msg_svix"]);
+  });
+
   it("answers a problem when the database fails", async () => {
     const fake = fakeSql([
       ["incoming_webhook_by_token", { throws: pgError("42501", "denied") }],

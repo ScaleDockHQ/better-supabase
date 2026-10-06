@@ -137,8 +137,8 @@ export async function signWebhook(
 
 /**
  * Verifies a Standard Webhooks signature (`webhook-id`, `webhook-timestamp`,
- * `webhook-signature`) and parses the JSON body. Pass several secrets while
- * rotating.
+ * `webhook-signature`, or the `svix-` names Svix-based senders use) and
+ * parses the JSON body. Pass several secrets while rotating.
  */
 export async function verifyWebhook<T = unknown>(
   input: WebhookInput,
@@ -146,9 +146,10 @@ export async function verifyWebhook<T = unknown>(
   options: VerifyOptions = {},
 ): Promise<Result<VerifiedWebhook<T>>> {
   const headers = input.headers;
-  const id = header(headers, "webhook-id");
-  const timestamp = header(headers, "webhook-timestamp");
-  const signatures = header(headers, "webhook-signature");
+  const prefix = header(headers, "webhook-id") === null ? "svix" : "webhook";
+  const id = header(headers, `${prefix}-id`);
+  const timestamp = header(headers, `${prefix}-timestamp`);
+  const signatures = header(headers, `${prefix}-signature`);
   if (!id || !timestamp || !signatures)
     return err(
       unauthorized(
