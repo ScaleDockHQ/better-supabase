@@ -137,6 +137,29 @@ describe.skipIf(!live)("settings", () => {
     }
   });
 
+  it("records who set a setting on its first write, without a column default", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "settings"]);
+      await s.rows(
+        "alter table better_supabase.user_settings alter column updated_by drop default",
+      );
+      const member = await s.user("member");
+      const client = settings.connect({ transport: sqlTransport(s.sql) });
+      await s.asRole(member);
+      await client.user.set("theme", "dark").orThrow();
+      await s.service();
+      expect(
+        await s.value<string>(
+          "(select updated_by::text from better_supabase.user_settings where key = 'theme' and user_id = $1)",
+          [member.id],
+        ),
+      ).toBe(member.id);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("guards platform settings with a permission and a read rule per key", async () => {
     const platform = defineSettings({
       platform: {

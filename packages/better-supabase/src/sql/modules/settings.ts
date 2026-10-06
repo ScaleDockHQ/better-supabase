@@ -355,8 +355,8 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into ${u} (${uc("user")}, ${uc("key")}, ${uc("value")})
-  values (auth.uid(), set_user_setting.key, coalesce(set_user_setting.value -> 'value', 'null'::jsonb))
+  insert into ${u} (${uc("user")}, ${uc("key")}, ${uc("value")}, ${uc("updatedBy")}, ${uc("updatedAt")})
+  values (auth.uid(), set_user_setting.key, coalesce(set_user_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
   on conflict (${uc("user")}, ${uc("key")}) do update
     set ${uc("value")} = excluded.${uc("value")}, ${uc("updatedBy")} = auth.uid(), ${uc("updatedAt")} = now()
   returning ${uc("value")}
@@ -393,8 +393,8 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into ${o} (${oc("tenant")}, ${oc("key")}, ${oc("value")})
-  values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb))
+  insert into ${o} (${oc("tenant")}, ${oc("key")}, ${oc("value")}, ${oc("updatedBy")}, ${oc("updatedAt")})
+  values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
   on conflict (${oc("tenant")}, ${oc("key")}) do update
     set ${oc("value")} = excluded.${oc("value")}, ${oc("updatedBy")} = auth.uid(), ${oc("updatedAt")} = now()
   returning ${oc("value")}
@@ -431,8 +431,8 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into ${p} (${pc("key")}, ${pc("value")})
-  values (set_platform_setting.key, coalesce(set_platform_setting.value -> 'value', 'null'::jsonb))
+  insert into ${p} (${pc("key")}, ${pc("value")}, ${pc("updatedBy")}, ${pc("updatedAt")})
+  values (set_platform_setting.key, coalesce(set_platform_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
   on conflict (${pc("key")}) do update
     set ${pc("value")} = excluded.${pc("value")}, ${pc("updatedBy")} = auth.uid(), ${pc("updatedAt")} = now()
   returning ${pc("value")}
