@@ -103,6 +103,86 @@ describe("relations", () => {
   });
 });
 
+describe("relation names", () => {
+  const withSimpleKeys = async (keys: readonly string[]) => {
+    const fixture = await loadFixtureSnapshot();
+    const simple = (name: string) => ({
+      foreign_key_name: name,
+      schema: "public",
+      relation: "locations",
+      columns: ["customer_id"],
+      referenced_schema: "public",
+      referenced_relation: "customers",
+      referenced_columns: ["id"],
+      is_one_to_one: false,
+    });
+    const snapshot = {
+      ...fixture,
+      generator: {
+        ...fixture.generator,
+        relationships: [
+          ...fixture.generator.relationships,
+          ...keys.map(simple),
+        ],
+      },
+      extras: {
+        ...fixture.extras,
+        tables: fixture.extras.tables.map((table) =>
+          table.name === "locations"
+            ? {
+                ...table,
+                foreignKeys: [
+                  ...table.foreignKeys,
+                  ...keys.map((name) => ({
+                    name,
+                    onDelete: "cascade" as const,
+                    onUpdate: "no action" as const,
+                  })),
+                ],
+              }
+            : table,
+        ),
+      },
+    };
+    const model = buildModel(
+      snapshot,
+      resolveConfig({ casing: "camel" }, fixtures),
+    );
+    return (table: string) =>
+      model.tables
+        .find((entry) => entry.key === table)
+        ?.relations.filter((entry) => entry.meta.table !== "organizations")
+        .map((entry) => entry.name)
+        .sort();
+  };
+
+  it("names a tenant key and a plain key to one table by every key column", async () => {
+    const names = await withSimpleKeys(["locations_customer_only_fkey"]);
+    expect(names("locations")).toEqual([
+      "customerByCustomer",
+      "customerByCustomerOrganization",
+    ]);
+    expect(names("customers")).toEqual(
+      expect.arrayContaining([
+        "locationsByCustomer",
+        "locationsByCustomerOrganization",
+      ]),
+    );
+  });
+
+  it("falls back to the constraint name when the columns are the same", async () => {
+    const names = await withSimpleKeys([
+      "locations_customer_only_fkey",
+      "locations_customer_again_fkey",
+    ]);
+    expect(names("locations")).toEqual([
+      "customerByCustomerOrganization",
+      "customerByLocationsCustomerAgainFkey",
+      "customerByLocationsCustomerOnlyFkey",
+    ]);
+  });
+});
+
 describe("storagePaths", () => {
   const model = async (config: BetterSupabaseConfig) =>
     buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures));

@@ -4657,7 +4657,7 @@ export type Models = {
       customerAssetFiles: { table: "customerAssetFiles"; kind: "many"; nullable: true };
       currencyByCurrency: { table: "currencies"; kind: "one"; nullable: false };
       customerByCustomer: { table: "customers"; kind: "one"; nullable: false };
-      customerByCustomer_: { table: "customers"; kind: "one"; nullable: false };
+      customerByCustomerOrganization: { table: "customers"; kind: "one"; nullable: false };
       customerLocation: { table: "customerLocations"; kind: "one"; nullable: true };
       invoice: { table: "invoices"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -4695,7 +4695,7 @@ export type Models = {
     };
     Relations: {
       customerByCustomer: { table: "customers"; kind: "one"; nullable: false };
-      customerByCustomer_: { table: "customers"; kind: "one"; nullable: false };
+      customerByCustomerOrganization: { table: "customers"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
     };
@@ -4805,7 +4805,7 @@ export type Models = {
     Relations: {
       customerAssets: { table: "customerAssets"; kind: "many"; nullable: true };
       customerByCustomer: { table: "customers"; kind: "one"; nullable: false };
-      customerByCustomer_: { table: "customers"; kind: "one"; nullable: false };
+      customerByCustomerOrganization: { table: "customers"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -4919,12 +4919,12 @@ export type Models = {
       chatThreadParticipants: { table: "chatThreadParticipants"; kind: "many"; nullable: true };
       commentThreads: { table: "commentThreads"; kind: "many"; nullable: true };
       customerAssetsByCustomer: { table: "customerAssets"; kind: "many"; nullable: true };
-      customerAssetsByCustomer_: { table: "customerAssets"; kind: "many"; nullable: true };
+      customerAssetsByCustomerOrganization: { table: "customerAssets"; kind: "many"; nullable: true };
       customerAssigneesByCustomer: { table: "customerAssignees"; kind: "many"; nullable: true };
-      customerAssigneesByCustomer_: { table: "customerAssignees"; kind: "many"; nullable: true };
+      customerAssigneesByCustomerOrganization: { table: "customerAssignees"; kind: "many"; nullable: true };
       customerContacts: { table: "customerContacts"; kind: "many"; nullable: true };
       customerLocationsByCustomer: { table: "customerLocations"; kind: "many"; nullable: true };
-      customerLocationsByCustomer_: { table: "customerLocations"; kind: "many"; nullable: true };
+      customerLocationsByCustomerOrganization: { table: "customerLocations"; kind: "many"; nullable: true };
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       expenseTrips: { table: "expenseTrips"; kind: "many"; nullable: true };
@@ -6471,7 +6471,7 @@ export type Models = {
     };
     Relations: {
       nodeByNode: { table: "fileNodes"; kind: "one"; nullable: false };
-      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNodeOrganization: { table: "fileNodes"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -6597,7 +6597,7 @@ export type Models = {
       fileCopyOperationItems: { table: "fileCopyOperationItems"; kind: "many"; nullable: true };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
       destinationDriveByDestinationDrive: { table: "fileDrives"; kind: "one"; nullable: false };
-      destinationDriveByDestinationDrive_: { table: "fileDrives"; kind: "one"; nullable: false };
+      destinationDriveByDestinationDriveOrganization: { table: "fileDrives"; kind: "one"; nullable: false };
       fileNode: { table: "fileNodes"; kind: "one"; nullable: true };
       destinationParent: { table: "fileNodes"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -6643,10 +6643,10 @@ export type Models = {
     };
     Relations: {
       driveByDrive: { table: "fileDrives"; kind: "one"; nullable: false };
-      driveByDrive_: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDriveOrganization: { table: "fileDrives"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       teamByTeam: { table: "teams"; kind: "one"; nullable: true };
-      teamByTeam_: { table: "teams"; kind: "one"; nullable: true };
+      teamByTeamOrganization: { table: "teams"; kind: "one"; nullable: true };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
@@ -6703,17 +6703,17 @@ export type Models = {
     };
     Relations: {
       fileCopyOperationsByDestinationDrive: { table: "fileCopyOperations"; kind: "many"; nullable: true };
-      fileCopyOperationsByDestinationDrive_: { table: "fileCopyOperations"; kind: "many"; nullable: true };
+      fileCopyOperationsByDestinationDriveOrganization: { table: "fileCopyOperations"; kind: "many"; nullable: true };
       fileDriveGrantsByDrive: { table: "fileDriveGrants"; kind: "many"; nullable: true };
-      fileDriveGrantsByDrive_: { table: "fileDriveGrants"; kind: "many"; nullable: true };
+      fileDriveGrantsByDriveOrganization: { table: "fileDriveGrants"; kind: "many"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       ownerUser: { table: "organizationUsers"; kind: "one"; nullable: true };
       fileNodesByDrive: { table: "fileNodes"; kind: "many"; nullable: true };
-      fileNodesByDrive_: { table: "fileNodes"; kind: "many"; nullable: true };
+      fileNodesByDriveOrganization: { table: "fileNodes"; kind: "many"; nullable: true };
       fileUploadReservationsByDrive: { table: "fileUploadReservations"; kind: "many"; nullable: true };
-      fileUploadReservationsByDrive_: { table: "fileUploadReservations"; kind: "many"; nullable: true };
+      fileUploadReservationsByDriveOrganization: { table: "fileUploadReservations"; kind: "many"; nullable: true };
       fileVersionsByDrive: { table: "fileVersions"; kind: "many"; nullable: true };
-      fileVersionsByDrive_: { table: "fileVersions"; kind: "many"; nullable: true };
+      fileVersionsByDriveOrganization: { table: "fileVersions"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -6756,10 +6756,10 @@ export type Models = {
     };
     Relations: {
       nodeByNode: { table: "fileNodes"; kind: "one"; nullable: false };
-      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNodeOrganization: { table: "fileNodes"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       teamByTeam: { table: "teams"; kind: "one"; nullable: true };
-      teamByTeam_: { table: "teams"; kind: "one"; nullable: true };
+      teamByTeamOrganization: { table: "teams"; kind: "one"; nullable: true };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
@@ -6795,7 +6795,7 @@ export type Models = {
     };
     Relations: {
       nodeByNode: { table: "fileNodes"; kind: "one"; nullable: false };
-      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNodeOrganization: { table: "fileNodes"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
     };
@@ -6871,31 +6871,31 @@ export type Models = {
     };
     Relations: {
       fileCommentsByNode: { table: "fileComments"; kind: "many"; nullable: true };
-      fileCommentsByNode_: { table: "fileComments"; kind: "many"; nullable: true };
+      fileCommentsByNodeOrganization: { table: "fileComments"; kind: "many"; nullable: true };
       fileCopyOperationItems: { table: "fileCopyOperationItems"; kind: "many"; nullable: true };
       fileCopyOperationsByDestinationParentDestinationDrive: { table: "fileCopyOperations"; kind: "many"; nullable: true };
       fileCopyOperationsByDestinationParent: { table: "fileCopyOperations"; kind: "many"; nullable: true };
       fileNodeGrantsByNode: { table: "fileNodeGrants"; kind: "many"; nullable: true };
-      fileNodeGrantsByNode_: { table: "fileNodeGrants"; kind: "many"; nullable: true };
+      fileNodeGrantsByNodeOrganization: { table: "fileNodeGrants"; kind: "many"; nullable: true };
       fileNodeUserStateByNode: { table: "fileNodeUserState"; kind: "many"; nullable: true };
-      fileNodeUserStateByNode_: { table: "fileNodeUserState"; kind: "many"; nullable: true };
+      fileNodeUserStateByNodeOrganization: { table: "fileNodeUserState"; kind: "many"; nullable: true };
       currentVersion: { table: "fileVersions"; kind: "one"; nullable: true };
       customer: { table: "customers"; kind: "one"; nullable: true };
       driveByDrive: { table: "fileDrives"; kind: "one"; nullable: false };
-      driveByDrive_: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDriveOrganization: { table: "fileDrives"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
+      parentByParentDrive: { table: "fileNodes"; kind: "one"; nullable: true };
+      fileNodesByParentDrive: { table: "fileNodes"; kind: "many"; nullable: true };
       parentByParent: { table: "fileNodes"; kind: "one"; nullable: true };
       fileNodesByParent: { table: "fileNodes"; kind: "many"; nullable: true };
-      parentByParent_: { table: "fileNodes"; kind: "one"; nullable: true };
-      fileNodesByParent_: { table: "fileNodes"; kind: "many"; nullable: true };
       fileShareLinksByNode: { table: "fileShareLinks"; kind: "many"; nullable: true };
-      fileShareLinksByNode_: { table: "fileShareLinks"; kind: "many"; nullable: true };
+      fileShareLinksByNodeOrganization: { table: "fileShareLinks"; kind: "many"; nullable: true };
+      fileUploadReservationsByNodeDrive: { table: "fileUploadReservations"; kind: "many"; nullable: true };
       fileUploadReservationsByNode: { table: "fileUploadReservations"; kind: "many"; nullable: true };
-      fileUploadReservationsByNode_: { table: "fileUploadReservations"; kind: "many"; nullable: true };
+      fileUploadReservationsByParentDrive: { table: "fileUploadReservations"; kind: "many"; nullable: true };
       fileUploadReservationsByParent: { table: "fileUploadReservations"; kind: "many"; nullable: true };
-      fileUploadReservationsByParent_: { table: "fileUploadReservations"; kind: "many"; nullable: true };
+      fileVersionsByNodeDrive: { table: "fileVersions"; kind: "many"; nullable: true };
       fileVersionsByNode: { table: "fileVersions"; kind: "many"; nullable: true };
-      fileVersionsByNode_: { table: "fileVersions"; kind: "many"; nullable: true };
       invoices: { table: "invoices"; kind: "many"; nullable: true };
       knowledgeFiles: { table: "knowledgeFiles"; kind: "many"; nullable: true };
       quoteVersions: { table: "quoteVersions"; kind: "many"; nullable: true };
@@ -6947,7 +6947,7 @@ export type Models = {
     };
     Relations: {
       nodeByNode: { table: "fileNodes"; kind: "one"; nullable: false };
-      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: false };
+      nodeByNodeOrganization: { table: "fileNodes"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -7062,13 +7062,13 @@ export type Models = {
     Relations: {
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
       driveByDrive: { table: "fileDrives"; kind: "one"; nullable: false };
-      driveByDrive_: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDriveOrganization: { table: "fileDrives"; kind: "one"; nullable: false };
       finalizedVersion: { table: "fileVersions"; kind: "one"; nullable: true };
+      nodeByNodeDrive: { table: "fileNodes"; kind: "one"; nullable: true };
       nodeByNode: { table: "fileNodes"; kind: "one"; nullable: true };
-      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
+      parentByParentDrive: { table: "fileNodes"; kind: "one"; nullable: true };
       parentByParent: { table: "fileNodes"; kind: "one"; nullable: true };
-      parentByParent_: { table: "fileNodes"; kind: "one"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -7139,9 +7139,9 @@ export type Models = {
       fileNodes: { table: "fileNodes"; kind: "many"; nullable: true };
       fileUploadReservations: { table: "fileUploadReservations"; kind: "many"; nullable: true };
       driveByDrive: { table: "fileDrives"; kind: "one"; nullable: false };
-      driveByDrive_: { table: "fileDrives"; kind: "one"; nullable: false };
+      driveByDriveOrganization: { table: "fileDrives"; kind: "one"; nullable: false };
+      nodeByNodeDrive: { table: "fileNodes"; kind: "one"; nullable: false };
       nodeByNode: { table: "fileNodes"; kind: "one"; nullable: false };
-      nodeByNode_: { table: "fileNodes"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       invoices: { table: "invoices"; kind: "many"; nullable: true };
       quoteVersions: { table: "quoteVersions"; kind: "many"; nullable: true };
@@ -8735,8 +8735,8 @@ export type Models = {
       definition: { table: "integrationDefinitions"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: true };
+      integrationUserAuthorizationsByInstallationOrganization: { table: "integrationUserAuthorizations"; kind: "many"; nullable: true };
       integrationUserAuthorizationsByInstallation: { table: "integrationUserAuthorizations"; kind: "many"; nullable: true };
-      integrationUserAuthorizationsByInstallation_: { table: "integrationUserAuthorizations"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -8841,8 +8841,8 @@ export type Models = {
       updatedAt?: string;
     };
     Relations: {
+      installationByInstallationOrganization: { table: "integrationInstallations"; kind: "one"; nullable: false };
       installationByInstallation: { table: "integrationInstallations"; kind: "one"; nullable: false };
-      installationByInstallation_: { table: "integrationInstallations"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       organizationUser: { table: "organizationUsers"; kind: "one"; nullable: false };
     };
@@ -8949,10 +8949,10 @@ export type Models = {
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
       inventoryMovementsByLocation: { table: "inventoryMovements"; kind: "many"; nullable: true };
-      inventoryMovementsByLocation_: { table: "inventoryMovements"; kind: "many"; nullable: true };
+      inventoryMovementsByLocationOrganization: { table: "inventoryMovements"; kind: "many"; nullable: true };
       inventoryReorderRules: { table: "inventoryReorderRules"; kind: "many"; nullable: true };
       inventoryStockRecordsByLocation: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
-      inventoryStockRecordsByLocation_: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
+      inventoryStockRecordsByLocationOrganization: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
       purchaseOrders: { table: "purchaseOrders"; kind: "many"; nullable: true };
       shipments: { table: "shipments"; kind: "many"; nullable: true };
       suppliers: { table: "suppliers"; kind: "many"; nullable: true };
@@ -9044,16 +9044,16 @@ export type Models = {
     Relations: {
       invoice: { table: "invoices"; kind: "one"; nullable: true };
       locationByLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
-      locationByLocation_: { table: "inventoryLocations"; kind: "one"; nullable: true };
+      locationByLocationOrganization: { table: "inventoryLocations"; kind: "one"; nullable: true };
       order: { table: "orders"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       productByProduct: { table: "products"; kind: "one"; nullable: false };
-      productByProduct_: { table: "products"; kind: "one"; nullable: false };
+      productByProductOrganization: { table: "products"; kind: "one"; nullable: false };
       purchaseOrder: { table: "purchaseOrders"; kind: "one"; nullable: true };
       quote: { table: "quotes"; kind: "one"; nullable: true };
       shipment: { table: "shipments"; kind: "one"; nullable: true };
       stockRecordByStockRecord: { table: "inventoryStockRecords"; kind: "one"; nullable: false };
-      stockRecordByStockRecord_: { table: "inventoryStockRecords"; kind: "one"; nullable: false };
+      stockRecordByStockRecordOrganization: { table: "inventoryStockRecords"; kind: "one"; nullable: false };
       supplier: { table: "suppliers"; kind: "one"; nullable: true };
       taskMaterial: { table: "taskMaterials"; kind: "one"; nullable: true };
       variant: { table: "productVariants"; kind: "one"; nullable: false };
@@ -9190,13 +9190,13 @@ export type Models = {
     Relations: {
       inventoryAllocations: { table: "inventoryAllocations"; kind: "many"; nullable: true };
       inventoryMovementsByStockRecord: { table: "inventoryMovements"; kind: "many"; nullable: true };
-      inventoryMovementsByStockRecord_: { table: "inventoryMovements"; kind: "many"; nullable: true };
+      inventoryMovementsByStockRecordOrganization: { table: "inventoryMovements"; kind: "many"; nullable: true };
       currencyByCurrency: { table: "currencies"; kind: "one"; nullable: true };
       locationByLocation: { table: "inventoryLocations"; kind: "one"; nullable: true };
-      locationByLocation_: { table: "inventoryLocations"; kind: "one"; nullable: true };
+      locationByLocationOrganization: { table: "inventoryLocations"; kind: "one"; nullable: true };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       productByProduct: { table: "products"; kind: "one"; nullable: false };
-      productByProduct_: { table: "products"; kind: "one"; nullable: false };
+      productByProductOrganization: { table: "products"; kind: "one"; nullable: false };
       variant: { table: "productVariants"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
@@ -12208,7 +12208,7 @@ export type Models = {
       parent: { table: "productCategories"; kind: "one"; nullable: true };
       productCategories: { table: "productCategories"; kind: "many"; nullable: true };
       productCategoryAssignmentsByCategory: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
-      productCategoryAssignmentsByCategory_: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
+      productCategoryAssignmentsByCategoryOrganization: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
       promotionTargets: { table: "promotionTargets"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -12244,10 +12244,10 @@ export type Models = {
     };
     Relations: {
       categoryByCategory: { table: "productCategories"; kind: "one"; nullable: false };
-      categoryByCategory_: { table: "productCategories"; kind: "one"; nullable: false };
+      categoryByCategoryOrganization: { table: "productCategories"; kind: "one"; nullable: false };
       organization: { table: "organizations"; kind: "one"; nullable: false };
       productByProduct: { table: "products"; kind: "one"; nullable: false };
-      productByProduct_: { table: "products"; kind: "one"; nullable: false };
+      productByProductOrganization: { table: "products"; kind: "one"; nullable: false };
     };
     PrimaryKey: "id";
     UniqueKeys: {
@@ -12790,14 +12790,14 @@ export type Models = {
       equipmentItems: { table: "equipmentItems"; kind: "many"; nullable: true };
       inventoryAllocations: { table: "inventoryAllocations"; kind: "many"; nullable: true };
       inventoryMovementsByProduct: { table: "inventoryMovements"; kind: "many"; nullable: true };
-      inventoryMovementsByProduct_: { table: "inventoryMovements"; kind: "many"; nullable: true };
+      inventoryMovementsByProductOrganization: { table: "inventoryMovements"; kind: "many"; nullable: true };
       inventoryReorderRules: { table: "inventoryReorderRules"; kind: "many"; nullable: true };
       inventoryStockRecordsByProduct: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
-      inventoryStockRecordsByProduct_: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
+      inventoryStockRecordsByProductOrganization: { table: "inventoryStockRecords"; kind: "many"; nullable: true };
       invoiceLines: { table: "invoiceLines"; kind: "many"; nullable: true };
       orderLines: { table: "orderLines"; kind: "many"; nullable: true };
       productCategoryAssignmentsByProduct: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
-      productCategoryAssignmentsByProduct_: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
+      productCategoryAssignmentsByProductOrganization: { table: "productCategoryAssignments"; kind: "many"; nullable: true };
       productDigitalFiles: { table: "productDigitalFiles"; kind: "many"; nullable: true };
       productLicenseKeys: { table: "productLicenseKeys"; kind: "many"; nullable: true };
       productOptions: { table: "productOptions"; kind: "many"; nullable: true };
@@ -15047,9 +15047,9 @@ export type Models = {
       aiAgentRunHandoffs: { table: "aiAgentRunHandoffs"; kind: "many"; nullable: true };
       employees: { table: "employees"; kind: "many"; nullable: true };
       fileDriveGrantsByTeam: { table: "fileDriveGrants"; kind: "many"; nullable: true };
-      fileDriveGrantsByTeam_: { table: "fileDriveGrants"; kind: "many"; nullable: true };
+      fileDriveGrantsByTeamOrganization: { table: "fileDriveGrants"; kind: "many"; nullable: true };
       fileNodeGrantsByTeam: { table: "fileNodeGrants"; kind: "many"; nullable: true };
-      fileNodeGrantsByTeam_: { table: "fileNodeGrants"; kind: "many"; nullable: true };
+      fileNodeGrantsByTeamOrganization: { table: "fileNodeGrants"; kind: "many"; nullable: true };
       hiringJobs: { table: "hiringJobs"; kind: "many"; nullable: true };
       inboxThreads: { table: "inboxThreads"; kind: "many"; nullable: true };
       knowledgeCollectionGrants: { table: "knowledgeCollectionGrants"; kind: "many"; nullable: true };
