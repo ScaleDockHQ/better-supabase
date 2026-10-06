@@ -1,7 +1,7 @@
 {
   ".": 48769,
   "./config": 11230,
-  "./cli": 225380,
+  "./cli": 225461,
   "./client": 12850,
   "./client/native": 10494,
   "./react": 7314,
@@ -25,7 +25,7 @@
   "./blocks/notifications/react": 8362,
   "./env": 2745,
   "./list": 4278,
-  "./storage": 19136,
+  "./storage": 19692,
   "./realtime": 15641,
   "./events": 5166,
   "./blocks/webhooks": 23892,
@@ -41,5 +41,5 @@
   "./plugins/validation": 10212,
   "./sql": 123229,
   "./testing": 84575,
-  "better-supabase CLI (startup)": 12907
+  "better-supabase CLI (startup)": 12906
 }

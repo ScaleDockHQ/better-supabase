@@ -12,13 +12,16 @@ import { fakeStorage } from "../fixtures/fake-storage.ts";
 
 const files = defineBucket({
   id: "files",
-  path: ["{orgId}/files/{fileId}.{ext}", "{orgId}/legacy/{...rest}"],
+  path: [
+    "{organizationId}/files/{fileId}.{ext}",
+    "{organizationId}/legacy/{...rest}",
+  ],
   policy: "tenant",
   tenant: {},
 });
 const attachments = defineBucket({
   id: "attachments",
-  path: "{orgId}/{messageId}/{name}",
+  path: "{organizationId}/{messageId}/{name}",
 });
 const avatars = avatarBucket();
 
@@ -81,7 +84,8 @@ describe("defineBuckets", () => {
       error: {
         kind: "invalid_input",
         table: "attachments",
-        message: 'Path "o1/f1.pdf" does not match "{orgId}/{messageId}/{name}"',
+        message:
+          'Path "o1/f1.pdf" does not match "{organizationId}/{messageId}/{name}"',
       },
     });
     expect(

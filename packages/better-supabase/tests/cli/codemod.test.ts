@@ -138,7 +138,7 @@ const allow = publicUrl({ allowHosts: [] });
   });
 
   it("lists bucket path calls with values and leaves path strings alone", () => {
-    const source = `const path = logos.path({ orgId, version });
+    const source = `const path = logos.path({ organizationId, version });
 const joined = node.path("a");
 const dir = join(root, "path({");
 `;
