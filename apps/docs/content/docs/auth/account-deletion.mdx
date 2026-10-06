@@ -46,7 +46,7 @@ import { deleteAccount } from "better-supabase/server";
 pipeline(
   [withSupabase({ auth: "user" }), withBetterSupabase(betterSupabase)],
   (req, ctx) =>
-    deleteAccount(betterSupabase, ctx.supabaseAdmin, ctx.userClaims.id, {
+    deleteAccount(betterSupabase, ctx.supabaseAdmin, ctx.userClaims!.id, {
       buckets: [avatars, documents],
     }),
 );
