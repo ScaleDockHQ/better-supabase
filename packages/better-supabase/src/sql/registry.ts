@@ -2569,6 +2569,7 @@ const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     deletePlatform: "platform",
   },
   audit: { reveal: "tenant" },
+  "data-lifecycle": { deletePlatform: "platform" },
 };
 
 const isPermissionModule = (

@@ -6,6 +6,7 @@ import type { JobHandler } from "../jobs/queue.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
+import { toCsv } from "../csv.ts";
 import {
   blockCall,
   errorText,
@@ -63,7 +64,7 @@ export interface DataExport {
   readonly organizationId: string | undefined;
   readonly status: DataExportStatus;
   readonly bucket: string;
-  /** Object paths, one NDJSON file per table: `{id}/{schema.table}.ndjson`. */
+  /** Object paths, one file per table: `{id}/{schema.table}.ndjson` (or `.csv`). */
   readonly files: readonly string[];
   readonly error: string | undefined;
   readonly requestedBy: string | undefined;
@@ -195,7 +196,7 @@ function stored<T>(
 
 /** The table a file holds: `{id}/public.projects.ndjson` gives `public.projects`. */
 const tableOf = (path: string): string =>
-  path.slice(path.lastIndexOf("/") + 1).replace(/\.ndjson$/, "");
+  path.slice(path.lastIndexOf("/") + 1).replace(/\.(ndjson|csv)$/, "");
 
 /** Exports and organization deletion as the caller. */
 export function createDataLifecycle(
@@ -289,6 +290,12 @@ export interface DataExporterOptions {
   readonly pageSize?: number;
   /** The outbox `typePrefix`. Default `dev.better-supabase`. */
   readonly typePrefix?: string;
+  /**
+   * `ndjson` (default) writes one JSON object per line; `csv` writes RFC
+   * 4180 CSV with a header row, nested values as JSON and formula-looking
+   * text prefixed with `'`, for people who open exports in a spreadsheet.
+   */
+  readonly format?: "ndjson" | "csv";
 }
 
 /** The payload `job` expects. */
@@ -320,9 +327,11 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
     signal: AbortSignal | undefined,
   ): Promise<Result<readonly string[]>> => {
     const bucket = options.storage.from(claimed.bucket);
+    const csv = options.format === "csv";
     const files: string[] = [];
     for (const table of tables) {
       const lines: string[] = [];
+      const records: Record<string, unknown>[] = [];
       let after: string | undefined;
       do {
         signal?.throwIfAborted();
@@ -333,21 +342,26 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
         );
         if (!page.ok) return page;
         const rows = Array.isArray(page.data["rows"]) ? page.data["rows"] : [];
-        for (const row of rows) lines.push(JSON.stringify(row));
+        for (const row of rows) {
+          if (csv) records.push(isRecord(row) ? row : { value: row });
+          else lines.push(JSON.stringify(row));
+        }
         after = optionalText(page.data["after"]);
       } while (after !== undefined);
-      const path = `${claimed.id}/${table}.ndjson`;
+      const path = `${claimed.id}/${table}.${csv ? "csv" : "ndjson"}`;
+      const contentType = csv ? "text/csv" : "application/x-ndjson";
       const body = new Blob(
-        lines.length === 0 ? [] : [`${lines.join("\n")}\n`],
-        {
-          type: "application/x-ndjson",
-        },
+        csv
+          ? records.length === 0
+            ? []
+            : [toCsv(records)]
+          : lines.length === 0
+            ? []
+            : [`${lines.join("\n")}\n`],
+        { type: contentType },
       );
       const uploaded = await stored(
-        bucket.upload(path, body, {
-          contentType: "application/x-ndjson",
-          upsert: true,
-        }),
+        bucket.upload(path, body, { contentType, upsert: true }),
       );
       if (!uploaded.ok) return uploaded;
       files.push(path);

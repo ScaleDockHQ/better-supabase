@@ -110,4 +110,58 @@ describe("data-lifecycle module", () => {
   ])("rejects %j", (options, message) => {
     expect(() => sqlOf(["data-lifecycle"], options)).toThrow(message);
   });
+
+  it("finds tables by column with autoTables, minus the explicit and excluded ones", () => {
+    const sql = sqlOf(["data-lifecycle"], {
+      tables: { "app.notes": { tenant: "team_id" } },
+      autoTables: {
+        schemas: ["public", "app"],
+        user: "owner_id",
+        exclude: ["public.*_log"],
+      },
+    });
+    expect(sql).toContain("n.nspname in ('public', 'app')");
+    expect(sql).toContain("a.attname = 'organization_id'");
+    expect(sql).toContain("a.attname = 'owner_id'");
+    expect(sql).toContain(
+      "not in ('better_supabase.memberships', 'app.notes')",
+    );
+    expect(sql).toContain("like 'public.%\\_log'");
+    expect(sql).toMatch(/returns table \(subject text[^$]*\nstable\n/);
+    expect(sqlOf(["data-lifecycle"])).toMatch(/\nimmutable\n/);
+    expect(sqlOf(["data-lifecycle"], { tables: "auto" })).toContain(
+      "a.attname = 'organization_id'",
+    );
+    expect(() =>
+      sqlOf(["data-lifecycle"], { autoTables: { schemas: ["Bad Schema"] } }),
+    ).toThrow(/is not a schema name/);
+    expect(() =>
+      sqlOf(["data-lifecycle"], { autoTables: { tenant: 1 } }),
+    ).toThrow(/lowercase column name/);
+    expect(() => sqlOf(["data-lifecycle"], { autoTables: [] })).toThrow(
+      /must be an object/,
+    );
+    expect(() =>
+      sqlOf(["data-lifecycle"], { autoTables: { exclude: "x" } }),
+    ).toThrow(/must be a list/);
+  });
+
+  it("purges an adopted organization row and lets platform staff request deletion", () => {
+    const sql = sqlOf(["organizations", "data-lifecycle"], undefined, {
+      organizations: {
+        mode: "adopt",
+        tables: { organizations: "public.teams" },
+      },
+      "data-lifecycle": {
+        permissions: { deletePlatform: "platform.teams.delete" },
+      },
+    });
+    expect(sql).toContain(
+      `delete from "public"."teams" where "id" = purge_organization.tenant;`,
+    );
+    expect(sql).toContain(
+      "not coalesce(better_supabase.is_platform('platform.teams.delete'), false)",
+    );
+    expect(sql).toContain("ORGANIZATION_PURGE_BLOCKED");
+  });
 });

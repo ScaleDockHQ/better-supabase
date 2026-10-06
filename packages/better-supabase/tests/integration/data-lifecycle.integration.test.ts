@@ -357,4 +357,136 @@ describe.skipIf(!live)("data lifecycle", () => {
       await s.close();
     }
   });
+
+  it("finds tenant tables by column, purges past restricting keys and lets platform staff delete", async () => {
+    const s = await BlockSession.open(pool);
+    const schema = `bs_auto_${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await s.rows(
+        `create schema ${schema};
+         create table ${schema}.projects (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null
+         );
+         create table ${schema}.tasks (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           project_id uuid not null references ${schema}.projects (id) on delete restrict
+         );
+         create table ${schema}.tasks_archive (organization_id uuid not null);`,
+      );
+      await s.install(["organizations", "data-lifecycle"], {
+        modules: {
+          "data-lifecycle": {
+            options: {
+              autoTables: {
+                schemas: [schema],
+                exclude: [`${schema}.*_archive`],
+              },
+            },
+            permissions: { deletePlatform: "platform.organizations.delete" },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const staff = await s.user("staff");
+      const organization = await s.organization(owner);
+      const [project] = await s.rows<{ id: string }>(
+        `insert into ${schema}.projects (organization_id) values ($1) returning id`,
+        [organization],
+      );
+      await s.rows(
+        `insert into ${schema}.tasks (organization_id, project_id) values ($1, $2), ($1, $2)`,
+        [organization, project!.id],
+      );
+      await s.rows(`insert into ${schema}.tasks_archive values ($1)`, [
+        organization,
+      ]);
+      await s.service();
+      const tables = await s.rows<{ name: string }>(
+        "select name from better_supabase.data_lifecycle_tables() where subject = 'organization' and name like $1 order by name",
+        [`${schema}.%`],
+      );
+      expect(tables.map((row) => row.name)).toEqual([
+        `${schema}.projects`,
+        `${schema}.tasks`,
+      ]);
+
+      const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
+      await s.asRole(staff);
+      expect(
+        (await lifecycle.requestOrganizationDeletion(organization)).ok,
+      ).toBe(false);
+      await s.asRole(staff, {
+        platform_permissions: ["platform.organizations.delete"],
+      });
+      await lifecycle
+        .requestOrganizationDeletion(organization, { grace: "0 seconds" })
+        .orThrow();
+
+      await s.service();
+      const purged = await createOrganizationPurger({
+        transport: sqlTransport(s.sql),
+      })
+        .purge(organization)
+        .orThrow();
+      expect(purged.deleted).toMatchObject({
+        [`${schema}.projects`]: 1,
+        [`${schema}.tasks`]: 2,
+      });
+      expect(
+        await s.value<number>(
+          `(select count(*)::int from ${schema}.tasks_archive)`,
+        ),
+      ).toBe(1);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.organizations where id = $1)",
+          [organization],
+        ),
+      ).toBe(0);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("writes CSV exports", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "settings", "data-lifecycle"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      await s.rows(
+        `insert into better_supabase.organization_settings (organization_id, key, value)
+         values ($1, 'note', '"=1+1, \\"quoted\\""'::jsonb)`,
+        [organization],
+      );
+      await s.asRole(owner);
+      const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
+      const requested = await lifecycle
+        .requestExport({ organizationId: organization })
+        .orThrow();
+      await s.service();
+      const memory = memoryStorage();
+      const done = await createDataExporter({
+        transport: sqlTransport(s.sql),
+        storage: memory.storage,
+        format: "csv",
+      })
+        .run(requested.id)
+        .orThrow();
+      const settings = done.files.find((file) =>
+        file.endsWith("organization_settings.csv"),
+      );
+      expect(settings).toBeDefined();
+      const csv = memory.files.get(settings!)!;
+      const [header, row] = csv.split("\r\n");
+      expect(header!.split(",")).toEqual(
+        expect.arrayContaining(["organization_id", "key", "value"]),
+      );
+      expect(row).toContain(`"'=1+1, ""quoted"""`);
+    } finally {
+      await s.close();
+    }
+  });
 });

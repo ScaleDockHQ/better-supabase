@@ -271,6 +271,39 @@ describe("createDataExporter", () => {
     ]);
   });
 
+  it("writes CSV files with a header row when format is csv", async () => {
+    const { transport } = fakeTransport({
+      claim_data_export: claimed,
+      data_export_rows: (args: Record<string, unknown>) =>
+        args["table_name"] === "public.projects"
+          ? {
+              rows: [{ id: 1, name: "a,b" }, { id: 2, tags: ["x"] }, 3],
+              after: null,
+            }
+          : { rows: [], after: null },
+      complete_data_export: (args: Record<string, unknown>) =>
+        exportRow({ files: args["files"] }),
+    });
+    const storage = fakeStorage();
+    const done = await createDataExporter({
+      transport,
+      storage: storage.storage,
+      format: "csv",
+    })
+      .run("x1")
+      .orThrow();
+    expect(done.files).toEqual([
+      "x1/public.projects.csv",
+      "x1/public.empty.csv",
+    ]);
+    const uploads = storage.calls.filter(([method]) => method === "upload");
+    expect(await (uploads[0]![3] as Blob).text()).toBe(
+      'id,name,tags,value\r\n1,"a,b",,\r\n2,,"[""x""]",\r\n,,,3\r\n',
+    );
+    expect((uploads[0]![3] as Blob).type).toBe("text/csv");
+    expect((uploads[1]![3] as Blob).size).toBe(0);
+  });
+
   it("marks the export failed when a page, an upload or the signal fails", async () => {
     const failures = [
       { data_export_rows: Object.assign(new Error("boom"), { code: "XX000" }) },
