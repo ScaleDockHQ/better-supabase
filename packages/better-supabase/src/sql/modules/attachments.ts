@@ -134,7 +134,7 @@ function subjectBuckets(
     const bucket = subject.extra["bucket"] ?? fallback;
     if (!isText(bucket) || !BUCKET.test(bucket)) {
       throw new TypeError(
-        `sql.modules.attachments.options.subjects.${type}.bucket must be 3 to 63 lowercase letters, digits, dashes or underscores`,
+        `sql.modules.attachments.options.subjects.${type}.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores`,
       );
     }
     const mimeTypes = subject.extra["allowedMimeTypes"] ?? [];
@@ -169,7 +169,8 @@ function scanBucketsOf(ctx: ModuleContext): readonly string[] {
   return buckets;
 }
 
-const BUCKET = /^[a-z0-9][a-z0-9_-]{2,62}$/;
+/** A Storage bucket id: Supabase allows 1 to 100 characters. */
+const BUCKET = /^[a-z0-9][a-z0-9_.-]{0,99}$/;
 
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
@@ -655,7 +656,7 @@ function bucketOptions(ctx: ModuleContext): BucketOptions {
   const bucket = ctx.text("bucket", "attachments");
   if (!BUCKET.test(bucket)) {
     throw new TypeError(
-      "sql.modules.attachments.options.bucket must be 3 to 63 lowercase letters, digits, dashes or underscores",
+      "sql.modules.attachments.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
     );
   }
   const maxSize = ctx.number("maxSize", 50 * 1024 * 1024);

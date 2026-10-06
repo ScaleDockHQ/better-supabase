@@ -67,7 +67,8 @@ interface Entry {
   readonly purge: boolean;
 }
 
-const BUCKET = /^[a-z0-9][a-z0-9_-]{2,62}$/;
+/** A Storage bucket id: Supabase allows 1 to 100 characters. */
+const BUCKET = /^[a-z0-9][a-z0-9_.-]{0,99}$/;
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
 
 function unquoted(ctx: ModuleContext, logical: string): string {
@@ -261,7 +262,7 @@ function bucketOf(ctx: ModuleContext): string {
   const bucket = ctx.text("bucket", "data-exports");
   if (!BUCKET.test(bucket)) {
     throw new TypeError(
-      "sql.modules.data-lifecycle.options.bucket must be 3 to 63 lowercase letters, digits, dashes or underscores",
+      "sql.modules.data-lifecycle.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
     );
   }
   return bucket;

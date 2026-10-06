@@ -58,6 +58,19 @@ describe("attachments module", () => {
     expect(() => sqlOf(["attachments"], options)).toThrow(message);
   });
 
+  it("accepts any valid bucket id, short ones included", () => {
+    const sql = sqlOf(["attachments"], {
+      bucket: "ai",
+      scanBuckets: ["x"],
+      subjects: { note: { table: "notes", bucket: "files.v2" } },
+    });
+    expect(sql).toContain("'ai'");
+    expect(sql).toContain("'files.v2'");
+    for (const bucket of ["", "Upper", "-dash", "a/b", "a".repeat(101)]) {
+      expect(() => sqlOf(["attachments"], { bucket })).toThrow(/bucket/);
+    }
+  });
+
   it("checks the subject on storage reads when files have subjects", () => {
     const visible = `"better_supabase"."attachment_object_visible"(bucket_id, name)`;
     expect(
