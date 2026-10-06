@@ -201,6 +201,14 @@ overrides:
   # source-map-js <1.2.2 has an event-loop denial of service (high); it
   # arrives through next > postcss.
   source-map-js: ">=1.2.2"
+  # sharp <0.35.5 bundles a vulnerable librsvg (high); it arrives through next.
+  sharp: ">=0.35.5"
+  # shell-quote 1.8.4 to 1.10 has a command injection (critical); it arrives
+  # through @changesets/cli and react-native.
+  shell-quote: ">=1.11.0"
+  # uuid <11.1.1 (moderate) arrives through @expo/config-plugins > xcode, which
+  # requires the CommonJS build that 11 still ships.
+  "xcode>uuid": 11.1.1
 
 peerDependencyRules:
   allowedVersions:
@@ -225,6 +233,11 @@ auditConfig:
     # through @expo/cli in apps/examples/expo-powersync (dev tooling, never
     # shipped). Remove it once a fixed node-forge ships (ADR 0002).
     - GHSA-86w9-cpqp-85rv
+    # decode-uri-component <=0.4.2 (moderate) reaches the tree only through
+    # expo-router > query-string 7 in apps/examples/expo-powersync. The fix,
+    # 0.5, is ESM-only and query-string 7 requires it as a function. Remove it
+    # once expo-router moves to query-string 8 or later (ADR 0002).
+    - GHSA-vcc3-ghjq-m6fr
 
 allowBuilds:
   # tsdown and vite bundle through esbuild's platform binary.
