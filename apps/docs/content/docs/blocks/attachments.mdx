@@ -1,0 +1,147 @@
+---
+title: Attachments
+description: Files linked to records in a tenant, uploaded through signed URLs to a private bucket and served only after a malware scan.
+---
+
+The `attachments` block links files to records in a tenant. Each file gets
+a row in `attachments` and an object in a private Storage bucket at
+`{organization_id}/attachments/{id}`. The bucket's policies accept an
+upload only when a pending record of the caller expects it, and serve a
+file only after your scanner marks it clean.
+
+```bash
+better-supabase sql add attachments   # adds tenant and access as well
+```
+
+| Column                       | Holds                                                               |
+| ---------------------------- | ------------------------------------------------------------------- |
+| `subject_type`, `subject_id` | The record the file belongs to, or both null                        |
+| `bucket`, `object_path`      | Where the object lives; the path is generated from the id           |
+| `name`, `mime_type`, `size`  | The file name, and the type and size Storage stored                 |
+| `status`, `scan_detail`      | `pending`, `clean`, `infected` or `failed`, and what the scan found |
+| `uploaded_by`, `uploaded_at` | The uploader, and when `confirm` saw the object                     |
+
+| Permission           | Lets a member                                 | Default roles             |
+| -------------------- | --------------------------------------------- | ------------------------- |
+| `attachments.read`   | list attachments and download clean files     | `member`, `admin`         |
+| `attachments.upload` | upload files                                  | `member`, `admin`         |
+| `attachments.manage` | read any file and delete other members' files | `admin` (`attachments.*`) |
+
+The uploader can always read and delete their own file.
+
+## Options
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: {
+    modules: {
+      attachments: {
+        options: {
+          bucket: "attachments",
+          maxSize: 25 * 1024 * 1024,
+          allowedMimeTypes: ["image/*", "application/pdf"],
+          requireScan: true,
+        },
+      },
+    },
+  },
+});
+```
+
+The module creates the bucket as private with `maxSize` (default 50 MiB) as
+its file size limit and `allowedMimeTypes` as its allowed types; an existing
+bucket keeps its settings. The table checks the same limits. With
+`requireScan: false`, `confirm` marks a file clean right away, and files
+nobody scanned are served too (an `infected` one never is).
+
+## Upload and download
+
+Uploading takes three steps: create the record and a signed upload URL on
+the server, upload the file from the browser, then confirm.
+
+```ts title="app/projects/[id]/actions.ts"
+"use server";
+
+import {
+  createAttachments,
+  rpcTransport,
+} from "better-supabase/blocks/attachments";
+
+export async function startUpload(projectId: string, file: FileMeta) {
+  const supabase = await createServerClient();
+  const attachments = createAttachments({
+    transport: rpcTransport(supabase),
+    storage: supabase.storage,
+  });
+  return attachments
+    .upload({
+      organizationId,
+      subjectType: "project",
+      subjectId: projectId,
+      name: file.name,
+      mimeType: file.type,
+      size: file.size,
+    })
+    .orThrow();
+}
+```
+
+The browser uploads with the token,
+`supabase.storage.from(bucket).uploadToSignedUrl(path, token, file)`, or a
+`PUT` to `signedUrl`. Then `attachments.confirm(id)` checks that the object
+exists, takes its size and type from Storage and writes
+`attachment.uploaded` to the outbox. `confirm` returns
+`not_found` with the hint `ATTACHMENT_NOT_UPLOADED` until the object exists.
+
+`download(id)` returns a signed URL (300 seconds by default, `downloadTtl`
+changes it; `{ as: "plan.pdf" }` sets the download name). Until the scan
+passes it returns `invalid_request` with the hint `ATTACHMENT_NOT_SCANNED`.
+`list(organizationId, { type, id })` lists a record's files oldest first,
+and `remove(id)` deletes the object and then the row.
+
+Pass the caller's Supabase client so the table and bucket policies apply;
+`createAttachments` never needs the service role.
+
+## Scanning
+
+`createAttachmentScanner` runs your scanner (ClamAV, a scanning API) on each
+uploaded file with a service-role client, and records the verdict with
+`set_attachment_status`, which only the service role can call.
+
+```ts title="app/api/cron/attachments/route.ts"
+import {
+  createAttachmentScanner,
+  sqlTransport,
+} from "better-supabase/blocks/attachments";
+
+const scanner = createAttachmentScanner({
+  transport: sqlTransport(postgres.admin),
+  storage: supabaseAdmin.storage,
+  scan: async (file) => {
+    const result = await clamav.scan(await file.arrayBuffer());
+    return result.infected
+      ? { status: "infected", detail: result.signature }
+      : { status: "clean" };
+  },
+});
+
+await outbox.relay("attachment-scans", scanner.sink());
+```
+
+`scanner.sink()` scans the file of each `attachment.uploaded` event, and
+`scanner.job` is a [jobs](/docs/blocks/jobs) handler for an
+`{ attachmentId }` payload when you prefer a queue. A file that is already
+clean or infected is not scanned again, so replays are safe. When `scan`
+throws, the file is marked `failed` with the error as `scan_detail`, the
+result is an error with the hint `ATTACHMENT_SCAN_FAILED`, and the next
+attempt scans it again.
+
+## Events
+
+With the outbox installed, the module writes these events with the tenant as
+the partition key and `attachments/<id>` as the subject:
+
+| Event                 | When                       | Data                                                                         |
+| --------------------- | -------------------------- | ---------------------------------------------------------------------------- |
+| `attachment.uploaded` | `confirm` saw the object   | `attachmentId`, `subjectType`, `subjectId`, `uploadedBy`, `mimeType`, `size` |
+| `attachment.scanned`  | a scan result was recorded | `attachmentId`, `status`, `uploadedBy`                                       |
