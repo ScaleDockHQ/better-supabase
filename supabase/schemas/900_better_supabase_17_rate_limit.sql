@@ -121,7 +121,55 @@ $$;
 revoke execute on function better_supabase.check_request() from public;
 grant execute on function better_supabase.check_request() to anon, authenticated, service_role;
 
--- Deletes up to batch counters whose window has ended or whose rule is gone.
+-- Counts one hit of key (an API key, a public token, a tenant, a chat
+-- thread) against scope, for route handlers that limit something other than
+-- Data API writes: allowed, the hits left in the window and, when refused,
+-- the seconds until it ends. The limit is scope's rule in rate_limit_rules,
+-- or max_requests per period when given.
+create or replace function better_supabase.hit_rate_limit(
+  scope text,
+  key text,
+  max_requests integer default null,
+  period interval default null
+)
+returns table (allowed boolean, remaining integer, retry_after integer)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  rule better_supabase.rate_limit_rules;
+  limit_max integer;
+  limit_period interval;
+  used integer;
+  started timestamptz;
+begin
+  select * into rule from better_supabase.rate_limit_rules r where r.scope = hit_rate_limit.scope;
+  limit_max := coalesce(max_requests, rule.max_requests);
+  limit_period := coalesce(period, rule.period);
+  if limit_max is null or limit_period is null then
+    raise exception 'No rate limit for %: call set_rate_limit or pass max_requests and period', scope
+      using errcode = '22023', hint = 'RATE_LIMIT_UNKNOWN';
+  end if;
+  insert into better_supabase.rate_limits as l (scope, key, window_start, hits)
+  values (scope, key, now(), 1)
+  on conflict on constraint rate_limits_pkey do update set
+    window_start = case when l.window_start + limit_period <= now() then now() else l.window_start end,
+    hits = case when l.window_start + limit_period <= now() then 1 else l.hits + 1 end
+  returning l.hits, l.window_start into used, started;
+  return query select
+    used <= limit_max,
+    greatest(limit_max - used, 0),
+    case when used <= limit_max then 0
+      else greatest(1, ceil(extract(epoch from started + limit_period - now()))::integer) end;
+end
+$$;
+revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval) to service_role;
+
+-- Deletes up to batch counters whose window has ended, and counters without
+-- a rule (removed rules, hit_rate_limit with its own limit) after a day.
 -- Every caller keeps a row until then, so schedule it with pg_cron:
 -- select cron.schedule('purge-rate-limits', '*/15 * * * *', 'select better_supabase.purge_rate_limits()');
 create or replace function better_supabase.purge_rate_limits(batch integer default 10000)
@@ -132,7 +180,8 @@ as $$
   with expired as (
     select l.scope, l.key from better_supabase.rate_limits l
     left join better_supabase.rate_limit_rules r on r.scope = l.scope
-    where r.scope is null or l.window_start + r.period <= now()
+    where (r.scope is null and l.window_start < now() - interval '1 day')
+      or l.window_start + r.period <= now()
     limit batch
   ),
   purged as (
