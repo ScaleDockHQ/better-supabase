@@ -393,7 +393,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("update", MODULE_PERMISSIONS.organizations.update)}), false) then
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("update", MODULE_PERMISSIONS.organizations.update)}), false)${platformOverride(ctx, "updatePlatform")} then
     raise exception 'Not allowed to update the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;${slug ? `\n  if attrs ? ${slug} then${raiseSlug(ctx, `attrs ->> ${slug}`, "organization").replaceAll("\n", "\n  ")}\n  end if;` : ""}
   update ${n.organization} o
@@ -408,6 +408,21 @@ begin
 end;
 $$;
 `;
+}
+
+/**
+ * `permissions.updatePlatform` and `permissions.deletePlatform`: a platform
+ * key (`is_platform`) that lets platform staff edit or delete any tenant
+ * without the service role. Nothing when unset.
+ */
+function platformOverride(
+  ctx: ModuleContext,
+  action: "updatePlatform" | "deletePlatform",
+): string {
+  const key = ctx.permissionKey(action, "");
+  return key === ""
+    ? ""
+    : `\n    and not coalesce(better_supabase.is_platform(${sqlString(key)}), false)`;
 }
 
 function remove(ctx: ModuleContext, n: OrganizationNames): string {
@@ -440,7 +455,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", MODULE_PERMISSIONS.organizations.delete)}), false) then
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", MODULE_PERMISSIONS.organizations.delete)}), false)${platformOverride(ctx, "deletePlatform")} then
     raise exception 'Not allowed to delete the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   ${action}

@@ -181,13 +181,60 @@ function syncValues(ctx: ModuleContext): Map<string, string> {
   }
   if (has("email")) values.set(col("email"), "u.email");
   if (has("username") && ctx.flag("username", true)) {
-    const sources = ctx.list("usernameFrom", USERNAME_SOURCES);
     values.set(
       col("username"),
-      `${ctx.fn("allocate_username")}(coalesce(${fromMeta(sources)}, split_part(u.email, '@', 1)), user_id)`,
+      `${ctx.fn("allocate_username")}(coalesce(${usernameSource(ctx)}, split_part(u.email, '@', 1)), user_id)`,
     );
   }
   return values;
+}
+
+const SEPARATOR = /^[a-z0-9_.-]{0,3}$/;
+
+/**
+ * `usernameFrom`: metadata keys, first match wins, or `{ names, separator }`
+ * entries that join several keys (`first_name` and `last_name` into
+ * `ada_lovelace`) when all of them are set.
+ */
+function usernameSource(ctx: ModuleContext): string {
+  const configured = ctx.option("usernameFrom") ?? USERNAME_SOURCES;
+  const where = "sql.modules.profiles.options.usernameFrom";
+  if (!Array.isArray(configured)) {
+    throw new TypeError(`${where} must be a list`);
+  }
+  if (configured.every((entry) => typeof entry === "string")) {
+    return fromMeta(configured);
+  }
+  const parts = configured.map((entry: unknown) => {
+    if (typeof entry === "string") return fromMeta([entry]);
+    if (
+      typeof entry !== "object" ||
+      entry === null ||
+      !("names" in entry) ||
+      !Array.isArray(entry.names) ||
+      entry.names.length === 0 ||
+      !entry.names.every((name: unknown) => typeof name === "string")
+    ) {
+      throw new TypeError(
+        `${where} entries are metadata keys or { names: [keys], separator }`,
+      );
+    }
+    const separator =
+      "separator" in entry && entry.separator !== undefined
+        ? entry.separator
+        : "_";
+    if (typeof separator !== "string" || !SEPARATOR.test(separator)) {
+      throw new TypeError(
+        `${where}: the separator must be up to 3 of a-z, 0-9, _, . or -`,
+      );
+    }
+    // SAFETY: every name was checked to be a string above.
+    const keys = (entry.names as readonly string[]).map((key) =>
+      fromMeta([key]),
+    );
+    return `case when ${keys.map((key) => `${key} is not null`).join(" and ")} then concat_ws(${sqlString(separator)}, ${keys.join(", ")}) end`;
+  });
+  return `coalesce(${parts.join(", ")})`;
 }
 
 /** Columns only the profile's own user reads under `readPolicy: 'members'`. */
@@ -307,7 +354,7 @@ function table(ctx: ModuleContext): string {
     ? `\ncreate unique index if not exists profiles_username_idx on ${t} (lower(${c("username")}));
 ${usernameCheck(ctx)}`
     : "";
-  const members = ctx.text("readPolicy", "self") === "members";
+  const members = readPolicy(ctx).members;
   const read = members ? membersRead(ctx) : `${c("key")} = (select auth.uid())`;
   const visible = [
     ...definitions
@@ -357,6 +404,62 @@ grant all on ${t} to service_role;
 `;
 }
 
+/**
+ * `readPolicy`: `self`, `members`, or `{ members, platform }` where
+ * `platform` is a key `is_platform()` checks, so platform staff read every
+ * profile.
+ */
+function readPolicy(ctx: ModuleContext): {
+  readonly members: boolean;
+  readonly platform?: string;
+} {
+  const value = ctx.option("readPolicy") ?? "self";
+  const where = "sql.modules.profiles.options.readPolicy";
+  if (value === "self" || value === "members") {
+    return { members: value === "members" };
+  }
+  if (typeof value === "object" && !Array.isArray(value)) {
+    const members = "members" in value ? value.members : false;
+    const platform = "platform" in value ? value.platform : undefined;
+    if (
+      typeof members === "boolean" &&
+      (platform === undefined ||
+        (typeof platform === "string" && platform.length > 0))
+    ) {
+      return platform === undefined ? { members } : { members, platform };
+    }
+  }
+  throw new TypeError(
+    `${where} must be "self", "members" or { members?: boolean, platform?: "<permission key>" }, not ${JSON.stringify(value)}`,
+  );
+}
+
+/** Platform staff read every profile: a policy of its own, in either mode. */
+function platformRead(ctx: ModuleContext): string {
+  const platform = readPolicy(ctx).platform;
+  if (platform === undefined) return "";
+  const t = ctx.table("profiles");
+  return `
+-- Platform staff with ${platform} read every profile (readPolicy.platform).
+-- Column grants still apply, so private columns stay behind them.
+create or replace function ${ctx.fn("profiles_platform_readable")}()
+returns boolean
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return better_supabase.is_platform(${sqlString(platform)});
+end;
+$$;
+revoke execute on function ${ctx.fn("profiles_platform_readable")}() from public, anon;
+grant execute on function ${ctx.fn("profiles_platform_readable")}() to authenticated, service_role;
+drop policy if exists bs_profiles_platform_read on ${t};
+create policy bs_profiles_platform_read on ${t} for select to authenticated
+  using ((select ${ctx.fn("profiles_platform_readable")}()));
+`;
+}
+
 /** Profiles of the caller and of everyone who shares a tenant with them. */
 function membersRead(ctx: ModuleContext): string {
   return `${ctx.col("profiles", "key")} in (select ${ctx.fn("profile_peer_ids")}())`;
@@ -367,7 +470,7 @@ function membersRead(ctx: ModuleContext): string {
  * them. Security definer, so the memberships policies don't hide peers.
  */
 function peers(ctx: ModuleContext): string {
-  if (ctx.text("readPolicy", "self") !== "members") return "";
+  if (!readPolicy(ctx).members) return "";
   if (!ctx.installed("tenant")) {
     throw new TypeError(
       "sql.modules.profiles.options.readPolicy 'members' needs the tenant module",
@@ -652,14 +755,9 @@ create trigger ${mirror} after update of email on auth.users
 
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
-  const read = ctx.text("readPolicy", "self");
-  if (read !== "self" && read !== "members") {
-    throw new TypeError(
-      `sql.modules.profiles.options.readPolicy must be "self" or "members", not "${read}"`,
-    );
-  }
+  readPolicy(ctx);
   return [
-    `${schemaPreamble(ctx)}${peers(ctx)}${table(ctx)}`,
+    `${schemaPreamble(ctx)}${peers(ctx)}${table(ctx)}${platformRead(ctx)}`,
     grants(ctx),
     guard(ctx),
     functions(ctx),
@@ -673,6 +771,12 @@ export const PROFILES: ModuleDefinition = {
   description:
     "A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.",
   requires: [],
+  dependencies: (layout) => {
+    const policy = layout.modules?.["profiles"]?.options?.["readPolicy"];
+    return typeof policy === "object" && policy !== null && "platform" in policy
+      ? ["access"]
+      : [];
+  },
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

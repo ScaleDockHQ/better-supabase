@@ -177,6 +177,9 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 
 `permissions.create` makes creating an organization a platform permission,
 checked with `is_platform()`. Without it every signed-in user can create one.
+`permissions.updatePlatform` and `permissions.deletePlatform` name platform
+keys that let platform staff update or delete any organization without the
+service role, next to the members who hold `update` or `delete` in it.
 
 `sql.modules.invitations.options` (`tokenStorage: "plain"` is migration-only: the
 config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):
@@ -277,6 +280,25 @@ functions accept a role id or key. The `before_organization_create`,
 `after_organization_create`, `after_member_change`, `before_invitation_create`
 and `after_invitation_accept` [SQL hooks](/docs/extending/events#sql-hooks)
 run your own checks and side effects in the same transaction.
+
+`invitation_preview_extra(invitation uuid) returns jsonb` adds keys to what
+`invitation_preview` returns, such as the role's display name or branding
+from another table. Its keys are merged over the preview's, and it runs as
+the module function's owner, since the preview is callable without a
+session:
+
+```sql
+create function public.invitation_preview_extra(invitation uuid)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select jsonb_build_object('roleLabel', r.label)
+  from public.invitations i join public.roles r on r.id = i.role_id
+  where i.id = invitation
+$$;
+```
 
 ## Errors
 

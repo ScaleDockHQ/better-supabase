@@ -591,9 +591,30 @@ end
 $$;
 notify pgrst, 'reload config';`;
 
+/** `sql.modules["reserved-slugs"].options.slugs`: the app's own words, such as its route names. */
+function appSlugs(ctx: ModuleContext): string {
+  const slugs = ctx.list("slugs", []);
+  for (const slug of slugs) {
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(slug)) {
+      throw new TypeError(
+        `sql.modules.reserved-slugs.options.slugs: "${slug}" is not a slug (lowercase letters, digits and inner hyphens)`,
+      );
+    }
+  }
+  if (slugs.length === 0) return "";
+  return `
+
+-- sql.modules.reserved-slugs.options.slugs
+insert into better_supabase.reserved_slugs (slug, reason)
+select value, 'app'
+from unnest(array[${slugs.map(sqlString).join(", ")}]) as value
+on conflict (slug) do nothing;`;
+}
+
 const RESERVED_SLUGS: SqlModule = {
   name: "reserved-slugs",
-  data: () => RESERVED_SLUGS_SEED,
+  names: { tables: {}, options: ["slugs"] },
+  data: (ctx) => `${RESERVED_SLUGS_SEED}${appSlugs(ctx)}`,
   title: "Reserved slugs",
   description:
     "A slug format check and a list of reserved words (admin, api, www, ...), enforced by a trigger.",
@@ -2003,6 +2024,17 @@ export interface ModulePermissionKey {
   readonly scope: "tenant" | "platform";
 }
 
+/** Actions a module checks only when `sql.modules.<module>.permissions` names a key. */
+const OPTIONAL_MODULE_PERMISSIONS: Readonly<
+  Record<string, Readonly<Record<string, "tenant" | "platform">>>
+> = {
+  organizations: {
+    create: "platform",
+    updatePlatform: "platform",
+    deletePlatform: "platform",
+  },
+};
+
 const isPermissionModule = (
   name: string,
 ): name is keyof typeof MODULE_PERMISSIONS =>
@@ -2029,19 +2061,28 @@ export function modulePermissionKeys(
     if (ctx.mode === "custom") return [];
     const scopes: Readonly<Record<string, "tenant" | "platform">> =
       MODULE_PERMISSION_SCOPES[name];
-    return Object.entries(MODULE_PERMISSIONS[name]).flatMap(
-      ([action, fallback]): ModulePermissionKey[] =>
-        action === "invitePlatform" && !hasPlatformRoles(ctx)
-          ? []
-          : [
-              {
-                module: name,
-                action,
-                key: ctx.permissionKey(action, fallback),
-                scope: scopes[action]!,
-              },
-            ],
-    );
+    const optional = Object.entries(
+      OPTIONAL_MODULE_PERMISSIONS[name] ?? {},
+    ).flatMap(([action, scope]): ModulePermissionKey[] => {
+      const key = ctx.permissionKey(action, "");
+      return key === "" ? [] : [{ module: name, action, key, scope }];
+    });
+    return [
+      ...Object.entries(MODULE_PERMISSIONS[name]).flatMap(
+        ([action, fallback]): ModulePermissionKey[] =>
+          action === "invitePlatform" && !hasPlatformRoles(ctx)
+            ? []
+            : [
+                {
+                  module: name,
+                  action,
+                  key: ctx.permissionKey(action, fallback),
+                  scope: scopes[action]!,
+                },
+              ],
+      ),
+      ...optional,
+    ];
   });
 }
 

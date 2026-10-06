@@ -84,7 +84,7 @@ sql: {
 | `metadata`          | the keys in the table above                           | metadata key to column name; replaces the defaults                                             |
 | `splitName`         | `true`                                                | fills first and last name from a full name                                                     |
 | `username`          | `true`                                                | allocates a username on sign-up                                                                |
-| `usernameFrom`      | `["user_name", "preferred_username", "username"]`     | metadata keys tried before the email                                                           |
+| `usernameFrom`      | `["user_name", "preferred_username", "username"]`     | metadata keys tried before the email, or `{ names, separator }` entries (see below)            |
 | `usernameMinLength` | `3`                                                   | shorter names become `user`                                                                    |
 | `usernameMaxLength` | `32`                                                  | the longest name, suffix included                                                              |
 | `reservedUsernames` | `admin`, `api`, `support`, `www` and more             | names nobody gets; allocation adds a suffix                                                    |
@@ -92,9 +92,37 @@ sql: {
 | `updatable`         | name, avatar, username, onboarding and `extraColumns` | the columns users can update                                                                   |
 | `columnGrants`      | `true` when managed                                   | revokes `update` and grants it on `updatable` only                                             |
 | `serviceColumns`    | see above                                             | the columns only the service changes; `[]` drops the guard                                     |
-| `readPolicy`        | `self`                                                | `members` also shows profiles of people in the same organizations (needs `tenant`)             |
+| `readPolicy`        | `self`                                                | `members` also shows profiles of people in the same organizations (needs `tenant`); see below  |
 | `syncTrigger`       | `true`                                                | `false` leaves sign-up to your own trigger, which calls `sync_profile`                         |
 | `mirrorEmail`       | `true`                                                | keeps `email` equal to `auth.users.email`                                                      |
+
+An entry of `usernameFrom` can join several metadata keys when all of them
+are set, so a "first_last" convention is a setting:
+
+```ts
+profiles: {
+  options: {
+    usernameFrom: [
+      { names: ["first_name", "last_name"], separator: "_" },
+      "user_name",
+    ],
+  },
+},
+```
+
+Ada Lovelace becomes `ada_lovelace`; a user without a last name falls back to
+`user_name`, then the email. `allocate_username` still lowercases, strips and
+suffixes the result.
+
+`readPolicy` also takes `{ members, platform }`. `platform` is a permission
+key that `is_platform()` checks, so platform staff read every profile, which
+admin consoles need. It writes its own policy, `bs_profiles_platform_read`,
+in managed and adopt mode, and pulls in the `access` module. Column grants
+still apply, so the private columns stay behind them.
+
+```ts
+profiles: { options: { readPolicy: { members: true, platform: "platform.user.read" } } },
+```
 
 ## Existing profiles
 

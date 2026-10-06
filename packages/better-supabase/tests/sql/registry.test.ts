@@ -420,4 +420,45 @@ describe("modulePermissionKeys", () => {
     expect(platform({ access: { model: "permdock" } })).toBe(false);
     expect(platform({ access: { model: "catalog" } })).toBe(true);
   });
+
+  it("lists the optional platform keys an organizations config names", () => {
+    expect(
+      modulePermissionKeys(
+        {
+          organizations: {
+            permissions: {
+              create: "platform.organization.create",
+              deletePlatform: "platform.organization.delete",
+            },
+          },
+        },
+        ["organizations"],
+      ).filter((entry) => entry.scope === "platform"),
+    ).toEqual([
+      {
+        module: "organizations",
+        action: "create",
+        key: "platform.organization.create",
+        scope: "platform",
+      },
+      {
+        module: "organizations",
+        action: "deletePlatform",
+        key: "platform.organization.delete",
+        scope: "platform",
+      },
+    ]);
+  });
+
+  it("adds the app's reserved slugs to the data file", () => {
+    const data = (slugs: readonly string[]) =>
+      renderModules(["reserved-slugs"], {
+        modules: { "reserved-slugs": { options: { slugs } } },
+      }).find((file) => file.kind === "data")!.contents;
+    expect(data(["pricing-beta", "team"])).toContain(
+      "select value, 'app'\nfrom unnest(array['pricing-beta', 'team']) as value",
+    );
+    expect(data([])).not.toContain("options.slugs");
+    expect(() => data(["Bad Slug"])).toThrow(/is not a slug/);
+  });
 });

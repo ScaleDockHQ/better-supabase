@@ -220,3 +220,15 @@ describe("platform invitations under the permdock model", () => {
     ).toThrow(/must be "schema.table"/);
   });
 });
+
+describe("invitation_preview_extra", () => {
+  it("merges the app's keys into the preview when the hook exists", () => {
+    const sql = body({
+      invitations: {
+        hooks: { functions: { invitation_preview_extra: "app.preview" } },
+      },
+    });
+    expect(sql).toContain(`to_regprocedure('"app"."preview"(uuid)')`);
+    expect(sql).toContain("preview := preview || coalesce(extra, '{}');");
+  });
+});
