@@ -261,8 +261,8 @@ catalogs:
       specifier: 0.4.0
       version: 0.4.0
     '@supabase/server':
-      specifier: 1.9.0
-      version: 1.9.0
+      specifier: 1.9.1
+      version: 1.9.1
     '@supabase/ssr':
       specifier: 0.12.7
       version: 0.12.7
@@ -499,8 +499,8 @@ catalogs:
       specifier: ^2.116.0
       version: 2.117.2
     '@supabase/server':
-      specifier: ^1.9.0
-      version: 1.9.0
+      specifier: ^1.9.1
+      version: 1.9.1
     '@supabase/ssr':
       specifier: ^0.12.7
       version: 0.12.7
@@ -714,7 +714,7 @@ importers:
     dependencies:
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -757,7 +757,7 @@ importers:
         version: 2.3.1(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0))(@types/react@19.3.0)(react@19.2.3)(supports-color@7.2.0))(react@19.2.3))(@powersync/common@2.3.1)(react-native@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0))(@types/react@19.3.0)(react@19.2.3)(supports-color@7.2.0))(react@19.2.3)
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)
       '@supabase/ssr':
         specifier: 'catalog:'
         version: 0.12.7(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))
@@ -830,7 +830,7 @@ importers:
     dependencies:
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -861,7 +861,7 @@ importers:
     dependencies:
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -959,7 +959,7 @@ importers:
     dependencies:
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -984,7 +984,7 @@ importers:
     dependencies:
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)
       '@supabase/ssr':
         specifier: 'catalog:'
         version: 0.12.7(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))
@@ -1057,7 +1057,7 @@ importers:
         version: 2.0.0-beta.42
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -1243,7 +1243,7 @@ importers:
         version: 2.117.2
       '@supabase/server':
         specifier: catalog:deps
-        version: 1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)
       '@supabase/ssr':
         specifier: catalog:deps
         version: 0.12.7(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))
@@ -4617,8 +4617,8 @@ packages:
     resolution: {integrity: sha512-lYXSAIg3eAKA58riUED6Vb+TCzF8jtx18uOoiCaVJ7ZMre6FWBpwB1MPeW+B6vykJT/hPdiuqwcSB7ILMS21ew==}
     engines: {node: '>=22.0.0'}
 
-  '@supabase/server@1.9.0':
-    resolution: {integrity: sha512-EhgfKFWjB6bCWy2UR2JdExnK+B8WBdwiG90+bLTt0GkdAuHZZSooNxOsn/fP3UlcXUNJ6xfAkYlvGzN8NUpz1w==}
+  '@supabase/server@1.9.1':
+    resolution: {integrity: sha512-AW/8aZrX5nHP3OwYMamA1hxERuL+RO7yw0h3oUfdXYKIxkdoRVm0ELzzv8wLGCk97aeVjBQ4ixZ2h66jPCfJjA==}
     engines: {node: '>=22'}
     peerDependencies:
       '@nestjs/common': ^10.0.0 || ^11.0.0
@@ -12639,7 +12639,7 @@ snapshots:
       '@supabase/phoenix': 0.4.5
       tslib: 2.8.1
 
-  '@supabase/server@1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)':
+  '@supabase/server@1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)':
     dependencies:
       '@supabase/middleware': 1.0.0(typescript@7.0.2)
       '@supabase/supabase-js': 2.117.2(@opentelemetry/api@1.9.1)
@@ -12650,7 +12650,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@supabase/server@1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)':
+  '@supabase/server@1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)':
     dependencies:
       '@supabase/middleware': 1.0.0(typescript@7.0.2)
       '@supabase/supabase-js': 2.117.2(@opentelemetry/api@1.9.1)
@@ -12661,7 +12661,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@supabase/server@1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)':
+  '@supabase/server@1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)':
     dependencies:
       '@supabase/middleware': 1.0.0(typescript@7.0.2)
       '@supabase/supabase-js': 2.117.2(@opentelemetry/api@1.9.1)
@@ -12672,7 +12672,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@supabase/server@1.9.0(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)':
+  '@supabase/server@1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)':
     dependencies:
       '@supabase/middleware': 1.0.0(typescript@7.0.2)
       '@supabase/supabase-js': 2.117.2(@opentelemetry/api@1.9.1)
