@@ -434,6 +434,7 @@
       "withBetterDb",
       "withBetterPostgres",
       "withBetterSupabase",
+      "withBlock",
       "withGuard",
       "withSession",
       "writeSession"
