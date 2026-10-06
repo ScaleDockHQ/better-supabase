@@ -4,9 +4,16 @@ description: Hashed API keys for tenants and users, with scopes, expiry, rotatio
 ---
 
 The `api-keys` block issues keys your customers call your API with. A key
-looks like `bs_0f3a9c2e7b1d4a68_<secret>`: a prefix, a public id and a
-secret. Only the SHA-256 of the secret is stored, so a database dump holds no
-usable key, and the token is shown once when the key is created.
+looks like `bs_0f3a9c2e7b1d4a68_<secret><checksum>`: a prefix, a public id, a
+43-character base62 secret and the 6-character CRC-32 checksum of everything
+before it. Only the SHA-256 of the secret is stored, so a database dump holds no
+usable key, and the token is shown once when the key is created. The checksum
+lets `verify` and secret scanners reject a mistyped or made-up key without a
+database lookup; keys created before it (no checksum) still verify.
+
+Set the prefix to your product's, such as `acme`, with `createApiKeys({ prefix })`
+and `sql.modules.api-keys.options.prefix`, so scanners and support can tell your
+keys apart. It is `bs` by default.
 
 ```bash
 better-supabase sql add api-keys   # adds tenant and access as well
@@ -136,3 +143,72 @@ create policy deals_read_with_key on public.deals for select to authenticated
 
 Restrict the scopes keys may carry with `sql.modules.api-keys.options.scopes`
 (a list); `create_api_key` then refuses any other with `API_KEY_SCOPE_UNKNOWN`.
+With PermDock, `scopes: "catalog"` takes the list from the keys in
+`permissions.catalog.json`, so a key's scopes are the same permission keys
+your guards and policies check, and `sql add` fails when the catalog is
+missing.
+
+## With PermDock
+
+`permdockVerifier` turns the block into PermDock's `CredentialVerifier`, so
+`subjectFromApiKey` and the database read the same keys. PermDock parses
+`pdk_<id>_<secret><checksum>`, which is the block's format with the `pdk`
+prefix:
+
+```ts title="src/auth.ts"
+import { subjectFromApiKey } from "permdock/server";
+import {
+  createApiKeys,
+  permdockVerifier,
+  sqlTransport,
+} from "better-supabase/blocks/api-keys";
+
+const keys = createApiKeys({
+  transport: sqlTransport(postgres.admin),
+  prefix: "pdk",
+});
+
+export const fromApiKey = subjectFromApiKey({
+  verifier: permdockVerifier({
+    keys,
+    serviceRoles: () => ["integration"],
+    allPermissions: catalog.permissions.map((entry) => entry.key),
+  }),
+  // the rest of PermDock's options
+});
+```
+
+Queries for a key run with the `api_key` claim, and PermDock's `rls.apiKeys`
+reads a claim of the same name to make the key's scopes a ceiling in its
+generated helpers. Pass `permdock` to the resolver (or to `apiKeyClaims`) so
+the claim also carries PermDock's fields: `true` for PermDock's default names,
+or the manifest's `rls.apiKeys` when you renamed them.
+
+```ts
+apiKeyResolver({
+  keys,
+  permdock: manifest.rls.apiKeys ?? true,
+  serviceRoles: () => ["integration"],
+  allPermissions: catalog.permissions.map((entry) => entry.key),
+  tenantClaim: "tenant_id",
+});
+```
+
+A tenant key then has PermDock's `tenant` field and, from `serviceRoles` (or
+the manifest's `serviceRoles`), its `roles`, so PermDock's helpers treat it as
+a service principal of that tenant. A personal key limited to a tenant gets
+`tenantClaim` (PermDock's `rls.tenantClaim`), which narrows the helpers to that
+tenant. PermDock's ceiling has no wildcard: `*` expands to `allPermissions`,
+and without it a key with `*` allows nothing under PermDock's helpers or
+`has_scope()`. Under the permdock access model `create_api_key` refuses `*`
+(`API_KEY_SCOPE_WILDCARD`) unless `options.scopes` lists it, and
+`options.scopes: "catalog"` keeps every scope a permission key PermDock knows.
+
+Set `sql.modules.api-keys.options.prefix: "pdk"` too. A personal key becomes a
+`user` credential acting as its user, with the key's scopes as its
+permissions (on its tenant only, when it is limited to one). A tenant key
+becomes a `service` credential holding the roles `serviceRoles` returns in its
+tenant; without `serviceRoles` tenant keys verify to `null`. `*` expands to
+`allPermissions`, and a key with `*` verifies to `null` without it. An
+invalid, revoked, expired or rate-limited key is `null`, and
+`verify_api_key` already records the use, so the verifier has no `touch`.

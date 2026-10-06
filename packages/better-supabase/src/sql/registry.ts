@@ -1829,6 +1829,8 @@ export interface ModuleLayout {
   readonly accessPermdock?: ModuleAccessPermdock;
   /** `config.sql.modules`: modes, names and permission keys per module. */
   readonly modules?: ModulesConfig;
+  /** The keys of PermDock's permission catalog, when the project has one. */
+  readonly permissionCatalog?: readonly string[];
 }
 
 /** One PermDock membership source, from the manifest's `memberships`. */

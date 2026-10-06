@@ -1,0 +1,5 @@
+---
+"better-supabase": minor
+---
+
+API keys end in a 6-character CRC-32 checksum (`<prefix>_<public id>_<secret><checksum>`, a 43-character base62 secret), so `verify` and secret scanners reject a mistyped key without a lookup; keys created before it still verify. `sql.modules.api-keys.options.prefix` sets the token prefix the SQL side defaults to, and `options.scopes: "catalog"` limits scopes to the keys of PermDock's `permissions.catalog.json`. Scopes may now contain uppercase letters, as PermDock keys do. `permdockVerifier({ keys, serviceRoles, allPermissions })` makes the block PermDock's `CredentialVerifier`, so `subjectFromApiKey` and the database read the same `pdk_` keys. `parseApiKey` returns a new `checksum` flag. `apiKeyClaims` and `apiKeyResolver` take `permdock` (`true` or the manifest's `rls.apiKeys`), `serviceRoles`, `allPermissions` and `tenantClaim`, so the `api_key` claim carries the fields PermDock's generated RLS helpers read: scopes as a ceiling, and a tenant key as a service principal of its tenant. Under the permdock access model `create_api_key` refuses the `*` scope (`API_KEY_SCOPE_WILDCARD`) unless `options.scopes` lists it.

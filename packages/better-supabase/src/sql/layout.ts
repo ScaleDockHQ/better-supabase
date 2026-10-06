@@ -15,10 +15,12 @@ export function moduleLayout(
   readSets: ModuleLayout["readSets"] = [],
   permdock?: ModulePermdock,
   accessPermdock?: ModuleAccessPermdock,
+  permissionCatalog?: readonly string[],
 ): ModuleLayout {
   return {
     ...(permdock ? { permdock } : {}),
     ...(accessPermdock ? { accessPermdock } : {}),
+    ...(permissionCatalog ? { permissionCatalog } : {}),
     dir: config.sql.dir,
     prefix: config.sql.prefix,
     testsDir,

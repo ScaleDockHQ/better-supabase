@@ -155,6 +155,14 @@ async function accessPermdockFor(
   }
 }
 
+/** The keys of PermDock's permission catalog, for `api-keys` scopes. */
+async function permissionCatalogFor(
+  config: ResolvedConfig,
+): Promise<readonly string[] | undefined> {
+  const project = await readPermdock(config.root, config.permdock);
+  return project?.catalog?.permissions.map((entry) => entry.key);
+}
+
 async function layout(
   config: ResolvedConfig,
   args: SqlArgs,
@@ -167,6 +175,7 @@ async function layout(
       [],
       await permdockFor(config, names),
       await accessPermdockFor(config, names),
+      await permissionCatalogFor(config),
     ),
     schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
   };
@@ -219,6 +228,7 @@ async function layoutFor(
       resolved.has("read-sets") ? await compiledReadSets(config) : [],
       permdock,
       await accessPermdockFor(config, names),
+      await permissionCatalogFor(config),
     ),
     schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
     ...(resolved.has("audit")
