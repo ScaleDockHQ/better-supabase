@@ -211,13 +211,13 @@ through. Name the `features` claim in the app schema to type its keys
 
 ## Servers
 
-`withBetterSupabase(betterSupabase)()` contributes `ctx.db` and `withPermDock()`
-contributes `ctx.permdock`. Both read what `withSupabase` verified:
+`withBetterSupabase(server)` verifies the caller and contributes `ctx.db` and
+`ctx.jwtClaims`, and `withPermDock()` contributes `ctx.permdock` from those
+claims:
 
 ```ts title="src/api/customers.ts"
 import { pipeline } from "@supabase/middleware";
-import { withSupabase } from "@supabase/server";
-import { withBetterSupabase } from "better-supabase/server";
+import { createServer, withBetterSupabase } from "better-supabase/server";
 import { createPermDock } from "permdock/supabase/middleware";
 import { subjectFromSupabase } from "permdock/supabase";
 
@@ -227,8 +227,7 @@ const { withPermDock } = createPermDock(policy, {
 
 export const listCustomers = pipeline(
   [
-    withSupabase({ auth: "user" }),
-    withBetterSupabase(betterSupabase)(),
+    withBetterSupabase(createServer(betterSupabase), { allow: ["user"] }),
     withPermDock(),
   ],
   async (_req, ctx) => {

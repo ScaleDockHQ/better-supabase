@@ -46,14 +46,28 @@ export type {
   ContextOptions,
   ForContextOptions,
   ServerContext,
+  ServerDbOptions,
   ServerOptions,
 } from "./server.ts";
 export {
   contextFromSupabase,
+  withBetterDb,
   withBetterPostgres,
-  withBetterSupabase,
-} from "./middleware.ts";
-export type { SupabaseAuthContext } from "./middleware.ts";
+} from "./entries/upstream.ts";
+export type { SupabaseAuthContext } from "./entries/upstream.ts";
+export { withBetterSupabase } from "./composite.ts";
+export type {
+  BetterSupabaseConfig,
+  BetterSupabaseContributions,
+  BetterSupabaseEntry,
+} from "./composite.ts";
+export { withSession } from "./entries/session.ts";
+export type { SessionEntryConfig } from "./entries/session.ts";
+export { withGuard } from "./entries/guard.ts";
+export type { GuardEntryConfig } from "./entries/guard.ts";
+export { authModeOf, jwtClaimsOf, userClaimsOf } from "./entries/claims.ts";
+export { serverCore } from "./entries/core.ts";
+export type { ServerCore } from "./entries/core.ts";
 export {
   aalOf,
   amrOf,

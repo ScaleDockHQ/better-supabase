@@ -1,25 +1,54 @@
 ---
 title: Other frameworks
-description: Use @supabase/server's adapters with withBetterSupabase, or write an adapter with handle().
+description: Run withBetterSupabase in any framework through a bridge, or write an adapter with handle().
 ---
 
-`@supabase/server` ships adapters for h3, Elysia and NestJS. They run
-`@supabase/middleware` pipelines, so [`withBetterSupabase`](/docs/auth/middleware)
-adds `ctx.db` there too, without a separate integration:
+better-supabase ships a bridge for each framework below. A bridge runs an
+`@supabase/middleware` entry array (with
+[`withBetterSupabase`](/docs/auth/middleware) first) in the framework's
+middleware slot and returns the framework's response back through the
+entries.
 
-```ts
-import { withSupabase } from "@supabase/server";
-import { withBetterSupabase } from "better-supabase/server";
+| Framework       | Import                                                  | Docs                                              |
+| --------------- | ------------------------------------------------------- | ------------------------------------------------- |
+| TanStack Start  | `toTanStackStart` from `better-supabase/tanstack-start` | [TanStack Start](/docs/frameworks/tanstack-start) |
+| SvelteKit       | `toSvelteKit` from `better-supabase/sveltekit`          | [SvelteKit](/docs/frameworks/sveltekit)           |
+| React Router    | `toReactRouter` from `better-supabase/react-router`     | [React Router](/docs/frameworks/react-router)     |
+| H3, Nitro, Nuxt | `toH3` from `better-supabase/h3`                        | [H3](/docs/frameworks/h3)                         |
+| Elysia          | `toElysia` from `better-supabase/elysia`                | [Elysia](/docs/frameworks/elysia)                 |
 
-const middleware = [
-  withSupabase({ auth: "user" }),
-  withBetterSupabase(betterSupabase)(),
-];
+The bridges are typed structurally: none of them imports its framework, so
+installing better-supabase adds no framework dependency.
+
+The `@supabase/server` adapters (`adapters/hono`, `/h3`, `/elysia` and
+`/nestjs`) are deprecated upstream and removed on 2026-12-01. Move to the
+bridge for your framework. For NestJS, call
+`createServer(betterSupabase).context(request)` in a guard or interceptor.
+
+## Write a bridge
+
+A framework with a middleware that gets a `Request` and a `next()` returning
+a `Response` needs about ten lines. Fold the pipeline once, hand the
+framework's `next` to the terminal through the context, and return the
+response:
+
+```ts title="better-supabase-acme.ts"
+import { type AnyEntry, pipeline, seedContext } from "@supabase/middleware";
+
+const NEXT = Symbol("acme.next");
+
+export function toAcme(entries: readonly AnyEntry[]) {
+  const run = pipeline(entries, (_request, ctx) => {
+    const { c, next } = (
+      ctx as { [NEXT]: { c: AcmeContext; next: () => Promise<Response> } }
+    )[NEXT];
+    Object.assign(c.locals, ctx);
+    return next();
+  });
+  return (c: AcmeContext, next: () => Promise<Response>) =>
+    run(c.request, { ...seedContext(c.env), [NEXT]: { c, next } });
+}
 ```
-
-Pass `middleware` to the adapter you use (`@supabase/server/adapters/h3`,
-`/elysia` or `/nestjs`); see the `@supabase/server` docs for each adapter's
-signature.
 
 ## Write an adapter
 

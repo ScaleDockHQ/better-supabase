@@ -232,6 +232,8 @@ The other SQL modules (`updated-at`, `audit`, `rate-limit`, `support-sessions` a
 | `better-supabase/ssr`                             | The `@supabase/ssr` cookie format for any framework                      |
 | `better-supabase/next`, `/next/image`             | Proxy, Server Components, route handlers, server actions, Storage images |
 | `better-supabase/hono`, `/orpc`, `/edge`, `/expo` | Framework adapters                                                       |
+| `better-supabase/tanstack-start`, `/sveltekit`    | The middleware entries as TanStack Start middleware and a SvelteKit hook |
+| `better-supabase/react-router`, `/h3`, `/elysia`  | The middleware entries for React Router, H3 (Nitro, Nuxt) and Elysia     |
 | `better-supabase/mcp`                             | MCP servers whose tools run as the signed-in user                        |
 | `better-supabase/mcp/sdk`                         | Bearer auth and caller-bound `db` for the official MCP SDK               |
 | `better-supabase/list`                            | Search, facets, sorting and pagination from one definition               |

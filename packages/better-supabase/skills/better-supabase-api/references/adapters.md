@@ -115,6 +115,46 @@ Deno.serve(
 );
 ```
 
+## Middleware entries and bridges
+
+`withBetterSupabase(server, { allow })` from `better-supabase/server` is one
+`@supabase/middleware` entry: it resolves the caller, guards, and contributes
+`bs`, `db`, `sql`, `jwtClaims`, `userClaims` and `authMode`. Put
+`withPostgresClient` or `withCors` next to it, then run the array with the
+bridge for the framework:
+
+```ts title="src/hooks.server.ts"
+import { createServer, withBetterSupabase } from "better-supabase/server";
+import { toSvelteKit } from "better-supabase/sveltekit";
+
+import { betterSupabase } from "$lib/supabase";
+
+export const handle = toSvelteKit([
+  withBetterSupabase(createServer(betterSupabase), {
+    refresh: true,
+    allow: ["user", "anon"],
+  }),
+]);
+```
+
+| Framework           | Bridge                                             | Where the keys land                                 |
+| ------------------- | -------------------------------------------------- | --------------------------------------------------- |
+| Hono                | `toHono(entries)` from `better-supabase/hono`      | `c.var`                                             |
+| Edge, Deno, Workers | `toEdge(entries, handler)` from `/edge`            | the handler's `ctx`                                 |
+| oRPC                | `toOrpc(entries, rpcHandler)` from `/orpc`         | the initial `context`                               |
+| Expo API routes     | `toExpo(entries, handler)` from `/expo`            | the handler's `ctx`                                 |
+| TanStack Start      | `toTanStackStart(entries)` from `/tanstack-start`  | middleware `context`                                |
+| SvelteKit           | `toSvelteKit(entries)` from `/sveltekit`           | `event.locals`                                      |
+| React Router        | `toReactRouter(entries, key)` from `/react-router` | `context.get(key)`                                  |
+| H3, Nitro, Nuxt     | `toH3(entries)` from `/h3`                         | `event.context`                                     |
+| Elysia              | `toElysia(entries)` from `/elysia`                 | `.derive(({ request }) => bridge.context(request))` |
+
+Don't use the `@supabase/server/adapters/*` adapters: they are deprecated and
+removed on 2026-12-01. Don't put `withSupabase` and `withBetterSupabase` in
+one array; they write the same keys and the type checker rejects it. Set
+`refresh: true` only on the bridge that runs once per request with a response
+(request middleware, the `handle` hook), never in Server Components.
+
 ## MCP
 
 ```ts title="supabase/functions/mcp/index.ts"
@@ -159,7 +199,7 @@ gateway's `X-Forwarded-*` headers and serves the metadata at
 `/functions/v1/mcp/oauth-protected-resource`, so leave `resource` unset there.
 CORS preflights are answered by default (`cors: false` turns them off).
 To keep a Supabase library MCP block's pipeline instead, add
-`withBetterSupabase(betterSupabase)()` from `better-supabase/server` after its
+`withBetterDb(betterSupabase)()` from `better-supabase/server` after its
 `withSupabase` entry for `ctx.db`.
 
 ### MCP on the official SDK

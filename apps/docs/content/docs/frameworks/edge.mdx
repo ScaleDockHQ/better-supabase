@@ -87,4 +87,35 @@ createEdge(betterSupabase, {
 ```
 
 A request from an origin that isn't listed gets no CORS headers, and error
-responses get the same headers as successful ones.
+responses get the same headers as successful ones. The headers come from
+`withCors` in `@supabase/middleware/cors`: a preflight is an `OPTIONS`
+request with `Access-Control-Request-Method`, and an allow-list adds
+`Vary: Origin`. `corsConfig(options)` returns the `withCors` config for your
+own pipeline.
+
+## Entry arrays with `toEdge`
+
+`toEdge(entries, handler)` runs an `@supabase/middleware` entry array around
+a handler and returns the same fetch handler shape. The host's second
+argument seeds the pipeline, so on Workers `getEnv` inside the entries reads
+the bindings:
+
+```ts title="src/worker.ts"
+import { withCors } from "@supabase/middleware/cors";
+import { toEdge } from "better-supabase/edge";
+import { createServer, withBetterSupabase } from "better-supabase/server";
+
+const bs = createServer(betterSupabase);
+
+export default {
+  fetch: toEdge(
+    [withCors({ origin: "https://app.example.com" }), withBetterSupabase(bs)],
+    async (_request, ctx) =>
+      Response.json(await ctx.db.notes.findMany().orThrow()),
+  ),
+};
+```
+
+The handler gets the contributions and the Workers execution context, and
+returns a `Response`. Put `withCors` first so a 401 from the guard carries the
+CORS headers too.

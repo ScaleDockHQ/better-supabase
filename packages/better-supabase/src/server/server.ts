@@ -1,9 +1,10 @@
 import type { JWTClaims, UserClaims } from "@supabase/server";
 
+import { getEnv, pipeline, seedContext } from "@supabase/middleware";
 import { PostgrestClient } from "@supabase/postgrest-js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-import type { CookieWrite } from "../auth/session.ts";
+import type { CookieWrite, SessionEncoding } from "../auth/session.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { EventHub } from "../core/events.ts";
 import type { RequestContext } from "../core/plugin.ts";
@@ -31,6 +32,7 @@ import {
   resolveAuth,
   type ResolveAuthOptions,
 } from "../auth/resolve.ts";
+import { sessionCookieName } from "../auth/session.ts";
 import { dbError } from "../core/errors.ts";
 import {
   type PostgrestClientLike,
@@ -38,12 +40,28 @@ import {
 } from "../core/postgrest-executor.ts";
 import { AsyncResult, ok } from "../core/result.ts";
 import { type DbStats, StatsRecorder } from "../core/stats.ts";
-import { type BetterSupabaseEnv, loadEnv } from "../env/index.ts";
+import {
+  type BetterSupabaseEnv,
+  type EnvSource,
+  loadEnv,
+} from "../env/index.ts";
 import {
   deleteAccount,
   type DeleteAccountOptions,
   type DeleteAccountResult,
 } from "./delete-account.ts";
+import { withServerContext } from "./entries/context.ts";
+import {
+  CALL,
+  type CallState,
+  callOf,
+  registerCore,
+  type ServerCore,
+  shareCore,
+} from "./entries/core.ts";
+import { withSession } from "./entries/session.ts";
+import { withSupport } from "./entries/support.ts";
+import { withTenant } from "./entries/tenant.ts";
 import {
   DEFAULT_PIN_MS,
   pinnedUntil,
@@ -56,8 +74,30 @@ import {
 import { defaultPrefetchJwks } from "./respond.ts";
 import { supportOff } from "./support-off.ts";
 
+/**
+ * PostgREST request settings for the caller's repositories and the shared
+ * service and anon clients, the `db` options supabase-js takes.
+ */
+export interface ServerDbOptions {
+  /** Aborts each PostgREST request after this many milliseconds with a `timeout` error. */
+  readonly timeout?: number;
+  /**
+   * postgrest-js retries of idempotent requests (GET and HEAD) on network
+   * errors, 503 and 520. Defaults to postgrest-js's setting, which is on.
+   */
+  readonly retry?: boolean;
+  /**
+   * The longest query string one read sends. Defaults to the definition's
+   * `urlLengthLimit` (or `maxUrlLength`), else 6000.
+   */
+  readonly urlLengthLimit?: number;
+}
+
 export interface ServerOptions {
-  /** Defaults to `loadEnv()`. */
+  /**
+   * Defaults to the variables `getEnv` from `@supabase/middleware` reads:
+   * Workers bindings, then `process.env`, then `Deno.env`.
+   */
   readonly env?: BetterSupabaseEnv;
   /** Enables `ctx.sql` and `actingAs()`. */
   readonly postgres?: BetterPostgres;
@@ -117,6 +157,8 @@ export interface ServerOptions {
     userId: string,
     context: RequestContext,
   ) => SqlClaims | PromiseLike<SqlClaims>;
+  /** PostgREST request settings: `timeout`, `retry` and `urlLengthLimit`. */
+  readonly db?: ServerDbOptions;
 }
 
 export interface ForContextOptions {
@@ -262,6 +304,14 @@ export interface BetterServer<
   readonly support: SupportApi;
 }
 
+/** The environment as `getEnv` resolves it, one variable at a time. */
+const RUNTIME_ENV: EnvSource = new Proxy<EnvSource>(
+  {},
+  {
+    get: (_target, key) => (typeof key === "string" ? getEnv(key) : undefined),
+  },
+);
+
 const STATELESS = {
   persistSession: false,
   autoRefreshToken: false,
@@ -279,14 +329,16 @@ export function extendServer<R extends object>(
   server: object,
   extra: Omit<R, ServerKeys>,
 ): R {
-  // SAFETY: the descriptors copy every property of server and extra, getters included.
-  return Object.defineProperties(
+  const extended = Object.defineProperties(
     {},
     {
       ...Object.getOwnPropertyDescriptors(server),
       ...Object.getOwnPropertyDescriptors(extra),
     },
-  ) as R;
+  );
+  shareCore(server, extended);
+  // SAFETY: the descriptors copy every property of server and extra, getters included.
+  return extended as R;
 }
 
 /** `{ ...base, ...extra }` that keeps lazy getters lazy. */
@@ -320,7 +372,8 @@ export function createServer<
   options: ServerOptions = {},
 ): BetterServer<M, F, E, C, P> {
   let loaded: BetterSupabaseEnv | undefined;
-  const env = (): BetterSupabaseEnv => (loaded ??= options.env ?? loadEnv());
+  const env = (): BetterSupabaseEnv =>
+    (loaded ??= options.env ?? loadEnv(RUNTIME_ENV));
   let adminClient: SupabaseClient | undefined;
   let anonClient: SupabaseClient | undefined;
 
@@ -343,7 +396,34 @@ export function createServer<
     return key;
   };
   const customFetch = options.fetch ? { fetch: options.fetch } : undefined;
-  const sharedGlobal = customFetch ? { global: customFetch } : {};
+  const definitionExecutor = betterSupabase.executorOptions();
+  const urlLengthLimit =
+    options.db?.urlLengthLimit ?? definitionExecutor.urlLengthLimit;
+  const db = {
+    ...(options.db?.timeout === undefined
+      ? {}
+      : { timeout: options.db.timeout }),
+    ...(options.db?.retry === undefined ? {} : { retry: options.db.retry }),
+    ...(urlLengthLimit === undefined ? {} : { urlLengthLimit }),
+  };
+  const dbOptions = Object.keys(db).length > 0 ? { db } : {};
+  const sharedGlobal = {
+    ...(customFetch ? { global: customFetch } : {}),
+    ...dbOptions,
+  };
+  /** postgrest-js options a bare `PostgrestClient` takes; `timeout` is the executor's. */
+  const restOptions = {
+    ...(db.retry === undefined ? {} : { retry: db.retry }),
+    ...(urlLengthLimit === undefined ? {} : { urlLengthLimit }),
+  };
+  const executorOptions = {
+    ...definitionExecutor,
+    ...(urlLengthLimit === undefined ? {} : { urlLengthLimit }),
+    ...(db.timeout === undefined ? {} : { timeout: db.timeout }),
+    ...(db.retry === undefined ? {} : { retry: db.retry }),
+  };
+  /** Set when `db` options need an executor built with them. */
+  const tunedExecutor = options.db !== undefined;
   const serviceClient = (): SupabaseClient => {
     adminClient ??= createClient(env().url, secretKey(), {
       auth: STATELESS,
@@ -365,7 +445,7 @@ export function createServer<
   ): SupabaseClient => {
     const custom = Object.keys(headers).length > 0;
     const global = custom
-      ? { global: { headers, ...customFetch } }
+      ? { global: { headers, ...customFetch }, ...dbOptions }
       : sharedGlobal;
     const shared = !custom && url === env().url;
     switch (auth.kind) {
@@ -427,6 +507,7 @@ export function createServer<
           Authorization: `Bearer ${auth.token}`,
         },
         ...customFetch,
+        ...restOptions,
       },
     );
   };
@@ -449,10 +530,13 @@ export function createServer<
     let supabase: SupabaseClient | undefined;
     const rest = restAt(env().url, auth);
     // SAFETY: `$client` is redefined below to return the SupabaseClient.
-    const db = betterSupabase.connect(rest, {
-      ...authContext(auth),
-      ...context,
-    }) as Db<M, F, E, SupabaseClient>;
+    const db = betterSupabase.connect(
+      rest,
+      { ...authContext(auth), ...context },
+      tunedExecutor
+        ? { executor: postgrestExecutor(rest, executorOptions) }
+        : {},
+    ) as Db<M, F, E, SupabaseClient>;
     return withLazyClient(db, () => (supabase ??= supabaseFor(auth)));
   };
 
@@ -643,9 +727,6 @@ export function createServer<
       get db() {
         if (db) return db;
         const url = replicaUrl();
-        const { maxUrlLength } = betterSupabase.options;
-        const executorOptions =
-          maxUrlLength === undefined ? {} : { maxUrlLength };
         const rest: PostgrestClientLike =
           supabase ?? restAt(env().url, auth, headers);
         const connected = betterSupabase.connect(rest, context, {
@@ -661,7 +742,9 @@ export function createServer<
                   replica,
                 ),
               }
-            : {}),
+            : tunedExecutor
+              ? { executor: postgrestExecutor(rest, executorOptions) }
+              : {}),
         });
         // SAFETY: `$client` is redefined to return the SupabaseClient.
         db = withLazyClient(connected as Db<M, F, E, SupabaseClient>, client);
@@ -707,6 +790,7 @@ export function createServer<
     resolveOptions: {
       readonly refresh?: boolean;
       readonly cookies?: boolean;
+      readonly encode?: SessionEncoding;
     } = {},
   ): Promise<AuthResolution<C, P>> => {
     const claims = options.auth?.claims ?? betterSupabase.claimsSchema;
@@ -723,6 +807,11 @@ export function createServer<
       ...(resolveOptions.cookies === undefined
         ? {}
         : { cookies: resolveOptions.cookies }),
+      ...(resolveOptions.encode === undefined
+        ? {}
+        : {
+            cookie: { ...options.auth?.cookie, encode: resolveOptions.encode },
+          }),
       onRefresh: (event) => {
         options.auth?.onRefresh?.(event);
         betterSupabase.events.emit("refresh", event);
@@ -780,22 +869,10 @@ export function createServer<
         contextOptions.support,
       ),
     async context(request, contextOptions = {}) {
-      const resolution = await resolve(request, {
-        refresh: contextOptions.refresh ?? false,
-        ...(contextOptions.cookies === undefined
-          ? {}
-          : { cookies: contextOptions.cookies }),
-      });
-      const [tenant, active] = await Promise.all([
-        contextOptions.tenant ?? options.tenant?.(request, resolution.auth),
-        contextOptions.support ?? support.current(request, resolution.auth),
-      ]);
-      return fromResolution(
-        resolution,
-        request,
-        active ? { ...contextOptions, support: active } : contextOptions,
-        tenant,
-      );
+      const call: CallState = { options: contextOptions };
+      await fold(request, { ...seedContext(), [CALL]: call });
+      // SAFETY: the fold's terminal stored this call's ServerContext.
+      return call.context as ServerContext<M, F, E, C, P>;
     },
     contextFromResolution: (resolution, request, contextOptions = {}) =>
       fromResolution(
@@ -804,12 +881,20 @@ export function createServer<
         contextOptions,
         contextOptions.tenant ?? syncTenant(request, resolution.auth),
       ),
-    admin: (context = {}) =>
-      betterSupabase.connect(serviceClient(), {
-        actor: { id: "service", kind: "service", role: "service_role" },
-        claims: { role: "service_role" },
-        ...context,
-      }),
+    admin: (context = {}) => {
+      const client = serviceClient();
+      return betterSupabase.connect(
+        client,
+        {
+          actor: { id: "service", kind: "service", role: "service_role" },
+          claims: { role: "service_role" },
+          ...context,
+        },
+        tunedExecutor
+          ? { executor: postgrestExecutor(client, executorOptions) }
+          : {},
+      );
+    },
     support,
     deleteAccount: (userId, deleteOptions) =>
       deleteAccount(betterSupabase, serviceClient, userId, deleteOptions),
@@ -901,5 +986,31 @@ export function createServer<
       });
     },
   };
+
+  const core: ServerCore<M, F, E, C, P> = {
+    events: betterSupabase.events,
+    pinMs,
+    resolve,
+    sessionCookie: () =>
+      options.auth?.cookie?.name ?? sessionCookieName(env().url),
+    tenant: (request, auth) => options.tenant?.(request, auth),
+    support: (request, auth) => support.current(request, auth),
+    context: (resolution, request, contextOptions, tenant) =>
+      fromResolution(resolution, request, contextOptions, tenant),
+  };
+  registerCore(server, core);
+  const fold = pipeline(
+    [
+      withSession(core),
+      withTenant(core),
+      withSupport(core),
+      withServerContext(core),
+    ] as const,
+    (_request, ctx) => {
+      const call = callOf(ctx);
+      if (call) call.context = ctx.bs;
+      return Promise.resolve(new Response(null, { status: 204 }));
+    },
+  );
   return server;
 }

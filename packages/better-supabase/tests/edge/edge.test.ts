@@ -33,6 +33,9 @@ describe("createEdge", () => {
       headers: {
         ...(init.token ? { authorization: `Bearer ${init.token}` } : {}),
         ...(init.origin ? { origin: init.origin } : {}),
+        ...(init.method === "OPTIONS"
+          ? { "access-control-request-method": "POST" }
+          : {}),
       },
     });
 
@@ -48,7 +51,7 @@ describe("createEdge", () => {
     expect(response.headers.get("access-control-allow-origin")).toBe(
       "https://app.test",
     );
-    expect(response.headers.get("vary")).toBe("origin");
+    expect(response.headers.get("vary")).toBe("Origin");
 
     const anonymous = await serve(
       await request("/hello", { origin: "https://evil.test" }),

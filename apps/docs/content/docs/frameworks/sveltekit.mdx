@@ -1,0 +1,49 @@
+---
+title: SvelteKit
+description: Run withBetterSupabase as a SvelteKit handle hook, with the caller's repositories on event.locals.
+---
+
+`toSvelteKit(entries)` from `better-supabase/sveltekit` returns a `handle`
+hook. Every key [`withBetterSupabase`](/docs/auth/middleware) contributes
+lands on `event.locals`, and the response `resolve(event)` renders passes back
+through the entries, so refreshed session cookies reach the browser:
+
+```ts title="src/hooks.server.ts"
+import { createServer, withBetterSupabase } from "better-supabase/server";
+import { toSvelteKit } from "better-supabase/sveltekit";
+import { betterSupabase } from "$lib/supabase";
+
+const bs = createServer(betterSupabase);
+
+export const handle = toSvelteKit([
+  withBetterSupabase(bs, { refresh: true, allow: ["user", "anon"] }),
+]);
+```
+
+Loads, actions and endpoints read the caller's repositories from `locals`:
+
+```ts title="src/routes/notes/+page.server.ts"
+export const load = async ({ locals }) => ({
+  notes: await locals.db.notes.findMany({ select: ["id", "title"] }).orThrow(),
+});
+```
+
+Declare the keys once in `App.Locals`:
+
+```ts title="src/app.d.ts"
+import type { BetterSupabaseContributions } from "better-supabase/server";
+import type { Functions, Models } from "$lib/supabase";
+
+declare global {
+  namespace App {
+    interface Locals extends Partial<
+      BetterSupabaseContributions<Models, Functions, unknown>
+    > {}
+  }
+}
+```
+
+On Cloudflare, `event.platform.env` seeds the pipeline, so `getEnv` inside the
+entries reads the bindings. Compose the hook with others through SvelteKit's
+`sequence`. The bridge makes the request body readable twice, so an entry and
+a form action both see it.

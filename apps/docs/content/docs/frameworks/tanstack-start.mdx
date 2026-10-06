@@ -1,0 +1,55 @@
+---
+title: TanStack Start
+description: Run withBetterSupabase as TanStack Start request middleware, with the caller's repositories in every server function.
+---
+
+`toTanStackStart(entries)` from `better-supabase/tanstack-start` returns the
+`.server()` callback of a TanStack Start middleware. Register it as request
+middleware so every request, server functions included, resolves the caller
+once and refreshed session cookies reach the response:
+
+```ts title="src/start.ts"
+import { createMiddleware, createStart } from "@tanstack/react-start";
+import { createServer, withBetterSupabase } from "better-supabase/server";
+import { toTanStackStart } from "better-supabase/tanstack-start";
+import { betterSupabase } from "./lib/supabase";
+
+const bs = createServer(betterSupabase);
+
+export const supabase = createMiddleware().server(
+  toTanStackStart([
+    withBetterSupabase(bs, { refresh: true, allow: ["user", "anon"] }),
+  ]),
+);
+
+export const startInstance = createStart(() => ({
+  requestMiddleware: [supabase],
+}));
+```
+
+Every key [`withBetterSupabase`](/docs/auth/middleware) contributes lands on
+`context`. A server function that uses the middleware reads it there:
+
+```ts title="src/server/notes.ts"
+import { createServerFn } from "@tanstack/react-start";
+import { supabase } from "../start";
+
+export const listNotes = createServerFn()
+  .middleware([supabase])
+  .handler(({ context }) => context.db.notes.findMany().orThrow());
+```
+
+## Refresh and short circuits
+
+`refresh: true` belongs on request middleware: there the bridge returns the
+response through the entries, so the refreshed cookies are added once. On
+server function middleware the context still flows, but the function's
+result has no `Response` to carry cookies.
+
+A guard refusal (a 401 or 403 Problem Details) is thrown as a `Response`,
+which TanStack Start sends instead of running the route. Use `allow` on a
+second middleware for the routes that need a signed-in user, and keep the
+request middleware open (`allow: ["user", "anon"]`).
+
+The bridge makes the request body readable twice, so an entry that reads it
+and the server function both see it.

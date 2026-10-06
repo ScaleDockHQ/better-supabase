@@ -112,6 +112,31 @@
       "types": "./dist/hono/index.d.ts",
       "default": "./dist/hono/index.js"
     },
+    "./tanstack-start": {
+      "@better-supabase/source": "./src/tanstack-start/index.ts",
+      "types": "./dist/tanstack-start/index.d.ts",
+      "default": "./dist/tanstack-start/index.js"
+    },
+    "./sveltekit": {
+      "@better-supabase/source": "./src/sveltekit/index.ts",
+      "types": "./dist/sveltekit/index.d.ts",
+      "default": "./dist/sveltekit/index.js"
+    },
+    "./react-router": {
+      "@better-supabase/source": "./src/react-router/index.ts",
+      "types": "./dist/react-router/index.d.ts",
+      "default": "./dist/react-router/index.js"
+    },
+    "./h3": {
+      "@better-supabase/source": "./src/h3/index.ts",
+      "types": "./dist/h3/index.d.ts",
+      "default": "./dist/h3/index.js"
+    },
+    "./elysia": {
+      "@better-supabase/source": "./src/elysia/index.ts",
+      "types": "./dist/elysia/index.d.ts",
+      "default": "./dist/elysia/index.js"
+    },
     "./orpc": {
       "@better-supabase/source": "./src/orpc/index.ts",
       "types": "./dist/orpc/index.d.ts",
@@ -314,6 +339,26 @@
       "./hono": {
         "types": "./dist/hono/index.d.ts",
         "default": "./dist/hono/index.js"
+      },
+      "./tanstack-start": {
+        "types": "./dist/tanstack-start/index.d.ts",
+        "default": "./dist/tanstack-start/index.js"
+      },
+      "./sveltekit": {
+        "types": "./dist/sveltekit/index.d.ts",
+        "default": "./dist/sveltekit/index.js"
+      },
+      "./react-router": {
+        "types": "./dist/react-router/index.d.ts",
+        "default": "./dist/react-router/index.js"
+      },
+      "./h3": {
+        "types": "./dist/h3/index.d.ts",
+        "default": "./dist/h3/index.js"
+      },
+      "./elysia": {
+        "types": "./dist/elysia/index.d.ts",
+        "default": "./dist/elysia/index.js"
       },
       "./orpc": {
         "types": "./dist/orpc/index.d.ts",

@@ -57,27 +57,38 @@ no network call. `refresh: true` refreshes an expiring cookie session and
 adds the new cookies to the response. It is for routes browsers call with
 cookies; bearer tokens never refresh.
 
-### With `@supabase/server`
+### Entry arrays with `toHono`
 
-An app that already uses `withSupabase` from `@supabase/server/adapters/hono`
-can put `bs.middleware()` after it. `bs.middleware()` resolves the caller
-itself and never trusts `c.var.supabaseContext`, then runs its own claims
-schema, `act` chain and `userMetadata` checks:
+`bs.middleware()` runs [`withBetterSupabase`](/docs/auth/middleware) in
+Hono's middleware slot. To compose it with other `@supabase/middleware`
+entries (`withPostgresClient`, `withCors`, your own), pass the array to
+`toHono`. Every contributed key lands on `c.var`, and Hono's response passes
+back through the entries, so refreshed cookies and response headers reach it:
 
 ```ts
-import { withSupabase } from "@supabase/server/adapters/hono";
+import { Hono } from "hono";
+import { withPostgresClient } from "@supabase/server/middleware/postgres";
+import { toHono } from "better-supabase/hono";
+import { createServer, withBetterSupabase } from "better-supabase/server";
 
-const app = bs
-  .app()
-  .use("*", withSupabase({ auth: "user" }))
-  .use("*", bs.middleware());
+const bs = createServer(betterSupabase);
+
+const app = new Hono()
+  .use(
+    toHono([withBetterSupabase(bs, { allow: ["user"] }), withPostgresClient()]),
+  )
+  .get("/api/notes", async (c) =>
+    c.json(await c.var.db.notes.findMany().orThrow()),
+  );
 ```
 
-Both give the same `ctx.auth` and actor for a token. The signature check
-costs one verification per token per process: verified tokens are cached
-until they expire, so later requests with the same token skip it. Values
-another middleware puts in `c.var` can't vouch for a token, because that
-cache is shared by every server with the same keys in the process.
+Chain `.use()` into the routes it gates: Hono carries the contributed keys
+through the chained call's type. `c.env` seeds the pipeline, so on Workers
+`getEnv` inside the entries reads the bindings.
+
+`@supabase/server/adapters/hono` is deprecated upstream and removed on
+2026-12-01. Replace `withSupabase` from it with `toHono([withBetterSupabase(bs)])`,
+which contributes the same `jwtClaims`, `userClaims` and `authMode` keys.
 
 ## Typed claims
 
