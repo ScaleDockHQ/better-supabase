@@ -22,6 +22,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "api_keys.*",
     "settings.*",
     "usage.*",
+    "comments.*",
+    "activity.read",
   ],
   member: [
     "organization.read",
@@ -29,6 +31,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "notifications.read",
     "api_keys.own",
     "settings.read",
+    "comments.read",
+    "comments.create",
+    "activity.read",
   ],
   viewer: ["organization.read"],
 };
@@ -66,6 +71,12 @@ export const MODULE_PERMISSIONS = {
   settings: { read: "settings.read", update: "settings.update" },
   usage: { read: "usage.read" },
   billing: { read: "billing.read", manage: "billing.manage" },
+  comments: {
+    read: "comments.read",
+    create: "comments.create",
+    moderate: "comments.moderate",
+    activity: "activity.read",
+  },
 } as const;
 
 /**
@@ -104,6 +115,12 @@ export const MODULE_PERMISSION_SCOPES: {
   settings: { read: "tenant", update: "tenant" },
   usage: { read: "tenant" },
   billing: { read: "tenant", manage: "tenant" },
+  comments: {
+    read: "tenant",
+    create: "tenant",
+    moderate: "tenant",
+    activity: "tenant",
+  },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

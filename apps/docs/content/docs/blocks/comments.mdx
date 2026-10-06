@@ -1,0 +1,145 @@
+---
+title: Comments and activity
+description: Threaded comments on any record in a tenant, mentions that notify, comment events in the outbox and an activity feed built from outbox events.
+---
+
+The `comments` block adds threaded comments to any record in a tenant
+(projects, tickets, invoices) and an activity feed. Mentions notify the
+mentioned members through the [notifications](/docs/blocks/notifications)
+block, and every comment writes a `comment.*` event to the
+[outbox](/docs/blocks/outbox).
+
+```bash
+better-supabase sql add comments   # adds tenant and access as well
+```
+
+| Table              | Holds                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `comments`         | `subject_type`, `subject_id`, `author_id`, `body`, `mentions`, `parent_id`, `edited_at` and `deleted_at`     |
+| `activity_entries` | One row per outbox event: `type`, `actor_id`, `subject_type`, `subject_id`, `summary`, `data`, `occurred_at` |
+
+| Permission          | Lets a member                       | Default roles          |
+| ------------------- | ----------------------------------- | ---------------------- |
+| `comments.read`     | read the comments in a tenant       | `member`, `admin`      |
+| `comments.create`   | comment and edit their own comments | `member`, `admin`      |
+| `comments.moderate` | delete other members' comments      | `admin` (`comments.*`) |
+| `activity.read`     | read the tenant's activity feed     | `member`, `admin`      |
+
+Only the author edits a comment. Deleting is a soft delete: the row stays
+as a placeholder so replies keep their parent, and its body and mentions
+are cleared.
+
+## Subjects
+
+Without options, a comment can name any `subject_type` and `subject_id`.
+Map each subject type to its table so the policies also require that the
+caller can read the subject row (the subject table's own policies apply)
+and, optionally, hold a permission:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: {
+    modules: {
+      comments: {
+        options: {
+          subjects: {
+            project: { table: "projects", permission: "projects.read" },
+            ticket: {
+              table: "support.tickets",
+              id: "ticket_id",
+              tenant: "team_id",
+            },
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+`id` defaults to `id` and `tenant` to `organization_id`. A subject type not in
+the map is refused. `maxBodyLength` (default 10000) caps the body.
+
+## Comments
+
+```ts title="app/projects/[id]/actions.ts"
+import { createComments, sqlTransport } from "better-supabase/blocks/comments";
+
+const comments = createComments({
+  transport: sqlTransport(postgres.asUser(claims)),
+});
+
+await comments
+  .create({
+    organizationId,
+    subjectType: "project",
+    subjectId: projectId,
+    body: "Ready for review @[Ada](8c5a3d3e-...)",
+  })
+  .orThrow();
+
+const thread = await comments
+  .list(organizationId, "project", projectId)
+  .orThrow();
+```
+
+`create` and `edit` read the mentions from the body when you pass none:
+`mentionsIn(body)` returns the user ids written as `@[Name](<user id>)`, the
+markup most mention inputs produce. The module drops the author and repeats,
+and notifies only mentioned members who hold `comments.read`. `list` returns
+the thread oldest first; `after` polls for new comments. `edit` returns
+`not_found` for a comment the caller can't see, and `forbidden` with the hint
+`COMMENT_NOT_AUTHOR` for someone else's comment.
+
+With the notifications module installed, each new mention sends a
+`comment.mentioned` notification with the subject, the first 140 characters
+of the body as its `summary` and the commenter as the actor.
+
+## Events
+
+With the outbox installed, the module writes these events with the tenant as
+the partition key and `comments/<id>` as the subject:
+
+| Event               | When                           | Data                                                                          |
+| ------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
+| `comment.created`   | a comment or reply is added    | `commentId`, `subjectType`, `subjectId`, `authorId`, `parentId`, `mentionIds` |
+| `comment.mentioned` | a create or edit adds mentions | the same, with only the new `mentionIds`                                      |
+| `comment.deleted`   | a comment is deleted           | `commentId`, `subjectType`, `subjectId`, `authorId`                           |
+
+## Activity feed
+
+`activitySink` is an outbox sink that writes events into `activity_entries`.
+Run it as a consumer with a service-role transport:
+
+```ts title="app/api/cron/activity/route.ts"
+import { activitySink, sqlTransport } from "better-supabase/blocks/comments";
+
+await outbox.relay(
+  "activity",
+  activitySink({
+    transport: sqlTransport(postgres.admin),
+    types: ["comment.*", "organization.member_added", "billing.*"],
+    describe: (event, type) =>
+      type === "comment.created" ? { summary: "commented" } : {},
+  }),
+);
+```
+
+Events without a tenant are skipped, and the event id is unique, so a
+replayed batch writes nothing twice. The actor is the event's `actorId`,
+`authorId` or `userId`, and the subject its `subjectType` and `subjectId`
+(or the CloudEvents `subject`). `describe` can set the summary, actor,
+subject and data, or return `null` to skip an event.
+
+Read the feed with `activityListQuery`, a cursor-paged
+[list query](/docs/platform/list) filtered by type, actor and
+subject, newest first. Generate types for the `better_supabase` schema to
+have the table in your models:
+
+```ts
+import { activityListQuery } from "better-supabase/blocks/comments";
+
+export const activity = activityListQuery(betterSupabase, "activityEntries", {
+  pageSize: 30,
+});
+```
