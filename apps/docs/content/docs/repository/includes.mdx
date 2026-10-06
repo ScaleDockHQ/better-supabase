@@ -39,6 +39,23 @@ parent with `some`.
 Includes use the foreign key name as the embed hint, so tables with several
 relations to the same target never hit PostgREST's ambiguity error.
 
+## Row level security
+
+A `not null` foreign key types the include as non-null, but a `SELECT`
+policy on the related table can still hide the row, and PostgREST then
+returns `null`. Add `required: true` to drop those parents instead; the
+include is then typed non-null for nullable relations too:
+
+```ts
+await db.notes.findMany({
+  include: { customer: { select: ["name"], required: true } },
+});
+```
+
+To make the types say so everywhere, set `relations: { nullableUnderRls: true }`
+in the config: `gen` then types every to-one include of a table with row
+level security as `| null`, unless the include says `required: true`.
+
 ## Counting related rows
 
 `_count` counts to-many relations in the same request, without loading

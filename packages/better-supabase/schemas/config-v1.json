@@ -76,6 +76,18 @@
         "numeric": { "enum": ["number", "string"], "default": "number" }
       }
     },
+    "relations": {
+      "description": "How generated relations are typed.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nullableUnderRls": {
+          "type": "boolean",
+          "description": "Type to-one includes of tables with row level security as nullable, since a policy can hide the related row.",
+          "default": false
+        }
+      }
+    },
     "json": {
       "description": "Types for jsonb columns, keyed by `table.column`.",
       "type": "object",

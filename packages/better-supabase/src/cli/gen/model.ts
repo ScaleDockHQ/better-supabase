@@ -341,9 +341,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       const targetColumns = fk.refColumns.map((column) =>
         appName(fk.refSchema, fk.refTable, column),
       );
-      const nullable = fk.columns.some(
-        (column) => columns.find((col) => col.db === column)?.nullable ?? true,
-      );
+      const nullable =
+        (config.relations.nullableUnderRls && target.table.rls) ||
+        fk.columns.some(
+          (column) =>
+            columns.find((col) => col.db === column)?.nullable ?? true,
+        );
       const onDelete =
         fk.onDelete === "cascade" ||
         fk.onDelete === "set null" ||
