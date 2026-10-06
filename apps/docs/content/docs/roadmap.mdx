@@ -104,27 +104,24 @@ Parity gaps with what Supabase ships today.
      handled through the webhook inbox. Today
      [entitlements](/docs/blocks/entitlements) only read what the Stripe Sync
      Engine stores. Upstream: Stripe.
-  3. **Audit log API** (`better-supabase/blocks/audit`): the `audit` SQL module
-     exists but has no TypeScript side. This block would add a typed list
-     query over the audit table, a per-tenant export and retention settings.
-  4. **Usage metering and quotas** (`better-supabase/blocks/usage`): counters
+  3. **Usage metering and quotas** (`better-supabase/blocks/usage`): counters
      per tenant and period, quota checks in RLS and RPCs, and reporting to
      Stripe meters. Upstream: Stripe.
-  5. **Enterprise identity** (`better-supabase/blocks/sso`): verified domains
+  4. **Enterprise identity** (`better-supabase/blocks/sso`): verified domains
      that join users to an organization, Supabase SAML SSO per organization,
      and SCIM 2.0 provisioning. Upstream: Supabase Auth and SCIM 2.0.
-  6. **Data lifecycle** (`better-supabase/blocks/data-lifecycle`): an export
+  5. **Data lifecycle** (`better-supabase/blocks/data-lifecycle`): an export
      of a user's or an organization's data, and organization deletion with a
      grace period. Today only [account deletion](/docs/auth/account-deletion)
      exists.
-  7. **Settings** (`better-supabase/blocks/settings`): typed settings per user
+  6. **Settings** (`better-supabase/blocks/settings`): typed settings per user
      and per organization, validated with Standard Schema.
-  8. **Comments and activity** (`better-supabase/blocks/comments`): comments
+  7. **Comments and activity** (`better-supabase/blocks/comments`): comments
      on any record, mentions that feed the notifications block, and an
      activity feed built from the outbox.
-  9. **Attachments** (`better-supabase/blocks/attachments`): records linked to
+  8. **Attachments** (`better-supabase/blocks/attachments`): records linked to
      Storage objects, with tenant-scoped policies and a scan hook.
-  10. Lower priority: onboarding checklists, a waitlist with invite codes, and
-      in-app announcements.
+  9. Lower priority: onboarding checklists, a waitlist with invite codes, and
+     in-app announcements.
 
 The [blocks overview](/docs/blocks) lists the blocks that exist today.

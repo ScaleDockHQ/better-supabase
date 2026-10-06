@@ -73,9 +73,7 @@ describe("audit module", () => {
       "hint = 'Set sql.modules.audit.options.restricted to true.'",
     );
     const [file] = renderModules(["audit"]);
-    expect(file!.contents).toContain(
-      'create or replace view "better_supabase".audit_log',
-    );
+    expect(file!.contents).toContain('create view "better_supabase".audit_log');
     expect(file!.contents).toContain(
       "'deprecated: use better_supabase.audit_events'",
     );

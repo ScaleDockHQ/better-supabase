@@ -2400,6 +2400,7 @@ const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     updatePlatform: "platform",
     deletePlatform: "platform",
   },
+  audit: { reveal: "tenant" },
 };
 
 const isPermissionModule = (

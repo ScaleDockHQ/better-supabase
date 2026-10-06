@@ -6,6 +6,7 @@
     "access",
     "organizations",
     "profiles",
+    "audit",
     "jobs",
     "outbox",
     "notifications",

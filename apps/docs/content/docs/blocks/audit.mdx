@@ -1,0 +1,95 @@
+---
+title: Audit log
+description: Read the audit module's entries from TypeScript, reveal restricted details with a record of who looked, and export a tenant's log as CSV.
+---
+
+The [`audit` SQL module](/docs/blocks/sql#audit-log) records row changes and
+app events in the database. `better-supabase/blocks/audit` reads them back for
+an audit page, an admin console or a compliance export.
+
+```bash
+better-supabase sql add audit
+```
+
+```ts
+import { createAuditLog, sqlTransport } from "better-supabase/blocks/audit";
+
+const audit = createAuditLog({ transport: sqlTransport(ctx.postgres) });
+```
+
+The transport decides who reads: `sqlTransport(ctx.postgres)` or
+`rpcTransport(supabase)` for the signed-in member, so the module's read policy
+(`sql.modules.audit.options.readPolicy`) decides what they see, or a service
+connection for everything. Over PostgREST, install the module in an exposed
+schema (`sql.modules.audit.schema`).
+
+## Listing
+
+```ts
+const entries = await audit
+  .list({
+    tenant: organizationId,
+    eventType: "invoice.sent",
+    since: Temporal.Now.instant().subtract({ hours: 24 * 30 }),
+    limit: 50,
+  })
+  .orThrow();
+
+const next = await audit
+  .list({ tenant: organizationId, before: entries.at(-1) })
+  .orThrow();
+```
+
+Entries come newest first. Filters are `tenant`, `eventType`, `actorId`,
+`targetType`, `record`, `since` and `until`; `before` pages with the last
+entry of the previous page, and `limit` is 50 by default, at most 1000. Each
+entry carries the columns the log has, among them the
+[context columns](/docs/blocks/sql#context-columns): `actorKind`,
+`actorLabel`, `tenantLabel`, `targetLabel`, `summary`, `requestId`,
+`correlationId` and `scope`. With `impersonators: "hide"`, the impersonation
+fields are left out.
+
+## Revealing details
+
+With `restricted: true`, row snapshots, IP addresses, user agents and
+per-column changes live in a table only the service role reads. `reveal`
+returns them for one entry to a member who holds the reveal permission in its
+tenant, or to platform staff with `viewAll`, and records an `audit.revealed`
+entry with who looked:
+
+```ts
+const details = await audit.reveal(entry).orThrow();
+details.changes; // { title: { old: "Draft", new: "Final" } }
+```
+
+The reveal permission is the view permission unless
+`sql.modules.audit.permissions.reveal` names another key. An entry the caller
+may not reveal fails with `AUDIT_ENTRY_NOT_FOUND`, the same as one that
+doesn't exist.
+
+## Exporting
+
+`exportCsv` writes a tenant's entries, with the same filters as `list`, to a
+Storage object and returns a signed URL for it:
+
+```ts
+const file = await audit
+  .exportCsv({
+    tenant: organizationId,
+    bucket: supabase.storage.from("audit-exports"),
+    expiresIn: 3600,
+  })
+  .orThrow();
+// { path: "<tenant>/audit-<ms>.csv", signedUrl, rows }
+```
+
+`columns` picks the CSV columns in order, `path` the object path and
+`maxRows` the cap (100000 by default). Run large exports from a
+[job](/docs/blocks/jobs) rather than a request.
+
+## Retention
+
+`purgeAuditLog` deletes entries past their retention, with an interval per
+tenant from a callback or the `audit_retention` SQL hook. It is exported here
+and from `better-supabase/blocks/jobs`; see
+[Retention](/docs/blocks/sql#retention).
