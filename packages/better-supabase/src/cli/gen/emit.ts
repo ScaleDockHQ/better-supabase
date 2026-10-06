@@ -136,6 +136,8 @@ export interface EmitOptions {
   readonly importPathFor: (from: string) => string;
   /** Import path from the generated module to the metadata module (`emitMeta`). */
   readonly metaImport?: string;
+  /** Writes the metadata into the module instead of importing it, so it is one file. */
+  readonly inlineMeta?: boolean;
 }
 
 /** The metadata module next to `generated.ts`: `generated.meta.js` and its `.d.ts`. */
@@ -209,7 +211,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
     "/* oxlint-disable */",
     "/* eslint-disable */",
     "",
-    `import { defineSchema, type Schema } from ${q(runtime)};`,
+    `import { defineSchema, type Schema${options.inlineMeta ? ", type SchemaMeta" : ""} } from ${q(runtime)};`,
   ];
 
   const storagePaths = model.tables.some((table) =>
@@ -233,7 +235,9 @@ export function emitModule(model: Model, options: EmitOptions): string {
     );
   }
   lines.push(
-    `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
+    options.inlineMeta
+      ? `\nconst meta: SchemaMeta = ${compactJson({ ...model.meta })};`
+      : `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
     "",
     "export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];",
     "",

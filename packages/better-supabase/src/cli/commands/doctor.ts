@@ -16,6 +16,7 @@ import { stdinDatabaseUrl } from "../config.ts";
 import { connect } from "../db.ts";
 import {
   type AdvisorSource,
+  apiSchemas,
   managementAdvisors,
   splinterAdvisors,
 } from "../doctor/advisors.ts";
@@ -39,6 +40,7 @@ import {
 } from "../doctor/rules.ts";
 import { CliError } from "../errors.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
+import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { display, writeIfChanged } from "../io.ts";
 import { readPermdock } from "../permdock.ts";
 import { withSpinner } from "../prompts.ts";
@@ -52,6 +54,7 @@ import {
   type SupabaseToml,
 } from "../supabase-toml.ts";
 import { VERSION } from "../version.ts";
+import { METADATA_REJECTED, readMetadataSnapshot } from "./gen.ts";
 import {
   loadSnapshot,
   managementTarget,
@@ -90,6 +93,12 @@ const ARGS = {
     type: "string",
     description: "Check a saved snapshot instead of the database",
     valueHint: "file",
+  },
+  metadata: {
+    type: "string",
+    description:
+      "Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped",
+    valueHint: "path|-",
   },
   "db-url-stdin": {
     type: "boolean",
@@ -314,8 +323,14 @@ function openLive(
   const advisors: AdvisorSource = {
     describe: "database (splinter)",
     async lints(category) {
-      splinter ??= open().then((db) =>
-        splinterAdvisors(db.queryable, db.describe, { cacheDir }),
+      splinter ??= Promise.all([
+        open(),
+        readSupabaseToml(config.root).catch(() => undefined),
+      ]).then(([db, toml]) =>
+        splinterAdvisors(db.queryable, db.describe, {
+          cacheDir,
+          schemas: apiSchemas(toml?.document),
+        }),
       );
       return (await splinter).lints(category);
     },
@@ -544,7 +559,38 @@ export const doctorCommand: AnyCommand = defineCliCommand({
   },
   args: ARGS,
   lists: ["only", "ignore", "explain"],
-  run: async (args, { config, env, io, signal }) => {
+  run: async (args, { config, cwd, env, io, signal }) => {
+    if (args.metadata !== undefined) {
+      const conflicting = [
+        ...(args.snapshot === undefined ? [] : ["--snapshot"]),
+        ...(args["db-url-stdin"] === true ? ["--db-url-stdin"] : []),
+        ...(args["project-ref"] === undefined ? [] : ["--project-ref"]),
+        ...(args.stats === true ? ["--stats"] : []),
+        ...(args.explain === undefined ? [] : ["--explain"]),
+        ...(args.as === undefined ? [] : ["--as"]),
+      ];
+      if (conflicting.length > 0) {
+        return {
+          code: 2,
+          error: `--metadata checks the document, not a database, so it can't be combined with ${conflicting.join(", ")}`,
+        };
+      }
+      let snapshot: Snapshot;
+      try {
+        snapshot = await readMetadataSnapshot(args.metadata, cwd, io);
+      } catch (cause) {
+        if (cause instanceof MetadataRejectedError)
+          return { code: METADATA_REJECTED, error: cause.message };
+        throw cause;
+      }
+      const skipped = `reading a GeneratorMetadata document; set $DATABASE_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
+      return runDoctor(config, args, env, {
+        snapshot,
+        advisors: { skipped },
+        database: { skipped },
+        paint: painter(io.color),
+      });
+    }
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
     return withSpinner(
       args.snapshot === undefined ? io.prompts : undefined,
