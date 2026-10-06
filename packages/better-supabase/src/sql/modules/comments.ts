@@ -311,7 +311,7 @@ begin
   v_new := array(
     select x from unnest(new.${c("mentions")}) x
     where (tg_op = 'INSERT' or not x = any(old.${c("mentions")}))
-      and coalesce(better_supabase.member_can(x, new.${c("tenant")}, ${permission("read")}), false)
+      and coalesce(better_supabase.can_user(x, 'tenant', new.${c("tenant")}, ${permission("read")}), false)
   );
   if tg_op = 'INSERT' then
     ${created || "null;"}

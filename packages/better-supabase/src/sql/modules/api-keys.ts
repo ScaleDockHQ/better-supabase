@@ -265,11 +265,7 @@ begin
     or (found.${c("user")} is not null and better_supabase.user_disabled(found.${c("user")}))
     or (found.${c("tenant")} is not null and better_supabase.tenant_disabled(found.${c("tenant")}))
     or (found.${c("user")} is not null and found.${c("tenant")} is not null
-      and not exists (
-        select 1 from ${ctx.of("tenant").table("memberships")} m
-        where m.${ctx.of("tenant").col("memberships", "tenant")} = found.${c("tenant")}
-          and m.${ctx.of("tenant").col("memberships", "user")} = found.${c("user")}
-      ))
+      and better_supabase.organization_member_role(found.${c("tenant")}, found.${c("user")}) is null)
   then
     return jsonb_build_object('status', 'invalid');
   end if;
