@@ -100,6 +100,27 @@ defineTopic("organization:{organizationId}:board", {
 in your SQL files that names such a key, and `permdock doctor` reports PD037
 for any topic policy that calls a helper for one.
 
+### Writing the policies to a file
+
+`realtime.policies` keeps the generated policies in a schema file:
+`better-supabase sql sync` imports the modules in `from`, collects every
+topic they export, and writes their `sql()` to `output`, and
+`sql sync --check` fails when the file no longer matches, for example in CI:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  realtime: {
+    policies: {
+      from: ["src/realtime/topics.ts"],
+      output: "supabase/schemas/905_topics.sql",
+    },
+  },
+});
+```
+
+Node imports the modules, so their relative imports need the `.ts`
+extension. Create a migration from the file as from any other schema file.
+
 ## Before production
 
 - **Turn off public access.** The policies only apply to private channels. In

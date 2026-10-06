@@ -189,6 +189,9 @@ const ConfigSchema = v.strictObject({
     v.strictObject({
       tables: v.optional(strings),
       global: v.optional(strings),
+      policies: v.optional(
+        v.strictObject({ from: strings, output: v.string() }),
+      ),
     }),
   ),
   entitlements: v.optional(

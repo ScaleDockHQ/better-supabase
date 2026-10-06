@@ -47,6 +47,7 @@ import {
   readSupabaseToml,
   schemaPaths,
 } from "../supabase-toml.ts";
+import { topicPolicyFile } from "../topic-policies.ts";
 
 const SQL_ARGS = {
   action: {
@@ -660,26 +661,46 @@ export async function runSql(
       return { code: 0, output: lines.join("\n") };
     }
     case "sync": {
-      if (config.sql.moduleNames.length === 0) {
+      const topics = await topicPolicyFile(config);
+      if (config.sql.moduleNames.length === 0 && topics === undefined) {
         return { code: 0, output: "sql.modules is empty; nothing to sync." };
       }
       if (args.check !== true) {
-        return {
-          code: 0,
-          output: (
-            await write(
-              config,
-              args,
-              config.sql.moduleNames,
-              await layoutFor(config, args, config.sql.moduleNames),
-            )
-          ).join("\n"),
-        };
+        const lines =
+          config.sql.moduleNames.length === 0
+            ? []
+            : await write(
+                config,
+                args,
+                config.sql.moduleNames,
+                await layoutFor(config, args, config.sql.moduleNames),
+              );
+        if (topics !== undefined) {
+          const shown = display(config.root, topics.path);
+          if (args["dry-run"] === true)
+            lines.push(`Would write ${shown} (topics)`);
+          else {
+            const wrote = await writeIfChanged(
+              resolve(config.root, topics.path),
+              topics.contents,
+            );
+            lines.push(`${wrote ? "Wrote" : "Unchanged"} ${shown} (topics)`);
+          }
+        }
+        return { code: 0, output: lines.join("\n") };
       }
       const sqlLayout = await layoutFor(config, args, config.sql.moduleNames);
-      const files = renderModules(config.sql.moduleNames, sqlLayout);
+      const files: { path: string; contents: string; topics?: true }[] = [
+        ...renderModules(config.sql.moduleNames, sqlLayout),
+        ...(topics === undefined ? [] : [{ ...topics, topics: true as const }]),
+      ];
       const stale: string[] = (
-        await staleModuleTests(config, config.sql.moduleNames, sqlLayout, files)
+        await staleModuleTests(
+          config,
+          config.sql.moduleNames,
+          sqlLayout,
+          renderModules(config.sql.moduleNames, sqlLayout),
+        )
       ).map((path) => display(config.root, path));
       const diffs: string[] = stale.map(
         (path) => `${path} is no longer written; \`sql sync\` removes it.`,
@@ -689,7 +710,11 @@ export async function runSql(
           resolve(config.root, file.path),
           "utf8",
         ).catch(() => undefined);
-        if (!sameModuleFile(current, file.contents)) {
+        if (
+          file.topics
+            ? current !== file.contents
+            : !sameModuleFile(current, file.contents)
+        ) {
           const shown = display(config.root, file.path);
           stale.push(shown);
           diffs.push(fileDiff(shown, current, file.contents, paint));

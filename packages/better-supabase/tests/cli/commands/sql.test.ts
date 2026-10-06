@@ -127,6 +127,54 @@ describe("runSql", () => {
     expect(billing).toContain("billing_customers_tenant_fkey");
   });
 
+  it("writes and checks the topic policies of realtime.policies", async () => {
+    const realtime = resolve(
+      import.meta.dirname,
+      "../../../src/realtime/index.ts",
+    );
+    await writeFile(
+      join(root, "topics.ts"),
+      `import { defineTopic } from ${JSON.stringify(realtime)};
+export const rooms = defineTopic("room:{roomId}", { send: true });
+export const boards = defineTopic("board:{boardId}");
+export const notATopic = { template: "x" };
+`,
+    );
+    const config: BetterSupabaseConfig = {
+      realtime: {
+        policies: {
+          from: ["topics.ts"],
+          output: "supabase/schemas/905_topics.sql",
+        },
+      },
+    };
+    expect((await sql(["sync"], config)).output).toBe(
+      "Wrote supabase/schemas/905_topics.sql (topics)",
+    );
+    const written = await readFile(
+      join(root, "supabase/schemas/905_topics.sql"),
+      "utf8",
+    );
+    expect(written.indexOf("topic board:{boardId}")).toBeLessThan(
+      written.indexOf("topic room:{roomId}"),
+    );
+    expect(written).toContain('create policy "bs_topic_room_send"');
+    expect((await sql(["sync", "--check"], config)).code).toBe(0);
+    await writeFile(
+      join(root, "supabase/schemas/905_topics.sql"),
+      "-- edited\n",
+    );
+    const stale = await sql(["sync", "--check"], config);
+    expect(stale.code).toBe(1);
+    expect(stale.error).toContain("supabase/schemas/905_topics.sql");
+    await writeFile(join(root, "empty.ts"), "export const x = 1;\n");
+    await expect(
+      sql(["sync"], {
+        realtime: { policies: { from: ["empty.ts"], output: "out.sql" } },
+      }),
+    ).rejects.toThrow(/exports no topic/);
+  });
+
   it("has nothing to sync for an empty sql.modules", async () => {
     expect(await sql(["sync"])).toEqual({
       code: 0,

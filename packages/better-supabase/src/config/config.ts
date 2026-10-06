@@ -337,6 +337,20 @@ export interface RealtimeConfig {
    * lacks the tenant column and is not listed here fails to install.
    */
   readonly global?: readonly string[];
+  /**
+   * Writes the `realtime.messages` policies of the topics that `from`
+   * exports (`defineTopic`) to `output`, a file in `supabase/schemas`, on
+   * `better-supabase sql sync`; `sql sync --check` fails when it is stale.
+   */
+  readonly policies?: TopicPoliciesConfig;
+}
+
+/** `realtime.policies`: where topic policies come from and go. */
+export interface TopicPoliciesConfig {
+  /** Modules that export `defineTopic` results. Node imports them. */
+  readonly from: readonly string[];
+  /** The SQL file to write, such as `supabase/schemas/905_topics.sql`. */
+  readonly output: string;
 }
 
 export interface EntitlementsConfig {
@@ -696,7 +710,9 @@ export interface ResolvedConfig {
     readonly distance: VectorDistance;
   } & Omit<Exclude<VectorSearchConfig, string>, "column" | "distance">)[];
   readonly topics: Readonly<Record<string, string>>;
-  readonly realtime: Required<RealtimeConfig>;
+  readonly realtime: Required<Omit<RealtimeConfig, "policies">> & {
+    readonly policies?: TopicPoliciesConfig;
+  };
   readonly sql: ResolvedSqlConfig;
   readonly seed: Required<SeedConfig>;
   readonly openapi: Required<OpenApiConfig>;
@@ -839,6 +855,9 @@ export function resolveConfig(
     realtime: {
       tables: config.realtime?.tables ?? [],
       global: config.realtime?.global ?? [],
+      ...(config.realtime?.policies === undefined
+        ? {}
+        : { policies: config.realtime.policies }),
     },
     entitlements: entitlementsOf(config.entitlements),
     permdock: {

@@ -656,6 +656,16 @@
           "items": {
             "type": "string"
           }
+        },
+        "policies": {
+          "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `sql sync`; `sql sync --check` fails when the file is stale.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from", "output"],
+          "properties": {
+            "from": { "type": "array", "items": { "type": "string" } },
+            "output": { "type": "string" }
+          }
         }
       }
     },
