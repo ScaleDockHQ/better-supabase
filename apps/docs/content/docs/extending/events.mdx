@@ -28,7 +28,6 @@ production, the logger warns once when one event has more than 50 handlers.
 | `auth`     | `source` (`bearer`, `cookie`, `none`), `ok`, `userId`, `rawSource` (a custom resolver's name), `reason` (why there is no user)          |
 | `refresh`  | `ok`, `shared` (joined an in-flight refresh), `durationMs`                                                                              |
 | `block`    | `type` (`support.started`, `organization.created`, ...), a copy of `data`, `subject`, `tenant`, `actorId`, `time`, `context`            |
-| `block`    | `type` (`support.started`, `organization.created`, ...), a copy of `data`, `subject`, `tenant`, `actorId`, `context`, `time`            |
 
 `mutation` rows are a copy of what the database returned, so a listener
 cannot change the caller's result. `delete(id)` returns the primary key, so
@@ -44,6 +43,29 @@ the primary key, so writes that return nothing (soft deletes,
 Listeners are per runtime: register them once, next to `defineSupabase`, not
 per request. Cache invalidation (`betterSupabase.cache`), CloudEvents
 (`forwardMutations`) and OpenTelemetry metrics are built on these events.
+
+## Diagnostics
+
+`diagnostics: true` writes one debug record to the
+[`Logger`](/docs/extending/interfaces#logger) for every `query`, `error`,
+`refresh` and `auth` event, following the Supabase SDK
+[diagnostic logging capability](https://github.com/supabase/sdk/blob/capability-matrix/v1.14.0/packages/capability-matrix/specs/client/observability/diagnostic_logging.md):
+
+```ts
+const betterSupabase = defineSupabase(schema, {
+  diagnostics: process.env.NODE_ENV !== "production",
+  logger: pino(),
+});
+// debug: "select customers ok in 14ms" { table, operation, ok, durationMs, rows, truncated }
+// debug: "conflict error on contacts" { table, kind, status, code }
+```
+
+The records carry names, outcomes, timings and counts only. They never
+contain tokens, keys, user ids, row values, filters, query strings, headers
+or database error messages (a constraint message can quote the conflicting
+value). The option is off by default, and with it off no handler is
+registered. A logger that throws is caught like any other handler, so it
+never changes a result.
 
 ## Block events
 
