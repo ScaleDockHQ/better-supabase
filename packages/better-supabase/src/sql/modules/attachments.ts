@@ -76,7 +76,7 @@ const PATH_PARTS: Readonly<Record<string, string>> = {
 const pathTemplate = (ctx: ModuleContext): string =>
   ctx.text("path", "{organization_id}/attachments/{id}");
 
-function pathExpression(ctx: ModuleContext): string {
+function pathExpression(ctx: ModuleContext, tenantless = false): string {
   const template = pathTemplate(ctx);
   const where = "sql.modules.attachments.options.path";
   if (!template.includes("{id}")) {
@@ -112,8 +112,10 @@ function pathExpression(ctx: ModuleContext): string {
         );
       }
       const column = ctx.col("attachments", logical);
-      return logical === "subjectType" || logical === "subjectId"
-        ? `coalesce(${column}, '-')`
+      return logical === "subjectType" ||
+        logical === "subjectId" ||
+        (tenantless && logical === "tenant")
+        ? `coalesce(${column}${logical === "tenant" ? "::text" : ""}, '-')`
         : `${column}::text`;
     })
     .join(" || ");
@@ -186,7 +188,24 @@ function build(ctx: ModuleContext): string {
     `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`;
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const requireScan = ctx.flag("requireScan", true);
-  const subjects = subjectsOption(ctx, ["bucket", "allowedMimeTypes"]);
+  const subjects = subjectsOption(ctx, ["bucket", "allowedMimeTypes"], {
+    tenantless: true,
+  });
+  // Subject types without a tenant: their files have no organization_id, and
+  // the subject's own policies decide who reads and uploads them.
+  const tenantless = subjects
+    .filter(([, subject]) => subject.tenant === false)
+    .map(([type]) => type);
+  // The column comment records what the expression was built from, so a
+  // changed template, or files without a tenant, rewrite the column.
+  const pathComment = `better-supabase path: ${pathTemplate(ctx)}${tenantless.length > 0 ? " (tenantless)" : ""}`;
+  const inTenant = (
+    tenant: string,
+    action: keyof typeof permissions,
+  ): string =>
+    tenantless.length === 0
+      ? can(tenant, action)
+      : `(${tenant} is null or ${can(tenant, action)})`;
   const perSubject = subjectBuckets(subjects, bucket);
   const buckets = [
     ...new Set([bucket, ...perSubject.map((entry) => entry.bucket)]),
@@ -264,7 +283,7 @@ create table if not exists ${t} (
   ${c("subjectType")} text check (${c("subjectType")} ~ '^[a-z][a-z0-9_]{0,62}$'),
   ${c("subjectId")} text check (length(${c("subjectId")}) between 1 and 200),
   ${c("bucket")} text not null default ${bucketLiteral},
-  ${c("path")} text generated always as (${pathExpression(ctx)}) stored,
+  ${c("path")} text generated always as (${pathExpression(ctx, tenantless.length > 0)}) stored,
   ${c("name")} text not null check (length(${c("name")}) between 1 and 255),
   ${c("mimeType")} text not null check (${c("mimeType")} ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   ${c("size")} bigint not null,
@@ -293,15 +312,22 @@ declare
       (select attnum from pg_attribute where attrelid = ${sqlString(ctx.tableName("attachments").schema + "." + ctx.tableName("attachments").name)}::regclass and attname = ${sqlString(c("path").replaceAll('"', ""))})::integer),
     'better-supabase path: {organization_id}/attachments/{id}');
 begin
-  if v_current is distinct from ${sqlString(`better-supabase path: ${pathTemplate(ctx)}`)} then
+  if v_current is distinct from ${sqlString(pathComment)} then
     if current_setting('server_version_num')::integer < 170000 then
       raise exception 'sql.modules.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
     end if;
-    execute ${sqlString(`alter table ${t} alter column ${c("path")} set expression as (${pathExpression(ctx)})`)};
+    execute ${sqlString(`alter table ${t} alter column ${c("path")} set expression as (${pathExpression(ctx, tenantless.length > 0)})`)};
   end if;
 end;
 $$;
-comment on column ${t}.${c("path")} is ${sqlString(`better-supabase path: ${pathTemplate(ctx)}`)};
+${
+  tenantless.length === 0
+    ? ""
+    : `alter table ${t} alter column ${c("tenant")} drop not null;
+alter table ${t} drop constraint if exists bs_attachments_tenant;
+alter table ${t} add constraint bs_attachments_tenant check (${c("tenant")} is not null or coalesce(${c("subjectType")} in (${tenantless.map(sqlString).join(", ")}), false));
+`
+}comment on column ${t}.${c("path")} is ${sqlString(pathComment)};
 alter table ${t} alter column ${c("bucket")} set default ${bucketLiteral};
 alter table ${t} drop constraint if exists bs_attachments_bucket;
 alter table ${t} add constraint bs_attachments_bucket check (${c("bucket")} in (${bucketList})) not valid;
@@ -333,12 +359,12 @@ grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}
 
 drop policy if exists "attachments_read" on ${t};
 create policy "attachments_read" on ${t} for select to authenticated
-  using (${can(c("tenant"), "read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
+  using (${inTenant(c("tenant"), "read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
 drop policy if exists "attachments_insert" on ${t};
 create policy "attachments_insert" on ${t} for insert to authenticated
   with check (
     ${c("uploadedBy")} = (select auth.uid())
-    and ${can(c("tenant"), "upload")}
+    and ${inTenant(c("tenant"), "upload")}
     and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})
   );
 drop policy if exists "attachments_delete" on ${t};
@@ -366,7 +392,7 @@ as $$
     where a.${c("bucket")} = attachment_object_allowed.bucket and a.${c("path")} = attachment_object_allowed.path
       and case attachment_object_allowed.action
         when 'insert' then a.${c("status")} = 'pending' and a.${c("uploadedAt")} is null and a.${c("uploadedBy")} = auth.uid()
-        when 'select' then (${readable} and ${can(`a.${c("tenant")}`, "read")})
+        when 'select' then (${readable} and ${inTenant(`a.${c("tenant")}`, "read")})
           or a.${c("uploadedBy")} = auth.uid() or ${can(`a.${c("tenant")}`, "manage")}
         when 'delete' then a.${c("uploadedBy")} = auth.uid() or ${can(`a.${c("tenant")}`, "manage")}
         else false
@@ -509,7 +535,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(to_jsonb(a.*) order by a.${c("createdAt")}, a.${c("id")}), '[]'::jsonb)
   from ${t} a
-  where a.${c("tenant")} = list_attachments.tenant
+  where a.${c("tenant")} is not distinct from list_attachments.tenant
     and (list_attachments.subject_type is null or a.${c("subjectType")} = list_attachments.subject_type)
     and (list_attachments.subject_id is null or a.${c("subjectId")} = list_attachments.subject_id)
 $$;
@@ -684,7 +710,7 @@ function data(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const subjects = subjectBuckets(
-    subjectsOption(ctx, ["bucket", "allowedMimeTypes"]),
+    subjectsOption(ctx, ["bucket", "allowedMimeTypes"], { tenantless: true }),
     bucket,
   );
   const rows = new Map<string, readonly string[]>([[bucket, mimeTypes]]);

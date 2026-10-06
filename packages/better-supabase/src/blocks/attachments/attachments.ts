@@ -70,7 +70,8 @@ export type AttachmentStatus = "pending" | "clean" | "infected" | "failed";
 
 export interface Attachment {
   readonly id: string;
-  readonly organizationId: string;
+  /** `undefined` for a file of a subject without a tenant (`tenant: false`). */
+  readonly organizationId: string | undefined;
   readonly subjectType: string | undefined;
   readonly subjectId: string | undefined;
   readonly bucket: string;
@@ -92,7 +93,8 @@ export interface Attachment {
 }
 
 export interface NewAttachment {
-  readonly organizationId: string;
+  /** `null` for a subject type configured with `tenant: false`. */
+  readonly organizationId: string | null;
   readonly name: string;
   readonly mimeType: string;
   /** Bytes; `confirm()` replaces it with the stored size. */
@@ -122,7 +124,7 @@ export interface Attachments {
   confirm(id: string): AsyncResult<Attachment>;
   get(id: string): AsyncResult<Attachment>;
   list(
-    organizationId: string,
+    organizationId: string | null,
     subject?: { readonly type: string; readonly id: string },
   ): AsyncResult<readonly Attachment[]>;
   /**
@@ -173,7 +175,7 @@ function attachmentOf(value: unknown): Attachment {
   const row = recordOf(value, "attachments");
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: optionalText(row["organization_id"]),
     subjectType: optionalText(row["subject_type"]),
     subjectId: optionalText(row["subject_id"]),
     bucket: textOf(row["bucket"]),

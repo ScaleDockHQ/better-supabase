@@ -11,8 +11,12 @@ export interface Subject {
   readonly table: string;
   /** Default `id`. */
   readonly id?: string;
-  /** The subject's tenant column, default `organization_id`. */
-  readonly tenant?: string;
+  /**
+   * The subject's tenant column, default `organization_id`. `false` for a
+   * subject without a tenant (a user's own records), where the subject
+   * table's policies alone decide, in modules that allow it.
+   */
+  readonly tenant?: string | false;
   /** A permission the caller also needs in the tenant, e.g. `projects.read`. */
   readonly permission?: string;
   /** Delete the module's rows for a subject when the subject row is deleted. */
@@ -36,6 +40,7 @@ const BASE_KEYS = new Set(["table", "id", "tenant", "permission", "cascade"]);
 export function subjectsOption(
   ctx: ModuleContext,
   extraKeys: readonly string[] = [],
+  allow: { readonly tenantless?: boolean } = {},
 ): readonly [string, Subject][] {
   const where = `sql.modules.${ctx.module}.options.subjects`;
   const raw = ctx.option("subjects");
@@ -74,7 +79,13 @@ export function subjectsOption(
       throw new TypeError(`${where}.${type}.cascade must be true or false`);
     }
     const id = text("id");
-    const tenant = text("tenant");
+    const tenantless = entry["tenant"] === false;
+    if (tenantless && allow.tenantless !== true) {
+      throw new TypeError(
+        `${where}.${type}.tenant can't be false: this module keeps a tenant on every row`,
+      );
+    }
+    const tenant = tenantless ? false : text("tenant");
     const permission = text("permission");
     return [
       type,
@@ -111,6 +122,9 @@ export function subjectReadable(
   if (subjects.length === 0) return "true";
   return `case ${args.type}\n${subjects
     .map(([type, subject]) => {
+      if (subject.tenant === false) {
+        return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where s.${sqlIdent(subject.id ?? "id")}::text = ${args.id})`;
+      }
       const extra = subject.permission
         ? ` and coalesce(better_supabase.can('tenant', ${args.tenant}, ${sqlString(subject.permission)}), false)`
         : "";

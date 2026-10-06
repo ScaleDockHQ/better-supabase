@@ -44,7 +44,7 @@ function webhooksInSql(ctx: ModuleContext): string {
             const permission = subject.permission
               ? ` and (${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), tenant, ${sqlString(subject.permission)}), false))`
               : "";
-            return `      when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where s.${sqlIdent(subject.id ?? "id")}::text = subject_id and s.${sqlIdent(subject.tenant ?? "organization_id")} = tenant)${permission}`;
+            return `      when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where s.${sqlIdent(subject.id ?? "id")}::text = subject_id and s.${sqlIdent(subject.tenant === false ? "organization_id" : (subject.tenant ?? "organization_id"))} = tenant)${permission}`;
           })
           .join("\n")}\n      else false\n    end`;
   const cascades = subjectCascades(

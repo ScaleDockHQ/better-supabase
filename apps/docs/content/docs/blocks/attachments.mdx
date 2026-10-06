@@ -84,6 +84,18 @@ isn't in the tenant, can't download its files, uploader and
 `cascade: true` deletes a subject's attachment rows with the subject row;
 remove the objects with `attachments.remove` or a storage cleanup job.
 
+A subject without a tenant, such as a user's own notes, takes `tenant: false`:
+its files have no `organization_id` (pass `organizationId: null` to `upload`),
+their path starts with `-`, and the subject table's own policies alone decide
+who reads and uploads them, without tenant permissions. Other files still need
+a tenant.
+
+```ts
+subjects: {
+  note: { table: "notes", tenant: false },
+},
+```
+
 `path` sets the object path, from `{organization_id}` (required first),
 `{id}` (required), `{subject_type}` and `{subject_id}` (a file without a
 subject gets `-`). It defaults to `{organization_id}/attachments/{id}`.

@@ -411,6 +411,95 @@ describe.skipIf(!live)("attachments", () => {
     }
   });
 
+  it("keeps files of a subject without a tenant, decided by its own policies", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create table public.bs_test_notes (
+           id uuid primary key default gen_random_uuid(),
+           user_id uuid not null
+         );
+         alter table public.bs_test_notes enable row level security;
+         grant select on public.bs_test_notes to authenticated;
+         create policy "own" on public.bs_test_notes for select to authenticated
+           using (user_id = (select auth.uid()));`,
+      );
+      await s.install(["organizations", "attachments"], {
+        modules: {
+          attachments: {
+            options: {
+              bucket: BUCKET,
+              requireScan: false,
+              subjects: { note: { table: "bs_test_notes", tenant: false } },
+            },
+          },
+        },
+      });
+      const ada = await s.user("ada");
+      const bob = await s.user("bob");
+      const [note] = await s.rows<{ id: string }>(
+        "insert into public.bs_test_notes (user_id) values ($1) returning id",
+        [ada.id],
+      );
+      const attachments = createAttachments({
+        transport: sqlTransport(s.sql),
+        storage: storage(),
+        requireScan: false,
+      });
+      await s.asRole(ada);
+      const { attachment } = await attachments
+        .upload({
+          organizationId: null,
+          name: "scan.txt",
+          mimeType: "text/plain",
+          size: 3,
+          subjectType: "note",
+          subjectId: note!.id,
+        })
+        .orThrow();
+      expect(attachment.organizationId).toBeUndefined();
+      expect(attachment.path).toBe(`-/attachments/${attachment.id}`);
+      await s.rows(
+        "insert into storage.objects (bucket_id, name, owner_id, metadata) values ($1, $2, auth.uid()::text, '{}')",
+        [BUCKET, attachment.path],
+      );
+      await attachments.confirm(attachment.id).orThrow();
+      expect(
+        await attachments.list(null, { type: "note", id: note!.id }).orThrow(),
+      ).toHaveLength(1);
+      await s.asRole(bob);
+      expect(
+        await attachments.list(null, { type: "note", id: note!.id }).orThrow(),
+      ).toEqual([]);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from storage.objects where bucket_id = $1 and name = $2)",
+          [BUCKET, attachment.path],
+        ),
+      ).toBe(0);
+      expect(
+        (
+          await attachments.upload({
+            organizationId: null,
+            name: "x.txt",
+            mimeType: "text/plain",
+            size: 1,
+            subjectType: "note",
+            subjectId: note!.id,
+          })
+        ).ok,
+      ).toBe(false);
+      await s.service();
+      expect(
+        await s.hint(
+          `insert into better_supabase.attachments (name, mime_type, size) values ('x', 'text/plain', 1)`,
+        ),
+      ).not.toBe("no error");
+    } finally {
+      await s.close();
+    }
+  });
+
   it("routes subjects to their buckets and gates any bucket on a scan", async () => {
     const s = await BlockSession.open(pool);
     const DOCS = "bs-it-docs";

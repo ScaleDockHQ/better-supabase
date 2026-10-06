@@ -58,6 +58,32 @@ describe("attachments module", () => {
     expect(() => sqlOf(["attachments"], options)).toThrow(message);
   });
 
+  it("lets a subject without a tenant decide its files' access", () => {
+    const sql = sqlOf(["attachments"], {
+      subjects: { note: { table: "notes", tenant: false } },
+    });
+    expect(sql).toContain(
+      `alter table "better_supabase"."attachments" alter column "organization_id" drop not null;`,
+    );
+    expect(sql).toContain(`coalesce("organization_id"::text, '-')`);
+    expect(sql).toContain(
+      `when 'note' then exists (select 1 from "public"."notes" s where s."id"::text = subject_id)`,
+    );
+    expect(sql).toContain(
+      `("organization_id" is null or coalesce(better_supabase.can(`,
+    );
+    expect(sqlOf(["attachments"])).not.toContain("drop not null");
+    expect(() =>
+      renderModules(["comments"], {
+        modules: {
+          comments: {
+            options: { subjects: { note: { table: "notes", tenant: false } } },
+          },
+        },
+      }),
+    ).toThrow(/tenant can't be false/);
+  });
+
   it("accepts any valid bucket id, short ones included", () => {
     const sql = sqlOf(["attachments"], {
       bucket: "ai",
