@@ -506,6 +506,30 @@ describe("vector search options", () => {
     );
   });
 
+  it("filters with a predicate, adds the boost, breaks ties and allows text alone", () => {
+    const sql = render({
+      hybrid: { tsvector: "tsv" },
+      boost: "t.bonus",
+      boostMode: "add",
+      predicate: "t.expires_at > now()",
+      order: "t.created_at desc",
+    });
+    expect(sql.match(/and \(t\.expires_at > now\(\)\)/g)).toHaveLength(4);
+    expect(sql).toContain("and query is not null");
+    expect(sql).toContain(
+      "(f.score + coalesce((t.bonus)::double precision, 0))",
+    );
+    expect(sql).toContain(
+      "row_number() over (order by (f.score + coalesce((t.bonus)::double precision, 0))::double precision desc, t.created_at desc) as ord",
+    );
+    expect(sql).toContain("order by r.ord");
+    expect(render({ order: "t.id" })).toContain("text_query text default null");
+    expect(() => render({ predicate: "true; drop table x" })).toThrow(
+      /predicate must be one SQL expression/,
+    );
+    expect(() => render({ boost: "1", boostMode: "max" })).toThrow(/boostMode/);
+  });
+
   it("scores each distance and checks the options", () => {
     expect(render({ distance: "inner_product" })).toContain(
       "-v.distance as score",

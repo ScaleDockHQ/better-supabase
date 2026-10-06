@@ -620,6 +620,18 @@
                 "type": "array",
                 "items": { "type": "string" },
                 "description": "Columns db.$search({ filter }) narrows before ranking."
+              },
+              "predicate": {
+                "type": "string",
+                "description": "A SQL condition over the row t every candidate must meet, applied before ranking."
+              },
+              "boostMode": {
+                "enum": ["multiply", "add"],
+                "description": "How boost combines with the score. Defaults to multiply."
+              },
+              "order": {
+                "type": "string",
+                "description": "A SQL order by list over the row t that breaks score ties."
               }
             }
           }

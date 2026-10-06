@@ -2094,6 +2094,12 @@ interface VectorSearchTable {
   readonly boost?: string;
   /** Columns `filter` narrows before ranking, such as `organization_id`. */
   readonly prefilter?: readonly string[];
+  /** A SQL condition over the row `t` every candidate must meet. */
+  readonly predicate?: string;
+  /** How `boost` combines with the score. Defaults to `multiply`. */
+  readonly boostMode?: "multiply" | "add";
+  /** A SQL `order by` list over the row `t` that breaks score ties. */
+  readonly order?: string;
 }
 
 const DISTANCE_OPERATORS: Readonly<
@@ -2114,10 +2120,14 @@ const SIMILARITY: Readonly<Record<VectorSearchTable["distance"], string>> = {
 const REGCONFIG = /^[a-z_][a-z0-9_]*$/;
 
 /** `vectorSearch.<table>.boost`: one expression, no statement separators or comments. */
-function boostExpression(where: string, boost: string): string {
+function boostExpression(
+  where: string,
+  boost: string,
+  example = '"t.priority"',
+): string {
   if (/;|--|\/\*|\$\$/.test(boost)) {
     throw new TypeError(
-      `${where}.boost must be one SQL expression over the row t, such as "t.priority"`,
+      `${where} must be one SQL expression over the row t, such as ${example}`,
     );
   }
   return boost;
@@ -2144,8 +2154,19 @@ function vectorRanking(
       ))`;
     })
     .join("");
+  const predicate =
+    advanced && entry.predicate !== undefined
+      ? `\n      and (${boostExpression(`${where}.predicate`, entry.predicate, '"t.expires_at > now()"')})`
+      : "";
+  const order =
+    advanced && entry.order !== undefined
+      ? boostExpression(`${where}.order`, entry.order, '"t.created_at desc"')
+      : undefined;
   const widened =
-    advanced && (entry.hybrid !== undefined || entry.boost !== undefined);
+    advanced &&
+    (entry.hybrid !== undefined ||
+      entry.boost !== undefined ||
+      entry.predicate !== undefined);
   const candidates = widened
     ? "least(greatest(k, 1) * 4, 1000)"
     : "least(greatest(k, 1), 1000)";
@@ -2168,7 +2189,7 @@ function vectorRanking(
   text_hits as materialized (
     select ${key} as id, ts_rank_cd(${tsv}, q) as text_score
     from ${target} t, websearch_to_tsquery(${sqlString(config)}::regconfig, text_query) q
-    where text_query is not null and ${tsv} @@ q${prefilter}
+    where text_query is not null and ${tsv} @@ q${prefilter}${predicate}
     order by text_score desc
     limit ${candidates}
   ),
@@ -2181,16 +2202,27 @@ function vectorRanking(
   }
   const boost =
     advanced && entry.boost !== undefined
-      ? boostExpression(where, entry.boost)
+      ? boostExpression(`${where}.boost`, entry.boost)
       : undefined;
-  const scored = boost
-    ? `select f.id, (f.score * coalesce((${boost})::double precision, 1))::double precision as score
+  const boostMode = entry.boostMode ?? "multiply";
+  const modes: readonly string[] = ["multiply", "add"];
+  if (!modes.includes(boostMode)) {
+    throw new TypeError(`${where}.boostMode must be "multiply" or "add"`);
+  }
+  const score = boost
+    ? boostMode === "add"
+      ? `(f.score + coalesce((${boost})::double precision, 0))::double precision`
+      : `(f.score * coalesce((${boost})::double precision, 1))::double precision`
+    : "f.score::double precision";
+  const scored =
+    boost || order
+      ? `select f.id, ${score} as score, row_number() over (order by ${score} desc${order ? `, ${order}` : ""}) as ord
   from fused f join ${target} t on ${key} = f.id`
-    : "select f.id, f.score::double precision as score from fused f";
+      : `select f.id, ${score} as score, row_number() over (order by ${score} desc) as ord from fused f`;
   return `with vector_hits as materialized (
     select ${key} as id, ${column} ${operator} query as distance
     from ${target} t
-    where ${column} is not null${advanced ? prefilter : ""}
+    where ${column} is not null${advanced ? `${prefilter}${predicate}\n      and query is not null` : ""}
     order by ${column} ${operator} query
     limit ${candidates}
   ),
@@ -2201,7 +2233,7 @@ function vectorRanking(
     ${fused}
   )
   ${scored}
-  order by score desc
+  order by ord
   limit least(greatest(k, 1), 1000)`;
 }
 
@@ -2220,6 +2252,8 @@ function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
     const advanced =
       entry.hybrid !== undefined ||
       entry.boost !== undefined ||
+      entry.predicate !== undefined ||
+      entry.order !== undefined ||
       (entry.prefilter?.length ?? 0) > 0;
     const params = advanced
       ? `query extensions.${type}, k integer default 10, filter jsonb default '{}', text_query text default null`
@@ -2233,6 +2267,9 @@ function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
       entry.hybrid ? `hybrid with ${entry.hybrid.tsvector}` : "",
       entry.boost ? `boost ${entry.boost}` : "",
       entry.prefilter?.length ? `prefilter ${entry.prefilter.join(", ")}` : "",
+      entry.predicate ? `predicate ${entry.predicate}` : "",
+      entry.boostMode === "add" ? "additive boost" : "",
+      entry.order ? `ties by ${entry.order}` : "",
     ]
       .filter(Boolean)
       .join(", ");
@@ -2249,7 +2286,7 @@ as $$
   ${vectorRanking(entry, target, true)}
   ) r
   join ${target} t on t.${sqlIdent(entry.key ?? "id")} = r.id
-  order by r.score desc
+  order by r.ord
 $$;`
       : `create or replace function ${fn}(${params})
 returns setof ${target}
@@ -2286,7 +2323,7 @@ as $$
   select to_jsonb(r.id), r.score from (
   ${vectorRanking(entry, target, advanced)}
   ) r
-  order by r.score desc
+  order by r.ord
 $$;
 revoke execute on function ${scores}(${types}) from public, anon;
 grant execute on function ${scores}(${types}) to authenticated, service_role;`;

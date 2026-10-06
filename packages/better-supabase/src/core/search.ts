@@ -6,8 +6,12 @@ export type SearchArgs<M extends AnyModels, T extends keyof M> = Pick<
   FindManyArgs<M, T>,
   "select" | "include" | "where" | "signal"
 > & {
-  /** The query embedding, as numbers or pgvector text (`'[0.1,0.2]'`). */
-  readonly vector: readonly number[] | string;
+  /**
+   * The query embedding, as numbers or pgvector text (`'[0.1,0.2]'`). Leave
+   * it out (or pass `null`) with `text` on a `hybrid` entry to rank by
+   * full-text search alone, such as when the embedding call failed.
+   */
+  readonly vector?: readonly number[] | string | null;
   /** Rows to return. Defaults to 10. */
   readonly k?: number;
   /**
@@ -27,7 +31,7 @@ export type SearchScore<A> = A extends { readonly score: true }
   : unknown;
 
 export interface SearchInput {
-  readonly vector: readonly number[] | string;
+  readonly vector?: readonly number[] | string | null;
   readonly k?: number;
   readonly filter?: Readonly<Record<string, unknown>>;
   readonly text?: string;

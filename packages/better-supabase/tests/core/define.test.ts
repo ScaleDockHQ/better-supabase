@@ -401,6 +401,23 @@ describe("$search", () => {
     );
   });
 
+  it("searches by text alone without a vector", async () => {
+    const executor = fake({ functionSources: true });
+    await betterSupabase
+      .connect(executor)
+      .$search("notes", { vector: null, text: "invoice" });
+    await betterSupabase.connect(executor).$search("notes", { text: "q" });
+    expect(
+      executor.ops.map((op) => (op.kind === "select" ? op.source?.args : null)),
+    ).toEqual([
+      { query: null, k: 10, text_query: "invoice" },
+      { query: null, k: 10, text_query: "q" },
+    ]);
+    expect(
+      (await betterSupabase.connect(executor).$search("notes", {})).error?.kind,
+    ).toBe("invalid_input");
+  });
+
   it.each<[string, { vector: number[] | string; k?: number }]>([
     ["an empty vector", { vector: [] }],
     ["a non-finite vector", { vector: [Number.NaN] }],
@@ -416,7 +433,7 @@ describe("$search", () => {
     ).toEqual(
       dbError(
         "invalid_input",
-        "db.$search() needs a vector of finite numbers and a positive integer k",
+        "db.$search() needs a vector of finite numbers (or text alone on a hybrid entry) and a positive integer k",
         {
           table: "notes",
         },

@@ -3175,6 +3175,72 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("searches by text alone, with a predicate, an additive boost and tie-breaks", async () => {
+    const name = `bs_pred_${RUN}`;
+    const folders = `bs_pred_folders_${RUN}`;
+    const [module] = renderModules(["vector-search"], {
+      vectorSearch: [
+        {
+          table: name,
+          column: "embedding",
+          distance: "cosine",
+          hybrid: { tsvector: "tsv" },
+          boost: "t.bonus",
+          boostMode: "add",
+          predicate: `(t.expires_at is null or t.expires_at > now()) and exists (select 1 from public.${folders} f where f.id = t.folder_id and not f.disabled)`,
+          order: "t.id desc",
+        },
+      ],
+    });
+    try {
+      await pool.query(`
+        create extension if not exists vector with schema extensions;
+        create table public.${folders} (id int primary key, disabled boolean not null default false);
+        insert into public.${folders} values (1, false), (2, true);
+        create table public.${name} (
+          id int primary key, folder_id int not null, content text not null,
+          bonus double precision not null default 0, expires_at timestamptz,
+          embedding extensions.vector(3),
+          tsv tsvector generated always as (to_tsvector('simple', content)) stored
+        );
+        insert into public.${name} (id, folder_id, content, bonus, expires_at, embedding) values
+          (1, 1, 'apple', 0, null, '[1,0,0]'),
+          (2, 1, 'apple', 0, null, '[1,0,0]'),
+          (3, 1, 'apple', 0, now() - interval '1 day', '[1,0,0]'),
+          (4, 2, 'apple', 0, null, '[1,0,0]'),
+          (5, 1, 'pear', 5, null, '[0,1,0]');
+      `);
+      await pool.query(module!.contents);
+      const ids = async (query: string | null, text: string | null) =>
+        (
+          await pool.query<{ id: number }>(
+            `select id from public.search_${name}($1, 5, '{}', $2)`,
+            [query, text],
+          )
+        ).rows.map((row) => row.id);
+      expect((await ids(null, "apple")).toSorted((a, b) => a - b)).toEqual([
+        1, 2,
+      ]);
+      const nearest = await ids("[1,0,0]", null);
+      expect(nearest[0]).toBe(5);
+      expect(nearest.slice(1).toSorted((a, b) => a - b)).toEqual([1, 2]);
+      const scores = await pool.query<{ id: string; score: number }>(
+        `select id #>> '{}' as id, score from public.search_${name}_scores($1, 5, '{}', null)`,
+        ["[1,0,0]"],
+      );
+      expect(scores.rows[0]!.id).toBe("5");
+      expect(scores.rows[0]!.score).toBeGreaterThan(5);
+    } finally {
+      await pool.query(
+        `drop table if exists public.${name} cascade; drop table if exists public.${folders} cascade`,
+      );
+      await pool.query(
+        `drop function if exists public.search_${name}(extensions.vector, integer, jsonb, text);
+         drop function if exists public.search_${name}_scores(extensions.vector, integer, jsonb, text)`,
+      );
+    }
+  });
+
   it("limits route handler keys with hit_rate_limit", async () => {
     const scope = `route-${RUN}`;
     const limit = createRateLimit(postgres.admin);

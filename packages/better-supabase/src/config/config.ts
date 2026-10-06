@@ -445,6 +445,16 @@ export type VectorSearchConfig =
       readonly boost?: string;
       /** Columns `db.$search({ filter })` narrows before ranking. */
       readonly prefilter?: readonly string[];
+      /**
+       * A SQL condition over the row `t` every candidate must meet, applied
+       * before ranking: ranges, a parent row, such as
+       * `t.expires_at > now() and exists (select 1 from public.folders f where f.id = t.folder_id and not f.disabled)`.
+       */
+      readonly predicate?: string;
+      /** How `boost` combines with the score: `multiply` (default) or `add`. */
+      readonly boostMode?: "multiply" | "add";
+      /** A SQL `order by` list over the row `t` that breaks score ties, such as `t.created_at desc`. */
+      readonly order?: string;
     };
 
 /** A privilege the Data API roles can be granted on a table or view. */
@@ -613,6 +623,13 @@ function vectorSearchOf(
           ...(entry.prefilter === undefined
             ? {}
             : { prefilter: entry.prefilter }),
+          ...(entry.predicate === undefined
+            ? {}
+            : { predicate: entry.predicate }),
+          ...(entry.boostMode === undefined
+            ? {}
+            : { boostMode: entry.boostMode }),
+          ...(entry.order === undefined ? {} : { order: entry.order }),
         },
   );
 }

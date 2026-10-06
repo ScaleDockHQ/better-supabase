@@ -98,7 +98,7 @@ const rows = await db
 rows[0].$score; // number
 ```
 
-## Hybrid ranking, boosts and prefilters
+## Hybrid ranking, boosts, filters and order
 
 An entry can take more options:
 
@@ -114,15 +114,18 @@ vectorSearch: {
 },
 ```
 
-| Option      | What it does                                                                                                                           |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`      | `halfvec` for half-precision columns; `vector` by default                                                                              |
-| `hybrid`    | ranks the `tsvector` column against `text` with `websearch_to_tsquery` and fuses both rankings by reciprocal rank (`k`, 60 by default) |
-| `boost`     | an expression over the row `t` the score is multiplied by, such as a priority column                                                   |
-| `prefilter` | columns `filter` narrows before ranking, so filters shape the scan instead of trimming the `k` rows                                    |
-| `key`       | the primary key column the scores function returns; `id` by default                                                                    |
+| Option      | What it does                                                                                                                                                                  |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`      | `halfvec` for half-precision columns; `vector` by default                                                                                                                     |
+| `hybrid`    | ranks the `tsvector` column against `text` with `websearch_to_tsquery` and fuses both rankings by reciprocal rank (`k`, 60 by default)                                        |
+| `boost`     | an expression over the row `t` the score is multiplied by, such as a priority column                                                                                          |
+| `prefilter` | columns `filter` narrows before ranking, so filters shape the scan instead of trimming the `k` rows                                                                           |
+| `key`       | the primary key column the scores function returns; `id` by default                                                                                                           |
+| `predicate` | a SQL condition over the row `t` every candidate meets before ranking: ranges and related rows, such as `t.expires_at > now()` or an `exists` on a parent that isn't disabled |
+| `boostMode` | `multiply` (default) or `add`, how `boost` combines with the score                                                                                                            |
+| `order`     | a SQL `order by` list over `t` that breaks score ties, such as `t.created_at desc`                                                                                            |
 
-With any of `hybrid`, `boost` or `prefilter`, the functions take
+With any of `hybrid`, `boost`, `prefilter`, `predicate` or `order`, the functions take
 `filter jsonb` and `text_query text` as well, and rank four times `k`
 candidates from each side before they keep `k`:
 
@@ -135,6 +138,17 @@ const rows = await db
     filter: { collection_id: ids, organization_id: [orgId, null] },
     score: true,
   })
+  .orThrow();
+```
+
+On a `hybrid` entry, `vector` can be left out (or `null`) with `text`: the
+search then ranks by full-text alone. That keeps search working when the
+embedding call fails or times out:
+
+```ts
+const embedding = await embed(question).catch(() => null);
+const rows = await db
+  .$search("knowledgeChunks", { vector: embedding, text: question, k: 8 })
   .orThrow();
 ```
 
