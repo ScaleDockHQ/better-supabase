@@ -226,6 +226,30 @@ describe("sameModuleFile", () => {
     );
   });
 
+  it("checks slug lengths and lets service_role read the reserved slugs", () => {
+    const [file] = renderModules(["reserved-slugs"], {
+      modules: {
+        "reserved-slugs": { options: { minLength: 3, maxLength: 40 } },
+      },
+    });
+    expect(file!.contents).toContain(
+      "grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;",
+    );
+    expect(file!.contents).toContain(
+      "when length(slug) < 3 or length(slug) > 40 then 'invalid'",
+    );
+    expect(renderModules(["reserved-slugs"])[0]!.contents).toContain(
+      "when length(slug) < 1 or length(slug) > 63 then 'invalid'",
+    );
+    expect(() =>
+      renderModules(["reserved-slugs"], {
+        modules: {
+          "reserved-slugs": { options: { minLength: 5, maxLength: 4 } },
+        },
+      }),
+    ).toThrow(/minLength and maxLength must be whole numbers/);
+  });
+
   it("derives table grants from policies for tables expose doesn't list", () => {
     const config = resolveConfig(
       {

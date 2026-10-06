@@ -135,7 +135,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         impersonated_by uuid,
         updated_at timestamptz
       );
-      grant all on ${table} to authenticated;
+      grant all on ${table} to authenticated, service_role;
       select better_supabase.track_updated_at('${table}');
       select better_supabase.track_actor('${table}', impersonated_by => 'impersonated_by');
       select better_supabase.track_slug('${table}');
@@ -384,6 +384,23 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     await expect(
       as.queryRaw(`insert into ${table} (slug) values ('Bad Slug')`),
     ).rejects.toMatchObject({ hint: "SLUG_INVALID" });
+    const service = await pool.connect();
+    try {
+      await service.query("begin");
+      await service.query("set local role service_role");
+      await service.query("savepoint reserved");
+      await expect(
+        service.query(`insert into ${table} (slug) values ('www')`),
+      ).rejects.toMatchObject({ hint: "SLUG_RESERVED" });
+      await service.query("rollback to savepoint reserved");
+      const { rows } = await service.query<{ slug: string }>(
+        `insert into ${table} (slug) values ('service-${RUN}') returning slug`,
+      );
+      expect(rows[0]!.slug).toBe(`service-${RUN}`);
+    } finally {
+      await service.query("rollback");
+      service.release();
+    }
 
     const log = await pool.query<{
       op: string;
