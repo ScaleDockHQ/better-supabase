@@ -5,6 +5,7 @@ import type {
   Codec,
   ColumnMeta,
   FunctionMeta,
+  FunctionResult,
   RealtimeTableMeta,
   RelationMeta,
   SchemaMeta,
@@ -515,6 +516,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       values: entry.values,
     }));
 
+  const tablesByName = new Map(
+    tableModels.map((table) => [
+      `${table.snapshot.schema}.${table.snapshot.name}`,
+      table,
+    ]),
+  );
   const seen = new Set<string>();
   const functions: FunctionModel[] = catalog.functions
     .filter((fn) => config.schemas.includes(fn.schema))
@@ -537,12 +544,46 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         return tsType(fn.schema, format);
       };
       let returns: string;
+      let result: FunctionResult | undefined;
+      const rowTable = fn.returnsRelation
+        ? tablesByName.get(fn.returnsRelation)
+        : undefined;
       if (fn.returnsTable) {
-        returns = `{ ${fn.returnsTable
-          .map(
-            (column) => `${JSON.stringify(column.name)}: ${typeOf(column.udt)}`,
-          )
+        const columns = fn.returnsTable.map((column) => {
+          const codec = codecFor(column.udt, config);
+          return {
+            db: column.name,
+            app: applyCasing(column.name, config.casing),
+            codec,
+            tsType: codec ? CODEC_TYPE[codec] : typeOf(column.udt),
+          };
+        });
+        returns = `{ ${columns
+          .map((column) => `${JSON.stringify(column.app)}: ${column.tsType}`)
           .join("; ")} }[]`;
+        if (
+          columns.some(
+            (column) => column.codec !== undefined || column.app !== column.db,
+          )
+        ) {
+          result = {
+            columns: columns.map(({ db, app, codec }) => ({
+              db,
+              ...(app === db ? {} : { name: app }),
+              ...(codec ? { codec } : {}),
+            })),
+          };
+        }
+      } else if (rowTable) {
+        returns = `Models[${JSON.stringify(rowTable.key)}]['Row']`;
+        if (fn.returnsSet) returns = arrayOf(returns);
+        if (
+          rowTable.columns.some(
+            (column) => column.codec !== undefined || column.app !== column.db,
+          )
+        ) {
+          result = { table: rowTable.key };
+        }
       } else {
         returns = typeOf(fn.returns);
         if (fn.returnsSet) returns = arrayOf(returns);
@@ -556,6 +597,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           returns: fn.returns,
           returnsSet: fn.returnsSet,
           volatility: fn.volatility,
+          ...(result ? { result } : {}),
         },
         args: fn.args.map((arg) => ({
           name: arg.name,

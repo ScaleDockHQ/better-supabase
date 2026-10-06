@@ -94,6 +94,24 @@ export interface FunctionMeta {
   readonly returns: string;
   readonly returnsSet: boolean;
   readonly volatility: "immutable" | "stable" | "volatile";
+  /**
+   * How `$rpc` decodes the returned rows, present when decoding changes
+   * them: the rows of a table (by app key), or a `returns table (...)` record.
+   */
+  readonly result?: FunctionResult;
+}
+
+export type FunctionResult =
+  | { readonly table: string }
+  | { readonly columns: readonly ResultColumn[] };
+
+/** A column of a `returns table (...)` result. */
+export interface ResultColumn {
+  /** Database name, the key PostgREST returns. */
+  readonly db: string;
+  /** App name, when the casing changes it. */
+  readonly name?: string;
+  readonly codec?: Codec;
 }
 
 export interface SchemaMeta {

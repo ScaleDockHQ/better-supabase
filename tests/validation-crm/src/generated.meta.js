@@ -50425,7 +50425,19 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "columns": [
+          {
+            "db": "agenda_collection_id",
+            "name": "agendaCollectionId"
+          },
+          {
+            "db": "organization_id",
+            "name": "organizationId"
+          }
+        ]
+      }
     },
     "claim_ai_agent_tool_checkpoint": {
       "name": "claim_ai_agent_tool_checkpoint",
@@ -50488,7 +50500,41 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "columns": [
+          {
+            "db": "due_on",
+            "name": "dueOn"
+          },
+          {
+            "db": "employee_id",
+            "name": "employeeId"
+          },
+          {
+            "db": "employee_name",
+            "name": "employeeName"
+          },
+          {
+            "db": "kind"
+          },
+          {
+            "db": "label"
+          },
+          {
+            "db": "organization_id",
+            "name": "organizationId"
+          },
+          {
+            "db": "recipient_user_ids",
+            "name": "recipientUserIds"
+          },
+          {
+            "db": "subject_id",
+            "name": "subjectId"
+          }
+        ]
+      }
     },
     "claim_due_workflow_schedules": {
       "name": "claim_due_workflow_schedules",
@@ -50509,7 +50555,10 @@ export default {
       ],
       "returns": "workflow_schedules",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "workflowSchedules"
+      }
     },
     "claim_inbox_automation": {
       "name": "claim_inbox_automation",
@@ -50555,7 +50604,10 @@ export default {
       ],
       "returns": "inbox_webhook_jobs",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "inboxWebhookJobs"
+      }
     },
     "claim_stripe_webhook_event": {
       "name": "claim_stripe_webhook_event",
@@ -50580,7 +50632,26 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "columns": [
+          {
+            "db": "claim_id",
+            "name": "claimId"
+          },
+          {
+            "db": "disposition"
+          },
+          {
+            "db": "event_id",
+            "name": "eventId"
+          },
+          {
+            "db": "processing_started_at",
+            "name": "processingStartedAt"
+          }
+        ]
+      }
     },
     "claim_webhook_deliveries": {
       "name": "claim_webhook_deliveries",
@@ -50597,7 +50668,10 @@ export default {
       ],
       "returns": "webhook_deliveries",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "webhookDeliveries"
+      }
     },
     "close_purchase_order_short": {
       "name": "close_purchase_order_short",
@@ -50781,7 +50855,10 @@ export default {
       ],
       "returns": "approval_requests",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "approvalRequests"
+      }
     },
     "consume_free_product_stock": {
       "name": "consume_free_product_stock",
@@ -51069,7 +51146,10 @@ export default {
       ],
       "returns": "file_copy_operations",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "fileCopyOperations"
+      }
     },
     "create_file_version": {
       "name": "create_file_version",
@@ -51110,7 +51190,10 @@ export default {
       ],
       "returns": "file_versions",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "fileVersions"
+      }
     },
     "create_file_zip_export": {
       "name": "create_file_zip_export",
@@ -51147,7 +51230,10 @@ export default {
       ],
       "returns": "file_zip_exports",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "fileZipExports"
+      }
     },
     "create_invoice_aggregate": {
       "name": "create_invoice_aggregate",
@@ -51543,7 +51629,10 @@ export default {
       ],
       "returns": "approval_requests",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "approvalRequests"
+      }
     },
     "delete_organization_for_current_user": {
       "name": "delete_organization_for_current_user",
@@ -51628,7 +51717,10 @@ export default {
       ],
       "returns": "employee_contracts",
       "returnsSet": false,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "table": "employeeContracts"
+      }
     },
     "employee_cycle_week": {
       "name": "employee_cycle_week",
@@ -51696,7 +51788,30 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "day"
+          },
+          {
+            "db": "is_holiday",
+            "name": "isHoliday"
+          },
+          {
+            "db": "logged_hours",
+            "name": "loggedHours"
+          },
+          {
+            "db": "scheduled_hours",
+            "name": "scheduledHours"
+          },
+          {
+            "db": "time_off_hours",
+            "name": "timeOffHours"
+          }
+        ]
+      }
     },
     "ensure_agenda_planning_calendar": {
       "name": "ensure_agenda_planning_calendar",
@@ -51780,7 +51895,10 @@ export default {
       ],
       "returns": "file_nodes",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "fileNodes"
+      }
     },
     "ensure_customer_file_folders": {
       "name": "ensure_customer_file_folders",
@@ -51865,7 +51983,19 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "columns": [
+          {
+            "db": "company_drive_id",
+            "name": "companyDriveId"
+          },
+          {
+            "db": "personal_drive_id",
+            "name": "personalDriveId"
+          }
+        ]
+      }
     },
     "evaluate_promotion": {
       "name": "evaluate_promotion",
@@ -51982,7 +52112,10 @@ export default {
       ],
       "returns": "file_copy_operation_items",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "fileCopyOperationItems"
+      }
     },
     "finalize_file_upload": {
       "name": "finalize_file_upload",
@@ -52007,7 +52140,10 @@ export default {
       ],
       "returns": "file_upload_reservations",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "fileUploadReservations"
+      }
     },
     "find_expense_duplicates": {
       "name": "find_expense_duplicates",
@@ -52020,7 +52156,18 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "expense_id",
+            "name": "expenseId"
+          },
+          {
+            "db": "reason"
+          }
+        ]
+      }
     },
     "finish_ai_agent_tool": {
       "name": "finish_ai_agent_tool",
@@ -52269,7 +52416,23 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "authorized_integration_ids",
+            "name": "authorizedIntegrationIds"
+          },
+          {
+            "db": "organization_permission_keys",
+            "name": "organizationPermissionKeys"
+          },
+          {
+            "db": "system_permission_keys",
+            "name": "systemPermissionKeys"
+          }
+        ]
+      }
     },
     "get_ai_chat_suggestion_snapshot": {
       "name": "get_ai_chat_suggestion_snapshot",
@@ -52324,7 +52487,38 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "actor_display_name",
+            "name": "actorDisplayName"
+          },
+          {
+            "db": "actor_id",
+            "name": "actorId"
+          },
+          {
+            "db": "event_type",
+            "name": "eventType"
+          },
+          {
+            "db": "id"
+          },
+          {
+            "db": "occurred_at",
+            "name": "occurredAt"
+          },
+          {
+            "db": "target_id",
+            "name": "targetId"
+          },
+          {
+            "db": "target_type",
+            "name": "targetType"
+          }
+        ]
+      }
     },
     "get_file_node_path": {
       "name": "get_file_node_path",
@@ -52341,7 +52535,66 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "created_at",
+            "name": "createdAt"
+          },
+          {
+            "db": "created_by",
+            "name": "createdBy"
+          },
+          {
+            "db": "current_version_id",
+            "name": "currentVersionId"
+          },
+          {
+            "db": "deleted_at",
+            "name": "deletedAt"
+          },
+          {
+            "db": "depth"
+          },
+          {
+            "db": "drive_id",
+            "name": "driveId"
+          },
+          {
+            "db": "external_id",
+            "name": "externalId"
+          },
+          {
+            "db": "external_metadata",
+            "name": "externalMetadata"
+          },
+          {
+            "db": "id"
+          },
+          {
+            "db": "kind"
+          },
+          {
+            "db": "name"
+          },
+          {
+            "db": "organization_id",
+            "name": "organizationId"
+          },
+          {
+            "db": "parent_id",
+            "name": "parentId"
+          },
+          {
+            "db": "source"
+          },
+          {
+            "db": "updated_at",
+            "name": "updatedAt"
+          }
+        ]
+      }
     },
     "get_file_retention_days": {
       "name": "get_file_retention_days",
@@ -52380,7 +52633,34 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "available_bytes",
+            "name": "availableBytes"
+          },
+          {
+            "db": "quota_bytes",
+            "name": "quotaBytes"
+          },
+          {
+            "db": "reserved_bytes",
+            "name": "reservedBytes"
+          },
+          {
+            "db": "retention_days",
+            "name": "retentionDays"
+          },
+          {
+            "db": "segments"
+          },
+          {
+            "db": "stored_bytes",
+            "name": "storedBytes"
+          }
+        ]
+      }
     },
     "get_invitation_by_token": {
       "name": "get_invitation_by_token",
@@ -53179,7 +53459,67 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "available"
+          },
+          {
+            "db": "currency"
+          },
+          {
+            "db": "incoming"
+          },
+          {
+            "db": "product_id",
+            "name": "productId"
+          },
+          {
+            "db": "product_name",
+            "name": "productName"
+          },
+          {
+            "db": "product_supplier_link_id",
+            "name": "productSupplierLinkId"
+          },
+          {
+            "db": "reorder_point",
+            "name": "reorderPoint"
+          },
+          {
+            "db": "sku"
+          },
+          {
+            "db": "suggested_quantity",
+            "name": "suggestedQuantity"
+          },
+          {
+            "db": "supplier_id",
+            "name": "supplierId"
+          },
+          {
+            "db": "supplier_name",
+            "name": "supplierName"
+          },
+          {
+            "db": "supplier_sku",
+            "name": "supplierSku"
+          },
+          {
+            "db": "unit_cost",
+            "name": "unitCost"
+          },
+          {
+            "db": "variant_id",
+            "name": "variantId"
+          },
+          {
+            "db": "variant_title",
+            "name": "variantTitle"
+          }
+        ]
+      }
     },
     "inventory_variant_incoming": {
       "name": "inventory_variant_incoming",
@@ -53209,7 +53549,58 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "allocated"
+          },
+          {
+            "db": "available"
+          },
+          {
+            "db": "backordered"
+          },
+          {
+            "db": "incoming"
+          },
+          {
+            "db": "is_default",
+            "name": "isDefault"
+          },
+          {
+            "db": "on_hand",
+            "name": "onHand"
+          },
+          {
+            "db": "product_id",
+            "name": "productId"
+          },
+          {
+            "db": "reorder_point",
+            "name": "reorderPoint"
+          },
+          {
+            "db": "sku"
+          },
+          {
+            "db": "stock_status",
+            "name": "stockStatus"
+          },
+          {
+            "db": "variant_id",
+            "name": "variantId"
+          },
+          {
+            "db": "variant_position",
+            "name": "variantPosition"
+          },
+          {
+            "db": "variant_title",
+            "name": "variantTitle"
+          }
+        ]
+      }
     },
     "is_agenda_collection_subscribed": {
       "name": "is_agenda_collection_subscribed",
@@ -53527,7 +53918,87 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "can_edit",
+            "name": "canEdit"
+          },
+          {
+            "db": "can_manage",
+            "name": "canManage"
+          },
+          {
+            "db": "color"
+          },
+          {
+            "db": "created_at",
+            "name": "createdAt"
+          },
+          {
+            "db": "created_by",
+            "name": "createdBy"
+          },
+          {
+            "db": "default_time_zone",
+            "name": "defaultTimeZone"
+          },
+          {
+            "db": "description"
+          },
+          {
+            "db": "external_calendar_id",
+            "name": "externalCalendarId"
+          },
+          {
+            "db": "id"
+          },
+          {
+            "db": "is_default",
+            "name": "isDefault"
+          },
+          {
+            "db": "is_subscribed",
+            "name": "isSubscribed"
+          },
+          {
+            "db": "kind"
+          },
+          {
+            "db": "name"
+          },
+          {
+            "db": "organization_id",
+            "name": "organizationId"
+          },
+          {
+            "db": "owner_user_id",
+            "name": "ownerUserId"
+          },
+          {
+            "db": "position"
+          },
+          {
+            "db": "pref_is_visible",
+            "name": "prefIsVisible"
+          },
+          {
+            "db": "pref_position",
+            "name": "prefPosition"
+          },
+          {
+            "db": "source"
+          },
+          {
+            "db": "updated_at",
+            "name": "updatedAt"
+          },
+          {
+            "db": "visibility"
+          }
+        ]
+      }
     },
     "list_decidable_approval_requests": {
       "name": "list_decidable_approval_requests",
@@ -53544,7 +54015,10 @@ export default {
       ],
       "returns": "approval_requests",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "table": "approvalRequests"
+      }
     },
     "list_document_promotions": {
       "name": "list_document_promotions",
@@ -53586,7 +54060,160 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "archived_at",
+            "name": "archivedAt"
+          },
+          {
+            "db": "assigned_team_id",
+            "name": "assignedTeamId"
+          },
+          {
+            "db": "assigned_user_id",
+            "name": "assignedUserId"
+          },
+          {
+            "db": "chat_thread_id",
+            "name": "chatThreadId"
+          },
+          {
+            "db": "chat_thread_title",
+            "name": "chatThreadTitle"
+          },
+          {
+            "db": "connection_id",
+            "name": "connectionId"
+          },
+          {
+            "db": "connection_kind",
+            "name": "connectionKind"
+          },
+          {
+            "db": "connection_name",
+            "name": "connectionName"
+          },
+          {
+            "db": "connection_status",
+            "name": "connectionStatus"
+          },
+          {
+            "db": "contact_avatar_path",
+            "name": "contactAvatarPath"
+          },
+          {
+            "db": "contact_display_name",
+            "name": "contactDisplayName"
+          },
+          {
+            "db": "contact_email",
+            "name": "contactEmail"
+          },
+          {
+            "db": "contact_first_name",
+            "name": "contactFirstName"
+          },
+          {
+            "db": "contact_last_name",
+            "name": "contactLastName"
+          },
+          {
+            "db": "contact_phone",
+            "name": "contactPhone"
+          },
+          {
+            "db": "continuation_cursor",
+            "name": "continuationCursor"
+          },
+          {
+            "db": "created_at",
+            "name": "createdAt"
+          },
+          {
+            "db": "customer_id",
+            "name": "customerId"
+          },
+          {
+            "db": "external_actor_id",
+            "name": "externalActorId"
+          },
+          {
+            "db": "external_channel_id",
+            "name": "externalChannelId"
+          },
+          {
+            "db": "external_thread_id",
+            "name": "externalThreadId"
+          },
+          {
+            "db": "id"
+          },
+          {
+            "db": "last_delivery_error",
+            "name": "lastDeliveryError"
+          },
+          {
+            "db": "last_delivery_status",
+            "name": "lastDeliveryStatus"
+          },
+          {
+            "db": "last_message_at",
+            "name": "lastMessageAt"
+          },
+          {
+            "db": "last_message_id",
+            "name": "lastMessageId"
+          },
+          {
+            "db": "last_message_role",
+            "name": "lastMessageRole"
+          },
+          {
+            "db": "last_message_text",
+            "name": "lastMessageText"
+          },
+          {
+            "db": "metadata"
+          },
+          {
+            "db": "organization_id",
+            "name": "organizationId"
+          },
+          {
+            "db": "pinned_at",
+            "name": "pinnedAt"
+          },
+          {
+            "db": "read_at",
+            "name": "readAt"
+          },
+          {
+            "db": "stream_status",
+            "name": "streamStatus"
+          },
+          {
+            "db": "takeover_at",
+            "name": "takeoverAt"
+          },
+          {
+            "db": "takeover_reason",
+            "name": "takeoverReason"
+          },
+          {
+            "db": "takeover_status",
+            "name": "takeoverStatus"
+          },
+          {
+            "db": "unread"
+          },
+          {
+            "db": "updated_at",
+            "name": "updatedAt"
+          }
+        ]
+      }
     },
     "list_notification_ignored_user_ids": {
       "name": "list_notification_ignored_user_ids",
@@ -53645,7 +54272,30 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "employee_id",
+            "name": "employeeId"
+          },
+          {
+            "db": "is_flexible",
+            "name": "isFlexible"
+          },
+          {
+            "db": "schedule_cycle_anchor",
+            "name": "scheduleCycleAnchor"
+          },
+          {
+            "db": "timezone"
+          },
+          {
+            "db": "user_id",
+            "name": "userId"
+          }
+        ]
+      }
     },
     "list_promotions": {
       "name": "list_promotions",
@@ -53752,7 +54402,10 @@ export default {
       ],
       "returns": "file_nodes",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "fileNodes"
+      }
     },
     "next_organization_number": {
       "name": "next_organization_number",
@@ -53820,7 +54473,30 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "allocated"
+          },
+          {
+            "db": "backordered"
+          },
+          {
+            "db": "fulfilled"
+          },
+          {
+            "db": "invoiced"
+          },
+          {
+            "db": "order_line_id",
+            "name": "orderLineId"
+          },
+          {
+            "db": "returned"
+          }
+        ]
+      }
     },
     "org_permission_holder_user_ids": {
       "name": "org_permission_holder_user_ids",
@@ -53895,7 +54571,31 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "columns": [
+          {
+            "db": "case_id",
+            "name": "caseId"
+          },
+          {
+            "db": "employee_id",
+            "name": "employeeId"
+          },
+          {
+            "db": "needs_follow_up",
+            "name": "needsFollowUp"
+          },
+          {
+            "db": "organization_id",
+            "name": "organizationId"
+          },
+          {
+            "db": "reported_on",
+            "name": "reportedOn"
+          }
+        ]
+      }
     },
     "product_default_variant_id": {
       "name": "product_default_variant_id",
@@ -54034,7 +54734,10 @@ export default {
       ],
       "returns": "workflow_definitions",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "workflowDefinitions"
+      }
     },
     "purge_expired_audit_logs": {
       "name": "purge_expired_audit_logs",
@@ -54076,7 +54779,10 @@ export default {
       ],
       "returns": "file_drives",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "fileDrives"
+      }
     },
     "receive_inbound_shipment": {
       "name": "receive_inbound_shipment",
@@ -54879,7 +55585,10 @@ export default {
       ],
       "returns": "ai_memory_items",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "aiMemoryItems"
+      }
     },
     "replace": {
       "name": "replace",
@@ -54925,7 +55634,10 @@ export default {
       ],
       "returns": "agenda_collection_grants",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "agendaCollectionGrants"
+      }
     },
     "replace_agenda_collection_notification_settings": {
       "name": "replace_agenda_collection_notification_settings",
@@ -55134,7 +55846,10 @@ export default {
       ],
       "returns": "workflow_grants",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "workflowGrants"
+      }
     },
     "request_quote_changes_for_portal": {
       "name": "request_quote_changes_for_portal",
@@ -55216,7 +55931,10 @@ export default {
       ],
       "returns": "file_upload_reservations",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "fileUploadReservations"
+      }
     },
     "resolve_actor_scope_permissions": {
       "name": "resolve_actor_scope_permissions",
@@ -55262,7 +55980,10 @@ export default {
       ],
       "returns": "workflow_definitions",
       "returnsSet": false,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "table": "workflowDefinitions"
+      }
     },
     "resolve_notification_recipients": {
       "name": "resolve_notification_recipients",
@@ -55358,7 +56079,10 @@ export default {
       ],
       "returns": "file_versions",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "fileVersions"
+      }
     },
     "return_consumed_allocations": {
       "name": "return_consumed_allocations",
@@ -55458,7 +56182,37 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "chunk_id",
+            "name": "chunkId"
+          },
+          {
+            "db": "chunk_position",
+            "name": "chunkPosition"
+          },
+          {
+            "db": "collection_id",
+            "name": "collectionId"
+          },
+          {
+            "db": "content"
+          },
+          {
+            "db": "file_id",
+            "name": "fileId"
+          },
+          {
+            "db": "organization_id",
+            "name": "organizationId"
+          },
+          {
+            "db": "score"
+          }
+        ]
+      }
     },
     "search_private_ai_memory": {
       "name": "search_private_ai_memory",
@@ -55499,7 +56253,90 @@ export default {
       ],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "confidence"
+          },
+          {
+            "db": "content"
+          },
+          {
+            "db": "content_hash",
+            "name": "contentHash"
+          },
+          {
+            "db": "created_at",
+            "name": "createdAt"
+          },
+          {
+            "db": "created_by",
+            "name": "createdBy"
+          },
+          {
+            "db": "deleted_at",
+            "name": "deletedAt"
+          },
+          {
+            "db": "expires_at",
+            "name": "expiresAt"
+          },
+          {
+            "db": "id"
+          },
+          {
+            "db": "kind"
+          },
+          {
+            "db": "last_used_at",
+            "name": "lastUsedAt"
+          },
+          {
+            "db": "metadata"
+          },
+          {
+            "db": "organization_id",
+            "name": "organizationId"
+          },
+          {
+            "db": "scope"
+          },
+          {
+            "db": "score"
+          },
+          {
+            "db": "source"
+          },
+          {
+            "db": "subject_id",
+            "name": "subjectId"
+          },
+          {
+            "db": "subject_type",
+            "name": "subjectType"
+          },
+          {
+            "db": "thread_id",
+            "name": "threadId"
+          },
+          {
+            "db": "updated_at",
+            "name": "updatedAt"
+          },
+          {
+            "db": "use_count",
+            "name": "useCount"
+          },
+          {
+            "db": "user_id",
+            "name": "userId"
+          },
+          {
+            "db": "visibility"
+          }
+        ]
+      }
     },
     "seed_organization_document_templates": {
       "name": "seed_organization_document_templates",
@@ -55572,7 +56409,10 @@ export default {
       ],
       "returns": "workflow_definitions",
       "returnsSet": false,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "table": "workflowDefinitions"
+      }
     },
     "set_expenses_billable": {
       "name": "set_expenses_billable",
@@ -56135,7 +56975,18 @@ export default {
       "args": [],
       "returns": "record",
       "returnsSet": true,
-      "volatility": "volatile"
+      "volatility": "volatile",
+      "result": {
+        "columns": [
+          {
+            "db": "kind"
+          },
+          {
+            "db": "request_id",
+            "name": "requestId"
+          }
+        ]
+      }
     },
     "sync_employee_for_member": {
       "name": "sync_employee_for_member",

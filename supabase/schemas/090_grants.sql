@@ -38,3 +38,8 @@ grant execute on function "public"."search_notes"(extensions.vector, integer) to
 
 revoke execute on function better_supabase.track_realtime(regclass, text) from public, anon, authenticated;
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
+
+revoke execute on function public.customers_by_status(text, integer) from public, anon;
+grant execute on function public.customers_by_status(text, integer) to authenticated, service_role;
+revoke execute on function public.customer_note_counts(uuid[]) from public, anon;
+grant execute on function public.customer_note_counts(uuid[]) to authenticated, service_role;

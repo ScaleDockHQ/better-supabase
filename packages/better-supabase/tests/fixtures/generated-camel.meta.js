@@ -942,6 +942,55 @@ export default {
     ]
   },
   "functions": {
+    "customer_note_counts": {
+      "name": "customer_note_counts",
+      "schema": "public",
+      "args": [
+        {
+          "name": "p_customer_ids",
+          "type": "uuid"
+        }
+      ],
+      "returns": "record",
+      "returnsSet": true,
+      "volatility": "stable",
+      "result": {
+        "columns": [
+          {
+            "db": "customer_id",
+            "name": "customerId"
+          },
+          {
+            "db": "last_note_at",
+            "name": "lastNoteAt"
+          },
+          {
+            "db": "note_count",
+            "name": "noteCount"
+          }
+        ]
+      }
+    },
+    "customers_by_status": {
+      "name": "customers_by_status",
+      "schema": "public",
+      "args": [
+        {
+          "name": "p_limit",
+          "type": "int4"
+        },
+        {
+          "name": "p_status",
+          "type": "text"
+        }
+      ],
+      "returns": "customers",
+      "returnsSet": true,
+      "volatility": "stable",
+      "result": {
+        "table": "customers"
+      }
+    },
     "rs_workspace_summary": {
       "name": "rs_workspace_summary",
       "schema": "public",
@@ -970,7 +1019,10 @@ export default {
       ],
       "returns": "notes",
       "returnsSet": true,
-      "volatility": "stable"
+      "volatility": "stable",
+      "result": {
+        "table": "notes"
+      }
     }
   },
   "buckets": {

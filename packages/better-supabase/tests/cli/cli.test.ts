@@ -110,6 +110,60 @@ describe("storagePaths", () => {
   });
 });
 
+describe("function results", () => {
+  const model = async (config: BetterSupabaseConfig) =>
+    buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures));
+  const fn = (built: Awaited<ReturnType<typeof model>>, name: string) =>
+    built.functions.find((entry) => entry.key === name);
+
+  it("types table rows with the model row and records in the casing", async () => {
+    const camel = await model({ casing: "camel" });
+    expect(fn(camel, "customers_by_status")).toMatchObject({
+      returns: `(Models["customers"]['Row'])[]`,
+      meta: { result: { table: "customers" } },
+    });
+    expect(fn(camel, "customer_note_counts")).toMatchObject({
+      returns:
+        '{ "customerId": string; "lastNoteAt": string; "noteCount": number }[]',
+      meta: {
+        result: {
+          columns: [
+            { db: "customer_id", name: "customerId" },
+            { db: "last_note_at", name: "lastNoteAt" },
+            { db: "note_count", name: "noteCount" },
+          ],
+        },
+      },
+    });
+  });
+
+  it("records codecs and leaves results decoding wouldn't change out of the metadata", async () => {
+    const snake = await model({ casing: "snake" });
+    expect(fn(snake, "customers_by_status")?.meta.result).toBeUndefined();
+    expect(fn(snake, "customer_note_counts")?.meta.result).toBeUndefined();
+    const coded = await model({
+      casing: "snake",
+      codecs: { timestamptz: "instant", int8: "bigint" },
+    });
+    expect(fn(coded, "customer_note_counts")).toMatchObject({
+      returns:
+        '{ "customer_id": string; "last_note_at": Temporal.Instant; "note_count": bigint }[]',
+      meta: {
+        result: {
+          columns: [
+            { db: "customer_id" },
+            { db: "last_note_at", codec: "instant" },
+            { db: "note_count", codec: "bigint" },
+          ],
+        },
+      },
+    });
+    expect(fn(coded, "customers_by_status")?.meta.result).toEqual({
+      table: "customers",
+    });
+  });
+});
+
 describe("plugin flags", () => {
   it("rejects a soft-delete column that is not a timestamp", async () => {
     const config = resolveConfig(

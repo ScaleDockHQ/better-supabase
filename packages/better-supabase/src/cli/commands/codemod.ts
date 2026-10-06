@@ -16,7 +16,7 @@ const CODEMOD_ARGS = {
     type: "positional",
     required: false,
     description:
-      "The codemod (0.4 or 0.5), then the files or directories to rewrite (default: the project)",
+      "The codemod (0.4, 0.5 or 0.6), then the files or directories to rewrite (default: the project)",
   },
   "dry-run": {
     type: "boolean",

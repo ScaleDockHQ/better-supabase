@@ -17380,7 +17380,7 @@ export type Functions = {
       p_min_age_seconds?: number;
       p_stale_seconds?: number;
     };
-    Returns: { "agenda_collection_id": string; "organization_id": string }[];
+    Returns: { "agendaCollectionId": string; "organizationId": string }[];
   };
   claim_ai_agent_tool_checkpoint: {
     Args: {
@@ -17404,7 +17404,7 @@ export type Functions = {
     Args: {
       p_on: string;
     };
-    Returns: { "due_on": string; "employee_id": string; "employee_name": string; "kind": string; "label": string; "organization_id": string; "recipient_user_ids": string[]; "subject_id": string }[];
+    Returns: { "dueOn": string; "employeeId": string; "employeeName": string; "kind": string; "label": string; "organizationId": string; "recipientUserIds": string[]; "subjectId": string }[];
   };
   claim_due_workflow_schedules: {
     Args: {
@@ -17412,7 +17412,7 @@ export type Functions = {
       p_limit?: number;
       p_now: string;
     };
-    Returns: (Database["public"]['Tables']["workflow_schedules"]['Row'])[];
+    Returns: (Models["workflowSchedules"]['Row'])[];
   };
   claim_inbox_automation: {
     Args: {
@@ -17429,7 +17429,7 @@ export type Functions = {
       p_lease_seconds?: number;
       p_limit?: number;
     };
-    Returns: (Database["public"]['Tables']["inbox_webhook_jobs"]['Row'])[];
+    Returns: (Models["inboxWebhookJobs"]['Row'])[];
   };
   claim_stripe_webhook_event: {
     Args: {
@@ -17438,14 +17438,14 @@ export type Functions = {
       p_stripe_event_id: string;
       p_type: string;
     };
-    Returns: { "claim_id": string; "disposition": string; "event_id": string; "processing_started_at": string }[];
+    Returns: { "claimId": string; "disposition": string; "eventId": string; "processingStartedAt": string }[];
   };
   claim_webhook_deliveries: {
     Args: {
       p_lease_seconds?: number;
       p_limit?: number;
     };
-    Returns: (Database["public"]['Tables']["webhook_deliveries"]['Row'])[];
+    Returns: (Models["webhookDeliveries"]['Row'])[];
   };
   close_purchase_order_short: {
     Args: {
@@ -17513,7 +17513,7 @@ export type Functions = {
       p_input_fingerprint?: string;
       p_request_id: string;
     };
-    Returns: Database["public"]['Tables']["approval_requests"]['Row'];
+    Returns: Models["approvalRequests"]['Row'];
   };
   consume_free_product_stock: {
     Args: {
@@ -17607,7 +17607,7 @@ export type Functions = {
       p_organization_id: string;
       p_source_node_ids: string[];
     };
-    Returns: Database["public"]['Tables']["file_copy_operations"]['Row'];
+    Returns: Models["fileCopyOperations"]['Row'];
   };
   create_file_version: {
     Args: {
@@ -17620,7 +17620,7 @@ export type Functions = {
       p_storage_bucket: string;
       p_storage_path: string;
     };
-    Returns: Database["public"]['Tables']["file_versions"]['Row'];
+    Returns: Models["fileVersions"]['Row'];
   };
   create_file_zip_export: {
     Args: {
@@ -17632,7 +17632,7 @@ export type Functions = {
       p_organization_id: string;
       p_source_node_ids: string[];
     };
-    Returns: Database["public"]['Tables']["file_zip_exports"]['Row'];
+    Returns: Models["fileZipExports"]['Row'];
   };
   create_invoice_aggregate: {
     Args: {
@@ -17788,7 +17788,7 @@ export type Functions = {
       p_comment?: string;
       p_request_id: string;
     };
-    Returns: Database["public"]['Tables']["approval_requests"]['Row'];
+    Returns: Models["approvalRequests"]['Row'];
   };
   delete_organization_for_current_user: {
     Args: {
@@ -17823,7 +17823,7 @@ export type Functions = {
       p_date: string;
       p_employee_id: string;
     };
-    Returns: Database["public"]['Tables']["employee_contracts"]['Row'];
+    Returns: Models["employeeContracts"]['Row'];
   };
   employee_cycle_week: {
     Args: {
@@ -17851,7 +17851,7 @@ export type Functions = {
       p_employee_id: string;
       p_week_start: string;
     };
-    Returns: { "day": string; "is_holiday": boolean; "logged_hours": number; "scheduled_hours": number; "time_off_hours": number }[];
+    Returns: { "day": string; "isHoliday": boolean; "loggedHours": number; "scheduledHours": number; "timeOffHours": number }[];
   };
   ensure_agenda_planning_calendar: {
     Args: {
@@ -17885,7 +17885,7 @@ export type Functions = {
       p_customer_id: number;
       p_organization_id: string;
     };
-    Returns: Database["public"]['Tables']["file_nodes"]['Row'];
+    Returns: Models["fileNodes"]['Row'];
   };
   ensure_customer_file_folders: {
     Args: {
@@ -17922,7 +17922,7 @@ export type Functions = {
     Args: {
       p_organization_id: string;
     };
-    Returns: { "company_drive_id": string; "personal_drive_id": string }[];
+    Returns: { "companyDriveId": string; "personalDriveId": string }[];
   };
   evaluate_promotion: {
     Args: {
@@ -17965,7 +17965,7 @@ export type Functions = {
       p_storage_bucket: string;
       p_storage_path: string;
     };
-    Returns: Database["public"]['Tables']["file_copy_operation_items"]['Row'];
+    Returns: Models["fileCopyOperationItems"]['Row'];
   };
   finalize_file_upload: {
     Args: {
@@ -17974,13 +17974,13 @@ export type Functions = {
       p_etag?: string;
       p_reservation_id: string;
     };
-    Returns: Database["public"]['Tables']["file_upload_reservations"]['Row'];
+    Returns: Models["fileUploadReservations"]['Row'];
   };
   find_expense_duplicates: {
     Args: {
       p_expense_id: string;
     };
-    Returns: { "expense_id": string; "reason": string }[];
+    Returns: { "expenseId": string; "reason": string }[];
   };
   finish_ai_agent_tool: {
     Args: {
@@ -18067,7 +18067,7 @@ export type Functions = {
       p_thread_id: string;
       p_workflow_run_id: string;
     };
-    Returns: { "authorized_integration_ids": string[]; "organization_permission_keys": string[]; "system_permission_keys": string[] }[];
+    Returns: { "authorizedIntegrationIds": string[]; "organizationPermissionKeys": string[]; "systemPermissionKeys": string[] }[];
   };
   get_ai_chat_suggestion_snapshot: {
     Args: {
@@ -18089,14 +18089,14 @@ export type Functions = {
       p_employee_id: string;
       p_limit?: number;
     };
-    Returns: { "actor_display_name": string; "actor_id": string; "event_type": string; "id": string; "occurred_at": string; "target_id": string; "target_type": string }[];
+    Returns: { "actorDisplayName": string; "actorId": string; "eventType": string; "id": string; "occurredAt": string; "targetId": string; "targetType": string }[];
   };
   get_file_node_path: {
     Args: {
       p_max_depth?: number;
       p_node_id: string;
     };
-    Returns: { "created_at": string; "created_by": string; "current_version_id": string; "deleted_at": string; "depth": number; "drive_id": string; "external_id": string; "external_metadata": Json; "id": string; "kind": string; "name": string; "organization_id": string; "parent_id": string; "source": string; "updated_at": string }[];
+    Returns: { "createdAt": string; "createdBy": string; "currentVersionId": string; "deletedAt": string; "depth": number; "driveId": string; "externalId": string; "externalMetadata": Json; "id": string; "kind": string; "name": string; "organizationId": string; "parentId": string; "source": string; "updatedAt": string }[];
   };
   get_file_retention_days: {
     Args: {
@@ -18114,7 +18114,7 @@ export type Functions = {
     Args: {
       p_organization_id: string;
     };
-    Returns: { "available_bytes": number; "quota_bytes": number; "reserved_bytes": number; "retention_days": number; "segments": Json; "stored_bytes": number }[];
+    Returns: { "availableBytes": number; "quotaBytes": number; "reservedBytes": number; "retentionDays": number; "segments": Json; "storedBytes": number }[];
   };
   get_invitation_by_token: {
     Args: {
@@ -18443,7 +18443,7 @@ export type Functions = {
     Args: {
       p_organization_id: string;
     };
-    Returns: { "available": number; "currency": string; "incoming": number; "product_id": string; "product_name": string; "product_supplier_link_id": string; "reorder_point": number; "sku": string; "suggested_quantity": number; "supplier_id": string; "supplier_name": string; "supplier_sku": string; "unit_cost": number; "variant_id": string; "variant_title": string }[];
+    Returns: { "available": number; "currency": string; "incoming": number; "productId": string; "productName": string; "productSupplierLinkId": string; "reorderPoint": number; "sku": string; "suggestedQuantity": number; "supplierId": string; "supplierName": string; "supplierSku": string; "unitCost": number; "variantId": string; "variantTitle": string }[];
   };
   inventory_variant_incoming: {
     Args: {
@@ -18456,7 +18456,7 @@ export type Functions = {
       p_organization_id: string;
       p_product_ids?: string[];
     };
-    Returns: { "allocated": number; "available": number; "backordered": number; "incoming": number; "is_default": boolean; "on_hand": number; "product_id": string; "reorder_point": number; "sku": string; "stock_status": string; "variant_id": string; "variant_position": number; "variant_title": string }[];
+    Returns: { "allocated": number; "available": number; "backordered": number; "incoming": number; "isDefault": boolean; "onHand": number; "productId": string; "reorderPoint": number; "sku": string; "stockStatus": string; "variantId": string; "variantPosition": number; "variantTitle": string }[];
   };
   is_agenda_collection_subscribed: {
     Args: {
@@ -18585,14 +18585,14 @@ export type Functions = {
       p_calendar_id?: string;
       p_organization_id: string;
     };
-    Returns: { "can_edit": boolean; "can_manage": boolean; "color": string; "created_at": string; "created_by": string; "default_time_zone": string; "description": string; "external_calendar_id": string; "id": string; "is_default": boolean; "is_subscribed": boolean; "kind": string; "name": string; "organization_id": string; "owner_user_id": string; "position": number; "pref_is_visible": boolean; "pref_position": number; "source": string; "updated_at": string; "visibility": string }[];
+    Returns: { "canEdit": boolean; "canManage": boolean; "color": string; "createdAt": string; "createdBy": string; "defaultTimeZone": string; "description": string; "externalCalendarId": string; "id": string; "isDefault": boolean; "isSubscribed": boolean; "kind": string; "name": string; "organizationId": string; "ownerUserId": string; "position": number; "prefIsVisible": boolean; "prefPosition": number; "source": string; "updatedAt": string; "visibility": string }[];
   };
   list_decidable_approval_requests: {
     Args: {
       p_limit?: number;
       p_organization_id: string;
     };
-    Returns: (Database["public"]['Tables']["approval_requests"]['Row'])[];
+    Returns: (Models["approvalRequests"]['Row'])[];
   };
   list_document_promotions: {
     Args: {
@@ -18608,7 +18608,7 @@ export type Functions = {
       p_offset?: number;
       p_organization_id: string;
     };
-    Returns: { "archived_at": string; "assigned_team_id": number; "assigned_user_id": string; "chat_thread_id": string; "chat_thread_title": string; "connection_id": string; "connection_kind": string; "connection_name": string; "connection_status": string; "contact_avatar_path": string; "contact_display_name": string; "contact_email": string; "contact_first_name": string; "contact_last_name": string; "contact_phone": string; "continuation_cursor": string; "created_at": string; "customer_id": number; "external_actor_id": string; "external_channel_id": string; "external_thread_id": string; "id": string; "last_delivery_error": string; "last_delivery_status": string; "last_message_at": string; "last_message_id": string; "last_message_role": string; "last_message_text": string; "metadata": Json; "organization_id": string; "pinned_at": string; "read_at": string; "stream_status": string; "takeover_at": string; "takeover_reason": string; "takeover_status": string; "unread": boolean; "updated_at": string }[];
+    Returns: { "archivedAt": string; "assignedTeamId": number; "assignedUserId": string; "chatThreadId": string; "chatThreadTitle": string; "connectionId": string; "connectionKind": string; "connectionName": string; "connectionStatus": string; "contactAvatarPath": string; "contactDisplayName": string; "contactEmail": string; "contactFirstName": string; "contactLastName": string; "contactPhone": string; "continuationCursor": string; "createdAt": string; "customerId": number; "externalActorId": string; "externalChannelId": string; "externalThreadId": string; "id": string; "lastDeliveryError": string; "lastDeliveryStatus": string; "lastMessageAt": string; "lastMessageId": string; "lastMessageRole": string; "lastMessageText": string; "metadata": Json; "organizationId": string; "pinnedAt": string; "readAt": string; "streamStatus": string; "takeoverAt": string; "takeoverReason": string; "takeoverStatus": string; "unread": boolean; "updatedAt": string }[];
   };
   list_notification_ignored_user_ids: {
     Args: {
@@ -18631,7 +18631,7 @@ export type Functions = {
     Args: {
       p_organization_id: string;
     };
-    Returns: { "employee_id": string; "is_flexible": boolean; "schedule_cycle_anchor": string; "timezone": string; "user_id": string }[];
+    Returns: { "employeeId": string; "isFlexible": boolean; "scheduleCycleAnchor": string; "timezone": string; "userId": string }[];
   };
   list_promotions: {
     Args: {
@@ -18677,7 +18677,7 @@ export type Functions = {
       p_node_id: string;
       p_parent_id: string;
     };
-    Returns: Database["public"]['Tables']["file_nodes"]['Row'];
+    Returns: Models["fileNodes"]['Row'];
   };
   next_organization_number: {
     Args: {
@@ -18705,7 +18705,7 @@ export type Functions = {
       p_order_id: string;
       p_organization_id: string;
     };
-    Returns: { "allocated": number; "backordered": number; "fulfilled": number; "invoiced": number; "order_line_id": string; "returned": number }[];
+    Returns: { "allocated": number; "backordered": number; "fulfilled": number; "invoiced": number; "orderLineId": string; "returned": number }[];
   };
   org_permission_holder_user_ids: {
     Args: {
@@ -18732,7 +18732,7 @@ export type Functions = {
     Args: {
       p_on?: string;
     };
-    Returns: { "case_id": string; "employee_id": string; "needs_follow_up": boolean; "organization_id": string; "reported_on": string }[];
+    Returns: { "caseId": string; "employeeId": string; "needsFollowUp": boolean; "organizationId": string; "reportedOn": string }[];
   };
   product_default_variant_id: {
     Args: {
@@ -18786,7 +18786,7 @@ export type Functions = {
     Args: {
       p_definition_id: string;
     };
-    Returns: Database["public"]['Tables']["workflow_definitions"]['Row'];
+    Returns: Models["workflowDefinitions"]['Row'];
   };
   purge_expired_audit_logs: {
     Args: {
@@ -18804,7 +18804,7 @@ export type Functions = {
       p_drive_id: string;
       p_new_owner_user_id: string;
     };
-    Returns: Database["public"]['Tables']["file_drives"]['Row'];
+    Returns: Models["fileDrives"]['Row'];
   };
   receive_inbound_shipment: {
     Args: {
@@ -19090,7 +19090,7 @@ export type Functions = {
       p_thread_id: string;
       p_user_id: string;
     };
-    Returns: Database["public"]['Tables']["ai_memory_items"]['Row'];
+    Returns: Models["aiMemoryItems"]['Row'];
   };
   replace: {
     Args: {
@@ -19107,7 +19107,7 @@ export type Functions = {
       p_grants: Json;
       p_organization_id: string;
     };
-    Returns: (Database["public"]['Tables']["agenda_collection_grants"]['Row'])[];
+    Returns: (Models["agendaCollectionGrants"]['Row'])[];
   };
   replace_agenda_collection_notification_settings: {
     Args: {
@@ -19184,7 +19184,7 @@ export type Functions = {
       p_team_ids: number[];
       p_user_ids: string[];
     };
-    Returns: (Database["public"]['Tables']["workflow_grants"]['Row'])[];
+    Returns: (Models["workflowGrants"]['Row'])[];
   };
   request_quote_changes_for_portal: {
     Args: {
@@ -19210,7 +19210,7 @@ export type Functions = {
       p_storage_bucket: string;
       p_storage_path: string;
     };
-    Returns: Database["public"]['Tables']["file_upload_reservations"]['Row'];
+    Returns: Models["fileUploadReservations"]['Row'];
   };
   resolve_actor_scope_permissions: {
     Args: {
@@ -19227,7 +19227,7 @@ export type Functions = {
       p_subject_type: string;
       p_template_id?: string;
     };
-    Returns: Database["public"]['Tables']["workflow_definitions"]['Row'];
+    Returns: Models["workflowDefinitions"]['Row'];
   };
   resolve_notification_recipients: {
     Args: {
@@ -19262,7 +19262,7 @@ export type Functions = {
       p_node_id: string;
       p_version_id: string;
     };
-    Returns: Database["public"]['Tables']["file_versions"]['Row'];
+    Returns: Models["fileVersions"]['Row'];
   };
   return_consumed_allocations: {
     Args: {
@@ -19298,7 +19298,7 @@ export type Functions = {
       p_query: string;
       p_query_embedding?: unknown;
     };
-    Returns: { "chunk_id": string; "chunk_position": number; "collection_id": string; "content": string; "file_id": string; "organization_id": string; "score": number }[];
+    Returns: { "chunkId": string; "chunkPosition": number; "collectionId": string; "content": string; "fileId": string; "organizationId": string; "score": number }[];
   };
   search_private_ai_memory: {
     Args: {
@@ -19311,7 +19311,7 @@ export type Functions = {
       p_thread_id: string;
       p_user_id: string;
     };
-    Returns: { "confidence": number; "content": string; "content_hash": string; "created_at": string; "created_by": string; "deleted_at": string; "expires_at": string; "id": string; "kind": string; "last_used_at": string; "metadata": Json; "organization_id": string; "scope": string; "score": number; "source": string; "subject_id": string; "subject_type": string; "thread_id": string; "updated_at": string; "use_count": number; "user_id": string; "visibility": string }[];
+    Returns: { "confidence": number; "content": string; "contentHash": string; "createdAt": string; "createdBy": string; "deletedAt": string; "expiresAt": string; "id": string; "kind": string; "lastUsedAt": string; "metadata": Json; "organizationId": string; "scope": string; "score": number; "source": string; "subjectId": string; "subjectType": string; "threadId": string; "updatedAt": string; "useCount": number; "userId": string; "visibility": string }[];
   };
   seed_organization_document_templates: {
     Args: {
@@ -19343,7 +19343,7 @@ export type Functions = {
     Args: {
       p_definition_id: string;
     };
-    Returns: Database["public"]['Tables']["workflow_definitions"]['Row'];
+    Returns: Models["workflowDefinitions"]['Row'];
   };
   set_expenses_billable: {
     Args: {
@@ -19560,7 +19560,7 @@ export type Functions = {
   };
   sweep_approval_requests: {
     Args: Record<never, never>;
-    Returns: { "kind": string; "request_id": string }[];
+    Returns: { "kind": string; "requestId": string }[];
   };
   sync_employee_for_member: {
     Args: {
