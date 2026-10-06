@@ -5,6 +5,8 @@ import { dirname, resolve } from "node:path";
 
 import type { Queryable } from "../introspect/source.ts";
 
+import { type TomlTable, tomlGet } from "../supabase-toml.ts";
+
 /**
  * splinter (https://github.com/supabase/splinter), the linter behind the
  * dashboard's Security and Performance Advisors. It has no license, so it is
@@ -96,6 +98,36 @@ export interface SplinterOptions {
   /** Directory for the downloaded `splinter.sql`. */
   readonly cacheDir: string;
   readonly fetch?: Fetch;
+  /**
+   * The schemas the Data API exposes (`[api] schemas` in `config.toml`).
+   * splinter's API-exposure lints only report schemas in `pgrst.db_schemas`,
+   * which a plain connection leaves unset (splinter then assumes `public`).
+   */
+  readonly schemas?: readonly string[];
+}
+
+/** The `[api] schemas` list of a `config.toml`, when it names any. */
+export function apiSchemas(document: TomlTable | undefined): string[] {
+  const value = document ? tomlGet(document, ["api", "schemas"]) : undefined;
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (schema): schema is string =>
+      typeof schema === "string" && schema.trim() !== "",
+  );
+}
+
+const literal = (value: string): string => `'${value.replaceAll("'", "''")}'`;
+
+/** The read-only transaction splinter runs in, with `pgrst.db_schemas` set first. */
+export function splinterScript(
+  sql: string,
+  schemas: readonly string[] = [],
+): string {
+  const settings =
+    schemas.length > 0
+      ? `set local pgrst.db_schemas = ${literal(schemas.join(","))};\n`
+      : "";
+  return `begin read only;\n${settings}${sql}\n;\nrollback;`;
 }
 
 const sha256 = (text: string): string =>
@@ -155,7 +187,7 @@ export function splinterAdvisors(
   const run = async (): Promise<readonly Lint[]> => {
     const sql = await splinterSql(options);
     const result: unknown = await queryable.query(
-      `begin read only;\n${sql}\n;\nrollback;`,
+      splinterScript(sql, options.schemas),
     );
     return lintRows(result).filter(isLint);
   };
