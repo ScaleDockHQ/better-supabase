@@ -278,6 +278,33 @@
       "types": "./dist/blocks/sso/index.d.ts",
       "default": "./dist/blocks/sso/index.js"
     },
+    "./blocks/onboarding": {
+      "@better-supabase/source": "./src/blocks/onboarding/index.ts",
+      "types": "./dist/blocks/onboarding/index.d.ts",
+      "default": "./dist/blocks/onboarding/index.js"
+    },
+    "./blocks/onboarding/react": {
+      "@better-supabase/source": "./src/blocks/onboarding/react/index.ts",
+      "types": "./dist/blocks/onboarding/react/index.d.ts",
+      "react-server": "./dist/blocks/onboarding/react/server.js",
+      "default": "./dist/blocks/onboarding/react/index.js"
+    },
+    "./blocks/waitlist": {
+      "@better-supabase/source": "./src/blocks/waitlist/index.ts",
+      "types": "./dist/blocks/waitlist/index.d.ts",
+      "default": "./dist/blocks/waitlist/index.js"
+    },
+    "./blocks/announcements": {
+      "@better-supabase/source": "./src/blocks/announcements/index.ts",
+      "types": "./dist/blocks/announcements/index.d.ts",
+      "default": "./dist/blocks/announcements/index.js"
+    },
+    "./blocks/announcements/react": {
+      "@better-supabase/source": "./src/blocks/announcements/react/index.ts",
+      "types": "./dist/blocks/announcements/react/index.d.ts",
+      "react-server": "./dist/blocks/announcements/react/server.js",
+      "default": "./dist/blocks/announcements/react/index.js"
+    },
     "./openapi": {
       "@better-supabase/source": "./src/openapi/index.ts",
       "types": "./dist/openapi/index.d.ts",
@@ -527,6 +554,28 @@
       "./blocks/sso": {
         "types": "./dist/blocks/sso/index.d.ts",
         "default": "./dist/blocks/sso/index.js"
+      },
+      "./blocks/onboarding": {
+        "types": "./dist/blocks/onboarding/index.d.ts",
+        "default": "./dist/blocks/onboarding/index.js"
+      },
+      "./blocks/onboarding/react": {
+        "types": "./dist/blocks/onboarding/react/index.d.ts",
+        "react-server": "./dist/blocks/onboarding/react/server.js",
+        "default": "./dist/blocks/onboarding/react/index.js"
+      },
+      "./blocks/waitlist": {
+        "types": "./dist/blocks/waitlist/index.d.ts",
+        "default": "./dist/blocks/waitlist/index.js"
+      },
+      "./blocks/announcements": {
+        "types": "./dist/blocks/announcements/index.d.ts",
+        "default": "./dist/blocks/announcements/index.js"
+      },
+      "./blocks/announcements/react": {
+        "types": "./dist/blocks/announcements/react/index.d.ts",
+        "react-server": "./dist/blocks/announcements/react/server.js",
+        "default": "./dist/blocks/announcements/react/index.js"
       },
       "./openapi": {
         "types": "./dist/openapi/index.d.ts",

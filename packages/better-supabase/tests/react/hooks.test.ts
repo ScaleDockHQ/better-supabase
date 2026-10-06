@@ -7,7 +7,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AuthSnapshot } from "../../src/client/index.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
+import { useAnnouncements } from "../../src/blocks/announcements/react/index.ts";
 import { useNotifications } from "../../src/blocks/notifications/react/index.ts";
+import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
+import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
@@ -846,6 +849,188 @@ describe("useNotifications", () => {
     await flush();
     expect(load).not.toHaveBeenCalled();
     expect(view.result).toMatchObject({ items: undefined, count: 0 });
+    view.unmount();
+  });
+});
+
+/** Answers `client.schema(name).rpc(fn, args)` from `answer`. */
+function withRpc(
+  client: object,
+  answer: (fn: string, args: Record<string, unknown>) => unknown,
+) {
+  const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
+    try {
+      return { data: await answer(fn, args), error: null };
+    } catch (cause) {
+      return {
+        data: null,
+        error: { message: (cause as Error).message, code: "P0001" },
+      };
+    }
+  });
+  Object.assign(client, { schema: vi.fn(() => ({ rpc })) });
+  return rpc;
+}
+
+describe("useOnboarding", () => {
+  const profile = defineChecklist({
+    id: "profile",
+    scope: "user",
+    steps: [{ id: "avatar" }, { id: "bio" }],
+  });
+  const team = defineChecklist({
+    id: "team",
+    scope: "organization",
+    steps: [{ id: "invite" }],
+  });
+
+  it("loads the user's progress and reloads after completing a step", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const done = new Set<string>();
+    let fail = false;
+    const rpc = withRpc(client, (fn, args) => {
+      if (fail) throw new Error("offline");
+      if (fn === "complete_onboarding_step") done.add(String(args["step"]));
+      if (fn === "reset_onboarding_step") done.delete(String(args["step"]));
+      return fn === "onboarding_progress"
+        ? [...done].map((step) => ({
+            step,
+            completedAt: "2026-01-01T00:00:00Z",
+          }))
+        : true;
+    });
+    const view = renderHook(() => useOnboarding(profile), undefined, {
+      client: browser,
+    });
+    await flush();
+    expect(view.result.progress).toMatchObject({
+      completed: 0,
+      total: 2,
+      done: false,
+    });
+    expect(rpc).toHaveBeenCalledWith("onboarding_progress", {
+      checklist: "profile",
+      tenant: null,
+    });
+
+    await view.result.complete("avatar");
+    await flush();
+    expect(view.result.progress?.next?.id).toBe("bio");
+    await view.result.complete("bio");
+    await flush();
+    expect(view.result.progress?.done).toBe(true);
+    await view.result.reset("bio");
+    await flush();
+    expect(view.result.progress?.completed).toBe(1);
+
+    fail = true;
+    await view.result.complete("bio");
+    await flush();
+    expect(view.result.error?.message).toBe("offline");
+    await view.result.refresh();
+    expect(view.result.progress?.completed).toBe(1);
+    view.unmount();
+  });
+
+  it("waits for an organization on an organization checklist", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, () => []);
+    const view = renderHook(
+      (organizationId: string | null) =>
+        useOnboarding(team, { organizationId, schema: "app" }),
+      null as string | null,
+      { client: browser },
+    );
+    await flush();
+    expect(rpc).not.toHaveBeenCalled();
+    view.rerender("org-1");
+    await flush();
+    expect(rpc).toHaveBeenCalledWith("onboarding_progress", {
+      checklist: "team",
+      tenant: "org-1",
+    });
+    expect(view.result.progress?.total).toBe(1);
+    view.unmount();
+  });
+});
+
+describe("useAnnouncements", () => {
+  const row = (id: string) => ({
+    id,
+    title: `Title ${id}`,
+    body: "",
+    severity: "warning",
+    starts_at: "2026-01-01T00:00:00Z",
+    dismissible: true,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  });
+
+  it("loads, reloads on broadcasts and drops dismissed ones", async () => {
+    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    let rows = [row("a"), row("b")];
+    let fail = false;
+    const rpc = withRpc(client, (fn) => {
+      if (fn === "dismiss_announcement" && fail)
+        throw new Error("not dismissible");
+      return fn === "active_announcements" ? rows : true;
+    });
+    const view = renderHook(
+      () => useAnnouncements({ organizationId: "org-1" }),
+      undefined,
+      {
+        client: browser,
+      },
+    );
+    await flush();
+    await flush();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["a", "b"]);
+    expect(view.result.items?.[0]?.severity).toBe("warning");
+    expect(view.result.status).toBe("subscribed");
+    expect(rpc).toHaveBeenCalledWith("active_announcements", {
+      tenant: "org-1",
+    });
+
+    rows = [row("a"), row("b"), row("c")];
+    emit("announcements", "announcement_changed", { id: "c" });
+    await flush();
+    expect(view.result.items).toHaveLength(3);
+
+    await view.result.dismiss("a");
+    expect(view.result.items?.map((item) => item.id)).toEqual(["b", "c"]);
+    fail = true;
+    await view.result.dismiss("b");
+    expect(view.result.error?.message).toBe("not dismissible");
+    await view.result.refresh();
+    expect(view.result.error).toBeUndefined();
+    view.unmount();
+    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads once without a topic and waits for a signed-in user", async () => {
+    const signedOut = fakeBrowser(SIGNED_OUT);
+    const idle = withRpc(signedOut.client, () => []);
+    const waiting = renderHook(() => useAnnouncements(), undefined, {
+      client: signedOut.browser,
+    });
+    await flush();
+    expect(idle).not.toHaveBeenCalled();
+    waiting.unmount();
+
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    withRpc(client, () => {
+      throw new Error("offline");
+    });
+    const view = renderHook(
+      () => useAnnouncements({ topic: null, schema: "app" }),
+      undefined,
+      {
+        client: browser,
+      },
+    );
+    await flush();
+    expect(client.channel).not.toHaveBeenCalled();
+    expect(view.result.error?.message).toBe("offline");
     view.unmount();
   });
 });

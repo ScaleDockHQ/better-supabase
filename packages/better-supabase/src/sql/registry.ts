@@ -19,6 +19,7 @@ import {
   MODULE_PERMISSIONS,
 } from "./modules/access-model.ts";
 import { ACCESS } from "./modules/access.ts";
+import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
@@ -29,6 +30,7 @@ import { FLAGS } from "./modules/flags.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
+import { ONBOARDING } from "./modules/onboarding.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PROFILES } from "./modules/profiles.ts";
@@ -38,6 +40,7 @@ import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TENANT } from "./modules/tenant.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { USAGE } from "./modules/usage.ts";
+import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
 import {
   EQUIVALENT_TRIGGERS,
@@ -1639,6 +1642,9 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(ATTACHMENTS),
       built(DATA_LIFECYCLE),
       built(SSO),
+      built(ONBOARDING),
+      built(WAITLIST),
+      built(ANNOUNCEMENTS),
     ].map((module) => [module.name, module]),
   );
 

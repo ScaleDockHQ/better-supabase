@@ -1,0 +1,119 @@
+---
+title: Announcements
+description: In-app announcements for everyone, some tenants, some roles or some plans within a time window, with dismissals and a useAnnouncements hook over Realtime.
+---
+
+The `announcements` block shows banners such as "Scheduled maintenance
+tonight" or "New: exports". Staff publish an announcement with an audience
+and a time window; each user sees the live ones they haven't dismissed, and
+open clients load the list again when one changes.
+
+```bash
+better-supabase sql add announcements   # adds tenant and access as well
+```
+
+| Table                     | Holds                                                                                                    |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `announcements`           | `title`, `body`, `severity`, `href`, `audience` and its `targets`, `starts_at`, `ends_at`, `dismissible` |
+| `announcement_dismissals` | Which user dismissed which announcement                                                                  |
+
+| Permission             | Lets                                      | Default roles          |
+| ---------------------- | ----------------------------------------- | ---------------------- |
+| `announcements.manage` | platform staff publish, change and remove | platform roles with it |
+
+## Audiences
+
+| Audience                                     | Who sees it                                       |
+| -------------------------------------------- | ------------------------------------------------- |
+| `{ type: "all" }`                            | Every signed-in user                              |
+| `{ type: "tenant", organizationIds: [...] }` | Members of those organizations                    |
+| `{ type: "role", roles: ["admin"] }`         | Members with one of those roles                   |
+| `{ type: "plan", plans: ["pro"] }`           | Members of tenants with one of those entitlements |
+
+Tenant, role and plan audiences match against the tenant the client passes,
+usually the active one; a tenant the user isn't a member of counts as none.
+The plan audience needs the [entitlements](/docs/blocks/entitlements) module.
+
+## Publishing
+
+```ts title="app/admin/announcements/actions.ts"
+import {
+  createAnnouncements,
+  sqlTransport,
+} from "better-supabase/blocks/announcements";
+
+const announcements = createAnnouncements({
+  transport: sqlTransport(postgres.admin),
+});
+
+const notice = await announcements
+  .publish({
+    title: "Scheduled maintenance",
+    body: "The app is read-only from 22:00 to 22:30 UTC.",
+    severity: "warning",
+    audience: { type: "all" },
+    startsAt: Temporal.Instant.from("2026-11-02T20:00:00Z"),
+    endsAt: Temporal.Instant.from("2026-11-02T22:30:00Z"),
+    dismissible: false,
+  })
+  .orThrow();
+
+await announcements.update(notice.id, { body: "Moved to 23:00 UTC." });
+await announcements.list();
+await announcements.remove(notice.id);
+```
+
+`severity` is `info` (the default), `success`, `warning` or `critical`.
+`href` must start with `https://` or `/`. The body is text you render; the
+block doesn't interpret it.
+
+## Showing them
+
+```ts
+const live = await announcements.listActive(organizationId).orThrow();
+await announcements.dismiss(live[0].id);
+```
+
+`dismiss` raises `ANNOUNCEMENT_NOT_DISMISSIBLE` for an announcement with
+`dismissible: false`.
+
+In Client Components, `useAnnouncements` loads the list and subscribes to
+the private `announcements` topic. The module broadcasts there whenever an
+announcement is published, changed or removed, and the hook loads the list
+again:
+
+```tsx title="components/announcement-bar.tsx"
+"use client";
+
+import { useAnnouncements } from "better-supabase/blocks/announcements/react";
+
+export function AnnouncementBar({
+  organizationId,
+}: {
+  organizationId: string;
+}) {
+  const { items, dismiss } = useAnnouncements({ organizationId });
+  return items?.map((item) => (
+    <div key={item.id} role="status" data-severity={item.severity}>
+      <strong>{item.title}</strong> {item.body}
+      {item.dismissible && (
+        <button onClick={() => dismiss(item.id)}>Dismiss</button>
+      )}
+    </div>
+  ));
+}
+```
+
+Change the topic and the broadcast event with
+`sql.modules.announcements.options.topic` and `event`, and pass the same
+`topic` to the hook (`null` loads once without Realtime).
+
+## Functions
+
+| Function                        | Granted to                      | Does                                          |
+| ------------------------------- | ------------------------------- | --------------------------------------------- |
+| `active_announcements(tenant)`  | `authenticated`, `service_role` | The caller's live, undismissed announcements  |
+| `dismiss_announcement(id)`      | `authenticated`, `service_role` | Hides one for the caller                      |
+| `list_announcements()`          | `authenticated`, `service_role` | Every announcement, for staff                 |
+| `save_announcement(id, fields)` | `authenticated`, `service_role` | Creates (`id` null) or changes one, for staff |
+| `delete_announcement(id)`       | `authenticated`, `service_role` | Removes one, for staff                        |

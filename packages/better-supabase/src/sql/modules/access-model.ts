@@ -26,6 +26,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "activity.read",
     "attachments.*",
     "organization.export",
+    "onboarding.*",
   ],
   member: [
     "organization.read",
@@ -38,6 +39,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "activity.read",
     "attachments.read",
     "attachments.upload",
+    "onboarding.read",
   ],
   viewer: ["organization.read"],
 };
@@ -91,6 +93,9 @@ export const MODULE_PERMISSIONS = {
     manage: "attachments.manage",
   },
   sso: { manage: "sso.manage" },
+  onboarding: { read: "onboarding.read", complete: "onboarding.complete" },
+  announcements: { manage: "announcements.manage" },
+  waitlist: { manage: "waitlist.manage", invite: "members.invite" },
 } as const;
 
 /**
@@ -138,6 +143,9 @@ export const MODULE_PERMISSION_SCOPES: {
   attachments: { read: "tenant", upload: "tenant", manage: "tenant" },
   "data-lifecycle": { export: "tenant", delete: "tenant" },
   sso: { manage: "tenant" },
+  onboarding: { read: "tenant", complete: "tenant" },
+  announcements: { manage: "platform" },
+  waitlist: { manage: "platform", invite: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

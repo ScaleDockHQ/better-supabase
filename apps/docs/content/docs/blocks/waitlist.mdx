@@ -1,0 +1,146 @@
+---
+title: Waitlist
+description: A waitlist with positions and approvals, hashed invite codes with use limits and an optional organization, and a before-user-created hook that makes sign-up invite-only.
+---
+
+The `waitlist` block makes sign-up invite-only. People join the waitlist and
+see their place; staff approve them. Invite codes let someone skip the line,
+and a code can also add its user to an organization with a role. A
+Supabase Auth before-user-created hook rejects every sign-up that is neither
+approved nor carries a valid code.
+
+```bash
+better-supabase sql add waitlist   # adds tenant and access as well
+```
+
+| Table                     | Holds                                                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `waitlist_entries`        | `email`, `status` (`waiting`, `approved`, `rejected`, `joined`), `position`, `referrer`, `metadata`        |
+| `invite_codes`            | The code's SHA-256, its first four characters, `max_uses`, `uses`, `expires_at`, `organization_id`, `role` |
+| `invite_code_redemptions` | Who used which code                                                                                        |
+
+| Permission        | Lets                                                   | Default roles          |
+| ----------------- | ------------------------------------------------------ | ---------------------- |
+| `waitlist.manage` | platform staff see and decide entries and create codes | platform roles with it |
+| `members.invite`  | a member create codes for their own organization       | `owner`, `admin`       |
+
+The service role can do everything. Only the code's hash is stored, so a
+code is shown once, when it is created.
+
+## Joining
+
+`join` works signed out. It returns the address's place among the waiting
+entries, and the same answer when the address joins again. Rejected entries
+read as `waiting`, so the form never tells someone they were turned down.
+
+```ts title="app/waitlist/actions.ts"
+"use server";
+
+import { createWaitlist, rpcTransport } from "better-supabase/blocks/waitlist";
+
+export async function join(email: string) {
+  const waitlist = createWaitlist({ transport: rpcTransport(supabase) });
+  return waitlist.join(email, { referrer: "launch-post" }).orThrow();
+  // { position: 412, status: "waiting" }
+}
+```
+
+`join_waitlist` is open to `anon`, so rate-limit the route that calls it.
+
+## Approving
+
+```ts title="app/admin/waitlist/actions.ts"
+const waitlist = createWaitlist({ transport: sqlTransport(postgres.admin) });
+
+const entries = await waitlist
+  .entries({ status: "waiting", limit: 50 })
+  .orThrow();
+await waitlist.approve(entries[0].id);
+await waitlist.reject(entries[1].id);
+```
+
+Approving emits `waitlist.approved` through the outbox, with the entry's
+`email`, for the message that tells them to sign up. When the user signs up,
+the entry becomes `joined`.
+
+## Invite codes
+
+```ts title="app/admin/codes/actions.ts"
+const { code, invite } = await waitlist
+  .createCode({
+    maxUses: 25,
+    expiresAt: Temporal.Now.instant().add({ hours: 24 * 14 }),
+    organizationId, // optional: also adds the user to this organization
+    role: "member", // optional: defaults to sql.modules.waitlist.options.defaultRole
+  })
+  .orThrow();
+// Show `code` (such as "K7QF-2MXP-9TRD-A4HW") once.
+
+await waitlist.codes(organizationId);
+await waitlist.revokeCode(invite.id);
+```
+
+Codes are compared case-insensitively. Pass your own with `code` (at least
+eight characters), or leave it out for a random one. `maxUses: null` allows
+any number of uses. A code can't grant the owner role.
+
+The client passes the code in the user metadata at sign-up:
+
+```ts
+await supabase.auth.signUp({
+  email,
+  password,
+  options: { data: { invite_code: code } },
+});
+```
+
+The module counts the use, adds the user to the code's organization, and
+removes `invite_code` from the metadata. Change the field with
+`sql.modules.waitlist.options.codeField`.
+
+A signed-in user can redeem a code too, such as one that joins an
+organization:
+
+```ts
+const { organizationId, role } = await waitlist.redeem(code).orThrow();
+```
+
+`role` is `undefined` when they were a member already.
+
+## The sign-up hook
+
+`waitlistHook` answers Supabase Auth's before-user-created hook. It verifies
+the Standard Webhooks signature, then lets the sign-up through when the
+address is approved or the metadata carries a usable code:
+
+```ts title="app/api/auth/before-user-created/route.ts"
+import { createPostgres } from "better-supabase/postgres";
+import { sqlTransport, waitlistHook } from "better-supabase/blocks/waitlist";
+
+const postgres = createPostgres({ connectionString: env.SUPABASE_DB_URL });
+
+export const POST = waitlistHook({
+  transport: sqlTransport(postgres.admin),
+  secret: env.BEFORE_USER_CREATED_HOOK_SECRET,
+});
+```
+
+Register the route under Authentication, Hooks, Before User Created, as an
+HTTPS hook. A rejected sign-up gets a 403 with `message` ("Sign-ups are
+invite-only. Join the waitlist first." by default). When the database is
+unreachable, the hook answers 500 and Supabase Auth rejects the sign-up.
+
+You can call `better_supabase.waitlist_admit(email, code)` from a Postgres
+hook instead; it is granted to `supabase_auth_admin`.
+
+## Functions
+
+| Function                                                       | Granted to                            | Does                                       |
+| -------------------------------------------------------------- | ------------------------------------- | ------------------------------------------ |
+| `join_waitlist(email, referrer, metadata)`                     | `anon`, `authenticated`               | Adds an address; returns its place         |
+| `list_waitlist(status, page_size, after_position)`             | `authenticated`, `service_role`       | Entries by position, for staff             |
+| `decide_waitlist_entry(id, approve)`                           | `authenticated`, `service_role`       | Approves or rejects an entry               |
+| `create_invite_code(code, max_uses, expires_at, tenant, role)` | `authenticated`, `service_role`       | Stores a code's hash                       |
+| `list_invite_codes(tenant)` and `revoke_invite_code(id)`       | `authenticated`, `service_role`       | Lists or revokes codes                     |
+| `waitlist_admit(email, code)`                                  | `service_role`, `supabase_auth_admin` | `{ allowed, reason }` for the sign-up hook |
+| `redeem_invite_code(code)`                                     | `authenticated`                       | Uses a code for the caller                 |
