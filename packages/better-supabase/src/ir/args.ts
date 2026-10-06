@@ -316,15 +316,18 @@ type SelectPart<M extends AnyModels, T extends keyof M, A> = A extends {
   ? Pick<Row<M, T>, Extract<K, keyof Row<M, T>>>
   : Row<M, T>;
 
+/** `required: true` drops parents without the related row, so it is never `null`. */
 type RelationPayload<M extends AnyModels, R, V> = R extends RelationTypes
   ? R["kind"] extends "many"
     ? Payload<M, Extract<R["table"], keyof M>, V extends true ? unknown : V>[]
     : R["nullable"] extends true
-      ? Payload<
-          M,
-          Extract<R["table"], keyof M>,
-          V extends true ? unknown : V
-        > | null
+      ? V extends { readonly required: true }
+        ? Payload<M, Extract<R["table"], keyof M>, V>
+        : Payload<
+            M,
+            Extract<R["table"], keyof M>,
+            V extends true ? unknown : V
+          > | null
       : Payload<M, Extract<R["table"], keyof M>, V extends true ? unknown : V>
   : never;
 

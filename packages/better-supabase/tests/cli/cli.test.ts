@@ -103,6 +103,24 @@ describe("relations", () => {
   });
 });
 
+describe("relations.nullableUnderRls", () => {
+  const relation = async (nullableUnderRls: boolean, name: string) =>
+    buildModel(
+      await loadFixtureSnapshot(),
+      resolveConfig(
+        { casing: "camel", relations: { nullableUnderRls } },
+        fixtures,
+      ),
+    )
+      .tables.find((table) => table.key === "notes")
+      ?.relations.find((entry) => entry.name === name)?.meta.nullable;
+
+  it("types a to-one relation to a table with RLS as nullable", async () => {
+    expect(await relation(false, "customer")).toBe(false);
+    expect(await relation(true, "customer")).toBe(true);
+  });
+});
+
 describe("relation names", () => {
   const withSimpleKeys = async (keys: readonly string[]) => {
     const fixture = await loadFixtureSnapshot();
@@ -375,6 +393,7 @@ describe("config JSON Schema", () => {
       postgrestVersion: true,
       json: true,
       codecs: true,
+      relations: true,
       generators: true,
       plugins: true,
       claims: true,

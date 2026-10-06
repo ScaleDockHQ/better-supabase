@@ -100,6 +100,27 @@ describe("payload inference", () => {
   });
 });
 
+describe("required includes", () => {
+  it("drops null from a nullable to-one include with required: true", async () => {
+    const rows = await db.customers
+      .findMany({
+        select: ["id"],
+        include: {
+          primaryContact: { select: ["id"], required: true },
+          organization: { select: ["name"] },
+        },
+      })
+      .orThrow();
+    expectTypeOf(rows[0]!.primaryContact).toEqualTypeOf<{ id: string }>();
+    const optional = await db.customers
+      .findMany({ include: { primaryContact: { select: ["id"] } } })
+      .orThrow();
+    expectTypeOf(optional[0]!.primaryContact).toEqualTypeOf<{
+      id: string;
+    } | null>();
+  });
+});
+
 describe("$rpc results", () => {
   it("types table rows and records in the configured casing", async () => {
     const rows = await db

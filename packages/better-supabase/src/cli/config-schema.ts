@@ -113,6 +113,9 @@ const ConfigSchema = v.strictObject({
       numeric: v.optional(v.picklist(["number", "string"])),
     }),
   ),
+  relations: v.optional(
+    v.strictObject({ nullableUnderRls: v.optional(v.boolean()) }),
+  ),
   sensitive: v.optional(strings),
   storagePaths: v.optional(stringRecord),
   expose: v.optional(

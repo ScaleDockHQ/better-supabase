@@ -27,6 +27,7 @@ export type {
   PluginFlagsConfig,
   Privilege,
   RealtimeConfig,
+  RelationsConfig,
   ResolvedConfig,
   ResolvedExpose,
   SeedConfig,

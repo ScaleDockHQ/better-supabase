@@ -362,6 +362,16 @@ export interface ResolvedExpose {
   readonly authenticated: readonly Privilege[];
 }
 
+export interface RelationsConfig {
+  /**
+   * Type a to-one include as `| null` when the related table has row level
+   * security, even over a `not null` foreign key, since a policy can hide
+   * the related row. `required: true` on the include keeps it non-null.
+   * Defaults to `false`.
+   */
+  readonly nullableUnderRls?: boolean;
+}
+
 export interface BetterSupabaseConfig {
   readonly $schema?: string;
   readonly source?: SourceConfig;
@@ -384,6 +394,7 @@ export interface BetterSupabaseConfig {
   /** Types for jsonb columns, keyed by `table.column`. */
   readonly json?: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs?: CodecsConfig;
+  readonly relations?: RelationsConfig;
   /**
    * Columns that must not be read by accident (`table.column` or
    * `schema.table.column`, database names), for the `noSensitiveSelect` rule.
@@ -486,6 +497,7 @@ export interface ResolvedConfig {
   readonly postgrestVersion: string;
   readonly json: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs: Required<CodecsConfig>;
+  readonly relations: Required<RelationsConfig>;
   readonly sensitive: readonly string[];
   readonly storagePaths: Readonly<Record<string, string>>;
   readonly expose: Readonly<Record<string, ResolvedExpose>>;
@@ -582,6 +594,9 @@ export function resolveConfig(
       timestamptz: config.codecs?.timestamptz ?? "string",
       int8: config.codecs?.int8 ?? "number",
       numeric: config.codecs?.numeric ?? "number",
+    },
+    relations: {
+      nullableUnderRls: config.relations?.nullableUnderRls ?? false,
     },
     sensitive: config.sensitive ?? [],
     storagePaths: config.storagePaths ?? {},
