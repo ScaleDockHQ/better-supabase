@@ -249,6 +249,34 @@ function constraintOf(raw: RawDbError): string | undefined {
   return raw.constraint ?? CONSTRAINT_IN_MESSAGE.exec(raw.message ?? "")?.[1];
 }
 
+/** The hint `better_supabase.check_json_schema()` raises with (the `jsonb-schemas` module). */
+const JSON_SCHEMA_HINT = "JSON_SCHEMA_INVALID";
+/** The prefix of the `jsonb-schemas` check constraints and triggers. */
+const JSON_SCHEMA_CONSTRAINT = "bs_json_";
+const JSON_SCHEMA_COLUMN = /^[\w$]+\.([\w$]+) does not match its JSON Schema/;
+
+/**
+ * One issue per pg_jsonschema error in DETAIL (a JSON array of strings), at
+ * the column's database name. Without the list (the check constraint itself
+ * failed), one issue for the whole value.
+ */
+function jsonSchemaIssues(raw: RawDbError): readonly ValidationIssue[] {
+  const column = raw.column ?? JSON_SCHEMA_COLUMN.exec(raw.message ?? "")?.[1];
+  const path = column === undefined ? {} : { path: [column] };
+  let errors: unknown;
+  try {
+    errors = JSON.parse(raw.details ?? "");
+  } catch {
+    errors = undefined;
+  }
+  const messages = Array.isArray(errors)
+    ? errors.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  return messages.length > 0
+    ? messages.map((message) => ({ message, ...path }))
+    : [{ message: "The value does not match its JSON Schema", ...path }];
+}
+
 function columnsOf(raw: RawDbError): readonly string[] | undefined {
   const match = KEY_COLUMNS_IN_DETAILS.exec(raw.details ?? "");
   return match?.[1]?.split(",").map((column) => column.trim());
@@ -326,6 +354,15 @@ function mapBuiltin(raw: RawDbError): DbError {
     }
     case "23514": {
       const constraint = constraintOf(raw);
+      if (
+        base.hint === JSON_SCHEMA_HINT ||
+        constraint?.startsWith(JSON_SCHEMA_CONSTRAINT)
+      ) {
+        return dbError("validation", message, {
+          ...base,
+          issues: jsonSchemaIssues(raw),
+        });
+      }
       return dbError("check", message, {
         ...base,
         ...(constraint ? { constraint } : {}),

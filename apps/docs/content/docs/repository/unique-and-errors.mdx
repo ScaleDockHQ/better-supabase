@@ -66,16 +66,16 @@ return `false`), so they also work in a `catch` block.
 
 Every failure is a `DbError` with a `kind`:
 
-| Kind              | Cause                                                                          |
-| ----------------- | ------------------------------------------------------------------------------ |
-| `conflict`        | Unique violation (`constraint` is set)                                         |
-| `check`           | CHECK violation (`constraint` is set)                                          |
-| `foreign_key`     | Foreign key violation (`constraint` is set)                                    |
-| `not_null`        | Missing required value                                                         |
-| `not_found`       | `findById`, `update(id)` or `delete(id)` matched no row                        |
-| `forbidden`       | RLS or a missing grant                                                         |
-| `validation`      | A validator plugin rejected the input (`issues` is set)                        |
-| `invalid_request` | Caught before the request: a read-only column, an unknown field, a broken rule |
+| Kind              | Cause                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `conflict`        | Unique violation (`constraint` is set)                                             |
+| `check`           | CHECK violation (`constraint` is set)                                              |
+| `foreign_key`     | Foreign key violation (`constraint` is set)                                        |
+| `not_null`        | Missing required value                                                             |
+| `not_found`       | `findById`, `update(id)` or `delete(id)` matched no row                            |
+| `forbidden`       | RLS or a missing grant                                                             |
+| `validation`      | A validator plugin or a `jsonb-schemas` check rejected the input (`issues` is set) |
+| `invalid_request` | Caught before the request: a read-only column, an unknown field, a broken rule     |
 
 See [Results](/docs/concepts/results) for the full list and how errors map
 to HTTP Problem Details.

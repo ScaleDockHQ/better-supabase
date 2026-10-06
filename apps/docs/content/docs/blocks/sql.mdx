@@ -533,6 +533,25 @@ to a later migration: adding a `not valid` check blocks writes only briefly,
 and validating takes a lock that lets writes continue. Re-run `sql add` after
 you change a schema.
 
+Next to each constraint, a `before insert or update` trigger of the same name
+calls pg_jsonschema's `jsonschema_validation_errors`. A row that fails raises
+SQLSTATE `23514` with the hint `JSON_SCHEMA_INVALID` and the errors as a JSON
+array in `DETAIL`, so the repository returns a `validation` error with one
+issue per schema error, at the column's database name:
+
+```ts
+// metadata came from a request body as { source: "web", tier: "gold" }
+const result = await db.customers.update(id, { metadata });
+if (!result.ok && result.error.kind === "validation") {
+  result.error.issues;
+  // [{ message: '"gold" is not one of ["free","pro"]', path: ["metadata"] }]
+}
+```
+
+The check constraint stays for rows written while triggers are off, such as a
+restore with `session_replication_role = replica`; its failures also map to
+`validation`, with one issue for the whole value.
+
 ## RLS on every new table
 
 `sql add ensure-rls` installs an event trigger that enables row level

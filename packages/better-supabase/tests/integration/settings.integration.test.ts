@@ -7,6 +7,8 @@ import {
   defineSettings,
   sqlTransport,
 } from "../../src/blocks/settings/index.ts";
+import { mapDbError } from "../../src/core/errors.ts";
+import { fromPgError } from "../../src/postgres/executor.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -72,14 +74,30 @@ describe.skipIf(!live)("settings", () => {
         await client.organization.get(organization, "seats").orThrow(),
       ).toBe(5);
 
-      // The pg_jsonschema check rejects what the schema rejects.
+      // The pg_jsonschema check rejects what the schema rejects, and the
+      // trigger's errors map to a validation error.
       await s.service();
-      expect(
-        await s.hint(
-          `insert into better_supabase.organization_settings (organization_id, key, value)
-           values ('${organization}', 'seats', '"many"')`,
-        ),
-      ).toMatch(/bs_json_value_seats/);
+      const insert = `insert into better_supabase.organization_settings (organization_id, key, value)
+           values ('${organization}', 'seats', '"many"')`;
+      expect(await s.hint(insert)).toBe("JSON_SCHEMA_INVALID");
+      await s.client.query("savepoint json");
+      const raw = await s.client.query(insert).then(
+        () => undefined,
+        (error: unknown) => fromPgError(error),
+      );
+      await s.client.query("rollback to savepoint json");
+      expect(mapDbError(raw!)).toMatchObject({
+        kind: "validation",
+        status: 422,
+        issues: [
+          { message: expect.stringContaining("integer"), path: ["value"] },
+        ],
+      });
+      // The check constraint stays, for rows written with triggers off.
+      await s.client.query("savepoint json");
+      await s.client.query("set local session_replication_role = replica");
+      expect(await s.hint(insert)).toMatch(/bs_json_value_seats/);
+      await s.client.query("rollback to savepoint json");
 
       await s.asRole(owner);
       expect(await client.user.reset("theme").orThrow()).toBe(false);

@@ -203,6 +203,70 @@ describe("mapDbError", () => {
       { kind: "check", status: 422, code: "23514", message: "check" },
     ],
     [
+      "a JSON Schema failure from the jsonb-schemas trigger",
+      {
+        code: "23514",
+        message:
+          'customers.metadata does not match its JSON Schema: "x" is not of type "integer"',
+        details:
+          '["\\"x\\" is not of type \\"integer\\"", "\\"tier\\" is a required property"]',
+        hint: "JSON_SCHEMA_INVALID",
+      },
+      {
+        kind: "validation",
+        status: 422,
+        code: "23514",
+        message:
+          'customers.metadata does not match its JSON Schema: "x" is not of type "integer"',
+        details:
+          '["\\"x\\" is not of type \\"integer\\"", "\\"tier\\" is a required property"]',
+        hint: "JSON_SCHEMA_INVALID",
+        issues: [
+          { message: '"x" is not of type "integer"', path: ["metadata"] },
+          { message: '"tier" is a required property', path: ["metadata"] },
+        ],
+      },
+    ],
+    [
+      "a jsonb-schemas check constraint without the trigger's detail",
+      {
+        code: "23514",
+        message:
+          'new row for relation "customers" violates check constraint "bs_json_metadata"',
+      },
+      {
+        kind: "validation",
+        status: 422,
+        code: "23514",
+        message:
+          'new row for relation "customers" violates check constraint "bs_json_metadata"',
+        issues: [{ message: "The value does not match its JSON Schema" }],
+      },
+    ],
+    [
+      "a JSON Schema failure from Postgres with the column field",
+      {
+        code: "23514",
+        message: "x",
+        details: "not json",
+        constraint: "bs_json_value_theme",
+        column: "value",
+      },
+      {
+        kind: "validation",
+        status: 422,
+        code: "23514",
+        message: "x",
+        details: "not json",
+        issues: [
+          {
+            message: "The value does not match its JSON Schema",
+            path: ["value"],
+          },
+        ],
+      },
+    ],
+    [
       "a not-null violation from the message",
       {
         code: "23502",
