@@ -59,10 +59,51 @@ describe("settings module", () => {
       sqlOf(["settings"], { schemas: { user: { theme: { type: "string" } } } }),
     ).toThrow(/add the jsonb-schemas module/);
     expect(() => sqlOf(["settings"], { schemas: "x" })).toThrow(
-      /pass \{ user, organization \}/,
+      /pass \{ user, organization, platform \}/,
     );
     expect(() => sqlOf(["settings"], { schemas: { user: [] } })).toThrow(
       /object of key to schema/,
     );
+  });
+
+  it("guards platform keys with their own permission and read rule", () => {
+    const sql = sqlOf(["jsonb-schemas", "settings"], {
+      platform: { permission: "platform.settings", read: "staff" },
+      schemas: {
+        platform: {
+          fee: {
+            schema: { type: "number" },
+            permission: "billing.platform",
+            read: "public",
+          },
+          banner: { schema: { type: "string" }, read: "authenticated" },
+        },
+      },
+    });
+    expect(sql).toMatch(/create table if not exists \S+platform_settings/);
+    expect(sql).toContain(
+      "better_supabase.is_platform(case \"key\" when 'fee' then 'billing.platform' when 'banner' then 'platform.settings' else 'platform.settings' end)",
+    );
+    expect(sql).toContain(
+      "case \"key\" when 'fee' then true when 'banner' then true else coalesce(better_supabase.is_platform('platform.settings'), false) end",
+    );
+    expect(sql).toContain(`for select to anon\n  using ("key" in ('fee'))`);
+    expect(sqlOf(["settings"])).toContain(
+      "better_supabase.is_platform('settings.manage')",
+    );
+    expect(sqlOf(["settings"], { platform: { read: "public" } })).toContain(
+      "for select to anon\n  using (true)",
+    );
+    expect(() =>
+      sqlOf(["settings"], { platform: { read: "everyone" } }),
+    ).toThrow(/read must be public, authenticated, staff/);
+    expect(() => sqlOf(["settings"], { platform: "x" })).toThrow(
+      /must be \{ permission\?, read\? \}/,
+    );
+    expect(() =>
+      sqlOf(["settings"], {
+        schemas: { platform: { fee: { permission: 1 } } },
+      }),
+    ).toThrow(/permission must be a permission key/);
   });
 });

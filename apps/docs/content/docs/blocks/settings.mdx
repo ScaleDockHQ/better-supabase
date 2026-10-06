@@ -16,6 +16,7 @@ better-supabase sql add settings   # adds tenant and access as well
 | ----------------------- | ------------------------ | ---------------------------- | ------------------------------ |
 | `user_settings`         | `(user_id, key)`         | the user                     | the user                       |
 | `organization_settings` | `(organization_id, key)` | members with `settings.read` | members with `settings.update` |
+| `platform_settings`     | `key`                    | each key's `read` rule       | each key's platform permission |
 
 The default roles give `admin` both permissions and `member` the first.
 Rename them with `sql.modules.settings.permissions`. Both tables keep
@@ -77,6 +78,50 @@ instead of `rpcTransport` to call the functions over Postgres. With
 `api` and pass `rpcTransport(supabase, { schema: "api" })`; see
 [SQL modules](/docs/blocks/sql#calling-a-module-over-the-data-api).
 
+## Platform settings
+
+Settings for the whole product, such as fee rates, routing rules or an
+announcement text an admin console edits, go in the `platform` scope. Each
+key can name the platform permission (`is_platform`) that may change it and
+who reads it: `public` (also signed out), `authenticated` (the default) or
+`staff` (holders of the key's permission). Keys guarded by different
+permissions share one table:
+
+```ts title="lib/platform-settings.ts"
+export const platformSettings = defineSettings({
+  platform: {
+    invoiceFeePercent: {
+      schema: v.pipe(v.number(), v.minValue(0), v.maxValue(10)),
+      default: 0,
+      permission: "platform.billing.manage",
+      read: "public",
+    },
+    aiDefaults: {
+      schema: v.object({ model: v.string() }),
+      permission: "platform.ai.manage",
+      read: "staff",
+    },
+  },
+});
+```
+
+Pass the definition as `sql.modules.settings.options.schemas`, so the
+module writes the permission and read rule of each key into the policies.
+Keys you don't list use `options.platform.permission` (default
+`settings.manage`, renamed with `permissions.platform`) and
+`options.platform.read`.
+
+```ts
+const admin = platformSettings.connect({
+  transport: sqlTransport(postgres.asUser(claims)),
+});
+await admin.platform.set("invoiceFeePercent", 1.5).orThrow();
+const fee = await admin.platform.get("invoiceFeePercent").orThrow();
+```
+
+A key a caller may not read comes back as its default, and a write without
+the key's permission fails with `forbidden`.
+
 ## Checks in the database
 
 Pass the definition to the module, and keys whose schema implements
@@ -111,6 +156,7 @@ validated in TypeScript only.
 
 ## Options
 
-| Option    | Default | What it does                                                         |
-| --------- | ------- | -------------------------------------------------------------------- |
-| `schemas` | none    | A `defineSettings()` result or `{ user, organization }` JSON Schemas |
+| Option     | Default                                                    | What it does                                                                   |
+| ---------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `schemas`  | none                                                       | A `defineSettings()` result or `{ user, organization, platform }` JSON Schemas |
+| `platform` | `{ permission: "settings.manage", read: "authenticated" }` | The permission and read rule of platform keys that don't set their own         |

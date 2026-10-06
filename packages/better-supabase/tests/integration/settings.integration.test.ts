@@ -136,4 +136,73 @@ describe.skipIf(!live)("settings", () => {
       await s.close();
     }
   });
+
+  it("guards platform settings with a permission and a read rule per key", async () => {
+    const platform = defineSettings({
+      platform: {
+        feePercent: {
+          schema: toStandardJsonSchema(v.pipe(v.number(), v.minValue(0))),
+          default: 1,
+          permission: "billing.platform",
+          read: "public",
+        },
+        routing: {
+          schema: toStandardJsonSchema(v.string()),
+          permission: "routing.platform",
+          read: "staff",
+        },
+        banner: { schema: toStandardJsonSchema(v.string()), default: "" },
+      },
+    });
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["jsonb-schemas", "settings"], {
+        modules: { settings: { options: { schemas: platform } } },
+      });
+      const staff = await s.user("staff");
+      const user = await s.user("user");
+      const client = platform.connect({ transport: sqlTransport(s.sql) });
+      const as = (who: typeof user, permissions: string[] = []) =>
+        s.asRole(who, { platform_permissions: permissions });
+
+      await as(staff, ["billing.platform"]);
+      expect(await client.platform.set("feePercent", 2.5).orThrow()).toBe(2.5);
+      expect((await client.platform.set("routing", "eu")).ok).toBe(false);
+      expect((await client.platform.set("banner", "Hi")).ok).toBe(false);
+      await as(staff, ["routing.platform", "settings.manage"]);
+      await client.platform.set("routing", "eu").orThrow();
+      await client.platform.set("banner", "Maintenance at 6").orThrow();
+      expect(await client.platform.get().orThrow()).toEqual({
+        feePercent: 2.5,
+        routing: "eu",
+        banner: "Maintenance at 6",
+      });
+
+      await as(user);
+      expect(await client.platform.get().orThrow()).toEqual({
+        feePercent: 2.5,
+        routing: undefined,
+        banner: "Maintenance at 6",
+      });
+      expect((await client.platform.reset("feePercent")).ok).toBe(true);
+      expect(await client.platform.get("feePercent").orThrow()).toBe(2.5);
+
+      await s.asRole("anon");
+      expect(await client.platform.get().orThrow()).toEqual({
+        feePercent: 2.5,
+        routing: undefined,
+        banner: "",
+      });
+
+      await s.service();
+      expect(
+        await s.hint(
+          `insert into better_supabase.platform_settings (key, value) values ('feePercent', '-1')
+           on conflict (key) do update set value = excluded.value`,
+        ),
+      ).not.toBe("no error");
+    } finally {
+      await s.close();
+    }
+  });
 });

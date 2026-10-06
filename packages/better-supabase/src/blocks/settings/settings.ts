@@ -12,6 +12,18 @@ import { type BlockCall, blockCall, isRecord } from "../shared.ts";
 export interface SettingEntry<S extends StandardSchemaV1 = StandardSchemaV1> {
   readonly schema: S;
   readonly default?: StandardSchemaV1.InferOutput<S>;
+  /**
+   * Platform settings only: the platform permission (`is_platform`) that
+   * may change this key. Default `sql.modules.settings.options.platform.permission`,
+   * then `settings.manage`.
+   */
+  readonly permission?: string;
+  /**
+   * Platform settings only: who reads this key, `public` (anyone, also
+   * signed out), `authenticated` (default) or `staff` (holders of its
+   * permission).
+   */
+  readonly read?: "public" | "authenticated" | "staff";
 }
 
 export type SettingEntries = Readonly<Record<string, SettingEntry>>;
@@ -35,9 +47,12 @@ export type SettingInputs<E extends SettingEntries> = {
 export interface SettingsSpec<
   U extends SettingEntries = SettingEntries,
   O extends SettingEntries = SettingEntries,
+  P extends SettingEntries = SettingEntries,
 > {
   readonly user?: U;
   readonly organization?: O;
+  /** Settings for the whole product, such as an admin console edits. */
+  readonly platform?: P;
 }
 
 export interface SettingsConnectOptions {
@@ -76,22 +91,38 @@ export interface OrganizationSettings<E extends SettingEntries> {
   reset(organizationId: string, key: keyof E & string): AsyncResult<boolean>;
 }
 
+/**
+ * The product-wide settings: reads follow each key's `read`, writes need
+ * its platform permission.
+ */
+export type PlatformSettings<E extends SettingEntries> = UserSettings<E>;
+
 export interface SettingsClient<
   U extends SettingEntries,
   O extends SettingEntries,
+  P extends SettingEntries = Record<never, never>,
 > {
   readonly user: UserSettings<U>;
   readonly organization: OrganizationSettings<O>;
+  readonly platform: PlatformSettings<P>;
 }
 
 export interface SettingsDefinition<
   U extends SettingEntries,
   O extends SettingEntries,
+  P extends SettingEntries = Record<never, never>,
 > {
-  /** Pass as `sql.modules.settings.options.schemas` for the database checks. */
-  readonly schemas: { readonly user: U; readonly organization: O };
+  /**
+   * Pass as `sql.modules.settings.options.schemas` for the database checks,
+   * and the platform keys' permissions and read rules.
+   */
+  readonly schemas: {
+    readonly user: U;
+    readonly organization: O;
+    readonly platform: P;
+  };
   /** Typed `get`, `set` and `reset` over the settings module's functions. */
-  connect(options: SettingsConnectOptions): SettingsClient<U, O>;
+  connect(options: SettingsConnectOptions): SettingsClient<U, O, P>;
 }
 
 /**
@@ -102,13 +133,16 @@ export interface SettingsDefinition<
 export function defineSettings<
   const U extends SettingEntries = Record<never, never>,
   const O extends SettingEntries = Record<never, never>,
->(spec: SettingsSpec<U, O>): SettingsDefinition<U, O> {
+  const P extends SettingEntries = Record<never, never>,
+>(spec: SettingsSpec<U, O, P>): SettingsDefinition<U, O, P> {
   // SAFETY: an omitted scope has no keys, which is what the empty default type says.
   const user = spec.user ?? ({} as U);
   // SAFETY: as above.
   const organization = spec.organization ?? ({} as O);
+  // SAFETY: as above.
+  const platform = spec.platform ?? ({} as P);
   return {
-    schemas: { user, organization },
+    schemas: { user, organization, platform },
     connect: (options) => {
       const call = blockCall(
         options.transport,
@@ -118,6 +152,7 @@ export function defineSettings<
       return {
         user: userScope(user, call),
         organization: organizationScope(organization, call),
+        platform: platformScope(platform, call),
       };
     },
   };
@@ -255,5 +290,32 @@ function organizationScope<E extends SettingEntries>(
         { tenant: organizationId },
         key,
       ),
+  };
+}
+
+function platformScope<E extends SettingEntries>(
+  entries: E,
+  call: BlockCall,
+): PlatformSettings<E> {
+  function get(): AsyncResult<SettingValues<E>>;
+  function get<K extends keyof E & string>(
+    key: K,
+  ): AsyncResult<SettingValues<E>[K]>;
+  function get(key?: string): AsyncResult<unknown> {
+    return reader(entries, call, "get_platform_settings", {}, key);
+  }
+  return {
+    get,
+    set: (key, value) =>
+      // SAFETY: writer returns the key's schema output, SettingValues<E>[K].
+      writer(
+        entries,
+        call,
+        "set_platform_setting",
+        {},
+        key,
+        value,
+      ) as AsyncResult<SettingValues<E>[typeof key]>,
+    reset: (key) => remover(entries, call, "reset_platform_setting", {}, key),
   };
 }

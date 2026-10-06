@@ -74,7 +74,11 @@ export const MODULE_PERMISSIONS = {
   "webhooks-out": { manage: "webhooks.manage", view: "webhooks.read" },
   "webhooks-in": { manage: "webhooks.manage", view: "webhooks.read" },
   "api-keys": { manage: "api_keys.manage", own: "api_keys.own" },
-  settings: { read: "settings.read", update: "settings.update" },
+  settings: {
+    read: "settings.read",
+    update: "settings.update",
+    platform: "settings.manage",
+  },
   usage: { read: "usage.read" },
   billing: { read: "billing.read", manage: "billing.manage" },
   comments: {
@@ -131,7 +135,7 @@ export const MODULE_PERMISSION_SCOPES: {
   "webhooks-out": { manage: "tenant", view: "tenant" },
   "webhooks-in": { manage: "tenant", view: "tenant" },
   "api-keys": { manage: "tenant", own: "tenant" },
-  settings: { read: "tenant", update: "tenant" },
+  settings: { read: "tenant", update: "tenant", platform: "platform" },
   usage: { read: "tenant" },
   billing: { read: "tenant", manage: "tenant" },
   comments: {
