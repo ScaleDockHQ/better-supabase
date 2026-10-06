@@ -250,7 +250,7 @@ The other SQL modules (`updated-at`, `actor`, `rate-limit`, `support-sessions` a
 | `better-supabase/mcp`                             | MCP servers whose tools run as the signed-in user                        |
 | `better-supabase/mcp/sdk`                         | Bearer auth and caller-bound `db` for the official MCP SDK               |
 | `better-supabase/list`                            | Search, facets, sorting and pagination from one definition               |
-| `better-supabase/storage`, `/realtime`            | Typed bucket paths and broadcast topics                                  |
+| `better-supabase/storage`, `/realtime`            | Typed buckets (paths, versions, vector, analytics) and broadcast topics  |
 | `better-supabase/env`                             | Validated Supabase settings                                              |
 | `better-supabase/events`, `/openapi`, `/otel`     | CloudEvents, OpenAPI 3.1 and OpenTelemetry                               |
 | `better-supabase/plugins/*`                       | Timestamps, soft delete, tenant, actor, validation and runtime rules     |

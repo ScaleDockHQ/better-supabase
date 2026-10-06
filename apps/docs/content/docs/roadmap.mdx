@@ -18,25 +18,11 @@ records what shipped.
 
 Parity gaps with what Supabase ships today.
 
-- **Storage parity in `defineBucket`** (`better-supabase/storage`):
-  versioning and lifecycle rules, CDN purge and the cache nonce, vector
-  buckets, and analytics buckets with the Iceberg catalog. Upstream:
-  supabase-js 2.117.
 - **Compiled JSON Schemas** (the `jsonb-schemas` SQL module). CHECK
   constraints use `pg_jsonschema`'s compiled `jsonschema` type once the
   platform ships a version that has it; Supabase runs 0.3.3, which has
   `jsonschema_validation_errors` but no compiled type. Upstream:
   `supabase/pg_jsonschema`.
-- **Doctor deduplication and reserved roles** (`better-supabase doctor`).
-  BS codes that repeat a splinter lint defer to it, and a check flags SQL
-  modules that alter a reserved role. Upstream: `supabase/splinter` and
-  `supabase/supautils`.
-- **An event-trigger SQL module** (`better-supabase sql add`) that enables RLS
-  on every new table, through the privileged role. Upstream:
-  `supabase/supautils`.
-- **A diagnostics logger option** (`better-supabase`), following the
-  "Diagnostic Logging" capability. Upstream: the `supabase/sdk` capability
-  matrix.
 
 ## Later
 
