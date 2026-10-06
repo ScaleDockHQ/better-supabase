@@ -304,6 +304,9 @@ class SqliteCompiler {
         return this.jsonCondition(condition.op, table, raw, value);
       case "fts":
         return unsupported("full-text search", table);
+      case "match":
+      case "imatch":
+        return unsupported("a regular expression filter", table);
       default: {
         const exhaustive: never = condition.op;
         return exhaustive;

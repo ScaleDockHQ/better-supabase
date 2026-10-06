@@ -30,6 +30,10 @@ interface TextOps {
   readonly like?: string;
   /** Case-insensitive LIKE pattern. */
   readonly ilike?: string;
+  /** POSIX regular expression (`~`). */
+  readonly match?: string;
+  /** Case-insensitive POSIX regular expression (`~*`). */
+  readonly imatch?: string;
   /** Case-insensitive substring match; wildcards in the value are escaped. */
   readonly contains?: string;
   readonly startsWith?: string;
@@ -81,6 +85,8 @@ export interface JsonPathOps {
   readonly lte?: string;
   readonly like?: string;
   readonly ilike?: string;
+  readonly match?: string;
+  readonly imatch?: string;
 }
 
 type OpsFor<V> = [NonNullable<V>] extends [string]

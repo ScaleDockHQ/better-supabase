@@ -117,6 +117,8 @@ describe("compileSql column conditions", () => {
     ["lte", col("name", "lte", 1), `t0."name" <= $1`, [1]],
     ["like", col("name", "like", "A%"), `t0."name" like $1`, ["A%"]],
     ["ilike", col("name", "ilike", "%a%"), `t0."name" ilike $1`, ["%a%"]],
+    ["match", col("name", "match", "^A"), `t0."name" ~ $1`, ["^A"]],
+    ["imatch", col("name", "imatch", "^a"), `t0."name" ~* $1`, ["^a"]],
     [
       "in",
       col("status", "in", ["lead", "active"]),

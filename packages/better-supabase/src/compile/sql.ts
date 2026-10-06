@@ -195,6 +195,10 @@ class SqlCompiler {
         return `${column} like ${this.param(value)}`;
       case "ilike":
         return `${column} ilike ${this.param(value)}`;
+      case "match":
+        return `${column} ~ ${this.param(value)}`;
+      case "imatch":
+        return `${column} ~* ${this.param(value)}`;
       case "in":
         if (!Array.isArray(value)) invalidRequest('"in" needs an array');
         return `${column} = any(${this.param(value)})`;

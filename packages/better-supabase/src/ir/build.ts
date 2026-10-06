@@ -61,6 +61,8 @@ const FIELD_OPS = new Set([
   "lte",
   "like",
   "ilike",
+  "match",
+  "imatch",
   "contains",
   "startsWith",
   "endsWith",
@@ -330,6 +332,8 @@ export class IrBuilder {
         case "lte":
         case "like":
         case "ilike":
+        case "match":
+        case "imatch":
           items.push(at(op, text(operand)));
           break;
         default:
@@ -402,6 +406,8 @@ export class IrBuilder {
       case "lte":
       case "like":
       case "ilike":
+      case "match":
+      case "imatch":
         return col(op, operand);
       case "contains":
         if (meta?.json || meta?.array) return containment("contains", operand);

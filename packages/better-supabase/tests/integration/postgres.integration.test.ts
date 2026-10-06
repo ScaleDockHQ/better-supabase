@@ -100,6 +100,22 @@ describe.skipIf(!live)("Postgres executor", async () => {
           .orThrow(),
     ],
     [
+      "regular expressions",
+      (db) =>
+        db.customers
+          .findMany({
+            select: ["id"],
+            where: {
+              OR: [
+                { name: { imatch: "^road" } },
+                { kvk: { match: "^10[0-9]2$" } },
+              ],
+            },
+            orderBy: { name: "asc" },
+          })
+          .orThrow(),
+    ],
+    [
       "OR and NOT",
       (db) =>
         db.customers

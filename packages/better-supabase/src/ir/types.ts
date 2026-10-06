@@ -16,6 +16,8 @@ export type ColumnOp =
   | "is"
   | "like"
   | "ilike"
+  | "match"
+  | "imatch"
   | "contains"
   | "containedBy"
   | "overlaps"
