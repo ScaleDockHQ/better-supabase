@@ -7,7 +7,7 @@ description: Scope every query to the request's tenant, on top of RLS.
 import { tenant } from "better-supabase/plugins/tenant";
 
 const betterSupabase = defineSupabase(schema).use(tenant());
-const db = betterSupabase.connect(supabase, { claims }); // or { tenant: orgId }
+const db = betterSupabase.connect(supabase, { claims }); // or { tenant: organizationId }
 ```
 
 For tables with the tenant flag:

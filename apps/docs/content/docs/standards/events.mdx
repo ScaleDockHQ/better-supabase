@@ -52,7 +52,7 @@ that return no rows send one event per known primary key, with the key as
 
 `EventSink` has one method, `send(events)`. Implement it for SQS, Pub/Sub,
 Inngest or an outbox table. Sink failures go to `onError` and never fail
-the mutation. Events are forwarded after the write, so use the SQL kit's
+the mutation. Events are forwarded after the write, so use the SQL modules'
 outbox when every event must arrive.
 
 `httpSink(url, { mode })` POSTs in the HTTP binding's `batch` (default),

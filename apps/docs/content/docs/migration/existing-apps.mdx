@@ -4,42 +4,44 @@ description: Bring better-supabase into an app that already has its own tables, 
 ---
 
 An app with users in production can adopt better-supabase without renaming a
-table, changing a claim or logging anyone out. Each kit module runs over your
+table, changing a claim or logging anyone out. Each SQL module runs over your
 existing tables, the access contract reads your permission model, and the
 session cookie is the one `@supabase/ssr` already writes. You move one module
 at a time and keep the rest of your code as it is.
 
 ## Pick a mode per module
 
-Every SQL kit module has a contract: the functions your policies, other
-modules and the TypeScript APIs call. `kits.<module>.mode` decides what stands
+Every SQL module has a contract: the functions your policies, other
+modules and the TypeScript APIs call. `blocks.<module>.mode` decides what stands
 behind it.
 
-| Mode                | Use it when                                                                   |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `managed` (default) | you have nothing for this feature yet; the kit creates the tables             |
-| `adopt`             | you have the tables; the kit writes functions over them and never creates one |
-| `custom`            | you have the tables and the functions; you write the contract yourself        |
+| Mode                | Use it when                                                                     |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `managed` (default) | you have nothing for this feature yet; the block creates the tables             |
+| `adopt`             | you have the tables; the block writes functions over them and never creates one |
+| `custom`            | you have the tables and the functions; you write the contract yourself          |
 
 Start with `adopt` for the features you already built (organizations,
 invitations, an audit log, an events table) and `managed` for the ones you
 don't have. `custom` is for a function you can't replace yet; doctor checks its
 signature against the contract (BS307), and `sql print` with the module
 name lists the signatures. The
-[SQL kit page](/docs/kits/sql#existing-tables-managed-adopt-and-custom) shows
+[SQL modules page](/docs/blocks/sql#existing-tables-managed-adopt-and-custom) shows
 which modules support which modes.
 
 ## Map your names
 
-The kit never needs your tables to use its names. Map each logical table and
+The block never needs your tables to use its names. Map each logical table and
 column to yours, and set a column to `null` when you don't have it:
 
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
-  sql: { kit: ["access", "tenant", "organizations", "outbox", "webhooks-out"] },
-  kits: {
+  sql: {
+    modules: ["access", "tenant", "organizations", "outbox", "webhooks-out"],
+  },
+  blocks: {
     tenant: {
       mode: "adopt",
       tables: { memberships: "public.organization_users" },
@@ -75,15 +77,15 @@ export default defineConfig({
       },
       options: {
         defaultSource: "domain",
-        kitSource: "domain",
+        blockSource: "domain",
       },
     },
   },
 });
 ```
 
-`permissions` maps each kit action to your permission keys, `hooks` points
-the kit at functions you already have (seeding a new organization, writing a
+`permissions` maps each block action to your permission keys, `hooks` points
+the block at functions you already have (seeding a new organization, writing a
 contact profile), and `options` covers the rest: extra columns a function
 accepts, token storage, slug rules, source values your check constraints
 allow. An attribute your input leaves out keeps its column default. An unknown
@@ -92,8 +94,8 @@ fails before it reaches the database.
 
 ## Choose an access model
 
-Policies and kit functions ask one question, `better_supabase.can(scope, id,
-permission)`, and [`kits.access.model`](/docs/kits/access#models) decides
+Policies and block functions ask one question, `better_supabase.can(scope, id,
+permission)`, and [`blocks.access.model`](/docs/blocks/access#models) decides
 where the answer comes from.
 
 | Your app has                                             | Model      |
@@ -105,21 +107,21 @@ where the answer comes from.
 
 With `catalog`, map your tables (`roles`, `permissions`, `role_permissions`,
 per-tenant overrides) and the columns that disable a tenant or a user. A
-helper such as `org_ids_with_permission(key)` in your policies becomes
+helper such as `organization_ids_with_permission(key)` in your policies becomes
 `better_supabase.tenant_ids_with(key)`; both return the same set, so you can
 switch policy by policy.
 
-The active organization can stay where it is. Set `kits.access.activeTenant`
+The active organization can stay where it is. Set `blocks.access.activeTenant`
 to `{ profileColumn: "public.profiles.active_organization_id", key: "user_id" }`
 when you store it on the profile, or `'resolver'` when the URL decides.
 
 ## Keep your events and your receivers
 
-An adopted outbox writes to your events table. Kit modules emit in the same
-transaction as the change, with the source in `kitSource`, and
+An adopted outbox writes to your events table. Block modules emit in the same
+transaction as the change, with the source in `blockSource`, and
 `emit_event` calls without a source get `defaultSource`. Your existing
 webhook receivers keep their signature format through a
-[signer](/docs/kits/webhooks-out): `hmacSigner` writes `v1=<hex>` over
+[signer](/docs/blocks/webhooks-out): `hmacSigner` writes `v1=<hex>` over
 `timestamp.body` under your header names, so you can move to Standard
 Webhooks later, per destination.
 

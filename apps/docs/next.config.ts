@@ -19,6 +19,22 @@ const config = createNextConfig({
   redirects() {
     return Promise.resolve([
       { source: "/", destination: "/docs", permanent: false },
+      {
+        source: "/docs/kits/:slug(list|storage|realtime)",
+        destination: "/docs/platform/:slug",
+        permanent: true,
+      },
+      {
+        source: "/docs/kits/orgs",
+        destination: "/docs/blocks/organizations",
+        permanent: true,
+      },
+      { source: "/docs/kits", destination: "/docs/blocks", permanent: true },
+      {
+        source: "/docs/kits/:slug",
+        destination: "/docs/blocks/:slug",
+        permanent: true,
+      },
     ]);
   },
   rewrites() {

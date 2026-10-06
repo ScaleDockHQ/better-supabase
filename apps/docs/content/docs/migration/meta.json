@@ -2,6 +2,7 @@
   "title": "Migrating",
   "pages": [
     "existing-apps",
+    "0.5-to-0.6",
     "0.4-to-0.5",
     "0.3-to-0.4",
     "0.1-to-0.2",

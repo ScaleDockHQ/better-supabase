@@ -12,7 +12,7 @@ import { bs } from "@/lib/supabase/server";
 /**
  * Mutations invalidate `bs:customers` with `updateTag` (see `createNext`).
  * With `select better_supabase.set_rate_limit('/customers', 30)` (the
- * `rate-limit` block module), a burst of creates returns `rate_limited`.
+ * `rate-limit` SQL module), a burst of creates returns `rate_limited`.
  */
 export const createCustomer = bs.action(
   {

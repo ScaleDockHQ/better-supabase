@@ -190,8 +190,8 @@ unstated whether a row may move to another owner or tenant. Write both:
 
 ```sql
 create policy notes_update on public.notes for update to authenticated
-  using (organization_id in (select better_supabase.member_org_ids()))
-  with check (organization_id in (select better_supabase.member_org_ids()));
+  using (organization_id in (select better_supabase.member_organization_ids()))
+  with check (organization_id in (select better_supabase.member_organization_ids()));
 ```
 
 ### BS111
@@ -253,7 +253,7 @@ for security definer helpers as well:
 
 ```sql
 create policy notes_member on public.notes for select to authenticated
-  using (organization_id in (select private.user_org_ids()));
+  using (organization_id in (select private.user_organization_ids()));
 ```
 
 ### BS206
@@ -297,7 +297,7 @@ Without the extension, doctor reports an info finding with the
 
 **Warning: aggregates used while PostgREST disables them.** PostgREST
 answers `aggregate()`, `_sum`, `_avg`, `_min` and `_max` includes and list
-[`facetCounts`](/docs/kits/list#facet-counts) with PGRST123 unless `pgrst.db_aggregates_enabled` is on for the `authenticator`
+[`facetCounts`](/docs/platform/list#facet-counts) with PGRST123 unless `pgrst.db_aggregates_enabled` is on for the `authenticator`
 role. Doctor reads the role's settings from the database and scans the files
 in `doctor.sources` (default `src/**/*.{ts,tsx}`) for those calls. Turn
 aggregates on in a migration:
@@ -360,7 +360,7 @@ info    BS212 RLS plan for a table
 ### BS213
 
 **Warning: API roles can write the columns that grant access.** RLS helpers
-decide who sees a row from other rows: `better_supabase.has_org_role` reads
+decide who sees a row from other rows: `better_supabase.has_organization_role` reads
 `memberships.user_id` and `memberships.role`, and a contact-scoped helper reads
 `contacts.user_id` and `contacts.customer_id`. Doctor collects the columns
 that the helpers your policies call read, including the helpers those call,
@@ -515,7 +515,7 @@ is the same check as `gen --check`.
 
 ### BS304
 
-**Warning: SQL kit files are out of date.** A module in `sql.kit` differs from
+**Warning: SQL module files are out of date.** A module in `sql.modules` differs from
 the version this release ships. Run `better-supabase sql sync`, then
 `supabase db schema declarative sync` (`supabase db diff` on migra) to create
 a migration.
@@ -541,7 +541,7 @@ primary key, or run `alter table ... replica identity full`.
 
 ### BS307
 
-**Error: custom kit module without its contract.** A module in `kits` uses
+**Error: custom SQL module without its contract.** A module in `blocks` uses
 `mode: 'custom'`, so the app writes the functions other modules and the
 TypeScript APIs call. With a database connection, doctor compares each
 function's argument and return types with the contract; without one, it looks
@@ -552,7 +552,7 @@ print <module>` lists the signatures.
 ### BS308
 
 **Warning: tenant claim the hook does not write.** With the `tenant` module and
-`kits.access.activeTenant: 'claim'`, `current_tenant_id()` and the
+`blocks.access.activeTenant: 'claim'`, `current_tenant_id()` and the
 `tenant()` plugin read the active tenant from the `claims.tenant` claim, at the
 top level or in `app_metadata`. With `--as <user id>`, doctor calls the custom
 access token hook for that user and warns when neither is in the claims it
@@ -562,20 +562,20 @@ the URL or a profile, use the default `'resolver'` (with
 
 ### BS309
 
-**Warning: deprecated SQL kit symbol.** A file in `supabase/schemas` or a
-policy uses a function, table, column or claim that a kit module in `sql.kit`
+**Warning: deprecated SQL module symbol.** A file in `supabase/schemas` or a
+policy uses a function, table, column or claim that a SQL module in `sql.modules`
 deprecated or removed, such as `better_supabase.current_org_id()` or the
 `org_id` claim. A deprecated symbol keeps a compatibility wrapper for at least
 one minor release; a removed one fails at run time. The message names the
 replacement. A renamed column such as `memberships.org_id` also counts
-unqualified (`m.org_id`) in a statement that names its table. Kit files and
+unqualified (`m.org_id`) in a statement that names its table. Block files and
 migrations are skipped, and so is a claim the config maps in `claims`. Tables
 and columns of a module in adopt or custom mode are the app's names and are
 never reported.
 
 ### BS310
 
-**Warning: duplicate kit trigger.** A table has `bs_updated_at` and another
+**Warning: duplicate block trigger.** A table has `bs_updated_at` and another
 trigger whose function looks like `updated_at`, `moddatetime` or `touch`, or
 `bs_audit` and another audit trigger, so both run on every write. Drop the
 older trigger, or call `track_updated_at()` or `audit()` with
@@ -583,27 +583,27 @@ older trigger, or call `track_updated_at()` or `audit()` with
 
 ### BS311
 
-**Warning: SQL kit module behind its current version.** A module file's
-`@bs-kit` line, or its row in `better_supabase.kit_modules` on a live database,
+**Warning: SQL module behind its current version.** A module file's
+`@bs-block` line, or its row in `better_supabase.block_modules` on a live database,
 records an older version than this release ships. Run `better-supabase sql
 upgrade`, which writes the forward steps into a migration and rewrites the
 files, then create the schema migration. BS304 skips files this check reports.
 
 ### BS312
 
-**Error: kit schema exposed through the Data API.** `[api] schemas` in
-`supabase/config.toml` lists `better_supabase` or a schema a module in `kits`
-sets. Kit schemas hold internal tables and helpers that `authenticated` can
+**Error: block schema exposed through the Data API.** `[api] schemas` in
+`supabase/config.toml` lists `better_supabase` or a schema a module in `blocks`
+sets. Block schemas hold internal tables and helpers that `authenticated` can
 execute so policies can call them; exposing the schema makes them callable over
 REST and RPC as well. Remove the schema from `[api] schemas` and from the
-exposed schemas in the dashboard, and call kit functions through wrappers in an
+exposed schemas in the dashboard, and call block functions through wrappers in an
 exposed schema. Doctor reads `[api] schemas` for every exposure check and falls
 back to `schemas` in `better-supabase.config.ts` without a `config.toml`.
 
 ### BS313
 
 **Warning: rate limits not wired to PostgREST.** The `rate-limit` module is in
-`sql.kit`, but on the live database `pgrst.db_pre_request` for the
+`sql.modules`, but on the live database `pgrst.db_pre_request` for the
 `authenticator` role is unset, or names a function whose body doesn't call
 `better_supabase.check_request()`, so Data API writes are never counted. Apply
 the migration `better-supabase sql data` writes, which sets the hook when no
@@ -612,10 +612,10 @@ function. Doctor needs a database connection for this check.
 
 ### BS314
 
-**Warning: migration-only kit option.** A module in `sql.kit` sets an option
+**Warning: migration-only block option.** A module in `sql.modules` sets an option
 that only exists to match a schema you are adopting: `tokenStorage: "plain"`
 for invitations, `secretStorage: "column"` or an `eventIdType` or `runIdType`
-other than `text` for webhooks-out, or a `kitSource` or `defaultSource` for
+other than `text` for webhooks-out, or a `blockSource` or `defaultSource` for
 the outbox. The config only accepts them with
 `mode: "adopt"`. Move the data to the managed default (hash the tokens, move
 the secrets into Vault), then remove the option.
@@ -623,18 +623,18 @@ the secrets into Vault), then remove the option.
 ### BS315
 
 **Warning: table without an audit trigger.** The `audit` module is in
-`sql.kit`, and a table in `schemas` has no `bs_audit` trigger, nor another
+`sql.modules`, and a table in `schemas` has no `bs_audit` trigger, nor another
 trigger that calls `better_supabase.audit_row_change()`, so its inserts,
 updates and deletes are not in the audit log. Register it with
 `select better_supabase.audit('public.customers')` in a schema file. Doctor
-skips the kit schemas and the tables kit modules adopt; list other tables in
-`kits.audit.options.exempt` as `schema.table` globs, where `*` matches any run
+skips the block schemas and the tables SQL modules adopt; list other tables in
+`blocks.audit.options.exempt` as `schema.table` globs, where `*` matches any run
 of characters:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { kit: ["audit"] },
-  kits: {
+  sql: { modules: ["audit"] },
+  blocks: {
     audit: { options: { exempt: ["public.*_archive", "public.sessions"] } },
   },
 });
@@ -779,11 +779,11 @@ file paths.
 ### BS408
 
 **Warning: PermDock helpers the entitlements module calls are missing.**
-With a `permdock.manifest.json`, the [`entitlements` kit
-module](/docs/kits/entitlements#with-permdock) reads memberships from
+With a `permdock.manifest.json`, the [`entitlements` block
+module](/docs/blocks/entitlements#with-permdock) reads memberships from
 PermDock's `member_<scope>_ids()` in `has_entitlement`, which runs as
 `authenticated`, and `member_<scope>_ids_for(uuid)` in `feature_claims`, which
-PermDock's hook calls. When `entitlements` is in `sql.kit`, doctor checks
+PermDock's hook calls. When `entitlements` is in `sql.modules`, doctor checks
 exactly those two helpers for the chosen scope and warns when:
 
 - a `permdock.config.ts` is present but the manifest is missing, unreadable or
@@ -817,14 +817,14 @@ exactly those two helpers for the chosen scope and warns when:
   finding: `feature_claims` is `security definer`, so it calls the helper as
   its owner). PermDock grants it when the hook has claims;
 - the database lacks a helper the manifest lists: apply the migration
-  `permdock rls generate` wrote before the kit's.
+  `permdock rls generate` wrote before the module's.
 
 ### BS409
 
 **Warning: PermDock's manifest and the better-supabase config disagree.**
 PermDock's hook and helpers read the active tenant from the manifest's
 `rls.tenantClaim`. Doctor warns when `claims.tenant` names another claim,
-because the tenant plugin, the guards and the kit's RLS would then read a
+because the tenant plugin, the guards and the module's RLS would then read a
 claim PermDock never writes, and BS407 checks the manifest's claim as one
 PermDock owns. Set `claims.tenant` to the manifest's claim, or change it in
 `permdock.config.ts`.
@@ -841,7 +841,7 @@ than the manifest's root scope (`tenant` stands for PermDock's first scope).
 Webhooks secret in `secrets` (`v1,whsec_<base64>`, several joined with `|`).
 Doctor can't read the endpoint's code, so it reports each HTTP hook as an info
 finding; verify the request there with `authHook` from
-[`better-supabase/webhooks`](/docs/standards/webhooks). It also reports:
+[`better-supabase/blocks/webhooks`](/docs/standards/webhooks). It also reports:
 
 - an error when `secrets` is missing, or when a secret is not
   `v1,whsec_<base64>` or decodes to fewer than 24 or more than 64 bytes. The
@@ -854,33 +854,33 @@ finding; verify the request there with `authHook` from
 ### BS411
 
 **Error: the permdock access model doesn't match PermDock's manifest.** With
-`kits.access.model: 'permdock'`, `can()` and the kit modules call PermDock's
+`blocks.access.model: 'permdock'`, `can()` and the SQL modules call PermDock's
 `<rls.schema>.permitted_<scope>_ids(permission)` for tenant checks and
 `<rls.schema>.permdock_has(permission)` for platform checks. The schema,
 scope and id type come from `permdock.manifest.json`, whatever
 `entitlements.permdock` says: `rls.schema`, the root scope (the `rls.scopes`
-entry without `within`) unless `kits.access.permdock.scope` names another,
+entry without `within`) unless `blocks.access.permdock.scope` names another,
 and that scope's `type`. Doctor reports, and `sql add` refuses:
 
 - no PermDock project, a missing or unreadable manifest, or no `rls` block;
-- no single root scope, or a `kits.access.permdock.scope`,
-  `kits.access.permdock.schema` or `kits.access.idType` the manifest doesn't
+- no single root scope, or a `blocks.access.permdock.scope`,
+  `blocks.access.permdock.schema` or `blocks.access.idType` the manifest doesn't
   declare;
 - a scope `type` other than `uuid`, `text`, `bigint` or `integer`;
 - a helper the manifest's `rls.helpers` doesn't list, doesn't let
   `authenticated` execute, or the database lacks;
-- a permission key a kit module checks (`kitPermissionKeys` from
+- a permission key a SQL module checks (`blockPermissionKeys` from
   `better-supabase/sql` lists them) whose `permissions.catalog.json` entry
   isn't `rowConditions: false`. PermDock's helpers check role and scope only,
   so a key with row conditions would be granted everywhere in the scope. A key
   without the flag, a key the catalog doesn't list and a missing catalog are
   reported too. Map the action to another key in
-  `kits.<module>.permissions`, or regenerate the catalog with `permdock catalog`.
+  `blocks.<module>.permissions`, or regenerate the catalog with `permdock catalog`.
 
-It warns when `kits.access.functions.canAssign` is not set, because only the
+It warns when `blocks.access.functions.canAssign` is not set, because only the
 service role then assigns roles, and notes a `permdock_can_assign` template
 the manifest doesn't list (PermDock writes it only when a role declares
-`assigns`). See [the access kit](/docs/kits/access#permdock) for the recipe.
+`assigns`). See [the access block](/docs/blocks/access#permdock) for the recipe.
 
 ## Env files
 

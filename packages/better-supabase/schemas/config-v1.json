@@ -326,7 +326,7 @@
           "default": "id"
         },
         "permdock": {
-          "description": "With a PermDock manifest, read PermDock's memberships for this scope instead of better_supabase.memberships; false keeps the block's table.",
+          "description": "With a PermDock manifest, read PermDock's memberships for this scope instead of better_supabase.memberships; false keeps the module's table.",
           "oneOf": [
             { "const": false },
             {

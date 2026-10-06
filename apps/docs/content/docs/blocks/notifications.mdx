@@ -3,11 +3,11 @@ title: Notifications
 description: In-app notifications with per-recipient state, subject subscriptions, channel preferences, email and push deliveries, and realtime updates on a private topic.
 ---
 
-The `notifications` [SQL kit](/docs/kits/sql) module stores one event per
+The `notifications` [SQL module](/docs/blocks/sql) stores one event per
 change and one row per recipient, with read, dismissed and resolved state
-each user controls. `createNotifications` from `better-supabase/notifications`
+each user controls. `createNotifications` from `better-supabase/blocks/notifications`
 sends and reads them with typed data, and `useNotifications` from
-`better-supabase/react` keeps a list current over Supabase Realtime.
+`better-supabase/blocks/notifications/react` keeps a list current over Supabase Realtime.
 
 ```bash
 pnpm better-supabase sql add notifications
@@ -15,10 +15,10 @@ pnpm better-supabase sql add notifications
 
 Sending goes through `notify(jsonb)`, a `security definer` function, so a
 client can't write notification rows directly or pick another user as the
-actor. With the [access contract](/docs/kits/access) installed, the sender
+actor. With the [access contract](/docs/blocks/access) installed, the sender
 needs `notifications.send` in the organization and every recipient needs
 `notifications.read`; the actor and non-members are left out. With the
-[outbox](/docs/kits/outbox), every notification also emits
+[outbox](/docs/blocks/outbox), every notification also emits
 `notification.created`.
 
 ## Sending
@@ -32,7 +32,7 @@ import "server-only";
 import {
   createNotifications,
   sqlTransport,
-} from "better-supabase/notifications";
+} from "better-supabase/blocks/notifications";
 import { z } from "zod";
 
 export const types = {
@@ -56,7 +56,7 @@ const notifications = notificationsFor(ctx.auth.claims);
 
 await notifications
   .send("task.assigned", {
-    tenant: orgId,
+    tenant: organizationId,
     recipients: [assigneeId],
     subject: { type: "task", id: task.id, label: task.title },
     actionPath: `/tasks/${task.id}`,
@@ -69,7 +69,7 @@ await notifications
 `send` returns the notification id, or `null` when nobody was left to notify.
 With a `key`, sending again in the same organization returns the first id,
 so a retried request never notifies twice. `rpcTransport(supabase)` calls the
-same functions over the Data API instead, when the kit schema is exposed.
+same functions over the Data API instead, when the block schema is exposed.
 
 | Input          | Meaning                                                                                        |
 | -------------- | ---------------------------------------------------------------------------------------------- |
@@ -89,10 +89,10 @@ read time, so text follows the reader's locale and later copy changes:
 
 ```ts
 const items = await notifications
-  .list({ tenant: orgId, status: "unread", locale: "nl" })
+  .list({ tenant: organizationId, status: "unread", locale: "nl" })
   .orThrow();
 const { unread, actionable } = await notifications
-  .counts({ tenant: orgId })
+  .counts({ tenant: organizationId })
   .orThrow();
 await notifications.markRead({ ids: [items[0].id] });
 await notifications.dismiss([items[0].id]);
@@ -103,7 +103,7 @@ await notifications.resolve({
 ```
 
 `list` pages with `before` and `limit` (50 by default, at most 200). Pass the
-last item of the previous page as `before`: the kit orders by `created_at`
+last item of the previous page as `before`: the block orders by `created_at`
 and then `id`, so items created at the same instant are not skipped. It filters with `status` (`all`, `unread`, `read`, `unresolved`) and
 `types`. `resolve` marks every recipient's copy of a type about one subject
 as handled, for example when someone approves the invoice.
@@ -119,13 +119,21 @@ other sources you pass:
 ```tsx title="components/inbox.tsx"
 "use client";
 
-import { useNotifications } from "better-supabase/react";
+import { useNotifications } from "better-supabase/blocks/notifications/react";
 
-export function Inbox({ userId, orgId }: { userId: string; orgId: string }) {
+export function Inbox({
+  userId,
+  organizationId,
+}: {
+  userId: string;
+  organizationId: string;
+}) {
   const { items, count } = useNotifications({
-    topic: `org:${orgId}:notifications:${userId}`,
+    topic: `organization:${organizationId}:notifications:${userId}`,
     load: () =>
-      fetch(`/api/notifications?org=${orgId}`).then((res) => res.json()),
+      fetch(`/api/notifications?organization=${organizationId}`).then((res) =>
+        res.json(),
+      ),
   });
   return <Bell count={count} items={items ?? []} />;
 }
@@ -153,7 +161,7 @@ on or off on a channel. The most specific row wins: the organization and
 type, the organization and `*`, everywhere and type, everywhere and `*`,
 then `options.channelDefaults`. Without a default, `in_app` is on and every
 other channel is off until the user turns it on, so nobody gets email they
-did not ask for. The kit resolves the preferences of all recipients in one
+did not ask for. The block resolves the preferences of all recipients in one
 query, and `notify` refuses more than `options.maxRecipients` (1,000)
 recipients with `NOTIFICATION_TOO_MANY_RECIPIENTS`; fan out larger audiences
 from a job.
@@ -170,7 +178,7 @@ import "server-only";
 import {
   createNotifications,
   sqlTransport,
-} from "better-supabase/notifications";
+} from "better-supabase/blocks/notifications";
 
 import { types } from "@/lib/notifications";
 
@@ -217,8 +225,8 @@ recipients and deliveries, 10,000 per call.
 | `notification_audience` hook    | A SQL function that adds recipients, e.g. everyone with a role on the subject |
 | `after_notify` hook             | A SQL function that runs in the same transaction after the rows are written   |
 | `onSent` option                 | Runs after `send` stores a notification, e.g. to call Next's `updateTag`      |
-| `notification.*` kit events     | `created`, `delivered` and `failed` on `betterSupabase.events`                |
-| `notifications.send` permission | Rename it with `kits.notifications.permissions.send`                          |
+| `notification.*` block events   | `created`, `delivered` and `failed` on `betterSupabase.events`                |
+| `notifications.send` permission | Rename it with `blocks.notifications.permissions.send`                        |
 
 ## Existing tables
 
@@ -230,7 +238,7 @@ rename what differs; map columns and tables you don't have to `null`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  kits: {
+  blocks: {
     notifications: {
       mode: "adopt",
       schema: "public",
@@ -241,7 +249,7 @@ export default defineConfig({
         recipients: { user: "recipient_user_id", resolvedAt: null },
       },
       options: {
-        topic: "org:{tenantId}:notifications:{userId}",
+        topic: "organization:{tenantId}:notifications:{userId}",
         channels: ["in_app", "email"],
       },
     },
@@ -263,5 +271,5 @@ stored as dismissed, so other channels can deliver it.
 | `NOTIFICATION_PRIORITY_UNKNOWN`    | A priority that isn't in `options.priorities`                      |
 | `NOTIFICATION_ACTIVITY_UNKNOWN`    | An `activity` other than `participating` or `all`                  |
 | `NOTIFICATION_LEVEL_UNKNOWN`       | A subscription level other than `participating`, `all` or `ignore` |
-| `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery with a status the kit doesn't know           |
+| `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery with a status the block doesn't know         |
 | `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                       |

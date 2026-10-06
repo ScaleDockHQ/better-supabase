@@ -27,7 +27,7 @@ decides what each user sees, and includes and filters stay correct.
    ```
 
 With the [tenant plugin](/docs/plugins/tenant), tables broadcast on a
-per-tenant topic (`bs:t:public.customers:<org>`), and the policy only lets a
+per-tenant topic (`bs:t:public.customers:<organization>`), and the policy only lets a
 user join the tenant in their `tenant_id` claim. A table without the tenant
 column fails to install, so a tenant table never broadcasts to everyone by
 mistake. List tables that are global on purpose in `realtime.global`; they
@@ -103,7 +103,7 @@ header badge counts in the browser, and the inbox page seeds its count.
 import { liveQuery } from 'better-supabase/realtime';
 
 const live = liveQuery(betterSupabase, supabase, spec, {
-  tenant: orgId,
+  tenant: organizationId,
   onChange: (tables) => queryClient.invalidateQueries(...),
 });
 await live.ready;
@@ -120,7 +120,7 @@ Channels are shared: ten live queries on `customers` open one channel.
 import { liveCount } from "better-supabase/realtime";
 
 using live = liveCount(betterSupabase, supabase, db, unread, {
-  tenant: orgId,
+  tenant: organizationId,
   onCount: (count) => render(count),
   onError: (error) => report(error), // the previous count stays valid
   immediate: true, // pass false when you already have a count
@@ -148,4 +148,4 @@ tables had changed.
 A change to a table outside `realtime.tables` doesn't refresh the query;
 `unwatched` lists those tables. A refetch costs one request per changed
 query, which suits dashboards and lists better than high-frequency streams.
-For cursors, presence or chat, use [Realtime topics](/docs/kits/realtime).
+For cursors, presence or chat, use [Realtime topics](/docs/platform/realtime).

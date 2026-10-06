@@ -718,7 +718,7 @@ describe("exposed block schemas (BS312)", () => {
     expect(findings[0]!.severity).toBe("error");
   });
 
-  it("skips projects without block modules or exposed block schemas", async () => {
+  it("skips projects without SQL modules or exposed block schemas", async () => {
     expect(await run("BS312", context(base, { configToml: api }))).toEqual([]);
     expect(
       await run(

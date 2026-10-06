@@ -20,7 +20,7 @@ const ALLOWED: PolicyDecision = { allowed: true };
 const DENIED: PolicyDecision = { allowed: false, reason: "denied" };
 
 /**
- * Runs `policy` and fails closed. Without a policy the block's default
+ * Runs `policy` and fails closed. Without a policy the module's default
  * applies: `fallback` is true to allow.
  */
 export async function decide<A extends readonly unknown[]>(

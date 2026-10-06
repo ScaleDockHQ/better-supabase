@@ -27,8 +27,8 @@ production, the logger warns once when one event has more than 50 handlers.
 | `error`    | `table`, the `DbError`                                                                                                                  |
 | `auth`     | `source` (`bearer`, `cookie`, `none`), `ok`, `userId`, `rawSource` (a custom resolver's name), `reason` (why there is no user)          |
 | `refresh`  | `ok`, `shared` (joined an in-flight refresh), `durationMs`                                                                              |
-| `kit`      | `type` (`support.started`, `org.created`, ...), a copy of `data`, `subject`, `tenant`, `actorId`, `time`, `context`                     |
-| `kit`      | `type` (`support.started`, `org.created`, ...), a copy of `data`, `subject`, `tenant`, `actorId`, `context`, `time`                     |
+| `block`    | `type` (`support.started`, `organization.created`, ...), a copy of `data`, `subject`, `tenant`, `actorId`, `time`, `context`            |
+| `block`    | `type` (`support.started`, `organization.created`, ...), a copy of `data`, `subject`, `tenant`, `actorId`, `context`, `time`            |
 
 `mutation` rows are a copy of what the database returned, so a listener
 cannot change the caller's result. `delete(id)` returns the primary key, so
@@ -45,45 +45,45 @@ Listeners are per runtime: register them once, next to `defineSupabase`, not
 per request. Cache invalidation (`betterSupabase.cache`), CloudEvents
 (`forwardMutations`) and OpenTelemetry metrics are built on these events.
 
-## Kit events
+## Block events
 
-The kits (support sessions, organizations, invitations, notifications and
-outgoing webhooks) report what they did as `kit` events. `onKitEvent` from
+The blocks (support sessions, organizations, invitations, notifications and
+outgoing webhooks) report what they did as `block` events. `onBlockEvent` from
 `better-supabase/events` listens to one type or to every type with a prefix,
 and types the data for the match:
 
 ```ts
-import { onKitEvent } from "better-supabase/events";
+import { onBlockEvent } from "better-supabase/events";
 
-onKitEvent(betterSupabase, "support.*", (event) => {
+onBlockEvent(betterSupabase, "support.*", (event) => {
   // event.type is "support.started" | "support.ended" | "support.denied"
   auditTrail.write({ type: event.type, admin: event.data.adminId });
 });
 ```
 
-| Type                                                                                                                                        | Data                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `support.started`, `support.ended`, `support.denied`                                                                                        | `sessionId`, `adminId`, `targetUserId`, `reason`, `readOnly`, `expiresAt`, `denial`, `endedBy` |
-| `org.created`, `org.member_added`, `org.member_removed`, `org.member_left`, `org.role_changed`, `org.ownership_transferred`, `org.switched` | `organizationId`, `userId`, `role`, `previousRole`                                             |
-| `invitation.created`, `invitation.resent`, `invitation.accepted`, `invitation.declined`, `invitation.revoked`                               | `invitationId`, `organizationId`, `email`, `role` (never the token)                            |
-| `notification.created`, `notification.delivered`, `notification.failed`                                                                     | `notificationId`, `kind`, `recipientIds`, `channel`, `error`                                   |
-| `webhook.delivered`, `webhook.failed`, `webhook.disabled`                                                                                   | `endpointId`, `deliveryId`, `eventType`, `status`, `attempt`, `error`                          |
+| Type                                                                                                                                                                                                       | Data                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `support.started`, `support.ended`, `support.denied`                                                                                                                                                       | `sessionId`, `adminId`, `targetUserId`, `reason`, `readOnly`, `expiresAt`, `denial`, `endedBy` |
+| `organization.created`, `organization.member_added`, `organization.member_removed`, `organization.member_left`, `organization.role_changed`, `organization.ownership_transferred`, `organization.switched` | `organizationId`, `userId`, `role`, `previousRole`                                             |
+| `invitation.created`, `invitation.resent`, `invitation.accepted`, `invitation.declined`, `invitation.revoked`                                                                                              | `invitationId`, `organizationId`, `email`, `role` (never the token)                            |
+| `notification.created`, `notification.delivered`, `notification.failed`                                                                                                                                    | `notificationId`, `kind`, `recipientIds`, `channel`, `error`                                   |
+| `webhook.delivered`, `webhook.failed`, `webhook.disabled`                                                                                                                                                  | `endpointId`, `deliveryId`, `eventType`, `status`, `attempt`, `error`                          |
 
-Kit events follow the same rules as the others: the data is a copy, and a
-handler can't change what the kit does. To decide something, pass the kit's
+Block events follow the same rules as the others: the data is a copy, and a
+handler can't change what the block does. To decide something, pass the module's
 policy callback instead (below).
 
-`forwardKitEvents(betterSupabase, sink, { source, types })` sends them to an
+`forwardBlockEvents(betterSupabase, sink, { source, types })` sends them to an
 [`EventSink`](/docs/extending/interfaces#eventsink) as CloudEvents
-(`dev.better-supabase.org.created`, the tenant as `partitionkey`, the actor as
-`data.actorId`), and `traceKitEvents(betterSupabase)` from `better-supabase/otel`
+(`dev.better-supabase.organization.created`, the tenant as `partitionkey`, the actor as
+`data.actorId`), and `traceBlockEvents(betterSupabase)` from `better-supabase/otel`
 records them on the active span. These events are in-process: when one must
-not be lost, install the `outbox` module, and the SQL kit writes the same
+not be lost, install the `outbox` module, and the SQL modules write the same
 event in the transaction that caused it.
 
 ## Policy callbacks
 
-Where a kit has a decision the app may want to make (who may start a support
+Where a block has a decision the app may want to make (who may start a support
 session, who may invite, whether to deliver a notification, which webhook
 URLs are allowed), it takes a policy callback such as `authorize`,
 `canInvite`, `shouldDeliver` or `allowUrl`. Every policy follows the same
@@ -92,37 +92,37 @@ rules:
 - It can be sync or async.
 - Only `true` allows. `false`, any other value, a throw or a rejection
   denies, so a bug in a policy fails closed.
-- Without the callback, the kit's documented default applies.
-- A denial emits the kit's `*.denied` or `*.failed` event with the reason.
+- Without the callback, the module's documented default applies.
+- A denial emits the module's `*.denied` or `*.failed` event with the reason.
 
 ## Attribute names
 
-Spans and events use fixed attribute names (`KIT_ATTRIBUTES` from
-`better-supabase/events`), so dashboards don't depend on a kit's internals:
+Spans and events use fixed attribute names (`BLOCK_ATTRIBUTES` from
+`better-supabase/events`), so dashboards don't depend on a block's internals:
 
 | Attribute                             | Value                         |
 | ------------------------------------- | ----------------------------- |
-| `better_supabase.kit.event`           | the event type                |
+| `better_supabase.block.event`         | the event type                |
 | `better_supabase.tenant`              | the tenant id                 |
 | `better_supabase.actor.id`            | the user who caused it        |
 | `better_supabase.support.session_id`  | the support session           |
-| `better_supabase.org.id`              | the organization              |
+| `better_supabase.organization.id`     | the organization              |
 | `better_supabase.invitation.id`       | the invitation                |
 | `better_supabase.notification.kind`   | the notification kind         |
 | `better_supabase.webhook.endpoint_id` | the outgoing webhook endpoint |
 
 ## SQL hooks
 
-Kit modules call optional app functions around their work, for example
-`after_organization_create(org uuid, user_id uuid)`. A hook runs in the same
+Block modules call optional app functions around their work, for example
+`after_organization_create(organization uuid, user_id uuid)`. A hook runs in the same
 transaction when a function with that name and argument list exists in
 `public`, and is skipped otherwise. Raise an exception in a `before_*` hook
 to refuse the operation. Point a module at another schema or function with
-`kits.<module>.hooks`:
+`blocks.<module>.hooks`:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  kits: {
+  blocks: {
     organizations: {
       hooks: {
         schema: "app",
@@ -135,5 +135,5 @@ export default defineConfig({
 
 Each module's page lists its hooks and their arguments. With the `outbox`
 module installed, modules also write their events with `emit_event` in the
-same transaction; `kits.<module>.events: false` turns that off for one
+same transaction; `blocks.<module>.events: false` turns that off for one
 module.

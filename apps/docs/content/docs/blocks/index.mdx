@@ -1,0 +1,81 @@
+---
+title: Overview
+description: Feature modules for SaaS apps, each a set of SQL modules in your schema with an optional TypeScript side under better-supabase/blocks.
+---
+
+A block is a feature most SaaS apps build by hand: organizations and
+invitations, background jobs, notifications, outgoing webhooks, plan
+entitlements. Each block installs one or more [SQL modules](/docs/blocks/sql)
+into `supabase/schemas` with `better-supabase sql add`, and blocks with a
+TypeScript side import it from `better-supabase/blocks/<name>`. Blocks that are
+SQL only have no subpath; you call their functions from policies and RPCs.
+
+```bash
+pnpm better-supabase sql add organizations invitations
+```
+
+```ts
+import { createOrganizations } from "better-supabase/blocks/organizations";
+```
+
+Configure each module under `blocks` in `better-supabase.config.ts`, and list
+the modules to keep in sync in `sql.modules`. The primitives that every app
+uses, such as [list queries](/docs/platform/list),
+[storage](/docs/platform/storage) and [realtime topics](/docs/platform/realtime),
+are not blocks and keep their top-level subpaths.
+
+## Blocks
+
+| Block                                                       | Subpath                                                                              | SQL modules                            |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------- |
+| [Access contract](/docs/blocks/access)                      | none                                                                                 | `access`, `tenant`                     |
+| [Organizations and invitations](/docs/blocks/organizations) | `better-supabase/blocks/organizations`                                               | `organizations`, `invitations`         |
+| [Profiles](/docs/blocks/profiles)                           | none                                                                                 | `profiles`                             |
+| [Jobs, idempotency and webhook inbox](/docs/blocks/jobs)    | `better-supabase/blocks/jobs`                                                        | `jobs`, `idempotency`, `webhook-inbox` |
+| [Outbox](/docs/blocks/outbox)                               | `better-supabase/blocks/outbox`                                                      | `outbox`                               |
+| [Notifications](/docs/blocks/notifications)                 | `better-supabase/blocks/notifications`, `better-supabase/blocks/notifications/react` | `notifications`                        |
+| [Outgoing webhooks](/docs/blocks/webhooks-out)              | `better-supabase/blocks/webhooks`                                                    | `webhooks-out`                         |
+| [Entitlements](/docs/blocks/entitlements)                   | `better-supabase/blocks/entitlements`                                                | `entitlements`                         |
+| [Vector search](/docs/blocks/vector-search)                 | none (`db.$search` in the core)                                                      | `vector-search`                        |
+
+The other SQL modules (`updated-at`, `actor`, `audit`, `rate-limit`,
+`support-sessions` and the rest) are listed on the
+[SQL modules](/docs/blocks/sql#modules) page.
+
+## Missing blocks
+
+These blocks are standard in large SaaS apps and are not built yet. The list is
+ranked by how often apps need them and how much they would reuse.
+
+1. **API keys** (`better-supabase/blocks/api-keys`): hashed keys per tenant and
+   per user, with scopes, prefixes, last-used tracking, rotation and expiry,
+   checked through the access contract and the `rate-limit` module. Today an
+   app writes its own [`AuthResolver`](/docs/auth#custom-credentials).
+2. **Billing** (`better-supabase/blocks/billing`): Stripe Checkout and customer
+   portal sessions, seat sync from memberships, and plan changes handled
+   through the webhook inbox. Today [entitlements](/docs/blocks/entitlements)
+   only read what the Stripe Sync Engine stores.
+3. **Audit log API** (`better-supabase/blocks/audit`): the `audit` SQL module
+   exists but has no TypeScript side. This block would add a typed list query
+   over the audit table, a per-tenant export and retention settings.
+4. **Usage metering and quotas** (`better-supabase/blocks/usage`): counters per
+   tenant and period, quota checks in RLS and RPCs, and reporting to Stripe
+   meters.
+5. **Enterprise identity** (`better-supabase/blocks/sso`): verified domains
+   that join users to an organization, Supabase SAML SSO per organization, and
+   SCIM 2.0 provisioning.
+6. **Feature flags** (`better-supabase/blocks/flags`): flags per tenant and per
+   user with rollouts, served through an OpenFeature provider, separate from
+   plan entitlements.
+7. **Data lifecycle** (`better-supabase/blocks/data-lifecycle`): an export of a
+   user's or an organization's data, and organization deletion with a grace
+   period. Today only [account deletion](/docs/auth/account-deletion) exists.
+8. **Settings** (`better-supabase/blocks/settings`): typed settings per user and
+   per organization, validated with Standard Schema.
+9. **Comments and activity** (`better-supabase/blocks/comments`): comments on
+   any record, mentions that feed the notifications block, and an activity
+   feed built from the outbox.
+10. **Attachments** (`better-supabase/blocks/attachments`): records linked to
+    Storage objects, with tenant-scoped policies and a scan hook.
+11. Lower priority: onboarding checklists, a waitlist with invite codes, and
+    in-app announcements.

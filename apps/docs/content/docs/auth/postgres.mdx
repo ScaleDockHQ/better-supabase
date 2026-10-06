@@ -13,7 +13,7 @@ import { createPostgres, postgresExecutor } from "better-supabase/postgres";
 const postgres = createPostgres(); // SUPABASE_DB_URL or DATABASE_URL
 
 const asUser = betterSupabase.connect(
-  postgresExecutor(postgres.asUser({ sub: userId, tenant_id: orgId })),
+  postgresExecutor(postgres.asUser({ sub: userId, tenant_id: organizationId })),
 );
 const asAdmin = betterSupabase.connect(postgresExecutor(postgres.admin));
 ```
@@ -42,7 +42,7 @@ way.
 
 `asUser`, `executorFor` and `transaction` also take session options.
 `settings` sets more transaction-local settings, such as
-`better_supabase.tenant` for a [resolved tenant](/docs/kits/access#the-active-tenant);
+`better_supabase.tenant` for a [resolved tenant](/docs/blocks/access#the-active-tenant);
 their names need a dot, so they can't replace `role` or the claims.
 `readOnly: true` opens every transaction with `begin read only`, so writes fail
 with SQLSTATE 25006.

@@ -433,8 +433,8 @@ also reports `memberships_truncated` for the sample user. Set
 ## Storage and Realtime
 
 Buckets and topics can call PermDock's helpers instead of comparing the
-tenant claim. See [PermDock permissions for buckets](/docs/kits/storage#permdock-permissions)
-and [for topics](/docs/kits/realtime#authorization).
+tenant claim. See [PermDock permissions for buckets](/docs/platform/storage#permdock-permissions)
+and [for topics](/docs/platform/realtime#authorization).
 
 The helpers check role and scope only. A permission's row conditions (for
 example `ownerId = principal.id`) are applied by the table policies
@@ -459,7 +459,7 @@ checks the same in `pg_policies`.
 ## Entitlements with PermDock
 
 Plan entitlements are not a PermDock claim, so the
-[entitlements module](/docs/kits/entitlements#with-permdock) works next to
+[entitlements module](/docs/blocks/entitlements#with-permdock) works next to
 PermDock:
 
 - `has_entitlement(tenant, key)` and `tenant_entitlements(tenant)` read the
@@ -482,17 +482,17 @@ for the module's scope from there, and falls back to the hook's membership
 sources only for a manifest without it. Doctor (BS408) reports a scope with
 no `rls.memberships` entry.
 
-## The access kit with PermDock
+## The access block with PermDock
 
-Set `kits.access.model: 'permdock'` and the SQL kit's `can()`, the
+Set `blocks.access.model: 'permdock'` and the SQL modules' `can()`, the
 organizations, invitations, audit, support-sessions, notifications and
 webhooks modules check permissions through PermDock's helpers instead of a
 role catalog of their own:
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
-  sql: { kit: ["access", "organizations", "invitations", "audit"] },
-  kits: {
+  sql: { modules: ["access", "organizations", "invitations", "audit"] },
+  blocks: {
     access: {
       model: "permdock",
       functions: {
@@ -504,7 +504,7 @@ export default defineConfig({
 ```
 
 Then run `permdock supabase inspect --out` and `better-supabase sql add`.
-The kit reads `permdock.manifest.json` whether or not the entitlements
+The block reads `permdock.manifest.json` whether or not the entitlements
 module uses PermDock:
 
 - the schema is `rls.schema` (write it in `canAssign` too), the scope is the
@@ -512,12 +512,12 @@ module uses PermDock:
   that scope's `type`. A manifest with `rls.schema: "authz"` and a root scope
   `tenant` gets `authz.permitted_tenant_ids`;
 - `sql add` stops on a missing manifest, no single root scope, a
-  `kits.access.permdock.scope` the manifest doesn't declare, or a schema or
-  `kits.access.idType` that disagrees with it;
-- every permission key the kit modules check must be `rowConditions: false`
+  `blocks.access.permdock.scope` the manifest doesn't declare, or a schema or
+  `blocks.access.idType` that disagrees with it;
+- every permission key the SQL modules check must be `rowConditions: false`
   in `permissions.catalog.json`, because the helpers check role and scope
-  only. `kitPermissionKeys` from `better-supabase/sql` lists the keys; map
-  one to another key with `kits.<module>.permissions`;
+  only. `blockPermissionKeys` from `better-supabase/sql` lists the keys; map
+  one to another key with `blocks.<module>.permissions`;
 - `canAssign` names PermDock's assignment rule, `permdock_can_assign`, which
   PermDock writes when a role declares `assigns`. Without it only the
   service role assigns roles.
@@ -528,7 +528,7 @@ that the database has the helpers. PermDock's helpers read `auth.uid()`, so
 `0A000` for anyone else. The invitations module therefore doesn't check the
 inviter's permission again when an invitation is accepted, and the
 notifications module doesn't filter recipients by their read permission. See
-[the access kit](/docs/kits/access#permdock) for the details.
+[the access block](/docs/blocks/access#permdock) for the details.
 
 ## Support sessions and other actors
 

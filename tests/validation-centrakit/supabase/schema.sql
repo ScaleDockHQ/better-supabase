@@ -302,7 +302,7 @@ create unique index webhook_deliveries_destination_event_idx
   where event_id is not null;
 
 -- Refactor: CentraKit's audit writers set scope and actor_kind themselves;
--- the block's audit_event leaves them to the table.
+-- the module's audit_event leaves them to the table.
 create function centrakit.audit_log_defaults()
 returns trigger
 language plpgsql

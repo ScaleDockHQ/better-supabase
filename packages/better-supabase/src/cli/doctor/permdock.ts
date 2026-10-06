@@ -171,7 +171,7 @@ function placementProblems(
   return problems;
 }
 
-/** PermDock's helpers for the `entitlements` block module, when the manifest allows PermDock mode. */
+/** PermDock's helpers for the `entitlements` SQL module, when the manifest allows PermDock mode. */
 export function entitlementsBlock(
   context: Pick<DoctorContext, "config" | "permdock">,
 ): BlockPermdock | undefined {
@@ -276,7 +276,7 @@ export const PERMDOCK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "PermDock helpers the entitlements module calls are missing",
     description:
-      "With a PermDock manifest, the `entitlements` block module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`, as `authenticated`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`, which PermDock's hook calls as `supabase_auth_admin`). Doctor warns when a PermDock project has no readable manifest or no `rls` block, when the scope is not one of the manifest's scopes or can't be chosen, when the scope's id type is missing or not `uuid`, `text`, `bigint` or `integer`, when the manifest has no `claims.features` claim filled by `better_supabase.feature_claims`, when no membership source covers the scope, when the manifest's `rls.helpers` lacks one of those helpers or doesn't grant it to that role (naming the `permdock.config.ts` setting that adds it), or when the snapshot lacks it (apply the migration `permdock rls generate` wrote).",
+      "With a PermDock manifest, the `entitlements` SQL module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`, as `authenticated`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`, which PermDock's hook calls as `supabase_auth_admin`). Doctor warns when a PermDock project has no readable manifest or no `rls` block, when the scope is not one of the manifest's scopes or can't be chosen, when the scope's id type is missing or not `uuid`, `text`, `bigint` or `integer`, when the manifest has no `claims.features` claim filled by `better_supabase.feature_claims`, when no membership source covers the scope, when the manifest's `rls.helpers` lacks one of those helpers or doesn't grant it to that role (naming the `permdock.config.ts` setting that adds it), or when the snapshot lacks it (apply the migration `permdock rls generate` wrote).",
     check: (context) => {
       if (!context.config.sql.modules.includes("entitlements")) return [];
       const mode = entitlementsMode(context.config, context.permdock);
@@ -452,7 +452,7 @@ export const PERMDOCK_RULES: readonly Rule[] = [
         const entry = listed.get(helper);
         if (!entry) {
           findings.push({
-            message: `${manifest} lists no ${helper}, but the permdock access model calls it from can() and the block modules. Run \`permdock rls generate\` with a current PermDock, then \`permdock supabase inspect --out\`.`,
+            message: `${manifest} lists no ${helper}, but the permdock access model calls it from can() and the SQL modules. Run \`permdock rls generate\` with a current PermDock, then \`permdock supabase inspect --out\`.`,
             target: helper,
           });
         } else if (!entry.execute.includes(role)) {

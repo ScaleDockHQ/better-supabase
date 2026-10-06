@@ -3,7 +3,7 @@ title: Profiles
 description: A profile row per user, created on sign-up from auth metadata, with a unique username, an email mirror and columns users can't change.
 ---
 
-The `profiles` [SQL kit](/docs/kits/sql) module gives every user a profile
+The `profiles` [SQL module](/docs/blocks/sql) gives every user a profile
 row. A trigger on `auth.users` creates it on sign-up from the user's
 metadata, allocates a unique username and keeps the email in step with
 `auth.users`. Users update their own name and avatar through the Data API,
@@ -62,12 +62,12 @@ organization and team and `onboarding` stay private: read your own through
 `better_supabase.my_profile()`, which returns your full row.
 
 Security definer functions, such as `switch_organization` from the
-[organizations](/docs/kits/orgs) module and the email mirror, write the
+[organizations](/docs/blocks/organizations) module and the email mirror, write the
 service columns. To disable users through the profile, point the access
 contract at its column:
 
 ```ts title="better-supabase.config.ts"
-kits: {
+blocks: {
   access: { disabled: { user: "better_supabase.profiles.disabled_at" } },
   profiles: {},
 },
@@ -75,7 +75,7 @@ kits: {
 
 ## Options
 
-`kits.profiles.options`:
+`blocks.profiles.options`:
 
 | Option              | Default                                               | What it does                                                                                   |
 | ------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -101,7 +101,7 @@ table and leaves its columns, policies and grants alone. Map the key and
 the columns you have, and set the others to `null`:
 
 ```ts title="better-supabase.config.ts"
-kits: {
+blocks: {
   profiles: {
     mode: "adopt",
     tables: { profiles: "public.profiles" },
@@ -126,5 +126,5 @@ installing warns about it. Keep it and set `syncTrigger: false`, calling
 extra work into `after_profile_sync`. With `mode: 'custom'` the module
 writes nothing and you provide `sync_profile` and `backfill_profiles`.
 
-Avatar and logo uploads use the [`avatarBucket` and `orgLogoBucket`
-presets](/docs/kits/storage#avatars-and-organization-logos).
+Avatar and logo uploads use the [`avatarBucket` and `organizationLogoBucket`
+presets](/docs/platform/storage#avatars-and-organization-logos).

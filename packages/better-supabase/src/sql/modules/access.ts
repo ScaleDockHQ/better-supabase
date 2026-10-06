@@ -666,7 +666,7 @@ as $$
 $$;
 ${body}
 
--- The access contract. Policies and block modules call these, never a model's
+-- The access contract. Policies and SQL modules call these, never a model's
 -- tables, so the model can change without touching them:
 --   using ((select better_supabase.can('${tenantScope(ctx)}', organization_id, 'invoices.read')))
 --   using (organization_id in (select better_supabase.tenant_ids_with('invoices.read')))
@@ -757,7 +757,7 @@ export const ACCESS: BlockModuleDefinition = {
   name: "access",
   title: "Access contract",
   description:
-    "can(), tenant_ids_with() and is_platform(): one permission contract for policies and block modules, over a roles list, a role and permission catalog, PermDock or the app's own functions (blocks.access.model).",
+    "can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, PermDock or the app's own functions (blocks.access.model).",
   requires: ["tenant"],
   dependencies: (layout) => {
     const model = layout.blocks?.access?.model ?? "roles";

@@ -29,7 +29,7 @@ const live = await reachable();
 const FIXTURES = new URL("../fixtures/block-0.4.0/", import.meta.url);
 const MODULES = ["tenant", "audit", "invitations"];
 
-describe.skipIf(!live)("upgrading block modules installed by 0.4.0", () => {
+describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   afterAll(() => pool.end());
 

@@ -1556,7 +1556,7 @@ uri = "https://example.com/hook"
   describe("PermDock helpers for entitlements (BS408)", () => {
     const only = RULES.filter((rule) => rule.code === "BS408");
     const parsed = parseManifest(manifest);
-    // The fixture's example fills `features` from its own function; the block's needs better_supabase.feature_claims.
+    // The fixture's example fills `features` from its own function; the module's needs better_supabase.feature_claims.
     const project: PermdockProject = {
       ...PERMDOCK,
       manifest: {

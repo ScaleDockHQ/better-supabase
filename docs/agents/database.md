@@ -42,7 +42,7 @@ module through the sync on a second stack (ports 56420 to 56422) when the
 Supabase CLI and Docker are available.
 
 The `900_better_supabase_*` files in `supabase/schemas` and
-`supabase/better-supabase-data` are block modules that `better-supabase sql sync`
+`supabase/better-supabase-data` are SQL modules that `better-supabase sql sync`
 writes from `apps/examples/nextjs` (its `sql.dir` points at the fixture). Never
 edit them by hand. When a change touches one of those modules, run
 `pnpm --filter @better-supabase/example-nextjs exec better-supabase sql sync`,
@@ -50,7 +50,7 @@ then `pnpm supabase:sync <name>`, and `sql data` from the same folder when the
 data files changed. The example's `gen:check` fails while they are stale.
 
 Managed block defaults follow the repo standard (hashed tokens, Vault secrets,
-`text` ids, the block's CloudEvents sources). A shape that only an existing app
+`text` ids, the module's CloudEvents sources). A shape that only an existing app
 needs belongs in its adopt config, never in a managed default. When an adopter
 needs a weaker value, add it to `src/sql/migration-options.ts`, so the config
 accepts it in `mode: "adopt"` only and doctor warns about it (BS314).

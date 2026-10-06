@@ -34,7 +34,7 @@ select better_supabase.audit('crm."Deals"', redact := array['secret']::text[], c
     ).toEqual([{ target: "public.a", ignore: ["x"], redact: [] }]);
   });
 
-  it("skips comments, the block's own definitions and non-literal arguments", () => {
+  it("skips comments, the module's own definitions and non-literal arguments", () => {
     expect(
       auditRegistrations([
         file(`

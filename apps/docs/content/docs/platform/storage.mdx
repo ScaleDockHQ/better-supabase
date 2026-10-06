@@ -12,7 +12,7 @@ import { defineBucket } from "better-supabase/storage";
 
 export const logos = defineBucket({
   id: "customer-logos",
-  path: "{orgId}/{customerId}/logo/{version}.webp",
+  path: "{organizationId}/{customerId}/logo/{version}.webp",
   policy: "tenant",
   fileSizeLimit: "5MiB",
   allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
@@ -26,9 +26,9 @@ stay typed either way.
 ## Paths
 
 ```ts
-logos.path({ orgId, customerId, version: 3 }); // { ok: true, data: 'o1/c1/logo/3.webp' }
-logos.match("o1/c1/logo/3.webp"); // { orgId: 'o1', customerId: 'c1', version: '3' }
-logos.prefix({ orgId }); // 'o1', the folder to list
+logos.path({ organizationId, customerId, version: 3 }); // { ok: true, data: 'o1/c1/logo/3.webp' }
+logos.match("o1/c1/logo/3.webp"); // { organizationId: 'o1', customerId: 'c1', version: '3' }
+logos.prefix({ organizationId }); // 'o1', the folder to list
 ```
 
 Missing values are type errors. At runtime every value is checked: it can't
@@ -38,7 +38,7 @@ returns a `Result` like every other bucket method, so a value from user input
 never throws:
 
 ```ts
-const path = logos.path({ orgId, customerId, version });
+const path = logos.path({ organizationId, customerId, version });
 if (!path.ok) return problemResponse(path.error); // invalid_input, 400
 ```
 
@@ -58,16 +58,16 @@ the current layout first and keep older ones after it:
 export const files = defineBucket({
   id: "files",
   path: [
-    "{orgId}/files/{fileId}/v{version}.{ext}",
-    "{orgId}/exports/{exportId}.zip",
-    "{orgId}/{...rest}",
+    "{organizationId}/files/{fileId}/v{version}.{ext}",
+    "{organizationId}/exports/{exportId}.zip",
+    "{organizationId}/{...rest}",
   ],
   policy: "tenant",
   tenant: {},
 });
 
-files.path({ orgId, exportId }).data; // 'o1/exports/e1.zip'
-files.match("o1/2023/report.pdf"); // { orgId: 'o1', rest: '2023/report.pdf' }
+files.path({ organizationId, exportId }).data; // 'o1/exports/e1.zip'
+files.match("o1/2023/report.pdf"); // { organizationId: 'o1', rest: '2023/report.pdf' }
 ```
 
 A last segment written as `{...rest}` matches one or more segments, for
@@ -96,7 +96,7 @@ pin the project host, so build the URL when you render. List the column in
 export default defineConfig({
   buckets: {
     customerLogos: {
-      path: "{orgId}/{customerId}/logo/{version}.webp",
+      path: "{organizationId}/{customerId}/logo/{version}.webp",
       policy: "tenant",
     },
   },
@@ -161,12 +161,12 @@ registry is defined.
 
 | `policy`              | Access                                                                                                                                     |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `tenant`              | The `{orgId}` segment must equal the JWT `tenant_id` (or `app_metadata.tenant_id`)                                                         |
+| `tenant`              | The `{organizationId}` segment must equal the JWT `tenant_id` (or `app_metadata.tenant_id`)                                                |
 | `owner`               | The `{userId}` segment must equal `auth.uid()`                                                                                             |
 | `public`              | Anyone can read. Writes need the secret key. A `public: true` bucket gets no select policy, so its public URLs work and nobody can list it |
 | `none`                | No policies. Only the secret key has access                                                                                                |
 | `{ permdock, scope }` | PermDock permissions decide, through its generated SQL helpers (see below)                                                                 |
-| `{ access }`          | The SQL kit's access contract decides, for any access model (see below)                                                                    |
+| `{ access }`          | The SQL modules' access contract decides, for any access model (see below)                                                                 |
 
 `bucket.owner` names the placeholder that holds the owning user's id: the
 `owner` param for `owner` buckets, otherwise `userId` when the template has
@@ -180,7 +180,7 @@ outside the paths your code builds. Use `tenant: { param, claim }` or
 
 ### Access contract permissions
 
-With the [access contract](/docs/kits/access) installed, a bucket can check
+With the [access contract](/docs/blocks/access) installed, a bucket can check
 the app's permissions whatever model backs them: default roles, your own
 role tables, PermDock or your own functions. The tenant id in the path must
 be one of `tenant_ids_with(key)`, or `scope: 'platform'` checks
@@ -189,11 +189,11 @@ be one of `tenant_ids_with(key)`, or `scope: 'platform'` checks
 ```ts title="src/lib/storage.ts"
 export const contracts = defineBucket({
   id: "contracts",
-  path: "{orgId}/{contractId}/{file}",
+  path: "{organizationId}/{contractId}/{file}",
   policy: {
     access: { read: "contracts.read", write: "contracts.write" },
   },
-  tenant: { param: "orgId" },
+  tenant: { param: "organizationId" },
 });
 ```
 
@@ -202,23 +202,25 @@ export const contracts = defineBucket({
 
 ### Avatars and organization logos
 
-`avatarBucket()` and `orgLogoBucket()` define the two buckets most apps
+`avatarBucket()` and `organizationLogoBucket()` define the two buckets most apps
 need. Both are public, take 2 MiB of images (`IMAGE_TYPES`) and accept
 `id`, `path`, `public`, `fileSizeLimit`, `allowedMimeTypes` and `policy`:
 
-| Preset          | Path                              | Who writes                                                      |
-| --------------- | --------------------------------- | --------------------------------------------------------------- |
-| `avatarBucket`  | `{userId}/avatar-{version}.{ext}` | the user (`owner` policy)                                       |
-| `orgLogoBucket` | `{orgId}/logo-{version}.{ext}`    | members with `organization.update`, through the access contract |
+| Preset                   | Path                                    | Who writes                                                      |
+| ------------------------ | --------------------------------------- | --------------------------------------------------------------- |
+| `avatarBucket`           | `{userId}/avatar-{version}.{ext}`       | the user (`owner` policy)                                       |
+| `organizationLogoBucket` | `{organizationId}/logo-{version}.{ext}` | members with `organization.update`, through the access contract |
 
 ```ts title="src/lib/storage.ts"
-import { avatarBucket, orgLogoBucket } from "better-supabase/storage";
+import { avatarBucket, organizationLogoBucket } from "better-supabase/storage";
 
 export const avatars = avatarBucket();
-export const logos = orgLogoBucket({ permission: "organization.branding" });
+export const logos = organizationLogoBucket({
+  permission: "organization.branding",
+});
 ```
 
-`orgLogoBucket` holds connected clients to the `{orgId}` of their tenant;
+`organizationLogoBucket` holds connected clients to the `{organizationId}` of their tenant;
 pass `tenant: false` to upload for any organization the policy allows. A new
 `{version}` per upload keeps CDN caches correct; store the path in the
 profile's `avatar_url` or the organization's logo column.
@@ -234,8 +236,8 @@ them in `permdock` unless its `schema` option names PermDock's other schema.
 
 ```ts title="src/lib/storage.ts"
 export const files = defineBucket({
-  id: "org-files",
-  path: "{orgId}/{file}",
+  id: "organization-files",
+  path: "{organizationId}/{file}",
   policy: {
     permdock: {
       read: "files.download",
@@ -252,7 +254,7 @@ With `list`, listing gets its own policy (through
 `storage.allow_any_operation`), so a user can download a file they were sent
 without being able to browse the folder, or the other way around. `write`
 covers uploads, updates and moves, and deletes unless `delete` is set. The
-scope id comes from the `{orgId}` segment; set `segment` (1-based) for another
+scope id comes from the `{organizationId}` segment; set `segment` (1-based) for another
 one, and `schema` when the helpers aren't in `public`. The id is compared as
 text, so a malformed path is denied instead of raising a cast error, and the
 segment must be the id's canonical lowercase form: a path with an uppercase
@@ -276,8 +278,8 @@ the organization.
 ```ts title="src/lib/storage.ts"
 // Wrong: files.download has a row condition, which the policy ignores
 export const files = defineBucket({
-  id: "org-files",
-  path: "{orgId}/{file}",
+  id: "organization-files",
+  path: "{organizationId}/{file}",
   policy: { permdock: { read: "files.download" }, scope: "organization" },
 });
 ```
@@ -289,8 +291,8 @@ the whole scope:
 ```ts title="src/lib/storage.ts"
 // Right: files.browse is granted per organization, with no row condition
 export const files = defineBucket({
-  id: "org-files",
-  path: "{orgId}/{file}",
+  id: "organization-files",
+  path: "{organizationId}/{file}",
   policy: { permdock: { read: "files.browse" }, scope: "organization" },
 });
 ```
@@ -308,8 +310,8 @@ current `permdock catalog`) and for a key the catalog doesn't list:
 import catalog from "../../permissions.catalog.json" with { type: "json" };
 
 export const files = defineBucket({
-  id: "org-files",
-  path: "{orgId}/{file}",
+  id: "organization-files",
+  path: "{organizationId}/{file}",
   policy: { permdock: { read: "files.browse" }, scope: "organization" },
   catalog,
 });
@@ -330,9 +332,9 @@ the database has. [`doctor`](/docs/cli) reports those differences.
 ```ts
 const storage = logos.connect(supabase); // user client: policies apply
 
-await storage.upload({ orgId, customerId, version }, file).orThrow();
+await storage.upload({ organizationId, customerId, version }, file).orThrow();
 const url = await storage
-  .signedUrl({ orgId, customerId, version }, { ttl: "hour" })
+  .signedUrl({ organizationId, customerId, version }, { ttl: "hour" })
   .orThrow();
 const thumb = await storage
   .renderUrl(path, { width: 128, height: 128, resize: "cover" })
@@ -362,8 +364,8 @@ object already at `to` is a `conflict`:
 ```ts
 await storage
   .copy(
-    { orgId, customerId, version: "v1" },
-    { orgId, customerId, version: "v2" },
+    { organizationId, customerId, version: "v1" },
+    { organizationId, customerId, version: "v2" },
   )
   .orThrow();
 ```
@@ -385,18 +387,21 @@ Setting `tenant` on the bucket also makes connected clients check paths
 before they reach Storage, which matters for the secret-key client that
 policies don't limit. Every path the client builds, accepts, signs, uploads,
 copies, moves, removes or reserves must hold the caller's tenant in the `tenant.param`
-segment (`{orgId}` by default), and `list()` lists only under it:
+segment (`{organizationId}` by default), and `list()` lists only under it:
 
 ```ts
 const logos = defineBucket({
   id: "customer-logos",
-  path: "{orgId}/{customerId}/logo/{version}.webp",
+  path: "{organizationId}/{customerId}/logo/{version}.webp",
   policy: "tenant",
   tenant: { claim: "tenant_id" },
 });
 
 const storage = logos.connect(supabase, { context: db.$context });
-await storage.upload({ orgId: otherOrg, customerId, version }, file);
+await storage.upload(
+  { organizationId: otherOrganization, customerId, version },
+  file,
+);
 // { ok: false, error: { kind: "forbidden" } }, no request made
 ```
 
@@ -458,7 +463,7 @@ that order and cleans up after a failure:
 
 ```ts
 const { path } = await storage
-  .replace({ orgId, customerId, version: crypto.randomUUID() }, file, {
+  .replace({ organizationId, customerId, version: crypto.randomUUID() }, file, {
     previous: customer.logoPath,
     commit: (path) => db.customers.update(customer.id, { logoPath: path }),
   })
@@ -480,7 +485,7 @@ Let the browser upload directly with a server-issued reservation:
 // server
 const reservation = await logos
   .connect(supabase)
-  .reserve({ orgId, customerId, version })
+  .reserve({ organizationId, customerId, version })
   .orThrow();
 // browser
 await logos.connect(supabase).uploadReserved(reservation, file).orThrow();
@@ -494,7 +499,7 @@ Run it from a job to remove objects nothing references anymore:
 const { removed } = await logos
   .connect(adminClient)
   .sweep({
-    within: { orgId },
+    within: { organizationId },
     olderThan: Temporal.Duration.from({ hours: 24 }), // skip uploads that may still be committing
     referenced: async (paths) =>
       (

@@ -36,7 +36,7 @@ check it in CI with `better-supabase openapi emit --check`.
 - **Schemas:** `CustomersRow`, `CustomersInsert`, `CustomersUpdate` and
   `CustomersPage`, as JSON Schema 2020-12 (the OpenAPI 3.1 dialect). Enums and
   CHECK unions become `enum`; nullable columns become `["string", "null"]`.
-- **List parameters:** pass a [list query](/docs/kits/list) and its search,
+- **List parameters:** pass a [list query](/docs/platform/list) and its search,
   sort, page, size and facet parameters are used as they are. Otherwise
   `page`/`size`, or `after`/`size` with `pagination: 'cursor'` on the
   resource, capped by its `maxPageSize`. Cursor resources get a

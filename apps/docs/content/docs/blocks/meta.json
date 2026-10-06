@@ -1,12 +1,10 @@
 {
-  "title": "Kits",
+  "title": "Blocks",
   "pages": [
-    "list",
-    "storage",
-    "realtime",
+    "index",
     "sql",
     "access",
-    "orgs",
+    "organizations",
     "profiles",
     "jobs",
     "outbox",

@@ -11,7 +11,7 @@ in as themselves the whole time.
 
 ## Support sessions
 
-Install the `support-sessions` kit module, then pass a store to `createServer`:
+Install the `support-sessions` SQL module, then pass a store to `createServer`:
 
 ```bash
 npx better-supabase sql add support-sessions
@@ -42,7 +42,7 @@ The module adds a `support_sessions` table and four functions:
 `start_support_session`, `end_support_session`, `active_support_session` and
 `list_support_sessions`. Starting a session checks
 `is_platform('support.start')` in the database with the admin's own claims, so
-only admins your [access model](/docs/kits/access) grants that permission
+only admins your [access model](/docs/blocks/access) grants that permission
 can start one. Grant it with a platform permission claim (`"platform_permissions": ["support.*"]`)
 or a platform role in the catalog model.
 
@@ -102,14 +102,14 @@ support: supportSessions({
 
 In SQL, the `before_support_start(admin, target, reason, metadata)` hook can
 refuse a start too, for example when no open ticket names the user. See
-[support sessions](/docs/kits/sql#support-sessions) for the module's names,
+[support sessions](/docs/blocks/sql#support-sessions) for the module's names,
 hooks and options.
 
 ### The target's claims
 
 The target gets the claims your [custom access token hook](/docs/auth#typed-claims)
 would give them, so tenant and role claims match a real session. Set
-`kits["support-sessions"].options.claimsHook` to the hook function
+`blocks["support-sessions"].options.claimsHook` to the hook function
 (`"public.custom_access_token_hook"`) and `support_target_claims` calls it with
 a synthetic event. Without a hook, the target gets the claims Auth puts in
 every token (`email`, `role`, `app_metadata`, `user_metadata`, `aal1`). Pass
@@ -145,7 +145,7 @@ On the server, `supportOf(session)` returns the same value.
 `sb.on` receives `support.started`, `support.ended` (with `endedBy`: `admin`,
 `expired` or `revoked`) and `support.denied` (with the denial code).
 The SQL module writes `support.started` and `support.ended` to the
-[audit log](/docs/kits/sql#audit-log), and every row the admin changes in a
+[audit log](/docs/blocks/sql#audit-log), and every row the admin changes in a
 writable session records `impersonated_by` and `support_session_id`, so you
 can list everything one session did.
 
@@ -157,7 +157,7 @@ the caller's own session or, with `support.revoke`, anyone's.
 The SQL module refuses a target who holds platform permissions (the platform
 claim in `app_metadata`, or a platform role), because the admin would gain
 that staff member's reach (`allowPlatformTargets` turns this off). Sessions
-are read-only unless `kits["support-sessions"].options.allowWrites` is true and
+are read-only unless `blocks["support-sessions"].options.allowWrites` is true and
 the policy is `readOnly: "default"`. A token that carries an `act` claim never
 has platform permissions, so a support session can't start another one or act
 as staff. Each request checks again that the admin still holds
@@ -178,7 +178,7 @@ session or a cookie. Use it in jobs and scripts:
 ```ts title="app/admin/actions.ts"
 const db = bs.actingAs(
   userId,
-  { tenant_id: orgId },
+  { tenant_id: organizationId },
   { actor: admin.id, reason: "Support ticket 4211" },
 );
 await db.invoices.update(id, { status: "void" });
@@ -198,8 +198,8 @@ impersonation. See
 
 | Where              | What                                                                                                                             |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `audit` kit module | `audit_events.impersonated_by`, `impersonation_reason` and `support_session_id` on every row the admin changes                   |
-| `actor` kit module | `track_actor(table, impersonated_by => 'impersonated_by')` stamps the admin on each write; the user's own writes cannot clear it |
+| `audit` SQL module | `audit_events.impersonated_by`, `impersonation_reason` and `support_session_id` on every row the admin changes                   |
+| `actor` SQL module | `track_actor(table, impersonated_by => 'impersonated_by')` stamps the admin on each write; the user's own writes cannot clear it |
 | Repository context | `context.actor.impersonator`, for plugins                                                                                        |
 | In SQL             | `auth.jwt() -> 'act' ->> 'sub'` and `auth.jwt() -> 'act' ->> 'session_id'`, for your own triggers and policies                   |
 

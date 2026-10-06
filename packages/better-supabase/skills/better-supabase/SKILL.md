@@ -56,7 +56,7 @@ stay hidden.
 1. Run `pnpm better-supabase codemod <version> --dry-run` for each minor
    version you crossed (`codemod` without a name lists them), then without
    `--dry-run`, and fix the lines it lists for review.
-2. Run `pnpm better-supabase sql upgrade`, so the block modules get the
+2. Run `pnpm better-supabase sql upgrade`, so the SQL modules get the
    release's SQL and any forward steps land in a migration, then write a
    migration from the changed files.
 3. Run `pnpm better-supabase gen` and commit the result. Since 0.3, a

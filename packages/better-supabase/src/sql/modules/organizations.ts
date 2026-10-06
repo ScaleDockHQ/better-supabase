@@ -55,7 +55,7 @@ const NAMES: BlockNames = {
   ],
 };
 
-/** The transaction-local setting that lets the block's own writes past the guard. */
+/** The transaction-local setting that lets the module's own writes past the guard. */
 export const TRUSTED_SETTING = "better_supabase.trusted";
 
 const TRUSTED = `coalesce(current_setting('${TRUSTED_SETTING}', true), '') = 'on'`;
@@ -509,7 +509,7 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
   const ceiling = `
 -- No one grants a role above their own permissions (can_assign), demotes
 -- someone above them, or changes their own role. The service role, direct
--- admin connections and the block's own writes (${TRUSTED_SETTING}) pass.
+-- admin connections and the module's own writes (${TRUSTED_SETTING}) pass.
 create or replace function ${ctx.fn("guard_membership")}()
 returns trigger
 language plpgsql
