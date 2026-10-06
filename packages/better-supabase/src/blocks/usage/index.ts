@@ -5,6 +5,7 @@ export {
   type ReportUsageOptions,
   type ReportUsageResult,
   type Usage,
+  type UsageMeterInfo,
   type UsageOptions,
   type UsagePeriod,
   type UsageRecorded,

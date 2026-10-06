@@ -5,6 +5,7 @@ import type { AsyncResult } from "../../core/result.ts";
 import {
   blockCall,
   DEFAULT_BLOCK_SCHEMA,
+  isRecord,
   optionalText,
   recordOf,
   recordsOf,
@@ -34,7 +35,18 @@ export interface UsageRecorded {
   readonly today: number;
 }
 
-export type UsagePeriod = "day" | "week" | "month" | "year";
+/**
+ * A quota period: a UTC calendar period, or `billing` for the window the
+ * app's `usage_billing_period(tenant)` function returns.
+ */
+export type UsagePeriod = "day" | "week" | "month" | "year" | "billing";
+
+/** One meter of `sql.modules.usage.options.meters`. */
+export interface UsageMeterInfo {
+  readonly unit?: string;
+  readonly category?: string;
+  readonly label?: string;
+}
 
 export interface UsageStatus {
   readonly meter: string;
@@ -44,7 +56,13 @@ export interface UsageStatus {
   readonly limit: number | undefined;
   readonly remaining: number | undefined;
   readonly period: UsagePeriod;
+  /** When the current period started. */
+  readonly startsAt: Temporal.Instant | undefined;
   readonly resetsAt: Temporal.Instant;
+  /** From the meter catalog, when the module has one. */
+  readonly unit?: string;
+  readonly category?: string;
+  readonly label?: string;
 }
 
 export interface Usage {
@@ -66,6 +84,8 @@ export interface Usage {
     organizationId: string,
     meter: string,
   ): AsyncResult<number | undefined>;
+  /** The meter catalog (`options.meters`), empty without one. */
+  meters(): AsyncResult<Readonly<Record<string, UsageMeterInfo>>>;
 }
 
 const numberOf = (value: unknown): number =>
@@ -74,7 +94,13 @@ const numberOf = (value: unknown): number =>
 const optionalNumber = (value: unknown): number | undefined =>
   value === null || value === undefined ? undefined : numberOf(value);
 
-const PERIODS: ReadonlySet<string> = new Set(["day", "week", "month", "year"]);
+const PERIODS: ReadonlySet<string> = new Set([
+  "day",
+  "week",
+  "month",
+  "year",
+  "billing",
+]);
 
 const periodOf = (value: unknown): UsagePeriod => {
   const text = textOf(value);
@@ -95,7 +121,23 @@ function statusOf(value: unknown): UsageStatus {
     limit: optionalNumber(row["limit"]),
     remaining: optionalNumber(row["remaining"]),
     period: periodOf(row["period"]),
+    startsAt:
+      row["starts_at"] === undefined || row["starts_at"] === null
+        ? undefined
+        : toInstant(textOf(row["starts_at"])),
     resetsAt: toInstant(textOf(row["resets_at"])),
+    ...meterInfo(row),
+  };
+}
+
+function meterInfo(row: Readonly<Record<string, unknown>>): UsageMeterInfo {
+  const unit = optionalText(row["unit"]);
+  const category = optionalText(row["category"]);
+  const label = optionalText(row["label"]);
+  return {
+    ...(unit === undefined ? {} : { unit }),
+    ...(category === undefined ? {} : { category }),
+    ...(label === undefined ? {} : { label }),
   };
 }
 
@@ -125,6 +167,16 @@ export function createUsage(options: UsageOptions): Usage {
     current,
     remaining: (organizationId, meter) =>
       current(organizationId, meter).map((status) => status.remaining),
+    meters: () =>
+      call("usage_meters", {}, (value) => {
+        const row = isRecord(value) ? value : {};
+        return Object.fromEntries(
+          Object.entries(row).map(([meter, info]) => [
+            meter,
+            meterInfo(isRecord(info) ? info : {}),
+          ]),
+        );
+      }),
   };
 }
 

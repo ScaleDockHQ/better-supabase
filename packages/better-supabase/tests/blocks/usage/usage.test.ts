@@ -75,6 +75,37 @@ describe("createUsage", () => {
     expect(await usage.remaining("org", "api_calls").orThrow()).toBe(undefined);
   });
 
+  it("reads billing periods, catalog fields and the meter catalog", async () => {
+    const { transport } = fakeTransport((fn) =>
+      fn === "usage_meters"
+        ? { "ai.tokens": { unit: "tokens", category: "ai" }, bare: null }
+        : {
+            meter: "ai.tokens",
+            used: 1,
+            limit: null,
+            remaining: null,
+            period: "billing",
+            starts_at: "2026-10-01T09:30:00+00:00",
+            resets_at: "2026-11-01T09:30:00+00:00",
+            unit: "tokens",
+            label: "AI tokens",
+          },
+    );
+    const usage = createUsage({ transport });
+    const status = await usage.current("org", "ai.tokens").orThrow();
+    expect(status).toMatchObject({
+      period: "billing",
+      unit: "tokens",
+      label: "AI tokens",
+    });
+    expect(status.startsAt?.toString()).toBe("2026-10-01T09:30:00Z");
+    expect(status).not.toHaveProperty("category");
+    expect(await usage.meters().orThrow()).toEqual({
+      "ai.tokens": { unit: "tokens", category: "ai" },
+      bare: {},
+    });
+  });
+
   it("falls back to month for an unknown period", async () => {
     const { transport } = fakeTransport(() => ({
       meter: "m",

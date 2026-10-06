@@ -127,4 +127,80 @@ describe.skipIf(!live)("usage", () => {
       await s.close();
     }
   });
+
+  it("resets billing quotas with the app's period and refuses meters outside the catalog", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create or replace function public.usage_billing_period(tenant uuid)
+         returns table (starts_at timestamptz, ends_at timestamptz)
+         language sql stable as $$
+           select now() - interval '3 days', now() + interval '4 days'
+         $$;`,
+      );
+      await s.install(["organizations", "usage"], {
+        modules: {
+          usage: {
+            options: {
+              meters: {
+                "ai.tokens": {
+                  unit: "tokens",
+                  category: "ai",
+                  label: "AI tokens",
+                },
+              },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      const usage = createUsage({ transport: sqlTransport(s.sql) });
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.usage_quotas (plan, meter, "limit", period)
+         values ('*', 'ai.tokens', 1000, 'billing')`,
+      );
+      await s.rows(
+        `insert into better_supabase.usage_counters (organization_id, meter, day, value)
+         values ($1, 'ai.tokens', (now() at time zone 'utc')::date - 2, 300),
+                ($1, 'ai.tokens', (now() at time zone 'utc')::date - 5, 500)`,
+        [organization],
+      );
+      await s.asRole(owner);
+      await usage
+        .consume(organization, "ai.tokens", { quantity: 250 })
+        .orThrow();
+      const status = await usage.current(organization, "ai.tokens").orThrow();
+      expect(status).toMatchObject({
+        used: 550,
+        limit: 1000,
+        remaining: 450,
+        period: "billing",
+        unit: "tokens",
+        category: "ai",
+        label: "AI tokens",
+      });
+      const days =
+        (status.resetsAt.epochMilliseconds - Date.now()) / 86_400_000;
+      expect(days).toBeGreaterThan(3.9);
+      expect(days).toBeLessThan(4.1);
+      expect(status.startsAt).toBeDefined();
+      const over = await usage.consume(organization, "ai.tokens", {
+        quantity: 500,
+      });
+      expect(over.ok ? undefined : over.error).toMatchObject({
+        kind: "quota_exceeded",
+      });
+      const unknown = await usage.record(organization, "api.calls");
+      expect(unknown.ok ? undefined : unknown.error.hint).toBe(
+        "USAGE_METER_UNKNOWN",
+      );
+      expect(await usage.meters().orThrow()).toEqual({
+        "ai.tokens": { unit: "tokens", category: "ai", label: "AI tokens" },
+      });
+    } finally {
+      await s.close();
+    }
+  });
 });
