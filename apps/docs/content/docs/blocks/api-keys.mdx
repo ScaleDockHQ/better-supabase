@@ -1,0 +1,138 @@
+---
+title: API keys
+description: Hashed API keys for tenants and users, with scopes, expiry, rotation, a rate limit per key and an apiKey caller in every server adapter.
+---
+
+The `api-keys` block issues keys your customers call your API with. A key
+looks like `bs_0f3a9c2e7b1d4a68_<secret>`: a prefix, a public id and a
+secret. Only the SHA-256 of the secret is stored, so a database dump holds no
+usable key, and the token is shown once when the key is created.
+
+```bash
+better-supabase sql add api-keys   # adds tenant and access as well
+```
+
+A key acts in one of three ways:
+
+| Key                              | Created with                          | Acts as                                      |
+| -------------------------------- | ------------------------------------- | -------------------------------------------- |
+| Tenant key                       | `organizationId`                      | The tenant: `api_key_tenant()` is its id     |
+| Personal key                     | `personal: true`                      | The user who created it                      |
+| Personal key limited to a tenant | `personal: true` and `organizationId` | The user, only while they are still a member |
+
+Creating a tenant key needs `api_keys.manage` in the tenant; a personal key
+in a tenant needs `api_keys.own`. The default roles give `admin` both and
+`member` the second. Rename the keys with `sql.modules.api-keys.permissions`.
+
+## Managing keys
+
+```ts title="app/settings/api-keys/actions.ts"
+import { createApiKeys, rpcTransport } from "better-supabase/blocks/api-keys";
+
+const keys = createApiKeys({ transport: rpcTransport(supabase) });
+
+const { key, token } = await keys
+  .create({
+    name: "CI",
+    organizationId,
+    scopes: ["deals:read"],
+    expiresAt: Temporal.Now.instant().add({ hours: 24 * 90 }),
+    rateLimit: 600, // requests per minute
+  })
+  .orThrow();
+// Show `token` once; `key` has everything else.
+
+await keys.list(organizationId); // the tenant's keys for managers, the caller's own otherwise
+await keys.rotate(key.id, { grace: Temporal.Duration.from({ hours: 1 }) });
+await keys.revoke(key.id);
+```
+
+`rotate` returns a new token and keeps the old one working for the grace
+period (one day by default), so a deployment can switch over. `revoke` stops
+the key at once.
+
+## Accepting keys
+
+`apiKeyResolver` reads the `x-api-key` header, or a Bearer token shaped like
+a key, and turns it into an `apiKey` caller. Requests without a key fall
+through to the usual JWT and cookie resolution. Verification runs as the
+service role, so give the resolver a service transport:
+
+```ts title="src/server.ts"
+import { createPostgres } from "better-supabase/postgres";
+import {
+  apiKeyResolver,
+  createApiKeys,
+  sqlTransport,
+} from "better-supabase/blocks/api-keys";
+
+const postgres = createPostgres({ connectionString: env.SUPABASE_DB_URL });
+const keys = createApiKeys({ transport: sqlTransport(postgres.admin) });
+
+export const bs = createHono(betterSupabase, {
+  postgres,
+  auth: { resolvers: [apiKeyResolver({ keys })] },
+});
+
+app.use(
+  "/api/deals/*",
+  bs.middleware({ allow: ["user", "apiKey"], scopes: ["deals:read"] }),
+);
+```
+
+The guard checks `scopes` against the key's scopes; `*` grants every scope.
+An invalid, expired or revoked key answers 401, and a key over its rate limit
+answers 429 with `Retry-After`. Each verification counts against the key's
+limit and updates `last_used_at` at most once a minute
+(`sql.modules.api-keys.options.touchInterval`, in seconds).
+
+There is no JWT for an API key, so PostgREST can't run its queries. `ctx.db`
+and `ctx.sql` run over direct Postgres instead (pass `postgres` to the
+server), with these claims and the key's tenant as `better_supabase.tenant`:
+
+```json
+{
+  "sub": "<user id, or empty for a tenant key>",
+  "role": "authenticated",
+  "api_key": {
+    "id": "…",
+    "name": "CI",
+    "organization_id": "…",
+    "scopes": ["deals:read"]
+  }
+}
+```
+
+`ctx.supabase` and `ctx.db.$client` throw for an API key caller.
+`authMode` (for `withSupabase` entries) is `user` for a personal key and
+`secret` for a tenant key.
+
+## In RLS
+
+A personal key runs as its user, so existing policies apply. Add
+`has_scope()` where a policy should also respect the key's scopes; it is
+`true` for requests without a key. A tenant key has no user, so give it its
+own policy:
+
+```sql
+create policy deals_read_with_key on public.deals for select to authenticated
+  using (
+    organization_id = (select better_supabase.api_key_tenant())
+    and (select better_supabase.has_scope('deals:read'))
+  );
+```
+
+## SQL
+
+| Function                                      | Grants                          | Returns                                                   |
+| --------------------------------------------- | ------------------------------- | --------------------------------------------------------- |
+| `create_api_key(name, public_id, hash, ...)`  | `authenticated`, `service_role` | The key, without its hash                                 |
+| `list_api_keys(tenant)`                       | `authenticated`, `service_role` | Keys the caller may see                                   |
+| `revoke_api_key(key)`                         | `authenticated`, `service_role` | `true`                                                    |
+| `rotate_api_key(key, public_id, hash, grace)` | `authenticated`, `service_role` | The new key                                               |
+| `verify_api_key(public_id, hash)`             | `service_role`                  | `{ status: 'ok', key }`, `invalid` or `rate_limited`      |
+| `has_scope(scope)`                            | everyone                        | Whether the request's key carries `scope` (or has no key) |
+| `api_key_tenant()`                            | everyone                        | The tenant of the request's key, or `null`                |
+
+Restrict the scopes keys may carry with `sql.modules.api-keys.options.scopes`
+(a list); `create_api_key` then refuses any other with `API_KEY_SCOPE_UNKNOWN`.

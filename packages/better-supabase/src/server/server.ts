@@ -437,6 +437,12 @@ export function createServer<
       ? undefined
       : (options.readUrl?.replace(/\/+$/, "") ?? env().readUrl);
 
+  const apiKeyClient = (): never => {
+    throw new TypeError(
+      "ctx.supabase and ctx.db.$client are not available for an API key: ctx.db and ctx.sql run over direct Postgres with the key's claims",
+    );
+  };
+
   /** Clients for the primary share the service and anon clients; others don't. */
   const supabaseAt = (
     url: string,
@@ -474,6 +480,8 @@ export function createServer<
           ...sharedGlobal,
         });
         return anonClient;
+      case "apiKey":
+        return apiKeyClient();
       default: {
         const exhaustive: never = auth;
         return exhaustive;
@@ -677,6 +685,55 @@ export function createServer<
     };
   };
 
+  /**
+   * An API key's context. There is no JWT for PostgREST, so `ctx.db` and
+   * `ctx.sql` run over direct Postgres with the key's synthesized claims,
+   * scoped to its organization unless the tenant option names another.
+   */
+  const apiKeyContextFor = (
+    resolution: AuthResolution<C, P>,
+    auth: Extract<AuthState, { kind: "apiKey" }>,
+    parent: StatsRecorder | undefined,
+    tenant: string | undefined,
+  ): ServerContext<M, F, E, C, P> => {
+    const scope = tenant ?? auth.organizationId;
+    const base = authContext(auth);
+    const context: RequestContext =
+      scope === undefined ? base : { ...base, tenant: scope };
+    const session: SessionOptions | undefined =
+      scope === undefined
+        ? undefined
+        : { settings: { "better_supabase.tenant": scope } };
+    const recorder = new StatsRecorder(parent);
+    let db: Db<M, F, E, SupabaseClient> | undefined;
+    let sql: Db<M, F, E, undefined> | undefined;
+    return {
+      auth: resolution.auth,
+      resolution,
+      get supabase(): SupabaseClient {
+        return apiKeyClient();
+      },
+      get db() {
+        // SAFETY: `$client` is redefined to throw, so no caller gets a client.
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the repositories are the same; only `$client`'s type differs, and it throws.
+        db ??= Object.defineProperty(
+          sqlFor(auth.claims, context, recorder, session),
+          "$client",
+          { get: apiKeyClient, enumerable: true, configurable: true },
+        ) as unknown as Db<M, F, E, SupabaseClient>;
+        return db;
+      },
+      get sql() {
+        sql ??= sqlFor(auth.claims, context, recorder, session);
+        return sql;
+      },
+      replica: undefined,
+      stats: () => recorder.snapshot(),
+      apply: (response) => resolution.apply(response),
+      cookies: () => resolution.cookies,
+    };
+  };
+
   /** Clients and repositories are built on first access: most scopes use one of them. */
   const contextFor = (
     resolution: AuthResolution<C, P>,
@@ -688,6 +745,8 @@ export function createServer<
   ): ServerContext<M, F, E, C, P> => {
     if (active) return supportContextFor(resolution, active, parent, tenant);
     const { auth } = resolution;
+    if (auth.kind === "apiKey")
+      return apiKeyContextFor(resolution, auth, parent, tenant);
     const context: RequestContext =
       tenant === undefined
         ? authContext(auth)
@@ -830,7 +889,7 @@ export function createServer<
             ? auth.source === "cookie"
               ? "cookie"
               : "bearer"
-            : auth.kind === "service"
+            : auth.kind === "service" || auth.kind === "apiKey"
               ? "bearer"
               : "none",
         ok: auth.kind !== "invalid",

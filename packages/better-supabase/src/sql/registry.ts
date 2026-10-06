@@ -19,6 +19,7 @@ import {
   MODULE_PERMISSIONS,
 } from "./modules/access-model.ts";
 import { ACCESS } from "./modules/access.ts";
+import { API_KEYS } from "./modules/api-keys.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
@@ -1616,6 +1617,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(WEBHOOKS_OUT),
       SESSIONS,
       built(WEBHOOKS_IN),
+      built(API_KEYS),
     ].map((module) => [module.name, module]),
   );
 

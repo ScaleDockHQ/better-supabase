@@ -67,6 +67,14 @@ export type AuthSession<C = unknown, P = unknown> =
       readonly delegation?: SessionDelegation;
     }
   | { readonly kind: "service"; readonly keyName: string }
+  | {
+      readonly kind: "apiKey";
+      readonly keyId: string;
+      readonly name: string;
+      readonly organizationId?: string;
+      readonly userId?: string;
+      readonly scopes: readonly string[];
+    }
   | { readonly kind: "anon"; readonly reason: AnonReason }
   | {
       readonly kind: "invalid";
@@ -113,6 +121,15 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
     }
     case "service":
       return { kind: "service", keyName: auth.keyName };
+    case "apiKey":
+      return {
+        kind: "apiKey",
+        keyId: auth.keyId,
+        name: auth.name,
+        ...(auth.organizationId ? { organizationId: auth.organizationId } : {}),
+        ...(auth.userId ? { userId: auth.userId } : {}),
+        scopes: auth.scopes,
+      };
     case "anon":
       return { kind: "anon", reason: auth.reason };
     case "invalid":

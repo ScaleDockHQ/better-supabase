@@ -228,6 +228,11 @@
       "types": "./dist/blocks/entitlements/index.d.ts",
       "default": "./dist/blocks/entitlements/index.js"
     },
+    "./blocks/api-keys": {
+      "@better-supabase/source": "./src/blocks/api-keys/index.ts",
+      "types": "./dist/blocks/api-keys/index.d.ts",
+      "default": "./dist/blocks/api-keys/index.js"
+    },
     "./openapi": {
       "@better-supabase/source": "./src/openapi/index.ts",
       "types": "./dist/openapi/index.d.ts",
@@ -437,6 +442,10 @@
       "./blocks/entitlements": {
         "types": "./dist/blocks/entitlements/index.d.ts",
         "default": "./dist/blocks/entitlements/index.js"
+      },
+      "./blocks/api-keys": {
+        "types": "./dist/blocks/api-keys/index.d.ts",
+        "default": "./dist/blocks/api-keys/index.js"
       },
       "./openapi": {
         "types": "./dist/openapi/index.d.ts",
