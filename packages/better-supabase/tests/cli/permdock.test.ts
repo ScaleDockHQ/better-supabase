@@ -435,6 +435,51 @@ describe("accessPermdockMode", () => {
     });
   });
 
+  it("passes on the manifest's suspension rows for users and the tenant scope", () => {
+    const users = {
+      table: "public.profiles",
+      id: "id",
+      disabledAt: "banned_at",
+    };
+    const tenant = {
+      table: "public.tenants",
+      id: "id",
+      status: "state",
+      active: ["active"],
+    };
+    const suspended = {
+      ...authz,
+      manifest: parseManifest({
+        ...manifest,
+        rls: {
+          ...manifest.rls,
+          schema: "authz",
+          scopes: [{ name: "tenant", type: "text" }],
+          suspension: {
+            users,
+            scopes: {
+              tenant,
+              team: { table: "public.teams", id: "id" },
+            },
+          },
+        },
+      }),
+    };
+    expect(suspended.manifest.rls?.suspension).toEqual({
+      users,
+      scopes: { tenant },
+    });
+    expect(accessPermdockMode(config(), suspended)).toMatchObject({
+      kind: "permdock",
+      access: { suspension: { users, tenant } },
+    });
+    const none = parseManifest({
+      ...manifest,
+      rls: { ...manifest.rls, suspension: { scopes: { tenant: {} } } },
+    });
+    expect(none.rls?.suspension).toBeUndefined();
+  });
+
   it("lists PermDock's helpers for a named user the manifest advertises", () => {
     const helper = (name: string) => ({
       name,

@@ -45,6 +45,7 @@ export type {
 export type {
   AccessModuleConfig,
   ActiveTenantSource,
+  DisabledRow,
   ModuleMode,
   ModuleConfig,
   ModulesConfig,

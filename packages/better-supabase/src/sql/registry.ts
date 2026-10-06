@@ -1,5 +1,10 @@
 import type { EntitlementPlansSource } from "../config/config.ts";
-import type { ModuleMode, ModulesConfig } from "../config/modules.ts";
+import type {
+  AccessModuleConfig,
+  DisabledRow,
+  ModuleMode,
+  ModulesConfig,
+} from "../config/modules.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
 
@@ -1868,6 +1873,14 @@ export interface ModuleAccessPermdock {
    * table (the manifest's `through` roles). An adopted `tenant` module on
    * one of them reads role names the same way.
    */
+  /**
+   * The manifest's `rls.suspension` rows for users and for the tenant scope.
+   * The `access` module's `disabled` setting defaults to them.
+   */
+  readonly suspension?: {
+    readonly users?: DisabledRow;
+    readonly tenant?: DisabledRow;
+  };
   readonly roleSources?: readonly {
     /** `schema.table` of the memberships. */
     readonly table: string;
@@ -2358,7 +2371,42 @@ export function moduleContext(
  * roles table gets the same `roleThrough`, unless the config sets one.
  */
 function withManifestDefaults(layout: ModuleLayout): ModulesConfig | undefined {
+  return withManifestRoles(layout, withManifestSuspension(layout));
+}
+
+/**
+ * `sql.modules.access.disabled` from the manifest's `rls.suspension` under
+ * the `permdock` model, per subject, unless the config sets that subject.
+ */
+function withManifestSuspension(
+  layout: ModuleLayout,
+): ModulesConfig | undefined {
   const modules = layout.modules;
+  const suspension = layout.accessPermdock?.suspension;
+  const access = modules?.access;
+  if (!modules || !suspension || access?.model !== "permdock") return modules;
+  const configured = access.disabled ?? {};
+  const disabled: NonNullable<AccessModuleConfig["disabled"]> = {
+    ...configured,
+    ...(configured.tenant === undefined && suspension.tenant
+      ? { tenant: suspension.tenant }
+      : {}),
+    ...(configured.user === undefined && suspension.users
+      ? { user: suspension.users }
+      : {}),
+  };
+  if (
+    disabled.tenant === configured.tenant &&
+    disabled.user === configured.user
+  )
+    return modules;
+  return { ...modules, access: { ...access, disabled } };
+}
+
+function withManifestRoles(
+  layout: ModuleLayout,
+  modules: ModulesConfig | undefined,
+): ModulesConfig | undefined {
   const sources = layout.accessPermdock?.roleSources;
   const tenant = modules?.["tenant"];
   if (!modules || !sources || tenant?.mode !== "adopt") return modules;

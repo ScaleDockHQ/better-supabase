@@ -41,6 +41,14 @@ const moduleEntries = {
   events: v.optional(v.boolean()),
 };
 
+const disabledRow = v.strictObject({
+  table: v.string(),
+  id: v.string(),
+  disabledAt: v.optional(v.string()),
+  status: v.optional(v.string()),
+  active: v.optional(strings),
+});
+
 const accessModule = v.strictObject({
   ...moduleEntries,
   model: v.optional(v.picklist(["roles", "catalog", "permdock", "custom"])),
@@ -58,8 +66,8 @@ const accessModule = v.strictObject({
   platformClaim: v.optional(v.string()),
   disabled: v.optional(
     v.strictObject({
-      tenant: v.optional(v.string()),
-      user: v.optional(v.string()),
+      tenant: v.optional(v.union([v.string(), disabledRow])),
+      user: v.optional(v.union([v.string(), disabledRow])),
       userKey: v.optional(v.string()),
     }),
   ),

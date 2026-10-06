@@ -182,9 +182,20 @@ function disabling(
   ctx: ModuleContext,
 ): { table: string; key: string; column: string } | undefined {
   const configured = ctx.modules.access?.disabled?.tenant;
-  if (configured) {
+  if (typeof configured === "string") {
     const ref = columnRef("sql.modules.access.disabled.tenant", configured);
     return { table: ref.table, key: '"id"', column: ref.column };
+  }
+  if (configured) {
+    if (configured.disabledAt === undefined) return undefined;
+    return {
+      table: configured.table
+        .split(".")
+        .map((part) => sqlIdent(part))
+        .join("."),
+      key: sqlIdent(configured.id),
+      column: sqlIdent(configured.disabledAt),
+    };
   }
   if (!ctx.installed("organizations")) return undefined;
   const organizations = ctx.of("organizations");

@@ -82,6 +82,23 @@ export const DEFAULT_ACTIVE_TENANT: ActiveTenantSource = "resolver";
  * `can(scope, id, permission)`, `tenant_ids_with(permission)`,
  * `is_platform(permission)` and `can_user(user, scope, id, permission)`.
  */
+/**
+ * A table whose row says whether a tenant or a user is active, in the shape
+ * of PermDock's `rls.suspension` rows. Needs `disabledAt`, `status` with
+ * `active`, or both.
+ */
+export interface DisabledRow {
+  /** `schema.table`. */
+  readonly table: string;
+  /** The column holding the tenant id or the user id. */
+  readonly id: string;
+  /** A nullable timestamp column; a row with a value is disabled. */
+  readonly disabledAt?: string;
+  /** A status column; only a row whose value is in `active` is active. */
+  readonly status?: string;
+  readonly active?: readonly string[];
+}
+
 export interface AccessModuleConfig extends ModuleConfig {
   /**
    * `roles`: a fixed role list from `roles` (the default). `catalog`: role,
@@ -126,13 +143,18 @@ export interface AccessModuleConfig extends ModuleConfig {
    */
   readonly platformClaim?: string;
   /**
-   * Columns that disable a tenant or a user when set, as
-   * `schema.table.column`, keyed by the table's `id` (tenant) or the column
-   * named in `userKey` (user). Disabled tenants and users get no permissions.
+   * What disables a tenant or a user. A string is a column that disables
+   * when set, as `schema.table.column`, keyed by the table's `id` (tenant)
+   * or the column named in `userKey` (user). An object is PermDock's
+   * active-row shape (`rls.suspension`): only a row whose `disabledAt` is
+   * null and whose `status` is in `active` is active, and a missing row
+   * counts as disabled. Disabled tenants and users get no permissions.
+   * Under the `permdock` model both default to the manifest's
+   * `rls.suspension`.
    */
   readonly disabled?: {
-    readonly tenant?: string;
-    readonly user?: string;
+    readonly tenant?: string | DisabledRow;
+    readonly user?: string | DisabledRow;
     readonly userKey?: string;
   };
   readonly activeTenant?: ActiveTenantSource;

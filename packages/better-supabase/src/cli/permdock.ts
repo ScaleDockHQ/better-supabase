@@ -57,6 +57,53 @@ interface ManifestMembership {
   readonly columns: readonly string[];
 }
 
+/** A row whose `disabledAt` and `status` say whether a user or scope instance is active. */
+interface ManifestActiveRow {
+  readonly table: string;
+  readonly id: string;
+  readonly disabledAt?: string;
+  readonly status?: string;
+  readonly active?: readonly string[];
+}
+
+function activeRow(value: unknown): ManifestActiveRow | undefined {
+  if (!isRecord(value) || !isString(value["table"]) || !isString(value["id"]))
+    return undefined;
+  const disabledAt = isString(value["disabledAt"])
+    ? value["disabledAt"]
+    : undefined;
+  const status = isString(value["status"]) ? value["status"] : undefined;
+  const active = strings(value["active"]);
+  if (disabledAt === undefined && (status === undefined || active.length === 0))
+    return undefined;
+  return {
+    table: value["table"],
+    id: value["id"],
+    ...(disabledAt === undefined ? {} : { disabledAt }),
+    ...(status === undefined || active.length === 0 ? {} : { status, active }),
+  };
+}
+
+function suspensionOf(
+  value: unknown,
+): NonNullable<NonNullable<PermdockManifest["rls"]>["suspension"]> | undefined {
+  if (!isRecord(value)) return undefined;
+  const users = activeRow(value["users"]);
+  const scopes = isRecord(value["scopes"])
+    ? Object.fromEntries(
+        Object.entries(value["scopes"]).flatMap(([name, row]) => {
+          const parsed = activeRow(row);
+          return parsed ? [[name, parsed] as const] : [];
+        }),
+      )
+    : {};
+  if (!users && Object.keys(scopes).length === 0) return undefined;
+  return {
+    ...(users ? { users } : {}),
+    ...(Object.keys(scopes).length > 0 ? { scopes } : {}),
+  };
+}
+
 interface ManifestHelper {
   readonly name: string;
   readonly args: string;
@@ -98,6 +145,11 @@ export interface PermdockManifest {
      * PermDock that didn't write it; the hook's `memberships` stand in.
      */
     readonly memberships?: readonly ManifestMembership[];
+    /** `rls.suspension`: rows that say whether a user or a scope instance is active. */
+    readonly suspension?: {
+      readonly users?: ManifestActiveRow;
+      readonly scopes?: Readonly<Record<string, ManifestActiveRow>>;
+    };
   };
   /** `schema.table.column`. */
   readonly decidingColumns: readonly string[];
@@ -199,6 +251,9 @@ export function parseManifest(json: unknown): PermdockManifest {
     );
   }
   const budget = isRecord(json["budget"]) ? json["budget"]["bytes"] : undefined;
+  const suspension = isRecord(rls)
+    ? suspensionOf(rls["suspension"])
+    : undefined;
   return {
     version: 1,
     ...(typeof budget === "number" ? { budget } : {}),
@@ -271,6 +326,7 @@ export function parseManifest(json: unknown): PermdockManifest {
                   }),
                 }
               : {}),
+            ...(suspension ? { suspension } : {}),
           },
         }
       : {}),
@@ -639,12 +695,22 @@ export function accessPermdockMode(
     permitted: helpers.has(`permitted_${chosen.scope}_ids_for`),
     canAssign: helpers.has("permdock_can_assign_for"),
   };
+  const users = chosen.rls.suspension?.users;
+  const tenant = chosen.rls.suspension?.scopes?.[chosen.scope];
   return {
     kind: "permdock",
     access: {
       schema: chosen.rls.schema,
       scope: chosen.scope,
       idType: chosen.idType,
+      ...(users || tenant
+        ? {
+            suspension: {
+              ...(users ? { users } : {}),
+              ...(tenant ? { tenant } : {}),
+            },
+          }
+        : {}),
       ...(roleSources.length > 0 ? { roleSources } : {}),
       ...(forUser.has || forUser.permitted || forUser.canAssign
         ? { forUser }

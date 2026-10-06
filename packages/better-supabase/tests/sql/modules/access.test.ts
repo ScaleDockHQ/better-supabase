@@ -122,6 +122,89 @@ describe("access module", () => {
     expect(sql).not.toContain("permitted_organization_ids");
   });
 
+  it("disables tenants and users from the manifest's suspension rows", () => {
+    const suspension = {
+      users: { table: "public.profiles", id: "id", disabledAt: "banned_at" },
+      tenant: {
+        table: "public.organizations",
+        id: "id",
+        status: "state",
+        active: ["active", "trial"],
+      },
+    };
+    const sql = moduleBody("access", {
+      modules: { access: { model: "permdock" } },
+      accessPermdock: {
+        schema: "authz",
+        scope: "tenant",
+        idType: "text",
+        suspension,
+      },
+    })!;
+    expect(sql).toContain(
+      `not exists (select 1 from "public"."organizations" t where t."id" = tenant_disabled.tenant and t."state"::text in ('active', 'trial'))`,
+    );
+    expect(sql).toContain(
+      `not exists (select 1 from "public"."profiles" u where u."id" = user_disabled.user_id and u."banned_at" is null)`,
+    );
+    const explicit = moduleBody("access", {
+      modules: {
+        access: {
+          model: "permdock",
+          disabled: { user: "public.accounts.disabled_at", userKey: "owner" },
+        },
+      },
+      accessPermdock: {
+        schema: "authz",
+        scope: "tenant",
+        idType: "text",
+        suspension,
+      },
+    })!;
+    expect(explicit).toContain(
+      `exists (select 1 from "public"."accounts" u where u."owner" = user_disabled.user_id and u."disabled_at" is not null)`,
+    );
+    expect(explicit).toContain(`t."state"::text in ('active', 'trial')`);
+    const roles = moduleBody("access", {
+      modules: { access: { model: "roles" } },
+      accessPermdock: {
+        schema: "authz",
+        scope: "tenant",
+        idType: "text",
+        suspension,
+      },
+    })!;
+    expect(roles).not.toContain("banned_at");
+  });
+
+  it("refuses a disabled row without a column that says so", () => {
+    const render = (row: object) =>
+      moduleBody("access", {
+        modules: {
+          access: {
+            disabled: {
+              tenant: { table: "public.organizations", id: "id", ...row },
+            },
+          },
+        },
+      });
+    expect(() => render({})).toThrow(/needs disabledAt, status or both/);
+    expect(() => render({ status: "state" })).toThrow(
+      /needs the active values/,
+    );
+    expect(() =>
+      moduleBody("access", {
+        modules: {
+          access: {
+            disabled: {
+              user: { table: "profiles", id: "id", disabledAt: "x" },
+            },
+          },
+        },
+      }),
+    ).toThrow(/must be "schema.table"/);
+  });
+
   it("answers for another user through PermDock's _for helpers", () => {
     const callerOnly = access({
       model: "permdock",
