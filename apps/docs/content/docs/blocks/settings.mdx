@@ -1,0 +1,112 @@
+---
+title: Settings
+description: Per-user and per-organization settings with a Standard Schema per key, defaults, typed get and set, and matching pg_jsonschema checks.
+---
+
+The `settings` block stores preferences as key-value rows: one table for each
+user's own settings and one for organization settings. You declare the keys
+once with a Standard Schema each (Zod, Valibot, ArkType), and the block gives
+you typed `get`, `set` and `reset` that validate before they write.
+
+```bash
+better-supabase sql add settings   # adds tenant and access as well
+```
+
+| Table                   | Key                      | Who reads                    | Who writes                     |
+| ----------------------- | ------------------------ | ---------------------------- | ------------------------------ |
+| `user_settings`         | `(user_id, key)`         | the user                     | the user                       |
+| `organization_settings` | `(organization_id, key)` | members with `settings.read` | members with `settings.update` |
+
+The default roles give `admin` both permissions and `member` the first.
+Rename them with `sql.modules.settings.permissions`. Both tables keep
+`updated_by` and `updated_at`, and the functions run as the caller, so the
+row level security policies decide every read and write.
+
+## Declaring settings
+
+```ts title="src/lib/settings.ts"
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import { defineSettings } from "better-supabase/blocks/settings";
+import * as v from "valibot";
+
+export const settings = defineSettings({
+  user: {
+    theme: {
+      schema: toStandardJsonSchema(v.picklist(["light", "dark", "system"])),
+      default: "system",
+    },
+    digest: { schema: v.object({ weekly: v.boolean() }) },
+  },
+  organization: {
+    defaultRole: {
+      schema: toStandardJsonSchema(v.picklist(["member", "viewer"])),
+      default: "member",
+    },
+  },
+});
+```
+
+A key without a `default` reads as `undefined` until it is set. A stored
+value that no longer matches its schema (after you narrow an enum, for
+example) also reads as the default, so old rows never break a page.
+
+## Reading and writing
+
+```ts title="app/settings/actions.ts"
+import { rpcTransport } from "better-supabase/blocks/settings";
+
+import { settings } from "@/lib/settings";
+
+const client = settings.connect({ transport: rpcTransport(supabase) });
+
+const theme = await client.user.get("theme").orThrow(); // "light" | "dark" | "system"
+await client.user.set("theme", "dark").orThrow();
+await client.user.reset("theme"); // back to the default
+
+const all = await client.organization.get(organizationId).orThrow();
+await client.organization.set(organizationId, "defaultRole", "viewer");
+```
+
+`set` returns a `validation` error with the schema's issues when the value
+doesn't match, and an `invalid_input` error for a key you didn't declare;
+neither reaches the database. Use `sqlTransport(postgres.asUser(claims))`
+instead of `rpcTransport` to call the functions over Postgres; with
+`rpcTransport` the module schema must be exposed in `config.toml`.
+
+## Checks in the database
+
+Pass the definition to the module, and keys whose schema implements
+[Standard JSON Schema](https://standardschema.dev/json-schema) get a
+`pg_jsonschema` check, so writes that skip TypeScript are held to the same
+shape. Zod 4 schemas implement it directly; wrap Valibot schemas in
+`toStandardJsonSchema`:
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+import { settings } from "./src/lib/settings.ts";
+
+export default defineConfig({
+  sql: {
+    modules: {
+      settings: { options: { schemas: settings } },
+    },
+  },
+});
+```
+
+```bash
+better-supabase sql add jsonb-schemas settings
+```
+
+The checks need the `jsonb-schemas` module, which installs `pg_jsonschema`.
+Each one is named `bs_json_value_<key>` and applies only to rows with that
+key. `options.schemas` also takes plain `{ user, organization }` maps of key to
+JSON Schema. Keys whose schema has no JSON Schema (`digest` above) are
+validated in TypeScript only.
+
+## Options
+
+| Option    | Default | What it does                                                         |
+| --------- | ------- | -------------------------------------------------------------------- |
+| `schemas` | none    | A `defineSettings()` result or `{ user, organization }` JSON Schemas |

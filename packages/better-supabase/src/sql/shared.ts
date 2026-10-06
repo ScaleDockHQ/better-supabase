@@ -282,3 +282,39 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.replace_equivalent_triggers(regclass, text, text, boolean) from public, anon, authenticated;`;
+
+/** A `pg_jsonschema` check on a jsonb column, for the `jsonb-schemas` module and key-value tables. */
+export interface JsonSchemaCheck {
+  /** `table` or `schema.table`. */
+  readonly table: string;
+  readonly column: string;
+  readonly schema: Readonly<Record<string, unknown>>;
+  /** Checks only rows whose `where.column` equals `where.value` (a settings key). */
+  readonly where?: { readonly column: string; readonly value: string };
+}
+
+export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
+  if (checks.length === 0) return "";
+  const statements = checks.map((check) => {
+    const [schema, table] = check.table.includes(".")
+      ? check.table.split(".", 2)
+      : ["public", check.table];
+    const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
+    const suffix = check.where
+      ? `_${check.where.value.replaceAll(/[^a-z0-9_]/gi, "_")}`
+      : "";
+    const name = sqlIdent(`bs_json_${check.column}${suffix}`.slice(0, 63));
+    const matches = `extensions.jsonb_matches_schema(${sqlString(JSON.stringify(check.schema))}::json, ${sqlIdent(check.column)})`;
+    return [
+      `alter table ${target} drop constraint if exists ${name};`,
+      `alter table ${target} add constraint ${name}`,
+      `  check (${check.where ? `${sqlIdent(check.where.column)} <> ${sqlString(check.where.value)} or ` : ""}${matches}) not valid;`,
+      `alter table ${target} validate constraint ${name};`,
+    ].join("\n");
+  });
+  return `\n-- config.json schemas
+-- Each check is added not valid and validated separately. On a large table,
+-- move the validate statements to a later migration: the add modules writes
+-- only briefly, and validating takes a lock that lets writes continue.
+${statements.join("\n\n")}\n`;
+}

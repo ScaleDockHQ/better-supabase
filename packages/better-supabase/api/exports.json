@@ -1222,6 +1222,26 @@
       "ParsedApiKey"
     ]
   },
+  "./blocks/settings": {
+    "values": [
+      "defineSettings",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "OrganizationSettings",
+      "SettingEntries",
+      "SettingEntry",
+      "SettingInputs",
+      "SettingsClient",
+      "SettingsConnectOptions",
+      "SettingsDefinition",
+      "SettingsSpec",
+      "SettingValues",
+      "UserSettings"
+    ]
+  },
   "./openapi": {
     "values": [
       "createOpenApi",

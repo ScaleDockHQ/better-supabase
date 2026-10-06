@@ -238,6 +238,11 @@
       "types": "./dist/blocks/audit/index.d.ts",
       "default": "./dist/blocks/audit/index.js"
     },
+    "./blocks/settings": {
+      "@better-supabase/source": "./src/blocks/settings/index.ts",
+      "types": "./dist/blocks/settings/index.d.ts",
+      "default": "./dist/blocks/settings/index.js"
+    },
     "./openapi": {
       "@better-supabase/source": "./src/openapi/index.ts",
       "types": "./dist/openapi/index.d.ts",
@@ -455,6 +460,10 @@
       "./blocks/audit": {
         "types": "./dist/blocks/audit/index.d.ts",
         "default": "./dist/blocks/audit/index.js"
+      },
+      "./blocks/settings": {
+        "types": "./dist/blocks/settings/index.d.ts",
+        "default": "./dist/blocks/settings/index.js"
       },
       "./openapi": {
         "types": "./dist/openapi/index.d.ts",
