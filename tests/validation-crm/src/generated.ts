@@ -16943,20 +16943,20 @@ export type Functions = {
       p_quote_id: string | null;
       p_user_agent?: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   accrue_time_off: {
     Args: {
       p_on?: string | null;
       p_organization_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   acknowledge_equipment_assignment: {
     Args: {
       p_assignment_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   actor_may_assign_role: {
     Args: {
@@ -16964,7 +16964,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_role_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   add_task_material_from_quote: {
     Args: {
@@ -16974,7 +16974,7 @@ export type Functions = {
       p_quote_id: string | null;
       p_task_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   agenda_default_time_zone: {
     Args: {
@@ -16982,7 +16982,7 @@ export type Functions = {
       p_prefer_profile?: boolean | null;
       p_user_id?: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   agenda_user_has_org_permission: {
     Args: {
@@ -16990,7 +16990,7 @@ export type Functions = {
       p_permission: string | null;
       p_user_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   allocate_order: {
     Args: {
@@ -17021,14 +17021,14 @@ export type Functions = {
       p_reason: string | null;
       p_task_material_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   allocate_username: {
     Args: {
       p_base: string | null;
       p_user_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   allocation_owner_quantity: {
     Args: {
@@ -17038,7 +17038,7 @@ export type Functions = {
       p_state: "reserved" | "consumed" | "backordered" | null;
       p_task_material_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   allocation_owner_variant: {
     Args: {
@@ -17048,11 +17048,11 @@ export type Functions = {
       p_quote_version_line_id: string | null;
       p_task_material_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   anonymize_expired_candidates: {
     Args: Record<never, never>;
-    Returns: number;
+    Returns: number | null;
   };
   apply_task_material_consumption: {
     Args: {
@@ -17091,7 +17091,7 @@ export type Functions = {
       arg2: number | null;
       arg3: boolean | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   assign_task_agenda_projection: {
     Args: {
@@ -17102,7 +17102,7 @@ export type Functions = {
       p_task_id: string | null;
       p_user_ids: string[] | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   attach_permissions: {
     Args: {
@@ -17117,7 +17117,7 @@ export type Functions = {
       p_scope: "system" | "organization" | "user" | "team" | null;
       p_scope_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   authorize_scope_batch: {
     Args: {
@@ -17125,7 +17125,7 @@ export type Functions = {
       p_scope: "system" | "organization" | "user" | "team" | null;
       p_scope_id: string | null;
     };
-    Returns: string[];
+    Returns: string[] | null;
   };
   begin_ai_chat_turn: {
     Args: {
@@ -17161,14 +17161,14 @@ export type Functions = {
     Args: {
       p_run_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   can_access_employee: {
     Args: {
       p_employee_id: string | null;
       p_permission: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   can_access_file_storage_object: {
     Args: {
@@ -17176,7 +17176,7 @@ export type Functions = {
       p_object_name: string | null;
       p_operation: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   can_create_file_child: {
     Args: {
@@ -17184,19 +17184,19 @@ export type Functions = {
       p_organization_id: string | null;
       p_parent_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   can_decide_approval_request: {
     Args: {
       p_request: Database["public"]['Tables']["approval_requests"]['Row'] | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   can_emit_workflow_event: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   can_read_knowledge_collection_row: {
     Args: {
@@ -17205,7 +17205,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_visibility: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   can_read_workflow_definition_row: {
     Args: {
@@ -17216,7 +17216,7 @@ export type Functions = {
       p_status: string | null;
       p_visibility: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   cancel_order: {
     Args: {
@@ -17224,7 +17224,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_reason?: string | null;
     };
-    Returns: "draft" | "confirmed" | "on_hold" | "completed" | "cancelled";
+    Returns: "draft" | "confirmed" | "on_hold" | "completed" | "cancelled" | null;
   };
   cancel_shipment: {
     Args: {
@@ -17243,124 +17243,124 @@ export type Functions = {
     Args: {
       arg1: boolean | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   citext_cmp: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   citext_eq: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   citext_ge: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   citext_gt: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   citext_hash: {
     Args: {
       arg1: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   citext_hash_extended: {
     Args: {
       arg1: string | null;
       arg2: number | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   citext_larger: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   citext_le: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   citext_lt: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   citext_ne: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   citext_pattern_cmp: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   citext_pattern_ge: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   citext_pattern_gt: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   citext_pattern_le: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   citext_pattern_lt: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   citext_smaller: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   citextin: {
     Args: {
       arg1: unknown | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   citextout: {
     Args: {
@@ -17372,7 +17372,7 @@ export type Functions = {
     Args: {
       arg1: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   claim_agenda_external_calendars_for_sync: {
     Args: {
@@ -17380,7 +17380,7 @@ export type Functions = {
       p_min_age_seconds?: number | null;
       p_stale_seconds?: number | null;
     };
-    Returns: { "agendaCollectionId": string; "organizationId": string }[];
+    Returns: { "agendaCollectionId": string | null; "organizationId": string | null }[];
   };
   claim_ai_agent_tool_checkpoint: {
     Args: {
@@ -17398,13 +17398,13 @@ export type Functions = {
       p_organization_id: string | null;
       p_thread_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   claim_due_people_reminders: {
     Args: {
       p_on: string | null;
     };
-    Returns: { "dueOn": string; "employeeId": string; "employeeName": string; "kind": string; "label": string; "organizationId": string; "recipientUserIds": string[]; "subjectId": string }[];
+    Returns: { "dueOn": string | null; "employeeId": string | null; "employeeName": string | null; "kind": string | null; "label": string | null; "organizationId": string | null; "recipientUserIds": string[] | null; "subjectId": string | null }[];
   };
   claim_due_workflow_schedules: {
     Args: {
@@ -17438,7 +17438,7 @@ export type Functions = {
       p_stripe_event_id: string | null;
       p_type: string | null;
     };
-    Returns: { "claimId": string; "disposition": string; "eventId": string; "processingStartedAt": string }[];
+    Returns: { "claimId": string | null; "disposition": string | null; "eventId": string | null; "processingStartedAt": string | null }[];
   };
   claim_webhook_deliveries: {
     Args: {
@@ -17468,13 +17468,13 @@ export type Functions = {
       p_event_id: string | null;
       p_succeeded: boolean | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   compute_customer_sort_name: {
     Args: {
       p_customer_id: number | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   compute_time_off_hours: {
     Args: {
@@ -17486,7 +17486,7 @@ export type Functions = {
       p_start_time?: string | null;
       p_starts_on: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   confirm_order: {
     Args: {
@@ -17506,14 +17506,14 @@ export type Functions = {
       p_reason: string | null;
       p_task_material_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   consume_approval_request: {
     Args: {
       p_input_fingerprint?: string | null;
       p_request_id: string | null;
     };
-    Returns: Models["approvalRequests"]['Row'];
+    Returns: Models["approvalRequests"]['Row'] | null;
   };
   consume_free_product_stock: {
     Args: {
@@ -17525,7 +17525,7 @@ export type Functions = {
       p_quantity: number | null;
       p_reason: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   copy_comment_thread: {
     Args: {
@@ -17542,13 +17542,13 @@ export type Functions = {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   count_unread_inbox_threads: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   create_agenda_item_aggregate: {
     Args: {
@@ -17557,7 +17557,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_user_ids: string[] | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   create_ai_contextual_artifact: {
     Args: {
@@ -17595,7 +17595,7 @@ export type Functions = {
       p_org_id: string | null;
       p_phone: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   create_file_copy_operation: {
     Args: {
@@ -17607,7 +17607,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_source_node_ids: string[] | null;
     };
-    Returns: Models["fileCopyOperations"]['Row'];
+    Returns: Models["fileCopyOperations"]['Row'] | null;
   };
   create_file_version: {
     Args: {
@@ -17620,7 +17620,7 @@ export type Functions = {
       p_storage_bucket: string | null;
       p_storage_path: string | null;
     };
-    Returns: Models["fileVersions"]['Row'];
+    Returns: Models["fileVersions"]['Row'] | null;
   };
   create_file_zip_export: {
     Args: {
@@ -17632,7 +17632,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_source_node_ids: string[] | null;
     };
-    Returns: Models["fileZipExports"]['Row'];
+    Returns: Models["fileZipExports"]['Row'] | null;
   };
   create_invoice_aggregate: {
     Args: {
@@ -17641,7 +17641,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_task_ids: string[] | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   create_organization_for_current_user: {
     Args: {
@@ -17658,14 +17658,14 @@ export type Functions = {
       p_socials?: Json | null;
       p_website?: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   create_purchase_orders_from_reorder: {
     Args: {
       p_organization_id: string | null;
       p_variant_ids?: string[] | null;
     };
-    Returns: string[];
+    Returns: string[] | null;
   };
   create_shipment: {
     Args: {
@@ -17676,13 +17676,13 @@ export type Functions = {
       p_organization_id: string | null;
       p_purchase_order_id?: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   current_employee_id: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   custom_access_token_hook: {
     Args: {
@@ -17788,7 +17788,7 @@ export type Functions = {
       p_comment?: string | null;
       p_request_id: string | null;
     };
-    Returns: Models["approvalRequests"]['Row'];
+    Returns: Models["approvalRequests"]['Row'] | null;
   };
   delete_organization_for_current_user: {
     Args: {
@@ -17810,54 +17810,54 @@ export type Functions = {
       p_full_name: string | null;
       p_last_name: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   easter_sunday: {
     Args: {
       p_year: number | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   employee_contract_on: {
     Args: {
       p_date: string | null;
       p_employee_id: string | null;
     };
-    Returns: Models["employeeContracts"]['Row'];
+    Returns: Models["employeeContracts"]['Row'] | null;
   };
   employee_cycle_week: {
     Args: {
       p_date: string | null;
       p_employee_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   employee_hourly_cost: {
     Args: {
       p_date: string | null;
       p_employee_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   employee_scheduled_hours: {
     Args: {
       p_date: string | null;
       p_employee_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   employee_week_summary: {
     Args: {
       p_employee_id: string | null;
       p_week_start: string | null;
     };
-    Returns: { "day": string; "isHoliday": boolean; "loggedHours": number; "scheduledHours": number; "timeOffHours": number }[];
+    Returns: { "day": string | null; "isHoliday": boolean | null; "loggedHours": number | null; "scheduledHours": number | null; "timeOffHours": number | null }[];
   };
   ensure_agenda_planning_calendar: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   ensure_all_permissions: {
     Args: Record<never, never>;
@@ -17872,32 +17872,32 @@ export type Functions = {
       p_subject_type: string | null;
       p_task_id?: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   ensure_contact_profile_for_user: {
     Args: {
       p_user_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   ensure_customer_file_folder: {
     Args: {
       p_customer_id: number | null;
       p_organization_id: string | null;
     };
-    Returns: Models["fileNodes"]['Row'];
+    Returns: Models["fileNodes"]['Row'] | null;
   };
   ensure_customer_file_folders: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   ensure_customers_file_drive: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   ensure_notification_subscription: {
     Args: {
@@ -17906,7 +17906,7 @@ export type Functions = {
       p_subject_type: string | null;
       p_user_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   ensure_people_defaults: {
     Args: {
@@ -17922,7 +17922,7 @@ export type Functions = {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: { "companyDriveId": string; "personalDriveId": string }[];
+    Returns: { "companyDriveId": string | null; "personalDriveId": string | null }[];
   };
   evaluate_promotion: {
     Args: {
@@ -17941,7 +17941,7 @@ export type Functions = {
     Args: {
       p_role: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   fill_backorders: {
     Args: {
@@ -17949,7 +17949,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_variant_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   fill_variant_backorders: {
     Args: {
@@ -17957,7 +17957,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_variant_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   finalize_file_copy_item: {
     Args: {
@@ -17965,7 +17965,7 @@ export type Functions = {
       p_storage_bucket: string | null;
       p_storage_path: string | null;
     };
-    Returns: Models["fileCopyOperationItems"]['Row'];
+    Returns: Models["fileCopyOperationItems"]['Row'] | null;
   };
   finalize_file_upload: {
     Args: {
@@ -17974,13 +17974,13 @@ export type Functions = {
       p_etag?: string | null;
       p_reservation_id: string | null;
     };
-    Returns: Models["fileUploadReservations"]['Row'];
+    Returns: Models["fileUploadReservations"]['Row'] | null;
   };
   find_expense_duplicates: {
     Args: {
       p_expense_id: string | null;
     };
-    Returns: { "expenseId": string; "reason": string }[];
+    Returns: { "expenseId": string | null; "reason": string | null }[];
   };
   finish_ai_agent_tool: {
     Args: {
@@ -18003,7 +18003,7 @@ export type Functions = {
       p_tool_name: string | null;
       p_workflow_run_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   finish_inbox_automation: {
     Args: {
@@ -18013,7 +18013,7 @@ export type Functions = {
       p_source_message_id: string | null;
       p_status: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   fulfill_digital_order: {
     Args: {
@@ -18067,7 +18067,7 @@ export type Functions = {
       p_thread_id: string | null;
       p_workflow_run_id: string | null;
     };
-    Returns: { "authorizedIntegrationIds": string[]; "organizationPermissionKeys": string[]; "systemPermissionKeys": string[] }[];
+    Returns: { "authorizedIntegrationIds": string[] | null; "organizationPermissionKeys": string[] | null; "systemPermissionKeys": string[] | null }[];
   };
   get_ai_chat_suggestion_snapshot: {
     Args: {
@@ -18082,39 +18082,39 @@ export type Functions = {
       p_at?: string | null;
       p_organization_id: string | null;
     };
-    Returns: { "allowed": boolean; "code": string; "reason": string }[];
+    Returns: { "allowed": boolean | null; "code": string | null; "reason": string | null }[];
   };
   get_employee_history: {
     Args: {
       p_employee_id: string | null;
       p_limit?: number | null;
     };
-    Returns: { "actorDisplayName": string; "actorId": string; "eventType": string; "id": string; "occurredAt": string; "targetId": string; "targetType": string }[];
+    Returns: { "actorDisplayName": string | null; "actorId": string | null; "eventType": string | null; "id": string | null; "occurredAt": string | null; "targetId": string | null; "targetType": string | null }[];
   };
   get_file_node_path: {
     Args: {
       p_max_depth?: number | null;
       p_node_id: string | null;
     };
-    Returns: { "createdAt": string; "createdBy": string; "currentVersionId": string; "deletedAt": string; "depth": number; "driveId": string; "externalId": string; "externalMetadata": Json; "id": string; "kind": string; "name": string; "organizationId": string; "parentId": string; "source": string; "updatedAt": string }[];
+    Returns: { "createdAt": string | null; "createdBy": string | null; "currentVersionId": string | null; "deletedAt": string | null; "depth": number | null; "driveId": string | null; "externalId": string | null; "externalMetadata": Json; "id": string | null; "kind": string | null; "name": string | null; "organizationId": string | null; "parentId": string | null; "source": string | null; "updatedAt": string | null }[];
   };
   get_file_retention_days: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   get_file_storage_quota_bytes: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   get_file_storage_summary: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: { "availableBytes": number; "quotaBytes": number; "reservedBytes": number; "retentionDays": number; "segments": Json; "storedBytes": number }[];
+    Returns: { "availableBytes": number | null; "quotaBytes": number | null; "reservedBytes": number | null; "retentionDays": number | null; "segments": Json; "storedBytes": number | null }[];
   };
   get_invitation_by_token: {
     Args: {
@@ -18181,7 +18181,7 @@ export type Functions = {
       arg1: unknown | null;
       arg2: number[] | null;
     };
-    Returns: number[];
+    Returns: number[] | null;
   };
   halfvec_add: {
     Args: {
@@ -18201,14 +18201,14 @@ export type Functions = {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   halfvec_combine: {
     Args: {
       arg1: number[] | null;
       arg2: number[] | null;
     };
-    Returns: number[];
+    Returns: number[] | null;
   };
   halfvec_concat: {
     Args: {
@@ -18222,21 +18222,21 @@ export type Functions = {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   halfvec_ge: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   halfvec_gt: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   halfvec_in: {
     Args: {
@@ -18251,21 +18251,21 @@ export type Functions = {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   halfvec_le: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   halfvec_lt: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   halfvec_mul: {
     Args: {
@@ -18279,14 +18279,14 @@ export type Functions = {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   halfvec_negative_inner_product: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   halfvec_out: {
     Args: {
@@ -18298,14 +18298,14 @@ export type Functions = {
     Args: {
       arg1: unknown | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   halfvec_spherical_distance: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   halfvec_sub: {
     Args: {
@@ -18320,7 +18320,7 @@ export type Functions = {
       arg2: number | null;
       arg3: boolean | null;
     };
-    Returns: number[];
+    Returns: number[] | null;
   };
   halfvec_to_sparsevec: {
     Args: {
@@ -18336,20 +18336,20 @@ export type Functions = {
       arg2: unknown | null;
       arg3: boolean | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   halfvec_typmod_in: {
     Args: {
       arg1: unknown[] | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   hamming_distance: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   has_agenda_collection_access: {
     Args: {
@@ -18357,20 +18357,20 @@ export type Functions = {
       p_min_role?: string | null;
       p_organization_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   has_any_org_permission: {
     Args: {
       p_org_id: string | null;
       p_permissions: string[] | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   has_chat_thread_access: {
     Args: {
       p_thread_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   has_comment_subject_permission: {
     Args: {
@@ -18378,53 +18378,53 @@ export type Functions = {
       p_organization_id: string | null;
       p_subject_type: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   has_comment_thread_permission: {
     Args: {
       p_action: string | null;
       p_thread_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   has_file_drive_access: {
     Args: {
       p_drive_id: string | null;
       p_min_role?: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   has_file_node_access: {
     Args: {
       p_min_role?: string | null;
       p_node_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   has_knowledge_collection_access: {
     Args: {
       p_collection_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   has_org_permission: {
     Args: {
       p_org_id: string | null;
       p_permission: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   has_workflow_definition_access: {
     Args: {
       p_definition_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   has_workflow_run_access: {
     Args: {
       p_run_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   hydrate_task_list_items: {
     Args: {
@@ -18437,96 +18437,96 @@ export type Functions = {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   inventory_reorder_suggestions: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: { "available": number; "currency": string; "incoming": number; "productId": string; "productName": string; "productSupplierLinkId": string; "reorderPoint": number; "sku": string; "suggestedQuantity": number; "supplierId": string; "supplierName": string; "supplierSku": string; "unitCost": number; "variantId": string; "variantTitle": string }[];
+    Returns: { "available": number | null; "currency": string | null; "incoming": number | null; "productId": string | null; "productName": string | null; "productSupplierLinkId": string | null; "reorderPoint": number | null; "sku": string | null; "suggestedQuantity": number | null; "supplierId": string | null; "supplierName": string | null; "supplierSku": string | null; "unitCost": number | null; "variantId": string | null; "variantTitle": string | null }[];
   };
   inventory_variant_incoming: {
     Args: {
       p_variant_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   inventory_variant_levels: {
     Args: {
       p_organization_id: string | null;
       p_product_ids?: string[] | null;
     };
-    Returns: { "allocated": number; "available": number; "backordered": number; "incoming": number; "isDefault": boolean; "onHand": number; "productId": string; "reorderPoint": number; "sku": string; "stockStatus": string; "variantId": string; "variantPosition": number; "variantTitle": string }[];
+    Returns: { "allocated": number | null; "available": number | null; "backordered": number | null; "incoming": number | null; "isDefault": boolean | null; "onHand": number | null; "productId": string | null; "reorderPoint": number | null; "sku": string | null; "stockStatus": string | null; "variantId": string | null; "variantPosition": number | null; "variantTitle": string | null }[];
   };
   is_agenda_collection_subscribed: {
     Args: {
       p_calendar_id: string | null;
       p_organization_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   is_approval_approver: {
     Args: {
       p_request: Database["public"]['Tables']["approval_requests"]['Row'] | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   is_approval_requester: {
     Args: {
       p_request: Database["public"]['Tables']["approval_requests"]['Row'] | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   is_employee_manager_of: {
     Args: {
       p_employee_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   is_org_staff_member: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   is_own_employee: {
     Args: {
       p_employee_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   is_system_user_with: {
     Args: {
       p_permission: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   jaccard_distance: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   l1_distance: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   l2_distance: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   l2_norm: {
     Args: {
       arg1: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   l2_normalize: {
     Args: {
@@ -18538,7 +18538,7 @@ export type Functions = {
     Args: {
       p_subject_type: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   link_ai_agent_workflow_ownership: {
     Args: {
@@ -18550,7 +18550,7 @@ export type Functions = {
       p_thread_id: string | null;
       p_workflow_run_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   link_ai_message_dispatch: {
     Args: {
@@ -18560,7 +18560,7 @@ export type Functions = {
       p_thread_id: string | null;
       p_workflow_run_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   link_expenses_to_invoice: {
     Args: {
@@ -18568,7 +18568,7 @@ export type Functions = {
       p_invoice_id: string | null;
       p_organization_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   list_admin_billing: {
     Args: {
@@ -18585,7 +18585,7 @@ export type Functions = {
       p_calendar_id?: string | null;
       p_organization_id: string | null;
     };
-    Returns: { "canEdit": boolean; "canManage": boolean; "color": string; "createdAt": string; "createdBy": string; "defaultTimeZone": string; "description": string; "externalCalendarId": string; "id": string; "isDefault": boolean; "isSubscribed": boolean; "kind": string; "name": string; "organizationId": string; "ownerUserId": string; "position": number; "prefIsVisible": boolean; "prefPosition": number; "source": string; "updatedAt": string; "visibility": string }[];
+    Returns: { "canEdit": boolean | null; "canManage": boolean | null; "color": string | null; "createdAt": string | null; "createdBy": string | null; "defaultTimeZone": string | null; "description": string | null; "externalCalendarId": string | null; "id": string | null; "isDefault": boolean | null; "isSubscribed": boolean | null; "kind": string | null; "name": string | null; "organizationId": string | null; "ownerUserId": string | null; "position": number | null; "prefIsVisible": boolean | null; "prefPosition": number | null; "source": string | null; "updatedAt": string | null; "visibility": string | null }[];
   };
   list_decidable_approval_requests: {
     Args: {
@@ -18608,7 +18608,7 @@ export type Functions = {
       p_offset?: number | null;
       p_organization_id: string | null;
     };
-    Returns: { "archivedAt": string; "assignedTeamId": number; "assignedUserId": string; "chatThreadId": string; "chatThreadTitle": string; "connectionId": string; "connectionKind": string; "connectionName": string; "connectionStatus": string; "contactAvatarPath": string; "contactDisplayName": string; "contactEmail": string; "contactFirstName": string; "contactLastName": string; "contactPhone": string; "continuationCursor": string; "createdAt": string; "customerId": number; "externalActorId": string; "externalChannelId": string; "externalThreadId": string; "id": string; "lastDeliveryError": string; "lastDeliveryStatus": string; "lastMessageAt": string; "lastMessageId": string; "lastMessageRole": string; "lastMessageText": string; "metadata": Json; "organizationId": string; "pinnedAt": string; "readAt": string; "streamStatus": string; "takeoverAt": string; "takeoverReason": string; "takeoverStatus": string; "unread": boolean; "updatedAt": string }[];
+    Returns: { "archivedAt": string | null; "assignedTeamId": number | null; "assignedUserId": string | null; "chatThreadId": string | null; "chatThreadTitle": string | null; "connectionId": string | null; "connectionKind": string | null; "connectionName": string | null; "connectionStatus": string | null; "contactAvatarPath": string | null; "contactDisplayName": string | null; "contactEmail": string | null; "contactFirstName": string | null; "contactLastName": string | null; "contactPhone": string | null; "continuationCursor": string | null; "createdAt": string | null; "customerId": number | null; "externalActorId": string | null; "externalChannelId": string | null; "externalThreadId": string | null; "id": string | null; "lastDeliveryError": string | null; "lastDeliveryStatus": string | null; "lastMessageAt": string | null; "lastMessageId": string | null; "lastMessageRole": string | null; "lastMessageText": string | null; "metadata": Json; "organizationId": string | null; "pinnedAt": string | null; "readAt": string | null; "streamStatus": string | null; "takeoverAt": string | null; "takeoverReason": string | null; "takeoverStatus": string | null; "unread": boolean | null; "updatedAt": string | null }[];
   };
   list_notification_ignored_user_ids: {
     Args: {
@@ -18616,7 +18616,7 @@ export type Functions = {
       p_subject_id: string | null;
       p_subject_type: string | null;
     };
-    Returns: string[];
+    Returns: string[] | null;
   };
   list_notification_subscriber_user_ids: {
     Args: {
@@ -18625,13 +18625,13 @@ export type Functions = {
       p_subject_id: string | null;
       p_subject_type: string | null;
     };
-    Returns: string[];
+    Returns: string[] | null;
   };
   list_org_working_hour_profiles: {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: { "employeeId": string; "isFlexible": boolean; "scheduleCycleAnchor": string; "timezone": string; "userId": string }[];
+    Returns: { "employeeId": string | null; "isFlexible": boolean | null; "scheduleCycleAnchor": string | null; "timezone": string | null; "userId": string | null }[];
   };
   list_promotions: {
     Args: {
@@ -18643,7 +18643,7 @@ export type Functions = {
     Args: {
       p_definition_key: string | null;
     };
-    Returns: string[];
+    Returns: (string | null)[];
   };
   lock_product_stock: {
     Args: {
@@ -18656,7 +18656,7 @@ export type Functions = {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: string[];
+    Returns: (string | null)[];
   };
   mark_ai_memory_items_used: {
     Args: {
@@ -18664,7 +18664,7 @@ export type Functions = {
       p_used_at: string | null;
       p_why_used: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   mark_organization_used_for_current_user: {
     Args: {
@@ -18677,7 +18677,7 @@ export type Functions = {
       p_node_id: string | null;
       p_parent_id: string | null;
     };
-    Returns: Models["fileNodes"]['Row'];
+    Returns: Models["fileNodes"]['Row'] | null;
   };
   next_organization_number: {
     Args: {
@@ -18685,13 +18685,13 @@ export type Functions = {
       p_organization_id: string | null;
       p_period?: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   normalize_username_component: {
     Args: {
       p_value: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   order_digital_overview: {
     Args: {
@@ -18705,14 +18705,14 @@ export type Functions = {
       p_order_id: string | null;
       p_organization_id: string | null;
     };
-    Returns: { "allocated": number; "backordered": number; "fulfilled": number; "invoiced": number; "orderLineId": string; "returned": number }[];
+    Returns: { "allocated": number | null; "backordered": number | null; "fulfilled": number | null; "invoiced": number | null; "orderLineId": string | null; "returned": number | null }[];
   };
   org_permission_holder_user_ids: {
     Args: {
       p_organization_id: string | null;
       p_permission: string | null;
     };
-    Returns: string[];
+    Returns: (string | null)[];
   };
   patch_ai_message_outbox_metadata: {
     Args: {
@@ -18726,26 +18726,26 @@ export type Functions = {
       p_thread_id: string | null;
       p_workflow_run_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   process_open_sick_leave: {
     Args: {
       p_on?: string | null;
     };
-    Returns: { "caseId": string; "employeeId": string; "needsFollowUp": boolean; "organizationId": string; "reportedOn": string }[];
+    Returns: { "caseId": string | null; "employeeId": string | null; "needsFollowUp": boolean | null; "organizationId": string | null; "reportedOn": string | null }[];
   };
   product_default_variant_id: {
     Args: {
       p_product_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   promotion_document_basis: {
     Args: {
       p_subject_id: string | null;
       p_subject_type: "quote" | "order" | "invoice" | null;
     };
-    Returns: Record<string, unknown>;
+    Returns: Record<string, unknown> | null;
   };
   promotion_is_inherited: {
     Args: {
@@ -18753,7 +18753,7 @@ export type Functions = {
       p_row: Json | null;
       p_table: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   promotion_redemption_amount: {
     Args: {
@@ -18761,7 +18761,7 @@ export type Functions = {
       p_subject_id: string | null;
       p_subject_type: "quote" | "order" | "invoice" | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   promotion_rejection: {
     Args: {
@@ -18773,38 +18773,38 @@ export type Functions = {
       p_subject_type: "quote" | "order" | "invoice" | null;
       p_subtotal?: number | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   publish_quote_version: {
     Args: {
       p_actor_user_id?: string | null;
       p_quote_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   publish_workflow_definition: {
     Args: {
       p_definition_id: string | null;
     };
-    Returns: Models["workflowDefinitions"]['Row'];
+    Returns: Models["workflowDefinitions"]['Row'] | null;
   };
   purge_expired_audit_logs: {
     Args: {
       p_batch_size?: number | null;
       p_now?: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   rbac_trusted_assignment_active: {
     Args: Record<never, never>;
-    Returns: boolean;
+    Returns: boolean | null;
   };
   reassign_personal_file_drive: {
     Args: {
       p_drive_id: string | null;
       p_new_owner_user_id: string | null;
     };
-    Returns: Models["fileDrives"]['Row'];
+    Returns: Models["fileDrives"]['Row'] | null;
   };
   receive_inbound_shipment: {
     Args: {
@@ -18877,7 +18877,7 @@ export type Functions = {
       p_target_quantity: number | null;
       p_task_material_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   reconcile_quote_version_stock: {
     Args: {
@@ -18934,7 +18934,7 @@ export type Functions = {
       p_target_type?: string | null;
       p_user_agent?: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   record_document_view: {
     Args: {
@@ -18942,7 +18942,7 @@ export type Functions = {
       p_subject_id: string | null;
       p_subject_type: "quote" | "invoice" | "order" | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   record_usage_events_bulk: {
     Args: {
@@ -18956,7 +18956,7 @@ export type Functions = {
     Args: {
       p_organization_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   refresh_customer_sort_name: {
     Args: {
@@ -18975,27 +18975,27 @@ export type Functions = {
       p_order_id: string | null;
       p_organization_id: string | null;
     };
-    Returns: "draft" | "confirmed" | "on_hold" | "completed" | "cancelled";
+    Returns: "draft" | "confirmed" | "on_hold" | "completed" | "cancelled" | null;
   };
   refresh_purchase_order_status: {
     Args: {
       p_purchase_order_id: string | null;
     };
-    Returns: "draft" | "sent" | "partially_received" | "received" | "closed" | "cancelled";
+    Returns: "draft" | "sent" | "partially_received" | "received" | "closed" | "cancelled" | null;
   };
   regexp_match: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: string[];
+    Returns: string[] | null;
   };
   regexp_matches: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: (string[])[];
+    Returns: (string[] | null)[];
   };
   regexp_replace: {
     Args: {
@@ -19003,21 +19003,21 @@ export type Functions = {
       arg2: string | null;
       arg3: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   regexp_split_to_array: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: string[];
+    Returns: string[] | null;
   };
   regexp_split_to_table: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: string[];
+    Returns: (string | null)[];
   };
   reject_quote_for_portal: {
     Args: {
@@ -19027,7 +19027,7 @@ export type Functions = {
       p_quote_id: string | null;
       p_user_agent?: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   release_ai_message_dispatch: {
     Args: {
@@ -19036,7 +19036,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_thread_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   release_allocations: {
     Args: {
@@ -19048,7 +19048,7 @@ export type Functions = {
       p_reason: string | null;
       p_task_material_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   release_order_line_allocations: {
     Args: {
@@ -19057,7 +19057,7 @@ export type Functions = {
       p_quantity: number | null;
       p_reason: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   release_promotion_redemptions: {
     Args: {
@@ -19090,7 +19090,7 @@ export type Functions = {
       p_thread_id: string | null;
       p_user_id: string | null;
     };
-    Returns: Models["aiMemoryItems"]['Row'];
+    Returns: Models["aiMemoryItems"]['Row'] | null;
   };
   replace: {
     Args: {
@@ -19098,7 +19098,7 @@ export type Functions = {
       arg2: string | null;
       arg3: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   replace_agenda_collection_grants: {
     Args: {
@@ -19152,7 +19152,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_policy: Json | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   replace_organization_vat_rates: {
     Args: {
@@ -19194,7 +19194,7 @@ export type Functions = {
       p_quote_id: string | null;
       p_user_agent?: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   reserve_file_upload: {
     Args: {
@@ -19210,7 +19210,7 @@ export type Functions = {
       p_storage_bucket: string | null;
       p_storage_path: string | null;
     };
-    Returns: Models["fileUploadReservations"]['Row'];
+    Returns: Models["fileUploadReservations"]['Row'] | null;
   };
   resolve_actor_scope_permissions: {
     Args: {
@@ -19219,7 +19219,7 @@ export type Functions = {
       p_scope: "system" | "organization" | "user" | "team" | null;
       p_scope_id: string | null;
     };
-    Returns: string[];
+    Returns: string[] | null;
   };
   resolve_lifecycle_definition: {
     Args: {
@@ -19227,7 +19227,7 @@ export type Functions = {
       p_subject_type: string | null;
       p_template_id?: string | null;
     };
-    Returns: Models["workflowDefinitions"]['Row'];
+    Returns: Models["workflowDefinitions"]['Row'] | null;
   };
   resolve_notification_recipients: {
     Args: {
@@ -19236,7 +19236,7 @@ export type Functions = {
       p_subject_type: string | null;
       p_type: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   restore_allocations: {
     Args: {
@@ -19249,20 +19249,20 @@ export type Functions = {
       p_reason: string | null;
       p_task_material_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   restore_file_node: {
     Args: {
       p_node_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   restore_file_version: {
     Args: {
       p_node_id: string | null;
       p_version_id: string | null;
     };
-    Returns: Models["fileVersions"]['Row'];
+    Returns: Models["fileVersions"]['Row'] | null;
   };
   return_consumed_allocations: {
     Args: {
@@ -19273,7 +19273,7 @@ export type Functions = {
       p_quantity: number | null;
       p_reason: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   return_invoice_stock: {
     Args: {
@@ -19281,13 +19281,13 @@ export type Functions = {
       p_invoice_id: string | null;
       p_organization_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   safe_uuid: {
     Args: {
       p_value: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   search_knowledge_chunks: {
     Args: {
@@ -19298,7 +19298,7 @@ export type Functions = {
       p_query: string | null;
       p_query_embedding?: unknown | null;
     };
-    Returns: { "chunkId": string; "chunkPosition": number; "collectionId": string; "content": string; "fileId": string; "organizationId": string; "score": number }[];
+    Returns: { "chunkId": string | null; "chunkPosition": number | null; "collectionId": string | null; "content": string | null; "fileId": string | null; "organizationId": string | null; "score": number | null }[];
   };
   search_private_ai_memory: {
     Args: {
@@ -19311,7 +19311,7 @@ export type Functions = {
       p_thread_id: string | null;
       p_user_id: string | null;
     };
-    Returns: { "confidence": number; "content": string; "contentHash": string; "createdAt": string; "createdBy": string; "deletedAt": string; "expiresAt": string; "id": string; "kind": string; "lastUsedAt": string; "metadata": Json; "organizationId": string; "scope": string; "score": number; "source": string; "subjectId": string; "subjectType": string; "threadId": string; "updatedAt": string; "useCount": number; "userId": string; "visibility": string }[];
+    Returns: { "confidence": number | null; "content": string | null; "contentHash": string | null; "createdAt": string | null; "createdBy": string | null; "deletedAt": string | null; "expiresAt": string | null; "id": string | null; "kind": string | null; "lastUsedAt": string | null; "metadata": Json; "organizationId": string | null; "scope": string | null; "score": number | null; "source": string | null; "subjectId": string | null; "subjectType": string | null; "threadId": string | null; "updatedAt": string | null; "useCount": number | null; "userId": string | null; "visibility": string | null }[];
   };
   seed_organization_document_templates: {
     Args: {
@@ -19337,13 +19337,13 @@ export type Functions = {
       p_organization_id: string | null;
       p_year: number | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   set_default_system_lifecycle: {
     Args: {
       p_definition_id: string | null;
     };
-    Returns: Models["workflowDefinitions"]['Row'];
+    Returns: Models["workflowDefinitions"]['Row'] | null;
   };
   set_expenses_billable: {
     Args: {
@@ -19351,7 +19351,7 @@ export type Functions = {
       p_expense_ids: string[] | null;
       p_organization_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   set_product_options: {
     Args: {
@@ -19375,7 +19375,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_task_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   set_task_status_with_materials: {
     Args: {
@@ -19392,7 +19392,7 @@ export type Functions = {
       p_entry_id: string | null;
       p_organization_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   ship_shipment: {
     Args: {
@@ -19415,28 +19415,28 @@ export type Functions = {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   sparsevec_eq: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   sparsevec_ge: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   sparsevec_gt: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   sparsevec_in: {
     Args: {
@@ -19451,35 +19451,35 @@ export type Functions = {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   sparsevec_le: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   sparsevec_lt: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   sparsevec_ne: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   sparsevec_negative_inner_product: {
     Args: {
       arg1: unknown | null;
       arg2: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   sparsevec_out: {
     Args: {
@@ -19491,7 +19491,7 @@ export type Functions = {
     Args: {
       arg1: unknown | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   sparsevec_to_halfvec: {
     Args: {
@@ -19507,13 +19507,13 @@ export type Functions = {
       arg2: boolean | null;
       arg3: number | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   sparsevec_typmod_in: {
     Args: {
       arg1: unknown[] | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   split_part: {
     Args: {
@@ -19521,7 +19521,7 @@ export type Functions = {
       arg2: string | null;
       arg3: number | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   start_ai_agent_tool: {
     Args: {
@@ -19541,14 +19541,14 @@ export type Functions = {
       p_tool_name: string | null;
       p_workflow_run_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   strpos: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   subvector: {
     Args: {
@@ -19560,14 +19560,14 @@ export type Functions = {
   };
   sweep_approval_requests: {
     Args: Record<never, never>;
-    Returns: { "kind": string; "requestId": string }[];
+    Returns: { "kind": string | null; "requestId": string | null }[];
   };
   sync_employee_for_member: {
     Args: {
       p_organization_id: string | null;
       p_user_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   sync_order_line_backorder: {
     Args: {
@@ -19575,7 +19575,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_shortfall: number | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   sync_promotion_redemptions: {
     Args: {
@@ -19597,28 +19597,28 @@ export type Functions = {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   texticnlike: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   texticregexeq: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   texticregexne: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   time_off_balance: {
     Args: {
@@ -19626,13 +19626,13 @@ export type Functions = {
       p_on?: string | null;
       p_time_off_type_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   time_off_requires_approval: {
     Args: {
       p_time_off_type_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   transfer_allocations: {
     Args: {
@@ -19648,7 +19648,7 @@ export type Functions = {
       p_to_quote_version_line_id: string | null;
       p_to_task_material_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   transfer_promotion_redemptions: {
     Args: {
@@ -19673,7 +19673,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_quote_id: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   translate: {
     Args: {
@@ -19681,26 +19681,26 @@ export type Functions = {
       arg2: string | null;
       arg3: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   trash_customer_file_folder: {
     Args: {
       p_customer_id: number | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   trash_file_node: {
     Args: {
       p_node_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   unassign_task_agenda_projection: {
     Args: {
       p_organization_id: string | null;
       p_task_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   update_agenda_item_aggregate: {
     Args: {
@@ -19710,7 +19710,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_user_ids: string[] | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   update_invoice_aggregate: {
     Args: {
@@ -19722,7 +19722,7 @@ export type Functions = {
       p_replace_tasks: boolean | null;
       p_task_ids: string[] | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   update_shipment_status: {
     Args: {
@@ -19731,7 +19731,7 @@ export type Functions = {
       p_shipment_id: string | null;
       p_status: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled" | null;
     };
-    Returns: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled";
+    Returns: "draft" | "packed" | "ready_for_pickup" | "in_transit" | "delivered" | "picked_up" | "exception" | "cancelled" | null;
   };
   upsert_external_agenda_item_aggregate: {
     Args: {
@@ -19744,7 +19744,7 @@ export type Functions = {
       p_status: string | null;
       p_user_ids: string[] | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   upsert_reserved_allocation: {
     Args: {
@@ -19765,7 +19765,7 @@ export type Functions = {
       p_organization_id: string | null;
       p_task_id: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   vector: {
     Args: {
@@ -19773,75 +19773,75 @@ export type Functions = {
       arg2: number | null;
       arg3: boolean | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   vector_accum: {
     Args: {
       arg1: number[] | null;
       arg2: string | null;
     };
-    Returns: number[];
+    Returns: number[] | null;
   };
   vector_add: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   vector_avg: {
     Args: {
       arg1: number[] | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   vector_cmp: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   vector_combine: {
     Args: {
       arg1: number[] | null;
       arg2: number[] | null;
     };
-    Returns: number[];
+    Returns: number[] | null;
   };
   vector_concat: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   vector_dims: {
     Args: {
       arg1: unknown | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   vector_eq: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   vector_ge: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   vector_gt: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   vector_in: {
     Args: {
@@ -19849,55 +19849,55 @@ export type Functions = {
       arg2: number | null;
       arg3: unknown | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   vector_l2_squared_distance: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   vector_le: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   vector_lt: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   vector_mul: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   vector_ne: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   vector_negative_inner_product: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   vector_norm: {
     Args: {
       arg1: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   vector_out: {
     Args: {
@@ -19909,21 +19909,21 @@ export type Functions = {
     Args: {
       arg1: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   vector_spherical_distance: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   vector_sub: {
     Args: {
       arg1: string | null;
       arg2: string | null;
     };
-    Returns: string;
+    Returns: string | null;
   };
   vector_to_float4: {
     Args: {
@@ -19931,7 +19931,7 @@ export type Functions = {
       arg2: string | null;
       arg3: boolean | null;
     };
-    Returns: number[];
+    Returns: number[] | null;
   };
   vector_to_halfvec: {
     Args: {
@@ -19953,14 +19953,14 @@ export type Functions = {
     Args: {
       arg1: unknown[] | null;
     };
-    Returns: number;
+    Returns: number | null;
   };
   workflow_email_recipient_allowed: {
     Args: {
       p_email: string | null;
       p_organization_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   workflow_grant_targets_valid: {
     Args: {
@@ -19969,7 +19969,7 @@ export type Functions = {
       p_team_id: number | null;
       p_user_id: string | null;
     };
-    Returns: boolean;
+    Returns: boolean | null;
   };
   write_inventory_movement: {
     Args: {

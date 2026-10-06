@@ -102,7 +102,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       {
         pattern: /\$rpc\s*(<|\()/,
         message:
-          "`$rpc` now returns table rows and `returns table (...)` records in the configured casing, with codecs applied: drop a snake-to-camel mapping of the result, or pass `{ raw: true }` to keep database names",
+          "`$rpc` now returns table rows and `returns table (...)` records in the configured casing, with codecs applied: drop a snake-to-camel mapping of the result, or pass `{ raw: true }` to keep database names. Scalar results and `returns table` columns are now `| null` unless `functions.<name>.notNull` says otherwise",
       },
       {
         pattern: /\.publicUrl\s*\(/,

@@ -252,7 +252,7 @@ describe("function results", () => {
     });
     expect(fn(camel, "customer_note_counts")).toMatchObject({
       returns:
-        '{ "customerId": string; "lastNoteAt": string; "noteCount": number }[]',
+        '{ "customerId": string | null; "lastNoteAt": string | null; "noteCount": number | null }[]',
       meta: {
         result: {
           columns: [
@@ -275,7 +275,7 @@ describe("function results", () => {
     });
     expect(fn(coded, "customer_note_counts")).toMatchObject({
       returns:
-        '{ "customer_id": string; "last_note_at": Temporal.Instant; "note_count": bigint }[]',
+        '{ "customer_id": string | null; "last_note_at": Temporal.Instant | null; "note_count": bigint | null }[]',
       meta: {
         result: {
           columns: [
@@ -289,6 +289,86 @@ describe("function results", () => {
     expect(fn(coded, "customers_by_status")?.meta.result).toEqual({
       table: "customers",
     });
+  });
+});
+
+describe("function result nullability", () => {
+  const withScalars = async (config: BetterSupabaseConfig = {}) => {
+    const fixture = await loadFixtureSnapshot();
+    const template = fixture.generator.functions.find(
+      (fn) => fn.name === "rs_workspace_summary",
+    )!;
+    const customers = fixture.generator.tables.find(
+      (table) => table.schema === "public" && table.name === "customers",
+    )!;
+    const scalar = (
+      name: string,
+      returnType: string,
+      fields: Partial<typeof template> = {},
+    ) => ({
+      ...template,
+      id: template.id + name.length * 1000,
+      name,
+      args: [],
+      identity_argument_types: "",
+      return_type: returnType,
+      return_type_id: -1,
+      return_type_relation_id: null,
+      is_set_returning_function: false,
+      ...fields,
+    });
+    const snapshot = {
+      ...fixture,
+      generator: {
+        ...fixture.generator,
+        functions: [
+          ...fixture.generator.functions,
+          scalar("open_count", "int4"),
+          scalar("tag_names", "text", { is_set_returning_function: true }),
+          scalar("touch", "void"),
+          scalar("customer_row", "customers", {
+            return_type_relation_id: customers.id,
+          }),
+        ],
+      },
+    };
+    const model = buildModel(snapshot, resolveConfig(config, fixtures));
+    return (name: string) =>
+      model.functions.find((entry) => entry.key === name)?.returns;
+  };
+
+  it("types results as nullable by default", async () => {
+    const returns = await withScalars();
+    expect(returns("open_count")).toBe("number | null");
+    expect(returns("tag_names")).toBe("(string | null)[]");
+    expect(returns("touch")).toBe("undefined");
+    expect(returns("customer_row")).toBe(`Models["customers"]['Row'] | null`);
+    expect(returns("customers_by_status")).toBe(
+      `(Models["customers"]['Row'])[]`,
+    );
+  });
+
+  it("drops null where the config says a result is never null", async () => {
+    const returns = await withScalars({
+      functions: {
+        open_count: { notNull: true },
+        customer_note_counts: { notNull: ["customer_id", "note_count"] },
+      },
+    });
+    expect(returns("open_count")).toBe("number");
+    expect(returns("customer_note_counts")).toBe(
+      '{ "customer_id": string; "last_note_at": string | null; "note_count": number }[]',
+    );
+    await expect(
+      withScalars({ functions: { nope: { notNull: true } } }),
+    ).rejects.toThrow('functions.nope: no function "nope" in public');
+    await expect(
+      withScalars({
+        functions: { customer_note_counts: { notNull: ["missing"] } },
+      }),
+    ).rejects.toThrow(
+      'functions.customer_note_counts.notNull: "missing" is not a column the function returns',
+    );
   });
 });
 
@@ -515,6 +595,7 @@ describe("config JSON Schema", () => {
       vectorSearch: true,
       sensitive: true,
       storagePaths: true,
+      functions: true,
       expose: true,
       readSets: true,
       sql: true,

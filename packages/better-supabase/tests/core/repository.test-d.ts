@@ -153,7 +153,11 @@ describe("$rpc results", () => {
     expectTypeOf(rows[0]!.organizationId).toEqualTypeOf<string>();
     const counts = await db.$rpc("customer_note_counts").orThrow();
     expectTypeOf(counts).toEqualTypeOf<
-      { customerId: string; lastNoteAt: string; noteCount: number }[]
+      {
+        customerId: string | null;
+        lastNoteAt: string | null;
+        noteCount: number | null;
+      }[]
     >();
     const raw = await db
       .$rpc("customer_note_counts", {}, { raw: true })
