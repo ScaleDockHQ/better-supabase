@@ -96,7 +96,7 @@ create table if not exists ${a} (
   ${ca("body")} text not null default '' check (length(${ca("body")}) <= 10000),
   ${ca("severity")} text not null default 'info' check (${ca("severity")} in ('info', 'success', 'warning', 'critical')),
   ${ca("href")} text check (${ca("href")} ~ '^(https://|/)'),
-  ${ca("audience")} text not null default 'all' check (${ca("audience")} in (${audiences.map(sqlString).join(", ")})),
+  ${ca("audience")} text not null default 'all',
   ${ca("targets")} text[] not null default '{}',
   ${ca("startsAt")} timestamptz not null default now(),
   ${ca("endsAt")} timestamptz,
@@ -107,6 +107,10 @@ create table if not exists ${a} (
   check (${ca("endsAt")} is null or ${ca("endsAt")} > ${ca("startsAt")}),
   check ((${ca("audience")} = 'all') = (cardinality(${ca("targets")}) = 0))
 );
+-- The plan audience depends on the entitlements module, so a re-run replaces
+-- the check.
+alter table ${a} drop constraint if exists bs_announcements_audience;
+alter table ${a} add constraint bs_announcements_audience check (${ca("audience")} in (${audiences.map(sqlString).join(", ")}));
 create index if not exists announcements_window_idx on ${a} (${ca("startsAt")}, ${ca("endsAt")});
 create index if not exists announcements_created_by_idx on ${a} (${ca("createdBy")});
 alter table ${a} enable row level security;
