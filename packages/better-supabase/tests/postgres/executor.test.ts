@@ -376,6 +376,62 @@ describe("postgresExecutor", () => {
   });
 });
 
+describe("postgresExecutor maxAffected", () => {
+  it("maps the guard's cast error to max_affected with the limit", async () => {
+    const fake = fakeSql([
+      [
+        /^with m as \(update/,
+        {
+          throws: pgError(
+            "22P02",
+            'invalid input syntax for type integer: "better_supabase:max_affected:4"',
+          ),
+        },
+      ],
+    ]);
+    const result = await postgresExecutor(fake.sql).execute(
+      update({ maxAffected: 3 }),
+      context,
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        kind: "max_affected",
+        status: 400,
+        code: "22P02",
+        maxAffected: 3,
+        message: "The write affects 4 rows, more than maxAffected allows",
+      },
+    });
+  });
+
+  it("returns the guarded rows of a delete within the limit", async () => {
+    const fake = fakeSql([[/^with m as \(delete/, rowsOf({ id: "a" })]]);
+    const result = await postgresExecutor(fake.sql).execute(
+      remove({ maxAffected: 1 }),
+      context,
+    );
+    expect(result.ok && result.data).toEqual({
+      rows: [{ id: "a" }],
+      count: 1,
+    });
+    expect(fake.calls[0]!.text).toMatch(
+      /select m\.row from m cross join c where c\.n >= 0$/,
+    );
+  });
+
+  it("keeps other invalid input errors as invalid_input", async () => {
+    const fake = fakeSql([
+      [/^with m as \(update/, { throws: pgError("22P02", "invalid input") }],
+    ]);
+    const result = await postgresExecutor(fake.sql).execute(update(), context);
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_input" },
+    });
+  });
+});
+
 describe("fromPgError", () => {
   it("copies the node-postgres fields to the shape mapDbError reads", () => {
     expect(

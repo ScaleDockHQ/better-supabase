@@ -367,6 +367,35 @@ describe("mapDbError", () => {
       },
     ],
     [
+      "a write past max-affected",
+      {
+        code: "PGRST124",
+        message: "Query result exceeds max-affected preference constraint",
+        details: "The query affects 3 rows",
+      },
+      {
+        kind: "max_affected",
+        status: 400,
+        code: "PGRST124",
+        message: "Query result exceeds max-affected preference constraint",
+        details: "The query affects 3 rows",
+      },
+    ],
+    [
+      "the SQL max-affected guard",
+      {
+        code: "22P02",
+        message:
+          'invalid input syntax for type integer: "better_supabase:max_affected:12"',
+      },
+      {
+        kind: "max_affected",
+        status: 400,
+        code: "22P02",
+        message: "The write affects 12 rows, more than maxAffected allows",
+      },
+    ],
+    [
       "disabled aggregates",
       {
         code: "PGRST123",

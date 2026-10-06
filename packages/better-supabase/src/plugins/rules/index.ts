@@ -1,4 +1,4 @@
-import type { Operation, Selection } from "../../ir/types.ts";
+import type { Condition, Operation, Selection } from "../../ir/types.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../../schema/types.ts";
 
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
@@ -51,6 +51,13 @@ export interface RuleSet {
    * the lint rule of the same name flags the call in the editor.
    */
   readonly noDeleteManyWithoutWhere?: RuleSetting;
+  /**
+   * `updateMany` and `deleteMany` without `maxAffected`, or with one above
+   * the given maximum (default 1000). With a bound, a `where` that matches
+   * more rows than intended fails with `max_affected` and writes nothing.
+   * Updates and deletes by key are exempt.
+   */
+  readonly requireMaxAffected?: RuleSetting<number>;
   /**
    * Storage objects written to `*_url` text columns: a column listed in
    * `storagePaths`, or a value that is a Storage URL or matches a bucket's
@@ -119,6 +126,7 @@ export function strict(): RuleSet {
     requireOrderByForCursor: "error",
     maxIncludeDepth: ["error", 3],
     storagePathColumns: "error",
+    requireMaxAffected: ["error", 1000],
   };
 }
 
@@ -278,11 +286,39 @@ function storedObjectColumn(
   return undefined;
 }
 
+const primaryColumnsByTable = new WeakMap<TableMeta, readonly string[]>();
+
+/** `true` when `where` holds `pk = value` for every primary key column: one row at most. */
+function pinsPrimaryKey(
+  table: TableMeta,
+  where: Condition | undefined,
+): boolean {
+  if (!where || table.primaryKey.length === 0) return false;
+  let columns = primaryColumnsByTable.get(table);
+  if (!columns) {
+    columns = table.primaryKey.map((name) => table.columns[name]?.db ?? name);
+    primaryColumnsByTable.set(table, columns);
+  }
+  const pinned = new Set<string>();
+  const visit = (condition: Condition): void => {
+    if (condition.kind === "and") condition.items.forEach(visit);
+    else if (
+      condition.kind === "column" &&
+      condition.op === "eq" &&
+      condition.path === undefined
+    )
+      pinned.add(condition.column);
+  };
+  visit(where);
+  return columns.every((column) => pinned.has(column));
+}
+
 type Check = (op: Operation, hook: HookArgs) => string | undefined;
 
 function checks(rules: RuleSet): Record<RuleName, Check> {
   const maxLimit = optionOf(rules.maxLimit, 1000);
   const maxDepth = optionOf(rules.maxIncludeDepth, 3);
+  const maxAffected = optionOf(rules.requireMaxAffected, 1000);
   return {
     noUnboundedFindMany: (op) =>
       op.kind === "select" &&
@@ -339,6 +375,16 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
       op.kind === "delete" && op.where === undefined
         ? "delete without where removes every visible row"
         : undefined,
+    requireMaxAffected: (op) => {
+      if (op.kind !== "update" && op.kind !== "delete") return;
+      if (op.maxAffected === undefined)
+        return pinsPrimaryKey(op.table, op.where)
+          ? undefined
+          : `${op.kind === "update" ? "updateMany" : "deleteMany"} without maxAffected can change every row its where matches`;
+      return op.maxAffected > maxAffected
+        ? `maxAffected ${op.maxAffected} is above the maximum of ${maxAffected}`
+        : undefined;
+    },
     storagePathColumns: (op, { schema }) => storedObjectColumn(op, schema),
   };
 }

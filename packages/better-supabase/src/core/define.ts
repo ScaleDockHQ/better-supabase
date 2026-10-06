@@ -70,6 +70,7 @@ import {
   providedTemporal,
   provideTemporal,
 } from "./temporal.ts";
+import { deadline, invalidTuning, type RequestTuning } from "./timeout.ts";
 
 export interface SupabaseOptions {
   /** Clock used by plugins (timestamps, soft delete). */
@@ -99,10 +100,21 @@ export interface SupabaseOptions {
    */
   readonly maxRows?: number;
   /**
-   * The longest query string one PostgREST read sends. Longer reads are
-   * split along their longest `in` list. Defaults to 6000 characters.
+   * The longest query string one PostgREST read sends, like supabase-js
+   * `db.urlLengthLimit`. Longer reads are split along their longest `in`
+   * list. Defaults to 6000 characters, or the client's `db.urlLengthLimit`
+   * when that is lower.
    */
+  readonly urlLengthLimit?: number;
+  /** @deprecated Renamed to `urlLengthLimit`, which wins when both are set. */
   readonly maxUrlLength?: number;
+  /**
+   * The PostgREST version the app talks to, as in `postgrestVersion` in
+   * the better-supabase config. `maxAffected` needs 13 or later, and fails
+   * with `invalid_request` before any request on an older version.
+   * Defaults to `"13"`.
+   */
+  readonly postgrestVersion?: string;
 }
 
 export interface ConnectOptions {
@@ -113,6 +125,16 @@ export interface ConnectOptions {
    * stays the client (e.g. routing reads to a replica).
    */
   readonly executor?: Executor;
+  /**
+   * Fails each repository call and `$rpc` after this many milliseconds with
+   * a `timeout` error. A call's own `timeout` replaces it.
+   */
+  readonly timeout?: number;
+  /**
+   * postgrest-js retries of idempotent requests for this connection; a
+   * call's own `retry` replaces it. Defaults to the client's setting.
+   */
+  readonly retry?: boolean;
 }
 
 export interface RpcDefinition {
@@ -423,14 +445,28 @@ export class BetterSupabase<
       options.executor ??
       (isExecutor(source)
         ? source
-        : postgrestExecutor(source, this.#executorOptions()));
+        : postgrestExecutor(source, this.executorOptions()));
     const recorder = new StatsRecorder(options.stats);
-    return this.#db(client, base, context, this.plugins, recorder);
+    const tuning: RequestTuning = {
+      ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
+      ...(options.retry === undefined ? {} : { retry: options.retry }),
+    };
+    return this.#db(client, base, context, this.plugins, recorder, tuning);
   }
 
-  #executorOptions(): PostgrestExecutorOptions {
-    const { maxUrlLength } = this.options;
-    return maxUrlLength === undefined ? {} : { maxUrlLength };
+  /**
+   * The `postgrestExecutor` options this definition implies
+   * (`urlLengthLimit`, `postgrestVersion`), for adapters that build their
+   * own executor and should chunk reads the same way.
+   */
+  executorOptions(): PostgrestExecutorOptions {
+    // oxlint-disable-next-line typescript/no-deprecated -- the alias stays readable until it is removed.
+    const { urlLengthLimit, maxUrlLength, postgrestVersion } = this.options;
+    const limit = urlLengthLimit ?? maxUrlLength;
+    return {
+      ...(limit === undefined ? {} : { urlLengthLimit: limit }),
+      ...(postgrestVersion === undefined ? {} : { postgrestVersion }),
+    };
   }
 
   /** The caller's context with every plugin's `context` hook applied. */
@@ -458,6 +494,7 @@ export class BetterSupabase<
     given: RequestContext,
     plugins: readonly AnyPlugin[],
     recorder: StatsRecorder,
+    tuning: RequestTuning = {},
     events: EventHub = this.events,
   ): object {
     const context = this.#derive(given, plugins);
@@ -478,6 +515,7 @@ export class BetterSupabase<
       now: this.#now(),
       maxRows: this.options.maxRows ?? 1000,
       truncatedTables: this.#truncatedTables,
+      tuning,
     });
 
     // SAFETY: the prototype only adds the table getters; the own properties
@@ -489,7 +527,7 @@ export class BetterSupabase<
       $executor: executor,
       $context: context,
       $rpc: (name: string, ...rest: unknown[]) =>
-        rpc(this.schema.meta, executor, errorMappers, name, rest).map(
+        rpc(this.schema.meta, executor, errorMappers, tuning, name, rest).map(
           (data) => {
             const registered = this.options.rpc?.[name];
             if (registered) {
@@ -503,7 +541,14 @@ export class BetterSupabase<
           },
         ),
       $with: (extra: RequestContext) =>
-        this.#db(client, base, { ...given, ...extra }, plugins, recorder),
+        this.#db(
+          client,
+          base,
+          { ...given, ...extra },
+          plugins,
+          recorder,
+          tuning,
+        ),
       $withoutPlugins: (options?: { readonly keep?: readonly string[] }) =>
         this.#db(
           client,
@@ -511,6 +556,7 @@ export class BetterSupabase<
           given,
           keptPlugins(plugins, options?.keep ?? []),
           recorder,
+          tuning,
         ),
       $stats: () => recorder.snapshot(),
       $table: (name: string) => {
@@ -632,10 +678,17 @@ export class BetterSupabase<
         // SAFETY: #db returns the repositories indexed by table name, plus the $ methods.
         const target = (
           batching
-            ? this.#db(client, batching.executor, given, active, recorder)
+            ? this.#db(
+                client,
+                batching.executor,
+                given,
+                active,
+                recorder,
+                tuning,
+              )
             : usePlugins
               ? db
-              : this.#db(client, base, given, [], recorder)
+              : this.#db(client, base, given, [], recorder, tuning)
         ) as Record<string, unknown>;
         const results = await Promise.all(
           specs.map(async (spec) => {
@@ -760,6 +813,7 @@ export class BetterSupabase<
         context,
         [],
         new StatsRecorder(),
+        {},
         (this.#decodeEvents ??= new EventHub(this.events.logger)),
       ) as Record<string, unknown>;
       const result = await runSpec(decoder, spec, undefined);
@@ -916,6 +970,7 @@ function rpc(
   meta: SchemaMeta,
   executor: Executor,
   errorMappers: readonly ErrorMapper[],
+  defaults: RequestTuning,
   name: string,
   rest: unknown[],
 ): AsyncResult<unknown> {
@@ -925,6 +980,8 @@ function rpc(
     (
       | {
           signal?: AbortSignal;
+          timeout?: number;
+          retry?: boolean;
           returns?: StandardSchemaV1;
           schema?: string;
           raw?: boolean;
@@ -941,12 +998,30 @@ function rpc(
         ),
       );
     }
+    const tuning: RequestTuning = {
+      ...defaults,
+      ...(options?.timeout === undefined ? {} : { timeout: options.timeout }),
+      ...(options?.retry === undefined ? {} : { retry: options.retry }),
+    };
+    const invalid = invalidTuning(tuning);
+    if (invalid) return err(dbError("invalid_request", invalid));
+    const limit = deadline(options?.signal, tuning.timeout);
     const context = {
       schema: options?.schema ?? "public",
       errorMappers,
-      ...(options?.signal ? { signal: options.signal } : {}),
+      ...(limit.signal ? { signal: limit.signal } : {}),
+      ...(tuning.retry === undefined ? {} : { retry: tuning.retry }),
     };
-    const result = await executor.rpc(name, args ?? {}, context);
+    let result: Result<unknown>;
+    try {
+      result = await executor.rpc(name, args ?? {}, context);
+    } finally {
+      limit.clear();
+    }
+    if (!result.ok && limit.timedOut())
+      return err(
+        dbError("timeout", `The request timed out after ${tuning.timeout} ms`),
+      );
     if (!result.ok) return result;
     let data = result.data;
     if (options?.raw !== true) {

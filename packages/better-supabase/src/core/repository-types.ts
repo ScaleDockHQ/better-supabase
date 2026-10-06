@@ -7,6 +7,7 @@ import type {
   FindManyArgs,
   Payload,
   ReadArgs,
+  RequestArgs,
   WhereInput,
 } from "../ir/args.ts";
 import type { CountMode } from "../ir/types.ts";
@@ -80,7 +81,10 @@ export type ManyResult<M extends AnyModels, T extends keyof M, A> = A extends {
   ? Payload<M, T, A>[]
   : { count: number };
 
-export interface ManyReturningArgs<M extends AnyModels, T extends keyof M> {
+export interface ManyReturningArgs<
+  M extends AnyModels,
+  T extends keyof M,
+> extends RequestArgs {
   readonly where: WhereInput<M, T>;
   /** Return the written rows instead of `{ count }`. */
   readonly returning?: boolean;
@@ -88,7 +92,28 @@ export interface ManyReturningArgs<M extends AnyModels, T extends keyof M> {
   readonly select?: ReadArgs<M, T>["select"];
   /** Related rows to return with `returning: true`. */
   readonly include?: ReadArgs<M, T>["include"];
-  readonly signal?: AbortSignal;
+  /**
+   * The most rows the call may change. When `where` matches more, the call
+   * fails with `max_affected` and changes nothing. Over PostgREST it needs
+   * PostgREST 13 or later (`Prefer: max-affected`).
+   */
+  readonly maxAffected?: number;
+  /** How `{ count }` is counted over PostgREST. Defaults to `exact`. */
+  readonly count?: CountMode;
+}
+
+/** `createMany` and `upsertMany` options. */
+export interface WriteManyArgs<
+  M extends AnyModels,
+  T extends keyof M,
+> extends WriteArgs<M, T> {
+  /**
+   * Columns some rows leave out become `null` instead of their column
+   * default. Defaults to `false`, so a left-out column takes its default.
+   */
+  readonly defaultToNull?: boolean;
+  /** How `{ count }` is counted over PostgREST with `returning: false`. Defaults to `exact`. */
+  readonly count?: CountMode;
 }
 
 export type ConflictTarget<M extends AnyModels, T extends keyof M> =
@@ -106,9 +131,11 @@ export interface UpsertArgs<
   readonly ignoreDuplicates?: boolean;
 }
 
-export interface DeleteArgs {
-  readonly signal?: AbortSignal;
-}
+export type DeleteArgs = RequestArgs;
+
+/** `upsertMany` options. */
+export interface UpsertManyArgs<M extends AnyModels, T extends keyof M>
+  extends UpsertArgs<M, T>, WriteManyArgs<M, T> {}
 
 export type Returned<M extends AnyModels, T extends keyof M, A> = A extends {
   readonly returning: false;
@@ -221,9 +248,8 @@ export interface Repository<
     args: A,
   ): AsyncResult<AggregateResult<M, T, A>>;
   exists(
-    args?: {
+    args?: RequestArgs & {
       readonly where?: WhereInput<M, T>;
-      readonly signal?: AbortSignal;
     } & FindExt<E, M, T>,
   ): AsyncResult<boolean>;
   paginate<
@@ -241,7 +267,7 @@ export interface Repository<
     data: Insert<M, T>,
     args?: A,
   ): AsyncResult<Returned<M, T, A>>;
-  createMany<const A extends WriteArgs<M, T> = {}>(
+  createMany<const A extends WriteManyArgs<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
   ): AsyncResult<
@@ -269,7 +295,7 @@ export interface Repository<
       ? Returned<M, T, A> | null
       : Returned<M, T, A>
   >;
-  upsertMany<const A extends UpsertArgs<M, T> = {}>(
+  upsertMany<const A extends UpsertManyArgs<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
   ): AsyncResult<
@@ -300,8 +326,7 @@ export type RepositoryOf<
   E,
 > = Repository<M, T, E> & ApplyExtension<E, M, T, "methods">;
 
-export interface RpcOptions<R> {
-  readonly signal?: AbortSignal;
+export interface RpcOptions<R> extends RequestArgs {
   /**
    * Validates the return value after decoding, so the schema sees the
    * configured casing and codecs; the result carries its output type.

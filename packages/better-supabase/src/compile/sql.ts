@@ -1,13 +1,16 @@
 import type {
   Condition,
+  DeleteOp,
   Include,
   InsertOp,
   Operation,
   OrderTerm,
   Selection,
+  UpdateOp,
 } from "../ir/types.ts";
 import type { RelationMeta, TableMeta } from "../schema/types.ts";
 
+import { MAX_AFFECTED_MARKER } from "../core/errors.ts";
 import { invalidRequest } from "../ir/build.ts";
 import { simplifyOrFalse } from "../ir/simplify.ts";
 import { lookupOf } from "../schema/lookup.ts";
@@ -501,7 +504,12 @@ export function compileSql(op: Operation): SqlPlan {
         ? compiler.condition(simple.condition, op.table, alias)
         : undefined;
       const statement = `update ${from} set ${set}${whereClause([where])}${returningRows(compiler, op, alias)}`;
-      return mutation(statement, op.returning !== undefined, compiler.params);
+      return mutation(
+        statement,
+        op.returning !== undefined,
+        compiler.params,
+        maxAffectedOf(op),
+      );
     }
     case "delete": {
       const simple = simplifyOrFalse(op.where);
@@ -511,7 +519,12 @@ export function compileSql(op: Operation): SqlPlan {
         ? compiler.condition(simple.condition, op.table, alias)
         : undefined;
       const statement = `delete from ${from}${whereClause([where])}${returningRows(compiler, op, alias)}`;
-      return mutation(statement, op.returning !== undefined, compiler.params);
+      return mutation(
+        statement,
+        op.returning !== undefined,
+        compiler.params,
+        maxAffectedOf(op),
+      );
     }
     default: {
       const exhaustive: never = op;
@@ -577,11 +590,53 @@ function tenantGuard(op: InsertOp, alias: string): string {
   return ` where ${alias}.${quoteIdent(column)} = excluded.${quoteIdent(column)}`;
 }
 
+function maxAffectedOf(op: UpdateOp | DeleteOp): number | undefined {
+  if (op.maxAffected === undefined) return undefined;
+  if (!Number.isInteger(op.maxAffected) || op.maxAffected < 0)
+    invalidRequest(
+      `"maxAffected" must be a non-negative integer, got ${op.maxAffected}`,
+      op.table.key,
+    );
+  return op.maxAffected;
+}
+
+/**
+ * The statement's row count, or a cast error naming it when it is above
+ * `max`. The cast depends on `count(*)`, so the planner can't fold it into
+ * an error for every call; the failed statement rolls its writes back. A
+ * query returning rows must use the count (`where c.n >= 0`), or Postgres
+ * drops the unused column and never runs the check.
+ */
+function guardedCount(max: number): string {
+  return `case when count(*) > ${max} then ('${MAX_AFFECTED_MARKER}:' || count(*))::int else count(*)::int end`;
+}
+
 function mutation(
   statement: string,
   returning: boolean,
   params: readonly unknown[],
+  maxAffected?: number,
 ): SqlPlan {
+  if (maxAffected !== undefined) {
+    const guard = guardedCount(maxAffected);
+    return returning
+      ? {
+          rows: {
+            text: `with m as (${statement}), c as (select ${guard} as n from m) select m.row from m cross join c where c.n >= 0`,
+            params,
+          },
+          count: undefined,
+          never: false,
+        }
+      : {
+          rows: undefined,
+          count: {
+            text: `with m as (${statement}) select ${guard} as count from m`,
+            params,
+          },
+          never: false,
+        };
+  }
   if (returning)
     return {
       rows: { text: statement, params },

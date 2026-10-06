@@ -65,8 +65,9 @@ where: { status: 'deleted' }
 
 `in` lists send uuids, numbers, dates and other plain values without quotes,
 as supabase-js does. A read whose query string is still longer than
-`maxUrlLength` (6000 characters by default, below the 8 KB request line the
-Supabase API gateway accepts) is split along its longest top-level `in` list
+`urlLengthLimit` (6000 characters by default, below the 8 KB request line the
+Supabase API gateway accepts, or the client's own `urlLengthLimit` when that is
+lower) is split along its longest top-level `in` list
 into reads that fit; they run in parallel, and the rows come back merged:
 
 ```ts
@@ -77,7 +78,8 @@ Splitting needs a read without `limit`, `offset`, `count` or a page, since
 the parts can't share those, and an `orderBy` on selected number, uuid, date
 or time columns, which are sorted again after the merge. Other reads that are
 too long return `invalid_request`: page through a shorter list, or pass the
-list to a function. Set the limit with `defineSupabase(schema, { maxUrlLength })`.
+list to a function. Set the limit with `defineSupabase(schema, { urlLengthLimit })`;
+`maxUrlLength` is its old name and still works.
 
 ## Building a filter step by step
 

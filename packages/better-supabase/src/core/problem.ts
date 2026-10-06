@@ -27,6 +27,8 @@ export interface ProblemDetails {
   readonly scopes?: readonly string[];
   /** Seconds until a `rate_limited` caller may retry. */
   readonly retryAfter?: number;
+  /** The row limit a `max_affected` write exceeded. */
+  readonly maxAffected?: number;
 }
 
 export const PROBLEM_TYPE_BASE = "https://bettersupabase.com/problems/";
@@ -52,6 +54,7 @@ const TITLES: { readonly [K in DbErrorKind]: string } = {
   validation: "Validation failed",
   multiple_rows: "More than one row matched",
   stale: "Row changed since it was read",
+  max_affected: "Too many rows affected",
   rate_limited: "Too many requests",
   unsupported: "Not supported by this executor",
   unexpected: "Unexpected error",
@@ -101,6 +104,7 @@ export function toProblem(
   if ("required" in error) problem["required"] = error.required;
   if ("scopes" in error) problem["scopes"] = error.scopes;
   if ("retryAfter" in error) problem["retryAfter"] = error.retryAfter;
+  if ("maxAffected" in error) problem["maxAffected"] = error.maxAffected;
   // SAFETY: the fields were copied from a DbError, whose shape matches ProblemDetails.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from a DbError, whose shape matches ProblemDetails.
   return problem as unknown as ProblemDetails;
@@ -169,6 +173,7 @@ export function fromProblem(problem: ProblemDetails): DbError {
     "required",
     "scopes",
     "retryAfter",
+    "maxAffected",
   ] as const) {
     if (problem[key] !== undefined) extra[key] = problem[key];
   }

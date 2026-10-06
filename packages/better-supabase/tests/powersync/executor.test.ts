@@ -93,6 +93,39 @@ describe("powersyncExecutor", () => {
     expect(await client.locations.count().orThrow()).toBe(0);
   });
 
+  it("refuses an update past maxAffected and rolls it back", async () => {
+    const { client } = setup();
+    await client.tags
+      .createMany([
+        { organizationId: ORG, name: "a", color: "red" },
+        { organizationId: ORG, name: "b", color: "red" },
+      ])
+      .orThrow();
+    const refused = await client.tags.updateMany({
+      where: { color: "red" },
+      data: { color: "blue" },
+      maxAffected: 1,
+    });
+    expect(refused.error).toMatchObject({
+      kind: "max_affected",
+      status: 400,
+      maxAffected: 1,
+      table: "tags",
+    });
+    expect(await client.tags.count({ where: { color: "red" } }).orThrow()).toBe(
+      2,
+    );
+    expect(
+      await client.tags
+        .updateMany({
+          where: { color: "red" },
+          data: { color: "blue" },
+          maxAffected: 2,
+        })
+        .orThrow(),
+    ).toEqual({ count: 2 });
+  });
+
   it("upserts on a unique key without crossing tenants", async () => {
     const { client } = setup();
     const first = await client.tags

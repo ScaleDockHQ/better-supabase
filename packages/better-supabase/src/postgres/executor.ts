@@ -7,7 +7,12 @@ import type { Result } from "../core/result.ts";
 import type { Operation } from "../ir/types.ts";
 
 import { compileSql, type SqlPlan } from "../compile/sql.ts";
-import { dbError, mapDbError, type RawDbError } from "../core/errors.ts";
+import {
+  dbError,
+  mapDbError,
+  type RawDbError,
+  withMaxAffected,
+} from "../core/errors.ts";
 import { err, ok, toDbError } from "../core/result.ts";
 
 /**
@@ -93,6 +98,11 @@ async function run(
  * Executes repository operations as SQL on a direct Postgres connection.
  * Rows have the same shape as over PostgREST. RLS applies when the client
  * runs as the caller (`ctx.postgres`, `createPostgres().asUser()`).
+ *
+ * `maxAffected` fails the statement itself, so its writes roll back.
+ * A call's `timeout` is checked before the statement starts; set
+ * `statement_timeout` on the connection to bound a running statement.
+ * `retry` does nothing here.
  */
 export function postgresExecutor(client: SqlClient): Executor {
   return {
@@ -147,7 +157,17 @@ async function executeOn(
         : await run(client, plan, op);
   } catch (cause) {
     const raw = fromPgError(cause);
-    return err(raw ? mapDbError(raw, context.errorMappers) : toDbError(cause));
+    const error = raw
+      ? mapDbError(raw, context.errorMappers)
+      : toDbError(cause);
+    return err(
+      withMaxAffected(
+        error,
+        op.kind === "update" || op.kind === "delete"
+          ? op.maxAffected
+          : undefined,
+      ),
+    );
   }
   if (op.kind === "select" && op.single) {
     if (result.rows.length > 1)

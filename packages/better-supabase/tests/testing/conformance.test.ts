@@ -628,6 +628,7 @@ function storeExecutor(
     readonly ignoresSource?: boolean;
     readonly batchDrops?: boolean;
     readonly keepsDeleted?: boolean;
+    readonly ignoresMaxAffected?: boolean;
     readonly renames?: boolean;
   } = {},
 ): Executor {
@@ -666,6 +667,18 @@ function storeExecutor(
       }
       case "delete": {
         const removed = rows.filter((row) => matches(row, op.where));
+        if (
+          op.maxAffected !== undefined &&
+          removed.length > op.maxAffected &&
+          !quirks.ignoresMaxAffected
+        )
+          return Promise.resolve(
+            err(
+              dbError("max_affected", "too many rows", {
+                maxAffected: op.maxAffected,
+              }),
+            ),
+          );
         if (!quirks.keepsDeleted)
           for (const row of removed) rows.splice(rows.indexOf(row), 1);
         return Promise.resolve(
@@ -714,6 +727,7 @@ describe("testExecutor optional contracts", () => {
       "reads from SelectOp.source instead of the table",
       "batch returns one result per operation, in order",
       "round-trips a write",
+      "refuses a write past maxAffected and writes nothing",
     ]);
   });
 
@@ -727,6 +741,7 @@ describe("testExecutor optional contracts", () => {
             ignoresSource: true,
             batchDrops: true,
             renames: true,
+            ignoresMaxAffected: true,
           }),
           { betterSupabase, table: "tags", create },
         ),
@@ -736,12 +751,17 @@ describe("testExecutor optional contracts", () => {
       "reads from SelectOp.source instead of the table",
       "batch returns one result per operation, in order",
       "round-trips a write",
+      "refuses a write past maxAffected and writes nothing",
     ]);
     const error = await testExecutor(
       storeExecutor(tagRows, { keepsDeleted: true }),
       { betterSupabase, table: "tags", create },
     ).catch((cause: unknown) => cause);
-    expect((error as ConformanceError).report.checks.at(-1)).toEqual({
+    expect(
+      (error as ConformanceError).report.checks.find(
+        (check) => check.name === "round-trips a write",
+      ),
+    ).toEqual({
       name: "round-trips a write",
       ok: false,
       message: "the deleted row is still readable",

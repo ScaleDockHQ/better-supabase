@@ -1,15 +1,22 @@
-import type { FunctionSource, Operation } from "../ir/types.ts";
+import type { FunctionSource, MutationOp, Operation } from "../ir/types.ts";
 import type { ExecuteContext, ExecuteResult, Executor } from "./executor.ts";
 
-import { compilePostgrest, type PostgrestPlan } from "../compile/postgrest.ts";
+import {
+  compilePostgrest,
+  type PostgrestCompileOptions,
+  type PostgrestPlan,
+} from "../compile/postgrest.ts";
+import { invalidRequest } from "../ir/build.ts";
 import {
   type DbError,
   dbError,
   mapDbError,
   type RawDbError,
+  withMaxAffected,
 } from "./errors.ts";
 import { chunkRead, queryLength } from "./in-chunks.ts";
 import { err, ok, type Result, toDbError } from "./result.ts";
+import { deadline, isTimeout } from "./timeout.ts";
 
 interface PostgrestResponseLike {
   readonly data: unknown;
@@ -54,6 +61,10 @@ interface BuilderLike extends PromiseLike<PostgrestResponseLike> {
   single(): BuilderLike;
   maybeSingle(): BuilderLike;
   abortSignal(signal: AbortSignal): BuilderLike;
+  /** postgrest-js 2.x: `Prefer: handling=strict, max-affected=<rows>`. */
+  maxAffected?(rows: number): BuilderLike;
+  /** postgrest-js 2.x: retries idempotent requests on network errors, 503 and 520. */
+  retry?(enabled: boolean): BuilderLike;
 }
 
 /**
@@ -172,6 +183,26 @@ function applyOrderAndLimits(
   return query;
 }
 
+/** A mutation without `returning` reports its row count, `exact` unless the op says otherwise. */
+function countOf(op: MutationOp, plan: PostgrestPlan): { count?: string } {
+  return plan.select === undefined ? { count: op.count ?? "exact" } : {};
+}
+
+function bounded(
+  query: BuilderLike,
+  op: MutationOp,
+  plan: PostgrestPlan,
+): BuilderLike {
+  if (plan.maxAffected === undefined) return query;
+  if (!query.maxAffected) {
+    invalidRequest(
+      '"maxAffected" needs @supabase/postgrest-js 2 or later',
+      op.table.key,
+    );
+  }
+  return query.maxAffected(plan.maxAffected);
+}
+
 function build(
   client: PostgrestClientLike,
   op: Operation,
@@ -193,7 +224,7 @@ function build(
     }
     case "insert": {
       const rows = op.rows.length === 1 ? op.rows[0] : op.rows;
-      const count = plan.select === undefined ? { count: "exact" } : {};
+      const count = countOf(op, plan);
       let query = op.onConflict
         ? base.upsert(rows, {
             onConflict: op.onConflict.columns.join(","),
@@ -206,16 +237,14 @@ function build(
       return query;
     }
     case "update": {
-      const count = plan.select === undefined ? { count: "exact" } : {};
-      let query = applyFilters(base.update(op.set, count), plan);
+      let query = applyFilters(base.update(op.set, countOf(op, plan)), plan);
       if (plan.select !== undefined) query = query.select(plan.select);
-      return query;
+      return bounded(query, op, plan);
     }
     case "delete": {
-      const count = plan.select === undefined ? { count: "exact" } : {};
-      let query = applyFilters(base.delete(count), plan);
+      let query = applyFilters(base.delete(countOf(op, plan)), plan);
       if (plan.select !== undefined) query = query.select(plan.select);
-      return query;
+      return bounded(query, op, plan);
     }
     default: {
       const exhaustive: never = op;
@@ -250,14 +279,69 @@ function pastLastRow(op: Operation, error: RawDbError): number | undefined {
 
 const aborted = (): DbError => dbError("aborted", "The request was aborted");
 
-export interface PostgrestExecutorOptions {
+function tune(
+  builder: BuilderLike,
+  signal: AbortSignal | undefined,
+  retry: boolean | undefined,
+): BuilderLike {
+  let query = builder;
+  if (signal) query = query.abortSignal(signal);
+  if (retry !== undefined && query.retry) query = query.retry(retry);
+  return query;
+}
+
+const timedOut = (ms: number): DbError =>
+  dbError("timeout", `The request timed out after ${ms} ms`);
+
+export interface PostgrestExecutorOptions extends PostgrestCompileOptions {
   /**
    * The longest query string a read may send, in characters. A longer read
    * is split along its longest `in` list into reads that fit, or fails with
    * `invalid_request` when it can't be split. Defaults to 6000, below the
-   * 8 KB request line the Supabase API gateway and common proxies accept.
+   * 8 KB request line the Supabase API gateway and common proxies accept,
+   * or to the client's `db.urlLengthLimit` when that is lower.
    */
+  readonly urlLengthLimit?: number;
+  /** @deprecated Renamed to `urlLengthLimit`, which wins when both are set. */
   readonly maxUrlLength?: number;
+  /**
+   * Aborts each request after this many milliseconds with a `timeout`
+   * error. A call's own `timeout` replaces it. Off by default.
+   */
+  readonly timeout?: number;
+  /**
+   * postgrest-js retries of idempotent requests (GET and HEAD) on network
+   * errors, 503 and 520. A call's own `retry` replaces it. Defaults to the
+   * client's setting, which is on.
+   */
+  readonly retry?: boolean;
+}
+
+const DEFAULT_URL_LENGTH_LIMIT = 6000;
+
+/** `urlLengthLimit` on a bare `PostgrestClient`, or on supabase-js's `rest` client. */
+function clientUrlLengthLimit(client: PostgrestClientLike): number | undefined {
+  // SAFETY: both fields are read only after a typeof check.
+  const loose = client as {
+    readonly urlLengthLimit?: unknown;
+    readonly rest?: { readonly urlLengthLimit?: unknown };
+  };
+  const limit = loose.urlLengthLimit ?? loose.rest?.urlLengthLimit;
+  return typeof limit === "number" && limit > 0 ? limit : undefined;
+}
+
+/** The query-string budget for one read: the option, else the lower of 6000 and the client's limit. */
+export function resolveUrlLengthLimit(
+  client: PostgrestClientLike,
+  options: Pick<PostgrestExecutorOptions, "urlLengthLimit" | "maxUrlLength">,
+): number {
+  // oxlint-disable-next-line typescript/no-deprecated -- the alias stays readable until it is removed.
+  const explicit = options.urlLengthLimit ?? options.maxUrlLength;
+  if (explicit !== undefined) return explicit;
+  const fromClient = clientUrlLengthLimit(client);
+  return fromClient === undefined
+    ? DEFAULT_URL_LENGTH_LIMIT
+    : Math.min(fromClient, DEFAULT_URL_LENGTH_LIMIT);
 }
 
 /** Executes IR operations through a supabase-js client. */
@@ -265,21 +349,26 @@ export function postgrestExecutor(
   client: PostgrestClientLike,
   options: PostgrestExecutorOptions = {},
 ): Executor {
-  const maxUrlLength = options.maxUrlLength ?? 6000;
+  const urlLengthLimit = resolveUrlLengthLimit(client, options);
+  const compileOptions: PostgrestCompileOptions =
+    options.postgrestVersion === undefined
+      ? {}
+      : { postgrestVersion: options.postgrestVersion };
+  const timeout = isTimeout(options.timeout) ? options.timeout : undefined;
   const execute = async (
     op: Operation,
     context: ExecuteContext,
   ): Promise<Result<ExecuteResult>> => {
     let plan: PostgrestPlan;
     try {
-      plan = compilePostgrest(op);
+      plan = compilePostgrest(op, compileOptions);
     } catch (cause) {
       return err(toDbError(cause));
     }
     if (plan.never) return ok({ rows: [], count: 0 });
     if (context.signal?.aborted) return err(aborted());
-    if (op.kind === "select" && queryLength(plan) > maxUrlLength) {
-      const chunked = chunkRead(op, plan, maxUrlLength);
+    if (op.kind === "select" && queryLength(plan) > urlLengthLimit) {
+      const chunked = chunkRead(op, plan, urlLengthLimit);
       if (!("ops" in chunked)) return err(chunked);
       const results = await Promise.all(
         chunked.ops.map((chunk) => send(chunk, context)),
@@ -302,7 +391,7 @@ export function postgrestExecutor(
   ): Promise<Result<ExecuteResult>> => {
     let plan: PostgrestPlan;
     try {
-      plan = compilePostgrest(op);
+      plan = compilePostgrest(op, compileOptions);
     } catch (cause) {
       return Promise.resolve(err(toDbError(cause)));
     }
@@ -315,17 +404,33 @@ export function postgrestExecutor(
     plan: PostgrestPlan,
     context: ExecuteContext,
   ): Promise<Result<ExecuteResult>> => {
-    let query = build(client, op, plan);
-    if (context.signal) query = query.abortSignal(context.signal);
-
-    const response = await query;
-    if (response.error) {
-      if (context.signal?.aborted) return err(aborted());
-      const total = pastLastRow(op, response.error);
-      if (total !== undefined) return ok({ rows: [], count: total });
-      return err(mapDbError(response.error, context.errorMappers));
+    let query: BuilderLike;
+    try {
+      query = build(client, op, plan);
+    } catch (cause) {
+      return err(toDbError(cause));
     }
-    return ok({ rows: rowsOf(response.data), count: response.count ?? null });
+    const limit = deadline(context.signal, timeout);
+    try {
+      query = tune(query, limit.signal, context.retry ?? options.retry);
+      const response = await query;
+      if (response.error) {
+        if (limit.timedOut() && timeout !== undefined)
+          return err(timedOut(timeout));
+        if (limit.signal?.aborted) return err(aborted());
+        const total = pastLastRow(op, response.error);
+        if (total !== undefined) return ok({ rows: [], count: total });
+        return err(
+          withMaxAffected(
+            mapDbError(response.error, context.errorMappers),
+            plan.maxAffected,
+          ),
+        );
+      }
+      return ok({ rows: rowsOf(response.data), count: response.count ?? null });
+    } finally {
+      limit.clear();
+    }
   };
   return {
     name: "postgrest",
@@ -339,18 +444,28 @@ export function postgrestExecutor(
       if (context.signal?.aborted) return err(aborted());
       // SAFETY: rpc() on a supabase-js or postgrest-js client returns a filter
       // builder with these methods.
-      let query = (
+      const built = (
         context.get
           ? scoped.rpc(name, queryArgs(args), { get: true })
           : scoped.rpc(name, args)
       ) as BuilderLike;
-      if (context.signal) query = query.abortSignal(context.signal);
-      const response = await query;
-      if (response.error) {
-        if (context.signal?.aborted) return err(aborted());
-        return err(mapDbError(response.error, context.errorMappers));
+      const limit = deadline(context.signal, timeout);
+      try {
+        const response = await tune(
+          built,
+          limit.signal,
+          context.retry ?? options.retry,
+        );
+        if (response.error) {
+          if (limit.timedOut() && timeout !== undefined)
+            return err(timedOut(timeout));
+          if (limit.signal?.aborted) return err(aborted());
+          return err(mapDbError(response.error, context.errorMappers));
+        }
+        return ok(response.data);
+      } finally {
+        limit.clear();
       }
-      return ok(response.data);
     },
   };
 }
@@ -373,6 +488,9 @@ function queryArgs(
 }
 
 /** The compiled plan for an operation; useful for debugging and tests. */
-export function explainPostgrest(op: Operation): PostgrestPlan {
-  return compilePostgrest(op);
+export function explainPostgrest(
+  op: Operation,
+  options?: PostgrestCompileOptions,
+): PostgrestPlan {
+  return compilePostgrest(op, options);
 }

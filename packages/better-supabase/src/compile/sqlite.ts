@@ -71,6 +71,8 @@ export interface SqliteKeyedPlan {
   readonly keys: SqliteQuery;
   readonly apply: (keys: SqliteKeys) => SqliteQuery;
   readonly returning: SqliteReturning | undefined;
+  /** More selected keys than this fails with `max_affected` before any write. */
+  readonly maxAffected?: number;
 }
 
 export interface SqliteReturning {
@@ -679,6 +681,15 @@ function keyedPlan(
 ): SqlitePlan {
   const simple = simplifyOrFalse(op.where);
   if (simple.never) return { kind: "never" };
+  const { maxAffected } = op;
+  if (
+    maxAffected !== undefined &&
+    (!Number.isInteger(maxAffected) || maxAffected < 0)
+  )
+    invalidRequest(
+      `"maxAffected" must be a non-negative integer, got ${maxAffected}`,
+      op.table.key,
+    );
   const keys = keyColumns(op.table);
   const compiler = make();
   const alias = compiler.alias();
@@ -717,6 +728,7 @@ function keyedPlan(
       };
     },
     returning: returning(make, op),
+    ...(maxAffected === undefined ? {} : { maxAffected }),
   };
 }
 

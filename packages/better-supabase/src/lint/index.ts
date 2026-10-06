@@ -168,7 +168,8 @@ export type RuleId =
   | "no-delete-many-without-where"
   | "max-limit"
   | "require-order-by"
-  | "unbounded-read";
+  | "unbounded-read"
+  | "require-max-affected";
 
 /** The part of `supabase/snapshot.json` that `largeTables` reads. */
 export interface LintSnapshot {
@@ -294,6 +295,48 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
           tables: { type: "array", items: { type: "string" } },
           strict: { type: "boolean" },
         },
+        additionalProperties: false,
+      },
+    ],
+  ),
+  "require-max-affected": rule(
+    "Require maxAffected on updateMany and deleteMany",
+    "require-max-affected",
+    {
+      missing:
+        "{{method}} without maxAffected can change every row its where matches.",
+      tooLarge: "maxAffected {{value}} is above the maximum of {{max}}.",
+    },
+    (context) => {
+      // SAFETY: the rule schema declares this options object, and the linter validates it.
+      const option = context.options[0] as { max?: number } | undefined;
+      const max = option?.max ?? 1000;
+      return {
+        CallExpression(node) {
+          const method = methodName(node);
+          if (method !== "updateMany" && method !== "deleteMany") return;
+          const args = argsOf(node);
+          if (!args) return;
+          const bound = args.get("maxAffected");
+          if (bound === undefined) {
+            context.report({ node, messageId: "missing", data: { method } });
+            return;
+          }
+          const value = numberOf(bound);
+          if (value !== undefined && value > max) {
+            context.report({
+              node,
+              messageId: "tooLarge",
+              data: { value: String(value), max: String(max) },
+            });
+          }
+        },
+      };
+    },
+    [
+      {
+        type: "object",
+        properties: { max: { type: "integer", minimum: 0 } },
         additionalProperties: false,
       },
     ],

@@ -45,6 +45,30 @@ const row = await db.customers
 
 Composite keys take an object: `db.customerTags.findById({ customerId, tagId })`.
 
+## Timeouts and retries
+
+Every read, write and `$rpc` call also takes `timeout` and `retry`:
+
+```ts
+const rows = await db.customers.findMany({
+  where: { status: "lead" },
+  timeout: 2000,
+  retry: false,
+});
+```
+
+`timeout` is in milliseconds. It is combined with `signal` (either one aborts
+the request), and a call that runs past it fails with `timeout` (504) instead
+of `aborted`. `retry` turns supabase-js retries on or off for the call: they
+repeat `GET` and `HEAD` requests after a network error, a 503 or a 520, and
+never repeat a write. Set both for a whole connection with
+`betterSupabase.connect(client, context, { timeout, retry })`; a call's own
+values win.
+
+On the [Postgres executor](/docs/auth/postgres), `timeout` only stops a call
+that has not started its statement yet, so use `statement_timeout` for long
+queries, and `retry` does nothing.
+
 ## Escape hatches
 
 - `db.$client` is the client you passed in.

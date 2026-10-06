@@ -51,6 +51,22 @@ A literal `limit` above `max` (default 1000) in `findMany`, `findFirst` or
 `findMany` with `offset` but no `orderBy`, which returns pages in no stable
 order. Recommended: `warn`.
 
+### require-max-affected
+
+`updateMany` or `deleteMany` without
+[`maxAffected`](/docs/repository/writing#limiting-bulk-writes), or with a
+literal `maxAffected` above `max` (default 1000). Not in `recommended`; turn
+it on where a bulk write that matches too many rows would hurt:
+
+```js title="eslint.config.js"
+export default [
+  betterSupabase.configs.recommended,
+  {
+    rules: { "better-supabase/require-max-affected": ["error", { max: 500 }] },
+  },
+];
+```
+
 ### unbounded-read
 
 `db.<table>.findMany` without `limit` on a large table. PostgREST cuts such a

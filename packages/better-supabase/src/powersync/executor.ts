@@ -218,12 +218,25 @@ async function runInsert(
   return { rows, count: written.length };
 }
 
+/** Thrown inside the write transaction so it rolls back; mapped to `max_affected`. */
+class MaxAffected extends Error {
+  readonly error: DbError;
+
+  constructor(affected: number, maxAffected: number) {
+    const message = `The write affects ${affected} rows, more than maxAffected (${maxAffected}) allows`;
+    super(message);
+    this.error = dbError("max_affected", message, { maxAffected });
+  }
+}
+
 async function runKeyed(
   tx: SqliteContextLike,
   plan: SqliteKeyedPlan,
 ): Promise<ExecuteResult> {
   const keys = await keysOf(tx, plan.keys);
   if (keys.length === 0) return { rows: [], count: 0 };
+  if (plan.maxAffected !== undefined && keys.length > plan.maxAffected)
+    throw new MaxAffected(keys.length, plan.maxAffected);
   const before =
     plan.kind === "delete" ? await readBack(tx, plan, keys) : undefined;
   for (const page of keyPages(keys)) {
@@ -333,6 +346,7 @@ async function executeOn(
 }
 
 function mapped(cause: unknown, mappers: readonly ErrorMapper[]): DbError {
+  if (cause instanceof MaxAffected) return cause.error;
   const raw = fromSqliteError(cause);
   return raw ? mapDbError(raw, mappers) : toDbError(cause);
 }
@@ -344,6 +358,9 @@ function mapped(cause: unknown, mappers: readonly ErrorMapper[]): DbError {
  * timestamps); writes go through PowerSync's upload queue. What SQLite
  * can't express (includes, full-text search, function sources) returns a
  * `DbError` of kind `unsupported` without running anything.
+ * `maxAffected` is checked against the selected keys before any write; a
+ * call's `timeout` is checked before the statement starts, and `retry`
+ * does nothing here.
  *
  * ```ts
  * const db = betterSupabase.connect(powersyncExecutor(powersync));
