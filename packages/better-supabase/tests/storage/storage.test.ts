@@ -26,7 +26,11 @@ const logos = defineBucket({
 
 describe("defineBucket", () => {
   it("builds, matches and prefixes paths", () => {
-    const built = logos.path({ organizationId: "o1", customerId: "c1", version: 3 });
+    const built = logos.path({
+      organizationId: "o1",
+      customerId: "c1",
+      version: 3,
+    });
     expect(built).toEqual({ ok: true, data: "o1/c1/logo/3.webp", error: null });
     const path = built.data!;
     expect(logos.match(path)).toEqual({
@@ -45,9 +49,13 @@ describe("defineBucket", () => {
 
   it("returns an error for unsafe segment values instead of throwing", () => {
     for (const customerId of ["", "..", "a/b", "a\u0000b", "naïve"]) {
-      expect(logos.path({ organizationId: "o1", customerId, version: 1 })).toMatchObject(
-        { ok: false, data: null, error: { kind: "invalid_input" } },
-      );
+      expect(
+        logos.path({ organizationId: "o1", customerId, version: 1 }),
+      ).toMatchObject({
+        ok: false,
+        data: null,
+        error: { kind: "invalid_input" },
+      });
     }
   });
 
@@ -356,7 +364,11 @@ describe("renderUrl", () => {
 
 describe("StoragePath", () => {
   it("brands paths with the bucket id", () => {
-    const built = logos.path({ organizationId: "o1", customerId: "c1", version: 1 });
+    const built = logos.path({
+      organizationId: "o1",
+      customerId: "c1",
+      version: 1,
+    });
     expectTypeOf(built).toEqualTypeOf<Result<StoragePath<"customer-logos">>>();
     const path = built.data!;
     expectTypeOf(path).toEqualTypeOf<StoragePath<"customer-logos">>();
@@ -1541,7 +1553,8 @@ describe("path layouts", () => {
 
   it("builds with the template whose placeholders match the values", () => {
     expect(
-      files.path({ organizationId: "o1", fileId: "f1", version: 2, ext: "pdf" }).data,
+      files.path({ organizationId: "o1", fileId: "f1", version: 2, ext: "pdf" })
+        .data,
     ).toBe("o1/files/f1/v2.pdf");
     expect(files.path({ organizationId: "o1", exportId: "e1" }).data).toBe(
       "o1/exports/e1.zip",
@@ -1551,7 +1564,8 @@ describe("path layouts", () => {
     );
     expect(files.path({ organizationId: "o1" } as never).error).toMatchObject({
       kind: "invalid_input",
-      message: 'No path template of bucket "files" takes exactly {organizationId}',
+      message:
+        'No path template of bucket "files" takes exactly {organizationId}',
     });
     expect(files.templates).toHaveLength(3);
     expect(files.template).toBe(

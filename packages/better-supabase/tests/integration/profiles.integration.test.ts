@@ -269,7 +269,11 @@ describe.skipIf(!live)("profiles", () => {
           "insert into storage.objects (bucket_id, name, owner_id) values ($1, $2, $3) returning name",
           [bucket, name, USERS[who]],
         );
-      const logo = logos.path({ organizationId: organization, version: "v1", ext: "png" }).data!;
+      const logo = logos.path({
+        organizationId: organization,
+        version: "v1",
+        ext: "png",
+      }).data!;
       expect((await upload("ada", logos.id, logo)).rows).toHaveLength(1);
       expect((await upload("bob", logos.id, logo)).error?.code).toBe("42501");
       const avatar = (who: Who) =>
