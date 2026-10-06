@@ -4,6 +4,7 @@ export type {
   HistoryFilter,
   Outbox,
   OutboxEvent,
+  OutboxHandler,
   OutboxOptions,
   OutboxRouteOptions,
   OutboxRouteResult,

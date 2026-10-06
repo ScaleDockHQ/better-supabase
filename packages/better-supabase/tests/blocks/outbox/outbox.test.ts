@@ -6,6 +6,7 @@ import type { SqlClient } from "../../../src/postgres/executor.ts";
 import {
   createOutbox,
   outboxCloudEvent,
+  type OutboxEvent,
 } from "../../../src/blocks/outbox/outbox.ts";
 
 interface Call {
@@ -126,6 +127,42 @@ describe("createOutbox", () => {
       ["crm", "w1", 2],
       ["crm", "w1", 3],
     ]);
+  });
+
+  it("hands consume handlers the rows with the actor", async () => {
+    const { sql, calls } = fakeSql({
+      outbox_claim: [[row(1)], [row(2)]],
+      outbox_ack: [true, true, true],
+    });
+    const seen: OutboxEvent[] = [];
+    const outbox = createOutbox(sql, OPTIONS);
+    const result = await outbox.consume(
+      "search",
+      async (events) => {
+        seen.push(...events);
+      },
+      { owner: "w1" },
+    );
+    expect(result).toEqual({ delivered: 1 });
+    expect(seen[0]).toMatchObject({
+      position: 1,
+      type: "organization.created",
+      actorId: "u1",
+      tenant: "t1",
+    });
+    expect(calls.find((call) => call.fn === "outbox_ack")!.args).toEqual([
+      "search",
+      "w1",
+      1,
+    ]);
+    const failed = await outbox.consume(
+      "search",
+      () => {
+        throw new Error("index down");
+      },
+      { owner: "w1" },
+    );
+    expect(failed.error?.message).toContain("index down");
   });
 
   it("releases the lease without moving the cursor when the sink throws", async () => {
@@ -249,14 +286,18 @@ describe("relayRoute", () => {
 
   it("relays each consumer and reports sink errors", async () => {
     const { sql } = fakeSql({
-      outbox_claim: [[row(1)], [row(2)]],
-      outbox_ack: [true, true],
+      outbox_claim: [[row(1)], [row(3)], [row(2)]],
+      outbox_ack: [true, true, true],
     });
     const errors: string[] = [];
+    const actors: (string | null)[] = [];
     const route = createOutbox(sql, OPTIONS).relayRoute({
       secret: "s",
       consumers: {
         good: { send: () => undefined },
+        rows: (events) => {
+          actors.push(...events.map((event) => event.actorId));
+        },
         bad: {
           send: () => {
             throw new Error("down");
@@ -268,9 +309,14 @@ describe("relayRoute", () => {
     const response = await route(request("POST"));
     const body = await response.json();
     expect(body).toMatchObject({
-      consumers: { good: { delivered: 1 }, bad: { delivered: 0 } },
+      consumers: {
+        good: { delivered: 1 },
+        rows: { delivered: 1 },
+        bad: { delivered: 0 },
+      },
       budgetExhausted: false,
     });
     expect(errors).toEqual(["bad"]);
+    expect(actors).toEqual(["u1"]);
   });
 });

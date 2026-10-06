@@ -107,6 +107,28 @@ default), so two cron runs never send the same batch at the same time.
 within its budget, the same way the [jobs drain route](/docs/blocks/jobs)
 does.
 
+### Consumers inside the app
+
+`consume(consumer, handler)` claims and acknowledges the same way, but hands
+the handler the outbox rows instead of CloudEvents: `type`, `payload`,
+`tenant`, `subject`, `key`, `actorId`, `position` and `createdAt`. Use it for
+consumers in your own app, such as search indexing or notifications, that need
+the actor. A handler that throws leaves the batch for the next run.
+
+```ts
+await outbox.consume("search", async (events) => {
+  for (const event of events) {
+    await index.update(event.subject, {
+      by: event.actorId,
+      at: event.createdAt,
+    });
+  }
+});
+```
+
+`relayRoute` takes a handler in place of a sink too:
+`consumers: { search: (events) => indexEvents(events) }`.
+
 ### Ordering and open transactions
 
 Positions come from an identity column, which hands out numbers before

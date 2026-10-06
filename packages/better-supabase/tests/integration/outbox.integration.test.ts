@@ -181,6 +181,46 @@ describe.skipIf(!live)("outbox", () => {
     });
   });
 
+  it("hands consume handlers the rows with the actor", async () => {
+    expect((await outbox.register("rows", { types: ["rows.*"] })).ok).toBe(
+      true,
+    );
+    const actor = crypto.randomUUID();
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query("select set_config('request.jwt.claims', $1, true)", [
+        JSON.stringify({ sub: actor, role: "authenticated" }),
+      ]);
+      await client.query(
+        `select ${SCHEMA}.emit_event('rows.created', '{"n":1}', null, 'tenant-1')`,
+      );
+      await client.query("commit");
+    } finally {
+      client.release();
+    }
+    const seen: {
+      type: string;
+      actorId: string | null;
+      tenant: string | null;
+    }[] = [];
+    expect(
+      await outbox.consume("rows", (events) => {
+        seen.push(
+          ...events.map(({ type, actorId, tenant }) => ({
+            type,
+            actorId,
+            tenant,
+          })),
+        );
+      }),
+    ).toEqual({ delivered: 1 });
+    expect(seen).toEqual([
+      { type: "rows.created", actorId: actor, tenant: "tenant-1" },
+    ]);
+    expect((await outbox.unregister("rows")).data).toBe(true);
+  });
+
   it("keeps the lease to one worker and purges only what consumers passed", async () => {
     await outbox.register("audit", { fromStart: true });
     const { rows } = await pool.query(
