@@ -57,7 +57,7 @@ Each call is still one PostgREST request, and it runs as the signed-in user, so 
 - **Auth without extra round trips.** Valid access tokens are [verified locally](https://bettersupabase.com/docs/auth) against the JWKS and never reach the Auth server. Refresh happens once, in the proxy. The service role is an explicit `bs.admin()` call.
 - **Cache tags that follow writes.** Mutations [invalidate the tables they change](https://bettersupabase.com/docs/concepts/caching), with read-your-writes in Next.js server actions and table-based invalidation in TanStack Query.
 - **Plugins.** [Timestamps, soft delete, tenant scoping, actor columns, validation and rules](https://bettersupabase.com/docs/plugins), each versioned and opt-in.
-- **Blocks for the SQL every app repeats.** [Jobs on Supabase Queues](https://bettersupabase.com/docs/blocks/jobs), webhook inboxes, idempotency keys, organizations and invitations, notifications, list pages, typed Storage paths and Realtime topics, vector search and Stripe entitlements. [`better-supabase sql add`](https://bettersupabase.com/docs/blocks/sql) writes the tables, functions and policies into your declarative schema.
+- **Blocks for the SQL every app repeats.** [Jobs on Supabase Queues](https://bettersupabase.com/docs/blocks/jobs), webhook inboxes, idempotency keys, organizations and invitations, notifications, outgoing webhooks, vector search and Stripe entitlements. [`better-supabase sql add`](https://bettersupabase.com/docs/blocks/sql) writes the tables, functions and policies into your declarative schema.
 - **Tests and CI checks.** [`asUser`](https://bettersupabase.com/docs/testing) runs RLS tests as any user against the local stack, `gen --check` fails on schema drift, and [`doctor`](https://bettersupabase.com/docs/cli/doctor) reports security and performance findings, with SARIF output for code scanning.
 
 ## Install
@@ -186,7 +186,8 @@ See the [CLI reference](https://bettersupabase.com/docs/cli) for every command a
 | `better-supabase/blocks/jobs`                     | Supabase Queues jobs, idempotency keys and a webhook inbox               |
 | `better-supabase/blocks/outbox`                   | Transactional events with consumer cursors, relayed as CloudEvents       |
 | `better-supabase/blocks/organizations`            | Organizations, members, invitations and switching                        |
-| `better-supabase/blocks/notifications`, `/react`  | Sending, listing and delivering notifications, and `useNotifications`    |
+| `better-supabase/blocks/notifications`            | Sending, listing and delivering notifications                            |
+| `better-supabase/blocks/notifications/react`      | `useNotifications`, a live list of the user's notifications              |
 | `better-supabase/blocks/webhooks`                 | Standard Webhooks: verifying incoming ones and delivering outgoing ones  |
 | `better-supabase/blocks/entitlements`             | Stripe entitlements: `hasEntitlement` and the members of a plan change   |
 | `better-supabase/list`                            | Search, facets, sorting and pagination from one definition               |

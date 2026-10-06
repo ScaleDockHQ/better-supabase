@@ -96,7 +96,7 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 Allowed types: `feat`, `fix`, `docs`, `chore`, `ci`, `refactor`, `test`, `perf`, `style`, `revert`. The subject is lower-case and the header is at most 72 characters.
 
 ```
-feat(sql): add vector search kit
+feat(sql): add the vector search module
 docs: explain read replicas
 ```
 
