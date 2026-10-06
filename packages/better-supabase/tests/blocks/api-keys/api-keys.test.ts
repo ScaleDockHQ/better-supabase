@@ -1,29 +1,29 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
-import type { BlockTransport } from "../../src/core/block-transport.ts";
+import type { BlockTransport } from "../../../src/core/block-transport.ts";
 import type {
   BetterPostgres,
   SessionOptions,
   SqlClaims,
-} from "../../src/postgres/pool.ts";
+} from "../../../src/postgres/pool.ts";
 
 import {
   apiKeyResolver,
   createApiKeys,
   parseApiKey,
-} from "../../src/blocks/api-keys/index.ts";
-import { sha256Hex } from "../../src/blocks/shared.ts";
-import { defineSupabase } from "../../src/core/define.ts";
-import { ok } from "../../src/core/result.ts";
-import { createHono, type HonoEnv } from "../../src/hono/index.ts";
-import { postgresExecutor } from "../../src/postgres/executor.ts";
-import { fakeSql } from "../fixtures/fake-sql.ts";
+} from "../../../src/blocks/api-keys/index.ts";
+import { sha256Hex } from "../../../src/blocks/shared.ts";
+import { defineSupabase } from "../../../src/core/define.ts";
+import { ok } from "../../../src/core/result.ts";
+import { createHono, type HonoEnv } from "../../../src/hono/index.ts";
+import { postgresExecutor } from "../../../src/postgres/executor.ts";
+import { fakeSql } from "../../fixtures/fake-sql.ts";
 import {
   type Functions,
   type Models,
   schema,
-} from "../fixtures/generated-camel.ts";
+} from "../../fixtures/generated-camel.ts";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
 const USER = "22222222-2222-4222-8222-222222222222";

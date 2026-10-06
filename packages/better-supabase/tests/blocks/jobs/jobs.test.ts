@@ -10,7 +10,6 @@ import {
   createJobs,
   type Job,
   pgmqPublicBackend,
-  purgeAuditLog,
   type QueueBackend,
   type QueueRpcClient,
   sqlQueueBackend,
@@ -2023,46 +2022,5 @@ describe("createInbox", () => {
       10,
       "300 seconds",
     ]);
-  });
-});
-
-describe("purgeAuditLog", () => {
-  it("makes one purge call without a retention callback", async () => {
-    const fake = fakeSql([["purge_audit_log", [{ n: "4" }]]]);
-    expect(await purgeAuditLog(fake.sql).orThrow()).toBe(4);
-    expect(fake.calls).toEqual([
-      {
-        text: "select better_supabase.purge_audit_log($1::interval, $2) as n",
-        values: ["1 year", 10_000],
-      },
-    ]);
-  });
-
-  it("purges each tenant with the interval the callback returns", async () => {
-    const fake = fakeSql([
-      ["audit_events_tenants", [{ tenant: "a" }, { tenant: null }]],
-      ["purge_audit_log", [{ n: 2 }]],
-    ]);
-    const purged = await purgeAuditLog(fake.sql, {
-      olderThan: 86_400,
-      batch: 50,
-      retention: (tenant) => (tenant === "a" ? 30 : undefined),
-    }).orThrow();
-    expect(purged).toBe(4);
-    expect(fake.calls.slice(1).map((call) => call.values)).toEqual([
-      ["30 days", 50, "a"],
-      ["86400 seconds", 50, null],
-    ]);
-  });
-
-  it("returns a DbError when the module is missing", async () => {
-    const fake = fakeSql([
-      [
-        "purge_audit_log",
-        { throws: pgError("42883", "function does not exist") },
-      ],
-    ]);
-    const result = await purgeAuditLog(fake.sql);
-    expect(result.ok).toBe(false);
   });
 });

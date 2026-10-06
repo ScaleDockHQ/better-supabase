@@ -1,5 +1,5 @@
 export { assertCron, nextCronRun } from "./cron.ts";
-export { createIdempotency, createInbox, purgeAuditLog } from "./jobs.ts";
+export { createIdempotency, createInbox } from "./jobs.ts";
 export type {
   Idempotency,
   IdempotencyOptions,
@@ -11,7 +11,6 @@ export type {
   InboxMessage,
   InboxOptions,
   InboxPurgeOptions,
-  PurgeAuditLogOptions,
 } from "./jobs.ts";
 export { createJobs, pgmqPublicBackend, sqlQueueBackend } from "./queue.ts";
 export { createRateLimit, rateLimited } from "./rate-limit.ts";

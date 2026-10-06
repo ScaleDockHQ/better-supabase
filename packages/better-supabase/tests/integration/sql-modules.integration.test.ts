@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { AnyModels } from "../../src/schema/types.ts";
 
-import { createAuditLog } from "../../src/blocks/audit/index.ts";
+import { purgeAuditLog } from "../../src/blocks/audit/index.ts";
 import {
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
@@ -19,7 +19,6 @@ import {
   createInbox,
   createJobs,
   createRateLimit,
-  purgeAuditLog,
   sqlQueueBackend,
 } from "../../src/blocks/jobs/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
@@ -2077,7 +2076,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
-  it("lists and reveals audit entries through createAuditLog", async () => {
+  it("lists and reveals audit entries through the audit functions", async () => {
     const client = await pool.connect();
     const name = `bs_audit_api_${RUN}`;
     const admin = crypto.randomUUID();
@@ -2129,12 +2128,25 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         insert into public.${name} values (1, '${ACME}', 'Draft');
         update public.${name} set title = 'Final' where id = 1;
       `);
-      const audit = createAuditLog({ transport: sqlTransport(sql) });
+      const transport = sqlTransport(sql);
+      type Row = Record<string, unknown> & { id: number };
+      const list = async (args: Record<string, unknown>): Promise<Row[]> =>
+        // SAFETY: list_audit_events returns a jsonb array of entries.
+        ((await transport.call("better_supabase", "list_audit_events", {
+          max_items: 50,
+          ...args,
+        })) ?? []) as Row[];
+      const reveal = (entry: number): Promise<unknown> =>
+        transport.call("better_supabase", "reveal_audit_entry", {
+          entry: String(entry),
+        });
       claims = { sub: admin, role: "authenticated" };
-      const entries = await audit
-        .list({ tenant: ACME, targetType: name, limit: 5 })
-        .orThrow();
-      expect(entries.map((item) => item.eventType)).toEqual([
+      const entries = await list({
+        for_tenant: ACME,
+        for_target_type: name,
+        max_items: 5,
+      });
+      expect(entries.map((item) => item["eventType"])).toEqual([
         `${name}.updated`,
         `${name}.created`,
       ]);
@@ -2143,29 +2155,31 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         scope: "tenant",
       });
       expect(entries[0]).not.toHaveProperty("old");
-      const older = await audit
-        .list({ tenant: ACME, targetType: name, before: entries[0]! })
-        .orThrow();
+      const older = await list({
+        for_tenant: ACME,
+        for_target_type: name,
+        before_at: entries[0]!["occurredAt"],
+        before_id: entries[0]!.id,
+      });
       expect(older.map((item) => item.id)).toEqual([entries[1]!.id]);
-      const details = await audit.reveal(entries[0]!).orThrow();
-      expect(details.changes).toEqual({
-        title: { old: "Draft", new: "Final" },
+      expect(await reveal(entries[0]!.id)).toMatchObject({
+        changes: { title: { old: "Draft", new: "Final" } },
       });
       claims = { role: "service_role" };
-      const revealed = await audit
-        .list({ eventType: "audit.revealed", limit: 1 })
-        .orThrow();
+      const revealed = await list({
+        for_event_type: "audit.revealed",
+        max_items: 1,
+      });
       expect(revealed[0]).toMatchObject({
         actorId: admin,
-        record: entries[0]!.id,
+        record: String(entries[0]!.id),
       });
       claims = { sub: outsider, role: "authenticated" };
-      expect(
-        await audit.list({ tenant: ACME, targetType: name }).orThrow(),
-      ).toEqual([]);
-      expect(await audit.reveal(entries[0]!)).toMatchObject({
-        ok: false,
-        error: { hint: "AUDIT_ENTRY_NOT_FOUND" },
+      expect(await list({ for_tenant: ACME, for_target_type: name })).toEqual(
+        [],
+      );
+      await expect(reveal(entries[0]!.id)).rejects.toMatchObject({
+        hint: "AUDIT_ENTRY_NOT_FOUND",
       });
     } finally {
       await client.query("rollback");

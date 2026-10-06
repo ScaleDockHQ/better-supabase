@@ -13,6 +13,7 @@
     "webhooks-out",
     "webhooks-in",
     "api-keys",
+    "audit",
     "entitlements",
     "vector-search"
   ]

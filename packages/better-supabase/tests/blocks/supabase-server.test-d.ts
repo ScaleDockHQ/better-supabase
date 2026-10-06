@@ -4,12 +4,12 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
+import { purgeAuditLog } from "../../src/blocks/audit/index.ts";
 import { entitlementMembers } from "../../src/blocks/entitlements/index.ts";
 import {
   createIdempotency,
   createInbox,
   createJobs,
-  purgeAuditLog,
 } from "../../src/blocks/jobs/index.ts";
 import { createOutbox } from "../../src/blocks/outbox/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";

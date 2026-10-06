@@ -820,7 +820,6 @@
       "createRateLimit",
       "nextCronRun",
       "pgmqPublicBackend",
-      "purgeAuditLog",
       "rateLimited",
       "sqlQueueBackend"
     ],
@@ -848,7 +847,6 @@
       "JobContext",
       "JobHandler",
       "Jobs",
-      "PurgeAuditLogOptions",
       "QueueBackend",
       "QueueMessageBody",
       "QueueMessageRow",
@@ -867,24 +865,21 @@
   },
   "./blocks/audit": {
     "values": [
-      "createAuditLog",
-      "csvField",
+      "auditListQuery",
+      "exportAuditLog",
       "purgeAuditLog",
-      "rpcTransport",
-      "sqlTransport"
+      "setAuditRetention",
+      "toOcsf"
     ],
     "types": [
-      "AuditDetails",
       "AuditEntry",
-      "AuditExport",
-      "AuditExportBucket",
-      "AuditExportOptions",
-      "AuditListOptions",
-      "AuditLog",
-      "AuditLogOptions",
-      "BlockTransport",
-      "PurgeAuditLogOptions",
-      "RpcClient"
+      "AuditFacet",
+      "AuditListDefinition",
+      "AuditRetentionSource",
+      "AuditSort",
+      "ExportAuditLogOptions",
+      "OcsfProduct",
+      "PurgeAuditLogOptions"
     ]
   },
   "./blocks/outbox": {

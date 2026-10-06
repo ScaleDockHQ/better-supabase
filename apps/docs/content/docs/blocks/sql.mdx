@@ -328,10 +328,10 @@ example. Write an `audit_retention(tenant)` function that returns an interval
 `purge_audit_log` uses it for every entry. Like every SQL hook, it is
 optional: the module calls hooks through dynamic SQL, so `supabase db lint`
 passes without them. To decide in TypeScript instead,
-call `purgeAuditLog` from `better-supabase/blocks/jobs` in a scheduled job:
+call `purgeAuditLog` from [`better-supabase/blocks/audit`](/docs/blocks/audit) in a scheduled job:
 
 ```ts
-import { purgeAuditLog } from "better-supabase/blocks/jobs";
+import { purgeAuditLog } from "better-supabase/blocks/audit";
 
 await purgeAuditLog(postgres.admin, {
   olderThan: "1 year",
