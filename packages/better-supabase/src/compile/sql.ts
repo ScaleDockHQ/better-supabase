@@ -206,7 +206,7 @@ class SqlCompiler {
             : condition.op === "containedBy"
               ? "<@"
               : "&&";
-        return Array.isArray(value)
+        return Array.isArray(value) && !condition.json
           ? `${column} ${operator} ${this.param(value)}`
           : `${column} ${operator} ${this.param(JSON.stringify(value), "jsonb")}`;
       }

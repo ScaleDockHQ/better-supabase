@@ -113,6 +113,12 @@ const col = (
   value: unknown,
 ): Condition => ({ kind: "column", column, op, value });
 
+const jsonCol = (
+  column: string,
+  op: "contains" | "containedBy",
+  value: unknown,
+): Condition => ({ kind: "column", column, op, value, json: true });
+
 const notesRelation = (
   quantifier: "some" | "none" | "every",
   where: Condition | undefined,
@@ -319,7 +325,30 @@ describe("IrBuilder.where field operators", () => {
   it("matches json with contains", () => {
     expect(
       ir.where(customers, { metadata: { contains: { plan: "pro" } } }),
-    ).toEqual(col("metadata", "contains", { plan: "pro" }));
+    ).toEqual(jsonCol("metadata", "contains", { plan: "pro" }));
+  });
+
+  it.each<[string, unknown, Condition]>([
+    [
+      "contains an array",
+      { contains: [{ type: "x" }] },
+      jsonCol("metadata", "contains", [{ type: "x" }]),
+    ],
+    ["hasEvery", { hasEvery: ["a"] }, jsonCol("metadata", "contains", ["a"])],
+    ["has", { has: "a" }, jsonCol("metadata", "contains", ["a"])],
+    [
+      "containedBy",
+      { containedBy: ["a", "b"] },
+      jsonCol("metadata", "containedBy", ["a", "b"]),
+    ],
+  ])("marks json %s as a json document", (_name, operand, expected) => {
+    expect(ir.where(customers, { metadata: operand })).toEqual(expected);
+  });
+
+  it("rejects hasSome on a json column", () => {
+    expect(
+      rejection(() => ir.where(customers, { metadata: { hasSome: ["a"] } })),
+    ).toMatchObject({ table: "customers" });
   });
 
   it.each<[string, unknown, Condition]>([

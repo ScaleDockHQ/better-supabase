@@ -52,8 +52,11 @@ interface ArrayOps<E> {
 }
 
 interface JsonOps<V> {
-  /** jsonb `@>`: the value contains the given structure. */
-  readonly contains?: Partial<V> | Record<string, unknown>;
+  /**
+   * jsonb `@>`: the value contains the given structure. An array matches a
+   * JSON array holding every given element (`[{ "type": "image" }]`).
+   */
+  readonly contains?: Partial<V> | Record<string, unknown> | readonly unknown[];
 }
 
 type OpsFor<V> = [NonNullable<V>] extends [string]

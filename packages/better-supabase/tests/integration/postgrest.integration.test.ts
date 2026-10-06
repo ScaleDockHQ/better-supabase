@@ -329,6 +329,51 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(gone.error?.kind).toBe("not_found");
   });
 
+  it("matches a JSON array inside a jsonb column with contains", async () => {
+    const note = await admin.notes
+      .create(
+        {
+          organizationId: ACME,
+          customerId: ROAD_RUNNER,
+          body: "Json containment",
+          attachments: [{ type: "image", id: 1 }, { type: "text" }],
+        },
+        { select: ["id"] },
+      )
+      .orThrow();
+
+    const found = await admin.notes
+      .findMany({
+        where: { id: note.id, attachments: { contains: [{ type: "image" }] } },
+        select: ["id"],
+      })
+      .orThrow();
+    expect(found).toEqual([{ id: note.id }]);
+
+    const inOr = await admin.notes
+      .findMany({
+        where: {
+          id: note.id,
+          OR: [
+            { attachments: { contains: [{ type: "video" }] } },
+            { attachments: { contains: [{ type: "text" }] } },
+          ],
+        },
+        select: ["id"],
+      })
+      .orThrow();
+    expect(inOr).toEqual([{ id: note.id }]);
+
+    const none = await admin.notes
+      .findMany({
+        where: { id: note.id, attachments: { contains: [{ type: "video" }] } },
+        select: ["id"],
+      })
+      .orThrow();
+    expect(none).toEqual([]);
+    await admin.notes.delete(note.id).orThrow();
+  });
+
   it("runs the plugin stack as a tenant user under RLS", async () => {
     const token = await signLocalJwt({
       sub: "00000000-0000-4000-8000-0000000000ff",

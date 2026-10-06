@@ -129,7 +129,7 @@ function operatorAndValue(
     case "overlaps": {
       const operator =
         op === "contains" ? "cs" : op === "containedBy" ? "cd" : "ov";
-      if (Array.isArray(value)) {
+      if (Array.isArray(value) && !condition.json) {
         return { operator, value: list(value, "{", "}") };
       }
       const json = JSON.stringify(value);

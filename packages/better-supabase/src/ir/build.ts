@@ -271,6 +271,19 @@ export class IrBuilder {
       value: encodeValue(value),
     });
     const meta = table.columns[name];
+    const containment = (
+      kind: "contains" | "containedBy" | "overlaps",
+      value: unknown,
+    ): Condition =>
+      meta?.json
+        ? {
+            kind: "column",
+            column,
+            op: kind,
+            value: encodeValue(value),
+            json: true,
+          }
+        : col(kind, value);
 
     switch (op) {
       case "eq":
@@ -299,7 +312,7 @@ export class IrBuilder {
       case "ilike":
         return col(op, operand);
       case "contains":
-        if (meta?.json || meta?.array) return col("contains", operand);
+        if (meta?.json || meta?.array) return containment("contains", operand);
         return col("ilike", `%${escapeLike(String(operand))}%`);
       case "startsWith":
         return col("like", `${escapeLike(String(operand))}%`);
@@ -315,13 +328,19 @@ export class IrBuilder {
           : col("fts", query);
       }
       case "hasEvery":
-        return col("contains", operand);
+        return containment("contains", operand);
       case "has":
-        return col("contains", [operand]);
+        return containment("contains", [operand]);
       case "hasSome":
+        if (meta?.json) {
+          invalidRequest(
+            `"hasSome" on json column "${name}" has no PostgREST operator; use OR with "has"`,
+            table.key,
+          );
+        }
         return col("overlaps", operand);
       case "containedBy":
-        return col("containedBy", operand);
+        return containment("containedBy", operand);
       default:
         return invalidRequest(
           `Unknown operator "${op}" on "${name}"`,

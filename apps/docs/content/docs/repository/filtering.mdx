@@ -24,6 +24,17 @@ Operators depend on the column type:
 `contains`, `startsWith` and `endsWith` are case-insensitive and escape `%`
 and `_` in your input. Use `like` or `ilike` when you want wildcards.
 
+On a jsonb column, `contains` sends its value as a JSON document, arrays
+included, so an array matches a JSON array that holds every given element:
+
+```ts
+where: {
+  attachments: {
+    contains: [{ kind: "image" }];
+  }
+}
+```
+
 Enum and CHECK columns only accept their allowed values:
 
 ```ts
