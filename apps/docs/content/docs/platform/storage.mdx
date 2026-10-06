@@ -520,6 +520,123 @@ Only objects that match a template and every `within` value are candidates,
 also when a value sits after a placeholder `within` leaves out. Use `dryRun: true` to see
 the `orphans` without deleting them.
 
+## Versions and lifecycle
+
+A bucket with `versioning: true` keeps the earlier versions of an object when
+it is overwritten or removed. `lifecycle` expires noncurrent versions, so it
+needs `versioning`:
+
+```ts title="src/lib/storage.ts"
+export const contracts = defineBucket({
+  id: "contracts",
+  path: "{organizationId}/{contractId}.pdf",
+  policy: "tenant",
+  versioning: true,
+  lifecycle: {
+    rules: [
+      {
+        noncurrentVersionExpiration: {
+          noncurrentDays: 90,
+          newerNoncurrentVersions: 5,
+        },
+      },
+    ],
+  },
+});
+```
+
+Storage keeps both settings behind its API, so `sql()` can't write them.
+`apply(client)` creates or updates the bucket through the API with the secret
+key, sets versioning, and sets the lifecycle policy (or removes a stored one
+when `lifecycle` is unset). It is idempotent, so run it from a deploy script:
+
+```ts
+await contracts.apply(adminClient).orThrow();
+```
+
+Turning `versioning` off on a bucket that had it suspends versioning; Storage
+never returns a bucket to `DISABLED`. A project where versioning or lifecycles
+aren't enabled answers `unsupported`, and `apply` ignores that for the
+lifecycle removal. `better-supabase doctor` (BS302) compares both settings
+with `storage.buckets` when the Storage version has the columns.
+
+The connected bucket reads and writes single versions:
+
+```ts
+const files = contracts.connect(adminClient);
+const versions = await files.versions(path).orThrow(); // newest first
+const previous = versions.find((version) => !version.current);
+if (previous) {
+  const pdf = await files
+    .download(path, { versionId: previous.versionId })
+    .orThrow();
+  await files.copy(
+    path,
+    { organizationId, contractId: "restored" },
+    { versionId: previous.versionId },
+  );
+  await files.removeVersions(path, [previous.versionId]);
+}
+```
+
+`signedUrl` and `publicUrl` take `versionId` too. Each entry in `versions()`
+has `versionId`, `current`, `deleteMarker`, `size`, `contentType`, `createdAt`
+and `archivedAt`.
+
+## CDN cache
+
+`cacheNonce` on `signedUrl`, `signedUrls`, `publicUrl` and `renderUrl` adds a
+query parameter, so the CDN and browsers fetch the object again after it
+changes. Pass something that changes with the object, such as its
+`updatedAt`. `purgeCache(target)` invalidates the cached object on the CDN
+instead; `{ transformations: true }` purges only the transformed variants. It
+needs the secret key, and self-hosted Storage needs a configured CDN purge
+endpoint.
+
+## Vector buckets
+
+`defineVectorBucket` declares a Storage vector bucket and its indexes. Storage
+keeps the vectors outside Postgres; for pgvector in a table, use the
+[`vector-search` module](/docs/blocks/vector-search).
+
+```ts title="src/lib/storage.ts"
+import { defineVectorBucket } from "better-supabase/storage";
+
+export const embeddings = defineVectorBucket({
+  id: "embeddings",
+  indexes: {
+    documents: { dimension: 1536, distanceMetric: "cosine" },
+  },
+});
+```
+
+```ts
+const vectors = embeddings.connect(adminClient);
+await vectors.apply().orThrow(); // creates the bucket and missing indexes
+
+const documents = vectors.index<{ organizationId: string }>("documents");
+await documents
+  .put([{ key: doc.id, vector, metadata: { organizationId } }])
+  .orThrow();
+const hits = await documents
+  .query(queryVector, { topK: 5, filter: { organizationId } })
+  .orThrow(); // [{ key, distance, metadata }], closest first
+```
+
+`put` sends batches of 500 and checks every vector's length against the
+index's `dimension` first, so a wrong length is an `invalid_input` error
+instead of a Storage server error. `apply` refuses an existing index with
+another dimension or metric with `conflict`. `get(keys)` and `remove(keys)`
+complete the set.
+
+## Analytics buckets
+
+`defineAnalyticsBucket({ id })` declares a Storage analytics bucket, which
+holds Apache Iceberg tables. `connect(client).apply()` creates it when it is
+missing, and `catalog()` returns its Iceberg REST catalog
+(`storage.analytics.from(id)`) for namespaces and tables. A stack without
+analytics buckets answers `unsupported`.
+
 ## Porting supabase.storage calls
 
 Each `supabase.storage.from(bucket)` call has a method on the connected
@@ -538,6 +655,13 @@ bucket that takes a template target or a path and returns a `Result`:
 | `.getPublicUrl(path, { transform })`    | `renderUrl(target, transform)`          |
 | `.createSignedUploadUrl(path)`          | `reserve(target)`                       |
 | `.uploadToSignedUrl(path, token, file)` | `uploadReserved(reservation, file)`     |
+| `.download(path, { versionId })`        | `download(target, { versionId })`       |
+| `.listV2({ noncurrentVersions })`       | `versions(target)`                      |
+| `.remove([{ path, versionId }])`        | `removeVersions(target, [versionId])`   |
+| `.purgeCache(path)`                     | `purgeCache(target)`                    |
+| `storage.updateBucket`, lifecycle calls | `bucket.apply(client)`                  |
+| `storage.vectors`                       | `defineVectorBucket`                    |
+| `storage.analytics`                     | `defineAnalyticsBucket`                 |
 
 Store the path a call returns (`StoragePath`) in a `*_path` column and
 resolve URLs when you read the row, so a URL never goes stale in the

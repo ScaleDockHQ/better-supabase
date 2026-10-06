@@ -39,7 +39,7 @@ const FINGERPRINT_SQL = `select md5(concat_ws('|',
   ${digest(`(select objid, refclassid, refobjid, refobjsubid, deptype from pg_catalog.pg_depend where classid = 'pg_catalog.pg_policy'::regclass)`)},
   (select md5(coalesce(string_agg(rolname, ',' order by rolname), '')) from pg_catalog.pg_roles),
   case when to_regclass('storage.buckets') is not null
-    then md5(query_to_xml('select id, public, file_size_limit, allowed_mime_types from storage.buckets order by id', false, false, '')::text)
+    then md5(query_to_xml('select id, public, file_size_limit, allowed_mime_types, to_jsonb(b) -> ''versioning_status'' as versioning, to_jsonb(b) -> ''lifecycle_configuration'' as lifecycle from storage.buckets b order by id', false, false, '')::text)
   end
 )) as fingerprint`;
 

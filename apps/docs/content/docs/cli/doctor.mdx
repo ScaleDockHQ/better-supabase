@@ -512,7 +512,9 @@ deleted rows in queries instead; the soft-delete plugin already does.
 
 **Warning: bucket differs from the config.** A bucket in `buckets` is missing
 from the database, or its `public`, file size limit or MIME types differ.
-Update the config or the bucket.
+When the Storage version has the columns, `versioning` and `lifecycle` are
+compared too (generated lifecycle rule ids are ignored). Update the config,
+or run `bucket.apply(client)` to set the bucket through the Storage API.
 
 ### BS303
 

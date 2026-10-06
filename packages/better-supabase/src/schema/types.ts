@@ -1,3 +1,5 @@
+import type { BucketLifecycle } from "../storage/versioning.ts";
+
 export type Casing = "snake" | "camel";
 
 /** Runtime metadata for one column. Keyed by the app (cased) column name. */
@@ -222,6 +224,8 @@ export interface BucketMeta {
   readonly tenant?: { readonly claim: readonly string[] };
   readonly fileSizeLimit?: string;
   readonly allowedMimeTypes?: readonly string[];
+  readonly versioning?: boolean;
+  readonly lifecycle?: BucketLifecycle;
 }
 
 // ---------------------------------------------------------------------------

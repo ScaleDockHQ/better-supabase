@@ -31,6 +31,8 @@ export function fromStorageError(raw: unknown, table?: string): DbError {
     Number.isFinite(statusCode) && statusCode >= 400
       ? statusCode
       : (failure.status ?? 0);
+  if (code === "FeatureNotEnabled" || /^Route \S+ not found$/.test(message))
+    return dbError("unsupported", message, base);
   if (
     /row-level security|unauthorized to|AccessDenied/i.test(
       `${message} ${code ?? ""}`,

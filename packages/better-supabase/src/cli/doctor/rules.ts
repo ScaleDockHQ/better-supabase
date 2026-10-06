@@ -577,6 +577,12 @@ const OWN_RULES: readonly Rule[] = [
           ...(bucket.allowedMimeTypes === undefined
             ? {}
             : { allowedMimeTypes: bucket.allowedMimeTypes }),
+          ...(bucket.versioning === undefined
+            ? {}
+            : { versioning: bucket.versioning }),
+          ...(bucket.lifecycle === undefined
+            ? {}
+            : { lifecycle: bucket.lifecycle }),
         });
         const actual = catalogOf(context).buckets.find(
           (entry) => entry.id === id,

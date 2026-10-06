@@ -19,6 +19,32 @@ export {
   type ImageBucketOptions,
   type OrganizationLogoBucketOptions,
 } from "./presets.ts";
+export { defineAnalyticsBucket } from "./analytics-bucket.ts";
+export type {
+  AnalyticsBucket,
+  AnalyticsBucketClient,
+  AnalyticsCatalog,
+} from "./analytics-bucket.ts";
+export type { AppliedBucket } from "./apply.ts";
+export { defineVectorBucket } from "./vector-bucket.ts";
+export type {
+  VectorBucket,
+  VectorBucketClient,
+  VectorBucketConfig,
+  VectorDistance,
+  VectorHit,
+  VectorIndexClient,
+  VectorIndexConfig,
+  VectorMetadata,
+  VectorQueryOptions,
+  VectorRecord,
+} from "./vector-bucket.ts";
+export type {
+  BucketLifecycle,
+  BucketLifecycleRule,
+  ObjectVersion,
+  VersioningStatus,
+} from "./versioning.ts";
 export type {
   ActualBucket,
   Bucket,
@@ -27,8 +53,10 @@ export type {
   BucketConfig,
   BucketDrift,
   BucketPolicy,
+  DownloadOptions,
   ObjectTarget,
   PathValues,
+  PurgeCacheOptions,
   ReplaceOptions,
   ReplaceResult,
   Reservation,
@@ -36,6 +64,7 @@ export type {
   StoredObject,
   SweepOptions,
   SweepResult,
+  TransferOptions,
   TransformOptions,
   TtlPreset,
   UploadBody,

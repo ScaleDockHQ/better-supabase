@@ -633,6 +633,14 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "versioning": {
+                "description": "storage.buckets.versioning_status; absent when Storage has no versioning.",
+                "enum": ["DISABLED", "ENABLED", "SUSPENDED", null]
+              },
+              "lifecycle": {
+                "description": "storage.buckets.lifecycle_configuration; absent when Storage has no lifecycles.",
+                "type": ["object", "null"]
               }
             }
           }

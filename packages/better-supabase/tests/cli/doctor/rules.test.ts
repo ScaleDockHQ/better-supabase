@@ -387,6 +387,58 @@ describe("BS302 bucket drift in config.toml", () => {
     ]);
     expect(inToml[0]).not.toHaveProperty("location");
   });
+
+  it("compares versioning and lifecycle when Storage reports them", async () => {
+    const versioned: BetterSupabaseConfig = {
+      buckets: {
+        docs: {
+          ...config.buckets!["docs"]!,
+          versioning: true,
+          lifecycle: {
+            rules: [{ noncurrentVersionExpiration: { noncurrentDays: 30 } }],
+          },
+        },
+      },
+    };
+    const withBucket = (extra: Record<string, unknown>) =>
+      snapshot((_tables, catalog) => {
+        catalog.buckets = [
+          {
+            id: "docs",
+            public: false,
+            fileSizeLimit: 1024,
+            allowedMimeTypes: ["application/pdf"],
+            ...extra,
+          },
+        ];
+      });
+    const messages = async (extra: Record<string, unknown>) =>
+      (await run("BS302", context(withBucket(extra), {}, versioned))).map(
+        (finding) => finding.message,
+      );
+    expect(await messages({})).toEqual([]);
+    expect(
+      await messages({
+        versioning: "ENABLED",
+        lifecycle: {
+          rules: [
+            {
+              id: "x",
+              status: "Enabled",
+              filter: {},
+              noncurrentVersionExpiration: { noncurrentDays: 30 },
+            },
+          ],
+        },
+      }),
+    ).toEqual([]);
+    expect(await messages({ versioning: "DISABLED", lifecycle: null })).toEqual(
+      [
+        'Bucket docs: Bucket "docs" versioning is DISABLED',
+        'Bucket docs: Bucket "docs" lifecycle policy differs',
+      ],
+    );
+  });
 });
 
 describe("generated and module files (BS303, BS304)", () => {
