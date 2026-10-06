@@ -126,6 +126,10 @@ const bs = createMcp(betterSupabase, {
 });
 ```
 
+Set the server's [token audience](/docs/auth/server#token-audience) to the
+resource URL your authorization server puts in `aud`, so a token issued for
+another resource is refused before any tool runs.
+
 `delegation` is unset for the user's own token, which no scope limits. For an
 agent that exchanged its token, `session.actor` is the outermost `sub` of the
 RFC 8693 `act` chain and `chain` keeps the actors before it. A malformed
