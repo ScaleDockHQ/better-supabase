@@ -27,11 +27,17 @@ import { NOTIFICATIONS } from "./modules/notifications.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PROFILES } from "./modules/profiles.ts";
+import { SETTINGS } from "./modules/settings.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TENANT } from "./modules/tenant.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
-import { EQUIVALENT_TRIGGERS, SCHEMA } from "./shared.ts";
+import {
+  EQUIVALENT_TRIGGERS,
+  type JsonSchemaCheck,
+  jsonSchemaChecks,
+  SCHEMA,
+} from "./shared.ts";
 
 export {
   isModuleIdType,
@@ -1618,6 +1624,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       SESSIONS,
       built(WEBHOOKS_IN),
       built(API_KEYS),
+      built(SETTINGS),
     ].map((module) => [module.name, module]),
   );
 
@@ -2008,35 +2015,6 @@ function tableGrants(grants: readonly TableGrant[]): string {
 }
 
 /** A jsonb column and the JSON Schema its values must match. */
-interface JsonSchemaCheck {
-  /** `table` or `schema.table`. */
-  readonly table: string;
-  readonly column: string;
-  readonly schema: Readonly<Record<string, unknown>>;
-}
-
-function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
-  if (checks.length === 0) return "";
-  const statements = checks.map((check) => {
-    const [schema, table] = check.table.includes(".")
-      ? check.table.split(".", 2)
-      : ["public", check.table];
-    const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
-    const name = sqlIdent(`bs_json_${check.column}`.slice(0, 63));
-    return [
-      `alter table ${target} drop constraint if exists ${name};`,
-      `alter table ${target} add constraint ${name}`,
-      `  check (extensions.jsonb_matches_schema(${sqlString(JSON.stringify(check.schema))}::json, ${sqlIdent(check.column)})) not valid;`,
-      `alter table ${target} validate constraint ${name};`,
-    ].join("\n");
-  });
-  return `\n-- config.json schemas
--- Each check is added not valid and validated separately. On a large table,
--- move the validate statements to a later migration: the add modules writes
--- only briefly, and validating takes a lock that lets writes continue.
-${statements.join("\n\n")}\n`;
-}
-
 /** Users with a membership in a tenant of `customer`, from PermDock's membership sources. */
 function permdockEntitlementMembers(permdock: ModulePermdock): string {
   const sources = permdock.memberships.flatMap((source) => {
