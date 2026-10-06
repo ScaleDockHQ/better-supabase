@@ -353,6 +353,43 @@ export interface EntitlementsConfig {
    * module's memberships table.
    */
   readonly permdock?: false | { readonly scope?: string };
+  /**
+   * Where each tenant's entitlements come from. `"stripe-sync"` (the
+   * default) reads the Stripe Sync Engine's `stripe.active_entitlements`
+   * through `customer`. `{ plans }` reads a plan catalog: the tenant's
+   * active subscription and the features its plan includes. `"custom"`
+   * leaves `better_supabase.tenant_entitlements(tenant)` to you; the module
+   * writes the checks and the claim over it.
+   */
+  readonly source?: "stripe-sync" | "custom" | EntitlementPlansSource;
+}
+
+/** `entitlements.source.plans`: a plan catalog in your own tables. */
+export interface EntitlementPlansSource {
+  readonly plans: {
+    readonly subscriptions: {
+      /** `table` or `schema.table`. */
+      readonly table: string;
+      /** The tenant id column. */
+      readonly tenant: string;
+      /** The plan key column. */
+      readonly plan: string;
+      /** A status column; with it, only rows in `activeStatuses` count. */
+      readonly status?: string;
+      /** Defaults to `["active", "trialing"]`. */
+      readonly activeStatuses?: readonly string[];
+    };
+    readonly features: {
+      /** `table` or `schema.table`. */
+      readonly table: string;
+      /** The plan key column. */
+      readonly plan: string;
+      /** The feature key column: what `has_entitlement` and the claim name. */
+      readonly feature: string;
+      /** A boolean column; with it, only included features count. */
+      readonly included?: string;
+    };
+  };
 }
 
 export interface PermdockPathsConfig {
@@ -501,6 +538,7 @@ function entitlementsOf(
         : config.permdock?.scope === undefined
           ? {}
           : { scope: config.permdock.scope },
+    source: config.source ?? "stripe-sync",
   };
 }
 
@@ -563,6 +601,7 @@ export interface ResolvedConfig {
     readonly column?: string;
     readonly key: string;
     readonly permdock: false | { readonly scope?: string };
+    readonly source: NonNullable<EntitlementsConfig["source"]>;
   };
   readonly permdock: Required<PermdockPathsConfig>;
   readonly vectorSearch: readonly {

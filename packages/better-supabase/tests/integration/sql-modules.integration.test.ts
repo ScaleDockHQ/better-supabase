@@ -847,6 +847,78 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("reads entitlements from a plan catalog", async () => {
+    const client = await pool.connect();
+    const organization = crypto.randomUUID();
+    const member = crypto.randomUUID();
+    const as = async (sql: string, params: unknown[]) => {
+      await client.query("savepoint plans");
+      await client.query(
+        "select set_config('request.jwt.claims', $1, true), set_config('role', 'authenticated', true)",
+        [JSON.stringify({ sub: member, role: "authenticated" })],
+      );
+      const { rows } = await client.query(sql, params);
+      await client.query("rollback to savepoint plans");
+      return rows;
+    };
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into auth.users (id, instance_id, aud, role, email)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)`,
+        [member, `plans-${RUN}@example.com`],
+      );
+      await client.query(`
+        create table public.bs_subs_${RUN} (team_id uuid, plan_key text, status text);
+        create table public.bs_plan_features_${RUN} (plan_key text, feature_key text, included boolean);
+        insert into public.bs_subs_${RUN} values
+          ('${organization}', 'pro', 'active'), ('${organization}', 'old', 'canceled');
+        insert into public.bs_plan_features_${RUN} values
+          ('pro', 'exports', true), ('pro', 'sso', false), ('old', 'audit', true);
+        insert into better_supabase.organizations (id, name, slug) values ('${organization}', 'Plans', 'plans-${organization.slice(0, 8)}');
+        insert into better_supabase.memberships (organization_id, user_id, role) values ('${organization}', '${member}', 'member');
+      `);
+      const module = renderModules(["entitlements"], {
+        entitlements: {
+          key: "id",
+          source: {
+            plans: {
+              subscriptions: {
+                table: `public.bs_subs_${RUN}`,
+                tenant: "team_id",
+                plan: "plan_key",
+                status: "status",
+              },
+              features: {
+                table: `public.bs_plan_features_${RUN}`,
+                plan: "plan_key",
+                feature: "feature_key",
+                included: "included",
+              },
+            },
+          },
+        },
+      }).find(
+        (file) => file.module === "entitlements" && file.kind === "schema",
+      )!;
+      await client.query(module.contents);
+      const { rows } = await client.query<{ claims: unknown }>(
+        "select better_supabase.feature_claims($1) as claims",
+        [member],
+      );
+      expect(rows[0]!.claims).toEqual({ [organization]: ["exports"] });
+      expect(
+        await as(
+          "select better_supabase.has_entitlement($1, 'exports') as a, better_supabase.has_entitlement($1, 'audit') as b",
+          [organization],
+        ),
+      ).toEqual([{ a: true, b: false }]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("reads PermDock's member helpers in PermDock mode", async () => {
     const pd = `bs_pd_${RUN}`;
     const billing = `bs_billing_pd_${RUN}`;

@@ -1,3 +1,4 @@
+import type { EntitlementPlansSource } from "../config/config.ts";
 import type { ModuleMode, ModulesConfig } from "../config/modules.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
@@ -511,6 +512,29 @@ const entitlementsSql = (
 ): string => {
   const m = memberships(layout);
   const id = layout.permdock?.idType ?? m.idType;
+  const source = layout.entitlements?.source ?? "stripe-sync";
+  if (source === "custom") {
+    return `${SCHEMA}
+grant usage on schema better_supabase to supabase_auth_admin;
+
+-- entitlements.source is "custom": your better_supabase.tenant_entitlements(tenant ${id})
+-- returns the tenant's feature keys (text[]); the checks below call it.
+set check_function_bodies = off;
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims, m)}
+
+revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;
+reset check_function_bodies;`;
+  }
+  if (typeof source === "object") {
+    return `${SCHEMA}
+grant usage on schema better_supabase to supabase_auth_admin;
+${planEntitlements(source.plans, id)}
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims, m)}
+
+revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
+grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
+  }
   return `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
 
@@ -545,6 +569,48 @@ ${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantE
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
 };
+
+const qualified = (table: string): string => {
+  const [schema, name] = table.includes(".")
+    ? table.split(".", 2)
+    : ["public", table];
+  return `${sqlIdent(schema!)}.${sqlIdent(name!)}`;
+};
+
+/** `tenant_entitlements` over a plan catalog: the active subscription's plan features. */
+function planEntitlements(
+  plans: EntitlementPlansSource["plans"],
+  id: string,
+): string {
+  const subs = plans.subscriptions;
+  const features = plans.features;
+  const active = subs.activeStatuses ?? ["active", "trialing"];
+  const status = subs.status
+    ? `\n      and s.${sqlIdent(subs.status)}::text = any (array[${active.map(sqlString).join(", ")}]::text[])`
+    : "";
+  const included = features.included
+    ? `\n      and f.${sqlIdent(features.included)}`
+    : "";
+  return `
+-- Feature keys of the tenant's active plan (entitlements.source.plans):
+-- ${subs.table} gives the plan, ${features.table} its features.
+create or replace function better_supabase.tenant_entitlements(tenant ${id})
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(array_agg(distinct f.${sqlIdent(features.feature)}::text order by f.${sqlIdent(features.feature)}::text), '{}')
+    from ${qualified(subs.table)} s
+    join ${qualified(features.table)} f on f.${sqlIdent(features.plan)}::text = s.${sqlIdent(subs.plan)}::text
+    where s.${sqlIdent(subs.tenant)} = tenant_entitlements.tenant${status}${included}
+      and f.${sqlIdent(features.feature)} is not null
+$$;
+
+revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;`;
+}
 
 const ENTITLEMENTS: SqlModule = {
   name: "entitlements",
@@ -1689,6 +1755,8 @@ interface EntitlementsSource {
   readonly column?: string;
   /** Column with the tenant id. */
   readonly key: string;
+  /** Where entitlements come from; the customer lookups are for `stripe-sync` only. */
+  readonly source?: "stripe-sync" | "custom" | EntitlementPlansSource;
 }
 
 /** Privileges one Data API role gets on a table or view. */
@@ -1771,7 +1839,9 @@ function permdockEntitlementMembers(permdock: ModulePermdock): string {
 function customerSource(
   layout: ModuleLayout,
   installed: readonly string[],
-): Required<EntitlementsSource> & { readonly deferred: boolean } {
+): Required<Omit<EntitlementsSource, "source">> & {
+  readonly deferred: boolean;
+} {
   const configured = layout.entitlements;
   if (configured?.table !== undefined && configured.column !== undefined) {
     return {
@@ -1798,7 +1868,9 @@ function customerSource(
 }
 
 function entitlementsSource(
-  source: Required<EntitlementsSource> & { readonly deferred: boolean },
+  source: Required<Omit<EntitlementsSource, "source">> & {
+    readonly deferred: boolean;
+  },
   layout: ModuleLayout,
 ): string {
   const permdock = layout.permdock;
@@ -1884,8 +1956,12 @@ function moduleExtras(
   layout: ModuleLayout,
   installed: readonly string[],
 ): string {
-  if (module.name === "entitlements")
-    return entitlementsSource(customerSource(layout, installed), layout);
+  if (module.name === "entitlements") {
+    const source = layout.entitlements?.source ?? "stripe-sync";
+    return source === "stripe-sync"
+      ? entitlementsSource(customerSource(layout, installed), layout)
+      : "";
+  }
   if (module.name === "realtime-tables")
     return realtimeRegistrations(
       layout.realtimeTables ?? [],
@@ -2021,7 +2097,10 @@ function moduleSql(
   if (module.build) return module.build(ctx, layout);
   if (
     module.render &&
-    (layout.claims || layout.permdock || layout.tenantColumn)
+    (layout.claims ||
+      layout.permdock ||
+      layout.tenantColumn ||
+      (layout.entitlements?.source ?? "stripe-sync") !== "stripe-sync")
   )
     return module.render(layout.claims ?? DEFAULT_CLAIMS, layout);
   return module.sql;

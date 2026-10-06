@@ -414,7 +414,7 @@
       }
     },
     "entitlements": {
-      "description": "Where the `entitlements` SQL module finds each tenant's Stripe customer.",
+      "description": "Where the `entitlements` SQL module finds each tenant's entitlements: a Stripe customer, a plan catalog or your own function.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -441,6 +441,52 @@
                 "scope": {
                   "type": "string",
                   "description": "The PermDock scope tenants are. Defaults to the manifest's root scope, the rls.scopes entry without within."
+                }
+              }
+            }
+          ]
+        },
+        "source": {
+          "description": "Where each tenant's entitlements come from: \"stripe-sync\" (the Stripe Sync Engine, the default), \"custom\" (your own better_supabase.tenant_entitlements), or a plan catalog in your tables.",
+          "oneOf": [
+            { "enum": ["stripe-sync", "custom"] },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["plans"],
+              "properties": {
+                "plans": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["subscriptions", "features"],
+                  "properties": {
+                    "subscriptions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["table", "tenant", "plan"],
+                      "properties": {
+                        "table": { "type": "string" },
+                        "tenant": { "type": "string" },
+                        "plan": { "type": "string" },
+                        "status": { "type": "string" },
+                        "activeStatuses": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        }
+                      }
+                    },
+                    "features": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["table", "plan", "feature"],
+                      "properties": {
+                        "table": { "type": "string" },
+                        "plan": { "type": "string" },
+                        "feature": { "type": "string" },
+                        "included": { "type": "string" }
+                      }
+                    }
+                  }
                 }
               }
             }

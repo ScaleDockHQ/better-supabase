@@ -12,6 +12,7 @@ export type {
   ClaimsConfig,
   CodecsConfig,
   DoctorConfig,
+  EntitlementPlansSource,
   EntitlementsConfig,
   ExposeConfig,
   GeneratedFile,
