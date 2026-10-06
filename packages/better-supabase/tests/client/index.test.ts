@@ -1,3 +1,4 @@
+import type * as Ssr from "@supabase/ssr";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 import { describe, expect, it, vi } from "vitest";
@@ -7,6 +8,19 @@ import { defineSupabase } from "../../src/core/define.ts";
 import { EnvValidationError } from "../../src/env/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+
+const browserClients = vi.hoisted((): unknown[][] => []);
+
+vi.mock("@supabase/ssr", async (importOriginal) => {
+  const actual = await importOriginal<typeof Ssr>();
+  return {
+    ...actual,
+    createBrowserClient: (url: string, key: string, options: object) => {
+      browserClients.push([url, key, options]);
+      return actual.createBrowserClient(url, key, options as never);
+    },
+  };
+});
 
 const betterSupabase = defineSupabase(schema);
 const URL_BASE = "https://abcdefghijklmnopqrst.supabase.co";
@@ -135,6 +149,33 @@ describe("createClient", () => {
     });
   });
 
+  it("reads the user from the claims when tokens-only cookies left no user object", () => {
+    const { browser, emit } = setup();
+    // auth-js puts a placeholder there that throws on every other property read.
+    const missing = new Proxy(
+      {},
+      {
+        get: (_target, property) => {
+          if (property === "__isUserNotAvailableProxy") return true;
+          throw new Error(`read ${String(property)}`);
+        },
+      },
+    );
+    const claims = {
+      sub: "u1",
+      email: "ada@example.test",
+      role: "authenticated",
+    };
+    emit(session(token(claims), missing as never));
+    expect(browser.auth.current()).toEqual({
+      status: "signed-in",
+      user: { id: "u1", email: "ada@example.test", role: "authenticated" },
+      claims,
+    });
+    emit(session("opaque", missing as never));
+    expect(browser.auth.current().status).toBe("signed-out");
+  });
+
   it("carries the impersonator from the act claim", () => {
     const { browser, emit } = setup();
     emit(
@@ -209,6 +250,36 @@ describe("createClient", () => {
     const cookies = createClient(betterSupabase, { env });
     expect(cookies.supabase).not.toBe(local.supabase);
     expect(cookies.db.$context).toEqual(ANON);
+  });
+
+  it("passes cookies.encode and auth.userStorage to @supabase/ssr", () => {
+    const env = { url: URL_BASE, publishableKey: "sb_publishable_test" };
+    const userStorage = {
+      getItem: () => null,
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    };
+    browserClients.length = 0;
+    createClient(betterSupabase, { env });
+    createClient(betterSupabase, {
+      env,
+      cookies: { encode: "tokens-only" },
+      auth: { userStorage },
+    });
+    expect(browserClients).toEqual([
+      [URL_BASE, "sb_publishable_test", {}],
+      [
+        URL_BASE,
+        "sb_publishable_test",
+        { auth: { userStorage }, cookies: { encode: "tokens-only" } },
+      ],
+    ]);
+    const local = createClient(betterSupabase, {
+      env,
+      storage: "local",
+      auth: { userStorage },
+    });
+    expect(local.auth.current().status).toBe("loading");
   });
 
   it("needs env or a client, and a valid env", () => {

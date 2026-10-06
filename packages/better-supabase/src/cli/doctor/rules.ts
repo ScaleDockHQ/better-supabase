@@ -5,7 +5,7 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
 import type { PermdockProject } from "../permdock.ts";
 import type { SupabaseToml, TomlValue } from "../supabase-toml.ts";
-import type { AdvisorCategory, AdvisorSource, Lint } from "./advisors.ts";
+import type { AdvisorSource } from "./advisors.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
 
 import {
@@ -27,8 +27,11 @@ import {
   migrationCommand,
   tomlGet,
 } from "../supabase-toml.ts";
+import { advisorRule, coveredByOwnRules } from "./advisor-rules.ts";
+import { COOKIE_RULES } from "./cookies.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LIVE_RULES } from "./live.ts";
+import { skippedForMetadata } from "./metadata.ts";
 import { MODULE_RULES } from "./modules.ts";
 import {
   accessModule,
@@ -36,8 +39,8 @@ import {
   PERMDOCK_RULES,
 } from "./permdock.ts";
 import { POLICY_RULES } from "./policies.ts";
-import { permissiveOverlaps, RLS_RULES } from "./rls.ts";
-import { SCHEMA_DESIGN_RULES, unindexedForeignKeys } from "./schema-design.ts";
+import { RLS_RULES } from "./rls.ts";
+import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
 import {
   catalogOf,
   exposed,
@@ -264,96 +267,6 @@ function envEntries(
     const value = match[2]!.trim().replace(/^(['"])(.*)\1$/, "$2");
     return [{ key: match[1]!, value, line: index + 1 }];
   });
-}
-
-const ADVISOR_SEVERITY: Record<Lint["level"], Severity> = {
-  ERROR: "error",
-  WARN: "warning",
-  INFO: "info",
-};
-
-function lintObject(lint: Lint): SqlObject | undefined {
-  const { schema, name, type } = lint.metadata ?? {};
-  if (typeof schema !== "string" || typeof name !== "string") return undefined;
-  if (type === "table" || type === "view")
-    return { kind: "table", schema, name };
-  if (type === "function") return { kind: "function", schema, name };
-  return undefined;
-}
-
-function lintFinding(lint: Lint): FindingInput {
-  const object = lintObject(lint);
-  return {
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- splinter can add levels this map does not know.
-    severity: ADVISOR_SEVERITY[lint.level] ?? "warning",
-    title: lint.title,
-    message: `${lint.detail.replaceAll("\\`", "`")} [${lint.name}]`,
-    target: object ? `${object.schema}.${object.name}` : lint.cache_key,
-    help: lint.remediation,
-    ...(object ? { object } : {}),
-  };
-}
-
-function advisorRule(
-  code: string,
-  category: AdvisorCategory,
-  title: string,
-  description: string,
-  covered: (lint: Lint, context: DoctorContext) => boolean = () => false,
-): Rule {
-  return {
-    code,
-    severity: "warning",
-    title,
-    description,
-    async check(context) {
-      const { advisors } = context;
-      if (!advisors) return [];
-      if ("skipped" in advisors) {
-        return [
-          {
-            severity: "info",
-            message: `Skipped the ${category} advisor: ${advisors.skipped}`,
-          },
-        ];
-      }
-      try {
-        return (await advisors.lints(category))
-          .filter((lint) => !covered(lint, context))
-          .map(lintFinding);
-      } catch (cause) {
-        return [
-          {
-            message: `The ${category} advisor could not run (${advisors.describe}): ${cause instanceof Error ? cause.message : String(cause)}`,
-          },
-        ];
-      }
-    },
-  };
-}
-
-/**
- * splinter lints doctor's own rules report for the same table:
- * `multiple_permissive_policies` (BS207) and `unindexed_foreign_keys` (BS216).
- */
-function coveredByOwnRules(lint: Lint, context: DoctorContext): boolean {
-  const code =
-    lint.name === "multiple_permissive_policies"
-      ? "BS207"
-      : lint.name === "unindexed_foreign_keys"
-        ? "BS216"
-        : undefined;
-  if (!code || !context.codes?.includes(code)) return false;
-  const object = lintObject(lint);
-  if (!object) return false;
-  const table = exposed(context).find(
-    (candidate) =>
-      candidate.schema === object.schema && candidate.name === object.name,
-  );
-  if (!table) return false;
-  return code === "BS207"
-    ? permissiveOverlaps(table).length > 0
-    : unindexedForeignKeys(table).length > 0;
 }
 
 /**
@@ -1017,6 +930,7 @@ export const RULES: readonly Rule[] = [
   ...POLICY_RULES,
   ...SCHEMA_DESIGN_RULES,
   ...HOOK_RULES,
+  ...COOKIE_RULES,
   ...PERMDOCK_RULES,
   ...LIVE_RULES,
   ...MODULE_RULES,
@@ -1031,12 +945,18 @@ export async function runRules(
   const findings: Finding[] = [];
   const scoped = { ...context, codes: rules.map((rule) => rule.code) };
   for (const rule of rules) {
+    const help = `${DOCS_URL}#${rule.code.toLowerCase()}`;
+    const skipped = skippedForMetadata(context.snapshot, rule, help);
+    if (skipped) {
+      findings.push(skipped);
+      continue;
+    }
     for (const input of await rule.check(scoped)) {
       findings.push({
         code: rule.code,
         severity: rule.severity,
         title: rule.title,
-        help: `${DOCS_URL}#${rule.code.toLowerCase()}`,
+        help,
         ...input,
       });
     }

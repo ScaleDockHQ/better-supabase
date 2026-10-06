@@ -19,21 +19,22 @@ Advisors](https://supabase.com/docs/guides/database/database-advisors) (BS100
 and BS200), so the dashboard's findings show up locally and in CI. It exits
 with 1 when there are errors, or with any warning under `--strict`.
 
-| Option                | Description                                                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--format <f>`        | `text` (default), `sarif` or `github`. The global `--json` prints the JSON report                                                           |
-| `--out <file>`        | Write the report to a file                                                                                                                  |
-| `--only <codes>`      | Run only these checks, e.g. `--only BS100,BS304`                                                                                            |
-| `--ignore <codes>`    | Skip checks. Adds to `doctor.ignore` in the config                                                                                          |
-| `--strict`            | Fail on warnings. Same as `doctor.strict`                                                                                                   |
-| `--snapshot <file>`   | Check a saved snapshot instead of the database                                                                                              |
-| `--db-url-stdin`      | Read the connection string of the database to check from stdin                                                                              |
-| `--project-ref <ref>` | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`)                                                           |
-| `--stats`             | Report slow frequent statements from `pg_stat_statements` ([BS209](#bs209))                                                                 |
-| `--explain <tables>`  | Plan these tables under RLS ([BS212](#bs212))                                                                                               |
-| `--as <uuid>`         | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405)) |
-| `--claims <json>`     | With `--explain`: plan with these JWT claims                                                                                                |
-| `--fix-grants`        | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                   |
+| Option                 | Description                                                                                                                                                                                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--format <f>`         | `text` (default), `sarif` or `github`. The global `--json` prints the JSON report                                                                                                                                                                                  |
+| `--out <file>`         | Write the report to a file                                                                                                                                                                                                                                         |
+| `--only <codes>`       | Run only these checks, e.g. `--only BS100,BS304`                                                                                                                                                                                                                   |
+| `--ignore <codes>`     | Skip checks. Adds to `doctor.ignore` in the config                                                                                                                                                                                                                 |
+| `--strict`             | Fail on warnings. Same as `doctor.strict`                                                                                                                                                                                                                          |
+| `--snapshot <file>`    | Check a saved snapshot instead of the database                                                                                                                                                                                                                     |
+| `--metadata <path\|->` | Check a `GeneratorMetadata` document (`-` for stdin). Checks that need policies, grants, indexes, triggers or other data it lacks are skipped with an info finding; it exits 65 for a document it rejects ([gen](/docs/cli/gen#from-a-generatormetadata-document)) |
+| `--db-url-stdin`       | Read the connection string of the database to check from stdin                                                                                                                                                                                                     |
+| `--project-ref <ref>`  | Hosted project to read through the Management API (needs `SUPABASE_ACCESS_TOKEN`)                                                                                                                                                                                  |
+| `--stats`              | Report slow frequent statements from `pg_stat_statements` ([BS209](#bs209))                                                                                                                                                                                        |
+| `--explain <tables>`   | Plan these tables under RLS ([BS212](#bs212))                                                                                                                                                                                                                      |
+| `--as <uuid>`          | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405))                                                                                                                        |
+| `--claims <json>`      | With `--explain`: plan with these JWT claims                                                                                                                                                                                                                       |
+| `--fix-grants`         | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                                                                                                                                          |
 
 Doctor never prints env values, only variable names and line numbers.
 
@@ -900,6 +901,20 @@ It warns when `sql.modules.access.functions.canAssign` is not set, because only 
 service role then assigns roles, and notes a `permdock_can_assign` template
 the manifest doesn't list (PermDock writes it only when a role declares
 `assigns`). See [the access block](/docs/blocks/access#permdock) for the recipe.
+
+### BS412
+
+**Info: the session cookie encoding differs between server and browser.**
+`@supabase/ssr` needs the same `cookies.encode` on both sides. Doctor reads
+the files in `doctor.sources`: a file that imports `better-supabase/client` or
+calls `createBrowserClient` is the browser side, and a file that imports
+`better-supabase/server`, `next`, `ssr`, `hono`, `orpc`, `edge` or `expo`, or
+calls `createServerClient`, is the server side. When a file on one side sets
+`encode: 'tokens-only'` and a file on the other side doesn't, the other side
+uses the default `user-and-tokens`: it writes the user object back into the
+cookie, or reads a session without one and `session.user` throws. Set the same
+`encode` in `createClient` and on the server. See
+[Encoding](/docs/auth/sessions#encoding).
 
 ## Env files
 

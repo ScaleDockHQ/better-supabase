@@ -1123,3 +1123,68 @@ describe("env files (BS501, BS502)", () => {
     ]);
   });
 });
+
+describe("session cookie encoding (BS412)", () => {
+  const browser = (encode?: string) => ({
+    path: "src/lib/client.ts",
+    text: `import { createClient } from "better-supabase/client";\nexport const bs = createClient(betterSupabase, {\n  env,${encode ? `\n  cookies: { encode: "${encode}" },` : ""}\n});`,
+  });
+  const server = (encode?: string) => ({
+    path: "src/lib/server.ts",
+    text: `import { createServer } from "better-supabase/server";\nexport const server = createServer(betterSupabase, { env${encode ? `, encode: '${encode}'` : ""} });`,
+  });
+  const shared = {
+    path: "src/lib/both.ts",
+    text: `import "better-supabase/client";\nimport { createServerClient } from "@supabase/ssr";\ncreateServerClient(url, key, { cookies: { encode: "tokens-only" } });`,
+  };
+
+  it("passes matching encodings and sources that never set tokens-only", async () => {
+    for (const sources of [
+      [browser(), server()],
+      [browser("tokens-only"), server("tokens-only")],
+      [browser("tokens-only")],
+      [browser("tokens-only"), shared],
+      [{ path: "a.ts", text: 'const encode: "tokens-only" = x;' }],
+    ]) {
+      expect(await run("BS412", context(base, { sources }))).toEqual([]);
+    }
+  });
+
+  it("reports the side that sets tokens-only when the other side doesn't", async () => {
+    const browserOnly = await run(
+      "BS412",
+      context(base, { sources: [browser("tokens-only"), server()] }),
+    );
+    expect(browserOnly).toMatchObject([
+      {
+        code: "BS412",
+        severity: "info",
+        target: "src/lib/client.ts:encode",
+        location: { file: "src/lib/client.ts", line: 4 },
+      },
+    ]);
+    expect(browserOnly[0]!.message).toContain(
+      "the server side (src/lib/server.ts) uses the default `user-and-tokens`",
+    );
+
+    const serverOnly = await run(
+      "BS412",
+      context(base, {
+        sources: [
+          browser(),
+          server("tokens-only"),
+          {
+            path: "src/ssr.ts",
+            text: 'import { createBrowserClient } from "@supabase/ssr";\ncreateBrowserClient(url, key);',
+          },
+        ],
+      }),
+    );
+    expect(serverOnly.map((finding) => finding.target)).toEqual([
+      "src/lib/server.ts:encode",
+    ]);
+    expect(serverOnly[0]!.message).toContain(
+      "the browser side (src/lib/client.ts, src/ssr.ts)",
+    );
+  });
+});

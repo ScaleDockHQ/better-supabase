@@ -11,7 +11,10 @@ import {
 
 export type { CookieOptions };
 
-/** The session object auth-js persists (`sb-<ref>-auth-token`). */
+/**
+ * The session object auth-js persists (`sb-<ref>-auth-token`). A
+ * `tokens-only` cookie has no `user`: auth-js keeps it in `auth.userStorage`.
+ */
 export interface StoredSession {
   readonly access_token: string;
   readonly refresh_token: string;
@@ -20,6 +23,26 @@ export interface StoredSession {
   readonly token_type?: string;
   readonly user?: unknown;
   readonly [key: string]: unknown;
+}
+
+/**
+ * `cookies.encode` in `@supabase/ssr`: `user-and-tokens` stores the user
+ * object in the cookie, `tokens-only` stores the access and refresh tokens
+ * alone. The server and the browser client must use the same value.
+ */
+export type SessionEncoding = "user-and-tokens" | "tokens-only";
+
+export const DEFAULT_SESSION_ENCODING: SessionEncoding = "user-and-tokens";
+
+export interface WriteSessionOptions {
+  /** Defaults to `user-and-tokens`, the `@supabase/ssr` default. */
+  readonly encode?: SessionEncoding;
+}
+
+/** A cookie scope an earlier deploy wrote the session at. */
+export interface CookieScope {
+  readonly domain?: string;
+  readonly path?: string;
 }
 
 export interface CookieRecord {
@@ -93,7 +116,8 @@ function isStoredSession(value: unknown): value is StoredSession {
 
 /**
  * Reads the session written by `@supabase/ssr` (plain or `base64-`, whole or
- * chunked). Mismatched chunks from a partial write read as no session.
+ * chunked, `user-and-tokens` or `tokens-only`). Mismatched chunks from a
+ * partial write read as no session.
  */
 export function readSession(
   cookies: readonly CookieRecord[],
@@ -112,21 +136,45 @@ export function readSession(
   }
 }
 
+/** The encoding a stored session was written with: `tokens-only` without a `user`. */
+export function sessionEncoding(session: StoredSession): SessionEncoding {
+  return session.user === undefined || session.user === null
+    ? "tokens-only"
+    : "user-and-tokens";
+}
+
+function encoded(session: StoredSession, encode: SessionEncoding): string {
+  switch (encode) {
+    case "user-and-tokens":
+      return JSON.stringify(session);
+    case "tokens-only": {
+      const { user: _user, ...tokens } = session;
+      return JSON.stringify(tokens);
+    }
+    default: {
+      const unhandled: never = encode;
+      return unhandled;
+    }
+  }
+}
+
 /**
  * Cookie writes that store `session` (or clear it with `null`) exactly like
- * `@supabase/ssr`, and expire chunks the new value no longer uses.
+ * `@supabase/ssr` with the same `encode`, and expire chunks the new value no
+ * longer uses.
  */
 export function writeSession(
   existing: readonly CookieRecord[],
   name: string,
   session: StoredSession | null,
   options: CookieOptions = {},
+  { encode = DEFAULT_SESSION_ENCODING }: WriteSessionOptions = {},
 ): CookieWrite[] {
   const base: CookieOptions = { ...DEFAULT_COOKIE_OPTIONS, ...options };
   const chunks = session
     ? createChunks(
         name,
-        BASE64_PREFIX + stringToBase64URL(JSON.stringify(session)),
+        BASE64_PREFIX + stringToBase64URL(encoded(session, encode)),
       )
     : [];
   const kept = new Set(chunks.map((chunk) => chunk.name));
@@ -147,6 +195,33 @@ export function writeSession(
       options: base,
     })),
   ];
+}
+
+/**
+ * `Max-Age=0` writes for every chunk of the session cookie at each of
+ * `scopes`, like `clearAuthCookiesAtScopes` from `@supabase/ssr`. Use it once
+ * the cookie `domain` or `path` changed, for the scopes earlier deploys
+ * wrote: browsers ignore writes for scopes the host doesn't own, but a scope
+ * equal to the current one clears the live session.
+ */
+export function clearSessionAtScopes(
+  existing: readonly CookieRecord[],
+  name: string,
+  scopes: readonly CookieScope[],
+): CookieWrite[] {
+  if (scopes.length === 0) return [];
+  const chunks = existing
+    .map((cookie) => cookie.name)
+    .filter((cookie) => isChunkLike(cookie, name));
+  return scopes.flatMap((scope) => {
+    const options: CookieOptions = {
+      ...DEFAULT_COOKIE_OPTIONS,
+      ...(scope.domain === undefined ? {} : { domain: scope.domain }),
+      ...(scope.path === undefined ? {} : { path: scope.path }),
+      maxAge: 0,
+    };
+    return chunks.map((chunk) => ({ name: chunk, value: "", options }));
+  });
 }
 
 /** Applies cookie writes to a cookie list, as the next request would see it. */

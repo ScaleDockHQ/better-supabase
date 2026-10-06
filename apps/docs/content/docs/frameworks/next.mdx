@@ -87,6 +87,15 @@ from `'use cache: private'` and to pass to Client Components through
 [`SessionProvider`](/docs/frontend/react#server-session). `toSession(auth)`
 converts any `AuthState` the same way, for example inside `bs.action()`.
 
+Use `bs.session()` (or `jwtClaims` in a pipeline entry) as the per-request
+check, in place of `supabase.auth.getUser()`. It verifies the token locally
+against the project's JWKS and never calls the Auth server, the check
+`@supabase/ssr` recommends with `getClaims()`. Call `getUser()` only in the
+flows that must see a user the Auth server has revoked or deleted since the
+token was issued, such as changing a password or deleting an account. The
+`user` on the session comes from the claims, so it works with either cookie
+[encoding](/docs/auth/sessions#encoding).
+
 With `cacheComponents` enabled, see [Cache Components](/docs/frameworks/next-cache-components)
 for instant navigations and role-aware menus.
 

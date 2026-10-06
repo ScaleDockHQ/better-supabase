@@ -23,15 +23,21 @@ export type { EntitlementKey, MembershipClaim } from "./entitlements.ts";
 export {
   applyCookieWrites,
   AUTH_CACHE_HEADERS,
+  clearSessionAtScopes,
+  DEFAULT_SESSION_ENCODING,
   parseCookies,
   readSession,
   serializeCookie,
   sessionCookieName,
+  sessionEncoding,
   writeSession,
 } from "./session.ts";
 export type {
   CookieOptions,
   CookieRecord,
+  CookieScope,
   CookieWrite,
+  SessionEncoding,
   StoredSession,
+  WriteSessionOptions,
 } from "./session.ts";

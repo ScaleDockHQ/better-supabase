@@ -36,6 +36,11 @@ const customers = await bs.db.customers
 | `cookies` (default) | apps with a server (Next.js, SvelteKit, …): the session is shared via `@supabase/ssr` cookies |
 | `local`             | SPAs without a server: the session lives in localStorage                                      |
 
+With `cookies`, `cookies: { encode: "tokens-only" }` keeps the user object
+out of the cookie, and `auth.userStorage` sets where auth-js keeps it instead
+(localStorage by default). Use the same `encode` as the server; see
+[Encoding](/docs/auth/sessions#encoding).
+
 For React Native and Expo, use
 [`better-supabase/client/native`](/docs/frontend/react-native) with your own
 supabase-js client. It has the same `bs.db`, `bs.queries` and `bs.auth`, never

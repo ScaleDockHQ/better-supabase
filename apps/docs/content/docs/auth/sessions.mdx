@@ -34,6 +34,80 @@ of two generations) read as no session rather than as a broken one.
 Whenever you send session cookies, send `AUTH_CACHE_HEADERS` too.
 `resolution.apply(response)` does both.
 
+## Encoding
+
+`@supabase/ssr` 0.12 writes the cookie in one of two shapes, set with
+`cookies.encode`:
+
+| `encode`                    | The cookie holds                         | The user object lives in                                           |
+| --------------------------- | ---------------------------------------- | ------------------------------------------------------------------ |
+| `user-and-tokens` (default) | the access token, refresh token and user | the cookie                                                         |
+| `tokens-only`               | the access token and refresh token       | `auth.userStorage` (localStorage in the browser, memory elsewhere) |
+
+`tokens-only` keeps the cookie small, often under one chunk, and is the
+recommended setting for new apps. `readSession` reads both shapes, so you can
+switch at any time; a `tokens-only` session has no `user` field, and
+`sessionEncoding(session)` tells you which shape a cookie has. Pass the same
+value to `writeSession` and to the browser client:
+
+```ts
+const writes = writeSession(cookies, name, nextSession, cookieOptions, {
+  encode: "tokens-only",
+});
+```
+
+```ts title="src/lib/supabase/client.ts"
+import { createClient } from "better-supabase/client";
+
+export const bs = createClient(betterSupabase, {
+  env: { url, publishableKey },
+  cookies: { encode: "tokens-only" },
+});
+```
+
+`createClient` also passes `auth.userStorage` through to `@supabase/ssr` when
+you want the user object somewhere other than localStorage. Keep `encode` the
+same on both sides: a server on `user-and-tokens` writes the user object back
+into the cookie, and a browser client on `user-and-tokens` that reads a
+`tokens-only` cookie throws on `session.user`.
+[BS412](/docs/cli/doctor#bs412) reports a mismatch in your sources.
+
+Nothing in better-supabase depends on the user object in the cookie.
+`bs.session()`, `useSession()` and the browser client's `auth.current()` read
+the user's id, email, role and metadata from the verified (on the server) or
+decoded (in the browser) access token claims, so they are the same with either
+encoding. That is also why the claims, not `getUser()`, are the check to use
+on every request: they verify locally without a call to the Auth server. Call
+`supabase.auth.getUser()` only in flows that must see a user who was deleted
+or banned since the token was issued, such as changing a password or deleting
+an account.
+
+## Moving the cookie to another domain or path
+
+When a deploy changes the cookie `domain` or `path`, the old cookies stay in
+the browser at the old scope, where the new code never overwrites them.
+`clearSessionAtScopes` returns `Max-Age=0` writes for every chunk of the
+session cookie at each old scope, like `clearAuthCookiesAtScopes` from
+`@supabase/ssr`:
+
+```ts
+import { clearSessionAtScopes, serializeCookie } from "better-supabase/ssr";
+
+for (const write of clearSessionAtScopes(cookies, name, [
+  { domain: ".old.example.com" },
+  { path: "/app" },
+])) {
+  response.headers.append("Set-Cookie", serializeCookie(write));
+}
+```
+
+List only the scopes earlier deploys used: a scope equal to the current one
+clears the live session. Browsers ignore writes for a domain the host doesn't
+own, so listing extra domains is safe. Append these writes as raw `Set-Cookie`
+headers, since a cookie API keyed by name (such as `response.cookies.set` in
+Next.js) keeps only the last write for each name, and don't pass them to
+`applyCookieWrites`, which would drop the current session from the request.
+
 ## Claims in the session
 
 The access token inside the cookie carries every claim your custom access
