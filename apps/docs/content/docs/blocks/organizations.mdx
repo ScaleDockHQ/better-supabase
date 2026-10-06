@@ -190,6 +190,7 @@ config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):
 | `tokenBytes`            | `24`       | the token's random bytes                                     |
 | `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting        |
 | `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns        |
+| `platformRoles`         | none       | the platform role table under the `permdock` model           |
 
 Accepting checks the inviter again: an inviter who lost the invite permission,
 or a permission the role grants, can no longer bring someone in with it.
@@ -205,6 +206,31 @@ and names its values in `sql.modules.access.options.tenantRoleScope` and
 `platformRoleScope`; an adopted invitations table that also holds platform
 invitations (rows without an organization) maps `tables.platformInvitations`
 to itself.
+
+Under the `permdock` model, name the table that holds platform role
+assignments (PermDock's `rls.roles`) in `sql.modules.invitations.options.platformRoles`:
+
+```ts title="better-supabase.config.ts"
+invitations: {
+  options: {
+    platformRoles: {
+      table: "public.user_roles",
+      user: "user_id",
+      role: "role_id",
+      // The role column holds a roles table id; the role name is its key.
+      through: { table: "public.roles", id: "id", column: "key" },
+      // Optional: who may assign which platform role. {role} is the name.
+      canAssign: "authz.can_assign_platform_role({user}, {role})",
+    },
+  },
+},
+```
+
+The inviter needs `invitePlatform` through `permdock_has`. Without
+`canAssign`, that permission alone lets them invite to any platform role.
+Accepting inserts the assignment into the table; PermDock's helpers answer
+for the caller only, so the inviter is checked when they invite, not again at
+accept.
 
 ## Existing tables
 
@@ -270,4 +296,4 @@ run your own checks and side effects in the same transaction.
 | `INVITATION_SIGN_IN`, `INVITATION_EMAIL_MISMATCH`                                    | not signed in, or signed in with another address   |
 | `INVITATION_EMAIL_UNCONFIRMED`                                                       | the address is not confirmed yet                   |
 | `INVITATION_SELF`, `INVITATION_INVITER_REVOKED`                                      | your own invitation, or the inviter lost the right |
-| `INVITATION_SCOPE_UNSUPPORTED`                                                       | a platform invitation without a catalog model      |
+| `INVITATION_SCOPE_UNSUPPORTED`                                                       | a platform invitation without platform roles       |

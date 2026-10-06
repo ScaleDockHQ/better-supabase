@@ -652,6 +652,115 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
+  it("invites to platform roles under the permdock model", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const schema = `bs_pdplat_${USERS.owner.slice(0, 8)}`;
+    const support = "00000000-0000-4000-8000-00000000d001";
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "member", "outsider"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      await client.query(`
+        create schema ${schema};
+        create table ${schema}.team_members (
+          organization_id uuid not null,
+          user_id uuid not null,
+          role text not null,
+          created_at timestamptz not null default now(),
+          primary key (organization_id, user_id)
+        );
+        create table ${schema}.app_roles (id uuid primary key, key text not null unique);
+        insert into ${schema}.app_roles values
+          ('${support}', 'support'), ('00000000-0000-4000-8000-00000000d002', 'superadmin');
+        create table ${schema}.user_roles (
+          user_id uuid not null,
+          role_id uuid not null references ${schema}.app_roles (id),
+          primary key (user_id, role_id)
+        );
+        create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+          language sql stable as $$ select null::uuid where false $$;
+        create function ${schema}.permdock_has(permission text) returns boolean
+          language sql stable as $$ select auth.uid() = '${USERS.owner}' and permission = 'platform.invite' $$;
+        create function ${schema}.can_assign_platform(member uuid, role text) returns boolean
+          language sql stable as $$ select role <> 'superadmin' $$;
+      `);
+      const layout: ModuleLayout = {
+        modules: {
+          access: {
+            model: "permdock",
+            permdock: { schema, scope: "organization" },
+          },
+          tenant: {
+            schema,
+            mode: "adopt",
+            tables: { memberships: `${schema}.team_members` },
+            columns: { memberships: { updatedAt: null, lastUsedAt: null } },
+          },
+          invitations: {
+            schema,
+            options: {
+              platformRoles: {
+                table: `${schema}.user_roles`,
+                user: "user_id",
+                role: "role_id",
+                through: {
+                  table: `${schema}.app_roles`,
+                  id: "id",
+                  column: "key",
+                },
+                canAssign: `${schema}.can_assign_platform({user}, {role})`,
+              },
+            },
+          },
+        },
+      };
+      for (const file of renderModules(["invitations"], layout))
+        await client.query(file.contents);
+
+      await s.as("member");
+      expect(
+        await s.hint(`${schema}.invite_member(null, $1, 'support')`, [
+          email("outsider"),
+        ]),
+      ).toBe("INVITATION_FORBIDDEN");
+      await s.as("owner");
+      expect(
+        await s.hint(`${schema}.invite_member(null, $1, 'superadmin')`, [
+          email("member"),
+        ]),
+      ).toBe("INVITATION_ROLE_FORBIDDEN");
+      expect(
+        await s.hint(`${schema}.invite_member(null, $1, 'janitor')`, [
+          email("member"),
+        ]),
+      ).toBe("INVITATION_ROLE_UNKNOWN");
+      const invite = await s.value<{ token: string; role: string }>(
+        `${schema}.invite_member(null, $1, 'support')`,
+        [email("member")],
+      );
+      expect(invite.role).toBe(support);
+      await s.as("member");
+      expect(
+        await s.value(`${schema}.accept_invitation($1)`, [invite.token]),
+      ).toBeNull();
+      expect(
+        await s.value(
+          `(select role_id::text from ${schema}.user_roles where user_id = $1)`,
+          [USERS.member],
+        ),
+      ).toBe(support);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("caps platform and tenant invitations at the inviter's authority, then and at accept", async () => {
     const client = await pool.connect();
     const s = new Session(client);

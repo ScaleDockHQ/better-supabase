@@ -13,6 +13,7 @@ import {
   accessModel,
   hasPlatformRoles,
   MODULE_PERMISSIONS,
+  permdockPlatformRoles,
   roleNames,
   roleScopeIs,
   tenantScope,
@@ -38,6 +39,7 @@ const PLATFORM_COLUMNS = {
 const NAMES: ModuleNames = {
   options: [
     "maxValidFor",
+    "platformRoles",
     "prefill",
     "previewColumns",
     "requireConfirmedEmail",
@@ -233,6 +235,54 @@ function roleIn(
   return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text}) and ${scoped} order by (r.${rid}::text = ${text}) desc limit 1)`;
 }
 
+/** Where an accepted platform invitation assigns its role, and the checks around it. */
+interface PlatformAssignment {
+  /** The stored role for a role name or id; null when it is unknown. */
+  value(expr: string): string;
+  /** Whether `member` may assign the stored role `stored`; `undefined` for no ceiling. */
+  canAssign(member: string, stored: string): string | undefined;
+  readonly table: string;
+  readonly user: string;
+  readonly role: string;
+  /** Whether the inviter's authority can be checked again at accept. */
+  readonly recheck: boolean;
+}
+
+function platformAssignment(ctx: ModuleContext): PlatformAssignment {
+  const permdock = permdockPlatformRoles(ctx);
+  if (permdock) {
+    const through = permdock.through;
+    const name = (stored: string) =>
+      through
+        ? `(select r.${through.column}::text from ${through.table} r where r.${through.id}::text = (${stored})::text)`
+        : `(${stored})::text`;
+    return {
+      value: (expr) =>
+        through
+          ? `(select r.${through.id} from ${through.table} r where r.${through.id}::text = (${expr})::text or r.${through.column}::text = (${expr})::text order by (r.${through.id}::text = (${expr})::text) desc limit 1)`
+          : expr,
+      canAssign: (member, stored) =>
+        permdock.canAssign === undefined
+          ? undefined
+          : `coalesce((${permdock.canAssign.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`,
+      table: permdock.table,
+      user: permdock.user,
+      role: permdock.role,
+      recheck: false,
+    };
+  }
+  const access = ctx.of("access");
+  return {
+    value: (expr) => roleIn(ctx, expr, "platform"),
+    canAssign: (member, stored) =>
+      `better_supabase.platform_can_assign(${member}, ${stored}::text)`,
+    table: access.table("platformAssignments"),
+    user: access.col("platformAssignments", "user"),
+    role: access.col("platformAssignments", "role"),
+    recheck: true,
+  };
+}
+
 function tenantTableSql(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const c = (logical: string) => t.col(logical);
@@ -384,11 +434,13 @@ function platformInvite(
   if (!p) {
     return fail(
       "INVITATION_SCOPE_UNSUPPORTED",
-      "Platform invitations need sql.modules.access.model 'catalog' with platform assignments",
+      "Platform invitations need platform roles: sql.modules.access.model 'catalog' with platform assignments, or sql.modules.invitations.options.platformRoles under 'permdock'",
     );
   }
   const c = (logical: string) => p.col(logical);
-  const role = roleIn(ctx, "invitee_role", "platform");
+  const assignment = platformAssignment(ctx);
+  const role = assignment.value("invitee_role");
+  const ceiling = assignment.canAssign("auth.uid()", `(${role})`);
   const columns: (readonly [string, string])[] = [
     ["email", "lower(btrim(invitee_email))"],
     ["role", `(${role})::text`],
@@ -404,9 +456,13 @@ function platformInvite(
     if ${role} is null then
       ${fail("INVITATION_ROLE_UNKNOWN", "Unknown platform role %", "invitee_role")}
     end if;
-    if not service and not better_supabase.platform_can_assign(auth.uid(), (${role})::text) then
+    ${
+      ceiling
+        ? `if not service and not ${ceiling} then
       ${fail("INVITATION_ROLE_FORBIDDEN", "That role is above your own")}
-    end if;
+    end if;`
+        : "-- No platform role ceiling: holding the invite permission is enough."
+    }
     ${ctx.hook("before_invitation_create", [
       [ctx.idType, "tenant"],
       ["text", "invitee_email"],
@@ -783,16 +839,20 @@ function accept(ctx: ModuleContext): string {
   let platformAccept = "";
   if (p) {
     const pc = (logical: string) => p.col(logical);
-    const access = ctx.of("access");
-    const platformInviter = p.has("invitedBy")
-      ? `
+    const assignment = platformAssignment(ctx);
+    const inviterCeiling = assignment.canAssign(
+      `pinvite.${pc("invitedBy")}`,
+      `pinvite.${pc("role")}`,
+    );
+    const platformInviter =
+      p.has("invitedBy") && assignment.recheck
+        ? `
   if pinvite.${pc("invitedBy")} is not null and not (
-    coalesce(better_supabase.platform_can(pinvite.${pc("invitedBy")}, ${invitePlatform(ctx)}), false)
-    and better_supabase.platform_can_assign(pinvite.${pc("invitedBy")}, pinvite.${pc("role")}::text)
+    coalesce(better_supabase.platform_can(pinvite.${pc("invitedBy")}, ${invitePlatform(ctx)}), false)${inviterCeiling ? `\n    and ${inviterCeiling}` : ""}
   ) then
     ${fail("INVITATION_INVITER_REVOKED", "The person who invited you can no longer assign that role")}
   end if;`
-      : "";
+        : "";
     platformAccept = `
   select * into pinvite
   from ${p.table} i
@@ -800,8 +860,8 @@ function accept(ctx: ModuleContext): string {
   for update;
   if pinvite.${pc("id")} is not null then
   ${invitee(p, "pinvite")}${platformInviter}
-  insert into ${access.table("platformAssignments")} (${access.col("platformAssignments", "user")}, ${access.col("platformAssignments", "role")})
-  values (me, ${roleValue(ctx, `pinvite.${pc("role")}`)})
+  insert into ${assignment.table} (${assignment.user}, ${assignment.role})
+  values (me, ${assignment.recheck ? roleValue(ctx, `pinvite.${pc("role")}`) : assignment.value(`pinvite.${pc("role")}`)})
   on conflict do nothing;
   update ${p.table}
   set ${pc("acceptedAt")} = now()${p.has("acceptedBy") ? `, ${pc("acceptedBy")} = me` : ""}
