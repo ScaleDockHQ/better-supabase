@@ -46,7 +46,51 @@ await hooks.remove(endpoint.id);
 | `hmac-sha256`       | the hex HMAC-SHA256 of the body, optionally prefixed `sha256=`, in `signatureHeader` (`x-signature` by default) |
 
 Members with `webhooks.read` read their tenant's endpoints, including
-`receive_count`, `last_received_at` and `last_status`.
+`receive_count`, `last_received_at` and `last_status`. `hooks.list(tenant)`
+returns them without secrets through `list_incoming_webhooks`, which runs as
+the caller.
+
+### Endpoints that belong to a record
+
+An endpoint can belong to a record in your schema, such as the workflow it
+starts or the integration it feeds. Map each subject type to its table, the
+same way the comments block does:
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    "webhooks-in": {
+      options: {
+        subjects: {
+          workflow: { table: "workflows", cascade: true },
+          integration: { table: "app.integrations", permission: "integrations.read" },
+        },
+      },
+    },
+  },
+},
+```
+
+```ts
+await hooks.create({
+  tenant: organizationId,
+  name: "Form submissions",
+  subject: { type: "workflow", id: workflowId },
+});
+const forWorkflow = await hooks.list(organizationId, {
+  type: "workflow",
+  id: workflowId,
+});
+```
+
+Creating an endpoint checks that the subject exists in the tenant and that
+the caller holds its `permission` (`WEBHOOK_IN_SUBJECT_INVALID` otherwise).
+The read policy also requires that the caller can read the subject row
+through the subject table's own policies, so an endpoint on a record a
+member can't see is hidden from them. `cascade: true` deletes a subject's
+endpoints when its row is deleted, and the receiving route stores each
+delivery as before, so the inbox handler finds the subject on the endpoint.
+`id` defaults to `id` and `tenant` to `organization_id`.
 
 ## Receiving
 

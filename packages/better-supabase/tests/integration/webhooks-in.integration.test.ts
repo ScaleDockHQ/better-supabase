@@ -10,6 +10,7 @@ import {
   signWebhook,
 } from "../../src/blocks/webhooks/index.ts";
 import { renderModules } from "../../src/sql/registry.ts";
+import { BlockSession } from "./block-session.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -212,6 +213,79 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     } finally {
       await client.query("rollback");
       client.release();
+    }
+  });
+
+  it("ties endpoints to readable subjects and cascades their deletes", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create table public.bs_test_flows (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           private boolean not null default false
+         );
+         alter table public.bs_test_flows enable row level security;
+         grant select on public.bs_test_flows to authenticated;
+         create policy "read" on public.bs_test_flows for select to authenticated
+           using (better_supabase.has_organization_role(organization_id) and not private);`,
+      );
+      await s.install(["organizations", "webhooks-in"], {
+        modules: {
+          "webhooks-in": {
+            options: {
+              subjects: { flow: { table: "bs_test_flows", cascade: true } },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      const [open, hidden] = await s.rows<{ id: string }>(
+        "insert into public.bs_test_flows (organization_id, private) values ($1, false), ($1, true) returning id",
+        [organization],
+      );
+      const hooks = createIncomingWebhooks(s.sql);
+      await s.asRole(owner);
+      for (const flow of [open!, hidden!]) {
+        await hooks
+          .create({
+            tenant: organization,
+            name: `Flow ${flow.id.slice(0, 4)}`,
+            subject: { type: "flow", id: flow.id },
+          })
+          .orThrow();
+      }
+      expect(
+        await hooks.create({
+          tenant: organization,
+          name: "Elsewhere",
+          subject: { type: "flow", id: crypto.randomUUID() },
+        }),
+      ).toMatchObject({
+        ok: false,
+        error: { hint: "WEBHOOK_IN_SUBJECT_INVALID" },
+      });
+      const listed = await hooks.list(organization).orThrow();
+      expect(listed.map((hook) => hook.subject?.id)).toEqual([open!.id]);
+      expect(
+        await hooks
+          .list(organization, { type: "flow", id: open!.id })
+          .orThrow(),
+      ).toHaveLength(1);
+
+      await s.service();
+      await s.rows("delete from public.bs_test_flows where id = $1", [
+        open!.id,
+      ]);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.incoming_webhooks where tenant = $1)",
+          [organization],
+        ),
+      ).toBe(1);
+    } finally {
+      await s.close();
     }
   });
 });
