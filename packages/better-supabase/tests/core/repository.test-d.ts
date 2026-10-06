@@ -100,6 +100,43 @@ describe("payload inference", () => {
   });
 });
 
+describe("conditional writes", () => {
+  it("returns rows from updateMany and deleteMany only with returning: true", async () => {
+    const counted = await db.customers
+      .updateMany({ where: { status: "lead" }, data: { status: "active" } })
+      .orThrow();
+    expectTypeOf(counted).toEqualTypeOf<{ count: number }>();
+    const updated = await db.customers
+      .updateMany({
+        where: { status: "lead" },
+        data: { status: "active" },
+        returning: true,
+        select: ["id", "status"],
+      })
+      .orThrow();
+    expectTypeOf(updated).toEqualTypeOf<
+      { id: string; status: CustomersStatus }[]
+    >();
+    const deleted = await db.customers
+      .deleteMany({ where: { status: "archived" }, returning: true })
+      .orThrow();
+    expectTypeOf(deleted[0]!.organizationId).toEqualTypeOf<string>();
+  });
+
+  it("takes where and expect operators on update", () => {
+    void db.customers.update(
+      "c",
+      { name: "A" },
+      {
+        where: { organizationId: "t", status: { in: ["lead", "active"] } },
+        expect: { updatedAt: { lte: "2026-01-01T00:00:00Z" } },
+      },
+    );
+    // @ts-expect-error status only takes its CHECK values
+    void db.customers.update("c", { name: "A" }, { where: { status: "gone" } });
+  });
+});
+
 describe("argument checking", () => {
   it("rejects unknown columns and relations", () => {
     // @ts-expect-error unknown column

@@ -329,6 +329,54 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(gone.error?.kind).toBe("not_found");
   });
 
+  it("updates with where and returns rows from updateMany and deleteMany", async () => {
+    const rows = await admin.customers
+      .createMany(
+        [
+          { organizationId: ACME, name: "Cond A", kvk: "cond-a" },
+          { organizationId: ACME, name: "Cond B", kvk: "cond-b" },
+        ],
+        { select: ["id"] },
+      )
+      .orThrow();
+    const ids = rows.map((row) => row.id);
+
+    const wrongTenant = await admin.customers.update(
+      ids[0]!,
+      { name: "Moved" },
+      { where: { organizationId: GLOBEX } },
+    );
+    expect(wrongTenant.error?.kind).toBe("not_found");
+
+    const moved = await admin.customers
+      .update(
+        ids[0]!,
+        { name: "Moved" },
+        { where: { organizationId: ACME }, select: ["name"] },
+      )
+      .orThrow();
+    expect(moved).toEqual({ name: "Moved" });
+
+    const activated = await admin.customers
+      .updateMany({
+        where: { id: { in: ids }, status: "lead" },
+        data: { status: "active" },
+        returning: true,
+        select: ["id", "status"],
+      })
+      .orThrow();
+    expect(activated.map((row) => row.status)).toEqual(["active", "active"]);
+
+    const deleted = await admin.customers
+      .deleteMany({
+        where: { id: { in: ids } },
+        returning: true,
+        select: ["id"],
+      })
+      .orThrow();
+    expect(deleted.map((row) => row.id).sort()).toEqual([...ids].sort());
+  });
+
   it("matches a JSON array inside a jsonb column with contains", async () => {
     const note = await admin.notes
       .create(

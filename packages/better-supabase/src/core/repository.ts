@@ -584,7 +584,10 @@ export function createRepository(
 
     update(id: unknown, patch: unknown, args?: Args) {
       return AsyncResult.from(async () => {
-        const key = builder.primaryKey(table, id);
+        const key = and(
+          builder.primaryKey(table, id),
+          builder.where(table, args?.["where"]),
+        );
         const expect = args?.["expect"]
           ? builder.where(table, args["expect"])
           : undefined;
@@ -628,15 +631,17 @@ export function createRepository(
 
     updateMany(args: Args) {
       return AsyncResult.from(async () => {
+        const rows = args["returning"] === true;
         const op: UpdateOp = {
           kind: "update",
           table,
           set: builder.row(table, args["data"], "update"),
           where: builder.where(table, args["where"]),
-          returning: undefined,
+          returning: rows ? returning(args) : undefined,
         };
         const result = await run(op, args);
-        return result.ok ? ok({ count: result.data.count ?? 0 }) : result;
+        if (!result.ok) return result;
+        return ok(rows ? result.data.rows : { count: result.data.count ?? 0 });
       });
     },
 
@@ -695,14 +700,21 @@ export function createRepository(
             dbError("invalid_request", 'deleteMany needs a non-empty "where"'),
           );
         }
+        const rows = args["returning"] === true;
         const op: DeleteOp = {
           kind: "delete",
           table,
           where,
-          returning: undefined,
+          returning: rows ? returning(args) : undefined,
         };
-        const result = await run(op, args);
-        return result.ok ? ok({ count: result.data.count ?? 0 }) : result;
+        // Plugins that rewrite the delete (softDelete) read this to keep RETURNING.
+        const result = await runner.run(
+          op,
+          rows ? { ...optionsOf(args), returning: true } : optionsOf(args),
+          signalOf(args),
+        );
+        if (!result.ok) return result;
+        return ok(rows ? result.data.rows : { count: result.data.count ?? 0 });
       });
     },
   };
