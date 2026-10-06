@@ -183,7 +183,7 @@ function syncValues(ctx: ModuleContext): Map<string, string> {
   if (has("username") && ctx.flag("username", true)) {
     values.set(
       col("username"),
-      `${ctx.fn("allocate_username")}(coalesce(${usernameSource(ctx)}, split_part(u.email, '@', 1)), user_id)`,
+      `${ctx.fn("allocate_username")}(coalesce(${usernameSource(ctx, values)}, split_part(u.email, '@', 1)), user_id)`,
     );
   }
   return values;
@@ -191,50 +191,100 @@ function syncValues(ctx: ModuleContext): Map<string, string> {
 
 const SEPARATOR = /^[a-z0-9_.-]{0,3}$/;
 
-/**
- * `usernameFrom`: metadata keys, first match wins, or `{ names, separator }`
- * entries that join several keys (`first_name` and `last_name` into
- * `ada_lovelace`) when all of them are set.
- */
-function usernameSource(ctx: ModuleContext): string {
+interface UsernamePart {
+  readonly keys: readonly string[];
+  readonly kind: "names" | "columns";
+  readonly separator: string;
+}
+
+/** The `{ names | columns, separator }` entries of `usernameFrom`; strings are single metadata keys. */
+function usernameParts(ctx: ModuleContext): readonly (string | UsernamePart)[] {
   const configured = ctx.option("usernameFrom") ?? USERNAME_SOURCES;
   const where = "sql.modules.profiles.options.usernameFrom";
   if (!Array.isArray(configured)) {
     throw new TypeError(`${where} must be a list`);
   }
-  if (configured.every((entry) => typeof entry === "string")) {
-    return fromMeta(configured);
-  }
-  const parts = configured.map((entry: unknown) => {
-    if (typeof entry === "string") return fromMeta([entry]);
+  return configured.map((entry: unknown): string | UsernamePart => {
+    if (typeof entry === "string") return entry;
+    const joined =
+      typeof entry === "object" && entry !== null
+        ? {
+            names: "names" in entry ? entry.names : undefined,
+            columns: "columns" in entry ? entry.columns : undefined,
+            separator: "separator" in entry ? entry.separator : undefined,
+          }
+        : {};
+    const kind = joined.columns === undefined ? "names" : "columns";
+    const keys: unknown = joined[kind];
     if (
-      typeof entry !== "object" ||
-      entry === null ||
-      !("names" in entry) ||
-      !Array.isArray(entry.names) ||
-      entry.names.length === 0 ||
-      !entry.names.every((name: unknown) => typeof name === "string")
+      !Array.isArray(keys) ||
+      keys.length === 0 ||
+      !keys.every((key: unknown) => typeof key === "string")
     ) {
       throw new TypeError(
-        `${where} entries are metadata keys or { names: [keys], separator }`,
+        `${where} entries are metadata keys, { names: [keys], separator } or { columns: [profile columns], separator }`,
       );
     }
-    const separator =
-      "separator" in entry && entry.separator !== undefined
-        ? entry.separator
-        : "_";
+    const separator: unknown = joined.separator ?? "_";
     if (typeof separator !== "string" || !SEPARATOR.test(separator)) {
       throw new TypeError(
         `${where}: the separator must be up to 3 of a-z, 0-9, _, . or -`,
       );
     }
-    // SAFETY: every name was checked to be a string above.
-    const keys = (entry.names as readonly string[]).map((key) =>
-      fromMeta([key]),
-    );
-    return `case when ${keys.map((key) => `${key} is not null`).join(" and ")} then concat_ws(${sqlString(separator)}, ${keys.join(", ")}) end`;
+    return {
+      keys: keys.filter((key: unknown) => typeof key === "string"),
+      kind,
+      separator,
+    };
   });
-  return `coalesce(${parts.join(", ")})`;
+}
+
+/**
+ * The characters a username keeps besides letters, digits and `_`: the `.`
+ * and `-` of the `usernameFrom` separators, so `ada.lovelace` stays as it is.
+ */
+function usernameExtras(ctx: ModuleContext): string {
+  const extras = new Set(
+    usernameParts(ctx)
+      .flatMap((part) =>
+        typeof part === "string" ? [] : part.separator.split(""),
+      )
+      .filter((char) => char === "." || char === "-"),
+  );
+  return `${extras.has(".") ? "." : ""}${extras.has("-") ? "-" : ""}`;
+}
+
+/**
+ * `usernameFrom`: metadata keys, first match wins, or entries that join
+ * several values when all of them are set: `{ names, separator }` joins
+ * metadata keys (`first_name` and `last_name` into `ada_lovelace`), and
+ * `{ columns, separator }` joins the values `sync_profile` writes to those
+ * profile columns, after `metadata` and `splitName`.
+ */
+function usernameSource(
+  ctx: ModuleContext,
+  values: ReadonlyMap<string, string>,
+): string {
+  const parts = usernameParts(ctx);
+  if (parts.every((part) => typeof part === "string")) {
+    return fromMeta(parts);
+  }
+  const where = "sql.modules.profiles.options.usernameFrom";
+  const expressions = parts.map((part) => {
+    if (typeof part === "string") return fromMeta([part]);
+    const keys = part.keys.map((key) => {
+      if (part.kind === "names") return fromMeta([key]);
+      const value = values.get(column(`${where}.columns`, key));
+      if (value === undefined) {
+        throw new TypeError(
+          `${where}: "${key}" is not a profile column sync_profile fills (the metadata columns and email)`,
+        );
+      }
+      return `nullif(btrim((${value})::text), '')`;
+    });
+    return `case when ${keys.map((key) => `${key} is not null`).join(" and ")} then concat_ws(${sqlString(part.separator)}, ${keys.join(", ")}) end`;
+  });
+  return `coalesce(${expressions.join(", ")})`;
 }
 
 /** Columns only the profile's own user reads under `readPolicy: 'members'`. */
@@ -313,7 +363,7 @@ function usernameCheck(ctx: ModuleContext): string {
 alter table ${t} add constraint profiles_username_check check (
   ${u} is null or (
     length(${u}) between ${String(min)} and ${String(max)}
-    and ${u} ~* '^[a-z][a-z0-9_]*$'
+    and ${u} ~* '^[a-z][a-z0-9_${usernameExtras(ctx)}]*$'
     and lower(${u}) <> all (${reserved})
   )
 ) not valid;
@@ -541,14 +591,20 @@ function guard(ctx: ModuleContext): string {
   ]
     .filter((logical) => ctx.has("profiles", logical))
     .map((logical) => ctx.col("profiles", logical));
-  const columns =
+  const updatedAt = ctx.has("profiles", "updatedAt")
+    ? ctx.col("profiles", "updatedAt")
+    : undefined;
+  // updated_at belongs to the table's own trigger (or the stamp below), so
+  // the guard never rejects a change to it.
+  const columns = (
     ctx.option("serviceColumns") === undefined
       ? defaults
       : ctx
           .list("serviceColumns", [])
           .map((name) =>
             column("sql.modules.profiles.options.serviceColumns", name),
-          );
+          )
+  ).filter((name) => name !== updatedAt);
   const t = ctx.table("profiles");
   const trigger = ctx.trigger("profile_guard");
   if (columns.length === 0) {
@@ -557,9 +613,10 @@ function guard(ctx: ModuleContext): string {
   const touched = [ctx.col("profiles", "key"), ...columns]
     .map((name) => `new.${name} is distinct from old.${name}`)
     .join("\n    or ");
-  const stamp = ctx.has("profiles", "updatedAt")
-    ? `\n  new.${ctx.col("profiles", "updatedAt")} := now();`
-    : "";
+  // A managed table has no other trigger for updated_at; an adopted one
+  // keeps its own.
+  const stamp =
+    ctx.manages && updatedAt ? `\n  new.${updatedAt} := now();` : "";
   return `
 -- The API roles can't change the key or ${columns.join(", ")}. Security
 -- definer functions (switch_organization, the email mirror) run as their
@@ -610,7 +667,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  stem text := left(regexp_replace(lower(coalesce(base, '')), '[^a-z0-9_]+', '', 'g'), ${String(maxLength - 4)});
+  stem text := left(regexp_replace(lower(coalesce(base, '')), '[^a-z0-9_${username ? usernameExtras(ctx) : ""}]+', '', 'g'), ${String(maxLength - 4)});
   candidate text;
   n integer := 0;
 begin

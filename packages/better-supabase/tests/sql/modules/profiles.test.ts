@@ -222,6 +222,58 @@ describe("profiles module", () => {
     ).toThrow(/separator/);
   });
 
+  it("joins profile columns into a username and keeps its separators", () => {
+    const sql = body({
+      profiles: {
+        options: {
+          usernameFrom: [
+            { columns: ["first_name", "last_name"], separator: "." },
+            "user_name",
+          ],
+        },
+      },
+    });
+    expect(sql).toContain(
+      "then concat_ws('.', nullif(btrim((coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''),",
+    );
+    expect(sql).toContain(
+      "regexp_replace(lower(coalesce(base, '')), '[^a-z0-9_.]+', '', 'g')",
+    );
+    expect(sql).toContain(`"username" ~* '^[a-z][a-z0-9_.]*$'`);
+    expect(
+      body({
+        profiles: {
+          options: { usernameFrom: [{ names: ["a", "b"], separator: "-" }] },
+        },
+      }),
+    ).toContain("'[^a-z0-9_-]+'");
+    expect(body({})).toContain("'[^a-z0-9_]+'");
+    expect(() =>
+      body({
+        profiles: {
+          options: { usernameFrom: [{ columns: ["username"] }] },
+        },
+      }),
+    ).toThrow(/is not a profile column sync_profile fills/);
+  });
+
+  it("leaves updated_at to an adopted table's own trigger", () => {
+    const adopted = body({
+      profiles: {
+        ...CENTRAKIT["profiles"],
+        options: {
+          ...CENTRAKIT["profiles"]!.options,
+          serviceColumns: ["email", "updated_at"],
+        },
+      },
+    });
+    const guard = adopted.slice(adopted.indexOf("guard_profile"));
+    expect(guard).toContain('new."email" is distinct from old."email"');
+    expect(guard).not.toContain('new."updated_at" is distinct from');
+    expect(guard).not.toContain(":= now()");
+    expect(body({})).toContain('new."updated_at" := now();');
+  });
+
   it("needs no other module", () => {
     expect(resolveModules(["profiles"]).map((module) => module.name)).toEqual([
       "profiles",
