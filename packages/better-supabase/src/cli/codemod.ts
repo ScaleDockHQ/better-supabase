@@ -97,12 +97,17 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.6": {
     name: "0.6",
     description:
-      "Changes from 0.5 to 0.6: $rpc returns table rows and records in the configured casing",
+      "Changes from 0.5 to 0.6: $rpc returns table rows and records in the configured casing, and bucket publicUrl() returns a Result",
     review: [
       {
         pattern: /\$rpc\s*(<|\()/,
         message:
           "`$rpc` now returns table rows and `returns table (...)` records in the configured casing, with codecs applied: drop a snake-to-camel mapping of the result, or pass `{ raw: true }` to keep database names",
+      },
+      {
+        pattern: /\.publicUrl\s*\(/,
+        message:
+          "A connected bucket's `publicUrl()` returns a `Result` instead of throwing: read `.data` (`null` on an error) or check `.ok`",
       },
     ],
   },

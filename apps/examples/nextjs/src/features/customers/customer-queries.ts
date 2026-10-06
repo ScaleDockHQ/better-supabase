@@ -31,7 +31,9 @@ export async function getCustomers() {
     ...page,
     items: page.items.map((customer) => ({
       ...customer,
-      logoUrl: customer.logoPath ? storage.publicUrl(customer.logoPath) : null,
+      logoUrl: customer.logoPath
+        ? storage.publicUrl(customer.logoPath).data
+        : null,
     })),
   };
 }

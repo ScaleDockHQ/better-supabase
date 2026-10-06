@@ -293,6 +293,15 @@ const thumb = await storage
   .orThrow();
 ```
 
+`publicUrl(target)` builds the URL of an object in a public bucket without a
+request. Like `path(target)`, it returns a `Result`: `invalid_input` for a
+path outside the templates and `forbidden` for another tenant's path.
+
+```ts
+const logo = storage.publicUrl(customer.logoPath);
+const src = logo.ok ? logo.data : fallbackLogo;
+```
+
 Uploads are checked against `fileSizeLimit` and `allowedMimeTypes` before any
 request. Failures become `DbError`s: `invalid_input` with status 413 or 415,
 `forbidden` for policy denials, `conflict` for existing objects, and `network`
@@ -350,8 +359,9 @@ The tenant comes from `{ tenant }`, else from `context`: `context.tenant`
 the `tenant.claim` claims. A
 connection without a tenant gets `forbidden` for every call. Cross-tenant
 admin work (account deletion does this) connects with `{ allTenants: true }`.
-`storage.path(target)` returns the checked path as a `Result`, and
-`publicUrl()`, which makes no request, throws the `forbidden` `DbException`.
+`storage.path(target)` and `publicUrl()`, which make no request, return
+the checked path or URL as a `Result`, with the `forbidden` error for
+another tenant's path.
 
 ### Image transformations
 
@@ -469,7 +479,7 @@ bucket that takes a template target or a path and returns a `Result`:
 | `.list(folder)`                         | `list(within)`, recursive and paginated |
 | `.createSignedUrl(path, ttl)`           | `signedUrl(target, { ttl })`            |
 | `.createSignedUrls(paths, ttl)`         | `signedUrls(targets, { ttl })`          |
-| `.getPublicUrl(path)`                   | `publicUrl(target)`                     |
+| `.getPublicUrl(path)`                   | `publicUrl(target)`, a `Result`         |
 | `.getPublicUrl(path, { transform })`    | `renderUrl(target, transform)`          |
 | `.createSignedUploadUrl(path)`          | `reserve(target)`                       |
 | `.uploadToSignedUrl(path, token, file)` | `uploadReserved(reservation, file)`     |

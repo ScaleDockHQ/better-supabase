@@ -953,7 +953,7 @@ describe("BucketClient URLs", () => {
       public: true,
       policy: "public",
     }).connect(stubClient({ getPublicUrl, createSignedUrl }));
-    expect(images.publicUrl("a.png")).toBe("https://cdn.test/a.png?{}");
+    expect(images.publicUrl("a.png")).toEqual(ok("https://cdn.test/a.png?{}"));
     images.publicUrl("a.png", { download: "a.png", transform: { width: 5 } });
     expect(
       await images
@@ -968,7 +968,22 @@ describe("BucketClient URLs", () => {
       { transform: { height: 4 } },
     ]);
     expect(createSignedUrl).not.toHaveBeenCalled();
-    expect(() => images.publicUrl("a/b.png")).toThrow(DbException);
+    expect(images.publicUrl("a/b.png")).toMatchObject({
+      ok: false,
+      data: null,
+      error: { kind: "invalid_input" },
+    });
+    const scoped = defineBucket({
+      id: "images",
+      path: "{orgId}/{file}",
+      public: true,
+      tenant: {},
+    }).connect(stubClient({ getPublicUrl }), { tenant: "o1" });
+    expect(scoped.publicUrl("o2/a.png")).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden" },
+    });
+    expect(scoped.publicUrl("o1/a.png").ok).toBe(true);
   });
 });
 

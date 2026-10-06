@@ -272,11 +272,14 @@ export interface BucketClient<P extends string, Id extends string = string> {
     targets: readonly ObjectTarget<P, Id>[],
     options?: Omit<UrlOptions, "transform">,
   ): AsyncResult<readonly string[]>;
-  /** URL for public buckets. No request is made. */
+  /**
+   * URL for public buckets. No request is made, so it returns a `Result`
+   * like `path()`: an error for a path outside the templates or the tenant.
+   */
   publicUrl(
     target: ObjectTarget<P, Id>,
     options?: Omit<UrlOptions, "ttl">,
-  ): string;
+  ): Result<string>;
   /** Image transform URL: public for public buckets, signed otherwise. */
   renderUrl(
     target: ObjectTarget<P, Id>,
@@ -1043,11 +1046,18 @@ function connectBucket<P extends string, Id extends string>(
         });
       }),
     publicUrl(target, options) {
-      const path = resolve(target);
-      return api().getPublicUrl(path, {
-        ...download(options?.download),
-        ...(options?.transform ? { transform: { ...options.transform } } : {}),
-      }).data.publicUrl;
+      try {
+        return ok(
+          api().getPublicUrl(resolve(target), {
+            ...download(options?.download),
+            ...(options?.transform
+              ? { transform: { ...options.transform } }
+              : {}),
+          }).data.publicUrl,
+        );
+      } catch (cause) {
+        return err(toDbError(cause));
+      }
     },
     renderUrl(target, transform, options) {
       if (!bucket.public) return signedUrl(target, { ...options, transform });
