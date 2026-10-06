@@ -29,8 +29,10 @@ import {
   readSession,
   serializeCookie,
   sessionCookieName,
+  type SessionEncoding,
   type StoredSession,
   writeSession,
+  type WriteSessionOptions,
 } from "./session.ts";
 
 /**
@@ -118,6 +120,12 @@ export interface ResolveAuthOptions {
   readonly cookie?: {
     readonly name?: string;
     readonly options?: CookieOptions;
+    /**
+     * The shape refreshed sessions are written in, `cookies.encode` in
+     * `@supabase/ssr`. Use the browser client's value. Defaults to
+     * `user-and-tokens`.
+     */
+    readonly encode?: SessionEncoding;
   };
   /**
    * Read the session cookie. Defaults to true. `false` suits endpoints only
@@ -597,6 +605,10 @@ export async function resolveAuth(
     return resolution({ kind: "anon", reason: "none" }, cookies);
   }
   const name = options.cookie?.name ?? sessionCookieName(options.env.url);
+  const encoding: WriteSessionOptions =
+    options.cookie?.encode === undefined
+      ? {}
+      : { encode: options.cookie.encode };
   const session = readSession(cookies(), name);
   if (!session) {
     const stale = cookies().some(
@@ -604,7 +616,7 @@ export async function resolveAuth(
     );
     const writes =
       stale && options.refresh
-        ? writeSession(cookies(), name, null, options.cookie?.options)
+        ? writeSession(cookies(), name, null, options.cookie?.options, encoding)
         : [];
     return resolution(
       { kind: "anon", reason: stale ? "signed_out" : "none" },
@@ -667,7 +679,7 @@ export async function resolveAuth(
     return resolution(
       { kind: "anon", reason: "signed_out" },
       cookies,
-      writeSession(cookies(), name, null, options.cookie?.options),
+      writeSession(cookies(), name, null, options.cookie?.options, encoding),
     );
   }
   const writes = writeSession(
@@ -675,6 +687,7 @@ export async function resolveAuth(
     name,
     outcome.session,
     options.cookie?.options,
+    encoding,
   );
   const state = await verify(
     { token: outcome.session.access_token, apikey: null },

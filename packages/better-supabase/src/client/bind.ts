@@ -59,16 +59,34 @@ const SIGNED_OUT: AuthSnapshot = {
   claims: null,
 };
 
+/**
+ * `session.user`, or `undefined` when auth-js put its placeholder there: with
+ * `tokens-only` cookies and no user in `userStorage`, reading `id` throws.
+ */
+function storedUser(session: Session): Session["user"] | undefined {
+  try {
+    return typeof session.user.id === "string" ? session.user : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const text = (value: unknown): string | undefined =>
+  typeof value === "string" && value !== "" ? value : undefined;
+
 function snapshotOf(session: Session | null): AuthSnapshot {
   if (!session) return SIGNED_OUT;
   const claims = decodeJwtPayload(session.access_token) ?? {};
-  const role =
-    typeof claims["role"] === "string" ? claims["role"] : session.user.role;
+  const stored = storedUser(session);
+  const id = text(claims["sub"]) ?? stored?.id;
+  if (id === undefined) return SIGNED_OUT;
+  const email = text(claims["email"]) ?? text(stored?.email);
+  const role = text(claims["role"]) ?? text(stored?.role);
   return {
     status: "signed-in",
     user: {
-      id: session.user.id,
-      ...(session.user.email ? { email: session.user.email } : {}),
+      id,
+      ...(email ? { email } : {}),
       ...(role ? { role } : {}),
     },
     claims,

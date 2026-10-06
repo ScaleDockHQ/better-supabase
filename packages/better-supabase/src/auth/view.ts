@@ -19,6 +19,12 @@ import { type Aal, aalOf, type AmrEntry, amrOf } from "./mfa.ts";
 export type AuthSession<C = unknown, P = unknown> =
   | {
       readonly kind: "user";
+      /**
+       * Read from the verified claims (`sub`, `email`, `role`,
+       * `app_metadata`, `user_metadata`), never from the user object in the
+       * cookie, so it is the same with `tokens-only` cookies. Call
+       * `auth.getUser()` when a flow must see a revoked or changed user.
+       */
       readonly user: UserClaims;
       /**
        * The verified JWT payload, including custom access token hook claims,
