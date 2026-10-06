@@ -641,6 +641,23 @@ export default defineConfig({
 });
 ```
 
+### BS316
+
+**Warning: legacy migra diff engine.** The project keeps declarative schemas
+in `supabase/schemas` or lists `sql.modules`, but `supabase/config.toml` has
+no `[experimental.pgdelta] enabled = true`, so the Supabase CLI diffs the
+schema with migra. Migra drops grants, comments and `security_invoker` on
+views, and runs only while the stack is stopped. Projects from `supabase init`
+and `better-supabase init` use pg-delta. To switch, add the table, remove
+`[db.migrations] schema_paths` (pg-delta orders files by dependency), and
+create migrations with `supabase db schema declarative sync` instead of
+`supabase db diff`:
+
+```toml title="supabase/config.toml"
+[experimental.pgdelta]
+enabled = true
+```
+
 ## Auth config
 
 ### BS401
@@ -680,12 +697,13 @@ grant execute on function rbac.custom_access_token_hook(event jsonb) to supabase
 revoke execute on function rbac.custom_access_token_hook(event jsonb) from authenticated, anon, public;
 ```
 
-With pg-delta (`[experimental.pgdelta] enabled = true`), add the statements to
-the schema file that defines the function and run
+Add the statements to the schema file that defines the function and run
 `supabase db schema declarative sync`: pg-delta carries function grants into
-the migration. The legacy `supabase db diff` does not, so on migra append them
-to the migration it wrote. `better-supabase doctor --fix-grants` prints the
-block for every hook at once:
+the migration. `better-supabase doctor --fix-grants` prints the block for
+every hook at once, ready to paste into that file.
+
+On the legacy migra engine ([BS316](#bs316)), `supabase db diff` drops
+function grants, so append the block to the migration it wrote:
 
 ```bash
 supabase db diff -f auth_hook

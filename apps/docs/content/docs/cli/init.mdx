@@ -16,6 +16,12 @@ pnpm better-supabase init  # once it is a dependency
 - `src/lib/supabase/index.ts`, which exports `betterSupabase` and the `Models` and `Functions` types
 - glue for every framework it finds, the same files `add` writes
 
+When `supabase/config.toml` exists and has no `[experimental.pgdelta]` table,
+`init` adds one with `enabled = true`, so `supabase db schema declarative sync`
+diffs your schema files with pg-delta, the engine `supabase init` uses for new
+projects. A table that sets `enabled = false` stays as it is, and `init` prints
+the steps to switch (see [BS316](/docs/cli/doctor#bs316)).
+
 It then prints the next steps: the install command for your package manager,
 `supabase start`, `better-supabase env` and `better-supabase gen`. Files that
 already exist are never overwritten unless you pass `--force` or confirm the

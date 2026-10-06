@@ -1174,6 +1174,7 @@ uri = "https://example.com/hook"
             hookGrantProblems(
               hookContext(ungranted, { sqlFiles: [hookFile, grantsMigration] }),
             ),
+            "migra",
           ),
         ).toContain(
           `: ${grantsMigration.path} grants it; run \`supabase migration up\`.`,
@@ -1209,7 +1210,7 @@ uri = "https://example.com/hook"
       const problems = hookGrantProblems(
         hookContext(withHook([hookFn({ execute: ["anon"], schemaUsage: [] })])),
       );
-      expect(hookGrantBlock(problems)).toBe(
+      expect(hookGrantBlock(problems, "migra")).toBe(
         [
           "-- Auth hook grants (better-supabase doctor --fix-grants).",
           "-- `supabase db diff` does not carry function grants; append this to its migration.",

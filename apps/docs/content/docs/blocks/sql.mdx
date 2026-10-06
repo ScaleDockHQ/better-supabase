@@ -29,18 +29,23 @@ Its statements are idempotent, and it writes nothing when the latest data
 migration already has them. `sql add` and `sql sync` say when to run it.
 
 The sync uses pg-delta, the Supabase CLI's diff engine (2.119 or later), which
-orders the schema files by dependency. Projects created by `supabase init`
-use it by default; an existing project turns it on with
-`[experimental.pgdelta] enabled = true` in `supabase/config.toml`. `sql add`
-and [doctor](/docs/cli/doctor) read that setting and name the matching
-command.
+orders the schema files by dependency and carries grants, comments and
+`security_invoker` on views into the migration. It needs
+`[experimental.pgdelta] enabled = true` in `supabase/config.toml`: projects
+created by `supabase init` have it, and `better-supabase init` adds it to an
+existing `config.toml`.
 
-On the legacy migra engine, create the migration with
-`supabase db diff -f better_supabase_block` while the stack is stopped. When
-`supabase/config.toml` lists `[db.migrations] schema_paths`, migra reads only
-the files those entries match. `sql add` names any module file no entry matches
-and prints the lines to add. List the module files before the schemas that call
-their functions.
+### Legacy migra engine
+
+Without that table, the Supabase CLI diffs with migra, and
+[doctor](/docs/cli/doctor#bs316) reports BS316. `sql add` and doctor still
+name the migra command: `supabase db diff -f better_supabase_block`, run while
+the stack is stopped. When `supabase/config.toml` lists
+`[db.migrations] schema_paths`, migra reads only the files those entries
+match, so `sql add` names any module file no entry matches and prints the
+lines to add before the schemas that call their functions. Supabase's
+[switch guide](https://supabase.com/docs/guides/local-development/declarative-database-schemas#switching-to-pg-delta)
+lists the steps to move to pg-delta.
 
 ## Modules
 

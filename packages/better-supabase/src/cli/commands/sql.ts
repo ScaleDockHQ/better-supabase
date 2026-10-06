@@ -413,6 +413,7 @@ async function unlistedModuleFiles(
       (path) =>
         `  "./${path.startsWith(supabase) ? path.slice(supabase.length) : path}",`,
     ),
+    "Or switch to pg-delta, which orders the files by dependency: add [experimental.pgdelta] with enabled = true and remove schema_paths (doctor BS316).",
   ];
 }
 

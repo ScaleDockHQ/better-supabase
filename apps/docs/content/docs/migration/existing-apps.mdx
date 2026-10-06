@@ -9,6 +9,34 @@ existing tables, the access contract reads your permission model, and the
 session cookie is the one `@supabase/ssr` already writes. You move one module
 at a time and keep the rest of your code as it is.
 
+## Move the schema into files
+
+SQL modules are written into `supabase/schemas`, and pg-delta (Declarative
+Schemas 2.0) turns those files into migrations. When the app's schema lives
+only in migrations or in the dashboard, export it first:
+
+```bash
+supabase db pull                                # a baseline migration, when supabase/migrations is empty
+supabase db schema declarative generate --linked
+```
+
+Then check `supabase/config.toml`:
+
+```toml title="supabase/config.toml"
+[experimental.pgdelta]
+enabled = true
+
+# only when your migrations call pg_net, for example database webhooks
+[experimental.webhooks]
+enabled = true
+```
+
+Declare every extension your schema files use (`create extension if not
+exists pgcrypto;`), including those the local stack already ships, and remove
+`[db.migrations] schema_paths`: pg-delta orders the files by dependency.
+`supabase db schema declarative sync` should then report no changes, since
+the files and the migration history describe the same database.
+
 ## Pick a mode per module
 
 Every SQL module has a contract: the functions your policies, other
@@ -182,8 +210,9 @@ explains the order.
 
 ## A suggested order
 
-1. Add `better-supabase.config.ts` with `access` in the model your app uses,
-   and run `better-supabase doctor` to see what it finds.
+1. Move the schema into `supabase/schemas` on pg-delta, add
+   `better-supabase.config.ts` with `access` in the model your app uses, and
+   run `better-supabase doctor` to see what it finds.
 2. Adopt `tenant` and swap one policy helper for `tenant_ids_with`.
 3. Adopt the features you already have (organizations, invitations, audit,
    the events table), one per pull request, and run your tests after each.

@@ -47,7 +47,7 @@ export default defineConfig({
           statements: 97,
           lines: 98,
           functions: 98,
-          branches: 89,
+          branches: 90,
         },
         // CI never rewrites this file: it is an input of the cached test task.
         autoUpdate: env.CI ? false : (next: number) => Math.floor(next),

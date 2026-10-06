@@ -867,6 +867,61 @@ describe("migration-only module options (BS314)", () => {
   });
 });
 
+describe("legacy migra engine (BS316)", () => {
+  const schema = {
+    path: "supabase/schemas/tasks.sql",
+    text: "create table tasks (id int);",
+  };
+
+  it("flags declarative schemas without pg-delta", async () => {
+    const findings = await run(
+      "BS316",
+      context(base, { configToml: toml("[db]\n"), sqlFiles: [schema] }),
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      severity: "warning",
+      target: "supabase/config.toml",
+      location: { file: "supabase/config.toml", line: 1 },
+    });
+    expect(findings[0]!.message).toContain(
+      "`supabase db schema declarative sync` instead of `supabase db diff`",
+    );
+    expect(
+      await run(
+        "BS316",
+        context(
+          base,
+          { configToml: toml("[db]\n") },
+          { sql: { modules: ["audit"] } },
+        ),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("passes pg-delta projects and projects without declarative schemas", async () => {
+    const pgdelta = toml("[experimental.pgdelta]\nenabled = true\n");
+    expect(
+      await run(
+        "BS316",
+        context(base, { configToml: pgdelta, sqlFiles: [schema] }),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS316",
+        context(base, {
+          configToml: toml("[db]\n"),
+          sqlFiles: [{ path: "supabase/migrations/1_init.sql", text: "" }],
+        }),
+      ),
+    ).toEqual([]);
+    expect(await run("BS316", context(base, { sqlFiles: [schema] }))).toEqual(
+      [],
+    );
+  });
+});
+
 describe("tables without an audit trigger (BS315)", () => {
   const publicTables = toCatalog(base)
     .tables.filter(

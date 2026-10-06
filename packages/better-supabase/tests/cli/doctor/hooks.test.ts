@@ -113,7 +113,7 @@ describe("hookGrantBlock", () => {
     expect(problems.map((problem) => problem.fix)).toEqual([
       { kind: "permdock" },
     ]);
-    expect(hookGrantBlock(problems).split("\n").slice(2)).toEqual([
+    expect(hookGrantBlock(problems, "migra").split("\n").slice(2)).toEqual([
       "",
       "-- rbac.custom_access_token_hook(event jsonb) ([auth.hook.custom_access_token]) is PermDock's hook: permdock supabase hook generate --grants-out supabase/migrations/<timestamp>_permdock_hook_grants.sql",
     ]);
@@ -131,7 +131,7 @@ describe("hookGrantBlock", () => {
         ],
       }),
     );
-    expect(hookGrantBlock(problems).split("\n").at(-1)).toBe(
+    expect(hookGrantBlock(problems, "migra").split("\n").at(-1)).toBe(
       `-- rbac.custom_access_token_hook(event jsonb) ([auth.hook.custom_access_token]): ${path} grants it; run \`supabase migration up\`.`,
     );
   });

@@ -23,6 +23,7 @@ import { renderFiles } from "../commands/gen.ts";
 import { byCodePoint } from "../compare.ts";
 import {
   declarativeSchemasDir,
+  diffEngine,
   migrationCommand,
   tomlGet,
 } from "../supabase-toml.ts";
@@ -762,6 +763,29 @@ const OWN_RULES: readonly Rule[] = [
         });
       }
       return stale;
+    },
+  },
+  {
+    code: "BS316",
+    severity: "warning",
+    title: "Legacy migra diff engine",
+    description:
+      "`supabase/config.toml` has no `[experimental.pgdelta] enabled = true`, so the Supabase CLI diffs `supabase/schemas` with migra, which drops grants, comments and security-invoker views and needs the stack stopped. New projects from `supabase init` use pg-delta.",
+    check: (context) => {
+      const toml = context.configToml;
+      if (toml === undefined || diffEngine(toml) === "pg-delta") return [];
+      const schemas = `${toml.dir}/schemas/`;
+      const declarative =
+        context.config.sql.moduleNames.length > 0 ||
+        (context.sqlFiles ?? []).some((file) => file.path.startsWith(schemas));
+      if (!declarative) return [];
+      return [
+        {
+          message: `${toml.path} uses the legacy migra engine. Add \`[experimental.pgdelta]\` with \`enabled = true\`, remove \`[db.migrations] schema_paths\`, and create migrations with \`supabase db schema declarative sync\` instead of \`supabase db diff\`.`,
+          target: toml.path,
+          location: { file: toml.path, line: 1 },
+        },
+      ];
     },
   },
   {

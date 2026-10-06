@@ -80,6 +80,10 @@ methods return a `Result` instead of throwing, so the tool turns a
 exports `betterSupabase = defineSupabase(schema)` from the client
 [`better-supabase gen`](/docs/cli/gen) writes.
 
+The block runs on `@supabase/server` and `@supabase/middleware`, which also
+work in any other server code; [`withBetterSupabase`](/docs/auth/middleware)
+adds `ctx.db` to their pipelines.
+
 ## Replacing the tools with createMcp
 
 `createMcp` serves the MCP endpoint, the RFC 9728
