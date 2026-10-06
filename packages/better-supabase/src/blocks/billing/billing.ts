@@ -81,7 +81,12 @@ export interface CheckoutOptions extends CustomerDetails {
   readonly quantity?: number | "seats";
   /** Default `subscription`. */
   readonly mode?: "subscription" | "payment";
-  /** More Checkout Session parameters, merged over the block's. */
+  /**
+   * More Checkout Session parameters, merged deeply over the block's (nested
+   * objects such as `metadata` merge, arrays replace). The customer,
+   * `client_reference_id` and the tenant's `metadata.organization_id` always
+   * stay.
+   */
   readonly params?: Readonly<Record<string, unknown>>;
   readonly idempotencyKey?: string;
 }
@@ -275,6 +280,42 @@ function isStripeEvent(value: unknown): value is StripeEvent {
     typeof value["type"] === "string" &&
     isRecord(value["data"])
   );
+}
+
+/** `extra` merged into `base`: nested objects merge, arrays and other values replace. */
+function deepMerge(
+  base: Readonly<Record<string, unknown>>,
+  extra: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(extra)) {
+    const current = merged[key];
+    merged[key] =
+      isRecord(current) && isRecord(value) ? deepMerge(current, value) : value;
+  }
+  return merged;
+}
+
+/**
+ * The block's Checkout Session parameters with the app's `params` merged in
+ * deeply, then the customer, `client_reference_id` and the tenant metadata
+ * (on the session and, for a subscription, on `subscription_data`) set
+ * again, so `params` adds metadata without dropping the link the webhook needs.
+ */
+function checkoutParams(
+  base: Readonly<Record<string, unknown>>,
+  extra: Readonly<Record<string, unknown>> | undefined,
+  organizationId: string,
+  customerId: string,
+): Record<string, unknown> {
+  const merged = extra === undefined ? { ...base } : deepMerge(base, extra);
+  const tenant = { metadata: { [ORGANIZATION_KEY]: organizationId } };
+  return deepMerge(merged, {
+    customer: customerId,
+    client_reference_id: organizationId,
+    ...tenant,
+    ...(merged["mode"] === "subscription" ? { subscription_data: tenant } : {}),
+  });
 }
 
 /** Stripe calls as results: a thrown Stripe error becomes a `DbError`. */
@@ -688,7 +729,7 @@ export function createBilling(options: BillingOptions): Billing {
           }
           const mode = checkout.mode ?? "subscription";
           return withStripe(async (client) => {
-            const session = await client.checkout.sessions.create(
+            const params = checkoutParams(
               {
                 customer: customerId,
                 mode,
@@ -698,16 +739,13 @@ export function createBilling(options: BillingOptions): Billing {
                 ...(checkout.cancelUrl === undefined
                   ? {}
                   : { cancel_url: checkout.cancelUrl }),
-                metadata: { [ORGANIZATION_KEY]: organizationId },
-                ...(mode === "subscription"
-                  ? {
-                      subscription_data: {
-                        metadata: { [ORGANIZATION_KEY]: organizationId },
-                      },
-                    }
-                  : {}),
-                ...checkout.params,
               },
+              checkout.params,
+              organizationId,
+              customerId,
+            );
+            const session = await client.checkout.sessions.create(
+              params,
               checkout.idempotencyKey === undefined
                 ? undefined
                 : { idempotencyKey: checkout.idempotencyKey },

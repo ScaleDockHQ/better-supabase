@@ -119,6 +119,55 @@ describe("createBilling", () => {
     ).toHaveLength(1);
   });
 
+  it("merges checkout params deeply and keeps the tenant link", async () => {
+    const t = setup((fn) => (fn === "billing_customer" ? "cus_1" : null));
+    const billing = createBilling(t);
+    await billing
+      .checkout("org", {
+        price: "price_1",
+        successUrl: "https://a/ok",
+        params: {
+          customer: "cus_other",
+          client_reference_id: "elsewhere",
+          metadata: { campaign: "spring", organization_id: "spoofed" },
+          subscription_data: {
+            trial_period_days: 14,
+            metadata: { source: "pricing" },
+          },
+          line_items: [{ price: "price_override", quantity: 3 }],
+        },
+      })
+      .orThrow();
+    expect(t.stripeCalls.at(-1)).toMatchObject([
+      "checkout.create",
+      {
+        params: {
+          customer: "cus_1",
+          client_reference_id: "org",
+          metadata: { campaign: "spring", organization_id: "org" },
+          subscription_data: {
+            trial_period_days: 14,
+            metadata: { source: "pricing", organization_id: "org" },
+          },
+          line_items: [{ price: "price_override", quantity: 3 }],
+        },
+      },
+    ]);
+    await billing
+      .checkout("org", {
+        price: "price_1",
+        successUrl: "https://a/ok",
+        params: { mode: "payment" },
+      })
+      .orThrow();
+    const [, last] = t.stripeCalls.at(-1) as [string, { params: object }];
+    expect(last.params).toMatchObject({
+      mode: "payment",
+      metadata: { organization_id: "org" },
+    });
+    expect(last.params).not.toHaveProperty("subscription_data");
+  });
+
   it("keeps the earlier customer when two checkouts race", async () => {
     const t = setup((fn) =>
       fn === "link_billing_customer" ? "cus_first" : null,

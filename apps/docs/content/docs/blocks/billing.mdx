@@ -73,7 +73,11 @@ const portal = await billing.portal(organizationId, {
 link wins and both use that customer. The session carries the tenant in
 `client_reference_id` and in the subscription's metadata, so the webhook can
 link it even if the customer was created elsewhere. `params` merges more
-Checkout Session parameters. `portal` returns `not_found`
+Checkout Session parameters deeply: nested objects such as `metadata` and
+`subscription_data` merge with the block's, and arrays such as `line_items`
+replace them. The customer, `client_reference_id` and
+`metadata.organization_id` (on the session and the subscription) are set
+again afterwards, so your own metadata never drops the tenant link. `portal` returns `not_found`
 (`BILLING_NO_CUSTOMER`) before the tenant has a customer.
 
 `cancelSubscription(organizationId)` cancels the tenant's active subscription
