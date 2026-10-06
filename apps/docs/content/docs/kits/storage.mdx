@@ -116,6 +116,44 @@ await db.customers.update(id, {
 [`storagePathColumns` rule](/docs/plugins/rules) warns when a Storage URL or
 bucket path is written to a `*_url` column.
 
+### Rows that store a bucket id
+
+Tables for files, attachments or knowledge sources often keep the bucket id
+next to the path, because their objects live in more than one bucket.
+`defineBuckets` registers the bucket definitions by id, so a stored
+`{ bucket, path }` reaches its definition without a map of your own:
+
+```ts title="lib/buckets.ts"
+import { defineBuckets } from "better-supabase/storage";
+
+export const buckets = defineBuckets({ files, attachments, sources });
+```
+
+```ts
+const ref = buckets.connectStored(
+  supabase,
+  { bucket: row.bucketId, path: row.path },
+  { context: db.$context },
+);
+if (!ref.ok) return problemResponse(ref.error);
+const url = await ref.data.storage.signedUrl(ref.data.path).orThrow();
+```
+
+| Method                                | Returns                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `byId(id)`                            | The bucket definition, as a `Result`                                                        |
+| `has(id)`                             | Whether a bucket has that id, as a type guard                                               |
+| `resolve({ bucket, path })`           | The definition and the branded `StoragePath`, after checking the path against its templates |
+| `connectStored(client, ref, options)` | `resolve`, plus a connected client that has checked the path, tenant included               |
+| `ids`, `buckets`                      | The registered ids, and the definitions by the names you gave                               |
+
+The registry fails closed. An id no bucket has is an `invalid_input` error,
+never a default bucket, and so is a path outside the bucket's templates.
+`connectStored` takes the same options as `connect()`, so a bucket with
+`tenant` refuses another tenant's path with `forbidden`. None of these
+methods sends a request. Two buckets with the same id throw when the
+registry is defined.
+
 ## Policies and config
 
 `logos.sql()` returns idempotent SQL. It upserts the bucket row and creates

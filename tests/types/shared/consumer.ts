@@ -53,7 +53,11 @@ import {
   impersonatorOf,
   PRIMARY_COOKIE,
 } from "better-supabase/server";
-import { defineBucket, type StoragePath } from "better-supabase/storage";
+import {
+  defineBucket,
+  defineBuckets,
+  type StoragePath,
+} from "better-supabase/storage";
 import {
   defineSeed,
   expectTenantIsolation,
@@ -186,6 +190,9 @@ export function integrations(): unknown[] {
       orgId: "o",
       customerId: "c",
     }) satisfies Result<StoragePath<"customer-logos">>,
+    defineBuckets({ logos }).byId("customer-logos") satisfies Result<
+      typeof logos
+    >,
     createImageLoader({ url: "https://x.supabase.co" })({
       src: "/a.png",
       width: 64,
