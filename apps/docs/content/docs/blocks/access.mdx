@@ -319,6 +319,11 @@ sql: {
 The tenant column is matched against the table's `id`. `userKey` names the
 column matched against the user id; it defaults to `id`.
 
+The checks are `better_supabase.tenant_disabled(id)` and
+`better_supabase.user_disabled(user_id)`. The `access` module's file defines
+them; the `tenant` module's file defines them only when `access` isn't
+installed (or runs in custom mode), so each function lives in one schema file.
+
 Either subject also takes an active row in the shape of PermDock's
 `rls.suspension`: a table, the id column, and a nullable `disabledAt` column,
 a `status` column with its `active` values, or both. Only a row that matches

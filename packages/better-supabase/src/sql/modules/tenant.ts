@@ -6,6 +6,7 @@ import { DEFAULT_ACTIVE_TENANT } from "../../config/modules.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   columnRef,
+  accessDefinesDisabledHelpers,
   disabledHelpers,
   disabledHelpersNeedLaterTables,
   jwtClaim,
@@ -216,14 +217,16 @@ create policy bs_memberships_read on ${m}
   using (${user} = (select auth.uid()) or ${tenant} in (select better_supabase.member_organization_ids()));
 `
     : "";
-  // The catalog's roles table and the managed organizations table are in
-  // files that sort after this one; the bodies are checked when they first
-  // run instead.
+  // The access module defines tenant_disabled and user_disabled when it is
+  // installed. Its file, the catalog's roles table and the managed
+  // organizations table sort after this one; the bodies are checked when
+  // they first run instead.
+  const accessHelpers = accessDefinesDisabledHelpers(ctx);
   const deferBodies =
-    model === "catalog" || disabledHelpersNeedLaterTables(ctx);
+    model === "catalog" || accessHelpers || disabledHelpersNeedLaterTables(ctx);
   return `${schemaPreamble(ctx)}
 grant usage on schema better_supabase to supabase_auth_admin;
-${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${disabledHelpers(ctx)}
+${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${accessHelpers ? "" : disabledHelpers(ctx)}
 ${currentTenant(ctx)}
 
 -- Policies compare against the set once per statement:

@@ -263,6 +263,18 @@ function disabledCheck(
   return `not exists (select 1 from ${parts.map((part) => sqlIdent(part)).join(".")} ${d} where ${active.join(" and ")})`;
 }
 
+/**
+ * Whether the `access` module's file defines `tenant_disabled` and
+ * `user_disabled`: it does whenever it is installed (or configured) outside
+ * custom mode, and the `tenant` module's file then leaves them out, so each
+ * function is defined in one file.
+ */
+export function accessDefinesDisabledHelpers(ctx: ModuleContext): boolean {
+  const access = ctx.modules.access;
+  if (!ctx.installed("access") && access === undefined) return false;
+  return (access?.mode ?? "managed") !== "custom";
+}
+
 export function disabledHelpersNeedLaterTables(ctx: ModuleContext): boolean {
   return (
     !ctx.modules.access?.disabled?.tenant &&
