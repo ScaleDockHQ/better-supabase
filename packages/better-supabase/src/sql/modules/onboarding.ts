@@ -66,7 +66,7 @@ function eventsOf(value: unknown, path: string): readonly string[] {
 }
 
 /** The steps of every `defineChecklist()` result in `options.checklists`. */
-export function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
+function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
   const option = ctx.option("checklists");
   if (option === undefined) return [];
   if (!Array.isArray(option) && !isObject(option)) {

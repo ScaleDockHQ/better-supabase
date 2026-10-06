@@ -233,11 +233,6 @@
       "types": "./dist/blocks/api-keys/index.d.ts",
       "default": "./dist/blocks/api-keys/index.js"
     },
-    "./blocks/audit": {
-      "@better-supabase/source": "./src/blocks/audit/index.ts",
-      "types": "./dist/blocks/audit/index.d.ts",
-      "default": "./dist/blocks/audit/index.js"
-    },
     "./blocks/settings": {
       "@better-supabase/source": "./src/blocks/settings/index.ts",
       "types": "./dist/blocks/settings/index.d.ts",
@@ -518,10 +513,6 @@
       "./blocks/api-keys": {
         "types": "./dist/blocks/api-keys/index.d.ts",
         "default": "./dist/blocks/api-keys/index.js"
-      },
-      "./blocks/audit": {
-        "types": "./dist/blocks/audit/index.d.ts",
-        "default": "./dist/blocks/audit/index.js"
       },
       "./blocks/settings": {
         "types": "./dist/blocks/settings/index.d.ts",
