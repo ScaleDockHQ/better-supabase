@@ -529,6 +529,41 @@ describe("createOrganizationPurger", () => {
     });
   });
 
+  it("removes expired exports' files, then their rows", async () => {
+    const storage = fakeStorage();
+    const { transport, calls } = fakeTransport({
+      expired_data_exports: [
+        {
+          id: "e1",
+          bucket: "data-exports",
+          files: ["e1/a.ndjson", "e1/b.ndjson", 3],
+        },
+        { id: "e2", bucket: "data-exports", files: [] },
+      ],
+      forget_data_exports: 2,
+    });
+    const purger = createOrganizationPurger({
+      transport,
+      storage: storage.storage,
+    });
+    expect(await purger.purgeExports({ limit: 5 }).orThrow()).toBe(2);
+    expect(storage.calls.filter(([method]) => method === "remove")).toEqual([
+      ["remove", ["e1/a.ndjson", "e1/b.ndjson"]],
+    ]);
+    expect(calls).toEqual([
+      ["expired_data_exports", { max_rows: 5 }],
+      ["forget_data_exports", { ids: ["e1", "e2"] }],
+    ]);
+    const none = createOrganizationPurger({
+      transport: fakeTransport({ expired_data_exports: [] }).transport,
+    });
+    expect(await none.purgeExports().orThrow()).toBe(0);
+    const noStorage = createOrganizationPurger({ transport });
+    expect(await noStorage.purgeExports()).toMatchObject({
+      error: { kind: "invalid_request" },
+    });
+  });
+
   it("stops at billing, storage and missing storage errors", async () => {
     const { transport, calls } = fakeTransport({ purge_organization: purged });
     const billingFails = await createOrganizationPurger({

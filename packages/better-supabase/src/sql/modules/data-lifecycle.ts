@@ -874,6 +874,41 @@ begin
 end;
 $$;
 
+-- Exports past expires_at, oldest first, with their files, for the purger to
+-- remove from Storage before forget_data_exports drops the rows.
+create or replace function ${fn("expired_data_exports")}(max_rows integer default 100)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x.${ce("id")}, 'bucket', x.${ce("bucket")}, 'files', to_jsonb(x.${ce("files")})) order by x.${ce("expiresAt")}), '[]'::jsonb)
+  from (
+    select * from ${e} y
+    where y.${ce("expiresAt")} < now()
+    order by y.${ce("expiresAt")}
+    limit greatest(1, least(coalesce(max_rows, 100), 1000))
+  ) x
+$$;
+
+-- Deletes the export rows (their files are already gone); returns how many.
+create or replace function ${fn("forget_data_exports")}(ids uuid[])
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  with removed as (
+    delete from ${e} x where x.${ce("id")} = any (forget_data_exports.ids) and x.${ce("expiresAt")} < now() returning 1
+  )
+  select count(*)::integer from removed
+$$;
+
+revoke execute on function ${fn("expired_data_exports")}(integer) from public, anon, authenticated;
+revoke execute on function ${fn("forget_data_exports")}(uuid[]) from public, anon, authenticated;
+grant execute on function ${fn("expired_data_exports")}(integer) to service_role;
+grant execute on function ${fn("forget_data_exports")}(uuid[]) to service_role;
 revoke execute on function ${fn("data_lifecycle_tables")}() from public, anon, authenticated;
 revoke execute on function ${fn("request_data_export")}(text, ${id}) from public, anon;
 revoke execute on function ${fn("list_data_exports")}(${id}) from public, anon;
@@ -935,6 +970,8 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "cancel_organization_deletion", args: ["{id}"], returns: "jsonb" },
+    { name: "expired_data_exports", args: ["integer"], returns: "jsonb" },
+    { name: "forget_data_exports", args: ["uuid[]"], returns: "integer" },
     { name: "organization_deletion", args: ["{id}"], returns: "jsonb" },
     { name: "due_organization_deletions", args: ["integer"], returns: "jsonb" },
     { name: "purge_organization", args: ["{id}"], returns: "jsonb" },

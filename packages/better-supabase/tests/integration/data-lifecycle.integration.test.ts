@@ -195,6 +195,41 @@ describe.skipIf(!live)("data lifecycle", () => {
     }
   });
 
+  it("purges expired exports' files and rows", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "data-lifecycle"]);
+      const owner = await s.user("owner");
+      const [expired, current] = await s.rows<{ id: string }>(
+        `insert into better_supabase.data_exports (subject, user_id, status, files, expires_at) values
+           ('user', $1, 'ready', '{x/a.ndjson}', now() - interval '1 day'),
+           ('user', $1, 'ready', '{y/a.ndjson}', now() + interval '1 day')
+         returning id`,
+        [owner.id],
+      );
+      const memory = memoryStorage();
+      memory.files.set("x/a.ndjson", "{}");
+      memory.files.set("y/a.ndjson", "{}");
+      await s.service();
+      const purger = createOrganizationPurger({
+        transport: sqlTransport(s.sql),
+        storage: memory.storage,
+      });
+      expect(await purger.purgeExports().orThrow()).toBe(1);
+      expect([...memory.files.keys()]).toEqual(["y/a.ndjson"]);
+      expect(
+        (
+          await s.rows<{ id: string }>(
+            "select id from better_supabase.data_exports where id = any ($1)",
+            [[expired!.id, current!.id]],
+          )
+        ).map((row) => row.id),
+      ).toEqual([current!.id]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("purges an adopted tenant row last, retrying blocked tables", async () => {
     const s = await BlockSession.open(pool);
     try {

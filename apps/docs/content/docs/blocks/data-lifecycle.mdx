@@ -133,6 +133,12 @@ done. `lifecycle.download(id)` then returns a signed URL per file. The
 bucket's policy serves the files only to the requester (or members with
 `organization.export` for an organization export) until `expires_at`.
 
+Expired exports stay in Storage until something removes them. Run
+`purger.purgeExports()` from the same cron job as the purge (a
+service-role purger with `storage`): it removes the files of exports past
+`expires_at` (`expired_data_exports`), then their rows
+(`forget_data_exports`), and returns how many it removed.
+
 ## Deleting an organization
 
 ```ts

@@ -509,6 +509,11 @@ export interface OrganizationPurger {
   }): AsyncResult<readonly OrganizationPurge[]>;
   /** A jobs handler for a cron queue: purges what is due. */
   readonly job: JobHandler<{ readonly limit?: number }>;
+  /**
+   * Removes the files of exports past their `expiresAt` from Storage, then
+   * their rows; returns how many exports it removed. Needs `storage`.
+   */
+  purgeExports(options?: { readonly limit?: number }): AsyncResult<number>;
 }
 
 const REMOVE_BATCH = 1000;
@@ -604,7 +609,43 @@ export function createOrganizationPurger(
       }
       return ok(purged);
     });
+  const purgeExports = (
+    expired: { readonly limit?: number } = {},
+  ): AsyncResult<number> =>
+    call("expired_data_exports", { max_rows: expired.limit ?? 100 }, (value) =>
+      recordsOf(value, "expired_data_exports").map((row) => ({
+        id: textOf(row["id"]),
+        bucket: textOf(row["bucket"]),
+        files: Array.isArray(row["files"])
+          ? row["files"].filter((file) => typeof file === "string")
+          : [],
+      })),
+    ).andThen(async (exports) => {
+      if (exports.length === 0) return ok(0);
+      const storage = options.storage;
+      if (!storage) {
+        return err(
+          dbError("invalid_request", "Pass storage to remove export files"),
+        );
+      }
+      for (const entry of exports) {
+        for (let start = 0; start < entry.files.length; start += REMOVE_BATCH) {
+          const removed = await stored(
+            storage
+              .from(entry.bucket)
+              .remove(entry.files.slice(start, start + REMOVE_BATCH)),
+          );
+          if (!removed.ok) return removed;
+        }
+      }
+      return call(
+        "forget_data_exports",
+        { ids: exports.map((entry) => entry.id) },
+        (value) => Number(value ?? 0),
+      );
+    });
   return {
+    purgeExports,
     purge,
     purgeDue,
     job: async (payload) => {
