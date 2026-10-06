@@ -1,4 +1,5 @@
-export { defineBucket, fromStorageError, parseSize, TTL } from "./bucket.ts";
+export { defineBucket, parseSize, TTL } from "./bucket.ts";
+export { fromStorageError } from "./errors.ts";
 export {
   avatarBucket,
   IMAGE_TYPES,

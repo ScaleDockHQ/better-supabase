@@ -135,3 +135,18 @@ export function pathLayouts(
       patterns.length === 1 ? patterns[0]! : `(${patterns.join(" or ")})`,
   };
 }
+
+/** Whether matched path values hold every value of `within`; a rest value may sit under it. */
+export function inScope(
+  values: Readonly<Record<string, string | number>> | null,
+  within: Readonly<Record<string, string | number | undefined>>,
+): boolean {
+  if (!values) return false;
+  return Object.entries(within).every(([key, expected]) => {
+    if (expected === undefined) return true;
+    const actual = String(values[key]);
+    return (
+      actual === String(expected) || actual.startsWith(`${String(expected)}/`)
+    );
+  });
+}

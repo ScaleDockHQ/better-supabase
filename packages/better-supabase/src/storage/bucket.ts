@@ -10,12 +10,7 @@ import type {
 import type { PathIn, StoragePath } from "./path.ts";
 
 import { tenantClaimPaths } from "../core/claims.ts";
-import {
-  type DbError,
-  DbException,
-  dbError,
-  isDbError,
-} from "../core/errors.ts";
+import { type DbError, DbException, dbError } from "../core/errors.ts";
 import {
   AsyncResult,
   err,
@@ -32,7 +27,8 @@ import {
 } from "../core/template.ts";
 import { temporalMissing } from "../core/temporal-required.ts";
 import { optionalTemporal } from "../core/temporal.ts";
-import { pathLayouts } from "./layouts.ts";
+import { fromStorageError } from "./errors.ts";
+import { inScope, pathLayouts } from "./layouts.ts";
 import { policyChecks } from "./policy.ts";
 import { type TenantGuard, tenantGuard } from "./tenant-scope.ts";
 
@@ -177,7 +173,10 @@ export interface Reservation {
 export interface ReplaceOptions<
   Id extends string = string,
 > extends UploadOptions {
-  /** Path the object replaces. Removed after `commit` succeeds. */
+  /**
+   * Path the object replaces, checked like any other target before the
+   * upload. Removed after `commit` succeeds.
+   */
   readonly previous?: string | null;
   /**
    * Store the new path, e.g. update the row. Throwing or returning an error
@@ -302,7 +301,7 @@ export interface BucketClient<P extends string, Id extends string = string> {
     body: UploadBody,
     options?: UploadOptions,
   ): AsyncResult<{ path: StoragePath<Id> }>;
-  /** Removes objects that match the template, are old enough and are not referenced. */
+  /** Removes objects that match a template and the `within` values, are old enough and are not referenced. */
   sweep(options: SweepOptions<P>): AsyncResult<SweepResult>;
 }
 
@@ -417,66 +416,6 @@ function sizeLabel(bytes: number): string {
       return `${String(bytes / size)}${unit}`;
   }
   return `${String(bytes)}B`;
-}
-
-interface StorageFailure {
-  readonly message?: string;
-  readonly name?: string;
-  readonly status?: number;
-  readonly statusCode?: string;
-  readonly code?: string;
-}
-
-/** Maps a Storage error (`StorageApiError`, fetch failures) to a `DbError`. */
-export function fromStorageError(raw: unknown, table?: string): DbError {
-  if (isDbError(raw)) return raw;
-  if (raw instanceof DbException) return raw.error;
-  if (typeof raw !== "object" || raw === null) return toDbError(raw);
-  // SAFETY: the check above narrows raw to an object; every StorageFailure
-  // field is optional.
-  const failure = raw as StorageFailure;
-  if (failure.name === "AbortError") return toDbError(raw);
-  const message = failure.message ?? "Storage request failed";
-  const code = failure.code ?? failure.statusCode;
-  const base = { ...(code ? { code } : {}), ...(table ? { table } : {}) };
-  const statusCode = Number(failure.statusCode);
-  const status =
-    Number.isFinite(statusCode) && statusCode >= 400
-      ? statusCode
-      : (failure.status ?? 0);
-  if (
-    /row-level security|unauthorized to|AccessDenied/i.test(
-      `${message} ${code ?? ""}`,
-    )
-  ) {
-    return dbError("forbidden", message, base);
-  }
-  if (/already exists|duplicate/i.test(`${message} ${code ?? ""}`))
-    return dbError("conflict", message, base);
-  if (failure.name === "StorageUnknownError" && status === 0)
-    return dbError("network", message, base);
-  switch (status) {
-    case 400:
-      return dbError("invalid_request", message, base);
-    case 401:
-      return dbError("unauthorized", message, base);
-    case 403:
-      return dbError("forbidden", message, base);
-    case 404:
-      return dbError("not_found", message, base);
-    case 409:
-      return dbError("conflict", message, base);
-    case 413:
-    case 415:
-      return dbError("invalid_input", message, { ...base, status });
-    case 408:
-    case 429:
-      return dbError("network", message, { ...base, status });
-    default:
-      return status >= 500
-        ? dbError("network", message, base)
-        : dbError("unexpected", message, base);
-  }
 }
 
 /**
@@ -1075,7 +1014,8 @@ function connectBucket<P extends string, Id extends string>(
     replace: (target, body, options = {}) =>
       AsyncResult.from<ReplaceResult<Id>>(async () => {
         const path = resolve(target);
-        const previous = options.previous ?? null;
+        const previous =
+          options.previous == null ? null : resolve(options.previous);
         const same = previous === path;
         const uploaded = await upload(path, body, {
           ...options,
@@ -1144,8 +1084,9 @@ function connectBucket<P extends string, Id extends string>(
           options.signal ? { signal: options.signal } : undefined,
         );
         if (!found.ok) return found;
+        const scope = scopedWithin(options.within);
         const candidates = found.data
-          .filter((object) => bucket.match(object.path) !== null)
+          .filter((object) => inScope(bucket.match(object.path), scope))
           .filter((object) => {
             // Storage sends ISO text; epoch milliseconds compare directly.
             const created = Date.parse(

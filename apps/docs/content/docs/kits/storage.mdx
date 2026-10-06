@@ -419,8 +419,11 @@ const { path } = await storage
   .orThrow();
 ```
 
-If `commit` throws or returns an error `Result`, the new object is removed and
-the old one is kept. If removing the old object fails, the result is still ok,
+`previous` is checked like any other target before the upload: a path
+outside the templates is `invalid_input` and another tenant's path is
+`forbidden`, so `replace` never removes an object the client could not
+address. If `commit` throws or returns an error `Result`, the new object is
+removed and the old one is kept. If removing the old object fails, the result is still ok,
 with `cleanup` set to the error.
 
 ### Signed uploads
@@ -462,7 +465,8 @@ const { removed } = await logos
 
 `olderThan` takes a `Temporal.Duration` (a day counts as 24 hours) or a cutoff
 `Temporal.Instant`; see [Temporal](/docs/concepts/temporal).
-Only objects that match the template are candidates. Use `dryRun: true` to see
+Only objects that match a template and every `within` value are candidates,
+also when a value sits after a placeholder `within` leaves out. Use `dryRun: true` to see
 the `orphans` without deleting them.
 
 ## Porting supabase.storage calls
