@@ -1915,10 +1915,74 @@
       {
         "id": 3000002,
         "schema": "better_supabase",
+        "name": "hit_rate_limit",
+        "language": "plpgsql",
+        "definition": "\n#variable_conflict use_variable\ndeclare\n  rule better_supabase.rate_limit_rules;\n  limit_max integer;\n  limit_period interval;\n  used integer;\n  started timestamptz;\nbegin\n  select * into rule from better_supabase.rate_limit_rules r where r.scope = hit_rate_limit.scope;\n  limit_max := coalesce(max_requests, rule.max_requests);\n  limit_period := coalesce(period, rule.period);\n  if limit_max is null or limit_period is null then\n    raise exception 'No rate limit for %: call set_rate_limit or pass max_requests and period', scope\n      using errcode = '22023', hint = 'RATE_LIMIT_UNKNOWN';\n  end if;\n  insert into better_supabase.rate_limits as l (scope, key, window_start, hits)\n  values (scope, key, now(), 1)\n  on conflict on constraint rate_limits_pkey do update set\n    window_start = case when l.window_start + limit_period <= now() then now() else l.window_start end,\n    hits = case when l.window_start + limit_period <= now() then 1 else l.hits + 1 end\n  returning l.hits, l.window_start into used, started;\n  return query select\n    used <= limit_max,\n    greatest(limit_max - used, 0),\n    case when used <= limit_max then 0\n      else greatest(1, ceil(extract(epoch from started + limit_period - now()))::integer) end;\nend\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.hit_rate_limit(scope text, key text, max_requests integer DEFAULT NULL::integer, period interval DEFAULT NULL::interval)\n RETURNS TABLE(allowed boolean, remaining integer, retry_after integer)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_variable\ndeclare\n  rule better_supabase.rate_limit_rules;\n  limit_max integer;\n  limit_period interval;\n  used integer;\n  started timestamptz;\nbegin\n  select * into rule from better_supabase.rate_limit_rules r where r.scope = hit_rate_limit.scope;\n  limit_max := coalesce(max_requests, rule.max_requests);\n  limit_period := coalesce(period, rule.period);\n  if limit_max is null or limit_period is null then\n    raise exception 'No rate limit for %: call set_rate_limit or pass max_requests and period', scope\n      using errcode = '22023', hint = 'RATE_LIMIT_UNKNOWN';\n  end if;\n  insert into better_supabase.rate_limits as l (scope, key, window_start, hits)\n  values (scope, key, now(), 1)\n  on conflict on constraint rate_limits_pkey do update set\n    window_start = case when l.window_start + limit_period <= now() then now() else l.window_start end,\n    hits = case when l.window_start + limit_period <= now() then 1 else l.hits + 1 end\n  returning l.hits, l.window_start into used, started;\n  return query select\n    used <= limit_max,\n    greatest(limit_max - used, 0),\n    case when used <= limit_max then 0\n      else greatest(1, ceil(extract(epoch from started + limit_period - now()))::integer) end;\nend\n$function$\n",
+        "args": [
+          {
+            "mode": "table",
+            "name": "allowed",
+            "type_id": 16,
+            "has_default": null
+          },
+          {
+            "mode": "in",
+            "name": "key",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "max_requests",
+            "type_id": 23,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "period",
+            "type_id": 1186,
+            "has_default": true
+          },
+          {
+            "mode": "table",
+            "name": "remaining",
+            "type_id": 23,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "retry_after",
+            "type_id": 23,
+            "has_default": null
+          },
+          {
+            "mode": "in",
+            "name": "scope",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "scope text, key text, max_requests integer DEFAULT NULL::integer, period interval DEFAULT NULL::interval",
+        "identity_argument_types": "scope text, key text, max_requests integer, period interval",
+        "return_type_id": 2249,
+        "return_type": "TABLE(allowed boolean, remaining integer, retry_after integer)",
+        "return_type_relation_id": null,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000003,
+        "schema": "better_supabase",
         "name": "purge_rate_limits",
         "language": "sql",
-        "definition": "\n  with expired as (\n    select l.scope, l.key from better_supabase.rate_limits l\n    left join better_supabase.rate_limit_rules r on r.scope = l.scope\n    where r.scope is null or l.window_start + r.period <= now()\n    limit batch\n  ),\n  purged as (\n    delete from better_supabase.rate_limits l\n    using expired e\n    where l.scope = e.scope and l.key = e.key\n    returning 1\n  )\n  select count(*)::integer from purged\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.purge_rate_limits(batch integer DEFAULT 10000)\n RETURNS integer\n LANGUAGE sql\n SET search_path TO ''\nAS $function$\n  with expired as (\n    select l.scope, l.key from better_supabase.rate_limits l\n    left join better_supabase.rate_limit_rules r on r.scope = l.scope\n    where r.scope is null or l.window_start + r.period <= now()\n    limit batch\n  ),\n  purged as (\n    delete from better_supabase.rate_limits l\n    using expired e\n    where l.scope = e.scope and l.key = e.key\n    returning 1\n  )\n  select count(*)::integer from purged\n$function$\n",
+        "definition": "\n  with expired as (\n    select l.scope, l.key from better_supabase.rate_limits l\n    left join better_supabase.rate_limit_rules r on r.scope = l.scope\n    where (r.scope is null and l.window_start < now() - interval '1 day')\n      or l.window_start + r.period <= now()\n    limit batch\n  ),\n  purged as (\n    delete from better_supabase.rate_limits l\n    using expired e\n    where l.scope = e.scope and l.key = e.key\n    returning 1\n  )\n  select count(*)::integer from purged\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.purge_rate_limits(batch integer DEFAULT 10000)\n RETURNS integer\n LANGUAGE sql\n SET search_path TO ''\nAS $function$\n  with expired as (\n    select l.scope, l.key from better_supabase.rate_limits l\n    left join better_supabase.rate_limit_rules r on r.scope = l.scope\n    where (r.scope is null and l.window_start < now() - interval '1 day')\n      or l.window_start + r.period <= now()\n    limit batch\n  ),\n  purged as (\n    delete from better_supabase.rate_limits l\n    using expired e\n    where l.scope = e.scope and l.key = e.key\n    returning 1\n  )\n  select count(*)::integer from purged\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -1941,7 +2005,7 @@
         }
       },
       {
-        "id": 3000003,
+        "id": 3000004,
         "schema": "better_supabase",
         "name": "replace_equivalent_triggers",
         "language": "plpgsql",
@@ -1987,7 +2051,7 @@
         }
       },
       {
-        "id": 3000004,
+        "id": 3000005,
         "schema": "better_supabase",
         "name": "set_rate_limit",
         "language": "plpgsql",
@@ -2033,7 +2097,7 @@
         }
       },
       {
-        "id": 3000005,
+        "id": 3000006,
         "schema": "better_supabase",
         "name": "track_realtime",
         "language": "plpgsql",
@@ -2067,7 +2131,7 @@
         }
       },
       {
-        "id": 3000006,
+        "id": 3000007,
         "schema": "better_supabase",
         "name": "track_updated_at",
         "language": "plpgsql",
@@ -2107,7 +2171,7 @@
         }
       },
       {
-        "id": 3000007,
+        "id": 3000008,
         "schema": "better_supabase",
         "name": "untrack_realtime",
         "language": "plpgsql",
@@ -2135,7 +2199,7 @@
         }
       },
       {
-        "id": 3000008,
+        "id": 3000009,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -2181,7 +2245,7 @@
         }
       },
       {
-        "id": 3000009,
+        "id": 3000010,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -2215,7 +2279,7 @@
         }
       },
       {
-        "id": 3000010,
+        "id": 3000011,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -2243,7 +2307,7 @@
         }
       },
       {
-        "id": 3000011,
+        "id": 3000012,
         "schema": "public",
         "name": "search_notes",
         "language": "sql",
@@ -2278,7 +2342,7 @@
         }
       },
       {
-        "id": 3000012,
+        "id": 3000013,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "sql",
@@ -3670,6 +3734,18 @@
           "search_path": "\"\""
         },
         "execute": ["anon", "authenticated"]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "hit_rate_limit",
+        "signature": "scope text, key text, max_requests integer, period interval",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
       },
       {
         "schema": "better_supabase",

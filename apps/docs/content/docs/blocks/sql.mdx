@@ -405,6 +405,37 @@ end $$;
 The hook runs only for the Data API. Queries through
 [`better-supabase/postgres`](/docs/auth/postgres) and `ctx.sql` aren't limited.
 
+### Limits in route handlers
+
+Public endpoints often limit by something other than a claim: a token in the
+URL, an organization, an AI chat thread. `hit_rate_limit(scope, key)` counts
+one hit of `key` with the same rules and counters, and `createRateLimit` from
+`better-supabase/blocks/jobs` calls it from a route handler. `rateLimited()`
+answers a refused hit with a `problem+json` 429 and `Retry-After`:
+
+```ts
+import { createRateLimit, rateLimited } from "better-supabase/blocks/jobs";
+
+const limits = createRateLimit(postgres.admin);
+
+export async function POST(
+  request: Request,
+  { params }: { params: { token: string } },
+) {
+  const hit = await limits.check("public-webhook", params.token).orThrow();
+  if (!hit.allowed)
+    return rateLimited(hit, { instance: new URL(request.url).pathname });
+  // handle the request
+}
+```
+
+The limit is the scope's rule from `set_rate_limit`, or one given per call
+(`check("chat", threadId, { max: 20, period: "1 minute" })`). A scope with
+neither fails with `RATE_LIMIT_UNKNOWN`. Counters are shared by every
+instance, unlike an in-memory map on serverless functions.
+`purge_rate_limits()` removes counters without a rule after a day, so keep a
+per-call `period` under a day or define the rule.
+
 ## Enforcing jsonb shapes
 
 Give a `json` entry a `schema` and `sql add jsonb-schemas` adds a

@@ -14,6 +14,12 @@ export type {
   PurgeAuditLogOptions,
 } from "./jobs.ts";
 export { createJobs, pgmqPublicBackend, sqlQueueBackend } from "./queue.ts";
+export { createRateLimit, rateLimited } from "./rate-limit.ts";
+export type {
+  RateLimit,
+  RateLimitDecision,
+  RateLimitRule,
+} from "./rate-limit.ts";
 export type {
   ClaimOptions,
   DrainMonitor,

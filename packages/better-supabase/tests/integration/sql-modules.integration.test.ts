@@ -16,6 +16,7 @@ import {
   createIdempotency,
   createInbox,
   createJobs,
+  createRateLimit,
   purgeAuditLog,
   sqlQueueBackend,
 } from "../../src/blocks/jobs/index.ts";
@@ -2503,6 +2504,52 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await pool.query(
         `drop function if exists public.search_${name}(extensions.halfvec, integer, jsonb, text);
          drop function if exists public.search_${name}_scores(extensions.halfvec, integer, jsonb, text)`,
+      );
+    }
+  });
+
+  it("limits route handler keys with hit_rate_limit", async () => {
+    const scope = `route-${RUN}`;
+    const limit = createRateLimit(postgres.admin);
+    try {
+      await pool.query(
+        "select better_supabase.set_rate_limit($1, 2, interval '1 minute')",
+        [scope],
+      );
+      const hits = [];
+      for (let i = 0; i < 3; i += 1)
+        hits.push(await limit.check(scope, "token-a").orThrow());
+      expect(hits.map((hit) => [hit.allowed, hit.remaining])).toEqual([
+        [true, 1],
+        [true, 0],
+        [false, 0],
+      ]);
+      expect(hits[2]!.retryAfter).toBeGreaterThan(0);
+      expect((await limit.check(scope, "token-b").orThrow()).allowed).toBe(
+        true,
+      );
+      const adhoc = await limit
+        .check(`adhoc-${RUN}`, "thread-1", { max: 1, period: "1 hour" })
+        .orThrow();
+      expect(adhoc.allowed).toBe(true);
+      expect(await limit.check(`none-${RUN}`, "k")).toMatchObject({
+        ok: false,
+        error: { hint: "RATE_LIMIT_UNKNOWN" },
+      });
+      expect(
+        (
+          await pool.query<{ allowed: boolean }>(
+            "select has_function_privilege('authenticated', 'better_supabase.hit_rate_limit(text, text, integer, interval)', 'execute') as allowed",
+          )
+        ).rows[0]!.allowed,
+      ).toBe(false);
+    } finally {
+      await pool.query("select better_supabase.set_rate_limit($1, null)", [
+        scope,
+      ]);
+      await pool.query(
+        "delete from better_supabase.rate_limits where scope = $1",
+        [`adhoc-${RUN}`],
       );
     }
   });

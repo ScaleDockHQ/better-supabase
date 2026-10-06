@@ -817,9 +817,11 @@
       "createIdempotency",
       "createInbox",
       "createJobs",
+      "createRateLimit",
       "nextCronRun",
       "pgmqPublicBackend",
       "purgeAuditLog",
+      "rateLimited",
       "sqlQueueBackend"
     ],
     "types": [
@@ -852,6 +854,9 @@
       "QueueMessageRow",
       "QueueRpcClient",
       "QueueSchemas",
+      "RateLimit",
+      "RateLimitDecision",
+      "RateLimitRule",
       "RunSchedulesOptions",
       "ScheduleFilter",
       "ScheduleInfo",
