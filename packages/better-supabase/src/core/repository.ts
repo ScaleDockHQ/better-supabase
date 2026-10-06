@@ -506,7 +506,9 @@ export function createRepository(
         const aggregation = builder.aggregation(table, args);
         const orderBy = builder.orderBy(table, args["orderBy"]);
         const grouped = new Set(aggregation.columns.map((c) => c.column));
-        const loose = orderBy.find((term) => !grouped.has(term.column));
+        const loose = orderBy.find(
+          (term) => term.relation !== undefined || !grouped.has(term.column),
+        );
         if (loose) {
           return runner.fail(
             table,
@@ -833,7 +835,18 @@ export function createRepository(
         dbError("invalid_request", '"size" must be a positive integer'),
       );
     }
-    const orderBy = withTieBreaker(builder.orderBy(table, args["orderBy"]));
+    const requested = builder.orderBy(table, args["orderBy"]);
+    const related = requested.find((term) => term.relation);
+    if (related) {
+      return runner.fail(
+        table,
+        dbError(
+          "invalid_request",
+          `Cursor pages can't sort by the relation "${related.relation?.name}"; use an offset page`,
+        ),
+      );
+    }
+    const orderBy = withTieBreaker(requested);
     const base = selection(args);
     const { selection: withSort, added } = ensureColumns(base, orderBy);
 

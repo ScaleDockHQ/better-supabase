@@ -105,6 +105,27 @@ different order after an update or a `VACUUM`, and `limit` picks arbitrary
 rows. Pass `orderBy` to choose another order. Views and tables without a
 primary key keep the database's order.
 
+## Sorting by a related row
+
+`orderBy` takes a to-one relation with columns of the related table, one
+level deep:
+
+```ts
+await db.invoices
+  .paginate({
+    page: 1,
+    size: 25,
+    orderBy: [{ organization: { name: "asc" } }, { number: "desc" }],
+  })
+  .orThrow();
+```
+
+Over PostgREST this sends `order=_bs1(name).asc` with an empty embed of the
+relation, or reuses the relation's include when you include it. The SQL
+executor sorts by a scalar subquery. Rows without a related row sort as
+`null`. To-many relations, cursor pages, aggregates, sorts inside an include
+and SQLite return an error, since none of them can sort by a joined row.
+
 ## Lint
 
 The [`unbounded-read`](/docs/plugins/lint#unbounded-read) rule flags

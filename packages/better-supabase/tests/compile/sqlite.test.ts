@@ -197,6 +197,25 @@ describe("compileSqlite", () => {
     ).toMatchObject({ kind: "unsupported", details: "a json path filter" });
     expect(
       unsupportedOf(() =>
+        compileSqlite(
+          select({
+            orderBy: [
+              {
+                column: "name",
+                direction: "asc",
+                relation: {
+                  name: "organization",
+                  relation: customers.relations["organization"]!,
+                  target: customers,
+                },
+              },
+            ],
+          }),
+        ),
+      ),
+    ).toMatchObject({ kind: "unsupported" });
+    expect(
+      unsupportedOf(() =>
         compileSqlite(select({ where: col("name", "imatch", "^a") })),
       ),
     ).toMatchObject({

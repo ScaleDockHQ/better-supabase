@@ -23,6 +23,54 @@ describe("reads", () => {
     ]);
   });
 
+  it("sorts by a to-one relation through an empty embed", async () => {
+    const { client, last } = capturingClient();
+    const db = sbCamel.connect(client);
+    await db.customers.findMany({
+      select: ["id"],
+      orderBy: [{ organization: { name: "desc" } }, { name: "asc" }],
+    });
+    expect(query(last())).toEqual([
+      "select=id,_bs1:organizations!customers_organization_id_fkey()",
+      "order=_bs1(name).desc,name.asc",
+    ]);
+  });
+
+  it("sorts by a to-one relation through its include", async () => {
+    const { client, last } = capturingClient();
+    const db = sbCamel.connect(client);
+    await db.customers.paginate({
+      select: ["id"],
+      include: { organization: { select: ["name"] } },
+      orderBy: { organization: { name: "asc" } },
+      size: 10,
+    });
+    expect(query(last())).toEqual([
+      "select=id,organization:organizations!customers_organization_id_fkey(name)",
+      "order=organization(name).asc",
+      "offset=0",
+      "limit=11",
+    ]);
+  });
+
+  it("refuses relation sorts in cursor pages and aggregates", async () => {
+    const { client, requests } = capturingClient();
+    const db = sbCamel.connect(client);
+    const page = await db.customers.paginate({
+      orderBy: { organization: { name: "asc" } },
+      size: 10,
+      after: null,
+    });
+    expect(page.error?.message).toContain("use an offset page");
+    const grouped = await db.customers.aggregate({
+      groupBy: ["status"],
+      _count: true,
+      orderBy: { organization: { name: "asc" } } as never,
+    });
+    expect(grouped.error?.kind).toBe("invalid_request");
+    expect(requests).toHaveLength(0);
+  });
+
   it("keeps snake-cased columns unaliased", async () => {
     const { client, last } = capturingClient();
     const db = sbSnake.connect(client);

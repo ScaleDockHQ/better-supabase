@@ -387,6 +387,8 @@ class SqliteCompiler {
   ): string {
     return terms
       .map((term) => {
+        if (term.relation)
+          unsupported(`a sort by the relation "${term.relation.name}"`, table);
         const nulls =
           term.nulls ?? (term.direction === "asc" ? "last" : "first");
         return `${this.sortable(table, alias, term.column)} ${term.direction} nulls ${nulls}`;

@@ -928,3 +928,30 @@ describe("compileSql updates and deletes", () => {
     });
   });
 });
+
+describe("compileSql relation sorts", () => {
+  it("sorts by a to-one relation's column through a scalar subquery", () => {
+    const organization = customers.relations["organization"]!;
+    expect(
+      rows(
+        select({
+          orderBy: [
+            {
+              column: "name",
+              direction: "desc",
+              nulls: "last",
+              relation: {
+                name: "organization",
+                relation: organization,
+                target: organizations,
+              },
+            },
+            { column: "id", direction: "asc" },
+          ],
+        }),
+      ).text,
+    ).toBe(
+      `${BASE} order by (select t1."name" from "public"."organizations" as t1 where t1."id" = t0."organization_id" limit 1) desc nulls last, t0."id" asc`,
+    );
+  });
+});

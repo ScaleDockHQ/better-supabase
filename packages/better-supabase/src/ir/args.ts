@@ -145,15 +145,44 @@ export type WhereInput<M extends AnyModels, T extends keyof M> = {
 
 export type SortDirection = "asc" | "desc";
 
-export type OrderByInput<M extends AnyModels, T extends keyof M> = {
-  readonly [K in keyof Row<M, T>]?:
-    | SortDirection
-    | { readonly direction: SortDirection; readonly nulls?: "first" | "last" };
+export type SortSpec =
+  | SortDirection
+  | { readonly direction: SortDirection; readonly nulls?: "first" | "last" };
+
+/** The columns of one table, each with a sort direction. */
+export type ColumnOrderBy<M extends AnyModels, T extends keyof M> = {
+  readonly [K in keyof Row<M, T>]?: SortSpec;
 };
+
+/**
+ * Columns of the table, and of its to-one relations one level down:
+ * `{ organization: { name: "asc" } }` sorts by the related row's name.
+ */
+export type OrderByInput<
+  M extends AnyModels,
+  T extends keyof M,
+> = ColumnOrderBy<M, T> & {
+  readonly [R in keyof Relations<M, T>]?: RelationOrderBy<
+    M,
+    Relations<M, T>[R]
+  >;
+};
+
+type RelationOrderBy<M extends AnyModels, R> = R extends {
+  readonly kind: "one";
+  readonly table: infer X extends keyof M;
+}
+  ? ColumnOrderBy<M, X>
+  : never;
 
 export type OrderByArg<M extends AnyModels, T extends keyof M> =
   | OrderByInput<M, T>
   | readonly OrderByInput<M, T>[];
+
+/** Sorts by the table's own columns only (includes, aggregates). */
+export type ColumnOrderByArg<M extends AnyModels, T extends keyof M> =
+  | ColumnOrderBy<M, T>
+  | readonly ColumnOrderBy<M, T>[];
 
 export type SelectArg<
   M extends AnyModels,
@@ -164,7 +193,7 @@ export interface IncludeArgs<M extends AnyModels, T extends keyof M> {
   readonly select?: SelectArg<M, T>;
   readonly include?: IncludeArg<M, T>;
   readonly where?: WhereInput<M, T>;
-  readonly orderBy?: OrderByArg<M, T>;
+  readonly orderBy?: ColumnOrderByArg<M, T>;
   readonly limit?: number;
   /** Only return parent rows that have a matching related row. */
   readonly required?: boolean;
@@ -272,7 +301,7 @@ export interface AggregateArgs<M extends AnyModels, T extends keyof M> {
   readonly _min?: MeasureArg<M, T>;
   readonly _max?: MeasureArg<M, T>;
   /** Sorts groups; only `groupBy` columns. */
-  readonly orderBy?: OrderByArg<M, T>;
+  readonly orderBy?: ColumnOrderByArg<M, T>;
   readonly limit?: number;
   readonly offset?: number;
   readonly signal?: AbortSignal;

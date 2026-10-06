@@ -257,13 +257,33 @@ class SqlCompiler {
       .join(" and ");
   }
 
-  orderBy(terms: readonly OrderTerm[], alias: string): string {
+  orderBy(
+    terms: readonly OrderTerm[],
+    alias: string,
+    table?: TableMeta,
+  ): string {
     return terms
       .map((term) => {
         const nulls = term.nulls ? ` nulls ${term.nulls}` : "";
-        return `${this.column(alias, term.column)} ${term.direction}${nulls}`;
+        return `${this.sortKey(term, alias, table)} ${term.direction}${nulls}`;
       })
       .join(", ");
+  }
+
+  /** A column, or the column of a to-one relation's row as a scalar subquery. */
+  private sortKey(term: OrderTerm, alias: string, table?: TableMeta): string {
+    const { relation } = term;
+    if (!relation) return this.column(alias, term.column);
+    if (!table) invalidRequest("A relation sort needs the root table");
+    const target = this.alias();
+    const join = this.join(
+      relation.relation,
+      table,
+      alias,
+      relation.target,
+      target,
+    );
+    return `(select ${this.column(target, term.column)} from ${tableRef(relation.target)} as ${target} where ${join} limit 1)`;
   }
 
   /** `json_build_object('alias', t0."col", ...)` for a selection. */
@@ -430,7 +450,7 @@ export function compileSql(op: Operation): SqlPlan {
           : "";
       const order =
         op.orderBy.length > 0
-          ? ` order by ${compiler.orderBy(op.orderBy, alias)}`
+          ? ` order by ${compiler.orderBy(op.orderBy, alias, op.table)}`
           : "";
       const limit = op.limit === undefined ? "" : ` limit ${integer(op.limit)}`;
       const offset =

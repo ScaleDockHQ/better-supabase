@@ -655,13 +655,21 @@ export class IrBuilder {
         args["include"],
       ),
       where: this.where(target, args["where"]),
-      orderBy: this.orderBy(target, args["orderBy"]),
+      orderBy: this.orderBy(target, args["orderBy"], "include"),
       limit: typeof args["limit"] === "number" ? args["limit"] : undefined,
       required: args["required"] === true,
     };
   }
 
-  orderBy(table: TableMeta, input: unknown): OrderTerm[] {
+  /**
+   * Sort terms. On the root table, a to-one relation key sorts by the related
+   * row's columns: `{ organization: { name: "asc" } }`.
+   */
+  orderBy(
+    table: TableMeta,
+    input: unknown,
+    scope: "root" | "include" | "relation" = "root",
+  ): OrderTerm[] {
     if (input === undefined) return [];
     const list: unknown[] = Array.isArray(input) ? input : [input];
     const terms: OrderTerm[] = [];
@@ -674,6 +682,10 @@ export class IrBuilder {
       }
       for (const [name, spec] of Object.entries(item)) {
         if (spec === undefined) continue;
+        if (!(name in table.columns) && name in table.relations) {
+          terms.push(...this.relationOrder(table, name, spec, scope));
+          continue;
+        }
         const column = this.column(table, name);
         if (spec === "asc" || spec === "desc") {
           terms.push({ column, direction: spec });
@@ -694,6 +706,39 @@ export class IrBuilder {
       }
     }
     return terms;
+  }
+
+  private relationOrder(
+    table: TableMeta,
+    name: string,
+    spec: unknown,
+    scope: "root" | "include" | "relation",
+  ): OrderTerm[] {
+    if (scope !== "root") {
+      invalidRequest(
+        scope === "include"
+          ? `"orderBy" inside an include can't sort by the relation "${name}"`
+          : `"orderBy" sorts by one level of relations; "${name}" on "${table.key}" is a second`,
+        table.key,
+      );
+    }
+    const { relation, target } = relationMeta(this.meta, table, name);
+    if (relation.kind !== "one") {
+      invalidRequest(
+        `"orderBy" on "${name}" needs a to-one relation; "${name}" on "${table.key}" is to-many`,
+        table.key,
+      );
+    }
+    if (!isPlainObject(spec)) {
+      invalidRequest(
+        `"orderBy.${name}" on "${table.key}" must map columns of "${target.key}" to a direction`,
+        table.key,
+      );
+    }
+    return this.orderBy(target, spec, "relation").map((term) => ({
+      ...term,
+      relation: { name, relation, target },
+    }));
   }
 
   /**

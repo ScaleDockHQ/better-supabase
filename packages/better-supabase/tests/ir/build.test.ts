@@ -897,6 +897,64 @@ describe("IrBuilder.orderBy", () => {
     expect(ir.orderBy(customers, input)).toEqual(expected);
   });
 
+  it("orders by a to-one relation's columns", () => {
+    const organization = customers.relations["organization"]!;
+    expect(
+      ir.orderBy(customers, [
+        { organization: { name: "desc", id: "asc" } },
+        { name: "asc" },
+      ]),
+    ).toEqual([
+      {
+        column: "name",
+        direction: "desc",
+        relation: {
+          name: "organization",
+          relation: organization,
+          target: organizations,
+        },
+      },
+      {
+        column: "id",
+        direction: "asc",
+        relation: {
+          name: "organization",
+          relation: organization,
+          target: organizations,
+        },
+      },
+      { column: "name", direction: "asc" },
+    ]);
+  });
+
+  it.each<[string, () => unknown, string]>([
+    [
+      "a to-many relation",
+      () => ir.orderBy(customers, { notes: { body: "asc" } }),
+      '"orderBy" on "notes" needs a to-one relation',
+    ],
+    [
+      "a relation without columns",
+      () => ir.orderBy(customers, { organization: "asc" }),
+      '"orderBy.organization" on "customers" must map columns',
+    ],
+    [
+      "two levels of relations",
+      () => ir.orderBy(notes, { customer: { organization: { name: "asc" } } }),
+      "one level of relations",
+    ],
+    [
+      "a relation inside an include",
+      () =>
+        ir.selection(customers, ["id"], {
+          notes: { orderBy: { customer: { name: "asc" } } },
+        }),
+      "inside an include",
+    ],
+  ])("rejects a relation sort on %s", (_name, run, message) => {
+    expect(rejection(run).message).toContain(message);
+  });
+
   it.each<[string, unknown, string]>([
     ["a string", "name", '"orderBy" on "customers" must be an object'],
     ["an invalid sort", { name: 1 }, 'Invalid sort for "name" on "customers"'],

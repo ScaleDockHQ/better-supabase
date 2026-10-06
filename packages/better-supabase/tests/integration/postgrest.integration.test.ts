@@ -377,6 +377,35 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(deleted.map((row) => row.id).sort()).toEqual([...ids].sort());
   });
 
+  it("sorts by a column of a to-one relation", async () => {
+    const seeded = { id: { in: [ROAD_RUNNER, ANVIL, INITECH] } };
+    const byOrganization = await admin.customers
+      .findMany({
+        where: seeded,
+        select: ["id"],
+        orderBy: [{ organization: { name: "desc" } }, { name: "asc" }],
+      })
+      .orThrow();
+    expect(byOrganization.map((row) => row.id)).toEqual([
+      INITECH,
+      ANVIL,
+      ROAD_RUNNER,
+    ]);
+    const included = await admin.customers
+      .findMany({
+        where: seeded,
+        select: ["id"],
+        include: { organization: { select: ["name"] } },
+        orderBy: [{ organization: { name: "asc" } }, { name: "desc" }],
+      })
+      .orThrow();
+    expect(included.map((row) => [row.id, row.organization.name])).toEqual([
+      [ROAD_RUNNER, "Acme"],
+      [ANVIL, "Acme"],
+      [INITECH, "Globex"],
+    ]);
+  });
+
   it("matches a JSON array inside a jsonb column with contains", async () => {
     const note = await admin.notes
       .create(
