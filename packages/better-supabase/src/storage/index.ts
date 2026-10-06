@@ -16,6 +16,7 @@ export type {
   BucketDrift,
   BucketPolicy,
   ObjectTarget,
+  PathValues,
   ReplaceOptions,
   ReplaceResult,
   Reservation,

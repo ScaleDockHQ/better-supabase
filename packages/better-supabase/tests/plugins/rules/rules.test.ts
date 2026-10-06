@@ -272,6 +272,48 @@ describe("rules()", () => {
     ]);
   });
 
+  it("recognizes paths of every bucket template, including rest placeholders", async () => {
+    const meta = schema.meta;
+    const customers = meta.tables["customers"]!;
+    const marked = defineSchema({
+      ...meta,
+      buckets: {
+        files: {
+          id: "files",
+          public: false,
+          path: ["{orgId}/exports/{exportId}.zip", "{orgId}/archive/{...rest}"],
+        },
+      },
+      tables: {
+        ...meta.tables,
+        customers: {
+          ...customers,
+          columns: {
+            ...customers.columns,
+            fileUrl: {
+              type: "text",
+              nullable: true,
+              hasDefault: false,
+              db: "file_url",
+            },
+          },
+        },
+      },
+    });
+    const { plugin, violations } = withReport(recommended());
+    const { client } = capturingClient();
+    const db = defineSupabase({ ...schema, meta: marked.meta })
+      .use(plugin)
+      .connect(client, context);
+    await db.customers.update("c1", { fileUrl: "o1/exports/e1.zip" } as never);
+    await db.customers.update("c1", { fileUrl: "o1/archive/a/b.pdf" } as never);
+    await db.customers.update("c1", { fileUrl: "o1/other/b.pdf" } as never);
+    expect(violations.map((v) => v.rule)).toEqual([
+      "storagePathColumns",
+      "storagePathColumns",
+    ]);
+  });
+
   it("keeps the repository guard for deleteMany without where", async () => {
     const { plugin, violations } = withReport(safe());
     const { client } = capturingClient();

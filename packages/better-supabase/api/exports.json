@@ -916,6 +916,7 @@
       "ObjectTarget",
       "OrgLogoBucketOptions",
       "PathIn",
+      "PathValues",
       "PermdockBucketPolicy",
       "PermdockCatalog",
       "ReplaceOptions",

@@ -14,7 +14,7 @@ export const IMAGE_TYPES: readonly string[] = [
 export interface ImageBucketOptions<P extends string, Id extends string> {
   readonly id?: Id;
   /** The path template; keep the preset's placeholders the policy relies on. */
-  readonly path?: P;
+  readonly path?: P | readonly [P, ...P[]];
   /** Defaults to `true`: images load from their public URL without signing. */
   readonly public?: boolean;
   readonly fileSizeLimit?: string | number;

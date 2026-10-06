@@ -209,16 +209,23 @@ function bucketTemplates(schema: SchemaMeta): readonly RegExp[] {
   let templates = templatesBySchema.get(schema);
   if (!templates) {
     templates = Object.values(schema.buckets ?? {})
-      .filter(
-        (bucket) => bucket.path.replaceAll(/\{[^}]*\}|\//g, "").length > 0,
+      .flatMap((bucket) =>
+        typeof bucket.path === "string" ? [bucket.path] : bucket.path,
       )
+      .filter((path) => path.replaceAll(/\{[^}]*\}|\//g, "").length > 0)
       .map(
-        (bucket) =>
+        (path) =>
           new RegExp(
-            `^${bucket.path
-              .split(/\{[^}]*\}/)
-              .map((part) => part.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-              .join("[^/]+")}$`,
+            `^${path
+              .split(/(\{[^}]*\})/)
+              .map((part, index) =>
+                index % 2 === 0
+                  ? part.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")
+                  : part.startsWith("{...")
+                    ? "[^/]+(?:/[^/]+)*"
+                    : "[^/]+",
+              )
+              .join("")}$`,
           ),
       );
     templatesBySchema.set(schema, templates);

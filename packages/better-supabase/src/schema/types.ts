@@ -209,7 +209,7 @@ export interface AccessBucketPolicy {
 export interface BucketMeta {
   readonly id: string;
   readonly public: boolean;
-  readonly path: string;
+  readonly path: string | readonly [string, ...string[]];
   readonly policy?:
     | BucketPolicyName
     | PermdockBucketPolicy

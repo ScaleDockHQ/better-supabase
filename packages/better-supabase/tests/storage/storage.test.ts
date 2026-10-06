@@ -1472,3 +1472,123 @@ describe("tenant-scoped buckets", () => {
     expect((await admin.upload(mine, "x")).ok).toBe(true);
   });
 });
+
+describe("path layouts", () => {
+  const files = defineBucket({
+    id: "files",
+    path: [
+      "{orgId}/files/{fileId}/v{version}.{ext}",
+      "{orgId}/exports/{exportId}.zip",
+      "{orgId}/legacy/{...rest}",
+    ],
+    policy: "tenant",
+    tenant: {},
+  });
+
+  it("builds with the template whose placeholders match the values", () => {
+    expect(
+      files.path({ orgId: "o1", fileId: "f1", version: 2, ext: "pdf" }),
+    ).toBe("o1/files/f1/v2.pdf");
+    expect(files.path({ orgId: "o1", exportId: "e1" })).toBe(
+      "o1/exports/e1.zip",
+    );
+    expect(files.path({ orgId: "o1", rest: "a/b/c.txt" })).toBe(
+      "o1/legacy/a/b/c.txt",
+    );
+    expect(() => files.path({ orgId: "o1" } as never)).toThrow(
+      'No path template of bucket "files" takes exactly {orgId}',
+    );
+    expect(files.templates).toHaveLength(3);
+    expect(files.template).toBe("{orgId}/files/{fileId}/v{version}.{ext}");
+    expect(files.params).toEqual([
+      "orgId",
+      "fileId",
+      "version",
+      "ext",
+      "exportId",
+      "rest",
+    ]);
+  });
+
+  it("matches a stored path against every template", () => {
+    expect(files.match("o1/exports/e1.zip")).toEqual({
+      orgId: "o1",
+      exportId: "e1",
+    });
+    expect(files.match("o1/legacy/a/b.txt")).toEqual({
+      orgId: "o1",
+      rest: "a/b.txt",
+    });
+    for (const path of [
+      "o1/legacy",
+      "o1/legacy/",
+      "o1/legacy/a//b",
+      "o1/legacy/a/../b",
+      "o1/legacy/./b",
+      "/o1/legacy/a",
+      "o1/other/a",
+    ])
+      expect(files.match(path)).toBeNull();
+  });
+
+  it("refuses unsafe rest values", () => {
+    for (const rest of ["", "a//b", "../a", "a/..", "/a", "a/", "a/naïve"]) {
+      expect(() => files.path({ orgId: "o1", rest })).toThrow(DbException);
+    }
+  });
+
+  it("prefixes the folder every fitting template shares", () => {
+    expect(files.prefix({ orgId: "o1" })).toBe("o1");
+    expect(files.prefix({ orgId: "o1", fileId: "f1" })).toBe("o1/files/f1");
+    expect(files.prefix({ orgId: "o1", rest: "a/b" })).toBe("o1/legacy/a/b");
+  });
+
+  it("checks writes against every template in SQL", () => {
+    expect(files.sql()).toContain(
+      "(name ~ '^[^/]+/files/[^/]+/v[^/]+\\.[^/]+$' or name ~ '^[^/]+/exports/[^/]+\\.zip$' or name ~ '^[^/]+/legacy/[^/]+(?:/[^/]+)*$')",
+    );
+    expect(files.sql()).toContain("split_part(name, '/', 1)");
+  });
+
+  it("refuses templates that put the policy segment in different places", () => {
+    expect(() =>
+      defineBucket({
+        id: "x",
+        path: ["{orgId}/{file}", "shared/{orgId}/{file}"],
+        policy: "tenant",
+      }),
+    ).toThrow("needs {orgId} at the same segment in every path");
+    expect(() =>
+      defineBucket({
+        id: "x",
+        path: ["{orgId}/{file}", "shared/{file}"],
+        tenant: {},
+      }),
+    ).toThrow('tenant.param {orgId} is not in "shared/{file}"');
+    expect(() => defineBucket({ id: "x", path: "{...rest}/x" })).toThrow(
+      "must be the whole last segment",
+    );
+    expect(() =>
+      defineBucket({ id: "x", path: "{orgId}/a-{...rest}" }),
+    ).toThrow("must be the whole last segment");
+  });
+
+  it("accepts stored paths of any template and keeps the tenant check", async () => {
+    const { client } = fakeStorage({
+      files: { "files/o1/legacy/2020/report.pdf": "x" },
+    });
+    const storage = files.connect(client, { tenant: "o1" });
+    expect((await storage.download("o1/legacy/2020/report.pdf")).ok).toBe(true);
+    expect(storage.path("o2/legacy/a.pdf")).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden" },
+    });
+    expect(storage.path("o1/unknown/a.pdf")).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_input" },
+    });
+    expect(
+      (await storage.upload({ orgId: "o1", exportId: "e1" }, "zip")).ok,
+    ).toBe(true);
+  });
+});
