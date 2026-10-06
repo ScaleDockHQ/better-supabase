@@ -909,6 +909,112 @@ describe("schedules with the drain scheduler", () => {
     ).toBe(0);
   });
 
+  it("ensures a named set of schedules under a prefix", async () => {
+    const listed = (name: string) => ({
+      job_name: name,
+      schedule: "0 * * * *",
+      timezone: "UTC",
+      queue: "reports",
+      tenant: "t1",
+      next_run: null,
+      last_run: null,
+      locked_until: null,
+      created_at: null,
+    });
+    const fake = fakeSql([
+      ["list_schedules", [listed("wf:keep"), listed("wf:stale")]],
+      ["unschedule_job", [{ done: true }]],
+    ]);
+    const jobs = createJobs(fake.sql, queues);
+    const result = await jobs
+      .ensureSchedules(
+        [
+          {
+            name: "wf:keep",
+            cron: "0 * * * *",
+            queue: "reports",
+            payload: { day: "mon" },
+          },
+          {
+            name: "wf:new",
+            cron: "0 9 * * *",
+            queue: "emails",
+            payload: { to: "a@example.com" },
+            timeZone: "Europe/Amsterdam",
+            tenant: "t2",
+          },
+        ],
+        { prefix: "wf:", tenant: "t1" },
+      )
+      .orThrow();
+    expect(result).toEqual({
+      scheduled: ["wf:keep", "wf:new"],
+      removed: ["wf:stale"],
+    });
+    const calls = fake.calls.map((call) => [
+      /\.(\w+)\(/.exec(call.text)![1],
+      call.values,
+    ]);
+    expect(calls[0]).toEqual(["list_schedules", ["wf:", "t1"]]);
+    expect(calls[1]![0]).toBe("schedule_job");
+    expect(calls[1]![1]).toEqual([
+      "wf:keep",
+      "0 * * * *",
+      "reports",
+      '{"day":"MON"}',
+      "UTC",
+      expect.any(String),
+      "t1",
+    ]);
+    expect((calls[2]![1] as unknown[]).at(-1)).toBe("t2");
+    expect(calls[3]).toEqual(["unschedule_job", ["wf:stale"]]);
+  });
+
+  it("checks the whole set before ensureSchedules writes anything", async () => {
+    const fake = fakeSql([]);
+    const jobs = createJobs(fake.sql, queues);
+    const ensure = (
+      definitions: Parameters<typeof jobs.ensureSchedules>[0],
+      prefix = "wf:",
+    ) => jobs.ensureSchedules(definitions, { prefix });
+    const good = {
+      name: "wf:a",
+      cron: "@daily",
+      queue: "reports",
+      payload: { day: "mon" },
+    } as const;
+    expect(await ensure([good], "")).toMatchObject({
+      error: { kind: "invalid_request", message: /non-empty prefix/ },
+    });
+    expect(await ensure([{ ...good, name: "other" }])).toMatchObject({
+      error: { message: 'Schedule "other" does not start with "wf:"' },
+    });
+    expect(await ensure([good, good])).toMatchObject({
+      error: { message: 'Schedule "wf:a" is defined twice' },
+    });
+    expect(
+      await ensure([good, { ...good, name: "wf:b", cron: "61 * * * *" }]),
+    ).toMatchObject({ error: { kind: "validation" } });
+    expect(
+      await ensure([
+        good,
+        { name: "wf:c", cron: "@daily", queue: "emails", payload: { to: "x" } },
+      ]),
+    ).toMatchObject({ error: { kind: "validation" } });
+    expect(fake.calls).toEqual([]);
+    expect(await ensure([])).toEqual({
+      ok: true,
+      error: null,
+      data: { scheduled: [], removed: [] },
+    });
+    const { client } = fakeClient(() => []);
+    expect(
+      await createJobs(client, queues).ensureSchedules([good], {
+        prefix: "wf:",
+      }),
+    ).toMatchObject({ error: { kind: "invalid_request" } });
+  });
+
   it("can't list schedules over pgmq_public", async () => {
     const { client } = fakeClient(() => []);
     const jobs = createJobs(client, queues);

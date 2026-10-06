@@ -1,10 +1,7 @@
 import type { AuthResolver, AuthState } from "../auth/resolve.ts";
 import type { SupportSessionStore } from "../auth/support.ts";
-import type {
-  Job,
-  QueueBackend,
-  QueueMessageRow,
-} from "../blocks/jobs/queue.ts";
+import type { QueueBackend, QueueMessageRow } from "../blocks/jobs/backends.ts";
+import type { Job } from "../blocks/jobs/queue.ts";
 import type { CacheAdapter, CacheTarget } from "../core/cache.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { ExecuteContext, Executor } from "../core/executor.ts";

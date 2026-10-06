@@ -619,6 +619,8 @@ alter table better_supabase.job_schedules enable row level security;
 revoke all on better_supabase.job_schedules from anon, authenticated;
 
 -- next_run defaults to now (the next drain); jobs.schedule passes the next cron time.
+-- Writing a schedule again with the same cron and time zone keeps its next run,
+-- so a run that is due but not yet drained still happens.
 create or replace function better_supabase.schedule_job(
   job_name text,
   schedule text,
@@ -644,7 +646,11 @@ begin
         timezone = excluded.timezone,
         queue = excluded.queue,
         payload = excluded.payload,
-        next_run = excluded.next_run,
+        next_run = case
+          when job_schedules.schedule = excluded.schedule and job_schedules.timezone = excluded.timezone
+            then job_schedules.next_run
+          else excluded.next_run
+        end,
         tenant = excluded.tenant,
         locked_until = null;
   return null;

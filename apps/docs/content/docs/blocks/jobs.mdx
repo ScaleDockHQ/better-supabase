@@ -218,6 +218,34 @@ await jobs.unscheduleAll({ tenant: organizationId }).orThrow();
 Under pg_cron, `listSchedules` returns pg_cron's jobs with only the name and
 cron, and a schedule with a tenant returns an error.
 
+`ensureSchedules` keeps a whole set in step with a source of truth, such as
+the app's built-in schedules on deploy or a tenant's workflow settings after
+an edit. It writes every definition, removes the schedules under `prefix`
+(and `tenant`, when given) that the set no longer names, and returns both
+lists. Every name must start with the prefix, and every payload and cron is
+checked before anything is written. A definition whose cron and time zone
+didn't change keeps its next run, so a run that is due but not yet drained
+still happens and running it twice changes nothing.
+
+```ts
+const result = await jobs
+  .ensureSchedules(
+    workflows.map((workflow) => ({
+      name: `workflow:${workflow.id}`,
+      cron: workflow.cron,
+      queue: "run_workflow",
+      payload: { definitionId: workflow.id },
+      timeZone: workflow.timeZone,
+    })),
+    { prefix: "workflow:", tenant: organizationId },
+  )
+  .orThrow();
+// { scheduled: ["workflow:..."], removed: ["workflow:..."] }
+```
+
+Definitions take the same `timeZone`, `tenant` and `context` as `schedule`;
+one without a tenant gets the `tenant` option.
+
 #### External schedulers
 
 The drain scheduler needs no database extension: any scheduler that calls the

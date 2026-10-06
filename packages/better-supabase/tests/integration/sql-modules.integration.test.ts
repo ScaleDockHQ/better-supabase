@@ -1693,6 +1693,75 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("ensures a set of schedules idempotently, keeping due runs", async () => {
+    const queue = `block_${RUN}_ensure`;
+    const prefix = `ensure-${RUN}:`;
+    await pool.query(
+      moduleBody("jobs", {
+        modules: {
+          jobs: { options: { backend: "table", scheduler: "drain" } },
+        },
+      })!,
+    );
+    try {
+      const jobs = createJobs(postgres.admin, {
+        [queue]: v.object({ report: v.string() }),
+      });
+      const set = (reports: readonly string[]) =>
+        reports.map((report) => ({
+          name: `${prefix}${report}`,
+          cron: "0 6 * * *",
+          queue,
+          payload: { report },
+          timeZone: "Europe/Amsterdam",
+        }));
+      expect(
+        await jobs
+          .ensureSchedules(set(["a", "b"]), { prefix, tenant: "tenant-e" })
+          .orThrow(),
+      ).toEqual({ scheduled: [`${prefix}a`, `${prefix}b`], removed: [] });
+      await pool.query(
+        `update better_supabase.job_schedules
+         set next_run = date_trunc('milliseconds', now()) - interval '1 minute'
+         where job_name = $1`,
+        [`${prefix}a`],
+      );
+      expect(
+        await jobs
+          .ensureSchedules(set(["a"]), { prefix, tenant: "tenant-e" })
+          .orThrow(),
+      ).toEqual({ scheduled: [`${prefix}a`], removed: [`${prefix}b`] });
+      const rows = await pool.query<{
+        job_name: string;
+        due: boolean;
+        tenant: string;
+      }>(
+        "select job_name, next_run <= now() as due, tenant from better_supabase.job_schedules where job_name like $1",
+        [`${prefix}%`],
+      );
+      expect(rows.rows).toEqual([
+        { job_name: `${prefix}a`, due: true, tenant: "tenant-e" },
+      ]);
+      await jobs
+        .ensureSchedules([{ ...set(["a"])[0]!, cron: "0 7 * * *" }], {
+          prefix,
+          tenant: "tenant-e",
+        })
+        .orThrow();
+      const moved = await pool.query<{ due: boolean }>(
+        "select next_run <= now() as due from better_supabase.job_schedules where job_name = $1",
+        [`${prefix}a`],
+      );
+      expect(moved.rows[0]!.due).toBe(false);
+    } finally {
+      await pool.query(
+        "delete from better_supabase.job_schedules where job_name like $1",
+        [`${prefix}%`],
+      );
+      await pool.query(SQL_MODULES["jobs"]!.sql);
+    }
+  });
+
   it("replays idempotent requests and rejects reuse", async () => {
     const idempotency = createIdempotency(postgres.admin, { scope: RUN });
     let runs = 0;

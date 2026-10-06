@@ -13,7 +13,15 @@ export type {
   InboxProcessOptions,
   InboxPurgeOptions,
 } from "./jobs.ts";
-export { createJobs, pgmqPublicBackend, sqlQueueBackend } from "./queue.ts";
+export { pgmqPublicBackend, sqlQueueBackend } from "./backends.ts";
+export type {
+  DueSchedule,
+  QueueBackend,
+  QueueMessageBody,
+  QueueMessageRow,
+  QueueRpcClient,
+} from "./backends.ts";
+export { createJobs } from "./queue.ts";
 export { createRateLimit, rateLimited } from "./rate-limit.ts";
 export type {
   RateLimit,
@@ -27,19 +35,18 @@ export type {
   DrainResult,
   DrainRouteOptions,
   DrainRouteResult,
-  DueSchedule,
   EnqueueOptions,
+  EnsureSchedulesOptions,
+  EnsureSchedulesResult,
   FailOptions,
   Job,
   JobContext,
   JobHandler,
   Jobs,
-  QueueBackend,
-  QueueMessageBody,
-  QueueMessageRow,
-  QueueRpcClient,
   QueueSchemas,
   RunSchedulesOptions,
+  ScheduleDefinition,
+  ScheduleDefinitions,
   ScheduleFilter,
   ScheduleInfo,
   ScheduleOptions,
