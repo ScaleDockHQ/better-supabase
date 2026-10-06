@@ -16,7 +16,6 @@ import {
   OAuthError,
   verifyBearerToken,
 } from "@modelcontextprotocol/server";
-import { fromSupabaseUrl } from "@supabase/server/oauth-protected-resource";
 
 import type { AuthState } from "../../auth/resolve.ts";
 import type { BetterSupabase } from "../../core/define.ts";
@@ -31,8 +30,14 @@ import { delegationOf } from "../../auth/actor.ts";
 import { flushEvents, resolveToken } from "../../server/adapter.ts";
 import { guard, type GuardOptions } from "../../server/respond.ts";
 import { createServer, extendServer, withExtra } from "../../server/server.ts";
+import {
+  discovery,
+  endpointPreflight,
+  isMetadataRequest,
+  metadataPreflight,
+  withCors,
+} from "../http.ts";
 
-const WELL_KNOWN = "/.well-known/oauth-protected-resource";
 const STATE_KEY = "betterSupabase";
 
 type UserAuth<C, P> = Extract<AuthState<C, P>, { kind: "user" }>;
@@ -41,12 +46,18 @@ export interface McpAuthOptions
   extends ServerOptions, Omit<GuardOptions, "scopes"> {
   /**
    * The MCP endpoint's public URL, the RFC 9728 `resource`. Defaults to the
-   * request URL without a trailing slash; pass it when a proxy rewrites the
-   * host or path.
+   * request URL without a trailing slash, and on Supabase Edge Functions to
+   * the public `<origin>/functions/v1/<slug>`; pass it when a proxy rewrites
+   * the host or path.
    */
   readonly resource?: string | ((request: Request) => string);
   /** Defaults to the project's Supabase Auth issuer. */
   readonly authorizationServers?: readonly string[];
+  /**
+   * Answers CORS preflights in `serve` and adds `Access-Control-*` headers
+   * (any origin), so browser MCP clients can call the server. Defaults to true.
+   */
+  readonly cors?: boolean;
   /** Scopes published as `scopes_supported`; `offline_access` is never listed. */
   readonly advertisedScopes?: readonly string[];
   /**
@@ -223,28 +234,14 @@ export function createMcpAuth<
     (scope) => scope !== "offline_access",
   );
 
-  const resourceOf = (request: Request): string => {
-    if (typeof options.resource === "function")
-      return options.resource(request);
-    if (options.resource) return options.resource;
-    const url = new URL(request.url);
-    return url.pathname.startsWith(WELL_KNOWN)
-      ? `${url.origin}${url.pathname.slice(WELL_KNOWN.length)}`
-      : `${url.origin}${url.pathname}`.replace(/\/$/, "");
-  };
-  const metadataUrl = (request: Request): string => {
-    const resource = new URL(resourceOf(request));
-    return `${resource.origin}${WELL_KNOWN}${resource.pathname.replace(/\/$/, "")}`;
-  };
+  const urls = discovery(options, () => server.env.url);
+  const { metadataUrl } = urls;
+  const cors = options.cors ?? true;
   const metadata = (request: Request): Response =>
     Response.json(
       {
-        resource: resourceOf(request),
-        authorization_servers: [
-          ...(options.authorizationServers ?? [
-            fromSupabaseUrl(server.env.url),
-          ]),
-        ],
+        resource: urls.resource(request),
+        authorization_servers: [...urls.authorizationServers(request)],
         bearer_methods_supported: ["header"],
         ...(advertised.length > 0 ? { scopes_supported: advertised } : {}),
         ...(options.resourceDocumentation === undefined
@@ -309,28 +306,23 @@ export function createMcpAuth<
   const serve =
     (handler: McpFetchHandler) =>
     async (request: Request): Promise<Response> => {
+      if (isMetadataRequest(request)) {
+        return request.method === "OPTIONS"
+          ? metadataPreflight()
+          : metadata(request);
+      }
+      if (cors && request.method === "OPTIONS") {
+        return endpointPreflight(request);
+      }
       const response = await answer(handler, request);
       flushEvents(server, options.waitUntil);
-      return response;
+      return cors ? withCors(response, request) : response;
     };
 
   const answer = async (
     handler: McpFetchHandler,
     request: Request,
   ): Promise<Response> => {
-    const path = new URL(request.url).pathname;
-    if (path === WELL_KNOWN || path.startsWith(`${WELL_KNOWN}/`)) {
-      if (request.method === "OPTIONS") {
-        return new Response(null, {
-          status: 204,
-          headers: {
-            "access-control-allow-origin": "*",
-            "access-control-allow-methods": "GET, OPTIONS",
-          },
-        });
-      }
-      return metadata(request);
-    }
     const header = request.headers.get("authorization");
     if (!header && allow.includes("anon")) return handler.fetch(request);
     const resourceMetadataUrl = metadataUrl(request);

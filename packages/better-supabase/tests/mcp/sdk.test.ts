@@ -7,7 +7,7 @@ import {
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { createMcpAuth, withBetterSupabase } from "../../src/mcp/sdk/index.ts";
@@ -333,5 +333,79 @@ describe("createMcpAuth guard options", () => {
     expect(response.headers.get("www-authenticate")).toContain(
       "insufficient_scope",
     );
+  });
+
+  it("answers CORS preflight for the endpoint and adds CORS headers", async () => {
+    const open = createMcpAuth(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+    });
+    const serve = open.serve({
+      fetch: () => Promise.resolve(new Response("ok")),
+    });
+    const preflight = await serve(
+      new Request(ENDPOINT, {
+        method: "OPTIONS",
+        headers: { origin: "https://app.test" },
+      }),
+    );
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("access-control-allow-headers")).toContain(
+      "Authorization",
+    );
+    const challenge = await serve(new Request(ENDPOINT, { method: "POST" }));
+    expect(challenge.status).toBe(401);
+    expect(challenge.headers.get("access-control-allow-origin")).toBe("*");
+    expect(challenge.headers.get("access-control-expose-headers")).toBe(
+      "WWW-Authenticate",
+    );
+
+    const closed = createMcpAuth(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      cors: false,
+    }).serve({ fetch: () => Promise.resolve(new Response("ok")) });
+    const refused = await closed(new Request(ENDPOINT, { method: "OPTIONS" }));
+    expect(refused.status).toBe(401);
+    expect(refused.headers.get("access-control-allow-origin")).toBeNull();
+  });
+});
+
+describe("createMcpAuth on Supabase Edge Functions", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("advertises the public function URL and serves the suffix route", async () => {
+    vi.stubEnv("SUPABASE_FUNCTION_SLUG", "mcp");
+    const edge = createMcpAuth(betterSupabase, {
+      env: { ...env, url: "http://kong:8000" },
+      auth: { jwks: signer.jwks as never },
+    });
+    const serve = edge.serve({
+      fetch: () => Promise.resolve(new Response("ok")),
+    });
+    const headers = {
+      "x-forwarded-host": "abcdefghijklmnopqrst.supabase.co",
+      "x-forwarded-proto": "https",
+      "x-forwarded-port": "443",
+    };
+    const PUBLIC = `${PROJECT_URL}/functions/v1/mcp`;
+    const challenge = await serve(
+      new Request("http://localhost:8081/mcp", { method: "POST", headers }),
+    );
+    expect(challenge.headers.get("www-authenticate")).toContain(
+      `resource_metadata="${PUBLIC}/oauth-protected-resource"`,
+    );
+    const metadata = await serve(
+      new Request("http://localhost:8081/mcp/oauth-protected-resource", {
+        headers,
+      }),
+    );
+    expect(await metadata.json()).toEqual({
+      resource: PUBLIC,
+      authorization_servers: [`${PROJECT_URL}/auth/v1`],
+      bearer_methods_supported: ["header"],
+    });
   });
 });

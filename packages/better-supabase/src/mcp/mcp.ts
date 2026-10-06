@@ -3,10 +3,7 @@ import type {
   StandardSchemaV1,
 } from "@standard-schema/spec";
 
-import {
-  fromSupabaseUrl,
-  unauthorizedResponse,
-} from "@supabase/server/oauth-protected-resource";
+import { unauthorizedResponse } from "@supabase/server/oauth-protected-resource";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { ResourceOperation } from "../openapi/index.ts";
@@ -37,9 +34,15 @@ import {
   settle,
 } from "../server/respond.ts";
 import { createServer, extendServer, withExtra } from "../server/server.ts";
+import {
+  discovery,
+  endpointPreflight,
+  isMetadataRequest,
+  metadataPreflight,
+  withCors,
+} from "./http.ts";
 
 export const MCP_PROTOCOL_VERSION: string = SPEC_PINS.mcp;
-const WELL_KNOWN = "/.well-known/oauth-protected-resource";
 /** Revisions before 2026-07-28 open with an `initialize` handshake. */
 const LEGACY_VERSIONS: readonly string[] = [
   "2025-11-25",
@@ -53,9 +56,8 @@ const SUPPORTED_VERSIONS: readonly string[] = [
 
 type Json = Readonly<Record<string, unknown>>;
 
-/** The `Host` header's hostname is in the list; a missing or malformed header is not. */
-function hostAllowed(request: Request, allowed: readonly string[]): boolean {
-  const host = request.headers.get("host");
+/** The host's hostname is in the list; a missing or malformed host is not. */
+function hostAllowed(host: string | null, allowed: readonly string[]): boolean {
   if (!host) return false;
   try {
     return allowed.includes(new URL(`http://${host}`).hostname);
@@ -185,10 +187,14 @@ export interface McpOptions<
   readonly tools?: readonly McpTool<M, F, E, C, P>[];
   /**
    * Canonical URL of this MCP server (RFC 9728 `resource`). Defaults to the
-   * request URL without query.
+   * request URL without query; on Supabase Edge Functions, to the public
+   * `<origin>/functions/v1/<slug>` the gateway forwards.
    */
   readonly resource?: string | ((request: Request) => string);
-  /** Defaults to Supabase Auth of `env.url` (`<url>/auth/v1`). */
+  /**
+   * Defaults to Supabase Auth of `env.url` (`<url>/auth/v1`); on Supabase Edge
+   * Functions, to Auth on the public origin.
+   */
   readonly authorizationServers?: readonly string[];
   /**
    * Scopes the tools need, published as RFC 9728 `scopes_supported` and in
@@ -205,6 +211,12 @@ export interface McpOptions<
   readonly requiredScopes?: readonly string[];
   /** Origins allowed to call the server (DNS rebinding protection). Defaults to any. */
   readonly allowedOrigins?: readonly string[];
+  /**
+   * Answers CORS preflights and adds `Access-Control-*` headers, so browser
+   * MCP clients can call the server. The allowed origin is `allowedOrigins`
+   * when set, any origin otherwise. Defaults to true.
+   */
+  readonly cors?: boolean;
   /**
    * Hostnames the `Host` header may name, without the port (DNS rebinding
    * protection). List the production, preview and local hosts. Defaults to any.
@@ -542,11 +554,6 @@ function textResult(value: unknown, isError = false): ToolResult {
   };
 }
 
-function canonical(request: Request): string {
-  const url = new URL(request.url);
-  return `${url.origin}${url.pathname.replace(/\/$/, "")}`;
-}
-
 /**
  * An MCP server (Streamable HTTP, stateless) whose tools run as the caller:
  * the Bearer token from the MCP client is verified and every query goes
@@ -680,21 +687,8 @@ export function createMcp<
     );
     return entries.filter((_, index) => shown[index]).map((e) => e.info);
   };
-  const authorizationServers = (): readonly string[] =>
-    options.authorizationServers ?? [fromSupabaseUrl(server.env.url)];
-  const resourceOf = (request: Request): string => {
-    if (typeof options.resource === "function")
-      return options.resource(request);
-    if (options.resource) return options.resource;
-    const url = new URL(canonical(request));
-    return url.pathname.startsWith(WELL_KNOWN)
-      ? `${url.origin}${url.pathname.slice(WELL_KNOWN.length)}`
-      : url.href.replace(/\/$/, "");
-  };
-  const metadataUrl = (request: Request): string => {
-    const resource = new URL(resourceOf(request));
-    return `${resource.origin}${WELL_KNOWN}${resource.pathname.replace(/\/$/, "")}`;
-  };
+  const urls = discovery(options, () => server.env.url);
+  const { metadataUrl } = urls;
 
   const invoke = async (
     name: string,
@@ -825,10 +819,13 @@ export function createMcp<
     return undefined;
   };
 
+  const cors = options.cors ?? true;
   const endpoint = async (request: Request): Promise<Response> => {
     const response = await answer(request);
     flushEvents(server, options.waitUntil);
-    return response;
+    return cors
+      ? withCors(response, request, options.allowedOrigins)
+      : response;
   };
 
   const answer = async (request: Request): Promise<Response> => {
@@ -840,11 +837,20 @@ export function createMcp<
     ) {
       return rpcError(null, INVALID_REQUEST, "Origin not allowed", 403);
     }
-    if (options.allowedHosts && !hostAllowed(request, options.allowedHosts)) {
+    if (
+      options.allowedHosts &&
+      !hostAllowed(urls.host(request), options.allowedHosts)
+    ) {
       return rpcError(null, INVALID_REQUEST, "Host not allowed", 403);
     }
+    if (request.method === "OPTIONS" && cors) {
+      return endpointPreflight(request, options.allowedOrigins);
+    }
     if (request.method !== "POST") {
-      return new Response(null, { status: 405, headers: { allow: "POST" } });
+      return new Response(null, {
+        status: 405,
+        headers: { allow: cors ? "POST, OPTIONS" : "POST" },
+      });
     }
     const header = request.headers.get("mcp-protocol-version");
     if (header && !SUPPORTED_VERSIONS.includes(header)) {
@@ -975,8 +981,8 @@ export function createMcp<
   const metadata = (request: Request): Response =>
     Response.json(
       {
-        resource: resourceOf(request),
-        authorization_servers: [...authorizationServers()],
+        resource: urls.resource(request),
+        authorization_servers: [...urls.authorizationServers(request)],
         bearer_methods_supported: ["header"],
         ...(scopes.length > 0 ? { scopes_supported: scopes } : {}),
         ...(options.resourceDocumentation === undefined
@@ -1000,17 +1006,10 @@ export function createMcp<
       endpoint,
       metadata,
       fetch(request) {
-        const { pathname } = new URL(request.url);
-        if (pathname.startsWith(WELL_KNOWN)) {
+        if (isMetadataRequest(request)) {
           return Promise.resolve(
             request.method === "OPTIONS"
-              ? new Response(null, {
-                  status: 204,
-                  headers: {
-                    "access-control-allow-origin": "*",
-                    "access-control-allow-methods": "GET",
-                  },
-                })
+              ? metadataPreflight()
               : metadata(request),
           );
         }

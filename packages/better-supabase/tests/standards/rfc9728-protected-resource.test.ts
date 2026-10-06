@@ -91,4 +91,14 @@ describe("RFC 9728 OAuth 2.0 Protected Resource Metadata", () => {
       `resource_metadata="${METADATA}"`,
     );
   });
+
+  it("also serves the metadata at a resource_metadata URL under the resource (section 5.1 lets the challenge name any URL)", async () => {
+    const response = await server().fetch(
+      new Request("https://tools.test/mcp/oauth-protected-resource"),
+    );
+    expect(response.status).toBe(200);
+    expect(
+      ((await response.json()) as Record<string, unknown>)["resource"],
+    ).toBe("https://tools.test/mcp");
+  });
 });
