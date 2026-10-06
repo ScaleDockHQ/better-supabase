@@ -185,7 +185,11 @@ describe.skipIf(!live)("Storage kit", async () => {
   });
 
   it("replaces objects and rolls back when the commit fails", async () => {
-    const v1 = logos.path({ orgId: ACME, customerId: CUSTOMER, version: "v1" });
+    const v1 = logos.path({
+      orgId: ACME,
+      customerId: CUSTOMER,
+      version: "v1",
+    }).data!;
     let stored = v1;
     const replaced = await user
       .replace(

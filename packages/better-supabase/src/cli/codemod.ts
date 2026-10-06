@@ -97,7 +97,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.6": {
     name: "0.6",
     description:
-      "Changes from 0.5 to 0.6: $rpc returns table rows and records in the configured casing, and bucket publicUrl() returns a Result",
+      "Changes from 0.5 to 0.6: $rpc returns table rows and records in the configured casing, and bucket publicUrl() and path() return a Result",
     review: [
       {
         pattern: /\$rpc\s*(<|\()/,
@@ -108,6 +108,11 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
         pattern: /\.publicUrl\s*\(/,
         message:
           "A connected bucket's `publicUrl()` returns a `Result` instead of throwing: read `.data` (`null` on an error) or check `.ok`",
+      },
+      {
+        pattern: /\.path\s*\(\s*\{/,
+        message:
+          "A bucket definition's `path(values)` returns a `Result` instead of throwing, like the connected client's `path()`: read `.data` (`null` on an error) or check `.ok`",
       },
     ],
   },

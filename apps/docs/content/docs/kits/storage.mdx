@@ -26,16 +26,24 @@ stay typed either way.
 ## Paths
 
 ```ts
-logos.path({ orgId, customerId, version: 3 }); // 'o1/c1/logo/3.webp'
+logos.path({ orgId, customerId, version: 3 }); // { ok: true, data: 'o1/c1/logo/3.webp' }
 logos.match("o1/c1/logo/3.webp"); // { orgId: 'o1', customerId: 'c1', version: '3' }
 logos.prefix({ orgId }); // 'o1', the folder to list
 ```
 
 Missing values are type errors. At runtime every value is checked: it can't
 be empty, `.` or `..`, contain `/`, or use characters Storage rejects. A
-failed check is an `invalid_input` error, and no request is sent. Client methods
-accept values or an existing path string, and a path string must match the
-template.
+failed check is an `invalid_input` error, and no request is sent. `path()`
+returns a `Result` like every other bucket method, so a value from user input
+never throws:
+
+```ts
+const path = logos.path({ orgId, customerId, version });
+if (!path.ok) return problemResponse(path.error); // invalid_input, 400
+```
+
+Client methods accept values or an existing path string, and a path string
+must match the template.
 
 ### Several layouts
 
@@ -58,7 +66,7 @@ export const files = defineBucket({
   tenant: {},
 });
 
-files.path({ orgId, exportId }); // 'o1/exports/e1.zip'
+files.path({ orgId, exportId }).data; // 'o1/exports/e1.zip'
 files.match("o1/2023/report.pdf"); // { orgId: 'o1', rest: '2023/report.pdf' }
 ```
 
@@ -76,8 +84,8 @@ those values shares.
 
 ### Path columns
 
-`logos.path()` and `upload()` return a `StoragePath<'customer-logos'>`: a
-string branded with the bucket id. Client methods take plain strings too, but
+`logos.path()` (inside its `Result`) and `upload()` return a
+`StoragePath<'customer-logos'>`: a string branded with the bucket id. Client methods take plain strings too, but
 reject a path branded for another bucket.
 
 Store that path in the row, never a URL. Signed URLs expire and public URLs
