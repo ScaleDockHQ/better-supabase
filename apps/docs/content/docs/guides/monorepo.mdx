@@ -75,6 +75,16 @@ export default defineConfig({
 });
 ```
 
+`@supabase/postgrest-typegen`, which `gen` loads to match `supabase gen
+types`, pins `oxfmt` as an optional peer. When the workspace uses a newer
+`oxfmt`, pnpm reports a peer mismatch; allow it in `pnpm-workspace.yaml`:
+
+```yaml title="pnpm-workspace.yaml"
+peerDependencyRules:
+  allowedVersions:
+    "@supabase/postgrest-typegen>oxfmt": "*"
+```
+
 ## Domain packages
 
 Domain packages import only types from the runtime:

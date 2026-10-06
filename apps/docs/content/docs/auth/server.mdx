@@ -104,6 +104,56 @@ See [Jobs, webhooks and agents without a session](/docs/guides/without-a-session
 `dbFor(auth)` and `supabaseFor(auth)` bind to an auth state you already
 have, for example one resolved in a proxy.
 
+## From a verified token to a context
+
+When something else already verified the caller (a gateway, a proxy, a queue
+message that carries the token), skip a second verification and build the
+context from the result. `resolveToken(bs, token)` verifies a bearer token
+once and returns the `AuthState`; `bs.contextFor(auth)` turns any
+`AuthState` into the same context `bs.context(request)` returns, with `db`,
+`supabase` and the caller's claims:
+
+```ts
+import { resolveToken } from "better-supabase/server";
+
+const auth = await resolveToken(bs, message.accessToken);
+const { db } = bs.contextFor(auth);
+await db.customers.findMany();
+```
+
+Without a server, pass the claims you verified yourself to `connect`.
+`authContext(auth)` builds the context from an `AuthState`; a hand-built one
+needs at least `claims`, and `actor` and `tenant` when the `actor()` and
+`tenant()` plugins should fill them:
+
+```ts
+const db = betterSupabase.connect(supabase, {
+  claims,
+  actor: { id: claims.sub, kind: "user", role: "authenticated" },
+  tenant: claims.tenant_id,
+});
+```
+
+Services read the caller from `db.$context`, not from the client: `db.$context.claims`
+holds the verified claims and `db.$context.actor` the actor, so domain code
+never decodes the token again or reaches for `db.$client`.
+
+## Token audience
+
+`createServer(betterSupabase, { auth: { audience } })` accepts only tokens
+whose `aud` claim matches; without it the audience is not checked. Supabase
+Auth issues `aud: "authenticated"` to signed-in users. A resource server that
+also takes OAuth access tokens issued for its own URL, such as an
+[MCP server](/docs/frameworks/mcp), lists both:
+
+```ts
+export const bs = createServer(betterSupabase, {
+  auth: { audience: ["authenticated", "https://api.example.com/mcp"] },
+});
+```
+
+`issuer` works the same way for the `iss` claim.
+
 ## Request headers
 
 `headers` adds headers to every Supabase request made for a caller, for

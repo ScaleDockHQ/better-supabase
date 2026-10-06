@@ -417,3 +417,28 @@ const { removed } = await logos
 `Temporal.Instant`; see [Temporal](/docs/concepts/temporal).
 Only objects that match the template are candidates. Use `dryRun: true` to see
 the `orphans` without deleting them.
+
+## Porting supabase.storage calls
+
+Each `supabase.storage.from(bucket)` call has a method on the connected
+bucket that takes a template target or a path and returns a `Result`:
+
+| supabase-js                             | Connected bucket                        |
+| --------------------------------------- | --------------------------------------- |
+| `.upload(path, file, { upsert })`       | `upload(target, file, { upsert })`      |
+| `.download(path)`                       | `download(target)`                      |
+| `.remove([path])`                       | `remove([target])`                      |
+| `.copy(from, to)` and `.move(from, to)` | `copy(from, to)` and `move(from, to)`   |
+| `.list(folder)`                         | `list(within)`, recursive and paginated |
+| `.createSignedUrl(path, ttl)`           | `signedUrl(target, { ttl })`            |
+| `.createSignedUrls(paths, ttl)`         | `signedUrls(targets, { ttl })`          |
+| `.getPublicUrl(path)`                   | `publicUrl(target)`                     |
+| `.getPublicUrl(path, { transform })`    | `renderUrl(target, transform)`          |
+| `.createSignedUploadUrl(path)`          | `reserve(target)`                       |
+| `.uploadToSignedUrl(path, token, file)` | `uploadReserved(reservation, file)`     |
+
+Store the path a call returns (`StoragePath`) in a `*_path` column and
+resolve URLs when you read the row, so a URL never goes stale in the
+database. Port one bucket at a time: `defineBucket` reads and writes the
+same `storage.objects` rows, so code that still calls `supabase.storage`
+keeps working on the objects the bucket writes.

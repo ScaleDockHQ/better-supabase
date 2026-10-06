@@ -10,7 +10,9 @@ pnpm better-supabase init  # once it is a dependency
 
 `init` reads your `package.json` and writes:
 
-- `better-supabase.config.ts` (`--casing camel|snake`, camel by default)
+- `better-supabase.config.ts` with `casing` written out (`--casing camel|snake`;
+  `init` picks `camel` by default, while a config without `casing` means
+  `snake`)
 - `src/lib/supabase/index.ts`, which exports `betterSupabase` and the `Models` and `Functions` types
 - glue for every framework it finds, the same files `add` writes
 

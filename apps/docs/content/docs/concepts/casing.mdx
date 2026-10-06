@@ -3,8 +3,9 @@ title: Casing
 description: snake_case or camelCase models, mapped at the edge of the database.
 ---
 
-Set `casing` in the config. The default is `'snake'`, which keeps database
-names as they are.
+Set `casing` in the config. A config without it uses `'snake'`, which keeps
+database names as they are; `better-supabase init` writes `casing: "camel"`
+unless you pass `--casing snake`.
 
 ```ts
 export default defineConfig({ casing: "camel" });
