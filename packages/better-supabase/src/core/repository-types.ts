@@ -3,6 +3,7 @@ import type {
   AggregateResult,
   CountArgs,
   FindFirstArgs,
+  FindOnlyArgs,
   FindManyArgs,
   Payload,
   ReadArgs,
@@ -186,6 +187,14 @@ export interface Repository<
   ): AsyncResult<Payload<M, T, A>[]>;
   findFirst<const A extends FindFirstArgs<M, T> & FindExt<E, M, T>>(
     args?: A,
+  ): AsyncResult<Payload<M, T, A> | null>;
+  /**
+   * The one row matching `where`, or `null` when none does, like supabase-js
+   * `maybeSingle()`. Several matching rows are a `multiple_rows` error, so
+   * a filter that should pick one row never reads an arbitrary one.
+   */
+  findOnly<const A extends FindOnlyArgs<M, T> & FindExt<E, M, T>>(
+    args: A,
   ): AsyncResult<Payload<M, T, A> | null>;
   /**
    * The row with these values for the primary key or one named unique key

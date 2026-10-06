@@ -17,11 +17,18 @@ get the read methods only.
 | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `findMany(args?)`       | `Row[]`                                                                                                    |
 | `findFirst(args?)`      | `Row \| null`                                                                                              |
+| `findOnly({ where })`   | `Row \| null`, or a `multiple_rows` error when more than one row matches                                   |
 | `findById(key, args?)`  | `Row`, or a `not_found` error                                                                              |
 | `count({ where? })`     | `number` (a `HEAD` request)                                                                                |
 | `exists({ where? })`    | `boolean`                                                                                                  |
 | `findUnique({ where })` | `Row \| null`, by the primary key or any unique key; see [unique keys](/docs/repository/unique-and-errors) |
 | `paginate(args)`        | A page; see [pagination](/docs/repository/pagination)                                                      |
+
+`findOnly` is for a filter that should match at most one row but has no
+unique key behind it, such as the active subscription of a customer. It
+asks for two rows and returns a `multiple_rows` error (status 409) when it
+gets both, where `findFirst` would return one of them. It returns `null`
+when nothing matches, like supabase-js `maybeSingle()`.
 
 Every read takes `select`, `where`, `include`, `orderBy`, `limit`, `offset`
 and `signal`. The result type follows `select` and `include`:

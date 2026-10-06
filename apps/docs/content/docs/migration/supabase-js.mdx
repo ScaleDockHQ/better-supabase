@@ -91,6 +91,7 @@ you get back. With `casing: 'snake'`, names stay as they are in the database.
 | `.range(20, 29)`                                        | `limit: 10, offset: 20`, or [`paginate`](/docs/repository/pagination)      |
 | `.eq('id', id).single()`                                | `findById(id)` (a `not_found` error when missing)                          |
 | `.eq('slug', slug).maybeSingle()`                       | `findUnique({ where: { slug } })` (`null` when missing)                    |
+| `.eq('status', 'active').maybeSingle()`                 | `findOnly({ where: { status: 'active' } })` (`multiple_rows` for several)  |
 | `.limit(1).maybeSingle()`                               | `findFirst({ where })`                                                     |
 | `.select('*', { count: 'exact', head: true })`          | `count({ where })`                                                         |
 | `.select('*', { count: 'exact' }).range(20, 29)`        | `paginate({ offset: 20, limit: 10, count: 'exact' })`                      |

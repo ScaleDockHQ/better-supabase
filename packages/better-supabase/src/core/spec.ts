@@ -3,6 +3,7 @@ import type {
   AggregateResult,
   CountArgs,
   FindFirstArgs,
+  FindOnlyArgs,
   FindManyArgs,
   Payload,
   ReadArgs,
@@ -31,6 +32,7 @@ import { tableMeta } from "../schema/define.ts";
 export type ReadMethod =
   | "findMany"
   | "findFirst"
+  | "findOnly"
   | "findUnique"
   | "findById"
   | "count"
@@ -41,6 +43,7 @@ export type ReadMethod =
 const READ_METHODS: readonly ReadMethod[] = [
   "findMany",
   "findFirst",
+  "findOnly",
   "findUnique",
   "findById",
   "count",
@@ -83,6 +86,9 @@ export interface TableSpecs<M extends AnyModels, T extends TableKey<M>, E> {
   findFirst<const A extends NoSignal<FindFirstArgs<M, T>> & FindExt<E, M, T>>(
     args?: A,
   ): QuerySpec<T, "findFirst", Payload<M, T, A> | null>;
+  findOnly<const A extends NoSignal<FindOnlyArgs<M, T>> & FindExt<E, M, T>>(
+    args: A,
+  ): QuerySpec<T, "findOnly", Payload<M, T, A> | null>;
   findUnique<
     const A extends NoSignal<ReadArgs<M, T>> & {
       readonly where: UniqueWhere<M, T>;

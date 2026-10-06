@@ -98,6 +98,28 @@ describe("single-row reads", () => {
     ).toEqual(ok({ id: "a" }));
   });
 
+  it("returns the only matching row from findOnly and refuses several", async () => {
+    const one = connect(() => rowsOf([{ id: "a" }]));
+    expect(
+      await one.db.customers.findOnly({
+        where: { status: "lead" },
+        select: ["id"],
+      }),
+    ).toEqual(ok({ id: "a" }));
+    expect(one.select(0)).toMatchObject({ limit: 2 });
+    const none = connect();
+    expect(
+      await none.db.customers.findOnly({ where: { status: "lead" } }),
+    ).toEqual(ok(null));
+    const several = connect(() => rowsOf([{ id: "a" }, { id: "b" }]));
+    expect(
+      await several.db.customers.findOnly({ where: { status: "lead" } }),
+    ).toMatchObject({
+      ok: false,
+      error: { kind: "multiple_rows", status: 409, table: "customers" },
+    });
+  });
+
   it.each(["findFirst", "findUnique", "findById", "findMany"] as const)(
     "passes executor errors through %s with the table",
     async (method) => {
