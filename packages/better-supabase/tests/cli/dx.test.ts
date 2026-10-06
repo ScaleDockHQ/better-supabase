@@ -175,6 +175,37 @@ describe("init and add", () => {
     expect(here.stdout).toContain("Would write better-supabase.config.ts");
   });
 
+  it("turns pg-delta on in supabase/config.toml", async () => {
+    await project({}, { "supabase/config.toml": "[api]\nport = 54321\n" });
+    const dry = await run(["init", "--dry-run", "--cwd", dir]);
+    expect(dry.stdout).toContain(
+      "Would enable pg-delta in supabase/config.toml",
+    );
+    expect(await readFile(join(dir, "supabase/config.toml"), "utf8")).toBe(
+      "[api]\nport = 54321\n",
+    );
+
+    const init = await run(["init", "--cwd", dir]);
+    expect(init.stdout).toContain("Enabled pg-delta in supabase/config.toml");
+    expect(await readFile(join(dir, "supabase/config.toml"), "utf8")).toBe(
+      "[api]\nport = 54321\n\n[experimental.pgdelta]\nenabled = true\n",
+    );
+
+    const again = await run(["init", "--cwd", dir]);
+    expect(again.stdout).not.toContain("pg-delta");
+  });
+
+  it("keeps pg-delta off when config.toml turns it off", async () => {
+    const off = "[experimental.pgdelta]\nenabled = false\n";
+    await project({}, { "supabase/config.toml": off });
+    const init = await run(["init", "--cwd", dir]);
+    expect(init.code).toBe(0);
+    expect(init.stdout).toContain(
+      "Kept    supabase/config.toml (pg-delta is off;",
+    );
+    expect(await readFile(join(dir, "supabase/config.toml"), "utf8")).toBe(off);
+  });
+
   it("adds integrations with their dependencies", async () => {
     await project({ hono: "4" });
     const add = await run(["add", "mcp", "orpc", "--cwd", dir, "--dry-run"]);

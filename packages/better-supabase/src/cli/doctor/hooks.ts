@@ -336,7 +336,7 @@ function grantFixText(fix: HookGrantFix, engine: DiffEngine): string {
 /** `doctor --fix-grants`: the SQL block for every BS404 problem, as one migration snippet. */
 export function hookGrantBlock(
   problems: readonly HookGrantProblem[],
-  engine: DiffEngine = "migra",
+  engine: DiffEngine = "pg-delta",
 ): string {
   if (problems.length === 0)
     return "-- Every configured Auth hook function has its grants.";

@@ -17,6 +17,13 @@ import {
   type Project,
 } from "../project.ts";
 import {
+  diffEngine,
+  findSupabaseRoot,
+  PGDELTA_TABLE,
+  readSupabaseToml,
+  tomlGet,
+} from "../supabase-toml.ts";
+import {
   baseFiles,
   INTEGRATIONS,
   isIntegration,
@@ -125,6 +132,41 @@ async function writeFiles(
     );
   }
   return lines;
+}
+
+/**
+ * Adds `[experimental.pgdelta] enabled = true` to `supabase/config.toml`
+ * when it has no such table, so `supabase db schema declarative sync`
+ * runs on pg-delta. A table set to `enabled = false` is left alone.
+ */
+async function enablePgDelta(
+  root: string,
+  args: WriteArgs,
+  base: string,
+): Promise<string[]> {
+  const supabaseRoot = findSupabaseRoot(root);
+  const toml = await readSupabaseToml(root);
+  if (supabaseRoot === undefined || toml === undefined) return [];
+  const path = join(supabaseRoot, "supabase/config.toml");
+  const shown = display(base, path);
+  if (diffEngine(toml) === "pg-delta") return [];
+  if (
+    tomlGet(toml.document, ["experimental", "pgdelta"]) !== undefined ||
+    toml.text.includes("pgdelta")
+  ) {
+    return [
+      `Kept    ${shown} (pg-delta is off; set [experimental.pgdelta] enabled = true, remove [db.migrations] schema_paths and use \`supabase db schema declarative sync\` instead of \`supabase db diff\`)`,
+    ];
+  }
+  if (args["dry-run"] === true) return [`Would enable pg-delta in ${shown}`];
+  const separator =
+    toml.text === "" || toml.text.endsWith("\n\n")
+      ? ""
+      : toml.text.endsWith("\n")
+        ? "\n"
+        : "\n\n";
+  await writeIfChanged(path, `${toml.text}${separator}${PGDELTA_TABLE}`);
+  return [`Enabled pg-delta in ${shown}`];
 }
 
 function context(project: Project, generated: string): TemplateContext {
@@ -301,6 +343,7 @@ export async function runInit(
       : `No framework found${where}.`,
     "",
     ...(await writeFiles(root, files, args, force, config.root)),
+    ...(await enablePgDelta(root, args, config.root)),
   ];
   const packages = packagesFor(project, integrations);
   const cwdFlag = inPackage ? ` --cwd ${target.dir}` : "";

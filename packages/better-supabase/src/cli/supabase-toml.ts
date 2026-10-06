@@ -302,6 +302,9 @@ export function diffEngine(toml?: SupabaseToml): DiffEngine {
   return enabled === true || enabled === "true" ? "pg-delta" : "migra";
 }
 
+/** The `config.toml` table that turns pg-delta on. */
+export const PGDELTA_TABLE = "[experimental.pgdelta]\nenabled = true\n";
+
 /** The command that writes a migration (named `name`, when given) from `supabase/schemas`. */
 export function migrationCommand(
   toml: SupabaseToml | undefined,
