@@ -198,6 +198,9 @@ overrides:
   "@better-supabase/example-expo-powersync>react-dom": 19.2.3
   # One shiki, so fumadocs-ui and the docs transformers share ShikiTransformer.
   shiki: "catalog:"
+  # source-map-js <1.2.2 has an event-loop denial of service (high); it
+  # arrives through next > postcss.
+  source-map-js: ">=1.2.2"
 
 peerDependencyRules:
   allowedVersions:
