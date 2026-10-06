@@ -43,6 +43,7 @@ import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { deleteAudit } from "./audit-cleanup.ts";
 import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
+import { reloadSchemaCache } from "./schema-cache.ts";
 
 const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";
 const dbUrl =
@@ -2611,7 +2612,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         grant select on public.${name} to authenticated;
       `);
       await pool.query(module!.contents);
-      await pool.query(`notify pgrst, 'reload schema'`);
+      await reloadSchemaCache(pool, {
+        url,
+        apikey: publishableKey,
+        tables: [name],
+        functions: [
+          { name: `search_${name}`, args: { query: "[1,0,0]", k: 1 } },
+          { name: `search_${name}_scores`, args: { query: "[1,0,0]", k: 1 } },
+        ],
+      });
       const alice = await asUser(
         betterSupabase,
         { sub: crypto.randomUUID(), tenant_id: mine },
@@ -2624,11 +2633,6 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         table: "chunks" | "unsearched",
         args: object = query,
       ) => db.$search(table, args as never);
-      await expect
-        .poll(async () => (await search(alice.db, "chunks")).ok, {
-          timeout: 10_000,
-        })
-        .toBe(true);
 
       const rest = await search(alice.db, "chunks").orThrow();
       expect(rest).toEqual([
@@ -2728,7 +2732,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         grant select on public.${name} to authenticated;
       `);
       await pool.query(module!.contents);
-      await pool.query(`notify pgrst, 'reload schema'`);
+      await reloadSchemaCache(pool, {
+        url,
+        apikey: publishableKey,
+        tables: [name],
+        functions: [
+          { name: `search_${name}`, args: { query: "[1,0,0]", k: 1 } },
+          { name: `search_${name}_scores`, args: { query: "[1,0,0]", k: 1 } },
+        ],
+      });
       const alice = await asUser(
         betterSupabase,
         { sub: crypto.randomUUID() },
@@ -2741,12 +2753,6 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         filter: { collection: ["a", null] },
         select: ["id"],
       };
-      await expect
-        .poll(
-          async () => (await alice.db.$search("chunks", args as never)).ok,
-          { timeout: 10_000 },
-        )
-        .toBe(true);
       for (const db of [alice.db, alice.sql!]) {
         expect(await db.$search("chunks", args as never).orThrow()).toEqual([
           { id: 4 },
