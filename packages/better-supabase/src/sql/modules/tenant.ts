@@ -15,12 +15,63 @@ import {
 } from "../shared.ts";
 import { accessModel, roleNames } from "./access-model.ts";
 
+/**
+ * `sql.modules.tenant.options.roleThrough`: the membership role column holds
+ * a key of `table` (`id`), and the role name is that row's `column`, as in
+ * PermDock's `through` membership roles.
+ */
+export interface RoleThrough {
+  /** The quoted `schema.table`. */
+  readonly table: string;
+  readonly id: string;
+  readonly column: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** The tenant module's `roleThrough` option, quoted; `undefined` when unset. */
+export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
+  const value = tenant.option("roleThrough");
+  if (value === undefined) return undefined;
+  const where = "sql.modules.tenant.options.roleThrough";
+  if (
+    !isRecord(value) ||
+    typeof value["table"] !== "string" ||
+    typeof value["id"] !== "string" ||
+    typeof value["column"] !== "string"
+  ) {
+    throw new TypeError(
+      `${where} must be { table: "schema.table", id: "<key column>", column: "<role name column>" }`,
+    );
+  }
+  if (tenant.manages) {
+    throw new TypeError(
+      `${where} describes an adopted memberships table; the managed one stores role names. Set sql.modules.tenant.mode to "adopt".`,
+    );
+  }
+  const ref = columnRef(`${where}.table`, `${value["table"]}.${value["id"]}`);
+  return {
+    table: ref.table,
+    id: ref.column,
+    column: columnRef(where, `${value["table"]}.${value["column"]}`).column,
+  };
+}
+
+/** A stored role value (a key or a role id) as the role name. */
+export function roleNameFrom(tenant: ModuleContext, value: string): string {
+  const through = roleThrough(tenant);
+  if (through) {
+    return `(select r.${through.column}::text from ${through.table} r where r.${through.id}::text = (${value})::text)`;
+  }
+  if (accessModel(tenant) !== "catalog") return value;
+  const access = tenant.of("access");
+  return `(select r.${access.col("roles", "key")} from ${access.table("roles")} r where r.${access.col("roles", "id")} = ${value})`;
+}
+
 /** Expression for a membership row's role name, whatever the role column holds. */
 export function roleNameOf(ctx: ModuleContext, alias: string): string {
-  const role = `${alias}.${ctx.col("memberships", "role")}`;
-  if (accessModel(ctx) !== "catalog") return role;
-  const access = ctx.of("access");
-  return `(select r.${access.col("roles", "key")} from ${access.table("roles")} r where r.${access.col("roles", "id")} = ${role})`;
+  return roleNameFrom(ctx, `${alias}.${ctx.col("memberships", "role")}`);
 }
 
 /** The active tenant: `sql.modules.access.activeTenant` (claim, resolver or profile column). */
@@ -266,7 +317,7 @@ export const TENANT: ModuleDefinition = {
   version: 2,
   modes: ["managed", "adopt", "custom"],
   names: {
-    options: ["claimFormat"],
+    options: ["claimFormat", "roleThrough"],
     tables: {
       memberships: {
         name: "memberships",

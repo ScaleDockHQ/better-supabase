@@ -10,7 +10,12 @@ import {
   updatedAt,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
-import { activeTenantSource, roleNameOf } from "./tenant.ts";
+import {
+  activeTenantSource,
+  roleNameFrom,
+  roleNameOf,
+  roleThrough,
+} from "./tenant.ts";
 
 const NAMES: ModuleNames = {
   options: [
@@ -94,6 +99,11 @@ function namesOf(ctx: ModuleContext): OrganizationNames {
  * roles model, the catalog role id (looked up by id or key) for `catalog`.
  */
 export function roleValue(ctx: ModuleContext, expr: string): string {
+  const through = roleThrough(ctx.of("tenant"));
+  if (through) {
+    const text = `(${expr})::text`;
+    return `(select r.${through.id} from ${through.table} r where r.${through.id}::text = ${text} or r.${through.column}::text = ${text} order by (r.${through.id}::text = ${text}) desc limit 1)`;
+  }
   if (accessModel(ctx) !== "catalog") return expr;
   const access = ctx.of("access");
   const rid = access.col("roles", "id");
@@ -102,12 +112,22 @@ export function roleValue(ctx: ModuleContext, expr: string): string {
   return `(select r.${rid} from ${access.table("roles")} r where r.${rid}::text = ${text} or r.${key} = ${text} order by (r.${rid}::text = ${text}) desc limit 1)`;
 }
 
+/**
+ * A stored membership role as `can_assign` takes it: the role name with
+ * `sql.modules.tenant.options.roleThrough`, the stored value otherwise.
+ */
+export function assignableRole(ctx: ModuleContext, stored: string): string {
+  const tenant = ctx.of("tenant");
+  return roleThrough(tenant) ? roleNameFrom(tenant, stored) : `${stored}::text`;
+}
+
 /** Raises `ORGANIZATION_ROLE_UNKNOWN` for a role the access model doesn't know. */
 function checkRole(ctx: ModuleContext, expr: string): string {
   const model = accessModel(ctx);
-  if (model === "permdock" || model === "custom") return "";
+  const through = roleThrough(ctx.of("tenant")) !== undefined;
+  if (!through && (model === "permdock" || model === "custom")) return "";
   const known =
-    model === "roles"
+    model === "roles" && !through
       ? `${expr} = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[])`
       : `${roleValue(ctx, expr)} is not null`;
   return `
@@ -530,8 +550,8 @@ begin
   if new.${n.user} = auth.uid() then
     raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
   end if;
-  if not better_supabase.can_assign(new.${n.tenant}, new.${n.role}::text)
-    or (tg_op = 'UPDATE' and not better_supabase.can_assign(old.${n.tenant}, old.${n.role}::text)) then
+  if not better_supabase.can_assign(new.${n.tenant}, ${assignableRole(ctx, `new.${n.role}`)})
+    or (tg_op = 'UPDATE' and not better_supabase.can_assign(old.${n.tenant}, ${assignableRole(ctx, `old.${n.role}`)})) then
     raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
   end if;
   return new;
@@ -611,7 +631,7 @@ begin
   if not ${can("removeMember")} then
     raise exception 'Not allowed to remove members' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
-  select m.${n.role}::text into current_role_value from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
+  select ${assignableRole(ctx, `m.${n.role}`)} into current_role_value from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
   if not found then
     raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;

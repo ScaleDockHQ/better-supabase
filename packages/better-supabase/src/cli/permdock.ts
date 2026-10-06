@@ -33,6 +33,17 @@ function permdockConfig(root: string): string | undefined {
 /** A manifest value read from a column or fixed in the config. */
 type ManifestValue<T> = { readonly column: string } | { readonly value: T };
 
+/** A role read through another table: the column holds that table's `id`, the role is its `column`. */
+interface ManifestThrough {
+  readonly column: string;
+  readonly through: {
+    /** `schema.table`. */
+    readonly table: string;
+    readonly id: string;
+    readonly column: string;
+  };
+}
+
 /** One membership source, as `permdock supabase inspect --out` writes it. */
 interface ManifestMembership {
   /** `schema.table`. */
@@ -40,7 +51,7 @@ interface ManifestMembership {
   readonly user: { readonly column: string };
   readonly scope: ManifestValue<string>;
   readonly id: { readonly column: string };
-  readonly role?: ManifestValue<string | readonly string[]>;
+  readonly role?: ManifestValue<string | readonly string[]> | ManifestThrough;
   readonly expiresAt?: { readonly column: string };
   /** Every column that decides the membership. */
   readonly columns: readonly string[];
@@ -132,13 +143,34 @@ function manifestValue<T>(
 const roleValue = (value: unknown): value is string | readonly string[] =>
   isString(value) || (Array.isArray(value) && value.every(isString));
 
+function through(value: unknown): ManifestThrough | undefined {
+  if (!isRecord(value) || !isString(value["column"])) return undefined;
+  const target = value["through"];
+  if (
+    !isRecord(target) ||
+    !isString(target["table"]) ||
+    !isString(target["id"]) ||
+    !isString(target["column"])
+  )
+    return undefined;
+  return {
+    column: value["column"],
+    through: {
+      table: target["table"],
+      id: target["id"],
+      column: target["column"],
+    },
+  };
+}
+
 function membership(value: unknown): ManifestMembership | undefined {
   if (!isRecord(value) || !isString(value["table"])) return undefined;
   const user = column(value["user"]);
   const id = column(value["id"]);
   const scope = manifestValue(value["scope"], isString);
   if (!user || !id || !scope) return undefined;
-  const role = manifestValue(value["role"], roleValue);
+  const role =
+    through(value["role"]) ?? manifestValue(value["role"], roleValue);
   const expiresAt = column(value["expiresAt"]);
   return {
     table: value["table"],
@@ -593,12 +625,21 @@ export function accessPermdockMode(
       problem: `sql.modules.access.idType is "${access.idType}", but ${project.manifestPath} gives scope "${chosen.scope}" the type ${chosen.idType}. Set sql.modules.access.idType to "${chosen.idType}", or remove it to use the manifest's.`,
     };
   }
+  const roleSources = scopeMemberships(
+    chosen.manifest,
+    chosen.scope,
+  ).sources.flatMap((source) =>
+    source.role && "through" in source.role
+      ? [{ table: source.table, role: source.role }]
+      : [],
+  );
   return {
     kind: "permdock",
     access: {
       schema: chosen.rls.schema,
       scope: chosen.scope,
       idType: chosen.idType,
+      ...(roleSources.length > 0 ? { roleSources } : {}),
     },
   };
 }

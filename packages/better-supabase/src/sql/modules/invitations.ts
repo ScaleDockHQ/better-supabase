@@ -17,7 +17,8 @@ import {
   roleScopeIs,
   tenantScope,
 } from "./access-model.ts";
-import { roleValue, TRUSTED_SETTING } from "./organizations.ts";
+import { assignableRole, roleValue, TRUSTED_SETTING } from "./organizations.ts";
+import { roleThrough } from "./tenant.ts";
 
 const PLATFORM_COLUMNS = {
   id: "id",
@@ -222,7 +223,7 @@ function roleIn(
   expr: string,
   scope: "tenant" | "platform",
 ): string {
-  if (accessModel(ctx) !== "catalog") return expr;
+  if (accessModel(ctx) !== "catalog") return roleValue(ctx, expr);
   const scoped = roleScopeIs(ctx, "r", scope);
   if (!scoped) return roleValue(ctx, expr);
   const access = ctx.of("access");
@@ -245,7 +246,7 @@ function tenantTableSql(ctx: ModuleContext): string {
       ? `alter table ${t.table} add column if not exists ${c(logical)} ${type};\n`
       : "";
   const roleCheck =
-    accessModel(ctx) === "roles"
+    accessModel(ctx) === "roles" && !roleThrough(ctx.of("tenant"))
       ? `alter table ${t.table}
   add constraint invitations_role_check check (${c("role")} in (${roleNames(ctx).map(sqlString).join(", ")}));
 `
@@ -434,11 +435,12 @@ function invite(ctx: ModuleContext): string {
   const validFor = sqlString(ctx.text("validFor", "7 days"));
   const model = accessModel(ctx);
   const stored = roleIn(ctx, "invitee_role", "tenant");
+  const through = roleThrough(ctx.of("tenant")) !== undefined;
   const unknownRole =
-    model === "roles"
-      ? `not (invitee_role = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[]))`
-      : model === "catalog"
-        ? `${stored} is null`
+    model === "catalog" || through
+      ? `${stored} is null`
+      : model === "roles"
+        ? `not (invitee_role = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[]))`
         : "false";
   const columns: (readonly [string, string])[] = [
     ["tenant", "tenant"],
@@ -502,7 +504,7 @@ begin
   if ${unknownRole} then
     ${fail("INVITATION_ROLE_UNKNOWN", "Unknown role %", "invitee_role")}
   end if;
-  if not service and not better_supabase.can_assign(tenant, (${stored})::text) then
+  if not service and not better_supabase.can_assign(tenant, ${assignableRole(ctx, `(${stored})`)}) then
     ${fail("INVITATION_ROLE_FORBIDDEN", "That role is above your own")}
   end if;
   if exists (
@@ -727,8 +729,7 @@ function accept(ctx: ModuleContext): string {
     "invite",
     MODULE_PERMISSIONS.invitations.invite,
   );
-  const roleOf = (expr: string) =>
-    model === "catalog" ? roleValue(ctx, expr) : expr;
+  const roleOf = (expr: string) => roleValue(ctx, expr);
   /** Checks shared by both kinds of invitation in row `row`. */
   const invitee = (table: InviteTable, row: string) => {
     const col = (logical: string) => `${row}.${table.col(logical)}`;
@@ -763,7 +764,7 @@ function accept(ctx: ModuleContext): string {
     model === "roles" || model === "catalog"
       ? `
     if ${inviter} is not null
-      and not better_supabase.can_assign_as(${inviter}, invite.${c("tenant")}, invite.${c("role")}::text) then
+      and not better_supabase.can_assign_as(${inviter}, invite.${c("tenant")}, ${assignableRole(ctx, `invite.${c("role")}`)}) then
       ${fail("INVITATION_INVITER_REVOKED", "The person who invited you can no longer assign that role")}
     end if;`
       : "";

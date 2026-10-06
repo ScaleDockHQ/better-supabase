@@ -133,3 +133,98 @@ describe("organizations module", () => {
     ).toBeUndefined();
   });
 });
+
+describe("roles through a lookup table", () => {
+  const THROUGH: ModulesConfig = {
+    access: {
+      model: "permdock",
+      permdock: { schema: "authz", scope: "organization" },
+    },
+    tenant: {
+      mode: "adopt",
+      tables: { memberships: "public.team_members" },
+      columns: { memberships: { tenant: "team_id", role: "role_id" } },
+      options: {
+        roleThrough: { table: "public.team_roles", id: "id", column: "key" },
+      },
+    },
+  };
+
+  it("stores role ids and checks and assigns by role name", () => {
+    const sql = body(THROUGH);
+    expect(sql).toContain(
+      `can_assign(new."team_id", (select r."key"::text from "public"."team_roles" r where r."id"::text = (new."role_id")::text))`,
+    );
+    expect(sql).toContain(
+      `set "role_id" = (select r."id" from "public"."team_roles" r where r."id"::text = (role)::text or r."key"::text = (role)::text`,
+    );
+    expect(sql).toContain("hint = 'ORGANIZATION_ROLE_UNKNOWN'");
+    const tenant = moduleBody("tenant", { modules: THROUGH })!;
+    expect(tenant).toContain(
+      `jsonb_build_array((select r."key"::text from "public"."team_roles" r where r."id"::text = (m."role_id")::text))`,
+    );
+    const invitations = moduleBody("invitations", {
+      modules: { ...THROUGH, invitations: { mode: "adopt" } },
+    })!;
+    expect(invitations).toContain(
+      `if (select r."id" from "public"."team_roles" r where r."id"::text = (invitee_role)::text`,
+    );
+    expect(invitations).toContain(
+      `can_assign(tenant, (select r."key"::text from "public"."team_roles" r where r."id"::text = (((select r."id" from "public"."team_roles" r`,
+    );
+  });
+
+  it("rejects roleThrough on a managed table or in the wrong shape", () => {
+    expect(() =>
+      moduleBody("tenant", {
+        modules: {
+          tenant: {
+            options: {
+              roleThrough: { table: "public.roles", id: "id", column: "key" },
+            },
+          },
+        },
+      }),
+    ).toThrow(/describes an adopted memberships table/);
+    expect(() =>
+      moduleBody("tenant", {
+        modules: {
+          tenant: { mode: "adopt", options: { roleThrough: "public.roles" } },
+        },
+      }),
+    ).toThrow(/roleThrough must be/);
+  });
+
+  it("takes the role lookup from PermDock's manifest", () => {
+    const { options: _options, ...tenant } = THROUGH["tenant"]!;
+    const layout = {
+      modules: { ...THROUGH, tenant },
+      accessPermdock: {
+        schema: "authz",
+        scope: "organization",
+        idType: "uuid" as const,
+        roleSources: [
+          {
+            table: "public.team_members",
+            role: {
+              column: "role_id",
+              through: { table: "public.team_roles", id: "id", column: "key" },
+            },
+          },
+        ],
+      },
+    };
+    expect(moduleBody("tenant", layout)).toContain(
+      `from "public"."team_roles" r where r."id"::text = (m."role_id")::text`,
+    );
+    expect(
+      moduleBody("tenant", {
+        ...layout,
+        modules: {
+          ...layout.modules,
+          tenant: { ...tenant, columns: { memberships: { role: "role" } } },
+        },
+      }),
+    ).not.toContain("team_roles");
+  });
+});

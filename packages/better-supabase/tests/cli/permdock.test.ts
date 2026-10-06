@@ -402,6 +402,39 @@ describe("accessPermdockMode", () => {
     ).toMatchObject({ kind: "permdock", access: { scope: "team" } });
   });
 
+  it("passes on membership roles PermDock reads through a roles table", () => {
+    const team = {
+      table: "public.team_members",
+      user: { column: "user_id" },
+      scope: { value: "tenant" },
+      id: { column: "team_id" },
+      role: {
+        column: "role_id",
+        through: { table: "public.team_roles", id: "id", column: "key" },
+      },
+      columns: ["user_id", "team_id", "role_id"],
+    };
+    const through = {
+      ...authz,
+      manifest: parseManifest({
+        ...manifest,
+        rls: {
+          ...manifest.rls,
+          schema: "authz",
+          scopes: [{ name: "tenant", type: "text" }],
+          memberships: [...manifest.rls.memberships, team],
+        },
+      }),
+    };
+    expect(through.manifest.rls?.memberships?.at(-1)?.role).toEqual(team.role);
+    expect(accessPermdockMode(config(), through)).toMatchObject({
+      kind: "permdock",
+      access: {
+        roleSources: [{ table: "public.team_members", role: team.role }],
+      },
+    });
+  });
+
   it("doesn't depend on the entitlements setting", () => {
     expect(
       accessPermdockMode(

@@ -1520,6 +1520,23 @@ export interface ModuleAccessPermdock {
   readonly scope: string;
   /** The scope's id type, from the manifest's `rls.scopes[].type`. */
   readonly idType: ModuleIdType;
+  /**
+   * Membership tables of the scope whose role column points into a roles
+   * table (the manifest's `through` roles). An adopted `tenant` module on
+   * one of them reads role names the same way.
+   */
+  readonly roleSources?: readonly {
+    /** `schema.table` of the memberships. */
+    readonly table: string;
+    readonly role: {
+      readonly column: string;
+      readonly through: {
+        readonly table: string;
+        readonly id: string;
+        readonly column: string;
+      };
+    };
+  }[];
 }
 
 /** An embedding column `db.$search` can query. */
@@ -1814,12 +1831,43 @@ export function moduleContext(
   layout: ModuleLayout = {},
   installed?: readonly string[],
 ): ModuleContext {
+  const modules = withManifestDefaults(layout);
   return createModuleContext(name, (module) => SQL_MODULES[module]?.names, {
-    ...(layout.modules ? { modules: layout.modules } : {}),
+    ...(modules ? { modules } : {}),
     ...(layout.claims ? { claims: layout.claims } : {}),
     ...(installed ? { installed } : {}),
     ...permdockIdType(layout),
   });
+}
+
+/**
+ * `sql.modules` with what PermDock's manifest already says: an adopted
+ * `tenant` module on a membership table whose role PermDock reads through a
+ * roles table gets the same `roleThrough`, unless the config sets one.
+ */
+function withManifestDefaults(layout: ModuleLayout): ModulesConfig | undefined {
+  const modules = layout.modules;
+  const sources = layout.accessPermdock?.roleSources;
+  const tenant = modules?.["tenant"];
+  if (!modules || !sources || tenant?.mode !== "adopt") return modules;
+  if (tenant.options?.["roleThrough"] !== undefined) return modules;
+  const mapped = tenant.tables?.["memberships"];
+  if (typeof mapped !== "string") return modules;
+  const table = mapped.includes(".")
+    ? mapped
+    : `${tenant.schema ?? "better_supabase"}.${mapped}`;
+  const role = tenant.columns?.["memberships"]?.["role"] ?? "role";
+  const source = sources.find(
+    (entry) => entry.table === table && entry.role.column === role,
+  );
+  if (!source) return modules;
+  return {
+    ...modules,
+    tenant: {
+      ...tenant,
+      options: { ...tenant.options, roleThrough: source.role.through },
+    },
+  };
 }
 
 /** The tenant id type PermDock's manifest gives, preferring the access model's scope. */

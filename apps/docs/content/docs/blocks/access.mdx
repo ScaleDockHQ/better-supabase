@@ -241,6 +241,41 @@ contract functions under those names yourself. `better-supabase sql print
 access` lists their signatures, and [doctor](/docs/cli/doctor#bs307) checks
 them.
 
+## Membership roles stored as ids
+
+An adopted memberships table often stores a foreign key to a roles table
+instead of the role name. `sql.modules.tenant.options.roleThrough` names that
+table, its key column and the column with the role name, in the same shape as
+PermDock's `through` membership roles:
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    tenant: {
+      mode: "adopt",
+      tables: { memberships: "public.team_members" },
+      columns: { memberships: { tenant: "team_id", role: "role_id" } },
+      options: {
+        roleThrough: { table: "public.team_roles", id: "id", column: "key" },
+      },
+    },
+  },
+},
+```
+
+Every model then reads role names through the table: `has_organization_role`,
+`member_organization_ids` and the memberships claim compare names, the roles
+model looks up each name's permissions, and `can_assign` receives the name.
+The organizations and invitations modules accept a role name or id, store
+the id, and refuse a role the table doesn't have (`ORGANIZATION_ROLE_UNKNOWN`,
+`INVITATION_ROLE_UNKNOWN`). A managed memberships table stores names, so the
+option is for `mode: "adopt"` only.
+
+Under the permdock model, `sql add` reads the setting from the manifest: when
+a membership source of the tenant scope is the adopted memberships table and
+its role column reads `through` a roles table, the tenant module uses the same
+lookup. An explicit `roleThrough` wins.
+
 ## Disabled tenants and users
 
 `sql.modules.access.disabled` names columns that switch a tenant or a user off when

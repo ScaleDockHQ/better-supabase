@@ -15,6 +15,7 @@ import {
   rolesOf,
   tenantScope,
 } from "./access-model.ts";
+import { roleNameOf } from "./tenant.ts";
 
 const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
 
@@ -77,7 +78,7 @@ function catalogEffective(ctx: ModuleContext, n: Names): string {
 /** Whether membership row `m` grants `permission` (an SQL expression). */
 function grants(ctx: ModuleContext, n: Names, permission: string): string {
   if (accessModel(ctx) === "roles") {
-    return `better_supabase.role_grants(m.${n.role}, ${permission})`;
+    return `better_supabase.role_grants(${roleNameOf(ctx.of("tenant"), "m")}, ${permission})`;
   }
   return `exists (select 1 from ${ctx.table("permissions")} p where p.${ctx.col("permissions", "key")} = ${permission} and ${catalogEffective(ctx, n)})`;
 }
@@ -235,7 +236,7 @@ function membershipFunctions(ctx: ModuleContext): string {
   const permissions =
     model === "roles"
       ? `select coalesce((
-      select better_supabase.role_permissions(m.${n.role}) from ${n.m} m
+      select better_supabase.role_permissions(${roleNameOf(ctx.of("tenant"), "m")}) from ${n.m} m
       where m.${n.tenant} = member_permissions.tenant and m.${n.user} = member_permissions.member
     ), '{}'::text[])`
       : `select coalesce(array_agg(p.${ctx.col("permissions", "key")} order by p.${ctx.col("permissions", "key")}), '{}'::text[])
