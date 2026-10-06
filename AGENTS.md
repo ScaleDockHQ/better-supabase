@@ -123,8 +123,9 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     `src/cli/supabase-toml.ts` (smol-toml parses `config.toml`
     without it), `pg` in `src/cli/db.ts` and `@supabase/postgrest-typegen`
     in `src/cli/introspect/typegen.ts` (an install message when they are
-    missing), and `oxfmt` in the same file (unformatted output with a
-    notice). CLI startup work also loads on
+    missing), `oxfmt` in the same file (unformatted output with a
+    notice), and `stripe` through a variable specifier in
+    `src/blocks/stripe.ts` (an install message, or pass a client). CLI startup work also loads on
     demand, each with a comment: the commands, config loading and env
     validation in `src/cli/run.ts`, the prompts in `src/cli/bin.ts`, and
     the arktype-backed typegen entries in `src/cli/introspect/typegen.ts`.
@@ -258,6 +259,7 @@ standard or sets how the repo works.
 - 0006: the fixture schema diffs with pg-delta; the native local stack stays opt-in.
 - 0007: the CLI ships inside `better-supabase` with its dependencies inlined.
 - 0008: the server and the framework adapters run on `@supabase/middleware` entries and bridges.
+- 0009: `stripe` is an optional peer loaded lazily; the flags block types OpenFeature structurally.
 
 ## Pre-release pins
 
@@ -276,6 +278,7 @@ Read the page for the area you are changing. When an agent needs the same
 correction twice, add it to one of these pages.
 
 - [`docs/agents/core.md`](docs/agents/core.md): column casing in queries and per-request work in the core.
+- [`docs/agents/blocks.md`](docs/agents/blocks.md): the checklist for adding a block, its SQL module and its subpath.
 - [`docs/agents/database.md`](docs/agents/database.md): the declarative schema workflow and what the diff misses.
 - [`docs/agents/nextjs.md`](docs/agents/nextjs.md): Cache Components and prerender errors in docs and marketing.
 - [`docs/agents/tooling.md`](docs/agents/tooling.md): registry queries, release age, changesets and CI.

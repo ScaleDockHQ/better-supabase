@@ -513,10 +513,12 @@
     "@effect/platform-node": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
+    "@openfeature/server-sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
+    "@supabase-labs/middleware-openfeature": "catalog:",
     "@supabase/config": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",
     "@supabase/supabase-js": "catalog:",
@@ -546,6 +548,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "smol-toml": "catalog:",
+    "stripe": "catalog:",
     "temporal-polyfill": "catalog:",
     "tinyexec": "catalog:",
     "tsdown": "catalog:",
@@ -568,6 +571,7 @@
     "oxfmt": "catalog:peers",
     "pg": "catalog:peers",
     "react": "catalog:peers",
+    "stripe": "catalog:peers",
     "temporal-polyfill": "catalog:peers"
   },
   "peerDependenciesMeta": {
@@ -605,6 +609,9 @@
       "optional": true
     },
     "react": {
+      "optional": true
+    },
+    "stripe": {
       "optional": true
     },
     "temporal-polyfill": {

@@ -1,7 +1,7 @@
 import type { SqlClient } from "../../postgres/executor.ts";
 
 import { AsyncResult } from "../../core/result.ts";
-import { run } from "../jobs/shared.ts";
+import { run } from "../shared.ts";
 
 /** The Stripe event sent when a customer's active entitlements change. */
 export const ENTITLEMENTS_UPDATED =
