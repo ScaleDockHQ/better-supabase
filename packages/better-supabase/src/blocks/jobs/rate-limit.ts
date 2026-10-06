@@ -3,7 +3,12 @@ import type { SqlClient } from "../../postgres/executor.ts";
 import { dbError } from "../../core/errors.ts";
 import { type ProblemFormat, problemResponse } from "../../core/problem.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { run, seconds } from "../shared.ts";
+import {
+  type BlockTemporalOptions,
+  run,
+  seconds,
+  applyTemporal,
+} from "../shared.ts";
 
 // ---------------------------------------------------------------------------
 // Rate limits for route handlers (SQL module `rate-limit`)
@@ -42,7 +47,11 @@ export interface RateLimit {
  * module's counters. Pass a service SQL connection (`ctx.postgresAdmin`,
  * `postgres.admin`).
  */
-export function createRateLimit(sql: SqlClient): RateLimit {
+export function createRateLimit(
+  sql: SqlClient,
+  options: BlockTemporalOptions = {},
+): RateLimit {
+  applyTemporal(options);
   return {
     check: (scope, key, rule) => {
       if (rule !== undefined && (!Number.isInteger(rule.max) || rule.max < 1)) {

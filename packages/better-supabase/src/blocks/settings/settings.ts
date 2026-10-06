@@ -6,7 +6,13 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
-import { type BlockCall, blockCall, isRecord } from "../shared.ts";
+import {
+  type BlockCall,
+  blockCall,
+  isRecord,
+  type BlockTemporalOptions,
+  applyTemporal,
+} from "../shared.ts";
 
 /** One setting: its Standard Schema and the value `get` returns when none is stored. */
 export interface SettingEntry<S extends StandardSchemaV1 = StandardSchemaV1> {
@@ -55,7 +61,7 @@ export interface SettingsSpec<
   readonly platform?: P;
 }
 
-export interface SettingsConnectOptions {
+export interface SettingsConnectOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema (`sql.modules.settings.schema`), default `better_supabase`. */
   readonly schema?: string;
@@ -144,6 +150,7 @@ export function defineSettings<
   return {
     schemas: { user, organization, platform },
     connect: (options) => {
+      applyTemporal(options);
       const call = blockCall(
         options.transport,
         options.schema,

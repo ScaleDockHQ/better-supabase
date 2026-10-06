@@ -4,7 +4,24 @@ import { rawError } from "../core/block-transport.ts";
 import { type DbError, type ErrorMapper, mapDbError } from "../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import { temporal } from "../core/temporal-required.ts";
+import { provideTemporal } from "../core/temporal.ts";
 import { fromPgError } from "../postgres/executor.ts";
+
+/** The `temporal` option every block creator takes. */
+export interface BlockTemporalOptions {
+  /**
+   * The Temporal namespace for runtimes without a global one, such as
+   * `import { Temporal } from "temporal-polyfill"`. Blocks use it instead of
+   * `globalThis.Temporal`, which stays untouched; like
+   * `defineSupabase(schema, { temporal })`, it applies to the whole process.
+   */
+  readonly temporal?: typeof Temporal;
+}
+
+/** Provides `options.temporal`, when set, for the block's time values. */
+export function applyTemporal(options: BlockTemporalOptions | undefined): void {
+  if (options?.temporal !== undefined) provideTemporal(options.temporal);
+}
 
 /** The block schema when the options name none. */
 export const DEFAULT_BLOCK_SCHEMA = "better_supabase";

@@ -14,6 +14,7 @@ import { rawError } from "../../core/block-transport.ts";
 import { dbError, mapDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { type BlockTemporalOptions, applyTemporal } from "../shared.ts";
 
 /**
  * Organization columns by database name: `name`, `slug` and the columns in
@@ -86,7 +87,7 @@ export interface SwitchResult {
   readonly refresh: boolean;
 }
 
-export interface OrganizationsOptions {
+export interface OrganizationsOptions extends BlockTemporalOptions {
   /** `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /**
@@ -233,6 +234,7 @@ function recordOf(value: unknown, fn: string): Record<string, unknown> {
 export function createOrganizations(
   options: OrganizationsOptions,
 ): Organizations {
+  applyTemporal(options);
   const { transport } = options;
   const schemaOf = (module: "organizations" | "invitations"): string =>
     typeof options.schema === "string"

@@ -5,6 +5,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
+import { temporal } from "../../core/temporal-required.ts";
 import {
   blockCall,
   DEFAULT_BLOCK_SCHEMA,
@@ -16,6 +17,8 @@ import {
   sha256Hex,
   stringsOf,
   textOf,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
 export interface ApiKey {
@@ -77,7 +80,7 @@ export interface ApiKeys {
   verify(token: string): AsyncResult<ApiKeyCheck>;
 }
 
-export interface ApiKeysOptions {
+export interface ApiKeysOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
   /** The token's first segment, lowercase letters and digits. Defaults to `bs`. */
@@ -199,7 +202,7 @@ function apiKeyOf(value: unknown): ApiKey {
     ...(revokedAt ? { revokedAt } : {}),
     ...(rotatedFrom ? { rotatedFrom } : {}),
     ...(createdBy ? { createdBy } : {}),
-    createdAt: optionalInstant(row["created_at"]) ?? Temporal.Now.instant(),
+    createdAt: optionalInstant(row["created_at"]) ?? temporal().Now.instant(),
   };
 }
 
@@ -224,6 +227,7 @@ function checkOf(value: unknown): ApiKeyCheck {
  * runs as the service role.
  */
 export function createApiKeys(options: ApiKeysOptions): ApiKeys {
+  applyTemporal(options);
   const prefix = options.prefix ?? "bs";
   if (!PREFIX.test(prefix)) {
     throw new TypeError(
@@ -280,7 +284,7 @@ export function createApiKeys(options: ApiKeysOptions): ApiKeys {
             public_id: next,
             secret_hash: hash,
             grace: (
-              rotateOptions.grace ?? Temporal.Duration.from({ days: 1 })
+              rotateOptions.grace ?? temporal().Duration.from({ days: 1 })
             ).toString(),
           },
           (value) => ({ key: apiKeyOf(value), token }),

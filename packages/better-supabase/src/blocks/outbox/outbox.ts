@@ -8,7 +8,14 @@ import {
 } from "../../core/problem.ts";
 import { type AsyncResult, toDbError } from "../../core/result.ts";
 import { sqlIdent } from "../../core/template.ts";
-import { asDbError, run, toInstant, workerId } from "../shared.ts";
+import {
+  asDbError,
+  run,
+  toInstant,
+  workerId,
+  type BlockTemporalOptions,
+  applyTemporal,
+} from "../shared.ts";
 import { verifySharedSecret } from "../webhooks/verify.ts";
 
 // ---------------------------------------------------------------------------
@@ -38,7 +45,7 @@ export interface EmitOptions {
   readonly source?: string;
 }
 
-export interface OutboxOptions {
+export interface OutboxOptions extends BlockTemporalOptions {
   /** The schema of the `outbox` module. Defaults to `better_supabase`. */
   readonly schema?: string;
   /** CloudEvents `source` of the relayed events, e.g. `https://crm.example.com`. */
@@ -213,6 +220,7 @@ export function outboxCloudEvent(
 }
 
 export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
+  applyTemporal(options);
   const schema = sqlIdent(options.schema ?? "better_supabase");
   const call = async (fn: string, args: unknown[]): Promise<unknown> => {
     const params = args.map((_, index) => `$${String(index + 1)}`).join(", ");

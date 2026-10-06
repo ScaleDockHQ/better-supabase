@@ -11,10 +11,12 @@ import {
   recordsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 import { lazyStripe, type StripeSource } from "../stripe.ts";
 
-export interface UsageOptions {
+export interface UsageOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema (`sql.modules.usage.schema`), default `better_supabase`. */
   readonly schema?: string;
@@ -143,6 +145,7 @@ function meterInfo(row: Readonly<Record<string, unknown>>): UsageMeterInfo {
 
 /** Usage metering and quotas over the `usage` module's functions. */
 export function createUsage(options: UsageOptions): Usage {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const args = (
     organizationId: string,

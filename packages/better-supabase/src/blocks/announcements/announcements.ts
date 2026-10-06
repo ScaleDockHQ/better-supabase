@@ -12,6 +12,8 @@ import {
   stringsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
 export type AnnouncementSeverity = "info" | "success" | "warning" | "critical";
@@ -59,7 +61,7 @@ export interface AnnouncementInput {
   readonly dismissible?: boolean;
 }
 
-export interface AnnouncementsOptions {
+export interface AnnouncementsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema (`sql.modules.announcements.schema`), default `better_supabase`. */
   readonly schema?: string;
@@ -180,6 +182,7 @@ function fieldsOf(input: Partial<AnnouncementInput>): Record<string, unknown> {
 export function createAnnouncements(
   options: AnnouncementsOptions,
 ): Announcements {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   return {
     listActive: (organizationId) =>

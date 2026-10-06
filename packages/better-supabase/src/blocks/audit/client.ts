@@ -4,6 +4,7 @@ import type { AuditEntry, OcsfProduct } from "./audit.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { temporal } from "../../core/temporal-required.ts";
 import { toCsv } from "../csv.ts";
 import {
   blockCall,
@@ -13,6 +14,8 @@ import {
   optionalText,
   stringsOf,
   textOf,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 import { toOcsf } from "./audit.ts";
 
@@ -133,7 +136,7 @@ export interface AuditExportToStorageOptions extends AuditExportOptions {
   readonly signedUrlTtl?: number;
 }
 
-export interface AuditLogOptions {
+export interface AuditLogOptions extends BlockTemporalOptions {
   /** `sqlTransport(ctx.postgres)` for members, or `rpcTransport` over an API schema. */
   readonly transport: BlockTransport;
   /** The audit module's schema, or its API schema. Default `better_supabase`. */
@@ -205,7 +208,7 @@ function recordOfEntry(value: unknown): AuditRecord {
     id: textOf(row["id"]),
     occurredAt:
       optionalInstant(row["occurredAt"]) ??
-      Temporal.Instant.fromEpochMilliseconds(0),
+      temporal().Instant.fromEpochMilliseconds(0),
     ...text,
     ...(Array.isArray(row["changed"])
       ? { changed: stringsOf(row["changed"]) }
@@ -277,6 +280,7 @@ const csvRow = (record: AuditRecord): Record<string, unknown> => ({
  * of an adopted log are already applied.
  */
 export function createAuditLog(options: AuditLogOptions): AuditLog {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const list = (list: AuditListOptions = {}): AsyncResult<AuditPage> => {

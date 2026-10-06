@@ -18,7 +18,14 @@ import { AsyncResult, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { nowInstant } from "../../core/temporal.ts";
-import { errorText, run, sleep, toInstant } from "../shared.ts";
+import {
+  type BlockTemporalOptions,
+  errorText,
+  run,
+  sleep,
+  toInstant,
+  applyTemporal,
+} from "../shared.ts";
 import { verifySharedSecret } from "../webhooks/verify.ts";
 import { nextCronRun } from "./cron.ts";
 
@@ -753,7 +760,9 @@ const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
 export function createJobs<const Q extends QueueSchemas>(
   source: SqlClient | QueueRpcClient | QueueBackend,
   queues: Q,
+  options: BlockTemporalOptions = {},
 ): Jobs<Q> {
+  applyTemporal(options);
   for (const name of Object.keys(queues)) {
     if (!QUEUE_NAME.test(name)) {
       throw new TypeError(

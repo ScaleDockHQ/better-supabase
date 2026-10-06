@@ -16,6 +16,8 @@ import {
   recordsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
 interface StorageReply<T> {
@@ -44,7 +46,7 @@ export interface AttachmentStorage {
   from(bucket: string): AttachmentBucket;
 }
 
-export interface AttachmentsOptions {
+export interface AttachmentsOptions extends BlockTemporalOptions {
   /** The caller's transport (`rpcTransport(supabase)`). */
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, so the bucket policies apply. */
@@ -196,6 +198,7 @@ function lookup(
 
 /** Attachments as the caller: the table's and the bucket's policies apply. */
 export function createAttachments(options: AttachmentsOptions): Attachments {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const requireScan = options.requireScan ?? true;
   const ttl = options.downloadTtl ?? 300;
@@ -281,7 +284,7 @@ export interface ScanVerdict {
   readonly detail?: string;
 }
 
-export interface AttachmentScannerOptions {
+export interface AttachmentScannerOptions extends BlockTemporalOptions {
   /** A service-role transport: `set_attachment_status()` is granted to `service_role` only. */
   readonly transport: BlockTransport;
   /** A service-role `supabase.storage`, to read pending files. */
@@ -319,6 +322,7 @@ export interface AttachmentScanner {
 export function createAttachmentScanner(
   options: AttachmentScannerOptions,
 ): AttachmentScanner {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
   const record = (
@@ -397,7 +401,7 @@ export interface ScannedObject {
   readonly scannedAt: Temporal.Instant | undefined;
 }
 
-export interface ObjectScannerOptions {
+export interface ObjectScannerOptions extends BlockTemporalOptions {
   /** A service-role transport: `set_object_scan()` is granted to `service_role` only. */
   readonly transport: BlockTransport;
   /** A service-role `supabase.storage`, to read the objects. */
@@ -457,6 +461,7 @@ function scannedOf(value: unknown): ScannedObject {
 export function createObjectScanner(
   options: ObjectScannerOptions,
 ): ObjectScanner {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
   const record = (

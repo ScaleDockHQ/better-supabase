@@ -18,6 +18,8 @@ import {
   stringsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
 interface StorageReply<T> {
@@ -89,7 +91,7 @@ export interface DataExportDownload {
   readonly files: readonly { readonly table: string; readonly url: string }[];
 }
 
-export interface DataLifecycleOptions {
+export interface DataLifecycleOptions extends BlockTemporalOptions {
   /** The caller's transport (`rpcTransport(supabase)`). */
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, for `download`. */
@@ -202,6 +204,7 @@ const tableOf = (path: string): string =>
 export function createDataLifecycle(
   options: DataLifecycleOptions,
 ): DataLifecycle {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const ttl = options.downloadTtl ?? 300;
   return {
@@ -280,7 +283,7 @@ export function createDataLifecycle(
   };
 }
 
-export interface DataExporterOptions {
+export interface DataExporterOptions extends BlockTemporalOptions {
   /** A service-role transport: the export functions are granted to `service_role` only. */
   readonly transport: BlockTransport;
   /** A service-role `supabase.storage`, to write the files. */
@@ -317,6 +320,7 @@ export interface DataExporter {
 
 /** Runs requested exports with a service-role client. */
 export function createDataExporter(options: DataExporterOptions): DataExporter {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
   const pageSize = options.pageSize ?? 1000;
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
@@ -431,7 +435,7 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
   };
 }
 
-export interface OrganizationPurgerOptions {
+export interface OrganizationPurgerOptions extends BlockTemporalOptions {
   /** A service-role transport: `purge_organization()` is granted to `service_role` only. */
   readonly transport: BlockTransport;
   /** A service-role `supabase.storage`, to remove each bucket's `{organizationId}/` prefix. */
@@ -500,6 +504,7 @@ async function removePrefix(
 export function createOrganizationPurger(
   options: OrganizationPurgerOptions,
 ): OrganizationPurger {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
   const purge = (organizationId: string): AsyncResult<OrganizationPurge> =>
     AsyncResult.from(async (): Promise<Result<OrganizationPurge>> => {

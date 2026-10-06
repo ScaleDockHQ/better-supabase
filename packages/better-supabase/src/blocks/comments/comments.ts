@@ -25,9 +25,11 @@ import {
   stringsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
-export interface CommentsOptions {
+export interface CommentsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema (`sql.modules.comments.schema`), default `better_supabase`. */
   readonly schema?: string;
@@ -194,6 +196,7 @@ function activityOf(value: unknown): ActivityEntry {
 
 /** Comments over the `comments` module's functions, as the caller. */
 export function createComments(options: CommentsOptions): Comments {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const mentionsOf = (body: string, document: unknown): readonly string[] =>
     options.mentionsOf

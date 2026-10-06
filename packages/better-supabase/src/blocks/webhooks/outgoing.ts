@@ -17,6 +17,7 @@ import {
 } from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { type BlockTemporalOptions, applyTemporal } from "../shared.ts";
 import { fetchTransport, WebhookPolicyError } from "./http.ts";
 import { sqlSecretStore } from "./secrets.ts";
 import { standardWebhooks } from "./signers.ts";
@@ -51,7 +52,7 @@ export interface RetryPolicy {
   readonly retryable?: (status: number) => boolean;
 }
 
-export interface WebhooksOptions {
+export interface WebhooksOptions extends BlockTemporalOptions {
   /** `sqlTransport(postgres.admin)` for the worker, or the user's connection to manage. */
   readonly transport: BlockTransport;
   /** `sql.modules.webhooks-out.schema`. Defaults to `better_supabase`. */
@@ -209,6 +210,7 @@ const errorText = (cause: unknown): string =>
 type Outcome = "succeeded" | "retrying" | "dead" | "canceled";
 
 export function createWebhooks(options: WebhooksOptions): Webhooks {
+  applyTemporal(options);
   const { transport } = options;
   const schema = options.schema ?? DEFAULT_SCHEMA;
   const mappers = options.errorMappers ?? [];

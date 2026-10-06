@@ -60,6 +60,22 @@ Helpers you call without a definition, such as `verifyWebhook` in a separate
 worker, read the same setting. Call `provideTemporal(Temporal)` from
 `better-supabase` once at startup in that process.
 
+Every block creator also takes `temporal`, so a server that only uses blocks
+needs no definition and no global polyfill:
+
+```ts
+import { Temporal } from "temporal-polyfill";
+import { createAuditLog } from "better-supabase/blocks/audit";
+
+const audit = createAuditLog({ transport, temporal: Temporal });
+```
+
+That covers the `create*` functions, `createJobs(source, queues, { temporal })`,
+`createRateLimit(sql, { temporal })`, `exportAuditLog`, `purgeAuditLog`,
+`scimHandler`, and the `connect` options of settings and onboarding
+checklists. Like `defineSupabase`, the option sets the process-wide
+namespace.
+
 The Valibot and Zod schemas that `better-supabase gen` writes never read
 `Temporal` when the module loads. They check values with `isInstant` and
 `isPlainDateTime`, which compare `Symbol.toStringTag`, so a value from any

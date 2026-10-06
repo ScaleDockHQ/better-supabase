@@ -8,6 +8,8 @@ import {
   recordsOf,
   stringsOf,
   textOf,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
 export type FlagType = "boolean" | "string" | "number" | "object";
@@ -270,7 +272,9 @@ export function flagDefinitionsOf(value: unknown): readonly FlagDefinition[] {
   }));
 }
 
-export interface FlagsProviderOptions<Code extends string = FlagErrorCode> {
+export interface FlagsProviderOptions<
+  Code extends string = FlagErrorCode,
+> extends BlockTemporalOptions {
   /**
    * A service-role transport: `flag_definitions()` is granted to
    * `service_role` only, as it lists every override.
@@ -339,6 +343,7 @@ const isNumber: Check<number> = (value) => typeof value === "number";
 export function createFlagsProvider<Code extends string = FlagErrorCode>(
   options: FlagsProviderOptions<Code>,
 ): FlagsProvider<Code> {
+  applyTemporal(options);
   const { transport, definitions } = options;
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   const fetchFlags = definitions

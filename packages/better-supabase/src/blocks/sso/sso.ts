@@ -14,6 +14,8 @@ import {
   stringsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
 /** The DNS record that proves a domain belongs to the organization. */
@@ -56,7 +58,7 @@ export interface SsoDomain {
   readonly enforceSso: boolean;
 }
 
-export interface SsoOptions {
+export interface SsoOptions extends BlockTemporalOptions {
   /** The caller's transport (`rpcTransport(supabase)`). */
   readonly transport: BlockTransport;
   /** The module schema (`sql.modules.sso.schema`), default `better_supabase`. */
@@ -133,6 +135,7 @@ function ssoDomainOf(value: unknown): SsoDomain | undefined {
 
 /** Organization domains and SSO lookups as the caller. */
 export function createSso(options: SsoOptions): Sso {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   return {
     addDomain: (organizationId, domain) =>
@@ -246,7 +249,7 @@ export interface SsoAuthAdmin {
   readonly fetch?: typeof fetch;
 }
 
-export interface SsoAdminOptions {
+export interface SsoAdminOptions extends BlockTemporalOptions {
   /** A service-role transport: these functions are granted to `service_role` only. */
   readonly transport: BlockTransport;
   /** Supabase Auth's admin API, for SAML providers. */
@@ -311,6 +314,7 @@ function authStatusError(status: number, message: string): DbError {
 
 /** Domain verification and SAML providers with a service-role client. */
 export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const resolver = options.resolver ?? dohResolver();
 

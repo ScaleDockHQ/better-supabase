@@ -7,13 +7,22 @@ import {
   problemResponse,
 } from "../../core/problem.ts";
 import { type AsyncResult, ok, type Result } from "../../core/result.ts";
-import { errorText, run, seconds, toInstant, workerId } from "../shared.ts";
+import {
+  errorText,
+  run,
+  seconds,
+  toInstant,
+  workerId,
+  type BlockTemporalOptions,
+  applyTemporal,
+} from "../shared.ts";
 import { verifyWebhook } from "../webhooks/verify.ts";
 
 // ---------------------------------------------------------------------------
 // Idempotency keys (SQL module `idempotency`)
 
-export interface IdempotencyOptions extends BlockProblemOptions {
+export interface IdempotencyOptions
+  extends BlockProblemOptions, BlockTemporalOptions {
   /**
    * Separates keys of different callers, endpoints or tenants. Defaults to a
    * hash of the caller's credentials (the `Authorization` header or the
@@ -95,6 +104,7 @@ export function createIdempotency(
   sql: SqlClient,
   options: IdempotencyOptions = {},
 ): Idempotency {
+  applyTemporal(options);
   const headerName = options.header ?? "idempotency-key";
   const format = options.problem;
   const ttl = seconds(options.ttl ?? "24 hours");
@@ -279,7 +289,8 @@ export interface InboxEvent {
   readonly headers?: Readonly<Record<string, string>>;
 }
 
-export interface InboxOptions extends BlockProblemOptions {
+export interface InboxOptions
+  extends BlockProblemOptions, BlockTemporalOptions {
   /** Name of the sender, e.g. `stripe` or `supabase-auth`. */
   readonly source: string;
   /** Standard Webhooks secrets; the signature is verified before storing. */
@@ -377,6 +388,7 @@ function defaultType(payload: unknown): string | null {
 
 /** Store-then-process webhooks: acknowledge fast, process with retries, never twice. */
 export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
+  applyTemporal(options);
   const worker = options.worker ?? workerId();
   const format = options.problem;
   if (!options.secrets && !options.verify) {

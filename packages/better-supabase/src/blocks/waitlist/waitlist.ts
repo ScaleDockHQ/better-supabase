@@ -13,6 +13,8 @@ import {
   recordsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 import { authHook, hookError } from "../webhooks/verify.ts";
 
@@ -70,7 +72,7 @@ export interface Redemption {
   readonly role: string | undefined;
 }
 
-export interface WaitlistOptions {
+export interface WaitlistOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema (`sql.modules.waitlist.schema`), default `better_supabase`. */
   readonly schema?: string;
@@ -166,6 +168,7 @@ export function generateInviteCode(): string {
 }
 
 export function createWaitlist(options: WaitlistOptions): Waitlist {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const decide = (entryId: string, approve: boolean) =>
     call("decide_waitlist_entry", { id: entryId, approve }, entryOf);

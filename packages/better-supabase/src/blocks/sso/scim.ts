@@ -10,6 +10,8 @@ import {
   recordsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 import {
   matches,
@@ -31,7 +33,7 @@ import {
   serviceProviderConfig,
 } from "./scim-schema.ts";
 
-export interface ScimHandlerOptions {
+export interface ScimHandlerOptions extends BlockTemporalOptions {
   /** A service-role transport: the SCIM functions are granted to `service_role` only. */
   readonly transport: BlockTransport;
   /** Verifies the bearer token: an organization API key with the `scim` scope. */
@@ -442,6 +444,7 @@ const KINDS = {
 export function scimHandler(
   options: ScimHandlerOptions,
 ): (request: Request) => Promise<Response> {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
   const basePath = (options.basePath ?? "").replace(/\/+$/, "");
   const scope = options.scope ?? "scim";

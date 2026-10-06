@@ -24,10 +24,12 @@ import {
   optionalText,
   recordOf,
   textOf,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 import { lazyStripe, type StripeClient, type StripeSource } from "../stripe.ts";
 
-export interface BillingOptions {
+export interface BillingOptions extends BlockTemporalOptions {
   readonly stripe: StripeSource;
   /** A service-role transport: linking customers and reading seats are granted to `service_role` only. */
   readonly transport: BlockTransport;
@@ -271,6 +273,7 @@ function stripeCall<T>(work: () => Promise<T>): AsyncResult<T> {
 
 /** Stripe customers, checkout, the portal and seat sync over the `billing` module. */
 export function createBilling(options: BillingOptions): Billing {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const stripe = lazyStripe(options.stripe);
   const withStripe = <T>(
