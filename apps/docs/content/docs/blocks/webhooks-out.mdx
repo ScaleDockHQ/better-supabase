@@ -173,6 +173,26 @@ createWebhooks({
 });
 ```
 
+### Other requests to URLs users give you
+
+`createSafeFetch` applies the same checks to any request whose URL comes
+from a user or tenant: link previews, imports from a URL, avatars by URL,
+OAuth callback checks. It returns a `fetch` that refuses a URL outside
+`publicUrl` (or your `allowUrl`) with `UnsafeUrlError`, checks every redirect
+before following it (3 at most by default, `maxRedirects`), drops
+`authorization` and `cookie` on a redirect to another origin, and stops
+after `timeoutMs` (10 seconds):
+
+```ts
+import { createSafeFetch } from "better-supabase/blocks/webhooks";
+
+const safeFetch = createSafeFetch();
+
+const response = await safeFetch(userSuppliedUrl);
+```
+
+The DNS caveat above applies here too.
+
 ## Extending it
 
 | Option or hook                | Use                                                                                     |
