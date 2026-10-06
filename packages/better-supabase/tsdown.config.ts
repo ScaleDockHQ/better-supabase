@@ -35,6 +35,7 @@ const entries = [
   "blocks/notifications/react/server",
   "blocks/webhooks/index",
   "blocks/entitlements/index",
+  "blocks/audit/index",
   "blocks/api-keys/index",
   "env/index",
   "list/index",

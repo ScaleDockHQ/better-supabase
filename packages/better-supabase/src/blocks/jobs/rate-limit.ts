@@ -3,7 +3,7 @@ import type { SqlClient } from "../../postgres/executor.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { run, seconds } from "./shared.ts";
+import { run, seconds } from "../shared.ts";
 
 // ---------------------------------------------------------------------------
 // Rate limits for route handlers (SQL module `rate-limit`)

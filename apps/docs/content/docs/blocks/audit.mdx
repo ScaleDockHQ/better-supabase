@@ -1,95 +1,102 @@
 ---
 title: Audit log
-description: Read the audit module's entries from TypeScript, reveal restricted details with a record of who looked, and export a tenant's log as CSV.
+description: List, filter and export a tenant's audit entries as NDJSON or OCSF, and purge them per tenant's retention.
 ---
 
-The [`audit` SQL module](/docs/blocks/sql#audit-log) records row changes and
-app events in the database. `better-supabase/blocks/audit` reads them back for
-an audit page, an admin console or a compliance export.
+The `audit` SQL module records row changes and `audit_event()` calls (see
+[SQL modules](/docs/blocks/sql#audit-log)). The audit block reads that log
+from TypeScript: a list for an activity page, an export for customers and
+SIEMs, and retention.
 
 ```bash
 better-supabase sql add audit
 ```
 
-```ts
-import { createAuditLog, sqlTransport } from "better-supabase/blocks/audit";
+Turn on `readPolicy` so members read their tenant's entries with
+`audit.read`, and platform staff read every entry:
 
-const audit = createAuditLog({ transport: sqlTransport(ctx.postgres) });
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { modules: { audit: { options: { readPolicy: true } } } },
+});
 ```
 
-The transport decides who reads: `sqlTransport(ctx.postgres)` or
-`rpcTransport(supabase)` for the signed-in member, so the module's read policy
-(`sql.modules.audit.options.readPolicy`) decides what they see, or a service
-connection for everything. Over PostgREST, install the module in an exposed
-schema (`sql.modules.audit.schema`).
+## Listing entries
 
-## Listing
+`auditListQuery` is a [list query](/docs/platform/list) over the
+audit table, newest first behind a cursor, with facets for `table`, `record`,
+`op`, `actor`, `event`, `category`, `outcome` and `target` (those the table
+has). Generate types for the `better_supabase` schema so the table is in your
+models, then:
 
-```ts
-const entries = await audit
-  .list({
-    tenant: organizationId,
-    eventType: "invoice.sent",
-    since: Temporal.Now.instant().subtract({ hours: 24 * 30 }),
-    limit: 50,
+```ts title="app/settings/audit/list.ts"
+import { auditListQuery } from "better-supabase/blocks/audit";
+
+export const auditList = auditListQuery(betterSupabase, "auditEvents");
+
+const query = auditList.parse(searchParams);
+if (!query.ok) return badRequest(query.issues);
+const page = await auditList
+  .run(ctx.db, query.value, {
+    where: { organizationId, ...auditList.between(from, to) },
   })
   .orThrow();
-
-const next = await audit
-  .list({ tenant: organizationId, before: entries.at(-1) })
-  .orThrow();
 ```
 
-Entries come newest first. Filters are `tenant`, `eventType`, `actorId`,
-`targetType`, `record`, `since` and `until`; `before` pages with the last
-entry of the previous page, and `limit` is 50 by default, at most 1000. Each
-entry carries the columns the log has, among them the
-[context columns](/docs/blocks/sql#context-columns): `actorKind`,
-`actorLabel`, `tenantLabel`, `targetLabel`, `summary`, `requestId`,
-`correlationId` and `scope`. With `impersonators: "hide"`, the impersonation
-fields are left out.
-
-## Revealing details
-
-With `restricted: true`, row snapshots, IP addresses, user agents and
-per-column changes live in a table only the service role reads. `reveal`
-returns them for one entry to a member who holds the reveal permission in its
-tenant, or to platform staff with `viewAll`, and records an `audit.revealed`
-entry with who looked:
-
-```ts
-const details = await audit.reveal(entry).orThrow();
-details.changes; // { title: { old: "Draft", new: "Final" } }
-```
-
-The reveal permission is the view permission unless
-`sql.modules.audit.permissions.reveal` names another key. An entry the caller
-may not reveal fails with `AUDIT_ENTRY_NOT_FOUND`, the same as one that
-doesn't exist.
+`between(from, to)` filters `occurred_at` to `[from, to)`. The read policy
+decides which rows a member sees; restricted columns stay in the
+`audit_events_restricted` table, which members can't read.
 
 ## Exporting
 
-`exportCsv` writes a tenant's entries, with the same filters as `list`, to a
-Storage object and returns a signed URL for it:
+`exportAuditLog` streams one tenant's entries as newline-delimited JSON, one
+keyset query per batch, so memory stays flat however long the log is. Run it
+with a member's claims, so the read policy applies, or as the service role:
 
-```ts
-const file = await audit
-  .exportCsv({
-    tenant: organizationId,
-    bucket: supabase.storage.from("audit-exports"),
-    expiresIn: 3600,
-  })
-  .orThrow();
-// { path: "<tenant>/audit-<ms>.csv", signedUrl, rows }
+```ts title="app/api/audit/export/route.ts"
+import { exportAuditLog } from "better-supabase/blocks/audit";
+
+export const GET = bs.handler(async (request, ctx) => {
+  if (ctx.auth.kind !== "user") return new Response(null, { status: 401 });
+  const stream = exportAuditLog(postgres.asUser(ctx.auth.claims), {
+    organizationId,
+    from: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+    format: "ocsf",
+    product: { name: "Acme CRM", vendor_name: "Acme Inc." },
+  });
+  return new Response(stream, {
+    headers: { "content-type": "application/x-ndjson" },
+  });
+});
 ```
 
-`columns` picks the CSV columns in order, `path` the object path and
-`maxRows` the cap (100000 by default). Run large exports from a
-[job](/docs/blocks/jobs) rather than a request.
+`format: "ocsf"` maps each entry to an
+[OCSF](https://schema.ocsf.io/1.9.0) event (`SPEC_PINS.ocsf`). Row changes
+are Entity Management (`class_uid` 3004) with the table and record as the
+`entity`; `audit_event()` entries are API Activity (6003) with the event type
+as `api.operation`. The activity comes from the event type's last segment:
+`created` is Create, `exported` is Read, `renamed` is Update and `revoked` is
+Delete; anything else is Other (99) with the event type as `activity_name`.
+`toOcsf(entry, product)` maps one entry.
 
 ## Retention
 
-`purgeAuditLog` deletes entries past their retention, with an interval per
-tenant from a callback or the `audit_retention` SQL hook. It is exported here
-and from `better-supabase/blocks/jobs`; see
-[Retention](/docs/blocks/sql#retention).
+`purgeAuditLog` deletes entries past their retention and returns how many.
+Without `retention` it calls `purge_audit_log`, which honours an
+`audit_retention` SQL hook; with it, each tenant is purged with its own
+number of days. `setAuditRetention` reads those days from a column:
+
+```ts title="jobs/purge-audit.ts"
+import { purgeAuditLog, setAuditRetention } from "better-supabase/blocks/audit";
+
+await purgeAuditLog(postgres.admin, {
+  olderThan: "1 year",
+  retention: setAuditRetention(postgres.admin, {
+    table: "public.organizations",
+    column: "audit_retention_days",
+  }),
+});
+```
+
+A tenant whose column is `null` keeps the `olderThan` default. Run the job
+until it returns 0; each call deletes at most `batch` entries per tenant.
