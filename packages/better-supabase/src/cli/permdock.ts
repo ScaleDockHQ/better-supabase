@@ -348,7 +348,23 @@ export function parseCatalog(json: unknown): PermdockCatalog {
       `version ${String(json["version"])} is not supported (this release reads version 1)`,
     );
   }
+  const grants = Array.isArray(json["grants"])
+    ? json["grants"].flatMap((grant) =>
+        isRecord(grant) &&
+        isString(grant["permission"]) &&
+        isString(grant["scope"])
+          ? [{ permission: grant["permission"], scope: grant["scope"] }]
+          : [],
+      )
+    : undefined;
+  const scopes = Array.isArray(json["scopes"])
+    ? json["scopes"].flatMap((scope) =>
+        isRecord(scope) && isString(scope["name"]) ? [scope["name"]] : [],
+      )
+    : undefined;
   return {
+    ...(grants === undefined ? {} : { grants }),
+    ...(scopes === undefined ? {} : { scopes }),
     permissions: json["permissions"].flatMap((permission) => {
       if (!isRecord(permission) || !isString(permission["key"])) return [];
       const flag = permission["rowConditions"];

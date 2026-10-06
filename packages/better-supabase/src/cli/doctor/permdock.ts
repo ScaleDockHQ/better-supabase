@@ -133,6 +133,41 @@ function resolveManifestScope(
 }
 
 /**
+ * The tenancy scopes the catalog grants `key` at, resolved against the
+ * manifest: its `grants`, or, for a catalog without them, the entry's
+ * `scope` when that names a tenancy scope (newer catalogs put the OAuth
+ * scope, such as `invoice:read`, there).
+ */
+function tenancyScopes(
+  project: NonNullable<DoctorContext["permdock"]>,
+  catalog: PermdockCatalog,
+  key: string,
+): string[] {
+  const resolve = (scope: string): string =>
+    resolveManifestScope(project.manifest, scope) ?? scope;
+  if (catalog.grants !== undefined) {
+    return [
+      ...new Set(
+        catalog.grants
+          .filter((grant) => grant.permission === key)
+          .map((grant) => resolve(grant.scope)),
+      ),
+    ];
+  }
+  const scope = catalog.permissions.find(
+    (permission) => permission.key === key,
+  )?.scope;
+  if (scope === undefined) return [];
+  const known = [
+    ...(catalog.scopes ?? []),
+    ...(project.manifest?.rls?.scopes.map((entry) => entry.name) ?? []),
+    "tenant",
+    "team",
+  ];
+  return known.includes(scope) ? [resolve(scope)] : [];
+}
+
+/**
  * Why a policy's helper schema or scope can't work with PermDock's
  * manifest and catalog: a schema other than `rls.schema`, a scope the
  * manifest doesn't declare, or a key the catalog declares at another scope.
@@ -158,16 +193,11 @@ function placementProblems(
     );
     return problems;
   }
-  const declared = catalog.permissions.find(
-    (permission) => permission.key === call.key,
-  )?.scope;
-  if (declared === undefined) return problems;
-  const resolved = resolveManifestScope(project.manifest, declared) ?? declared;
-  if (resolved !== call.scope) {
-    problems.push(
-      `${where} checks "${call.key}" at scope "${call.scope}", but ${project.catalogPath} declares it at "${resolved}", so PermDock's helpers never grant it there. Use scope "${resolved}".`,
-    );
-  }
+  const declared = tenancyScopes(project, catalog, call.key);
+  if (declared.length === 0 || declared.includes(call.scope)) return problems;
+  problems.push(
+    `${where} checks "${call.key}" at scope "${call.scope}", but ${project.catalogPath} grants it at ${declared.map((scope) => `"${scope}"`).join(", ")}, so PermDock's helpers never grant it there. Use scope "${declared[0]}".`,
+  );
   return problems;
 }
 

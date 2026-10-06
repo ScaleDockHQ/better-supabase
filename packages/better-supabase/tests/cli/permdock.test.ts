@@ -67,6 +67,26 @@ describe("PermDock manifest", () => {
     ).toThrow(/rls\.mode "edge" is not supported/);
   });
 
+  it("reads the tenancy scopes of grants and the catalog's scope names", () => {
+    const catalog = parseCatalog({
+      version: 1,
+      permissions: [{ key: "a", scope: "a:read" }],
+      grants: [
+        { permission: "a", role: "admin", scope: "organization" },
+        { permission: "a" },
+        "bad",
+      ],
+      scopes: [{ name: "organization", key: "organization_id" }, { key: "x" }],
+    });
+    expect(catalog.grants).toEqual([
+      { permission: "a", scope: "organization" },
+    ]);
+    expect(catalog.scopes).toEqual(["organization"]);
+    expect(parseCatalog({ version: 1, permissions: [] })).toEqual({
+      permissions: [],
+    });
+  });
+
   it("keeps each catalog key's rowConditions flag, and drops one that isn't boolean", () => {
     const catalog = parseCatalog({
       version: 1,
