@@ -21,15 +21,19 @@ const entries = [
   "expo/index",
   "mcp/index",
   "mcp/sdk/index",
-  "jobs/index",
-  "orgs/index",
-  "notifications/index",
+  "blocks/jobs/index",
+  "blocks/outbox/index",
+  "blocks/organizations/index",
+  "blocks/notifications/index",
+  "blocks/notifications/react/index",
+  "blocks/notifications/react/server",
+  "blocks/webhooks/index",
+  "blocks/entitlements/index",
   "env/index",
   "list/index",
   "storage/index",
   "realtime/index",
   "events/index",
-  "webhooks/index",
   "openapi/index",
   "otel/index",
   "powersync/index",
@@ -45,6 +49,9 @@ const entries = [
 ];
 
 const src = resolve(import.meta.dirname, "src");
+
+const USE_CLIENT_MODULE =
+  /src\/(react\/(index|hooks|session)|blocks\/notifications\/react\/index)\.ts$/;
 
 /**
  * The subpath of a library entry (`src/sql/index.ts` is `sql`), or undefined
@@ -69,8 +76,7 @@ const library = defineConfig({
   // so their directive survives in the entry chunks.
   treeshake: {
     moduleSideEffects: (id) =>
-      /src\/react\/(index|hooks|session|notifications)\.ts$/.test(id) ||
-      !id.startsWith(src),
+      USE_CLIENT_MODULE.test(id) || !id.startsWith(src),
   },
   plugins: [
     {
@@ -103,9 +109,7 @@ const library = defineConfig({
       // Rolldown keeps "use client" on the react entry chunks; tests/bundle asserts it.
       if (
         log.code === "MODULE_LEVEL_DIRECTIVE" &&
-        /src\/react\/(index|hooks|session|notifications)\.ts$/.test(
-          log.id ?? "",
-        )
+        USE_CLIENT_MODULE.test(log.id ?? "")
       )
         return;
       handler(level, log);
@@ -131,7 +135,7 @@ const library = defineConfig({
 // The CLI runs on Node and inlines its own packages (citty, c12, valibot and
 // the rest are devDependencies), so apps install no CLI dependency
 // (invariant 1). It loads the library from the package's own entries, so a
-// command and the app's config share one copy of `defineSchema` and the kit.
+// command and the app's config share one copy of `defineSchema` and the block registry.
 const cli = defineConfig({
   entry: { "cli/index": "src/cli/index.ts", "cli/bin": "src/cli/bin.ts" },
   platform: "node",

@@ -1,6 +1,6 @@
+import type { BlockEvent, BlockEventPattern } from "../core/block-events.ts";
 import type { MutationNotice } from "../core/events.ts";
 import type { EventHub } from "../core/events.ts";
-import type { KitEvent, KitEventPattern } from "../core/kit-events.ts";
 import type { MutationIntent } from "../core/plugin.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 
@@ -107,7 +107,7 @@ export interface ForwardOptions extends CloudEventOptions {
  * Sends a CloudEvent for every mutation to `sink`. Returns a function that
  * stops forwarding. Sends in flight are tracked on `betterSupabase.events`
  * (`settled()`), which the Next adapter hands to `after()` and the edge
- * entry to `waitUntil`. Use an outbox (SQL kit) when events must not be lost.
+ * entry to `waitUntil`. Use an outbox (SQL modules) when events must not be lost.
  */
 export function forwardMutations(
   betterSupabase: { readonly events: EventHub; readonly meta: SchemaMeta },
@@ -140,12 +140,12 @@ export function forwardMutations(
 }
 
 /**
- * A kit event as a CloudEvent: `dev.better-supabase.support.started` with
+ * A block event as a CloudEvent: `dev.better-supabase.support.started` with
  * the event data and the actor (`actorId`) as `data` and the tenant as
  * `partitionkey`.
  */
-export function kitCloudEvent(
-  event: KitEvent,
+export function blockCloudEvent(
+  event: BlockEvent,
   options: CloudEventOptions,
 ): CloudEvent {
   return {
@@ -163,25 +163,25 @@ export function kitCloudEvent(
   };
 }
 
-export interface ForwardKitOptions extends CloudEventOptions {
+export interface ForwardBlockOptions extends CloudEventOptions {
   /** Only forward events that match, e.g. `support.*`. Defaults to all. */
-  readonly types?: readonly KitEventPattern[];
-  /** Sink failures never fail the kit call. Defaults to the `Logger`. */
+  readonly types?: readonly BlockEventPattern[];
+  /** Sink failures never fail the block call. Defaults to the `Logger`. */
   readonly onError?: (error: unknown, events: readonly CloudEvent[]) => void;
 }
 
 /**
- * Sends a CloudEvent for every kit event (`support.*`, `org.*`, ...) to
+ * Sends a CloudEvent for every block event (`support.*`, `organization.*`, ...) to
  * `sink`. Returns a function that stops forwarding. Like
  * `forwardMutations`, sends are tracked on `betterSupabase.events`.
  */
-export function forwardKitEvents(
+export function forwardBlockEvents(
   betterSupabase: { readonly events: EventHub },
   sink: EventSink,
-  options: ForwardKitOptions,
+  options: ForwardBlockOptions,
 ): () => void {
   const types = options.types;
-  return betterSupabase.events.on("kit", (event) => {
+  return betterSupabase.events.on("block", (event) => {
     if (
       types &&
       !types.some((pattern) =>
@@ -191,7 +191,7 @@ export function forwardKitEvents(
       )
     )
       return;
-    const events = [kitCloudEvent(event, options)];
+    const events = [blockCloudEvent(event, options)];
     const report = (error: unknown) => {
       (
         options.onError ??
@@ -332,20 +332,20 @@ export function httpSink(
 }
 
 export {
-  KIT_ATTRIBUTES,
-  kitEventAttributes,
-  onKitEvent,
-} from "../core/kit-events.ts";
+  BLOCK_ATTRIBUTES,
+  blockEventAttributes,
+  onBlockEvent,
+} from "../core/block-events.ts";
 export type {
   InvitationEventData,
-  KitEvent,
-  KitEventMap,
-  KitEventMeta,
-  KitEventPattern,
-  KitEventsMatching,
-  KitEventType,
+  BlockEvent,
+  BlockEventMap,
+  BlockEventMeta,
+  BlockEventPattern,
+  BlockEventsMatching,
+  BlockEventType,
   NotificationEventData,
-  OrgEventData,
+  OrganizationEventData,
   SupportEventData,
   WebhookEventData,
-} from "../core/kit-events.ts";
+} from "../core/block-events.ts";

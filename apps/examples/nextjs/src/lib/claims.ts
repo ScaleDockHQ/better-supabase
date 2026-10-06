@@ -84,7 +84,7 @@ export const Claims = v.looseObject({
   ),
   // `better_supabase.membership_claims()` or PermDock's hook.
   memberships: Memberships,
-  // `better_supabase.feature_claims()` (entitlements kit module). Keys the
+  // `better_supabase.feature_claims()` (entitlements block module). Keys the
   // app doesn't sell yet are dropped instead of rejecting the token.
   features: v.fallback(
     v.optional(

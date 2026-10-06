@@ -1,5 +1,5 @@
-import type { KitContext, KitNames } from "../context.ts";
-import type { KitModuleDefinition } from "../kit.ts";
+import type { BlockModuleDefinition } from "../blocks.ts";
+import type { BlockContext, BlockNames } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -8,7 +8,7 @@ import {
   SERVICE_CALLER,
 } from "../shared.ts";
 
-const NAMES: KitNames = {
+const NAMES: BlockNames = {
   options: [
     "columnGrants",
     "extraColumns",
@@ -86,19 +86,21 @@ function column(where: string, name: string): string {
 }
 
 function record(
-  ctx: KitContext,
+  ctx: BlockContext,
   name: string,
 ): Readonly<Record<string, unknown>> | undefined {
   const value = ctx.option(name);
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new TypeError(`kits.profiles.options.${name} must be an object`);
+    throw new TypeError(`blocks.profiles.options.${name} must be an object`);
   }
   return Object.fromEntries(Object.entries(value));
 }
 
 /** `extraColumns`: column name to SQL type, created on a managed table. */
-function extraColumns(ctx: KitContext): readonly (readonly [string, string])[] {
+function extraColumns(
+  ctx: BlockContext,
+): readonly (readonly [string, string])[] {
   return Object.entries(record(ctx, "extraColumns") ?? {}).map(
     ([name, type]) => {
       if (
@@ -107,26 +109,26 @@ function extraColumns(ctx: KitContext): readonly (readonly [string, string])[] {
         type.includes("--")
       ) {
         throw new TypeError(
-          `kits.profiles.options.extraColumns.${name} must be a SQL type such as "text not null default 'en'"`,
+          `blocks.profiles.options.extraColumns.${name} must be a SQL type such as "text not null default 'en'"`,
         );
       }
-      return [column("kits.profiles.options.extraColumns", name), type];
+      return [column("blocks.profiles.options.extraColumns", name), type];
     },
   );
 }
 
 /** Column to the metadata keys it reads: `options.metadata` or the defaults. */
-function metadataColumns(ctx: KitContext): Map<string, string[]> {
+function metadataColumns(ctx: BlockContext): Map<string, string[]> {
   const map = new Map<string, string[]>();
   const configured = record(ctx, "metadata");
   if (configured) {
     for (const [key, target] of Object.entries(configured)) {
       if (typeof target !== "string") {
         throw new TypeError(
-          `kits.profiles.options.metadata.${key} must be a column name`,
+          `blocks.profiles.options.metadata.${key} must be a column name`,
         );
       }
-      const name = column("kits.profiles.options.metadata", target);
+      const name = column("blocks.profiles.options.metadata", target);
       map.set(name, [...(map.get(name) ?? []), key]);
     }
     return map;
@@ -145,7 +147,7 @@ const fromMeta = (keys: readonly string[]): string =>
     : `nullif(btrim(coalesce(${keys.map((key) => `meta ->> ${sqlString(key)}`).join(", ")})), '')`;
 
 /** Column to the SQL expression `sync_profile` inserts. */
-function syncValues(ctx: KitContext): Map<string, string> {
+function syncValues(ctx: BlockContext): Map<string, string> {
   const values = new Map<string, string>();
   const has = (logical: string) => ctx.has("profiles", logical);
   const col = (logical: string) => ctx.col("profiles", logical);
@@ -194,7 +196,7 @@ const PRIVATE_COLUMNS: ReadonlySet<string> = new Set([
   "onboarding",
 ]);
 
-/** Names no one gets as a username, from `kits.profiles.options.reservedUsernames`. */
+/** Names no one gets as a username, from `blocks.profiles.options.reservedUsernames`. */
 const RESERVED_USERNAMES = [
   "admin",
   "administrator",
@@ -215,7 +217,7 @@ const RESERVED_USERNAMES = [
   "www",
 ];
 
-function usernameRules(ctx: KitContext): {
+function usernameRules(ctx: BlockContext): {
   readonly min: number;
   readonly max: number;
   readonly reserved: string;
@@ -229,7 +231,7 @@ function usernameRules(ctx: KitContext): {
     max < min + 4
   ) {
     throw new TypeError(
-      "kits.profiles.options.usernameMinLength and usernameMaxLength must be whole numbers, with room for a 4-digit suffix",
+      "blocks.profiles.options.usernameMinLength and usernameMaxLength must be whole numbers, with room for a 4-digit suffix",
     );
   }
   const names = ctx
@@ -237,7 +239,7 @@ function usernameRules(ctx: KitContext): {
     .map((name) => {
       if (!/^[a-z0-9_]+$/.test(name)) {
         throw new TypeError(
-          `kits.profiles.options.reservedUsernames: "${name}" must be lowercase letters, digits or _`,
+          `blocks.profiles.options.reservedUsernames: "${name}" must be lowercase letters, digits or _`,
         );
       }
       return sqlString(name);
@@ -254,7 +256,7 @@ function usernameRules(ctx: KitContext): {
  * The username's length, characters and reserved names, as a check on the
  * managed table. Existing rows that break it leave the check unvalidated.
  */
-function usernameCheck(ctx: KitContext): string {
+function usernameCheck(ctx: BlockContext): string {
   const t = ctx.table("profiles");
   const u = ctx.col("profiles", "username");
   const { min, max, reserved } = usernameRules(ctx);
@@ -275,7 +277,7 @@ end;
 $$;`;
 }
 
-function table(ctx: KitContext): string {
+function table(ctx: BlockContext): string {
   if (!ctx.manages) return "";
   const t = ctx.table("profiles");
   const c = (logical: string) => ctx.col("profiles", logical);
@@ -354,7 +356,7 @@ grant all on ${t} to service_role;
 }
 
 /** Profiles of the caller and of everyone who shares a tenant with them. */
-function membersRead(ctx: KitContext): string {
+function membersRead(ctx: BlockContext): string {
   return `${ctx.col("profiles", "key")} in (select ${ctx.fn("profile_peer_ids")}())`;
 }
 
@@ -362,11 +364,11 @@ function membersRead(ctx: KitContext): string {
  * `profile_peer_ids()`: the caller and the users who share a tenant with
  * them. Security definer, so the memberships policies don't hide peers.
  */
-function peers(ctx: KitContext): string {
+function peers(ctx: BlockContext): string {
   if (ctx.text("readPolicy", "self") !== "members") return "";
   if (!ctx.installed("tenant")) {
     throw new TypeError(
-      "kits.profiles.options.readPolicy 'members' needs the tenant module",
+      "blocks.profiles.options.readPolicy 'members' needs the tenant module",
     );
   }
   const tenant = ctx.of("tenant");
@@ -393,7 +395,7 @@ grant execute on function ${ctx.fn("profile_peer_ids")}() to authenticated, serv
 }
 
 /** Column grants: users update only the columns in `options.updatable`. */
-function grants(ctx: KitContext): string {
+function grants(ctx: BlockContext): string {
   if (!ctx.flag("columnGrants", ctx.manages)) return "";
   const defaults = [
     "fullName",
@@ -411,18 +413,18 @@ function grants(ctx: KitContext): string {
       ? [...defaults, ...extraColumns(ctx).map(([name]) => name)]
       : ctx
           .list("updatable", [])
-          .map((name) => column("kits.profiles.options.updatable", name));
+          .map((name) => column("blocks.profiles.options.updatable", name));
   if (ctx.has("profiles", "updatedAt"))
     columns.push(ctx.col("profiles", "updatedAt"));
   const t = ctx.table("profiles");
   return `
--- Users update only these columns; the rest go through the kit's functions.
+-- Users update only these columns; the rest go through the block's functions.
 revoke update on ${t} from authenticated;
 ${columns.length > 0 ? `grant update (${[...new Set(columns)].join(", ")}) on ${t} to authenticated;` : ""}`;
 }
 
 /** Rejects changes to service-owned columns from the API roles. */
-function guard(ctx: KitContext): string {
+function guard(ctx: BlockContext): string {
   const defaults = [
     "email",
     "disabledAt",
@@ -437,7 +439,9 @@ function guard(ctx: KitContext): string {
       ? defaults
       : ctx
           .list("serviceColumns", [])
-          .map((name) => column("kits.profiles.options.serviceColumns", name));
+          .map((name) =>
+            column("blocks.profiles.options.serviceColumns", name),
+          );
   const t = ctx.table("profiles");
   const trigger = ctx.trigger("profile_guard");
   if (columns.length === 0) {
@@ -472,7 +476,7 @@ create trigger ${trigger} before update on ${t}
   for each row execute function ${ctx.fn("guard_profile")}();`;
 }
 
-function functions(ctx: KitContext): string {
+function functions(ctx: BlockContext): string {
   const t = ctx.table("profiles");
   const key = ctx.col("profiles", "key");
   const values = syncValues(ctx);
@@ -526,7 +530,7 @@ grant execute on function ${ctx.fn("allocate_username")}(text, uuid) to authenti
   return `${allocate}
 
 -- Creates the user's profile from auth.users when it has none: metadata
--- keys (kits.profiles.options.metadata), the email and a username. The
+-- keys (blocks.profiles.options.metadata), the email and a username. The
 -- after_profile_sync hook runs only for a profile it created.
 create or replace function ${ctx.fn("sync_profile")}(user_id uuid)
 returns boolean
@@ -585,7 +589,7 @@ grant execute on function ${ctx.fn("backfill_profiles")}() to service_role;`;
 }
 
 /** The auth.users triggers: sync on sign-up and the email mirror. */
-function authTriggers(ctx: KitContext): string {
+function authTriggers(ctx: BlockContext): string {
   const t = ctx.table("profiles");
   const key = ctx.col("profiles", "key");
   const sync = ctx.trigger("profile_sync");
@@ -642,12 +646,12 @@ create trigger ${mirror} after update of email on auth.users
   return parts.join("\n");
 }
 
-function build(ctx: KitContext): string {
+function build(ctx: BlockContext): string {
   if (ctx.mode === "custom") return "";
   const read = ctx.text("readPolicy", "self");
   if (read !== "self" && read !== "members") {
     throw new TypeError(
-      `kits.profiles.options.readPolicy must be "self" or "members", not "${read}"`,
+      `blocks.profiles.options.readPolicy must be "self" or "members", not "${read}"`,
     );
   }
   return [
@@ -659,7 +663,7 @@ function build(ctx: KitContext): string {
   ].join("\n");
 }
 
-export const PROFILES: KitModuleDefinition = {
+export const PROFILES: BlockModuleDefinition = {
   name: "profiles",
   title: "Profiles",
   description:

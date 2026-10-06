@@ -15,8 +15,4 @@ describe("react-server build", () => {
       "useLiveCount() runs in Client Components only",
     );
   });
-
-  it("keeps hasEntitlement usable on the server", () => {
-    expect(server.hasEntitlement).toBe(client.hasEntitlement);
-  });
 });

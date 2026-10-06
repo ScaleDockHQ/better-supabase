@@ -132,7 +132,7 @@ export interface SchemaMeta {
   readonly claims?: Partial<ClaimsMeta>;
 }
 
-/** The claim names the SQL kit, codegen and runtime defaults agree on. */
+/** The claim names the SQL modules, codegen and runtime defaults agree on. */
 export interface ClaimsMeta {
   /** Top-level claim holding the active tenant id. Defaults to `tenant_id`. */
   readonly tenant: string;
@@ -165,7 +165,7 @@ export interface PermdockBucketPolicy {
   };
   /** A PermDock scope such as `organization`, or `global`. */
   readonly scope: string;
-  /** 1-based path segment holding the scope id. Defaults to the `{orgId}` segment. */
+  /** 1-based path segment holding the scope id. Defaults to the `{organizationId}` segment. */
   readonly segment?: number;
   /**
    * Schema of the helpers `permdock rls generate` writes: PermDock's
@@ -181,7 +181,7 @@ export interface PermdockTopicPolicy {
   readonly send?: string;
   /** A PermDock scope such as `organization`, or `global`. */
   readonly scope: string;
-  /** 1-based `:`-separated topic segment holding the scope id. Defaults to the `{orgId}` segment. */
+  /** 1-based `:`-separated topic segment holding the scope id. Defaults to the `{organizationId}` segment. */
   readonly segment?: number;
   /** Schema of PermDock's helpers (`rls.schema`). Defaults to `permdock`. */
   readonly schema?: string;
@@ -190,7 +190,7 @@ export interface PermdockTopicPolicy {
 export type BucketPolicyName = "tenant" | "owner" | "public" | "none";
 
 /**
- * A policy through the SQL kit's [access contract](/docs/kits/access):
+ * A policy through the SQL modules' [access contract](/docs/blocks/access):
  * `tenant_ids_with(permission)` for the tenant id in the path, or
  * `is_platform(permission)`. Works with every access model.
  */
@@ -206,7 +206,7 @@ export interface AccessBucketPolicy {
   };
   /** `tenant` (default) checks the path's tenant segment; `platform` checks platform permissions. */
   readonly scope?: "tenant" | "platform";
-  /** 1-based path segment holding the tenant id. Defaults to the `{orgId}` segment. */
+  /** 1-based path segment holding the tenant id. Defaults to the `{organizationId}` segment. */
   readonly segment?: number;
 }
 

@@ -1,5 +1,8 @@
 import { EventHub } from "better-supabase";
-import { createOrgs, sqlTransport } from "better-supabase/orgs";
+import {
+  createOrganizations,
+  sqlTransport,
+} from "better-supabase/blocks/organizations";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -22,12 +25,15 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
     await withCentraKit(pool, async (s) => {
       const events = new EventHub();
       const seen: string[] = [];
-      events.on("kit", (event) => seen.push(event.type));
-      const orgs = createOrgs({ transport: sqlTransport(s.sql), events });
-      const roleOf = (org: string, user: string) =>
+      events.on("block", (event) => seen.push(event.type));
+      const organizations = createOrganizations({
+        transport: sqlTransport(s.sql),
+        events,
+      });
+      const roleOf = (organization: string, user: string) =>
         s.value<string | null>(
           "(select role_id::text from centrakit.organization_users where organization_id = $1 and user_id = $2)",
-          [org, user],
+          [organization, user],
         );
 
       await s.as("service");
@@ -41,7 +47,7 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
       ).toEqual([{ display_name: "owner Tester" }]);
 
       await s.as("owner");
-      const { id: org } = await orgs
+      const { id: organization } = await organizations
         .create({
           name: "Acme",
           slug: `acme-${USERS.owner.slice(0, 8)}`,
@@ -49,31 +55,33 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
           default_currency: "USD",
         })
         .orThrow();
-      expect(await roleOf(org, USERS.owner)).toBe(ROLES.owner);
+      expect(await roleOf(organization, USERS.owner)).toBe(ROLES.owner);
       expect(
         await s.rows(
           "select website, default_currency from centrakit.organizations where id = $1",
-          [org],
+          [organization],
         ),
       ).toEqual([{ website: "https://acme.test", default_currency: "USD" }]);
       expect(
         await s.value(
           "(select count(*)::int from centrakit.workflow_runs where organization_id = $1)",
-          [org],
+          [organization],
         ),
       ).toBe(1);
       expect(
         await s.rows(
           "select kind, source from centrakit.workflow_events where organization_id = $1",
-          [org],
+          [organization],
         ),
-      ).toEqual([{ kind: "org.created", source: "domain" }]);
+      ).toEqual([{ kind: "organization.created", source: "domain" }]);
       expect(
-        (await orgs.create({ name: "App", slug: "app" })).error,
-      ).toMatchObject({ hint: "ORG_SLUG_RESERVED" });
+        (await organizations.create({ name: "App", slug: "app" })).error,
+      ).toMatchObject({ hint: "ORGANIZATION_SLUG_RESERVED" });
 
       const invite = async (who: "admin" | "member", role: string) =>
-        orgs.invite({ organizationId: org, email: email(who), role }).orThrow();
+        organizations
+          .invite({ organizationId: organization, email: email(who), role })
+          .orThrow();
       const adminInvite = await invite("admin", "admin");
       expect(
         await s.value(
@@ -83,19 +91,21 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
       ).toBe(ROLES.admin);
       const memberInvite = await invite("member", ROLES.member);
       await s.as("admin");
-      await orgs.acceptInvitation(adminInvite.token).orThrow();
+      await organizations.acceptInvitation(adminInvite.token).orThrow();
       await s.as("member");
-      await orgs.acceptInvitation(memberInvite.token).orThrow();
-      expect(await roleOf(org, USERS.member)).toBe(ROLES.member);
+      await organizations.acceptInvitation(memberInvite.token).orThrow();
+      expect(await roleOf(organization, USERS.member)).toBe(ROLES.member);
 
       // The member's permissions come from the catalog, never from the role name.
-      expect((await orgs.update(org, { name: "Mine" })).error).toMatchObject({
-        hint: "ORG_FORBIDDEN",
+      expect(
+        (await organizations.update(organization, { name: "Mine" })).error,
+      ).toMatchObject({
+        hint: "ORGANIZATION_FORBIDDEN",
       });
       expect(
         await s.value(
           "better_supabase.can('organization', $1, 'notifications.send')",
-          [org],
+          [organization],
         ),
       ).toBe(true);
 
@@ -104,24 +114,24 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
       expect(
         await s.value(
           "better_supabase.can('organization', $1, 'organization.members.invite')",
-          [org],
+          [organization],
         ),
       ).toBe(true);
       await s.client.query(
         `insert into centrakit.organization_permission_overrides (organization_id, role_id, permission_id, granted)
          select $1, $2, id, false from centrakit.permissions where key = 'organization.members.invite'`,
-        [org, ROLES.admin],
+        [organization, ROLES.admin],
       );
       expect(
         await s.value(
           "better_supabase.can('organization', $1, 'organization.members.invite')",
-          [org],
+          [organization],
         ),
       ).toBe(false);
       expect(
         (
-          await orgs.invite({
-            organizationId: org,
+          await organizations.invite({
+            organizationId: organization,
             email: "late@centrakit.test",
             role: "member",
           })
@@ -130,43 +140,45 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
 
       // The active organization lives in profiles.active_organization_id.
       await s.as("member");
-      await orgs.switch(org).orThrow();
+      await organizations.switch(organization).orThrow();
       expect(
         await s.value(
           "(select active_organization_id::text from centrakit.profiles where user_id = $1)",
           [USERS.member],
         ),
-      ).toBe(org);
+      ).toBe(organization);
       expect(await s.value("better_supabase.current_tenant_id()::text")).toBe(
-        org,
+        organization,
       );
 
       await s.as("owner");
-      await orgs.transferOwnership(org, USERS.admin).orThrow();
-      expect(await roleOf(org, USERS.admin)).toBe(ROLES.owner);
-      expect(await roleOf(org, USERS.owner)).toBe(ROLES.admin);
+      await organizations
+        .transferOwnership(organization, USERS.admin)
+        .orThrow();
+      expect(await roleOf(organization, USERS.admin)).toBe(ROLES.owner);
+      expect(await roleOf(organization, USERS.owner)).toBe(ROLES.admin);
       await s.client.query("set constraints all immediate");
 
       // Disabling the organization takes every permission away.
       await s.client.query(
         "update centrakit.organizations set disabled_at = now() where id = $1",
-        [org],
+        [organization],
       );
       await s.as("admin");
       expect(
         await s.value(
           "better_supabase.can('organization', $1, 'organization.settings.manage')",
-          [org],
+          [organization],
         ),
       ).toBe(false);
 
       expect(seen).toEqual(
         expect.arrayContaining([
-          "org.created",
+          "organization.created",
           "invitation.created",
-          "org.member_added",
-          "org.switched",
-          "org.ownership_transferred",
+          "organization.member_added",
+          "organization.switched",
+          "organization.ownership_transferred",
         ]),
       );
     });

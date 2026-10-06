@@ -19,8 +19,11 @@ const documents = defineBucket({
   path: "{userId}/{file}",
   policy: "owner",
 });
-const shared = defineBucket({ id: "shared", path: "{orgId}/{userId}/{file}" });
-const logos = defineBucket({ id: "logos", path: "{orgId}/{file}" });
+const shared = defineBucket({
+  id: "shared",
+  path: "{organizationId}/{userId}/{file}",
+});
+const logos = defineBucket({ id: "logos", path: "{organizationId}/{file}" });
 const avatars = defineBucket({
   id: "avatars",
   path: "people/{memberId}/{file}",

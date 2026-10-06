@@ -22,7 +22,7 @@ const isGenerator = (value: unknown): boolean =>
  * checks the leaves a typo or an old value breaks; nested objects the
  * library reads loosely stay loose.
  */
-const kitModuleEntries = {
+const blockModuleEntries = {
   mode: v.optional(v.picklist(["managed", "adopt", "custom"])),
   schema: v.optional(v.string()),
   tables: v.optional(v.record(v.string(), v.nullable(v.string()))),
@@ -41,8 +41,8 @@ const kitModuleEntries = {
   events: v.optional(v.boolean()),
 };
 
-const accessKit = v.strictObject({
-  ...kitModuleEntries,
+const accessBlock = v.strictObject({
+  ...blockModuleEntries,
   model: v.optional(v.picklist(["roles", "catalog", "permdock", "custom"])),
   roles: v.optional(v.record(v.string(), strings)),
   functions: v.optional(
@@ -203,13 +203,13 @@ const ConfigSchema = v.strictObject({
       dir: v.optional(v.string()),
       prefix: v.optional(v.string()),
       testsDir: v.optional(v.string()),
-      kit: v.optional(strings),
+      modules: v.optional(strings),
     }),
   ),
-  kits: v.optional(
+  blocks: v.optional(
     v.objectWithRest(
-      { access: v.optional(accessKit) },
-      v.strictObject(kitModuleEntries),
+      { access: v.optional(accessBlock) },
+      v.strictObject(blockModuleEntries),
     ),
   ),
   seed: v.optional(

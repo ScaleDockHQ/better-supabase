@@ -51,7 +51,9 @@ const alice = await asUser(
   { postgres },
 );
 expect(await alice.db.customers.count().orThrow()).toBe(1);
-expect(await alice.db.customers.findById(OTHER_ORG_CUSTOMER)).toMatchObject({
+expect(
+  await alice.db.customers.findById(OTHER_ORGANIZATION_CUSTOMER),
+).toMatchObject({
   ok: false,
 });
 ```

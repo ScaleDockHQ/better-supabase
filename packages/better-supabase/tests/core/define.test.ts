@@ -200,10 +200,10 @@ describe("$run", () => {
   it("rejects a read-set spec that still holds placeholders", async () => {
     const set = defineReadSet(
       betterSupabase,
-      "by_org",
-      { params: { orgId: "uuid" } },
+      "by_organization",
+      { params: { organizationId: "uuid" } },
       (s, p) => ({
-        tags: s.tags.count({ where: { organizationId: p.orgId } }),
+        tags: s.tags.count({ where: { organizationId: p.organizationId } }),
       }),
     );
     const result = await betterSupabase.connect(fake()).$run(set.specs.tags);
@@ -294,16 +294,16 @@ describe("$many with a read set", () => {
   const set = defineReadSet(
     betterSupabase,
     "chrome",
-    { params: { orgId: "uuid" } },
+    { params: { organizationId: "uuid" } },
     (s, p) => ({
       tags: s.tags.findMany({
         select: ["id"],
-        where: { organizationId: p.orgId },
+        where: { organizationId: p.organizationId },
       }),
-      tag: s.tags.findById(p.orgId, { select: ["id"] }),
+      tag: s.tags.findById(p.organizationId, { select: ["id"] }),
     }),
   );
-  const params = { orgId: "o1" };
+  const params = { organizationId: "o1" };
 
   it("calls the read-set function with the parameters", async () => {
     const executor = fake({

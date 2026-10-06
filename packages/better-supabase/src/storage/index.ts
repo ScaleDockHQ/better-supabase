@@ -14,10 +14,10 @@ export type {
 export {
   avatarBucket,
   IMAGE_TYPES,
-  orgLogoBucket,
+  organizationLogoBucket,
   type AvatarBucketOptions,
   type ImageBucketOptions,
-  type OrgLogoBucketOptions,
+  type OrganizationLogoBucketOptions,
 } from "./presets.ts";
 export type {
   ActualBucket,

@@ -36,7 +36,7 @@ const catalog = (present: { buckets?: boolean } = {}) =>
         },
         {
           table_id: 10,
-          name: "notes_org_fkey",
+          name: "notes_organization_fkey",
           type: "f",
           columns: ["org_id"],
           on_delete: "c",
@@ -93,7 +93,7 @@ const catalog = (present: { buckets?: boolean } = {}) =>
         },
         {
           table_id: 10,
-          name: "notes_org_idx",
+          name: "notes_organization_idx",
           unique: false,
           primary: false,
           partial: false,
@@ -271,7 +271,11 @@ describe("readExtras", () => {
         { name: "notes_lower_title", columns: ["title"] },
       ],
       foreignKeys: [
-        { name: "notes_org_fkey", onDelete: "cascade", onUpdate: "no action" },
+        {
+          name: "notes_organization_fkey",
+          onDelete: "cascade",
+          onUpdate: "no action",
+        },
       ],
       checks: [
         { name: "notes_title_check", definition: "CHECK (length(title) > 0)" },
@@ -308,7 +312,7 @@ describe("readExtras", () => {
           predicate: "(deleted_at IS NULL)",
         },
         {
-          name: "notes_org_idx",
+          name: "notes_organization_idx",
           columns: ["org_id"],
           unique: false,
           primary: false,

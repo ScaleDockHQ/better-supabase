@@ -15,8 +15,8 @@ import {
   type SupportSession,
   type SupportSessionStore,
 } from "../auth/support.ts";
+import { emitBlockEvent, type SupportEventData } from "../core/block-events.ts";
 import { type DbError, dbError, mapDbError } from "../core/errors.ts";
-import { emitKitEvent, type SupportEventData } from "../core/kit-events.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { fromPgError } from "../postgres/executor.ts";
@@ -51,7 +51,7 @@ export interface SupportOptions {
   /**
    * Whether `admin` may view the app as the target. A throw or rejection
    * counts as a deny. Defaults to allowing, so the store decides: the SQL
-   * store checks `is_platform(kits.support-sessions.permissions.start)`.
+   * store checks `is_platform(blocks.support-sessions.permissions.start)`.
    */
   readonly authorize?: (
     input: SupportAuthorizeInput,
@@ -172,7 +172,7 @@ function createSupport(
     type: "support.started" | "support.ended" | "support.denied",
     data: SupportEventData,
   ): void => {
-    emitKitEvent(events, type, data, {
+    emitBlockEvent(events, type, data, {
       actorId: data.adminId,
       ...(data.sessionId
         ? { subject: `support_sessions/${data.sessionId}` }

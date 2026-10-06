@@ -16,14 +16,14 @@
   },
   "buckets": {
     "customerLogos": {
-      "path": "{orgId}/{customerId}/logo/{version}.webp",
+      "path": "{organizationId}/{customerId}/logo/{version}.webp",
       "policy": "tenant",
       "fileSizeLimit": "5MiB",
       "allowedMimeTypes": ["image/png", "image/jpeg", "image/webp"]
     }
   },
   "topics": {
-    "notifications": "org:{orgId}:notifications:{userId}",
-    "customers": "org:{orgId}:customers"
+    "notifications": "organization:{organizationId}:notifications:{userId}",
+    "customers": "organization:{organizationId}:customers"
   }
 }

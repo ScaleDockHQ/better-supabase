@@ -120,13 +120,19 @@ describe("per-definition state", () => {
   const claims = { sub: "u1", org_id: ACME, app_metadata: { tenant: ORG } };
 
   it("resolves each definition's tenant from its own claim paths", () => {
-    const byOrg = defineSupabase(schema).use(tenant({ claim: "org_id" }));
+    const byOrganization = defineSupabase(schema).use(
+      tenant({ claim: "org_id" }),
+    );
     const byMetadata = defineSupabase(schema).use(
       tenant({ claim: "app_metadata.tenant" }),
     );
-    expect(byOrg.connect(echo(), { claims }).$context.tenant).toBe(ACME);
+    expect(byOrganization.connect(echo(), { claims }).$context.tenant).toBe(
+      ACME,
+    );
     expect(byMetadata.connect(echo(), { claims }).$context.tenant).toBe(ORG);
-    expect(byOrg.connect(echo(), { claims }).$context.tenant).toBe(ACME);
+    expect(byOrganization.connect(echo(), { claims }).$context.tenant).toBe(
+      ACME,
+    );
   });
 
   it("derives the context again for $with and drops it for $withoutPlugins", () => {

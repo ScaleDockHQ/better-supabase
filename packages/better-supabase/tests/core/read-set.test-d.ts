@@ -16,17 +16,17 @@ const db = betterSupabase.connect(client);
 const chrome = defineReadSet(
   betterSupabase,
   "app_chrome",
-  { params: { orgId: "uuid", kinds: "text[]", limit: "int4" } },
+  { params: { organizationId: "uuid", kinds: "text[]", limit: "int4" } },
   (s, p) => {
-    expectTypeOf(p.orgId).toEqualTypeOf<string>();
+    expectTypeOf(p.organizationId).toEqualTypeOf<string>();
     expectTypeOf(p.kinds).toEqualTypeOf<readonly string[]>();
     expectTypeOf(p.limit).toEqualTypeOf<number>();
     return {
       names: s.customers.findMany({
         select: ["id", "name"],
-        where: { organizationId: p.orgId },
+        where: { organizationId: p.organizationId },
       }),
-      calls: s.notes.count({ where: { organizationId: p.orgId } }),
+      calls: s.notes.count({ where: { organizationId: p.organizationId } }),
     };
   },
 );
@@ -34,7 +34,7 @@ const chrome = defineReadSet(
 describe("db.$many", () => {
   it("types a read set result by key", () => {
     expectTypeOf(
-      db.$many(chrome, { orgId: "o", kinds: ["call"], limit: 5 }),
+      db.$many(chrome, { organizationId: "o", kinds: ["call"], limit: 5 }),
     ).toEqualTypeOf<
       AsyncResult<{
         readonly names: { id: string; name: string }[];
@@ -45,9 +45,9 @@ describe("db.$many", () => {
 
   it("requires every parameter with its type", () => {
     // @ts-expect-error kinds is missing
-    void db.$many(chrome, { orgId: "o", limit: 5 });
+    void db.$many(chrome, { organizationId: "o", limit: 5 });
     // @ts-expect-error limit is a number
-    void db.$many(chrome, { orgId: "o", kinds: [], limit: "5" });
+    void db.$many(chrome, { organizationId: "o", kinds: [], limit: "5" });
   });
 
   it("returns a tuple for ad-hoc specs", () => {

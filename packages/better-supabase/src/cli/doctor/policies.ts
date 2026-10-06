@@ -22,7 +22,7 @@ const AUTH_ROLE = /\bauth"?\s*\.\s*"?role"?\s*\(\s*\)/i;
 
 /** A check of who is calling: the JWT, the user id, or the session role. */
 const CALLER_CHECK =
-  /\bauth"?\s*\.\s*"?(?:uid|jwt)"?\s*\(|request\.jwt|\b(?:current_user|session_user|current_role)\b|has_org_role|member_org_ids/i;
+  /\bauth"?\s*\.\s*"?(?:uid|jwt)"?\s*\(|request\.jwt|\b(?:current_user|session_user|current_role)\b|has_organization_role|member_organization_ids/i;
 
 const USER_METADATA = /\buser_metadata\b/i;
 

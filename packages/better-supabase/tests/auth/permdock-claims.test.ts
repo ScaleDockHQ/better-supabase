@@ -149,11 +149,14 @@ describe("PermDock claims through betterSupabase.claims()", () => {
   });
 
   it("keeps hasEntitlement working on the extended claims", async () => {
-    const org = claims.full.tenant_id;
+    const organization = claims.full.tenant_id;
     const session = toSession(
-      await sessionFor({ ...claims.full, features: { [org]: ["exports"] } }),
+      await sessionFor({
+        ...claims.full,
+        features: { [organization]: ["exports"] },
+      }),
     );
-    expect(hasEntitlement(session, org, "exports")).toBe(true);
-    expect(hasEntitlement(session, org, "sso")).toBe(false);
+    expect(hasEntitlement(session, organization, "exports")).toBe(true);
+    expect(hasEntitlement(session, organization, "sso")).toBe(false);
   });
 });

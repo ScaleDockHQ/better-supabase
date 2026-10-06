@@ -385,7 +385,7 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
   ): AsyncResult<{ -readonly [K in keyof S]: InferResult<S[K]> }>;
   /**
    * The `k` rows nearest to `vector`, nearest first, through the
-   * `search_<table>` function of the `vector-search` SQL kit module. RLS
+   * `search_<table>` function of the `vector-search` SQL module. RLS
    * applies inside the search; `where` filters the `k` rows it returns.
    */
   $search<T extends TableKey<M>, const A extends SearchArgs<M, T>>(

@@ -42,9 +42,12 @@ const documents = defineBucket({
 // `{userId}` is not the first segment: the whole bucket is listed and filtered.
 const shared = defineBucket({
   id: "bs-it-shared",
-  path: "{orgId}/{userId}/{file}",
+  path: "{organizationId}/{userId}/{file}",
 });
-const logos = defineBucket({ id: "bs-it-logos", path: "{orgId}/{file}" });
+const logos = defineBucket({
+  id: "bs-it-logos",
+  path: "{organizationId}/{file}",
+});
 
 describe.skipIf(!(await reachable()))("deleteAccount", () => {
   const service = createClient(url, secretKey, {
@@ -83,12 +86,15 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
       createUser("keep-me"),
     ]);
     const docs = documents.connect(service);
-    const org = shared.connect(service);
+    const organization = shared.connect(service);
     for (const owner of [userId, otherId]) {
       for (const name of ["a.txt", "b.txt"])
         await docs.upload({ userId: owner, file: name }, file(name)).orThrow();
-      await org
-        .upload({ orgId: ORG, userId: owner, file: "c.txt" }, file("c"))
+      await organization
+        .upload(
+          { organizationId: ORG, userId: owner, file: "c.txt" },
+          file("c"),
+        )
         .orThrow();
     }
     await pool.query(
@@ -146,7 +152,10 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
     expect(await documents.connect(service).list({ userId }).orThrow()).toEqual(
       [],
     );
-    const kept = await shared.connect(service).list({ orgId: ORG }).orThrow();
+    const kept = await shared
+      .connect(service)
+      .list({ organizationId: ORG })
+      .orThrow();
     expect(kept.map((object) => object.path)).toEqual([
       `${ORG}/${otherId}/c.txt`,
     ]);

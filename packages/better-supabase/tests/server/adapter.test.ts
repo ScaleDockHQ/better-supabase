@@ -264,11 +264,11 @@ describe("testAdapter", () => {
           ...server,
           waitUntil,
           allow,
-          name: "kit",
+          name: "block",
           version: "1.0.0",
         }).tool({
           name: "run",
-          description: "Runs the kit.",
+          description: "Runs the block.",
           run: (_a, ctx) => run(ctx),
         });
         return (request) =>

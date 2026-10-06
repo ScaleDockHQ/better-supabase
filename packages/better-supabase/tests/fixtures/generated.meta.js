@@ -26,10 +26,10 @@ export default {
     "search_notes": {"name":"search_notes","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"notes","returnsSet":true,"volatility":"stable"}
   },
   "buckets": {
-    "customerLogos": {"id":"customer-logos","public":true,"path":"{orgId}/{customerId}/logo/{version}.webp","policy":"tenant","fileSizeLimit":"5MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp"]}
+    "customerLogos": {"id":"customer-logos","public":true,"path":"{organizationId}/{customerId}/logo/{version}.webp","policy":"tenant","fileSizeLimit":"5MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp"]}
   },
   "topics": {
-    "notifications": "org:{orgId}:notifications:{userId}",
-    "customers": "org:{orgId}:customers"
+    "notifications": "organization:{organizationId}:notifications:{userId}",
+    "customers": "organization:{organizationId}:customers"
   }
 };

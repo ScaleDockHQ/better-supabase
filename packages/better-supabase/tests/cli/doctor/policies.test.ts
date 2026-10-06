@@ -17,7 +17,7 @@ import {
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { kitSnapshotFixture as fixture } from "../fixtures/library.ts";
+import { blockSnapshotFixture as fixture } from "../fixtures/library.ts";
 
 const base = await parseSnapshot(fixture);
 
@@ -149,7 +149,7 @@ describe("policy security rules", () => {
     const definer: ExtrasFunction = {
       schema: "public",
       name: "wipe",
-      signature: "org uuid",
+      signature: "organization uuid",
       language: "sql",
       volatility: "volatile",
       securityDefiner: true,
@@ -172,12 +172,13 @@ describe("policy security rules", () => {
       },
       extras: { ...base.extras, functions: [fn] },
     });
-    const open = "delete from public.notes where organization_id = org";
+    const open =
+      "delete from public.notes where organization_id = organization";
     expect(await run(context(withFunction(open)), "BS112")).toMatchObject([
       {
         target: "public.wipe",
         message: expect.stringContaining(
-          "revoke execute on function public.wipe(org uuid) from anon, authenticated;",
+          "revoke execute on function public.wipe(organization uuid) from anon, authenticated;",
         ),
       },
     ]);

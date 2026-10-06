@@ -88,7 +88,7 @@ describe.skipIf(!up)("request context on better-supabase", () => {
     return {
       userId: ctx.auth.kind === "user" ? ctx.auth.user.id : null,
       source: ctx.auth.kind === "user" ? ctx.auth.source : null,
-      orgs: [...new Set(customers.map((row) => row.organizationId))],
+      organizations: [...new Set(customers.map((row) => row.organizationId))],
     };
   });
   const cron = withCron(server, (_request, ctx) => ({ auth: ctx.auth }));
@@ -115,7 +115,7 @@ describe.skipIf(!up)("request context on better-supabase", () => {
     expect(await response.json()).toEqual({
       userId: a.id,
       source: "bearer",
-      orgs: [ACME],
+      organizations: [ACME],
     });
   });
 

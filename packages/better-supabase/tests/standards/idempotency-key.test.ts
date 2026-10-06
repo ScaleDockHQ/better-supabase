@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createIdempotency } from "../../src/jobs/index.ts";
+import { createIdempotency } from "../../src/blocks/jobs/index.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 
-/** An in-memory `better_supabase.begin_idempotent` with the SQL kit module's semantics. */
+/** An in-memory `better_supabase.begin_idempotent` with the SQL module's semantics. */
 function store() {
   const rows = new Map<
     string,

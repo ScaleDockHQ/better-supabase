@@ -1,5 +1,5 @@
--- CentraKit's own policies on the adopted tables, loaded after the kit. The
--- refactor swaps public.org_ids_with_permission for better_supabase.tenant_ids_with.
+-- CentraKit's own policies on the adopted tables, loaded after the block. The
+-- refactor swaps public.organization_ids_with_permission for better_supabase.tenant_ids_with.
 create policy webhook_destinations_select on centrakit.webhook_destinations
   for select to authenticated
   using (organization_id in (select better_supabase.tenant_ids_with('organization.webhooks.view')));

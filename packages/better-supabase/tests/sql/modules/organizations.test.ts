@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { KitsConfig } from "../../../src/config/kits.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody, resolveModules } from "../../../src/sql/kit.ts";
+import { moduleBody, resolveModules } from "../../../src/sql/blocks.ts";
 
-const CENTRAKIT: KitsConfig = {
+const CENTRAKIT: BlocksConfig = {
   access: { model: "catalog", platformClaim: "system_permissions" },
   tenant: {
     mode: "adopt",
@@ -33,7 +33,7 @@ const CENTRAKIT: KitsConfig = {
   },
 };
 
-const body = (kits: KitsConfig) => moduleBody("organizations", { kits })!;
+const body = (blocks: BlocksConfig) => moduleBody("organizations", { blocks })!;
 
 describe("organizations module", () => {
   it("owns its table and makes the creator the owner", () => {
@@ -42,10 +42,10 @@ describe("organizations module", () => {
       'create table if not exists "better_supabase"."organizations" (',
     );
     expect(sql).toContain(
-      'insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")\n  values (org, owner, \'owner\');',
+      'insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")\n  values (organization, owner, \'owner\');',
     );
     expect(sql).toContain(
-      'create constraint trigger "bs_org_owner" after update of "role", "organization_id" or delete',
+      'create constraint trigger "bs_organization_owner" after update of "role", "organization_id" or delete',
     );
     expect(sql).toMatch(
       /perform 1 from "better_supabase"\."organizations" o .* for update;/,
@@ -55,12 +55,12 @@ describe("organizations module", () => {
     expect(sql).toContain("memberships_organization_fkey");
     expect(sql).toContain("on delete cascade not valid;");
     expect(sql).toContain("deferrable initially deferred");
-    expect(sql).toContain("hint = 'ORG_ROLE_CEILING'");
+    expect(sql).toContain("hint = 'ORGANIZATION_ROLE_CEILING'");
     expect(sql).toContain(
       "perform set_config('better_supabase.trusted', 'on', true);",
     );
     expect(sql).toContain(
-      'delete from "better_supabase"."organizations" where "id" = org;',
+      'delete from "better_supabase"."organizations" where "id" = organization;',
     );
   });
 
@@ -95,7 +95,7 @@ describe("organizations module", () => {
       },
     });
     expect(soft).toContain('set "deleted_at" = now()');
-    expect(soft).not.toContain("bs_org_owner");
+    expect(soft).not.toContain("bs_organization_owner");
     expect(soft).toContain("guard_membership");
     expect(() =>
       body({ organizations: { options: { assignmentCeiling: false } } }),
@@ -115,8 +115,10 @@ describe("organizations module", () => {
 
   it("checks a create permission when one is configured", () => {
     expect(
-      body({ organizations: { permissions: { create: "orgs.create" } } }),
-    ).toContain("better_supabase.is_platform('orgs.create')");
+      body({
+        organizations: { permissions: { create: "organizations.create" } },
+      }),
+    ).toContain("better_supabase.is_platform('organizations.create')");
     expect(body({})).not.toContain("Not allowed to create an organization");
   });
 
@@ -125,7 +127,7 @@ describe("organizations module", () => {
     expect(names).toEqual(["updated-at", "tenant", "access", "organizations"]);
     expect(
       moduleBody("organizations", {
-        kits: { organizations: { mode: "custom" } },
+        blocks: { organizations: { mode: "custom" } },
       }),
     ).toBeUndefined();
   });

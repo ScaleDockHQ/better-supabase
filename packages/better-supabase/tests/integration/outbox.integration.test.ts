@@ -4,8 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { CloudEvent } from "../../src/events/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
-import { createOutbox } from "../../src/jobs/outbox.ts";
-import { renderKit } from "../../src/sql/kit.ts";
+import { createOutbox } from "../../src/blocks/outbox/index.ts";
+import { renderBlocks } from "../../src/sql/blocks.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -45,22 +45,22 @@ describe.skipIf(!live)("outbox", () => {
 
   beforeAll(async () => {
     const { rows } = await pool.query(
-      "select to_regclass('better_supabase.kit_modules') is not null and exists (select 1 from better_supabase.kit_modules where name = 'outbox') as present",
+      "select to_regclass('better_supabase.block_modules') is not null and exists (select 1 from better_supabase.block_modules where name = 'outbox') as present",
     );
     registered = Boolean(rows[0]?.present);
     const layout = {
-      kits: { outbox: { schema: SCHEMA, idType: "text" as const } },
+      blocks: { outbox: { schema: SCHEMA, idType: "text" as const } },
     };
     const client = await pool.connect();
     try {
       await client.query("begin");
-      for (const file of renderKit(["outbox"], layout))
+      for (const file of renderBlocks(["outbox"], layout))
         await client.query(file.contents);
       await client.query(
-        `create table ${SCHEMA}.widgets (id bigint primary key, org text, name text)`,
+        `create table ${SCHEMA}.widgets (id bigint primary key, organization text, name text)`,
       );
       await client.query(
-        `select ${SCHEMA}.track_events('${SCHEMA}.widgets', 'widget', 'org')`,
+        `select ${SCHEMA}.track_events('${SCHEMA}.widgets', 'widget', 'organization')`,
       );
       await client.query("commit");
     } catch (error) {
@@ -75,7 +75,7 @@ describe.skipIf(!live)("outbox", () => {
     await pool.query(`drop schema if exists ${SCHEMA} cascade`);
     if (!registered) {
       await pool.query(
-        "delete from better_supabase.kit_modules where name = 'outbox'",
+        "delete from better_supabase.block_modules where name = 'outbox'",
       );
     }
     await pool.end();
@@ -83,7 +83,8 @@ describe.skipIf(!live)("outbox", () => {
 
   it("holds back events of open transactions so none is skipped", async () => {
     expect(
-      (await outbox.register("crm", { types: ["org.*", "widget.*"] })).ok,
+      (await outbox.register("crm", { types: ["organization.*", "widget.*"] }))
+        .ok,
     ).toBe(true);
     const slow = await pool.connect();
     const sent: CloudEvent[] = [];
@@ -93,9 +94,13 @@ describe.skipIf(!live)("outbox", () => {
     try {
       await slow.query("begin");
       await slow.query(
-        `select ${SCHEMA}.emit_event('org.slow', '{}'::jsonb, 'organizations/1')`,
+        `select ${SCHEMA}.emit_event('organization.slow', '{}'::jsonb, 'organizations/1')`,
       );
-      const fast = await outbox.emit("org.fast", { n: 1 }, { tenant: "t1" });
+      const fast = await outbox.emit(
+        "organization.fast",
+        { n: 1 },
+        { tenant: "t1" },
+      );
       expect(fast.ok).toBe(true);
       expect((await outbox.emit("other.type")).ok).toBe(true);
 
@@ -106,8 +111,8 @@ describe.skipIf(!live)("outbox", () => {
     }
     expect(await outbox.relay("crm", sink)).toEqual({ delivered: 2 });
     expect(sent.map((event) => event.type)).toEqual([
-      "dev.better-supabase.org.slow",
-      "dev.better-supabase.org.fast",
+      "dev.better-supabase.organization.slow",
+      "dev.better-supabase.organization.fast",
     ]);
     expect(sent[1]).toMatchObject({ partitionkey: "t1", data: { n: 1 } });
     expect(await outbox.relay("crm", sink)).toEqual({ delivered: 0 });

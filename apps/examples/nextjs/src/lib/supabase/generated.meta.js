@@ -26,7 +26,7 @@ export default {
     "search_notes": {"name":"search_notes","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"notes","returnsSet":true,"volatility":"stable","result":{"table":"notes"}}
   },
   "buckets": {
-    "customerLogos": {"id":"customer-logos","public":true,"path":"{orgId}/{customerId}/logo/{version}.webp","policy":"tenant","fileSizeLimit":"5MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp"]}
+    "customerLogos": {"id":"customer-logos","public":true,"path":"{organizationId}/{customerId}/logo/{version}.webp","policy":"tenant","fileSizeLimit":"5MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp"]}
   },
   "realtime": {
     "notifications": {"tenant":"organizationId"}

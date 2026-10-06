@@ -1,17 +1,21 @@
 import type { ResolvedConfig } from "../config/config.ts";
-import type { KitAccessPermdock, KitLayout, KitPermdock } from "./kit.ts";
+import type {
+  BlockAccessPermdock,
+  BlockLayout,
+  BlockPermdock,
+} from "./blocks.ts";
 
 import { resolveJsonSchema } from "../config/config.ts";
 import { VERSION } from "../core/version.ts";
 
-/** Where and how `sql add` writes kit files for this config. */
-export function kitLayout(
+/** Where and how `sql add` writes block files for this config. */
+export function blockLayout(
   config: ResolvedConfig,
   testsDir: string = config.sql.testsDir,
-  readSets: KitLayout["readSets"] = [],
-  permdock?: KitPermdock,
-  accessPermdock?: KitAccessPermdock,
-): KitLayout {
+  readSets: BlockLayout["readSets"] = [],
+  permdock?: BlockPermdock,
+  accessPermdock?: BlockAccessPermdock,
+): BlockLayout {
   return {
     ...(permdock ? { permdock } : {}),
     ...(accessPermdock ? { accessPermdock } : {}),
@@ -24,7 +28,7 @@ export function kitLayout(
     realtimeGlobal: config.realtime.global,
     entitlements: config.entitlements,
     claims: config.claims,
-    kits: config.kits,
+    blocks: config.blocks,
     vectorSearch: config.vectorSearch,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
       { table, role: "anon" as const, privileges: roles.anon },

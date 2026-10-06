@@ -41,9 +41,9 @@ export const features: readonly Feature[] = [
     href: "/docs/plugins",
   },
   {
-    title: "Kits",
+    title: "Blocks",
     body: "List pages, storage paths, realtime topics, background jobs and SQL modules you can sync into migrations.",
-    href: "/docs/kits/list",
+    href: "/docs/platform/list",
   },
 ];
 

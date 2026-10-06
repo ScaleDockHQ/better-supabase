@@ -1,22 +1,22 @@
 import type { ClaimsMeta } from "../schema/types.ts";
 
 import {
-  type KitMode,
-  type KitsConfig,
-  type ResolvedKitModule,
-  resolveKitModule,
-} from "../config/kits.ts";
+  type BlockMode,
+  type BlocksConfig,
+  type ResolvedBlockModule,
+  resolveBlockModule,
+} from "../config/blocks.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 
-/** The scope id types kit modules render. */
-export const KIT_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
-export type KitIdType = (typeof KIT_ID_TYPES)[number];
+/** The scope id types block modules render. */
+export const BLOCK_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
+export type BlockIdType = (typeof BLOCK_ID_TYPES)[number];
 
-export const isKitIdType = (value: string): value is KitIdType =>
-  KIT_ID_TYPES.some((type) => type === value);
+export const isBlockIdType = (value: string): value is BlockIdType =>
+  BLOCK_ID_TYPES.some((type) => type === value);
 
-const ID_TYPE_ALIASES: Readonly<Record<string, KitIdType>> = {
+const ID_TYPE_ALIASES: Readonly<Record<string, BlockIdType>> = {
   int8: "bigint",
   int4: "integer",
   int: "integer",
@@ -25,17 +25,17 @@ const ID_TYPE_ALIASES: Readonly<Record<string, KitIdType>> = {
 };
 
 /**
- * A Postgres type name as one of `KIT_ID_TYPES`: case and spacing are
+ * A Postgres type name as one of `BLOCK_ID_TYPES`: case and spacing are
  * normalised and aliases such as `int8` resolved. `undefined` for any other
  * type, so callers refuse it instead of guessing.
  */
-export function kitIdType(value: string): KitIdType | undefined {
+export function blockIdType(value: string): BlockIdType | undefined {
   const name = value.trim().toLowerCase().replaceAll(/\s+/g, " ");
-  return isKitIdType(name) ? name : ID_TYPE_ALIASES[name];
+  return isBlockIdType(name) ? name : ID_TYPE_ALIASES[name];
 }
 
 /** One logical table of a module: its default name and logical columns. */
-export interface KitTableSpec {
+export interface BlockTableSpec {
   /** Default name, in the module's schema. */
   readonly name: string;
   /** Logical column to default column name. */
@@ -45,25 +45,25 @@ export interface KitTableSpec {
    * leaves out the feature that needs them.
    */
   readonly optional?: readonly string[];
-  /** The app may lack the whole table (`kits.<name>.tables.<table>: null`). */
+  /** The app may lack the whole table (`blocks.<name>.tables.<table>: null`). */
   readonly optionalTable?: boolean;
 }
 
-export interface KitNames {
-  readonly tables: Readonly<Record<string, KitTableSpec>>;
-  /** The `before_*` and `after_*` hooks the module calls, so `kits.<name>.hooks.functions` is checked. */
+export interface BlockNames {
+  readonly tables: Readonly<Record<string, BlockTableSpec>>;
+  /** The `before_*` and `after_*` hooks the module calls, so `blocks.<name>.hooks.functions` is checked. */
   readonly hooks?: readonly string[];
-  /** The `kits.<name>.options` keys the module reads; any other key is rejected. */
+  /** The `blocks.<name>.options` keys the module reads; any other key is rejected. */
   readonly options?: readonly string[];
 }
 
 /** An event a module writes to the outbox, as SQL expressions. */
-export interface KitEmit {
-  /** The event type, e.g. `org.created`. */
+export interface BlockEmit {
+  /** The event type, e.g. `organization.created`. */
   readonly type: string;
   /** A `jsonb` expression. */
   readonly payload: string;
-  /** A `text` expression, e.g. `'organizations/' || new_org`. */
+  /** A `text` expression, e.g. `'organizations/' || new_organization`. */
   readonly subject?: string;
   /** The tenant id expression; it is cast to text. */
   readonly tenant?: string;
@@ -72,7 +72,7 @@ export interface KitEmit {
 }
 
 /** A function of a module's contract: what other modules and the TypeScript side call. */
-export interface KitContractFunction {
+export interface BlockContractFunction {
   readonly name: string;
   /** Argument types; `{id}` stands for the module's id type. */
   readonly args: readonly string[];
@@ -80,16 +80,16 @@ export interface KitContractFunction {
 }
 
 /** What a module's `build` reads: resolved names for one layout. */
-export interface KitContext {
+export interface BlockContext {
   readonly module: string;
-  readonly mode: KitMode;
-  readonly config: ResolvedKitModule;
+  readonly mode: BlockMode;
+  readonly config: ResolvedBlockModule;
   /** The quoted schema of the module's functions and managed tables. */
   readonly schema: string;
   readonly schemaName: string;
-  readonly idType: KitIdType;
+  readonly idType: BlockIdType;
   readonly claims: ClaimsMeta;
-  readonly kits: KitsConfig;
+  readonly blocks: BlocksConfig;
   /** `schema.name` of a module function, quoted. */
   fn(name: string): string;
   /** `schema.table` of a logical table, quoted. */
@@ -107,17 +107,17 @@ export interface KitContext {
   hasTable(table: string): boolean;
   /** Whether the module owns `table` (managed mode). */
   readonly manages: boolean;
-  /** The permission key for a kit action, as a SQL literal. */
+  /** The permission key for a block action, as a SQL literal. */
   permission(action: string, fallback: string): string;
-  /** The permission key for a kit action. */
+  /** The permission key for a block action. */
   permissionKey(action: string, fallback: string): string;
   /** A trigger name with the module's prefix, quoted. */
   trigger(name: string): string;
   /** Whether `module` is installed alongside this one. */
   installed(module: string): boolean;
   /** The context of another module in the same layout. */
-  of(module: string): KitContext;
-  /** A string module option (`kits.<name>.options`). */
+  of(module: string): BlockContext;
+  /** A string module option (`blocks.<name>.options`). */
   text(name: string, fallback: string): string;
   number(name: string, fallback: number): number;
   flag(name: string, fallback: boolean): boolean;
@@ -137,19 +137,19 @@ export interface KitContext {
   hookTarget(name: string): string;
   /**
    * PL/pgSQL that writes the event to the outbox (`emit_event`) when the
-   * `outbox` module is installed and `kits.<name>.events` isn't false;
+   * `outbox` module is installed and `blocks.<name>.events` isn't false;
    * otherwise an empty string.
    */
-  emit(event: KitEmit): string;
+  emit(event: BlockEmit): string;
 }
 
-export interface KitContextSource {
-  readonly kits?: KitsConfig;
+export interface BlockContextSource {
+  readonly blocks?: BlocksConfig;
   readonly claims?: ClaimsMeta;
   /** The modules being installed together. */
   readonly installed?: readonly string[];
   /** The id type from PermDock's manifest, when the layout has one. */
-  readonly permdockIdType?: KitIdType;
+  readonly permdockIdType?: BlockIdType;
 }
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_$]*$/;
@@ -175,14 +175,14 @@ function checkIdent(where: string, value: string): string {
  * Builds the context for `module`. `namesOf` looks up a module's names, so a
  * module can name another module's tables through `of()`.
  */
-export function createKitContext(
+export function createBlockContext(
   module: string,
-  namesOf: (name: string) => KitNames | undefined,
-  source: KitContextSource = {},
-): KitContext {
-  const kits = source.kits ?? {};
-  const config = resolveKitModule(kits[module]);
-  const where = `kits.${module}`;
+  namesOf: (name: string) => BlockNames | undefined,
+  source: BlockContextSource = {},
+): BlockContext {
+  const blocks = source.blocks ?? {};
+  const config = resolveBlockModule(blocks[module]);
+  const where = `blocks.${module}`;
   const names = namesOf(module) ?? { tables: {} };
   checkIdent(`${where}.schema`, config.schema);
 
@@ -252,11 +252,11 @@ export function createKitContext(
   };
 
   const rawId =
-    config.idType ?? kits.access?.idType ?? source.permdockIdType ?? "uuid";
-  const idType = kitIdType(rawId);
+    config.idType ?? blocks.access?.idType ?? source.permdockIdType ?? "uuid";
+  const idType = blockIdType(rawId);
   if (!idType) {
     throw new TypeError(
-      `${where}.idType: "${rawId}" is not one of ${KIT_ID_TYPES.join(", ")}`,
+      `${where}.idType: "${rawId}" is not one of ${BLOCK_ID_TYPES.join(", ")}`,
     );
   }
 
@@ -268,7 +268,7 @@ export function createKitContext(
     const mapped = config.tables[logical];
     if (mapped === null) {
       throw new TypeError(
-        `Module "${module}" needs table "${logical}", which kits.${module}.tables maps to null`,
+        `Module "${module}" needs table "${logical}", which blocks.${module}.tables maps to null`,
       );
     }
     const parts = splitTable(mapped ?? table.name, config.schema);
@@ -329,7 +329,7 @@ export function createKitContext(
     schemaName: config.schema,
     idType,
     claims: source.claims ?? DEFAULT_CLAIMS,
-    kits,
+    blocks,
     manages: config.mode === "managed",
     fn: (name) => `${schema}.${sqlIdent(name)}`,
     tableName,
@@ -341,7 +341,7 @@ export function createKitContext(
       const name = column(table, logical);
       if (name === null) {
         throw new TypeError(
-          `Module "${module}" needs ${table}.${logical}, which kits.${module}.columns maps to null`,
+          `Module "${module}" needs ${table}.${logical}, which blocks.${module}.columns maps to null`,
         );
       }
       return sqlIdent(name);
@@ -359,7 +359,7 @@ export function createKitContext(
       sqlString(config.permissions[action] ?? fallback),
     trigger: (name) => sqlIdent(`bs_${name}`),
     installed: (name) => installed.has(name),
-    of: (name) => createKitContext(name, namesOf, source),
+    of: (name) => createBlockContext(name, namesOf, source),
     text: (name, fallback) => optionOf(name, "string", fallback),
     number: (name, fallback) => optionOf(name, "number", fallback),
     flag: (name, fallback) => optionOf(name, "boolean", fallback),
@@ -391,12 +391,14 @@ export function createKitContext(
     hookTarget,
     emit(event) {
       if (!config.events || !installed.has("outbox")) return "";
-      const outboxConfig = resolveKitModule(kits["outbox"]);
+      const outboxConfig = resolveBlockModule(blocks["outbox"]);
       const outbox = sqlIdent(outboxConfig.schema);
       const template =
-        outboxConfig.options["kitSource"] ?? "better-supabase/{module}";
+        outboxConfig.options["blockSource"] ?? "better-supabase/{module}";
       if (typeof template !== "string") {
-        throw new TypeError("kits.outbox.options.kitSource must be a string");
+        throw new TypeError(
+          "blocks.outbox.options.blockSource must be a string",
+        );
       }
       return `perform ${outbox}.emit_event(${[
         sqlString(event.type),
@@ -412,7 +414,7 @@ export function createKitContext(
 
 /** The contract's argument list with `{id}` resolved, as Postgres prints it. */
 export function contractSignature(
-  fn: KitContractFunction,
+  fn: BlockContractFunction,
   idType: string,
 ): string {
   return fn.args.map((arg) => arg.replaceAll("{id}", idType)).join(", ");

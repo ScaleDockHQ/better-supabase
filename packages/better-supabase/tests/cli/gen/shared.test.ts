@@ -13,8 +13,8 @@ import {
 
 describe("gen helpers", () => {
   it("quotes property keys that are not identifiers", () => {
-    expect(prop("orgId")).toBe("orgId");
-    expect(prop("org-id")).toBe('"org-id"');
+    expect(prop("organizationId")).toBe("organizationId");
+    expect(prop("organization-id")).toBe('"organization-id"');
   });
 
   it("adds null only to nullable types", () => {

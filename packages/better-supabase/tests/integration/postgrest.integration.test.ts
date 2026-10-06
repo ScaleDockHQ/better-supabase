@@ -47,10 +47,10 @@ const admin = betterSupabase.connect(
   }),
 );
 
-async function asOrgMember(orgId: string) {
+async function asOrganizationMember(organizationId: string) {
   const token = await signLocalJwt({
     sub: "00000000-0000-4000-8000-0000000000ff",
-    tenant_id: orgId,
+    tenant_id: organizationId,
   });
   return betterSupabase.connect(
     createClient(url, publishableKey, {
@@ -588,7 +588,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
   });
 
   it("respects RLS for the caller and hides other tenants", async () => {
-    const db = await asOrgMember(GLOBEX);
+    const db = await asOrganizationMember(GLOBEX);
     const rows = await db.customers.findMany({ select: ["id"] }).orThrow();
     expect(rows.map((row) => row.id)).toEqual([INITECH]);
 
@@ -609,7 +609,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       defaultSort: "name",
       facetCounts: true,
     });
-    const acme = await asOrgMember(ACME);
+    const acme = await asOrganizationMember(ACME);
     const query = list.parse({ facets: { status: ["active"] } }).value!;
     const page = await list.run(acme, query, { select: ["id"] }).orThrow();
     expect(acme.$stats()).toMatchObject({ calls: 2, waves: 1 });
@@ -627,8 +627,8 @@ describe.skipIf(!live)("PostgREST integration", () => {
   });
 
   it("db.$many runs ad-hoc specs in one wave as an authenticated member", async () => {
-    const acme = await asOrgMember(ACME);
-    const globex = await asOrgMember(GLOBEX);
+    const acme = await asOrganizationMember(ACME);
+    const globex = await asOrganizationMember(GLOBEX);
     const specs = [
       betterSupabase.spec.customers.findMany({
         select: ["id"],

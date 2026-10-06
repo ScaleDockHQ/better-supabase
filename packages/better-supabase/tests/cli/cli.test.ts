@@ -212,7 +212,7 @@ describe("storagePaths", () => {
 
   it("types a column with the bucket id from a buckets key or a raw id", async () => {
     const byKey = await model({
-      buckets: { customerLogos: { path: "{orgId}/{file}" } },
+      buckets: { customerLogos: { path: "{organizationId}/{file}" } },
       storagePaths: { "public.customers.logo_path": "customerLogos" },
     });
     expect(logo(byKey)).toMatchObject({
@@ -599,7 +599,7 @@ describe("config JSON Schema", () => {
       expose: true,
       readSets: true,
       sql: true,
-      kits: true,
+      blocks: true,
       seed: true,
       openapi: true,
       doctor: true,
@@ -728,7 +728,7 @@ describe("gen", () => {
         output: "src/db/generated.ts",
         buckets: {
           docs: {
-            path: "{orgId}/{file}",
+            path: "{organizationId}/{file}",
             policy: {
               permdock: { read: "docs.read", write: "docs.write" },
               scope: "organization",
@@ -771,7 +771,7 @@ describe("gen", () => {
         output: "src/db/generated.ts",
         buckets: {
           docs: {
-            path: "{orgId}/{file}",
+            path: "{organizationId}/{file}",
             policy: {
               permdock: { read: "docs.read", write: "docs.write" },
               scope: "organization",
@@ -814,7 +814,7 @@ describe("sql", () => {
     dir = await mkdtemp(join(tmpdir(), "better-supabase-"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({ sql: { kit: ["invitations"] } }),
+      JSON.stringify({ sql: { modules: ["invitations"] } }),
     );
   });
 
@@ -831,14 +831,14 @@ describe("sql", () => {
     expect(added.stdout).toContain(
       "supabase/tests/000_better_supabase_pgtap.test.sql",
     );
-    expect(added.stdout).toContain("kit: ['invitations', 'jobs', 'pgtap']");
+    expect(added.stdout).toContain("modules: ['invitations', 'jobs', 'pgtap']");
 
     const list = await run(["sql", "list", "--cwd", dir]);
     expect(list.stdout).toMatch(/○ jobs/);
     expect(list.stdout).toMatch(/^ {2}audit/m);
   });
 
-  it("names kit files that schema_paths misses", async () => {
+  it("names block files that schema_paths misses", async () => {
     await mkdir(join(dir, "supabase"), { recursive: true });
     await writeFile(
       join(dir, "supabase/config.toml"),
@@ -857,7 +857,7 @@ describe("sql", () => {
     const listed = await run(["sql", "add", "audit", "--cwd", dir]);
     expect(listed.stdout).not.toContain("no entry matches");
     expect(listed.stdout).toContain(
-      "Then create a migration: supabase db diff -f better_supabase_kit",
+      "Then create a migration: supabase db diff -f better_supabase_block",
     );
   });
 
@@ -870,11 +870,11 @@ describe("sql", () => {
     const added = await run(["sql", "add", "audit", "--cwd", dir]);
     expect(added.stdout).not.toContain("no entry matches");
     expect(added.stdout).toContain(
-      "Then create a migration: supabase db schema declarative sync -f better_supabase_kit",
+      "Then create a migration: supabase db schema declarative sync -f better_supabase_block",
     );
   });
 
-  it("syncs sql.kit and detects stale files with --check", async () => {
+  it("syncs sql.modules and detects stale files with --check", async () => {
     expect((await run(["sql", "sync", "--check", "--cwd", dir])).code).toBe(1);
     const sync = await run(["sql", "sync", "--cwd", dir]);
     expect(sync.stdout).toContain("tenant");

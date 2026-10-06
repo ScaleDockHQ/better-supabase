@@ -29,7 +29,7 @@ describe("createServer forContext", () => {
       claimsFor: (userId, context) => {
         expectTypeOf(userId).toEqualTypeOf<string>();
         expectTypeOf(context.tenant).toEqualTypeOf<string | undefined>();
-        return { org_ids: [context.tenant] };
+        return { organization_ids: [context.tenant] };
       },
     });
     createServer(defineSupabase(schema), {

@@ -18,7 +18,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 const logos = defineBucket({
   id: "customer-logos",
-  path: "{orgId}/{customerId}/logo/{version}.webp",
+  path: "{organizationId}/{customerId}/logo/{version}.webp",
   policy: "tenant",
   fileSizeLimit: "5MiB",
   allowedMimeTypes: ["image/png", "image/*"],
@@ -26,26 +26,26 @@ const logos = defineBucket({
 
 describe("defineBucket", () => {
   it("builds, matches and prefixes paths", () => {
-    const built = logos.path({ orgId: "o1", customerId: "c1", version: 3 });
+    const built = logos.path({ organizationId: "o1", customerId: "c1", version: 3 });
     expect(built).toEqual({ ok: true, data: "o1/c1/logo/3.webp", error: null });
     const path = built.data!;
     expect(logos.match(path)).toEqual({
-      orgId: "o1",
+      organizationId: "o1",
       customerId: "c1",
       version: "3",
     });
     expect(logos.match("o1/c1/logo/3.png")).toBeNull();
     expect(logos.match("o1/c1/extra/logo/3.webp")).toBeNull();
-    expect(logos.prefix({ orgId: "o1" })).toBe("o1");
-    expect(logos.prefix({ orgId: "o1", customerId: "c1", version: "x" })).toBe(
-      "o1/c1/logo",
-    );
-    expect(logos.params).toEqual(["orgId", "customerId", "version"]);
+    expect(logos.prefix({ organizationId: "o1" })).toBe("o1");
+    expect(
+      logos.prefix({ organizationId: "o1", customerId: "c1", version: "x" }),
+    ).toBe("o1/c1/logo");
+    expect(logos.params).toEqual(["organizationId", "customerId", "version"]);
   });
 
   it("returns an error for unsafe segment values instead of throwing", () => {
     for (const customerId of ["", "..", "a/b", "a\u0000b", "naïve"]) {
-      expect(logos.path({ orgId: "o1", customerId, version: 1 })).toMatchObject(
+      expect(logos.path({ organizationId: "o1", customerId, version: 1 })).toMatchObject(
         { ok: false, data: null, error: { kind: "invalid_input" } },
       );
     }
@@ -122,8 +122,8 @@ describe("defineBucket", () => {
 
   it("compiles PermDock policies with list split from read", () => {
     const files = defineBucket({
-      id: "org-files",
-      path: "{orgId}/{file}",
+      id: "organization-files",
+      path: "{organizationId}/{file}",
       policy: {
         permdock: {
           read: "files.read",
@@ -139,16 +139,16 @@ describe("defineBucket", () => {
     const listing =
       "storage.allow_any_operation(array['object.list', 'object.list_v2', 's3.object.list'])";
     expect(sql).toContain(
-      `create policy "bs_org_files_select" on storage.objects for select to authenticated\n  using (bucket_id = 'org-files' and not ${listing} and ${ids("files.read")});`,
+      `create policy "bs_organization_files_select" on storage.objects for select to authenticated\n  using (bucket_id = 'organization-files' and not ${listing} and ${ids("files.read")});`,
     );
     expect(sql).toContain(
-      `create policy "bs_org_files_list" on storage.objects for select to authenticated\n  using (bucket_id = 'org-files' and ${listing} and ${ids("files.list")});`,
+      `create policy "bs_organization_files_list" on storage.objects for select to authenticated\n  using (bucket_id = 'organization-files' and ${listing} and ${ids("files.list")});`,
     );
     expect(sql).toContain(
-      `with check (bucket_id = 'org-files' and ${ids("files.write")} and name ~`,
+      `with check (bucket_id = 'organization-files' and ${ids("files.write")} and name ~`,
     );
     expect(sql).toContain(
-      `for delete to authenticated\n  using (bucket_id = 'org-files' and ${ids("files.write")});`,
+      `for delete to authenticated\n  using (bucket_id = 'organization-files' and ${ids("files.write")});`,
     );
     expect(sql).not.toMatch(/service_role|anon/);
 
@@ -178,7 +178,7 @@ describe("defineBucket", () => {
     const bucket = (
       read: string,
       scope = "organization",
-      path = "{orgId}/{file}",
+      path = "{organizationId}/{file}",
     ) =>
       defineBucket({
         id: "x",
@@ -187,7 +187,7 @@ describe("defineBucket", () => {
       });
     expect(() => bucket("files.read#2")).toThrow(/splits by row condition/);
     expect(() => bucket("")).toThrow(/empty/);
-    expect(() => bucket("x.read", "org; drop")).toThrow(
+    expect(() => bucket("x.read", "organization; drop")).toThrow(
       /invalid PermDock scope/,
     );
     expect(() => bucket("x.read", "organization", "{file}")).toThrow(
@@ -207,7 +207,7 @@ describe("defineBucket", () => {
     const bucket = (read: string) =>
       defineBucket({
         id: "x",
-        path: "{orgId}/{file}",
+        path: "{organizationId}/{file}",
         policy: {
           permdock: { read, write: "files.write" },
           scope: "organization",
@@ -228,7 +228,11 @@ describe("defineBucket", () => {
 
   it("rejects policies that cannot be enforced", () => {
     expect(() =>
-      defineBucket({ id: "x", path: "org-{orgId}/{file}", policy: "tenant" }),
+      defineBucket({
+        id: "x",
+        path: "organization-{organizationId}/{file}",
+        policy: "tenant",
+      }),
     ).toThrow(/whole path segment/);
     expect(() =>
       defineBucket({ id: "x", path: "{a}{b}", policy: "none" }),
@@ -352,7 +356,7 @@ describe("renderUrl", () => {
 
 describe("StoragePath", () => {
   it("brands paths with the bucket id", () => {
-    const built = logos.path({ orgId: "o1", customerId: "c1", version: 1 });
+    const built = logos.path({ organizationId: "o1", customerId: "c1", version: 1 });
     expectTypeOf(built).toEqualTypeOf<Result<StoragePath<"customer-logos">>>();
     const path = built.data!;
     expectTypeOf(path).toEqualTypeOf<StoragePath<"customer-logos">>();
@@ -382,12 +386,12 @@ describe("defineBucket options", () => {
     );
     const fromClaim = defineBucket({
       id: "b",
-      path: "x/{orgId}/{file}",
+      path: "x/{organizationId}/{file}",
       policy: "tenant",
-      tenant: { claim: "app_metadata.org" },
+      tenant: { claim: "app_metadata.organization" },
     }).sql();
     expect(fromClaim).toContain(
-      "split_part(name, '/', 2) = ((select auth.jwt()) -> 'app_metadata' ->> 'org')",
+      "split_part(name, '/', 2) = ((select auth.jwt()) -> 'app_metadata' ->> 'organization')",
     );
   });
 
@@ -402,11 +406,11 @@ describe("defineBucket options", () => {
     expect(custom.sql()).toContain(
       "split_part(name, '/', 1) = (select auth.uid())::text",
     );
-    expect(defineBucket({ id: "b", path: "{orgId}/{userId}/{f}" }).owner).toBe(
-      "userId",
-    );
     expect(
-      defineBucket({ id: "c", path: "{orgId}/{f}" }).owner,
+      defineBucket({ id: "b", path: "{organizationId}/{userId}/{f}" }).owner,
+    ).toBe("userId");
+    expect(
+      defineBucket({ id: "c", path: "{organizationId}/{f}" }).owner,
     ).toBeUndefined();
   });
 
@@ -549,11 +553,11 @@ describe("fromStorageError", () => {
 
 const docs = defineBucket({
   id: "docs",
-  path: "{orgId}/{userId}/{file}",
+  path: "{organizationId}/{userId}/{file}",
   fileSizeLimit: "1KiB",
   allowedMimeTypes: ["text/plain", "image/*"],
 });
-const A = { orgId: "o1", userId: "u1", file: "a.txt" } as const;
+const A = { organizationId: "o1", userId: "u1", file: "a.txt" } as const;
 
 /** A Storage client whose bucket API is exactly `methods`. */
 function stubClient(methods: Record<string, unknown>): StorageClient {
@@ -630,7 +634,8 @@ describe("BucketClient upload and download", () => {
       ok: false,
       error: {
         kind: "invalid_input",
-        message: 'Path "o1/a.txt" does not match "{orgId}/{userId}/{file}"',
+        message:
+          'Path "o1/a.txt" does not match "{organizationId}/{userId}/{file}"',
       },
     });
     expect(
@@ -777,7 +782,7 @@ describe("BucketClient remove and list", () => {
       expect.objectContaining({ path: "o1/u2/b.txt" }),
       expect.objectContaining({ path: "o2/u1/c.txt" }),
     ]);
-    const within = await bucket.list({ orgId: "o2" }).orThrow();
+    const within = await bucket.list({ organizationId: "o2" }).orThrow();
     expect(within.map((object) => object.path)).toEqual(["o2/u1/c.txt"]);
     expect(calls.findLast((call) => call.method === "list")?.args[0]).toBe(
       "o2/u1",
@@ -791,7 +796,7 @@ describe("BucketClient remove and list", () => {
     const { client, calls } = fakeStorage({ files });
     const listed = await docs
       .connect(client)
-      .list({ orgId: "o1", userId: "u1" });
+      .list({ organizationId: "o1", userId: "u1" });
     expect(listed.ok && listed.data).toHaveLength(1001);
     expect(calls.map((call) => call.args)).toEqual([
       [
@@ -978,7 +983,7 @@ describe("BucketClient URLs", () => {
     });
     const scoped = defineBucket({
       id: "images",
-      path: "{orgId}/{file}",
+      path: "{organizationId}/{file}",
       public: true,
       tenant: {},
     }).connect(stubClient({ getPublicUrl }), { tenant: "o1" });
@@ -1024,7 +1029,7 @@ describe("BucketClient replace", () => {
     const { client, calls } = fakeStorage();
     const scoped = defineBucket({
       id: "docs",
-      path: "{orgId}/{userId}/{file}",
+      path: "{organizationId}/{userId}/{file}",
       tenant: {},
     }).connect(client, { tenant: "o1" });
     expect(
@@ -1219,7 +1224,7 @@ describe("BucketClient sweep", () => {
   it("only sweeps objects whose values match every within value", async () => {
     const storage = files();
     const result = await docs.connect(storage.client).sweep({
-      within: { orgId: "o1", file: "c.txt" },
+      within: { organizationId: "o1", file: "c.txt" },
       olderThan: Temporal.Duration.from({ hours: 1 }),
       now: () => NOW,
       referenced: () => [],
@@ -1298,7 +1303,7 @@ describe("BucketClient sweep", () => {
       paths.filter((path) => path.endsWith("a.txt")),
     );
     const result = await docs.connect(storage.client).sweep({
-      within: { orgId: "o1", userId: "u1" },
+      within: { organizationId: "o1", userId: "u1" },
       olderThan: Temporal.Duration.from({ seconds: 0 }),
       now: () => NOW,
       batchSize: 1,
@@ -1349,7 +1354,7 @@ describe("BucketClient sweep", () => {
       error: null,
     });
     const result = await docs.connect(stubClient({ list })).sweep({
-      within: { orgId: "o1", userId: "u1" },
+      within: { organizationId: "o1", userId: "u1" },
       olderThan: Temporal.Duration.from({ seconds: 0 }),
       now: () => NOW,
       referenced: () => [],
@@ -1394,18 +1399,20 @@ describe("BucketClient sweep", () => {
 describe("tenant-scoped buckets", () => {
   const scoped = defineBucket({
     id: "scoped",
-    path: "{orgId}/{userId}/{file}",
+    path: "{organizationId}/{userId}/{file}",
     tenant: {},
   });
-  const mine = { orgId: "o1", userId: "u1", file: "a.txt" } as const;
-  const theirs = { orgId: "o2", userId: "u1", file: "a.txt" } as const;
+  const mine = { organizationId: "o1", userId: "u1", file: "a.txt" } as const;
+  const theirs = { organizationId: "o2", userId: "u1", file: "a.txt" } as const;
 
   it("names the tenant placeholder and rejects one the template lacks", () => {
-    expect(scoped.tenant).toBe("orgId");
+    expect(scoped.tenant).toBe("organizationId");
     expect(docs.tenant).toBeUndefined();
     expect(() =>
       defineBucket({ id: "x", path: "{teamId}/{file}", tenant: {} }),
-    ).toThrow('defineBucket: tenant.param {orgId} is not in "{teamId}/{file}"');
+    ).toThrow(
+      'defineBucket: tenant.param {organizationId} is not in "{teamId}/{file}"',
+    );
   });
 
   it("refuses other tenants' paths before any Storage call", async () => {
@@ -1424,7 +1431,7 @@ describe("tenant-scoped buckets", () => {
     expect(await storage.signedUrls([mine, theirs])).toMatchObject(refused);
     expect(await storage.remove([theirs])).toMatchObject(refused);
     expect(await storage.reserve(theirs)).toMatchObject(refused);
-    expect(await storage.list({ orgId: "o2" })).toMatchObject(refused);
+    expect(await storage.list({ organizationId: "o2" })).toMatchObject(refused);
     expect(storage.path(theirs)).toMatchObject({
       ok: false,
       error: {
@@ -1464,15 +1471,15 @@ describe("tenant-scoped buckets", () => {
     });
     const custom = defineBucket({
       id: "scoped",
-      path: "{orgId}/{file}",
-      tenant: { claim: "app_metadata.org" },
+      path: "{organizationId}/{file}",
+      tenant: { claim: "app_metadata.organization" },
     });
     expect(
       custom
         .connect(client, {
-          context: { claims: { app_metadata: { org: "o3" } } },
+          context: { claims: { app_metadata: { organization: "o3" } } },
         })
-        .path({ orgId: "o3", file: "a" }).ok,
+        .path({ organizationId: "o3", file: "a" }).ok,
     ).toBe(true);
     const before = calls.length;
     const anonymous = scoped.connect(client, { context: {} });
@@ -1494,18 +1501,18 @@ describe("tenant-scoped buckets", () => {
   it("uses the tenant tenant() resolved from a custom claim path", async () => {
     const { client } = fakeStorage();
     const db = defineSupabase(schema)
-      .use(tenant({ claim: "app_metadata.org" }))
+      .use(tenant({ claim: "app_metadata.organization" }))
       .connect(
         {
           name: "echo",
           execute: () => Promise.resolve(ok({ rows: [], count: null })),
         },
-        { claims: { tenant_id: "o1", app_metadata: { org: "o9" } } },
+        { claims: { tenant_id: "o1", app_metadata: { organization: "o9" } } },
       );
     const storage = scoped.connect(client, { context: db.$context });
-    expect(storage.path({ orgId: "o9", userId: "u1", file: "a" }).ok).toBe(
-      true,
-    );
+    expect(
+      storage.path({ organizationId: "o9", userId: "u1", file: "a" }).ok,
+    ).toBe(true);
     expect(storage.path(mine)).toMatchObject({
       ok: false,
       error: { kind: "forbidden" },
@@ -1524,9 +1531,9 @@ describe("path layouts", () => {
   const files = defineBucket({
     id: "files",
     path: [
-      "{orgId}/files/{fileId}/v{version}.{ext}",
-      "{orgId}/exports/{exportId}.zip",
-      "{orgId}/legacy/{...rest}",
+      "{organizationId}/files/{fileId}/v{version}.{ext}",
+      "{organizationId}/exports/{exportId}.zip",
+      "{organizationId}/legacy/{...rest}",
     ],
     policy: "tenant",
     tenant: {},
@@ -1534,22 +1541,24 @@ describe("path layouts", () => {
 
   it("builds with the template whose placeholders match the values", () => {
     expect(
-      files.path({ orgId: "o1", fileId: "f1", version: 2, ext: "pdf" }).data,
+      files.path({ organizationId: "o1", fileId: "f1", version: 2, ext: "pdf" }).data,
     ).toBe("o1/files/f1/v2.pdf");
-    expect(files.path({ orgId: "o1", exportId: "e1" }).data).toBe(
+    expect(files.path({ organizationId: "o1", exportId: "e1" }).data).toBe(
       "o1/exports/e1.zip",
     );
-    expect(files.path({ orgId: "o1", rest: "a/b/c.txt" }).data).toBe(
+    expect(files.path({ organizationId: "o1", rest: "a/b/c.txt" }).data).toBe(
       "o1/legacy/a/b/c.txt",
     );
-    expect(files.path({ orgId: "o1" } as never).error).toMatchObject({
+    expect(files.path({ organizationId: "o1" } as never).error).toMatchObject({
       kind: "invalid_input",
-      message: 'No path template of bucket "files" takes exactly {orgId}',
+      message: 'No path template of bucket "files" takes exactly {organizationId}',
     });
     expect(files.templates).toHaveLength(3);
-    expect(files.template).toBe("{orgId}/files/{fileId}/v{version}.{ext}");
+    expect(files.template).toBe(
+      "{organizationId}/files/{fileId}/v{version}.{ext}",
+    );
     expect(files.params).toEqual([
-      "orgId",
+      "organizationId",
       "fileId",
       "version",
       "ext",
@@ -1560,11 +1569,11 @@ describe("path layouts", () => {
 
   it("matches a stored path against every template", () => {
     expect(files.match("o1/exports/e1.zip")).toEqual({
-      orgId: "o1",
+      organizationId: "o1",
       exportId: "e1",
     });
     expect(files.match("o1/legacy/a/b.txt")).toEqual({
-      orgId: "o1",
+      organizationId: "o1",
       rest: "a/b.txt",
     });
     for (const path of [
@@ -1581,16 +1590,20 @@ describe("path layouts", () => {
 
   it("refuses unsafe rest values", () => {
     for (const rest of ["", "a//b", "../a", "a/..", "/a", "a/", "a/naïve"]) {
-      expect(files.path({ orgId: "o1", rest }).error?.kind).toBe(
+      expect(files.path({ organizationId: "o1", rest }).error?.kind).toBe(
         "invalid_input",
       );
     }
   });
 
   it("prefixes the folder every fitting template shares", () => {
-    expect(files.prefix({ orgId: "o1" })).toBe("o1");
-    expect(files.prefix({ orgId: "o1", fileId: "f1" })).toBe("o1/files/f1");
-    expect(files.prefix({ orgId: "o1", rest: "a/b" })).toBe("o1/legacy/a/b");
+    expect(files.prefix({ organizationId: "o1" })).toBe("o1");
+    expect(files.prefix({ organizationId: "o1", fileId: "f1" })).toBe(
+      "o1/files/f1",
+    );
+    expect(files.prefix({ organizationId: "o1", rest: "a/b" })).toBe(
+      "o1/legacy/a/b",
+    );
   });
 
   it("checks writes against every template in SQL", () => {
@@ -1604,22 +1617,22 @@ describe("path layouts", () => {
     expect(() =>
       defineBucket({
         id: "x",
-        path: ["{orgId}/{file}", "shared/{orgId}/{file}"],
+        path: ["{organizationId}/{file}", "shared/{organizationId}/{file}"],
         policy: "tenant",
       }),
-    ).toThrow("needs {orgId} at the same segment in every path");
+    ).toThrow("needs {organizationId} at the same segment in every path");
     expect(() =>
       defineBucket({
         id: "x",
-        path: ["{orgId}/{file}", "shared/{file}"],
+        path: ["{organizationId}/{file}", "shared/{file}"],
         tenant: {},
       }),
-    ).toThrow('tenant.param {orgId} is not in "shared/{file}"');
+    ).toThrow('tenant.param {organizationId} is not in "shared/{file}"');
     expect(() => defineBucket({ id: "x", path: "{...rest}/x" })).toThrow(
       "must be the whole last segment",
     );
     expect(() =>
-      defineBucket({ id: "x", path: "{orgId}/a-{...rest}" }),
+      defineBucket({ id: "x", path: "{organizationId}/a-{...rest}" }),
     ).toThrow("must be the whole last segment");
   });
 
@@ -1638,7 +1651,8 @@ describe("path layouts", () => {
       error: { kind: "invalid_input" },
     });
     expect(
-      (await storage.upload({ orgId: "o1", exportId: "e1" }, "zip")).ok,
+      (await storage.upload({ organizationId: "o1", exportId: "e1" }, "zip"))
+        .ok,
     ).toBe(true);
   });
 });

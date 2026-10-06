@@ -1,8 +1,8 @@
-import type { ActiveTenantSource } from "../../config/kits.ts";
-import type { KitContext } from "../context.ts";
-import type { KitModuleDefinition } from "../kit.ts";
+import type { ActiveTenantSource } from "../../config/blocks.ts";
+import type { BlockModuleDefinition } from "../blocks.ts";
+import type { BlockContext } from "../context.ts";
 
-import { DEFAULT_ACTIVE_TENANT } from "../../config/kits.ts";
+import { DEFAULT_ACTIVE_TENANT } from "../../config/blocks.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   columnRef,
@@ -16,15 +16,15 @@ import {
 import { accessModel, roleNames } from "./access-model.ts";
 
 /** Expression for a membership row's role name, whatever the role column holds. */
-export function roleNameOf(ctx: KitContext, alias: string): string {
+export function roleNameOf(ctx: BlockContext, alias: string): string {
   const role = `${alias}.${ctx.col("memberships", "role")}`;
   if (accessModel(ctx) !== "catalog") return role;
   const access = ctx.of("access");
   return `(select r.${access.col("roles", "key")} from ${access.table("roles")} r where r.${access.col("roles", "id")} = ${role})`;
 }
 
-/** The active tenant: `kits.access.activeTenant` (claim, resolver or profile column). */
-function currentTenant(ctx: KitContext): string {
+/** The active tenant: `blocks.access.activeTenant` (claim, resolver or profile column). */
+function currentTenant(ctx: BlockContext): string {
   const id = ctx.idType;
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
@@ -52,7 +52,7 @@ function currentTenant(ctx: KitContext): string {
   )`;
   } else {
     const profile = columnRef(
-      "kits.access.activeTenant.profileColumn",
+      "blocks.access.activeTenant.profileColumn",
       source.profileColumn,
     );
     const key = sqlIdent(source.key ?? "id");
@@ -78,16 +78,16 @@ revoke execute on function better_supabase.current_tenant_id() from public;
 grant execute on function better_supabase.current_tenant_id() to anon, authenticated, service_role, supabase_auth_admin;${source === "claim" ? clearClaim(ctx) : ""}`;
 }
 
-/** `kits.access.activeTenant`, defaulting to the resolver (URL tenancy). */
-export function activeTenantSource(ctx: KitContext): ActiveTenantSource {
-  return ctx.kits.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT;
+/** `blocks.access.activeTenant`, defaulting to the resolver (URL tenancy). */
+export function activeTenantSource(ctx: BlockContext): ActiveTenantSource {
+  return ctx.blocks.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT;
 }
 
 /**
  * With the claim source, removing a membership also clears the claim that
  * points at it, so the next token carries no tenant.
  */
-function clearClaim(ctx: KitContext): string {
+function clearClaim(ctx: BlockContext): string {
   if (ctx.mode === "custom") return "";
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
@@ -115,7 +115,7 @@ create trigger ${ctx.trigger("clear_tenant_claim")} after delete on ${m}
   for each row execute function better_supabase.clear_tenant_claim();`;
 }
 
-function tenantSql(ctx: KitContext): string {
+function tenantSql(ctx: BlockContext): string {
   const id = ctx.idType;
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
@@ -155,14 +155,14 @@ grant select on ${m} to authenticated;
 grant all on ${m} to service_role;
 `
     : `
--- Adopted: ${m} belongs to the app (kits.tenant.tables.memberships).
+-- Adopted: ${m} belongs to the app (blocks.tenant.tables.memberships).
 `;
   const policy = ctx.manages
     ? `
 drop policy if exists bs_memberships_read on ${m};
 create policy bs_memberships_read on ${m}
   for select to authenticated
-  using (${user} = (select auth.uid()) or ${tenant} in (select better_supabase.member_org_ids()));
+  using (${user} = (select auth.uid()) or ${tenant} in (select better_supabase.member_organization_ids()));
 `
     : "";
   // The catalog's roles table and the managed organizations table are in
@@ -176,11 +176,11 @@ ${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${disabledHelp
 ${currentTenant(ctx)}
 
 -- Policies compare against the set once per statement:
---   using (organization_id in (select better_supabase.member_org_ids('{owner,admin}')))
--- has_org_role(org) answers for one organization, in functions and checks.
+--   using (organization_id in (select better_supabase.member_organization_ids('{owner,admin}')))
+-- has_organization_role(organization) answers for one organization, in functions and checks.
 -- Prefer the access contract (better_supabase.can, tenant_ids_with) for
 -- permission checks; these answer by role name.
-create or replace function better_supabase.member_org_ids(roles text[] default null)
+create or replace function better_supabase.member_organization_ids(roles text[] default null)
 returns setof ${id}
 language sql
 stable
@@ -190,12 +190,12 @@ as $$
   select m.${tenant}
   from ${m} m
   where m.${user} = (select auth.uid())
-    and (member_org_ids.roles is null or ${role} = any (member_org_ids.roles))
+    and (member_organization_ids.roles is null or ${role} = any (member_organization_ids.roles))
     and not better_supabase.user_disabled(m.${user})
     and not better_supabase.tenant_disabled(m.${tenant})
 $$;
 
-create or replace function better_supabase.has_org_role(org ${id}, roles text[] default null)
+create or replace function better_supabase.has_organization_role(organization ${id}, roles text[] default null)
 returns boolean
 language sql
 stable
@@ -205,31 +205,31 @@ as $$
   select exists (
     select 1
     from ${m} m
-    where m.${tenant} = has_org_role.org
+    where m.${tenant} = has_organization_role.organization
       and m.${user} = auth.uid()
-      and (has_org_role.roles is null or ${role} = any (has_org_role.roles))
+      and (has_organization_role.roles is null or ${role} = any (has_organization_role.roles))
       and not better_supabase.user_disabled(m.${user})
       and not better_supabase.tenant_disabled(m.${tenant})
   )
 $$;
 
 -- The role of a user in a tenant, or null when they aren't a member.
-create or replace function better_supabase.org_member_role(org ${id}, member uuid)
+create or replace function better_supabase.organization_member_role(organization ${id}, member uuid)
 returns text
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select ${role} from ${m} m where m.${tenant} = org_member_role.org and m.${user} = org_member_role.member
+  select ${role} from ${m} m where m.${tenant} = organization_member_role.organization and m.${user} = organization_member_role.member
 $$;
 ${policy}
-revoke execute on function better_supabase.member_org_ids(text[]) from public, anon;
-revoke execute on function better_supabase.has_org_role(${id}, text[]) from public, anon;
-revoke execute on function better_supabase.org_member_role(${id}, uuid) from public, anon, authenticated;
-grant execute on function better_supabase.member_org_ids(text[]) to authenticated, service_role;
-grant execute on function better_supabase.has_org_role(${id}, text[]) to authenticated, service_role;
-grant execute on function better_supabase.org_member_role(${id}, uuid) to service_role;
+revoke execute on function better_supabase.member_organization_ids(text[]) from public, anon;
+revoke execute on function better_supabase.has_organization_role(${id}, text[]) from public, anon;
+revoke execute on function better_supabase.organization_member_role(${id}, uuid) from public, anon, authenticated;
+grant execute on function better_supabase.member_organization_ids(text[]) to authenticated, service_role;
+grant execute on function better_supabase.has_organization_role(${id}, text[]) to authenticated, service_role;
+grant execute on function better_supabase.organization_member_role(${id}, uuid) to service_role;
 
 -- The memberships claim. \`claimFormat: 'array'\` (the default) is PermDock's
 -- shape, [{ scope, id, roles }]; \`'map'\` is { [tenant id]: role }. With
@@ -237,7 +237,7 @@ grant execute on function better_supabase.org_member_role(${id}, uuid) to servic
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
 --     better_supabase.membership_claims((event ->> 'user_id')::uuid));
--- Disabled users and tenants (kits.access.disabled) are left out.
+-- Disabled users and tenants (blocks.access.disabled) are left out.
 create or replace function better_supabase.membership_claims(user_id uuid)
 returns jsonb
 language sql
@@ -256,11 +256,11 @@ revoke execute on function better_supabase.membership_claims(uuid) from public, 
 grant execute on function better_supabase.membership_claims(uuid) to service_role, supabase_auth_admin;${deferBodies ? "\nreset check_function_bodies;" : ""}`;
 }
 
-export const TENANT: KitModuleDefinition = {
+export const TENANT: BlockModuleDefinition = {
   name: "tenant",
   title: "Tenant memberships and permission helper",
   description:
-    "Memberships with roles, member_org_ids() and has_org_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through kits.tenant.",
+    "Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.tenant.",
   requires: ["updated-at"],
   target: "schema",
   version: 2,
@@ -284,16 +284,24 @@ export const TENANT: KitModuleDefinition = {
   },
   contract: () => [
     { name: "current_tenant_id", args: [], returns: "{id}" },
-    { name: "member_org_ids", args: ["text[]"], returns: "{id}" },
-    { name: "has_org_role", args: ["{id}", "text[]"], returns: "boolean" },
-    { name: "org_member_role", args: ["{id}", "uuid"], returns: "text" },
+    { name: "member_organization_ids", args: ["text[]"], returns: "{id}" },
+    {
+      name: "has_organization_role",
+      args: ["{id}", "text[]"],
+      returns: "boolean",
+    },
+    {
+      name: "organization_member_role",
+      args: ["{id}", "uuid"],
+      returns: "text",
+    },
     { name: "membership_claims", args: ["uuid"], returns: "jsonb" },
   ],
   upgrades: [
     {
       from: 1,
       description:
-        "Renames memberships.org_id to organization_id, adds memberships.updated_at, memberships.last_used_at and org_member_role(); the role check follows kits.access.roles.",
+        "Renames memberships.org_id to organization_id, adds memberships.updated_at, memberships.last_used_at and organization_member_role(); the role check follows blocks.access.roles.",
       sql: (ctx) =>
         ctx.manages
           ? renameSql({

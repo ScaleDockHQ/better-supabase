@@ -156,7 +156,7 @@ describe("createQueries", () => {
     const q = createQueries(betterSupabase, () => db);
     const queryClient = new QueryClient();
     const withNotes = q.notes.findMany({ include: { customer: true } });
-    const orgs = q.organizations.findMany();
+    const organizations = q.organizations.findMany();
     queryClient
       .getQueryCache()
       .build(queryClient, {
@@ -164,7 +164,7 @@ describe("createQueries", () => {
         meta: withNotes.meta,
       })
       .setData([]);
-    queryClient.setQueryData(orgs.queryKey, []);
+    queryClient.setQueryData(organizations.queryKey, []);
     queryClient.setQueryData(["bs", "customers", "custom"], 1);
 
     const options = q.customers.update({ select: ["id", "name"] });
@@ -179,7 +179,7 @@ describe("createQueries", () => {
     );
     expect(isInvalid(queryClient, withNotes.queryKey)).toBe(true);
     expect(isInvalid(queryClient, ["bs", "customers", "custom"])).toBe(true);
-    expect(isInvalid(queryClient, orgs.queryKey)).toBe(false);
+    expect(isInvalid(queryClient, organizations.queryKey)).toBe(false);
 
     const stop = invalidateOnMutation(betterSupabase, queryClient);
     queryClient.setQueryData(["bs", "customerTags", "x"], 1);

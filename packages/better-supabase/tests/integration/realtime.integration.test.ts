@@ -53,11 +53,14 @@ const title: StandardSchemaV1<unknown, { title: string }> = {
 };
 
 const betterSupabase = defineSupabase(schema);
-const customers = defineTopic("org:{orgId}:customers");
-const notifications = defineTopic("org:{orgId}:notifications:{userId}", {
-  events: { created: title },
-  send: true,
-});
+const customers = defineTopic("organization:{organizationId}:customers");
+const notifications = defineTopic(
+  "organization:{organizationId}:notifications:{userId}",
+  {
+    events: { created: title },
+    send: true,
+  },
+);
 
 function waitFor<T>(
   register: (resolve: (value: T) => void) => void,
@@ -74,11 +77,15 @@ function waitFor<T>(
   });
 }
 
-describe.skipIf(!live)("Realtime kit", async () => {
-  const clientFor = (orgId: string) =>
+describe.skipIf(!live)("Realtime block", async () => {
+  const clientFor = (organizationId: string) =>
     createClient(url, publishableKey, {
       accessToken: () =>
-        signLocalJwt({ sub: USER, role: "authenticated", tenant_id: orgId }),
+        signLocalJwt({
+          sub: USER,
+          role: "authenticated",
+          tenant_id: organizationId,
+        }),
     });
   const acme = clientFor(ACME);
   const other = clientFor(OTHER);
@@ -90,7 +97,7 @@ describe.skipIf(!live)("Realtime kit", async () => {
     await pool.query(notifications.sql());
     await pool.query(
       customers.triggerSql(betterSupabase, "customers", {
-        values: { orgId: "organizationId" },
+        values: { organizationId: "organizationId" },
       }),
     );
   });
@@ -118,7 +125,7 @@ describe.skipIf(!live)("Realtime kit", async () => {
     const got = waitFor<TopicMessage>((resolve) => {
       const sub = customers.subscribe(
         acme,
-        { orgId: ACME },
+        { organizationId: ACME },
         {
           INSERT: (_payload, message) => {
             resolve(message);
@@ -149,13 +156,13 @@ describe.skipIf(!live)("Realtime kit", async () => {
   }, 20_000);
 
   it("refuses private topics of another tenant", async () => {
-    const sub = customers.subscribe(other, { orgId: ACME }, {});
+    const sub = customers.subscribe(other, { organizationId: ACME }, {});
     await expect(sub.ready).rejects.toThrow(/./);
     await sub.unsubscribe();
   }, 20_000);
 
   it("sends validated events over HTTP", async () => {
-    const values = { orgId: ACME, userId: USER };
+    const values = { organizationId: ACME, userId: USER };
     const invalid = await notifications.send(acme, values, "created", {
       nope: true,
     });

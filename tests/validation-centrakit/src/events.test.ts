@@ -1,16 +1,16 @@
 import type { StandardSchemaV1 } from "better-supabase";
 
-import { createOutbox } from "better-supabase/jobs";
 import {
   createNotifications,
   sqlTransport,
-} from "better-supabase/notifications";
+} from "better-supabase/blocks/notifications";
+import { createOutbox } from "better-supabase/blocks/outbox";
 import {
   createWebhooks,
   hmacSigner,
   type WebhookRequest,
   type WebhookTransport,
-} from "better-supabase/webhooks";
+} from "better-supabase/blocks/webhooks";
 import { createHmac } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
@@ -43,14 +43,14 @@ describe.skipIf(!live)(
     it("notifies in workflow_events, relays to webhook_deliveries and signs like CentraKit", async () => {
       await withCentraKit(pool, async (s) => {
         await s.as("owner");
-        const org = await s.value<string>(
+        const organization = await s.value<string>(
           "better_supabase.create_organization($1)",
           [{ name: "Acme", slug: `acme-${USERS.owner.slice(0, 8)}` }],
         );
         await s.as("service");
         await s.rows(
           "insert into centrakit.organization_users (organization_id, user_id, role_id) values ($1, $2, $3)",
-          [org, USERS.member, ROLES.member],
+          [organization, USERS.member, ROLES.member],
         );
 
         const emails: { email: string | null; title: string }[] = [];
@@ -82,7 +82,7 @@ describe.skipIf(!live)(
         await s.as("member");
         const id = await notifications
           .send("task.assigned", {
-            tenant: org,
+            tenant: organization,
             recipients: [USERS.owner],
             subject: { type: "task", id: "t1", label: "Close the books" },
             data: { title: "Close the books" },
@@ -94,26 +94,30 @@ describe.skipIf(!live)(
             "select type, organization_id from centrakit.notification_events where id = $1",
             [id],
           ),
-        ).toEqual([{ type: "task.assigned", organization_id: org }]);
+        ).toEqual([{ type: "task.assigned", organization_id: organization }]);
         expect(
           await s.rows("select topic from realtime.messages where topic = $1", [
-            `org:${org}:notifications:${USERS.owner}`,
+            `organization:${organization}:notifications:${USERS.owner}`,
           ]),
         ).toHaveLength(1);
         expect(
           await s.rows(
             "select source from centrakit.workflow_events where kind = 'notification.created' and organization_id = $1",
-            [org],
+            [organization],
           ),
         ).toEqual([{ source: "domain" }]);
 
         await s.as("owner");
-        const [item] = await notifications.list({ tenant: org }).orThrow();
+        const [item] = await notifications
+          .list({ tenant: organization })
+          .orThrow();
         expect(item).toMatchObject({
           eventId: id,
           text: { title: "Assigned: Close the books" },
         });
-        expect(await notifications.markRead({ tenant: org }).orThrow()).toBe(1);
+        expect(
+          await notifications.markRead({ tenant: organization }).orThrow(),
+        ).toBe(1);
 
         await s.as("service");
         expect(await notifications.deliver()).toEqual({
@@ -127,7 +131,7 @@ describe.skipIf(!live)(
         expect(
           await s.rows(
             "select channel, status from centrakit.notification_deliveries where organization_id = $1 order by channel",
-            [org],
+            [organization],
           ),
         ).toEqual([
           { channel: "email", status: "sent" },
@@ -138,7 +142,7 @@ describe.skipIf(!live)(
         await s.client.query("set local role authenticated");
         const [destination] = await s.rows<{ id: string }>(
           "insert into centrakit.webhook_destinations (organization_id, name, url, event_kinds) values ($1, 'Ledger', 'https://ledger.example.com/hook', '{notification.*}') returning id",
-          [org],
+          [organization],
         );
         await s.client.query("reset role");
         const sent: WebhookRequest[] = [];
@@ -206,7 +210,7 @@ describe.skipIf(!live)(
 
         const [run] = await s.rows<{ id: string }>(
           "select id from centrakit.workflow_runs where organization_id = $1",
-          [org],
+          [organization],
         );
         const direct = await webhooks
           .dispatch({

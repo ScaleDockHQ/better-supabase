@@ -47,7 +47,7 @@ export interface BucketConfig<
   /** Bucket id, e.g. `customer-logos`. */
   readonly id: Id;
   /**
-   * Object path template, e.g. `{orgId}/{customerId}/logo/{version}.webp`,
+   * Object path template, e.g. `{organizationId}/{customerId}/logo/{version}.webp`,
    * or several for a bucket that stores objects in more than one layout. A
    * path from values uses the template whose placeholders are exactly the
    * values given, and a stored path string is accepted when any template
@@ -62,7 +62,7 @@ export interface BucketConfig<
    * bucket the public URLs need no policy, so none is written and nobody can
    * list the objects); `none` leaves access to
    * the secret key; `{ permdock, scope }` calls PermDock's SQL helpers;
-   * `{ access }` calls the SQL kit's access contract (`tenant_ids_with`).
+   * `{ access }` calls the SQL modules' access contract (`tenant_ids_with`).
    * Defaults to `none`.
    *
    * The helpers check role and scope only. Use `permdock` just for
@@ -89,7 +89,7 @@ export interface BucketConfig<
    * `connect()`, or `{ allTenants: true }` for cross-tenant admin work.
    */
   readonly tenant?: {
-    /** Placeholder holding the tenant id. Defaults to `orgId`. */
+    /** Placeholder holding the tenant id. Defaults to `organizationId`. */
     readonly param?: string;
     /** JWT claim paths, first match wins. Defaults to `tenant_id`, then `app_metadata.tenant_id`. */
     readonly claim?: string | readonly string[];
@@ -430,7 +430,7 @@ function sizeLabel(bytes: number): string {
  * ```ts
  * export const logos = defineBucket({
  *   id: 'customer-logos',
- *   path: '{orgId}/{customerId}/logo/{version}.webp',
+ *   path: '{organizationId}/{customerId}/logo/{version}.webp',
  *   policy: 'tenant',
  *   fileSizeLimit: '5MiB',
  *   allowedMimeTypes: ['image/webp'],
@@ -451,7 +451,7 @@ export function defineBucket<
   const segmentFor = (param: string, kind: string): number =>
     layouts.segmentOf(param, kind);
   const tenantParam = config.tenant
-    ? (config.tenant.param ?? "orgId")
+    ? (config.tenant.param ?? "organizationId")
     : undefined;
   if (tenantParam !== undefined)
     layouts.requireParam(tenantParam, "tenant.param");
@@ -465,7 +465,10 @@ export function defineBucket<
   const accessCheck = ((): string | undefined => {
     switch (mode) {
       case "tenant": {
-        const index = segmentFor(config.tenant?.param ?? "orgId", "tenant");
+        const index = segmentFor(
+          config.tenant?.param ?? "organizationId",
+          "tenant",
+        );
         const expression =
           config.tenant?.sql ??
           claimSql(config.tenant?.claim ?? tenantClaimPaths());
@@ -489,7 +492,7 @@ export function defineBucket<
     }
   })();
   const permdock = policyChecks(config, policy, (kind) =>
-    segmentFor(config.tenant?.param ?? "orgId", kind),
+    segmentFor(config.tenant?.param ?? "organizationId", kind),
   );
 
   const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {

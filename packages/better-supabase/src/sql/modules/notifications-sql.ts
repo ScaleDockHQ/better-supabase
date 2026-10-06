@@ -1,8 +1,8 @@
-import type { KitContext } from "../context.ts";
+import type { BlockContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
-import { accessModel, KIT_PERMISSIONS } from "./access-model.ts";
+import { accessModel, BLOCK_PERMISSIONS } from "./access-model.ts";
 
 export interface NotifyNames {
   readonly table: (table: string) => string;
@@ -13,13 +13,19 @@ export interface NotifyNames {
   readonly readPermission: string;
 }
 
-export function notifyNames(ctx: KitContext): NotifyNames {
+export function notifyNames(ctx: BlockContext): NotifyNames {
   return {
     table: (table) => ctx.table(table),
     col: (table, logical) => ctx.col(table, logical),
     has: (table, logical) => ctx.hasTable(table) && ctx.has(table, logical),
-    sendPermission: ctx.permission("send", KIT_PERMISSIONS.notifications.send),
-    readPermission: ctx.permission("read", KIT_PERMISSIONS.notifications.read),
+    sendPermission: ctx.permission(
+      "send",
+      BLOCK_PERMISSIONS.notifications.send,
+    ),
+    readPermission: ctx.permission(
+      "read",
+      BLOCK_PERMISSIONS.notifications.read,
+    ),
   };
 }
 
@@ -32,17 +38,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** A channel nobody chose is on for `in_app` and off for the rest, unless `channelDefaults` says otherwise. */
-function channelDefaults(ctx: KitContext, channel: string): string {
+function channelDefaults(ctx: BlockContext, channel: string): string {
   const value = ctx.option("channelDefaults") ?? {};
   if (!isRecord(value)) {
     throw new TypeError(
-      "kits.notifications.options.channelDefaults must map channel names to booleans",
+      "blocks.notifications.options.channelDefaults must map channel names to booleans",
     );
   }
   const cases = Object.entries(value).map(([channel, enabled]) => {
     if (!NAME.test(channel) || typeof enabled !== "boolean") {
       throw new TypeError(
-        `kits.notifications.options.channelDefaults.${channel} must be a boolean`,
+        `blocks.notifications.options.channelDefaults.${channel} must be a boolean`,
       );
     }
     return `when ${sqlString(channel)} then ${String(enabled)}`;
@@ -54,7 +60,7 @@ function channelDefaults(ctx: KitContext, channel: string): string {
  * The (member, channel) pairs that want this notification, in one query:
  * each pair's most specific preference, or the channel default.
  */
-function wanted(ctx: KitContext, n: NotifyNames): string {
+function wanted(ctx: BlockContext, n: NotifyNames): string {
   const defaults = channelDefaults(ctx, "c");
   if (!ctx.hasTable("preferences")) {
     return `select x as member, c as channel
@@ -79,12 +85,12 @@ function wanted(ctx: KitContext, n: NotifyNames): string {
     where w.enabled`;
 }
 
-function channels(ctx: KitContext): readonly string[] {
+function channels(ctx: BlockContext): readonly string[] {
   const list = ctx.list("channels", ["in_app"]);
   for (const channel of list) {
     if (!NAME.test(channel)) {
       throw new TypeError(
-        `kits.notifications.options.channels: "${channel}" is not a channel name`,
+        `blocks.notifications.options.channels: "${channel}" is not a channel name`,
       );
     }
   }
@@ -92,7 +98,7 @@ function channels(ctx: KitContext): readonly string[] {
 }
 
 /** `notification_enabled`: the preference order, then the channel default. */
-function enabled(ctx: KitContext, n: NotifyNames): string {
+function enabled(ctx: BlockContext, n: NotifyNames): string {
   const id = ctx.idType;
   const fn = ctx.fn("notification_enabled");
   const defaults = channelDefaults(ctx, "notification_enabled.channel");
@@ -129,7 +135,7 @@ revoke execute on function ${fn}(uuid, ${id}, text, text) from public, anon, aut
 grant execute on function ${fn}(uuid, ${id}, text, text) to service_role;`;
 }
 
-function notify(ctx: KitContext, n: NotifyNames): string {
+function notify(ctx: BlockContext, n: NotifyNames): string {
   const id = ctx.idType;
   const access = ctx.installed("access");
   const e = (logical: string) => n.col("events", logical);
@@ -146,7 +152,7 @@ function notify(ctx: KitContext, n: NotifyNames): string {
   const maxRecipients = ctx.number("maxRecipients", 1000);
   if (!Number.isInteger(maxRecipients) || maxRecipients < 1) {
     throw new TypeError(
-      "kits.notifications.options.maxRecipients must be a whole number above zero",
+      "blocks.notifications.options.maxRecipients must be a whole number above zero",
     );
   }
 
@@ -405,7 +411,7 @@ function itemJson(n: NotifyNames): string {
   return `jsonb_build_object(${pairs.map(([key, value]) => `'${key}', ${value}`).join(", ")})`;
 }
 
-function inbox(ctx: KitContext, n: NotifyNames): string {
+function inbox(ctx: BlockContext, n: NotifyNames): string {
   const id = ctx.idType;
   const e = (logical: string) => n.col("events", logical);
   const r = (logical: string) => n.col("recipients", logical);
@@ -581,7 +587,7 @@ grant execute on function ${ctx.schema}.${signature} to authenticated, service_r
 }
 
 /** `set_notification_subscription` and `set_notification_preference`. */
-function settings(ctx: KitContext, n: NotifyNames): string {
+function settings(ctx: BlockContext, n: NotifyNames): string {
   const id = ctx.idType;
   const parts: string[] = [];
   const member = (fn: string) =>
@@ -661,7 +667,7 @@ grant execute on function ${ctx.fn(fn)}(text, text, boolean, ${id}) to authentic
 }
 
 /** The worker side: claim pending deliveries of a channel, then complete them. */
-function delivery(ctx: KitContext, n: NotifyNames): string {
+function delivery(ctx: BlockContext, n: NotifyNames): string {
   if (!ctx.hasTable("deliveries")) return "";
   const d = (logical: string) => n.col("deliveries", logical);
   const r = (logical: string) => n.col("recipients", logical);
@@ -789,7 +795,7 @@ grant execute on function ${ctx.fn("complete_notification_delivery")}(uuid, text
 }
 
 /** Deletes up to batch notifications older than older_than, with their recipients and deliveries. */
-function purge(ctx: KitContext, n: NotifyNames): string {
+function purge(ctx: BlockContext, n: NotifyNames): string {
   const e = (logical: string) => n.col("events", logical);
   const fn = ctx.fn("purge_notifications");
   return `
@@ -818,7 +824,7 @@ revoke execute on function ${fn}(interval, integer) from public, anon, authentic
 grant execute on function ${fn}(interval, integer) to service_role;`;
 }
 
-export function functions(ctx: KitContext, n: NotifyNames): string {
+export function functions(ctx: BlockContext, n: NotifyNames): string {
   return [
     enabled(ctx, n),
     notify(ctx, n),

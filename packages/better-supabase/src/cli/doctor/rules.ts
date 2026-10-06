@@ -9,13 +9,13 @@ import type { AdvisorCategory, AdvisorSource, Lint } from "./advisors.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
 
 import {
-  type KitFile,
-  kitFileVersion,
-  type KitLayout,
-  kitLayout,
+  type BlockFile,
+  blockFileVersion,
+  type BlockLayout,
+  blockLayout,
   moduleVersion,
-  renderKit,
-  sameKitFile,
+  renderBlocks,
+  sameBlockFile,
   SQL_MODULES,
 } from "../../sql/index.ts";
 import { defineBucket, parseSize } from "../../storage/index.ts";
@@ -26,10 +26,10 @@ import {
   migrationCommand,
   tomlGet,
 } from "../supabase-toml.ts";
+import { BLOCK_RULES } from "./blocks.ts";
 import { HOOK_RULES } from "./hooks.ts";
-import { KIT_RULES } from "./kits.ts";
 import { LIVE_RULES } from "./live.ts";
-import { accessKit, entitlementsKit, PERMDOCK_RULES } from "./permdock.ts";
+import { accessBlock, entitlementsBlock, PERMDOCK_RULES } from "./permdock.ts";
 import { POLICY_RULES } from "./policies.ts";
 import { permissiveOverlaps, RLS_RULES } from "./rls.ts";
 import { SCHEMA_DESIGN_RULES, unindexedForeignKeys } from "./schema-design.ts";
@@ -93,7 +93,7 @@ export interface DoctorContext {
   /** App source files matched by `doctor.sources`. */
   readonly sources: readonly TextFile[];
   /** `config.readSets`, compiled, or why they could not be loaded. */
-  readonly readSets?: KitLayout["readSets"] | { readonly skipped: string };
+  readonly readSets?: BlockLayout["readSets"] | { readonly skipped: string };
   /**
    * Supabase advisors for the database being checked, or why they were
    * skipped (a saved snapshot has no database to lint).
@@ -140,28 +140,28 @@ const publicRoles = (policy: CatalogPolicy): boolean =>
 const isTrue = (expression: string | null): boolean =>
   expression !== null && /^\(*\s*true\s*\)*$/i.test(expression.trim());
 
-interface KitFileState {
-  readonly file: KitFile;
+interface BlockFileState {
+  readonly file: BlockFile;
   readonly current: string | undefined;
-  /** The file's `@bs-kit` version (1 without one) is below the module's. */
+  /** The file's `@bs-block` version (1 without one) is below the module's. */
   readonly behind: boolean;
 }
 
-/** The `sql.kit` files as this release renders them, next to what is on disk. */
-async function kitFiles(context: DoctorContext): Promise<KitFileState[]> {
-  if (context.config.sql.kit.length === 0) return [];
-  // BS411 reports a permdock access model the manifest can't back; the kit
+/** The `sql.modules` files as this release renders them, next to what is on disk. */
+async function blockFiles(context: DoctorContext): Promise<BlockFileState[]> {
+  if (context.config.sql.modules.length === 0) return [];
+  // BS411 reports a permdock access model the manifest can't back; the block
   // can't render without it, so there is nothing to compare.
-  const access = accessKit(context);
+  const access = accessBlock(context);
   if (access.kind === "invalid") return [];
   const readSets = context.readSets;
   const skipped = readSets !== undefined && "skipped" in readSets;
-  const files = renderKit(context.config.sql.kit, {
-    ...kitLayout(
+  const files = renderBlocks(context.config.sql.modules, {
+    ...blockLayout(
       context.config,
       context.config.sql.testsDir,
       skipped ? [] : readSets,
-      entitlementsKit(context),
+      entitlementsBlock(context),
       access.kind === "permdock" ? access.access : undefined,
     ),
     schemasDir: declarativeSchemasDir(context.configToml),
@@ -172,51 +172,51 @@ async function kitFiles(context: DoctorContext): Promise<KitFileState[]> {
         resolve(context.config.root, file.path),
         "utf8",
       ).catch(() => undefined);
-      const version = kitFileVersion(file.contents)?.version ?? 1;
+      const version = blockFileVersion(file.contents)?.version ?? 1;
       return {
         file,
         current,
         behind:
           current !== undefined &&
-          (kitFileVersion(current)?.version ?? 1) < version,
+          (blockFileVersion(current)?.version ?? 1) < version,
       };
     }),
   );
 }
 
-async function kitVersionsBehind(
+async function blockVersionsBehind(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const findings: FindingInput[] = [];
   const upgrade = "Run `better-supabase sql upgrade`";
-  for (const { file, current, behind } of await kitFiles(context)) {
+  for (const { file, current, behind } of await blockFiles(context)) {
     if (!behind || current === undefined) continue;
     findings.push({
-      message: `${file.path} has ${file.module} version ${String(kitFileVersion(current)?.version ?? 1)}; this release ships version ${String(kitFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(context.configToml)}\`.`,
+      message: `${file.path} has ${file.module} version ${String(blockFileVersion(current)?.version ?? 1)}; this release ships version ${String(blockFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(context.configToml)}\`.`,
       target: file.path,
       location: { file: file.path, line: 1 },
     });
   }
   const db = context.database;
-  if (!db || "skipped" in db || context.config.sql.kit.length === 0) {
+  if (!db || "skipped" in db || context.config.sql.modules.length === 0) {
     return findings;
   }
   let rows: { name: string; version: number }[];
   try {
     rows = await db.query(
-      "select name, version from better_supabase.kit_modules",
+      "select name, version from better_supabase.block_modules",
     );
   } catch {
     return findings;
   }
   for (const row of rows) {
     const module = SQL_MODULES[row.name];
-    if (!module || !context.config.sql.kit.includes(row.name)) continue;
+    if (!module || !context.config.sql.modules.includes(row.name)) continue;
     const version = moduleVersion(module);
     if (row.version >= version) continue;
     findings.push({
       message: `The database has ${row.name} version ${String(row.version)}; this release ships version ${String(version)}. ${upgrade} and apply the migrations it prints.`,
-      target: `better_supabase.kit_modules.${row.name}`,
+      target: `better_supabase.block_modules.${row.name}`,
     });
   }
   return findings;
@@ -367,7 +367,8 @@ const AGGREGATE_USE =
 const TENANT_HELPER = /member|tenant|current_org|org_id|permitted_\w+_ids/i;
 
 /** A foreign key to the tenant table itself, whose own policies are usually read-only. */
-const TENANT_COLUMN = /^(?:org|organization|tenant|team|workspace|account)_id$/;
+const TENANT_COLUMN =
+  /^(?:organization|organization|tenant|team|workspace|account)_id$/;
 
 const COMMANDS = ["select", "insert", "update", "delete"] as const;
 
@@ -540,7 +541,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "error",
     title: "Policy reads auth.mfa_factors directly",
     description:
-      "`authenticated` has no access to `auth.mfa_factors`, so a policy that reads it fails every request with 42501. Check the factor in a `security definer` function such as `better_supabase.mfa_satisfied()` from the `mfa` kit module.",
+      "`authenticated` has no access to `auth.mfa_factors`, so a policy that reads it fails every request with 42501. Check the factor in a `security definer` function such as `better_supabase.mfa_satisfied()` from the `mfa` block module.",
     check: (context) =>
       exposed(context).flatMap((table) =>
         table.policies
@@ -735,17 +736,17 @@ const OWN_RULES: readonly Rule[] = [
   {
     code: "BS304",
     severity: "warning",
-    title: "SQL kit files are out of date",
+    title: "SQL module files are out of date",
     description:
-      "A module listed in `sql.kit` differs from the version in this release. Same check as `sql sync --check`.",
+      "A module listed in `sql.modules` differs from the version in this release. Same check as `sql sync --check`.",
     check: async (context) => {
       const stale: FindingInput[] = [];
-      for (const { file, current, behind } of await kitFiles(context)) {
-        if (behind || sameKitFile(current, file.contents)) continue;
+      for (const { file, current, behind } of await blockFiles(context)) {
+        if (behind || sameBlockFile(current, file.contents)) continue;
         const edited =
           current === undefined
             ? ""
-            : ` If you edited it, move the change to \`kits.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
+            : ` If you edited it, move the change to \`blocks.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
         const next =
           file.kind === "data"
             ? "Run `better-supabase sql sync`, which also writes the rows into a migration, since a schema diff skips them."
@@ -823,10 +824,10 @@ const OWN_RULES: readonly Rule[] = [
   {
     code: "BS311",
     severity: "warning",
-    title: "SQL kit module behind its current version",
+    title: "SQL module behind its current version",
     description:
-      "A module file or `better_supabase.kit_modules` records an older module version than this release ships. Same check as `sql upgrade --check`.",
-    check: kitVersionsBehind,
+      "A module file or `better_supabase.block_modules` records an older module version than this release ships. Same check as `sql upgrade --check`.",
+    check: blockVersionsBehind,
   },
   {
     code: "BS401",
@@ -992,7 +993,7 @@ export const RULES: readonly Rule[] = [
   ...HOOK_RULES,
   ...PERMDOCK_RULES,
   ...LIVE_RULES,
-  ...KIT_RULES,
+  ...BLOCK_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

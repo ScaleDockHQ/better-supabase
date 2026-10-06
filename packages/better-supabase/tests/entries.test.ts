@@ -9,8 +9,11 @@ const entryOf = (subpath: string): string =>
 
 /** Barrels whose implementation lives in sibling modules. */
 const PURE_BARRELS = [
+  "blocks/entitlements",
+  "blocks/jobs",
+  "blocks/outbox",
+  "blocks/webhooks",
   "config",
-  "jobs",
   "list",
   "mcp",
   "mcp/sdk",
@@ -21,7 +24,6 @@ const PURE_BARRELS = [
   "realtime",
   "sql",
   "storage",
-  "webhooks",
 ];
 
 describe("subpath entries", () => {

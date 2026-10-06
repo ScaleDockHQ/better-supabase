@@ -12,7 +12,7 @@ const conditions = [
 export default defineConfig({
   test: {
     setupFiles: ["./src/setup.ts"],
-    // Each file installs the kit in a transaction; parallel installs deadlock.
+    // Each file installs the block in a transaction; parallel installs deadlock.
     fileParallelism: false,
   },
   resolve: { conditions },

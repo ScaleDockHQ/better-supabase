@@ -39,7 +39,7 @@ const live = await reachable();
 // Own bucket ids: `customer-logos` belongs to the example app's migration.
 const logos = defineBucket({
   id: "bs-it-logos",
-  path: "{orgId}/{customerId}/logo/{version}.webp",
+  path: "{organizationId}/{customerId}/logo/{version}.webp",
   policy: "tenant",
   fileSizeLimit: "5MiB",
   allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
@@ -47,14 +47,14 @@ const logos = defineBucket({
 
 const avatars = defineBucket({
   id: "bs-it-avatars",
-  path: "{orgId}/{file}",
+  path: "{organizationId}/{file}",
   public: true,
   policy: "public",
 });
 
 const image = (text: string) => new Blob([text], { type: "image/webp" });
 
-describe.skipIf(!live)("Storage kit", async () => {
+describe.skipIf(!live)("Storage block", async () => {
   const user = logos.connect(
     createClient(url, publishableKey, {
       accessToken: () =>
@@ -73,9 +73,14 @@ describe.skipIf(!live)("Storage kit", async () => {
     await pool.query(avatars.sql());
   });
   afterAll(async () => {
-    const all = await admin.list({ orgId: ACME, customerId: CUSTOMER });
+    const all = await admin.list({
+      organizationId: ACME,
+      customerId: CUSTOMER,
+    });
     if (all.ok) await admin.remove(all.data.map((object) => object.path));
-    await publicAdmin.remove([{ orgId: ACME, file: `${CUSTOMER}.webp` }]);
+    await publicAdmin.remove([
+      { organizationId: ACME, file: `${CUSTOMER}.webp` },
+    ]);
     await pool.end();
   });
 
@@ -100,13 +105,13 @@ describe.skipIf(!live)("Storage kit", async () => {
 
   it("uploads inside the tenant and is denied outside it", async () => {
     const own = await user.upload(
-      { orgId: ACME, customerId: CUSTOMER, version: "v1" },
+      { organizationId: ACME, customerId: CUSTOMER, version: "v1" },
       image("one"),
     );
     expect(own).toEqual(ok({ path: `${ACME}/${CUSTOMER}/logo/v1.webp` }));
 
     const other = await user.upload(
-      { orgId: OTHER, customerId: CUSTOMER, version: "v1" },
+      { organizationId: OTHER, customerId: CUSTOMER, version: "v1" },
       image("x"),
     );
     expect(other.error?.kind).toBe("forbidden");
@@ -118,13 +123,13 @@ describe.skipIf(!live)("Storage kit", async () => {
     expect(outside.error).toMatchObject({ kind: "invalid_input" });
 
     const conflict = await user.upload(
-      { orgId: ACME, customerId: CUSTOMER, version: "v1" },
+      { organizationId: ACME, customerId: CUSTOMER, version: "v1" },
       image("again"),
     );
     expect(conflict.error?.kind).toBe("conflict");
 
     const wrongType = await user.upload(
-      { orgId: ACME, customerId: CUSTOMER, version: "v9" },
+      { organizationId: ACME, customerId: CUSTOMER, version: "v9" },
       new Blob(["x"], { type: "text/plain" }),
     );
     expect(wrongType.error).toMatchObject({
@@ -134,7 +139,11 @@ describe.skipIf(!live)("Storage kit", async () => {
   });
 
   it("serves signed URLs and checks existence", async () => {
-    const target = { orgId: ACME, customerId: CUSTOMER, version: "v1" };
+    const target = {
+      organizationId: ACME,
+      customerId: CUSTOMER,
+      version: "v1",
+    };
     const signed = await user.signedUrl(target, { ttl: "minute" }).orThrow();
     expect(await (await fetch(signed)).text()).toBe("one");
     expect(await user.exists(target).orThrow()).toBe(true);
@@ -156,7 +165,11 @@ describe.skipIf(!live)("Storage kit", async () => {
   });
 
   it("copies and moves objects as the tenant user", async () => {
-    const target = { orgId: ACME, customerId: CUSTOMER, version: "v1" };
+    const target = {
+      organizationId: ACME,
+      customerId: CUSTOMER,
+      version: "v1",
+    };
     const copy = { ...target, version: "copy" };
     const moved = { ...target, version: "moved" };
     expect(await user.copy(target, copy).orThrow()).toEqual({
@@ -169,7 +182,7 @@ describe.skipIf(!live)("Storage kit", async () => {
   });
 
   it("builds public render URLs the next/image loader keeps in sync", async () => {
-    const target = { orgId: ACME, file: `${CUSTOMER}.webp` };
+    const target = { organizationId: ACME, file: `${CUSTOMER}.webp` };
     await publicAdmin.upload(target, image("face"), { upsert: true }).orThrow();
     const object = publicAdmin.publicUrl(target).data!;
     expect(await (await fetch(object)).text()).toBe("face");
@@ -186,14 +199,14 @@ describe.skipIf(!live)("Storage kit", async () => {
 
   it("replaces objects and rolls back when the commit fails", async () => {
     const v1 = logos.path({
-      orgId: ACME,
+      organizationId: ACME,
       customerId: CUSTOMER,
       version: "v1",
     }).data!;
     let stored = v1;
     const replaced = await user
       .replace(
-        { orgId: ACME, customerId: CUSTOMER, version: "v2" },
+        { organizationId: ACME, customerId: CUSTOMER, version: "v2" },
         image("two"),
         {
           previous: stored,
@@ -210,7 +223,7 @@ describe.skipIf(!live)("Storage kit", async () => {
     expect(await user.exists(v1).orThrow()).toBe(false);
 
     const failed = await user.replace(
-      { orgId: ACME, customerId: CUSTOMER, version: "v3" },
+      { organizationId: ACME, customerId: CUSTOMER, version: "v3" },
       image("three"),
       {
         previous: stored,
@@ -221,7 +234,7 @@ describe.skipIf(!live)("Storage kit", async () => {
     expect(failed.error?.message).toBe("row changed");
     expect(
       await user
-        .exists({ orgId: ACME, customerId: CUSTOMER, version: "v3" })
+        .exists({ organizationId: ACME, customerId: CUSTOMER, version: "v3" })
         .orThrow(),
     ).toBe(false);
     expect(await user.exists(stored).orThrow()).toBe(true);
@@ -229,7 +242,7 @@ describe.skipIf(!live)("Storage kit", async () => {
 
   it("reserves signed uploads", async () => {
     const reservation = await user
-      .reserve({ orgId: ACME, customerId: CUSTOMER, version: "r1" })
+      .reserve({ organizationId: ACME, customerId: CUSTOMER, version: "r1" })
       .orThrow();
     expect(reservation.path).toBe(`${ACME}/${CUSTOMER}/logo/r1.webp`);
     await user.uploadReserved(reservation, image("reserved")).orThrow();
@@ -237,7 +250,7 @@ describe.skipIf(!live)("Storage kit", async () => {
   });
 
   it("lists and sweeps orphans", async () => {
-    const within = { orgId: ACME, customerId: CUSTOMER };
+    const within = { organizationId: ACME, customerId: CUSTOMER };
     const listed = await user.list(within).orThrow();
     expect(listed.map((object) => object.path).sort()).toEqual([
       `${ACME}/${CUSTOMER}/logo/r1.webp`,

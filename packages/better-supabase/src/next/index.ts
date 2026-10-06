@@ -41,5 +41,4 @@ export type {
   SupportStartRequest,
 } from "../server/support.ts";
 export { supportSessions } from "../server/support.ts";
-export { hasEntitlement } from "../auth/entitlements.ts";
-export type { EntitlementKey, MembershipClaim } from "../auth/entitlements.ts";
+export type { MembershipClaim } from "../auth/entitlements.ts";

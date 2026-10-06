@@ -3,15 +3,15 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { NotificationMessage } from "../../src/notifications/index.ts";
+import type { NotificationMessage } from "../../src/blocks/notifications/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { KitLayout } from "../../src/sql/kit.ts";
+import type { BlockLayout } from "../../src/sql/blocks.ts";
 
 import {
   createNotifications,
   sqlTransport,
-} from "../../src/notifications/index.ts";
-import { renderKit } from "../../src/sql/kit.ts";
+} from "../../src/blocks/notifications/index.ts";
+import { renderBlocks } from "../../src/sql/blocks.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -44,11 +44,11 @@ const USERS = {
 type Who = keyof typeof USERS;
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
 
-const LAYOUT: KitLayout = {
-  kits: {
+const LAYOUT: BlockLayout = {
+  blocks: {
     notifications: {
       options: {
-        topic: "org:{tenantId}:notifications:{userId}",
+        topic: "organization:{tenantId}:notifications:{userId}",
         channels: ["in_app", "email"],
         channelDefaults: { email: false },
       },
@@ -130,24 +130,24 @@ describe.skipIf(!live)("notifications", () => {
           [USERS[who], email(who)],
         );
       }
-      for (const file of renderKit(
+      for (const file of renderBlocks(
         ["organizations", "outbox", "notifications"],
         LAYOUT,
       ))
         await client.query(file.contents);
 
       await s.as("owner");
-      const org = await s.value<string>(
+      const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-${USERS.owner.slice(0, 8)}` }],
       );
       await client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member'), ($1, $3, 'member')",
-        [org, USERS.member, USERS.watcher],
+        [organization, USERS.member, USERS.watcher],
       );
       const task = {
         type: "task.assigned",
-        tenant: org,
+        tenant: organization,
         subject_type: "task",
         subject_id: "t1",
         subject_label: "Fix the roof",
@@ -191,16 +191,16 @@ describe.skipIf(!live)("notifications", () => {
       await s.as("watcher");
       await client.query(
         "select better_supabase.set_notification_subscription('task', 't1', 'all', $1)",
-        [org],
+        [organization],
       );
       await s.as("member");
       await client.query(
         "select better_supabase.set_notification_subscription('task', 't1', 'ignore', $1)",
-        [org],
+        [organization],
       );
       await client.query(
         "select better_supabase.set_notification_preference('*', 'email', true, $1)",
-        [org],
+        [organization],
       );
       await s.as("owner");
       const second = await s.notify({
@@ -214,7 +214,7 @@ describe.skipIf(!live)("notifications", () => {
       await s.as("member");
       await client.query(
         "select better_supabase.set_notification_subscription('task', 't1', null, $1)",
-        [org],
+        [organization],
       );
       await s.as("owner");
       const third = await s.notify({
@@ -247,7 +247,7 @@ describe.skipIf(!live)("notifications", () => {
       await s.as("member");
       const inbox = await s.value<{ type: string; subject_label: string }[]>(
         "better_supabase.list_notifications($1)",
-        [org],
+        [organization],
       );
       expect(inbox.map((item) => item.type)).toEqual([
         "approval.requested",
@@ -267,16 +267,16 @@ describe.skipIf(!live)("notifications", () => {
       await s.as("member");
       const tied = await s.value<{ id: string }[]>(
         "better_supabase.list_notifications($1)",
-        [org],
+        [organization],
       );
       const page = await s.value<{ id: string }[]>(
         "better_supabase.list_notifications($1, 'all', null, '2026-01-01T00:00:00Z', 50, $2)",
-        [org, tied[0]!.id],
+        [organization, tied[0]!.id],
       );
       expect(page.map((item) => item.id)).toEqual([tied[1]!.id]);
       expect(
         await s.value("better_supabase.notification_counts($1, $2)", [
-          org,
+          organization,
           ["approval.requested"],
         ]),
       ).toEqual({ unread: 2, actionable: 1 });
@@ -288,7 +288,7 @@ describe.skipIf(!live)("notifications", () => {
       ).toBe(1);
       expect(
         await s.value("better_supabase.list_notifications($1, 'unread')", [
-          org,
+          organization,
         ]),
       ).toHaveLength(1);
       expect(
@@ -297,7 +297,7 @@ describe.skipIf(!live)("notifications", () => {
         ]),
       ).toBe(1);
       expect(
-        await s.value("better_supabase.list_notifications($1)", [org]),
+        await s.value("better_supabase.list_notifications($1)", [organization]),
       ).toHaveLength(1);
 
       // Clients read only their own rows and can't write events.
@@ -391,7 +391,7 @@ describe.skipIf(!live)("notifications", () => {
       expect(
         await s.value(
           "better_supabase.resolve_notifications('approval.requested', 'task', 't1', $1)",
-          [org],
+          [organization],
         ),
       ).toBe(1);
 
@@ -399,7 +399,7 @@ describe.skipIf(!live)("notifications", () => {
       expect(
         await s.value(
           "(select count(*)::int from realtime.messages where topic = $1 and event = 'notification_created')",
-          [`org:${org}:notifications:${USERS.member}`],
+          [`organization:${organization}:notifications:${USERS.member}`],
         ),
       ).toBe(2);
       expect(
@@ -469,16 +469,19 @@ describe.skipIf(!live)("notifications", () => {
           [USERS[who], email(who)],
         );
       }
-      for (const file of renderKit(["organizations", "notifications"], LAYOUT))
+      for (const file of renderBlocks(
+        ["organizations", "notifications"],
+        LAYOUT,
+      ))
         await client.query(file.contents);
       await s.as("owner");
-      const org = await s.value<string>(
+      const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-e2e-${USERS.owner.slice(0, 8)}` }],
       );
       await client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
-        [org, USERS.member],
+        [organization, USERS.member],
       );
       await client.query(
         "insert into better_supabase.notification_preferences (user_id, organization_id, type, channel, enabled) values ($1, null, '*', 'email', true)",
@@ -487,7 +490,7 @@ describe.skipIf(!live)("notifications", () => {
 
       const id = await notifications
         .send("task.assigned", {
-          tenant: org,
+          tenant: organization,
           recipients: [USERS.member],
           subject: { type: "task", id: "t9", label: "Paint" },
           data: { title: "Paint" },
@@ -497,7 +500,9 @@ describe.skipIf(!live)("notifications", () => {
       expect(id).toMatch(/^[0-9a-f-]{36}$/);
 
       await s.as("member");
-      const [item] = await notifications.list({ tenant: org }).orThrow();
+      const [item] = await notifications
+        .list({ tenant: organization })
+        .orThrow();
       expect(item).toMatchObject({
         eventId: id,
         type: "task.assigned",
@@ -505,11 +510,15 @@ describe.skipIf(!live)("notifications", () => {
         text: { title: "Assigned: Paint" },
         readAt: null,
       });
-      expect(await notifications.counts({ tenant: org }).orThrow()).toEqual({
+      expect(
+        await notifications.counts({ tenant: organization }).orThrow(),
+      ).toEqual({
         unread: 1,
         actionable: 0,
       });
-      expect(await notifications.markRead({ tenant: org }).orThrow()).toBe(1);
+      expect(
+        await notifications.markRead({ tenant: organization }).orThrow(),
+      ).toBe(1);
 
       await s.as("service");
       expect(await notifications.deliver()).toEqual({

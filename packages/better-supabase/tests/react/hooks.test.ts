@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AuthSnapshot } from "../../src/client/index.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
+import { useNotifications } from "../../src/blocks/notifications/react/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
@@ -20,7 +21,6 @@ import {
   useLiveQuery,
   useSupabase,
 } from "../../src/react/hooks.ts";
-import { useNotifications } from "../../src/react/notifications.ts";
 import { useSession } from "../../src/react/session.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
@@ -612,16 +612,16 @@ describe("useLiveQuery", () => {
     const { queryClient } = cachedClient();
     const view = renderHook<string, string>(
       (tenant) => useLiveQuery(spec, { tenant }),
-      "org-a",
+      "organization-a",
       { client: browser, queryClient },
     );
     expect(client.channel.mock.calls[0]![0]).toBe(
-      "bs:t:public.customers:org-a",
+      "bs:t:public.customers:organization-a",
     );
-    view.rerender("org-b");
+    view.rerender("organization-b");
     await flush();
     expect(client.channel.mock.calls.map(([topic]) => topic)).toContain(
-      "bs:t:public.customers:org-b",
+      "bs:t:public.customers:organization-b",
     );
     view.unmount();
   });

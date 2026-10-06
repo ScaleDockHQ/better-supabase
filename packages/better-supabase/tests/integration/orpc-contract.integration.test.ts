@@ -96,14 +96,14 @@ describe.skipIf(!live)(
     });
 
     const call = async (
-      orgId: string,
+      organizationId: string,
       path: string,
       body?: Record<string, string>,
     ) =>
       app.request(path, {
         method: body ? "POST" : "GET",
         headers: {
-          authorization: `Bearer ${await signLocalJwt({ sub: USER, tenant_id: orgId })}`,
+          authorization: `Bearer ${await signLocalJwt({ sub: USER, tenant_id: organizationId })}`,
           ...(body ? { "content-type": "application/json" } : {}),
         },
         ...(body ? { body: JSON.stringify(body) } : {}),

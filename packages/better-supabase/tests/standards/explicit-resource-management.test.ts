@@ -63,7 +63,7 @@ describe("explicit resource management", () => {
     {
       using sync = notifications.subscribe(
         client,
-        { orgId: "o1", userId: "u1" },
+        { organizationId: "o1", userId: "u1" },
         {},
       );
       await sync.ready;
@@ -71,7 +71,7 @@ describe("explicit resource management", () => {
     {
       await using async = notifications.subscribe(
         client,
-        { orgId: "o1", userId: "u2" },
+        { organizationId: "o1", userId: "u2" },
         {},
       );
       await async.ready;

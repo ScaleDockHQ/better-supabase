@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { KitsConfig } from "../../../src/config/kits.ts";
+import type { BlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody, renderKit } from "../../../src/sql/kit.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/blocks.ts";
 
-const body = (kits: KitsConfig) => moduleBody("outbox", { kits })!;
+const body = (blocks: BlocksConfig) => moduleBody("outbox", { blocks })!;
 
 describe("outbox module", () => {
   it("owns its tables and keeps the functions for the service role", () => {
@@ -106,21 +106,23 @@ describe("outbox module", () => {
   });
 
   it("renders nothing in custom mode", () => {
-    expect(moduleBody("outbox", { kits: { outbox: { mode: "custom" } } })).toBe(
-      undefined,
-    );
+    expect(
+      moduleBody("outbox", { blocks: { outbox: { mode: "custom" } } }),
+    ).toBe(undefined);
   });
 
   it("lets other modules emit once the outbox is installed", () => {
-    const without = renderKit(["organizations"]).at(-1)!.contents;
+    const without = renderBlocks(["organizations"]).at(-1)!.contents;
     expect(without).not.toContain("emit_event");
-    const files = renderKit(["organizations", "outbox"]);
-    const orgs = files.find((file) => file.path.includes("organizations"))!;
-    expect(orgs.contents).toContain(
-      `perform "better_supabase".emit_event('org.created'`,
+    const files = renderBlocks(["organizations", "outbox"]);
+    const organizations = files.find((file) =>
+      file.path.includes("organizations"),
+    )!;
+    expect(organizations.contents).toContain(
+      `perform "better_supabase".emit_event('organization.created'`,
     );
-    const silenced = renderKit(["organizations", "outbox"], {
-      kits: { organizations: { events: false } },
+    const silenced = renderBlocks(["organizations", "outbox"], {
+      blocks: { organizations: { events: false } },
     }).find((file) => file.path.includes("organizations"))!;
     expect(silenced.contents).not.toContain("emit_event");
   });

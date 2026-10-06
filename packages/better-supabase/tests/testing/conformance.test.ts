@@ -2,11 +2,14 @@ import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
 import type { AuthResolver } from "../../src/auth/resolve.ts";
+import type {
+  QueueBackend,
+  QueueMessageRow,
+} from "../../src/blocks/jobs/index.ts";
 import type { CacheAdapter } from "../../src/core/cache.ts";
 import type { Executor } from "../../src/core/executor.ts";
 import type { CloudEvent, EventSink } from "../../src/events/index.ts";
 import type { Condition, Selection } from "../../src/ir/types.ts";
-import type { QueueBackend, QueueMessageRow } from "../../src/jobs/index.ts";
 
 import {
   jsonSchema,
@@ -552,7 +555,7 @@ describe("conform", () => {
       [
         "throws a string",
         () => {
-          // oxlint-disable-next-line typescript/only-throw-error -- the kit must report non-Error throws.
+          // oxlint-disable-next-line typescript/only-throw-error -- the block must report non-Error throws.
           throw "boom";
         },
       ],
@@ -763,7 +766,7 @@ describe("testAuthResolver edge cases", () => {
       resolve: (incoming) => {
         const key = incoming.headers.get("x-api-key");
         if (key === null) return;
-        // oxlint-disable-next-line typescript/only-throw-error -- the kit must report non-Error throws.
+        // oxlint-disable-next-line typescript/only-throw-error -- the block must report non-Error throws.
         if (key === "throw") throw "offline";
         return key === "user"
           ? {

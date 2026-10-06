@@ -46,9 +46,9 @@ export default defineConfig({
   },
   overrides: [
     {
-      // The SQL kit is one registry of SQL modules (src/sql/kit.ts registry,
+      // The SQL blocks are one registry of SQL modules (src/sql/blocks.ts registry,
       // AGENTS.md); its SQL text is the bulk of the file.
-      files: ["src/sql/kit.ts"],
+      files: ["src/sql/blocks.ts"],
       rules: { "eslint/max-lines": "off" },
     },
     {

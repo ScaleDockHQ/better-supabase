@@ -1,12 +1,12 @@
 import { defineConfig } from "better-supabase/config";
 
-// The kit config CentraKit adopts better-supabase with: every module runs on
+// The block config CentraKit adopts better-supabase with: every module runs on
 // its existing tables (`adopt`), its permission catalog and its names. Only
 // support sessions are new tables. CentraKit keeps its tables in `public`;
 // the fixture puts them in `centrakit`.
 export default defineConfig({
   sql: {
-    kit: [
+    modules: [
       "organizations",
       "invitations",
       "profiles",
@@ -17,7 +17,7 @@ export default defineConfig({
       "webhooks-out",
     ],
   },
-  kits: {
+  blocks: {
     access: {
       model: "catalog",
       tables: {
@@ -170,7 +170,7 @@ export default defineConfig({
       idType: "uuid",
       options: {
         defaultSource: "domain",
-        kitSource: "domain",
+        blockSource: "domain",
       },
     },
     notifications: {
@@ -192,7 +192,7 @@ export default defineConfig({
       },
       idType: "uuid",
       options: {
-        topic: "org:{tenantId}:notifications:{userId}",
+        topic: "organization:{tenantId}:notifications:{userId}",
         channels: ["in_app", "email"],
       },
     },

@@ -119,7 +119,7 @@ describe("private-cache scopes", () => {
   it("adds tags and caps stale with life.stale", async () => {
     const token = await signer.sign({ sub: USER, expiresIn: 3600 });
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
-    const tags = [`permdock:${USER}`, "org:acme"];
+    const tags = [`permdock:${USER}`, "organization:acme"];
     await bs.cached({ tags, life: { stale: 45 } });
     expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 45 });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(sessionTag(USER), ...tags);

@@ -38,7 +38,7 @@
   failure in CI is a real slowdown, not a slow runner.
 - The CLI tests read the library's fixtures through
   `tests/cli/fixtures/library.ts`. The CLI imports the library only through
-  its entry files (`src/sql/index.ts`, not `src/sql/kit.ts`), which the CLI
+  its entry files (`src/sql/index.ts`, not `src/sql/blocks.ts`), which the CLI
   build turns back into `better-supabase/*` imports.
 - `tests/standards` holds one conformance test per adopted standard. Tests
   that have an official JSON Schema validate against a vendored copy in

@@ -1,4 +1,4 @@
-import { hasEntitlement } from "better-supabase/next";
+import { hasEntitlement } from "better-supabase/blocks/entitlements";
 
 import { getSession } from "@/features/user/user-queries";
 import { type Entitlement } from "@/lib/claims";
@@ -15,11 +15,11 @@ const FEATURES = {
  */
 export async function PlanFeatures() {
   const session = await getSession();
-  const orgId =
+  const organizationId =
     session.kind === "user"
       ? (session.claims.tenant_id ?? session.claims.app_metadata?.tenant_id)
       : undefined;
-  if (!orgId) return null;
+  if (!organizationId) return null;
   // SAFETY: FEATURES is keyed by Entitlement, and Object.entries widens the
   // keys to string.
   return (
@@ -27,7 +27,7 @@ export async function PlanFeatures() {
       {Object.entries(FEATURES).map(([key, label]) => (
         <li key={key}>
           {label}:{" "}
-          {hasEntitlement(session, orgId, key as Entitlement)
+          {hasEntitlement(session, organizationId, key as Entitlement)
             ? "included"
             : "not in your plan"}
         </li>

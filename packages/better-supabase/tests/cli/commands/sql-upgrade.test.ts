@@ -44,7 +44,7 @@ describe("sql upgrade with forward steps", () => {
 
   const sql = (argv: string[]) =>
     runSql(
-      resolveConfig({ sql: { kit: ["tenant"] } }, root),
+      resolveConfig({ sql: { modules: ["tenant"] } }, root),
       // SAFETY: parseCommandArgs returns the declared args of sqlCommand.
       parseCommandArgs(sqlCommand, argv) as SqlArgs,
     );
@@ -52,7 +52,7 @@ describe("sql upgrade with forward steps", () => {
   it("writes the steps with SQL into a migration before the schema diff", async () => {
     await sql(["sync"]);
     const path =
-      "supabase/migrations/20261003080910_better_supabase_kit_upgrade.sql";
+      "supabase/migrations/20261003080910_better_supabase_block_upgrade.sql";
 
     const dry = await sql(["upgrade", "--dry-run"]);
     expect(dry.output).toContain(`Would write ${path}`);

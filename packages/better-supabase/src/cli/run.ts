@@ -118,7 +118,7 @@ const COMMANDS = new Map<string, Entry>([
     "sql",
     {
       load: () => import("./commands/sql.ts").then((m) => m.sqlCommand),
-      description: "Lists, adds, syncs, upgrades and prints SQL kit modules",
+      description: "Lists, adds, syncs, upgrades and prints SQL modules",
     },
   ],
   [
@@ -164,7 +164,7 @@ const ROOT = defineCommand({
     name: "better-supabase",
     version: VERSION,
     description:
-      "Typed Supabase: codegen, doctor, the SQL kit and project setup",
+      "Typed Supabase: codegen, doctor, the SQL modules and project setup",
   },
   args: GLOBAL_ARGS,
   subCommands: () =>

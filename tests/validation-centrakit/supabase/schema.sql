@@ -1,7 +1,7 @@
--- CentraKit's tables for the kits better-supabase adopts, from its
+-- CentraKit's tables for the blocks better-supabase adopts, from its
 -- supabase/schemas (tenant, identity, platform and automation). They live in
 -- a `centrakit` schema here so the tests can create them next to the repo's
--- fixture; CentraKit itself keeps them in `public`. Columns no kit reads are
+-- fixture; CentraKit itself keeps them in `public`. Columns no block reads are
 -- trimmed, and the type and subject check lists are shortened.
 
 create extension if not exists citext with schema extensions;
@@ -302,7 +302,7 @@ create unique index webhook_deliveries_destination_event_idx
   where event_id is not null;
 
 -- Refactor: CentraKit's audit writers set scope and actor_kind themselves;
--- the kit's audit_event leaves them to the table.
+-- the block's audit_event leaves them to the table.
 create function centrakit.audit_log_defaults()
 returns trigger
 language plpgsql
@@ -317,11 +317,11 @@ create trigger audit_log_defaults before insert on centrakit.audit_logs
   for each row execute function centrakit.audit_log_defaults();
 
 -- CentraKit seeds each new organization (templates, VAT rates).
-create function centrakit.seed_organization(org uuid, creator uuid)
+create function centrakit.seed_organization(organization uuid, creator uuid)
 returns void
 language sql
 as $$
-  insert into centrakit.workflow_runs (organization_id) values (org);
+  insert into centrakit.workflow_runs (organization_id) values (organization);
 $$;
 
 -- CentraKit keeps a contact profile next to each profile.

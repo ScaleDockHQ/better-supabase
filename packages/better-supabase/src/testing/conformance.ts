@@ -1,12 +1,16 @@
 import type { AuthResolver, AuthState } from "../auth/resolve.ts";
 import type { SupportSessionStore } from "../auth/support.ts";
+import type {
+  Job,
+  QueueBackend,
+  QueueMessageRow,
+} from "../blocks/jobs/queue.ts";
 import type { CacheAdapter, CacheTarget } from "../core/cache.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { ExecuteContext, Executor } from "../core/executor.ts";
 import type { AnyPlugin, HookArgs, RequestContext } from "../core/plugin.ts";
 import type { CloudEvent, EventSink } from "../events/index.ts";
 import type { Operation } from "../ir/types.ts";
-import type { Job, QueueBackend, QueueMessageRow } from "../jobs/queue.ts";
 
 import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
@@ -382,7 +386,7 @@ export function testCacheAdapter(
           table,
           tables: [table],
           ids: ["1", "a,b"],
-          tenant: "org_1",
+          tenant: "organization_1",
         }),
     ],
     [
@@ -433,7 +437,7 @@ export function testEventSink(
         { id: "1", name: "Acme" },
         { id: "2", name: "Globex" },
       ],
-      context: { tenant: "org_1" },
+      context: { tenant: "organization_1" },
     },
     { source: "/better-supabase/conformance" },
   );

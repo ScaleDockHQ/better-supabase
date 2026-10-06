@@ -16,10 +16,10 @@ export const readJsonFixture = (name: string): unknown =>
 export const snapshotFixture = readJsonFixture("snapshot.json") as Snapshot;
 
 /**
- * A snapshot with the SQL kit tables in `better_supabase` (memberships,
+ * A snapshot with the SQL module tables in `better_supabase` (memberships,
  * invitations), for doctor rules the fixture database has no tables for.
  */
-// SAFETY: kit-snapshot.json is written by `better-supabase introspect`.
-export const kitSnapshotFixture = JSON.parse(
-  readFileSync(new URL("kit-snapshot.json", import.meta.url), "utf8"),
+// SAFETY: block-snapshot.json is written by `better-supabase introspect`.
+export const blockSnapshotFixture = JSON.parse(
+  readFileSync(new URL("block-snapshot.json", import.meta.url), "utf8"),
 ) as Snapshot;

@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccessKitConfig } from "../../../src/config/kits.ts";
+import type { AccessBlockConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody, renderKit, SQL_MODULES } from "../../../src/sql/kit.ts";
+import {
+  moduleBody,
+  renderBlocks,
+  SQL_MODULES,
+} from "../../../src/sql/blocks.ts";
 import { DEFAULT_ROLES } from "../../../src/sql/modules/access-model.ts";
 
-const access = (config: AccessKitConfig, tenant?: object) =>
+const access = (config: AccessBlockConfig, tenant?: object) =>
   moduleBody("access", {
-    kits: { access: config, ...(tenant ? { tenant } : {}) },
+    blocks: { access: config, ...(tenant ? { tenant } : {}) },
   })!;
 
-const CATALOG: AccessKitConfig = {
+const CATALOG: AccessBlockConfig = {
   mode: "adopt",
   model: "catalog",
   tables: {
@@ -106,7 +110,7 @@ describe("access module", () => {
 
   it("takes the permdock model's schema, scope and id type from the manifest", () => {
     const sql = moduleBody("access", {
-      kits: { access: { model: "permdock" } },
+      blocks: { access: { model: "permdock" } },
       accessPermdock: { schema: "authz", scope: "tenant", idType: "text" },
     })!;
     expect(sql).toContain('"authz"."permitted_tenant_ids"(permission)');
@@ -122,7 +126,7 @@ describe("access module", () => {
       ).toThrow(/needs PermDock's manifest/);
     expect(() =>
       moduleBody("access", {
-        kits: { access: { model: "permdock", idType: "uuid" } },
+        blocks: { access: { model: "permdock", idType: "uuid" } },
         accessPermdock: { schema: "authz", scope: "tenant", idType: "text" },
       }),
     ).toThrow(
@@ -161,7 +165,7 @@ describe("access module", () => {
       model: "custom",
       functions: {
         can: "public.authorize_scope({scope}::public.scope_type, {id}, {permission})",
-        tenantIdsWith: "public.org_ids_with_permission({permission})",
+        tenantIdsWith: "public.organization_ids_with_permission({permission})",
         isPlatform: "public.is_system_user_with({permission})",
         canUser: "public.user_can({user}, {id}, {permission})",
         canAssign: "public.may_assign({tenant}, {role})",
@@ -172,13 +176,13 @@ describe("access module", () => {
       "public.authorize_scope('organization'::public.scope_type, tenant, permission)",
     );
     expect(sql).toContain(
-      "from public.org_ids_with_permission(tenant_ids_with.permission) as t(id)",
+      "from public.organization_ids_with_permission(tenant_ids_with.permission) as t(id)",
     );
     expect(sql).toContain("public.is_system_user_with(permission)");
     expect(sql).toContain("public.user_can(member, tenant, permission)");
     expect(sql).toContain("public.permission_claims(user_id)");
     expect(() => access({ model: "custom" })).toThrow(
-      /needs kits.access.functions.can, tenantIdsWith, isPlatform, canAssign/,
+      /needs blocks.access.functions.can, tenantIdsWith, isPlatform, canAssign/,
     );
     expect(() =>
       access({
@@ -197,13 +201,13 @@ describe("access module", () => {
     const permdock = { schema: "permdock", scope: "organization" };
     const alone = access({ model: "permdock", permdock });
     expect(alone).toMatch(/or coalesce\(\(false\), false\)/);
-    const withTenant = renderKit(["tenant", "access"], {
-      kits: { access: { model: "permdock", permdock } },
+    const withTenant = renderBlocks(["tenant", "access"], {
+      blocks: { access: { model: "permdock", permdock } },
     })
       .map((file) => file.contents)
       .join("\n");
     expect(withTenant).toContain(
-      "can_assign.role <> 'owner' or better_supabase.has_org_role(can_assign.tenant, array['owner'])",
+      "can_assign.role <> 'owner' or better_supabase.has_organization_role(can_assign.tenant, array['owner'])",
     );
   });
 

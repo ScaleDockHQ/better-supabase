@@ -1,8 +1,8 @@
--- better-supabase SQL kit: updated-at (0.4.0)
--- @bs-kit updated-at@1 managed
+-- better-supabase block: updated-at (0.5.1)
+-- @bs-block updated-at@1 managed
 -- Keeps an updated_at column current on every update.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
--- Change it through `kits` in better-supabase.config.ts and the module's SQL hooks.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
@@ -24,7 +24,7 @@ $$;
 
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
-  kit_trigger text,
+  block_trigger text,
   pattern text,
   replace_trigger boolean
 )
@@ -41,14 +41,14 @@ begin
     join pg_catalog.pg_proc p on p.oid = t.tgfoid
     where t.tgrelid = replace_equivalent_triggers.target
       and not t.tgisinternal
-      and t.tgname <> replace_equivalent_triggers.kit_trigger
+      and t.tgname <> replace_equivalent_triggers.block_trigger
       and p.proname ~* replace_equivalent_triggers.pattern
   loop
     if replace_trigger then
       execute format('drop trigger %I on %s', found.name, target);
     else
       raise warning '% already has trigger % (%), which does what % does. Pass replace_trigger => true to drop it.',
-        target, found.name, found.fn, kit_trigger;
+        target, found.name, found.fn, block_trigger;
     end if;
   end loop;
 end;
@@ -84,13 +84,13 @@ $$;
 revoke execute on function better_supabase.track_updated_at(regclass, text, boolean) from public, anon, authenticated;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.kit_modules (
+create table if not exists better_supabase.block_modules (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.kit_modules enable row level security;
-revoke all on better_supabase.kit_modules from anon, authenticated;
-grant select on better_supabase.kit_modules to service_role;
+alter table better_supabase.block_modules enable row level security;
+revoke all on better_supabase.block_modules from anon, authenticated;
+grant select on better_supabase.block_modules to service_role;
