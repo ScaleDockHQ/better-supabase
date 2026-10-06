@@ -5,6 +5,7 @@ import type {
   Schema,
   SchemaMeta,
   TableKey,
+  TableMeta,
 } from "../schema/types.ts";
 import type { Executor } from "./executor.ts";
 import type { Logger } from "./logger.ts";
@@ -518,6 +519,106 @@ export class BetterSupabase<
       tuning,
     });
 
+    /**
+     * `db.$search({ score: true })`: the ranked ids and scores from
+     * `search_<table>_scores`, then those rows through the table (RLS and
+     * `where` apply), best first, each with `$score`.
+     */
+    const scoredSearch = async (
+      table: TableMeta,
+      fnArgs: Readonly<Record<string, unknown>>,
+      args: SearchInput,
+      hint: (error: DbError) => DbError,
+    ): Promise<Result<readonly unknown[]>> => {
+      const [key, ...rest] = table.primaryKey;
+      if (key === undefined || rest.length > 0) {
+        return err(
+          dbError(
+            "invalid_request",
+            "db.$search({ score: true }) needs a table with a one-column primary key",
+            { table: table.key },
+          ),
+        );
+      }
+      const { builder } = runner.runtime;
+      // The scores function's rows, read like a table so PostgREST and SQL
+      // executors both run it; RLS applies inside the function.
+      const scoresTable: TableMeta = {
+        key: `${table.key}$scores`,
+        name: `search_${table.name}_scores`,
+        schema: table.schema,
+        kind: "view",
+        columns: {
+          id: { db: "id", type: "jsonb", nullable: false, hasDefault: false },
+          score: {
+            db: "score",
+            type: "float8",
+            nullable: false,
+            hasDefault: false,
+          },
+        },
+        primaryKey: [],
+        uniqueKeys: {},
+        relations: {},
+        flags: {},
+      };
+      const scored = await executor.execute(
+        {
+          kind: "select",
+          table: scoresTable,
+          selection: builder.selection(scoresTable, ["id", "score"], undefined),
+          where: undefined,
+          orderBy: [],
+          limit: undefined,
+          offset: undefined,
+          count: undefined,
+          head: false,
+          single: undefined,
+          source: {
+            schema: table.schema,
+            name: scoresTable.name,
+            args: fnArgs,
+          },
+        },
+        { errorMappers, ...(args.signal ? { signal: args.signal } : {}) },
+      );
+      if (!scored.ok) return err(hint({ ...scored.error, table: table.key }));
+      const ranked = scored.data.rows.flatMap((row) =>
+        row["score"] === undefined || row["score"] === null
+          ? []
+          : [{ id: row["id"], score: Number(row["score"]) }],
+      );
+      if (ranked.length === 0) return ok([]);
+      const byId = new Map(ranked.map((entry) => [String(entry.id), entry]));
+      const op: SelectOp = {
+        kind: "select",
+        table,
+        selection: builder.selection(table, args.select, args.include),
+        where: builder.where(table, {
+          AND: [
+            ...(args.where === undefined ? [] : [args.where]),
+            { [key]: { in: ranked.map((entry) => entry.id) } },
+          ],
+        }),
+        orderBy: [],
+        limit: ranked.length,
+        offset: undefined,
+        count: undefined,
+        head: false,
+        single: undefined,
+      };
+      const result = await runner.run(op, {}, args.signal);
+      if (!result.ok) return result;
+      return ok(
+        result.data.rows
+          .flatMap((row) => {
+            const entry = byId.get(String(row[key]));
+            return entry ? [{ ...row, $score: entry.score }] : [];
+          })
+          .toSorted((a, b) => b.$score - a.$score),
+      );
+    };
+
     // SAFETY: the prototype only adds the table getters; the own properties
     // below are the $ methods.
     const db = Object.create(this.#tablePrototype()) as Record<string, unknown>;
@@ -591,7 +692,7 @@ export class BetterSupabase<
         return many(target, options?.signal, true);
       },
       $search: (name: string, args: SearchInput) =>
-        AsyncResult.from(async () => {
+        AsyncResult.from(async (): Promise<Result<readonly unknown[]>> => {
           const table = Object.hasOwn(this.meta.tables, name)
             ? this.meta.tables[name]
             : undefined;
@@ -624,6 +725,22 @@ export class BetterSupabase<
             );
           }
           const { builder } = runner.runtime;
+          const fnArgs = {
+            query,
+            k,
+            ...(args.filter === undefined ? {} : { filter: args.filter }),
+            ...(args.text === undefined ? {} : { text_query: args.text }),
+          };
+          const hint = (error: DbError): DbError =>
+            error.code === "PGRST202" || error.code === "42883"
+              ? {
+                  ...error,
+                  hint: `Add "${table.schema}.${table.name}" to vectorSearch in better-supabase.config.ts (with prefilter or hybrid for filter and text) and run \`better-supabase sql sync\`.`,
+                }
+              : error;
+          if (args.score) {
+            return scoredSearch(table, fnArgs, args, hint);
+          }
           const op: SelectOp = {
             kind: "select",
             table,
@@ -638,19 +755,12 @@ export class BetterSupabase<
             source: {
               schema: table.schema,
               name: `search_${table.name}`,
-              args: { query, k },
+              args: fnArgs,
             },
           };
           const result = await runner.run(op, {}, args.signal);
           if (result.ok) return ok(result.data.rows);
-          const missing =
-            result.error.code === "PGRST202" || result.error.code === "42883";
-          return missing
-            ? err({
-                ...result.error,
-                hint: `Add "${table.schema}.${table.name}" to vectorSearch in better-supabase.config.ts and run \`better-supabase sql sync\`.`,
-              })
-            : result;
+          return err(hint(result.error));
         }),
     });
 

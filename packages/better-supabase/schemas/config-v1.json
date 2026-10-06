@@ -531,6 +531,32 @@
               "distance": {
                 "enum": ["cosine", "l2", "inner_product"],
                 "default": "cosine"
+              },
+              "type": { "enum": ["vector", "halfvec"], "default": "vector" },
+              "key": {
+                "type": "string",
+                "default": "id",
+                "description": "The primary key column db.$search({ score: true }) merges by."
+              },
+              "hybrid": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["tsvector"],
+                "description": "Fuses a full-text ranking over a tsvector column with the vector ranking (reciprocal rank fusion).",
+                "properties": {
+                  "tsvector": { "type": "string" },
+                  "config": { "type": "string", "default": "simple" },
+                  "k": { "type": "integer", "minimum": 1, "default": 60 }
+                }
+              },
+              "boost": {
+                "type": "string",
+                "description": "A SQL expression over the row t the score is multiplied by."
+              },
+              "prefilter": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Columns db.$search({ filter }) narrows before ranking."
               }
             }
           }

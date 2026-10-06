@@ -27,7 +27,7 @@ import type { Executor } from "./executor.ts";
 import type { ApplyExtension, RequestContext } from "./plugin.ts";
 import type { InferReadSetParams, ReadSet, ReadSetResult } from "./read-set.ts";
 import type { AsyncResult } from "./result.ts";
-import type { SearchArgs } from "./search.ts";
+import type { SearchArgs, SearchScore } from "./search.ts";
 import type { InferResult, QuerySpec } from "./spec.ts";
 import type { StandardSchemaV1 } from "./standard.ts";
 import type { DbStats } from "./stats.ts";
@@ -416,7 +416,7 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
   $search<T extends TableKey<M>, const A extends SearchArgs<M, T>>(
     table: T,
     args: A,
-  ): AsyncResult<Payload<M, T, A>[]>;
+  ): AsyncResult<(Payload<M, T, A> & SearchScore<A>)[]>;
 }
 
 export type Db<M extends AnyModels, F extends AnyFunctions, E, C> = {

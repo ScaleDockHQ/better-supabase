@@ -417,6 +417,13 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      search_notes_scores: {
+        Args: { k?: number; query: string }
+        Returns: {
+          id: Json
+          score: number
+        }[]
+      }
     }
     Enums: {
       note_kind: "call" | "meeting" | "email"

@@ -388,6 +388,13 @@ export type Functions = {
     };
     Returns: (Models["notes"]['Row'])[];
   };
+  search_notes_scores: {
+    Args: {
+      k?: number | null;
+      query: string | null;
+    };
+    Returns: { "id": Json; "score": number | null }[];
+  };
 };
 
 export type TableName = keyof Models;

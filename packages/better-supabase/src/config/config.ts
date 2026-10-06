@@ -405,7 +405,29 @@ export type VectorDistance = "cosine" | "l2" | "inner_product";
 /** The embedding column, or the column and its distance (default `cosine`). */
 export type VectorSearchConfig =
   | string
-  | { readonly column: string; readonly distance?: VectorDistance };
+  | {
+      readonly column: string;
+      readonly distance?: VectorDistance;
+      /** The column's pgvector type. Defaults to `vector`. */
+      readonly type?: "vector" | "halfvec";
+      /** The primary key column `db.$search({ score: true })` merges by. Defaults to `id`. */
+      readonly key?: string;
+      /**
+       * Fuses a full-text ranking over a `tsvector` column with the vector
+       * ranking (reciprocal rank fusion), for `db.$search({ text })`.
+       */
+      readonly hybrid?: {
+        readonly tsvector: string;
+        /** The query's text search configuration. Defaults to `simple`. */
+        readonly config?: string;
+        /** The RRF constant. Defaults to 60. */
+        readonly k?: number;
+      };
+      /** A SQL expression over the row `t` the score is multiplied by, such as `t.priority`. */
+      readonly boost?: string;
+      /** Columns `db.$search({ filter })` narrows before ranking. */
+      readonly prefilter?: readonly string[];
+    };
 
 /** A privilege the Data API roles can be granted on a table or view. */
 export type Privilege = "select" | "insert" | "update" | "delete";
@@ -548,7 +570,18 @@ function vectorSearchOf(
   return Object.entries(config).map(([table, entry]) =>
     typeof entry === "string"
       ? { table, column: entry, distance: "cosine" }
-      : { table, column: entry.column, distance: entry.distance ?? "cosine" },
+      : {
+          table,
+          column: entry.column,
+          distance: entry.distance ?? "cosine",
+          ...(entry.type === undefined ? {} : { type: entry.type }),
+          ...(entry.key === undefined ? {} : { key: entry.key }),
+          ...(entry.hybrid === undefined ? {} : { hybrid: entry.hybrid }),
+          ...(entry.boost === undefined ? {} : { boost: entry.boost }),
+          ...(entry.prefilter === undefined
+            ? {}
+            : { prefilter: entry.prefilter }),
+        },
   );
 }
 
@@ -604,11 +637,11 @@ export interface ResolvedConfig {
     readonly source: NonNullable<EntitlementsConfig["source"]>;
   };
   readonly permdock: Required<PermdockPathsConfig>;
-  readonly vectorSearch: readonly {
+  readonly vectorSearch: readonly ({
     readonly table: string;
     readonly column: string;
     readonly distance: VectorDistance;
-  }[];
+  } & Omit<Exclude<VectorSearchConfig, string>, "column" | "distance">)[];
   readonly topics: Readonly<Record<string, string>>;
   readonly realtime: Required<RealtimeConfig>;
   readonly sql: ResolvedSqlConfig;

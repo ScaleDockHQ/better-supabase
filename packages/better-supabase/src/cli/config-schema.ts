@@ -217,6 +217,17 @@ const ConfigSchema = v.strictObject({
         v.strictObject({
           column: v.string(),
           distance: v.optional(v.picklist(["cosine", "l2", "inner_product"])),
+          type: v.optional(v.picklist(["vector", "halfvec"])),
+          key: v.optional(v.string()),
+          hybrid: v.optional(
+            v.strictObject({
+              tsvector: v.string(),
+              config: v.optional(v.string()),
+              k: v.optional(v.number()),
+            }),
+          ),
+          boost: v.optional(v.string()),
+          prefilter: v.optional(strings),
         }),
       ]),
     ),

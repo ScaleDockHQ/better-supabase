@@ -2382,6 +2382,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         where: { content: "a" },
       }).orThrow();
       expect(filtered).toEqual([{ id: 101, content: "a" }]);
+      for (const db of [alice.db, alice.sql!]) {
+        const scored = (await search(db, "chunks", {
+          ...query,
+          score: true,
+        }).orThrow()) as { id: number; $score: number }[];
+        expect(scored.map((row) => row.id)).toEqual([103, 102]);
+        expect(scored[0]!.$score).toBeGreaterThan(scored[1]!.$score);
+      }
 
       const missing = await search(alice.db, "unsearched");
       expect(missing.ok).toBe(false);
@@ -2389,7 +2397,112 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     } finally {
       await pool.query(`drop table if exists public.${name} cascade`);
       await pool.query(
-        `drop function if exists public.search_${name}(extensions.vector, integer)`,
+        `drop function if exists public.search_${name}(extensions.vector, integer);
+         drop function if exists public.search_${name}_scores(extensions.vector, integer)`,
+      );
+    }
+  });
+
+  it("fuses full-text and halfvec rankings with prefilters and a boost", async () => {
+    const name = `bs_hybrid_${RUN}`;
+    const column = (db: string, type: string) => ({
+      db,
+      type,
+      nullable: true,
+      hasDefault: false,
+    });
+    const betterSupabase = defineSupabase(
+      defineSchema<AnyModels>({
+        version: 1,
+        casing: "camel",
+        tables: {
+          chunks: {
+            key: "chunks",
+            name,
+            schema: "public",
+            kind: "table" as const,
+            columns: {
+              id: column("id", "int4"),
+              content: column("content", "text"),
+            },
+            primaryKey: ["id"],
+            uniqueKeys: {},
+            relations: {},
+            flags: {},
+          },
+        },
+        enums: {},
+        functions: {},
+      }),
+    );
+    const [module] = renderModules(["vector-search"], {
+      vectorSearch: [
+        {
+          table: name,
+          column: "embedding",
+          distance: "cosine",
+          type: "halfvec",
+          hybrid: { tsvector: "tsv" },
+          boost: "t.priority",
+          prefilter: ["collection"],
+        },
+      ],
+    });
+    try {
+      await pool.query(`
+        create extension if not exists vector with schema extensions;
+        create table public.${name} (
+          id int primary key, collection text, content text not null,
+          priority double precision not null default 1,
+          embedding extensions.halfvec(3),
+          tsv tsvector generated always as (to_tsvector('simple', content)) stored
+        );
+        insert into public.${name} (id, collection, content, priority, embedding) values
+          (1, 'a', 'apple pie', 1, '[1,0,0]'),
+          (2, 'a', 'banana bread', 1, '[0.9,0.1,0]'),
+          (3, 'b', 'apple tart', 1, '[1,0,0]'),
+          (4, null, 'apple crumble', 3, '[0,1,0]');
+        alter table public.${name} enable row level security;
+        create policy "everyone" on public.${name} for select to authenticated using (true);
+        grant select on public.${name} to authenticated;
+      `);
+      await pool.query(module!.contents);
+      await pool.query(`notify pgrst, 'reload schema'`);
+      const alice = await asUser(
+        betterSupabase,
+        { sub: crypto.randomUUID() },
+        { url, publishableKey, postgres },
+      );
+      const args = {
+        vector: [1, 0, 0],
+        k: 3,
+        text: "apple",
+        filter: { collection: ["a", null] },
+        select: ["id"],
+      };
+      await expect
+        .poll(
+          async () => (await alice.db.$search("chunks", args as never)).ok,
+          { timeout: 10_000 },
+        )
+        .toBe(true);
+      for (const db of [alice.db, alice.sql!]) {
+        expect(await db.$search("chunks", args as never).orThrow()).toEqual([
+          { id: 4 },
+          { id: 1 },
+          { id: 2 },
+        ]);
+        const scored = (await db
+          .$search("chunks", { ...args, score: true } as never)
+          .orThrow()) as { id: number; $score: number }[];
+        expect(scored.map((row) => row.id)).toEqual([4, 1, 2]);
+        expect(scored[0]!.$score).toBeGreaterThan(scored[1]!.$score);
+      }
+    } finally {
+      await pool.query(`drop table if exists public.${name} cascade`);
+      await pool.query(
+        `drop function if exists public.search_${name}(extensions.halfvec, integer, jsonb, text);
+         drop function if exists public.search_${name}_scores(extensions.halfvec, integer, jsonb, text)`,
       );
     }
   });
