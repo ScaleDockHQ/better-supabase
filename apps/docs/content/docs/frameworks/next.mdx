@@ -190,7 +190,8 @@ renders as the target. `bs.cached()` reads add a `bs:support:<id>` tag
 
 ## Cache tags
 
-Every mutation invalidates `bs:<table>` and `bs:<table>:<id>`: with
+Every mutation invalidates `bs:<table>`, its tenant's `bs:<table>@<tenant>`
+and `bs:<table>:<id>`: with
 `updateTag` inside server actions (read-your-writes), with `revalidateTag`
 elsewhere. Tag your cached reads to match:
 
@@ -212,6 +213,30 @@ async function publicPlans() {
   cache: private"`
   ([how](/docs/frameworks/next-cache-components#6-data-derived-from-the-session)).
 </Callout>
+
+### Tenant-scoped tags
+
+A read scoped to one tenant can say so, so a mutation in another tenant
+leaves it cached:
+
+```ts
+async function customerList(tenant: string) {
+  "use cache";
+  const spec = betterSupabase.spec.customers.findMany({
+    where: { organizationId: tenant },
+  });
+  bs.cacheTags(spec, { tenant });
+  return bs.admin().$run(spec).orThrow();
+}
+```
+
+The read is tagged `bs:customers@<tenant>` and `bs:customers@*`. A
+mutation invalidates `bs:customers`, the tag of its tenant (from the
+request context, such as the tenant plugin's), or `bs:customers@*` when it
+has none, and the tags of the rows it changed. Reads without a `tenant` keep
+`bs:<table>`, which every mutation of the table invalidates. `bs.cacheTag`
+takes the same option as its third argument, and `tagFor(table, undefined,
+{ tenant })` builds the tag.
 
 Turn invalidation off with `createNext(betterSupabase, { cacheTags: false })`. The
 invalidation is the `nextCache()` [cache adapter](/docs/extending/interfaces#cacheadapter);
