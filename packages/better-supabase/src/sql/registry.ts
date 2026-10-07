@@ -139,6 +139,7 @@ export interface SqlModule {
     ctx: ModuleContext,
     layout: ModuleLayout,
   ) => readonly ModuleTestFile[];
+  readonly topics?: (ctx: ModuleContext) => readonly string[];
 }
 
 /** A pgTAP file a module writes for the layout, e.g. one per audited table. */
@@ -1392,6 +1393,7 @@ const REALTIME_TABLES: SqlModule = {
   target: "schema",
   sql: realtimeTablesSql(DEFAULT_CLAIMS),
   render: realtimeTablesSql,
+  topics: () => ["bs:t:*"],
 };
 
 const JSONB_SCHEMAS: SqlModule = {
@@ -3061,6 +3063,25 @@ export function renderModules(
         contents: `${testHeader}\n\n${test.sql.trim()}\n`,
       })),
     ];
+  });
+}
+
+export interface ModuleTopic {
+  readonly module: string;
+  readonly topic: string;
+}
+
+export function moduleTopics(
+  names: readonly string[],
+  layout: ModuleLayout = {},
+): ModuleTopic[] {
+  const modules = resolveModules(names, layout);
+  const installed = modules.map((module) => module.name);
+  return modules.flatMap((module) => {
+    if (module.topics === undefined) return [];
+    const ctx = moduleContext(module.name, layout, installed);
+    if (ctx.mode === "custom") return [];
+    return module.topics(ctx).map((topic) => ({ module: module.name, topic }));
   });
 }
 

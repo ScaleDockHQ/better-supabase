@@ -551,4 +551,8 @@ export const NOTIFICATIONS: ModuleDefinition = {
   names: NAMES,
   contract,
   build,
+  topics: (ctx) =>
+    ctx.text("realtime", "broadcast") === "broadcast"
+      ? [ctx.text("topic", "notifications:{userId}")]
+      : [],
 };

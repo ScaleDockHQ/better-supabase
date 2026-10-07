@@ -121,6 +121,18 @@ export default defineConfig({
 Node imports the modules, so their relative imports need the `.ts`
 extension. Create a migration from the file as from any other schema file.
 
+Some SQL modules write the receive policy of their own topics: `notifications`
+(its `topic` option, `notifications:{userId}` by default, while `realtime` is
+`broadcast`), `announcements` (its `topic` option, `announcements` by
+default) and `realtime-tables` (every topic that starts with `bs:t:`). When a
+module in `sql.modules` covers a topic you export, for example to subscribe
+to it with the typed client, `sql sync` leaves that topic out of `output` and
+names the module in a comment at the top of the file, so the database doesn't
+get two equivalent policies. Templates match by their literal parts, so
+`notifications:{user}` matches `notifications:{userId}`. A topic that also
+sends or uses presence keeps its policies, because the module only writes a
+receive policy for broadcasts.
+
 ## Before production
 
 - **Turn off public access.** The policies only apply to private channels. In

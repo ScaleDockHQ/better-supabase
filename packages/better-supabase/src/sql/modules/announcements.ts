@@ -345,4 +345,5 @@ export const ANNOUNCEMENTS: ModuleDefinition = {
   names: NAMES,
   contract,
   build,
+  topics: (ctx) => [ctx.text("topic", "announcements")],
 };

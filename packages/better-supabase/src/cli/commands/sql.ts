@@ -23,6 +23,7 @@ import {
   modulePermissionKeys,
   moduleBody,
   moduleSchemaExtensions,
+  moduleTopics,
   declaredTables,
   policyGrants,
   renderModules,
@@ -732,7 +733,15 @@ export async function runSql(
       return { code: 0, output: lines.join("\n") };
     }
     case "sync": {
-      const topics = await topicPolicyFile(config);
+      const topics = await topicPolicyFile(
+        config,
+        config.sql.moduleNames.length === 0
+          ? []
+          : moduleTopics(
+              config.sql.moduleNames,
+              await layoutFor(config, args, config.sql.moduleNames),
+            ),
+      );
       if (config.sql.moduleNames.length === 0 && topics === undefined) {
         return { code: 0, output: "sql.modules is empty; nothing to sync." };
       }

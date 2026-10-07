@@ -183,6 +183,63 @@ export const notATopic = { template: "x" };
     ).rejects.toThrow(/exports no topic/);
   });
 
+  it("skips the topics whose receive policy a module writes", async () => {
+    const realtime = resolve(
+      import.meta.dirname,
+      "../../../src/realtime/index.ts",
+    );
+    await writeFile(
+      join(root, "topics.ts"),
+      `import { defineTopic } from ${JSON.stringify(realtime)};
+export const inbox = defineTopic("notifications:{userId}");
+export const rows = defineTopic("bs:t:public.notes:{organizationId}");
+export const chat = defineTopic("notifications:{user}:chat");
+`,
+    );
+    await writeFile(
+      join(root, "send.ts"),
+      `import { defineTopic } from ${JSON.stringify(realtime)};
+export const typing = defineTopic("bs:t:{room}", { send: true });
+`,
+    );
+    const output = "supabase/schemas/905_topics.sql";
+    const policies = { from: ["topics.ts", "send.ts"], output };
+    await sql(["sync"], { realtime: { policies } });
+    const alone = await readFile(join(root, output), "utf8");
+    expect(alone).toContain("-- better-supabase: topic notifications:{userId}");
+    expect(alone).not.toContain("Skipped");
+
+    const config: BetterSupabaseConfig = {
+      realtime: { policies },
+      sql: { modules: ["notifications", "realtime-tables"] },
+    };
+    await sql(["sync"], config);
+    const written = await readFile(join(root, output), "utf8");
+    expect(written).toContain(
+      "-- Skipped topic bs:t:public.notes:{organizationId}: the realtime-tables module writes its receive policy.\n-- Skipped topic notifications:{userId}: the notifications module writes its receive policy.\n",
+    );
+    expect(written).not.toContain(
+      "-- better-supabase: topic notifications:{userId}",
+    );
+    expect(written).toContain(
+      "-- better-supabase: topic notifications:{user}:chat",
+    );
+    expect(written).toContain("-- better-supabase: topic bs:t:{room}");
+    expect(written).toContain("for insert to authenticated");
+    expect((await sql(["sync", "--check"], config)).code).toBe(0);
+
+    const off: BetterSupabaseConfig = {
+      realtime: { policies },
+      sql: {
+        modules: { notifications: { options: { realtime: "none" } } },
+      },
+    };
+    await sql(["sync"], off);
+    expect(await readFile(join(root, output), "utf8")).toContain(
+      "-- better-supabase: topic notifications:{userId}",
+    );
+  });
+
   it("has nothing to sync for an empty sql.modules", async () => {
     expect(await sql(["sync"])).toEqual({
       code: 0,

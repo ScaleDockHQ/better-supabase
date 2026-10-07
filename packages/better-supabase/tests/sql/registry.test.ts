@@ -6,6 +6,7 @@ import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
 import { moduleLayout } from "../../src/sql/layout.ts";
 import {
   modulePermissionKeys,
+  moduleTopics,
   renderModules,
   resolveModules,
   sameModuleFile,
@@ -24,6 +25,33 @@ describe("resolveModules", () => {
   it("deduplicates and rejects unknown modules", () => {
     expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(4);
     expect(() => resolveModules(["nope"])).toThrow(/Unknown SQL module "nope"/);
+  });
+});
+
+describe("moduleTopics", () => {
+  it("lists the topics whose policies the modules write", () => {
+    expect(
+      moduleTopics(["notifications", "announcements", "realtime-tables"]),
+    ).toEqual([
+      { module: "realtime-tables", topic: "bs:t:*" },
+      { module: "notifications", topic: "notifications:{userId}" },
+      { module: "announcements", topic: "announcements" },
+    ]);
+    expect(
+      moduleTopics(["notifications", "announcements"], {
+        modules: {
+          notifications: {
+            options: { realtime: "changes", topic: "inbox:{userId}" },
+          },
+          announcements: { mode: "custom" },
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      moduleTopics(["notifications"], {
+        modules: { notifications: { options: { topic: "inbox:{userId}" } } },
+      }),
+    ).toEqual([{ module: "notifications", topic: "inbox:{userId}" }]);
   });
 });
 
