@@ -174,7 +174,12 @@ describe("createOrganizations", () => {
   it("hands the token to onInvite and emits the block event", async () => {
     const { transport } = fake({
       invite_member: invitationRow,
-      resend_invitation: { ...invitationRow, token: "fresh" },
+      resend_invitation: {
+        ...invitationRow,
+        token: "fresh",
+        inviter: { id: "user-1", fullName: "Grace Hopper" },
+        roleLabel: "Member",
+      },
     });
     const events = new EventHub();
     const seen: BlockEvent[] = [];
@@ -201,7 +206,13 @@ describe("createOrganizations", () => {
     expect(result.ok && result.data.invitation.expiresAt.toString()).toBe(
       "2026-10-10T12:00:00Z",
     );
-    await organizations.resendInvitation("inv-1");
+    expect(result.ok && result.data.invitation.inviter).toBeNull();
+    const resent = await organizations.resendInvitation("inv-1").orThrow();
+    expect(resent.invitation).toMatchObject({
+      inviter: { id: "user-1", fullName: "Grace Hopper" },
+      extra: { roleLabel: "Member" },
+    });
+    expect(resent.invitation.extra).not.toHaveProperty("inviter");
     expect(
       onInvite.mock.calls.map(([sent]) => [sent.token, sent.resent]),
     ).toEqual([

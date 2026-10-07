@@ -57,7 +57,14 @@ export interface Invitation {
   /** The organization's id and `options.previewColumns`; `null` for a platform invitation. */
   readonly organization: Readonly<Record<string, unknown>> | null;
   readonly prefill: Readonly<Record<string, unknown>>;
-  /** From `myInvitations()`: the keys an `invitation_preview_extra` hook added. */
+  /**
+   * The inviter's `id` and public profile fields (`username`, `fullName`,
+   * `firstName`, `lastName`, `avatar`, as the profiles module maps them).
+   * `null` without the profiles module, an `invitedBy` column or the
+   * inviter's profile.
+   */
+  readonly inviter: Readonly<Record<string, unknown>> | null;
+  /** The keys an `invitation_preview_extra` hook added, such as a role label. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
 
@@ -233,6 +240,7 @@ const INVITATION_KEYS: ReadonlySet<string> = new Set([
   "invited_by",
   "organization",
   "prefill",
+  "inviter",
   "token",
 ]);
 
@@ -251,6 +259,7 @@ function invitationFrom(row: Record<string, unknown>): Invitation {
     ...(invitedBy === null ? {} : { invitedBy }),
     organization: isRecord(row["organization"]) ? row["organization"] : null,
     prefill: isRecord(row["prefill"]) ? row["prefill"] : {},
+    inviter: isRecord(row["inviter"]) ? row["inviter"] : null,
     extra: extraOf(row, INVITATION_KEYS),
   };
 }

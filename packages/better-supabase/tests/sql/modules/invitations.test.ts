@@ -439,6 +439,33 @@ describe("invitation_preview_extra", () => {
       },
     });
     expect(sql).toContain(`to_regprocedure('"app"."preview"(uuid)')`);
-    expect(sql).toContain("preview := preview || coalesce(extra, '{}');");
+    expect(sql).toContain(
+      'preview := preview || "better_supabase"."invitation_extra"(invitation);',
+    );
+  });
+
+  it("returns the hook's keys and the inviter's profile with every invitation", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      'revoke execute on function "better_supabase"."invitation_extra"(uuid) from public, anon, authenticated;',
+    );
+    expect(sql).not.toMatch(
+      /grant execute on function "better_supabase"\."invitation_extra"/,
+    );
+    for (const row of ["created", "updated"]) {
+      expect(sql).toContain(
+        `) || "better_supabase"."invitation_extra"(${row}."id"))`,
+      );
+    }
+    expect(sql).not.toContain("'inviter'");
+    const withProfiles = renderModules(["profiles", "invitations"], {}).find(
+      (file) => file.module === "invitations" && file.kind === "schema",
+    )!.contents;
+    expect(withProfiles).toContain(
+      `'inviter', (select jsonb_build_object('id', pr."id", 'username', pr."username", 'fullName', pr."full_name"`,
+    );
+    expect(withProfiles).toContain(
+      `from "better_supabase"."profiles" pr where pr."id" = created."invited_by")`,
+    );
   });
 });

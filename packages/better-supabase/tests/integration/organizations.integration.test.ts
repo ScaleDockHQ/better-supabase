@@ -1245,13 +1245,19 @@ describe.skipIf(!live)("organizations and invitations", () => {
             permissions: { deletePlatform: "platform.organization.delete" },
           },
           invitations: { schema, hooks: { schema } },
+          profiles: { schema },
         },
       };
       for (const file of renderModules(
-        ["organizations", "invitations", "reserved-slugs"],
+        ["organizations", "invitations", "reserved-slugs", "profiles"],
         layout,
       ))
         await client.query(file.contents);
+      await client.query(
+        `insert into ${schema}.profiles (id, full_name) values ($1, 'Grace Hopper')
+          on conflict (id) do update set full_name = excluded.full_name`,
+        [USERS.owner],
+      );
 
       await s.as("owner");
       expect(
@@ -1267,6 +1273,22 @@ describe.skipIf(!live)("organizations and invitations", () => {
         `${schema}.invite_member($1, $2, 'member')`,
         [organization, email("member")],
       );
+      expect(invite).toMatchObject({
+        roleLabel: "Team member",
+        invitation: invite.id,
+        inviter: { id: USERS.owner, fullName: "Grace Hopper" },
+      });
+      const resent = await createOrganizations({
+        transport: sqlTransport(savepointSql(client)),
+        schema,
+      })
+        .resendInvitation(invite.id)
+        .orThrow();
+      expect(resent.invitation).toMatchObject({
+        inviter: { id: USERS.owner, fullName: "Grace Hopper" },
+        extra: { roleLabel: "Team member", invitation: invite.id },
+      });
+      invite.token = resent.token;
       await s.as("anon");
       expect(
         await s.value(`${schema}.invitation_preview($1)`, [invite.token]),
@@ -1297,6 +1319,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         id: invite.id,
         organizationId: organization,
         organization: { id: organization, name: "Extra" },
+        inviter: { id: USERS.owner, fullName: "Grace Hopper" },
         extra: { roleLabel: "Team member", invitation: invite.id },
       });
       expect(inbox?.createdAt).toBeDefined();
