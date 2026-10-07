@@ -1,6 +1,6 @@
 /**
  * `server.context()` latency for an anonymous request, a bearer token the
- * process has not verified yet, and one it has.
+ * process has not verified yet, one it has, and a repeat call on one request.
  * Run with `pnpm --filter better-supabase bench`.
  */
 import { clearVerifiedTokens } from "../../src/auth/resolve.ts";
@@ -17,6 +17,8 @@ const RUNS = 2000;
  * past it, the per-process memo has stopped working.
  */
 const MAX_WARM_SHARE = 0.5;
+/** A repeat call on the same request must cost at most this share of a verified one. */
+const MAX_REPEAT_SHARE = 0.25;
 
 const signer = await createTestSigner();
 const token = await signer.sign({
@@ -60,15 +62,28 @@ const warm = await measure(async () => {
   const ctx = await server.context(bearer());
   return ctx.db;
 });
+const same = bearer();
+await server.context(same);
+const repeat = await measure(async () => {
+  const ctx = await server.context(same);
+  return ctx.db;
+});
 console.table({
   anonymous: { "µs per context": anon.toFixed(1) },
   "bearer, first verification": { "µs per context": cold.toFixed(1) },
   "bearer, verified": { "µs per context": warm.toFixed(1) },
+  "same request again": { "µs per context": repeat.toFixed(1) },
 });
 
 if (warm > cold * MAX_WARM_SHARE) {
   console.error(
     `a verified token costs ${warm.toFixed(1)}µs, over ${String(MAX_WARM_SHARE * 100)}% of a first verification (${cold.toFixed(1)}µs).`,
+  );
+  process.exitCode = 1;
+}
+if (repeat > warm * MAX_REPEAT_SHARE) {
+  console.error(
+    `a repeat context() on one request costs ${repeat.toFixed(1)}µs, over ${String(MAX_REPEAT_SHARE * 100)}% of a new one (${warm.toFixed(1)}µs).`,
   );
   process.exitCode = 1;
 }

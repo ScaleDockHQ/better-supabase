@@ -191,6 +191,32 @@ describe("defineVectorBucket", () => {
     expect(index.deleteVectors).toHaveBeenCalledWith({ keys: ["a"] });
   });
 
+  it("gets batches four at a time and keeps the key order", async () => {
+    const { index, client } = vectorsApi();
+    let active = 0;
+    let peak = 0;
+    index.getVectors.mockImplementation((async (options: {
+      keys: string[];
+    }) => {
+      active++;
+      peak = Math.max(peak, active);
+      // Later batches answer first.
+      await new Promise((resolve) => {
+        setTimeout(resolve, 20 - Number(options.keys[0]!.slice(1)) / 100);
+      });
+      active--;
+      return {
+        data: { vectors: options.keys.map((key) => ({ key })) },
+        error: null,
+      };
+    }) as never);
+    const keys = Array.from({ length: 600 }, (_, i) => `k${String(i)}`);
+    const got = await embeddings.connect(client).index("documents").get(keys);
+    expect(got.data?.map((found) => found.key)).toEqual(keys);
+    expect(index.getVectors).toHaveBeenCalledTimes(6);
+    expect(peak).toBe(4);
+  });
+
   it("checks dimensions before Storage does", async () => {
     const { index, client } = vectorsApi();
     const docs = embeddings.connect(client).index("documents");

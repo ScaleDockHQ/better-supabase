@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { BlockEvent } from "../../src/core/block-events.ts";
@@ -317,6 +317,25 @@ describe("support sessions on the server", () => {
     const active = await server.support.current(cookie, admin());
     expect(active?.session.readOnly).toBe(true);
     expect(active?.claims["act"]).toMatchObject({ read_only: true });
+  });
+
+  it("loads the session every time but reuses the target's claims", async () => {
+    const { server, store } = setup();
+    const claims = vi.spyOn(store, "claims");
+    const get = vi.spyOn(store, "get");
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bs-support=${session.id}` },
+    });
+    claims.mockClear();
+    await server.support.current(cookie, admin());
+    await server.support.current(cookie, admin());
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(claims).toHaveBeenCalledTimes(1);
+    await server.support.revoke(admin(), session.id).orThrow();
+    expect(await server.support.current(cookie, admin())).toBeUndefined();
   });
 
   it("ignores the cookie for another admin, a nested token or bad claims", async () => {

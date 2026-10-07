@@ -381,6 +381,18 @@ describe("createServer clients", () => {
     expect(first.db).not.toBe(second.db);
   });
 
+  it("reuses the context of a request for the same refresh and cookies options", async () => {
+    const server = createServer(defineSupabase(schema), { env });
+    const request = new Request("https://app.test/");
+    const first = await server.context(request);
+    expect(await server.context(request, { refresh: false })).toBe(first);
+    expect(await server.context(request, { refresh: true })).not.toBe(first);
+    expect(await server.context(request, { tenant: "t1" })).not.toBe(first);
+    expect(await server.context(new Request("https://app.test/"))).not.toBe(
+      first,
+    );
+  });
+
   it("prefetches the JWKS when asked, and never with an inline JWKS", async () => {
     const { fetch } = stubFetch();
     createServer(defineSupabase(schema), {

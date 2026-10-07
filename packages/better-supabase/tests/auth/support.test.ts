@@ -52,6 +52,7 @@ describe("support cookies", () => {
     expect(supportCookieValue("bs-support=")).toBeUndefined();
     expect(supportCookieValue("other=1")).toBeUndefined();
     expect(supportCookieValue(null)).toBeUndefined();
+    expect(supportCookieValue("bs-support=%E0%A4%A")).toBeUndefined();
   });
 });
 

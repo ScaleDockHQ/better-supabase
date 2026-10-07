@@ -93,6 +93,34 @@ function chunks<T>(items: readonly T[], size: number): T[][] {
   return out;
 }
 
+/** Batches in flight at once for one `put`, `get` or `remove`. */
+const CHUNK_CONCURRENCY = 4;
+
+/** Runs `run` per item over a few lanes; stops starting items after the first error. */
+async function inLanes<T, R>(
+  items: readonly T[],
+  run: (item: T) => Promise<Result<R>>,
+): Promise<Result<R[]>> {
+  const out: R[] = [];
+  let next = 0;
+  let failed: Result<R[]> | undefined;
+  const lane = async (): Promise<void> => {
+    while (!failed && next < items.length) {
+      const index = next++;
+      const result = await run(items[index]!);
+      if (!result.ok) {
+        failed ??= result;
+        return;
+      }
+      out[index] = result.data;
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(CHUNK_CONCURRENCY, items.length) }, lane),
+  );
+  return failed ?? ok(out);
+}
+
 const metricOf = (config: VectorIndexConfig): VectorDistance =>
   config.distanceMetric ?? "cosine";
 
@@ -232,19 +260,22 @@ function connectVectorBucket<I extends string>(
               const problem = checkDimension(record.vector, record.key);
               if (problem) return err(problem);
             }
-            for (const batch of chunks(records, PUT_BATCH)) {
-              const put = await api().putVectors({
-                vectors: batch.map((record) => ({
-                  key: record.key,
-                  data: { float32: [...record.vector] },
-                  ...(record.metadata
-                    ? { metadata: { ...record.metadata } }
-                    : {}),
-                })),
-              });
-              if (put.error) return err(failure(put.error));
-            }
-            return ok(records.length);
+            const put = await inLanes(
+              chunks(records, PUT_BATCH),
+              async (batch) => {
+                const { error } = await api().putVectors({
+                  vectors: batch.map((record) => ({
+                    key: record.key,
+                    data: { float32: [...record.vector] },
+                    ...(record.metadata
+                      ? { metadata: { ...record.metadata } }
+                      : {}),
+                  })),
+                });
+                return error ? err(failure(error)) : ok(batch.length);
+              },
+            );
+            return put.ok ? ok(records.length) : put;
           }),
         query: (vector, options = {}) =>
           attempt(async () => {
@@ -262,25 +293,29 @@ function connectVectorBucket<I extends string>(
           }),
         get: (keys, options = {}) =>
           attempt(async () => {
-            const out: VectorHit<M>[] = [];
-            for (const batch of chunks(keys, GET_BATCH)) {
-              const found = await api().getVectors({
-                keys: batch,
-                returnMetadata: true,
-                returnData: options.vector ?? false,
-              });
-              if (found.error) return err(failure(found.error));
-              out.push(...found.data.vectors.map(hit));
-            }
-            return ok(out);
+            const found = await inLanes(
+              chunks(keys, GET_BATCH),
+              async (batch) => {
+                const { data, error } = await api().getVectors({
+                  keys: batch,
+                  returnMetadata: true,
+                  returnData: options.vector ?? false,
+                });
+                return error ? err(failure(error)) : ok(data.vectors.map(hit));
+              },
+            );
+            return found.ok ? ok(found.data.flat()) : found;
           }),
         remove: (keys) =>
           attempt(async () => {
-            for (const batch of chunks(keys, PUT_BATCH)) {
-              const removed = await api().deleteVectors({ keys: batch });
-              if (removed.error) return err(failure(removed.error));
-            }
-            return ok(keys);
+            const removed = await inLanes(
+              chunks(keys, PUT_BATCH),
+              async (batch) => {
+                const { error } = await api().deleteVectors({ keys: batch });
+                return error ? err(failure(error)) : ok(batch.length);
+              },
+            );
+            return removed.ok ? ok(keys) : removed;
           }),
       };
     },

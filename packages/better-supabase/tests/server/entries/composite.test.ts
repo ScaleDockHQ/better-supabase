@@ -363,6 +363,7 @@ describe("session cookies", () => {
     expect(cleared.some((cookie) => cookie.includes("Domain=old.test"))).toBe(
       true,
     );
+    expect(response.headers.get("cache-control")).toContain("no-store");
 
     const none = await fetch(new Request("https://app.test/"));
     expect(none.headers.getSetCookie()).toEqual([]);

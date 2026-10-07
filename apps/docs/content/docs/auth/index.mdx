@@ -92,7 +92,9 @@ When it does refresh:
   Server Components rendered after the proxy use the new token;
 - a rejected refresh token signs the user out (cookies cleared), and the
   rejection is reused for ten seconds as well; a network failure keeps the
-  session so the next request can retry;
+  session so the next request can retry, and a token refreshed early (inside
+  `leeway`) still resolves the user until it expires, otherwise the caller is
+  `anon` with `reason: "refresh_failed"`;
 - a refresh that takes longer than `refreshTimeoutMs` (5000 by default)
   counts as a network failure, so a slow Auth server never holds up the proxy.
 

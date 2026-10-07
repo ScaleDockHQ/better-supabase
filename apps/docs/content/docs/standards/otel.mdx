@@ -41,6 +41,10 @@ the name every Supabase project uses; set another with
 `db.response.status_code` is set only for a Postgres SQLSTATE, not for
 PostgREST's own codes such as `PGRST116`.
 
+`db.$rpc` calls get a span named `EXECUTE <function>`, with
+`db.operation.name` set to `EXECUTE` and the function in
+`db.stored_procedure.name`. The reads in one `db.$many` call keep a span each.
+
 Filter values, row data and query text are never recorded, so spans carry no
 personal data by default.
 

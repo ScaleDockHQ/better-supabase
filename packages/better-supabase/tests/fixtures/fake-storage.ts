@@ -125,7 +125,15 @@ export function fakeStorage(
       },
       async exists(path: string) {
         const failed = record("exists", [path]);
-        if (failed) return { data: true, error: failed.error };
+        if (failed) {
+          const status = Number(
+            (failed.error as { statusCode?: string }).statusCode,
+          );
+          if (status === 400 || status === 404)
+            return { data: false, error: failed.error };
+          // oxlint-disable-next-line typescript/only-throw-error -- storage-js throws its error objects, and the tests replay those.
+          throw failed.error;
+        }
         return { data: files.has(key(path)), error: null };
       },
       async remove(paths: string[]) {

@@ -1,8 +1,9 @@
 import { call, ORPCError, os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import * as v from "valibot";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { writeSession } from "../../src/auth/session.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
@@ -121,6 +122,48 @@ describe("createOrpc", () => {
     expect(read.status).toBe(200);
     expect(read.headers.get("set-cookie")).toBeNull();
     expect((await post("missing")).status).toBe(404);
+  });
+
+  it("returns cookie writes on a denied call and resolves nested middleware once", async () => {
+    const onRefresh = vi.fn();
+    const refreshing = createOrpc(betterSupabase, {
+      env,
+      auth: {
+        jwks: signer.jwks as never,
+        onRefresh,
+        fetch: async () =>
+          Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
+      },
+    });
+    const guarded = os
+      .$context<OrpcRequestContext>()
+      .use(refreshing.middleware({ refresh: true }))
+      .use(refreshing.middleware({ refresh: true }));
+    const fetch = refreshing.fetchHandler(
+      new RPCHandler({ me: guarded.handler(() => ({ ok: true })) }),
+      { prefix: "/rpc" },
+    );
+    const cookie = writeSession([], "sb-abcdefghijklmnopqrst-auth-token", {
+      access_token: await signer.sign({ sub: USER, expiresIn: 10 }),
+      refresh_token: "r-orpc",
+      expires_at: Math.floor(Date.now() / 1000) + 10,
+      token_type: "bearer",
+      user: { id: USER },
+    })
+      .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
+      .join("; ");
+    const response = await fetch(
+      new Request("https://api.test/rpc/me", {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get("set-cookie")).toMatch(
+      /sb-abcdefghijklmnopqrst-auth-token=;/,
+    );
+    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("derives codes from the error status", () => {

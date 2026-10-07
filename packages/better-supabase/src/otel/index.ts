@@ -6,11 +6,13 @@ import {
   metrics,
   propagation,
   SpanKind,
+  type Span,
   SpanStatusCode,
   trace,
   type Tracer,
 } from "@opentelemetry/api";
 
+import type { DbError } from "../core/errors.ts";
 import type { EventHub } from "../core/events.ts";
 import type { Executor } from "../core/executor.ts";
 import type { Operation } from "../ir/types.ts";
@@ -146,61 +148,111 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
         }
         return entry;
       };
+      const failed = (span: Span, error: DbError): string => {
+        span.setAttributes({
+          "error.type": error.kind,
+          ...(error.code && SQLSTATE.test(error.code)
+            ? { "db.response.status_code": error.code }
+            : {}),
+        });
+        span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+        return error.kind;
+      };
+      /** Runs `run` in a client span; `settle` returns the error type, if any. */
+      const traced = <T>(
+        summary: string,
+        attributes: Attributes,
+        metric: Attributes,
+        run: () => Promise<T>,
+        settle: (span: Span, result: T) => string | undefined,
+      ): Promise<T> => {
+        const started = performance.now();
+        return tracer.startActiveSpan(
+          summary,
+          { kind: SpanKind.CLIENT, attributes },
+          async (span) => {
+            const finish = (errorType?: string) => {
+              histogram?.record(
+                (performance.now() - started) / 1000,
+                errorType ? { ...metric, "error.type": errorType } : metric,
+              );
+              span.end();
+            };
+            try {
+              const result = await run();
+              finish(settle(span, result));
+              return result;
+            } catch (cause) {
+              const error =
+                cause instanceof Error ? cause : new Error(String(cause));
+              span.recordException(error);
+              span.setAttribute("error.type", error.name);
+              span.setStatus({
+                code: SpanStatusCode.ERROR,
+                message: error.message,
+              });
+              finish(error.name);
+              throw cause;
+            }
+          },
+        );
+      };
+      const base: Attributes = {
+        ...options.attributes,
+        "db.system.name": system,
+        "better_supabase.executor": executor.name,
+        ...server,
+      };
+      const baseMetric: Attributes = { ...server, "db.system.name": system };
+      const rpc = executor.rpc?.bind(executor);
       return {
         ...executor,
         name: executor.name,
         execute(op, executeContext) {
           const { summary, attributes, metric } = describe(op);
-          const started = performance.now();
-          return tracer.startActiveSpan(
+          return traced(
             summary,
-            { kind: SpanKind.CLIENT, attributes },
-            async (span) => {
-              const finish = (errorType?: string) => {
-                histogram?.record(
-                  (performance.now() - started) / 1000,
-                  errorType ? { ...metric, "error.type": errorType } : metric,
+            attributes,
+            metric,
+            () => executor.execute(op, executeContext),
+            (span, result) => {
+              if (!result.ok) return failed(span, result.error);
+              if (span.isRecording())
+                span.setAttribute(
+                  "db.response.returned_rows",
+                  result.data.rows.length,
                 );
-                span.end();
-              };
-              try {
-                const result = await executor.execute(op, executeContext);
-                if (result.ok) {
-                  if (span.isRecording())
-                    span.setAttribute(
-                      "db.response.returned_rows",
-                      result.data.rows.length,
-                    );
-                  finish();
-                } else {
-                  span.setAttributes({
-                    "error.type": result.error.kind,
-                    ...(result.error.code && SQLSTATE.test(result.error.code)
-                      ? { "db.response.status_code": result.error.code }
-                      : {}),
-                  });
-                  span.setStatus({
-                    code: SpanStatusCode.ERROR,
-                    message: result.error.message,
-                  });
-                  finish(result.error.kind);
-                }
-                return result;
-              } catch (cause) {
-                const error =
-                  cause instanceof Error ? cause : new Error(String(cause));
-                span.recordException(error);
-                span.setAttribute("error.type", error.name);
-                span.setStatus({
-                  code: SpanStatusCode.ERROR,
-                  message: error.message,
-                });
-                finish(error.name);
-                throw cause;
-              }
+              return;
             },
           );
         },
+        ...(rpc
+          ? {
+              rpc(name, args, rpcContext) {
+                const summary = `EXECUTE ${name}`;
+                return traced(
+                  summary,
+                  {
+                    ...base,
+                    "db.namespace": database
+                      ? `${database}|${rpcContext.schema}`
+                      : rpcContext.schema,
+                    "db.operation.name": "EXECUTE",
+                    "db.stored_procedure.name": name,
+                    "db.query.summary": summary,
+                  },
+                  {
+                    ...baseMetric,
+                    "db.operation.name": "EXECUTE",
+                    "db.stored_procedure.name": name,
+                  },
+                  () => rpc(name, args, rpcContext),
+                  (span, result) =>
+                    result.ok ? undefined : failed(span, result.error),
+                );
+              },
+            }
+          : {}),
       };
     },
   });

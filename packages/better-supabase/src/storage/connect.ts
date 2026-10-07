@@ -24,6 +24,31 @@ import { inScope } from "./layouts.ts";
 import { ttlSeconds } from "./ttl.ts";
 import { type ObjectVersion, toVersion } from "./versioning.ts";
 
+/** Folder listings in flight at once while `list` walks a tree. */
+const LIST_CONCURRENCY = 4;
+/** Signed URLs kept per connected bucket; the oldest goes first. */
+const SIGNED_CACHE_SIZE = 500;
+
+/** Runs at most `limit` of the calls passed to the returned function at once. */
+function pool(limit: number): <T>(fn: () => Promise<T>) => Promise<T> {
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return async (fn) => {
+    if (active < limit) active++;
+    else
+      await new Promise<void>((resolve) => {
+        waiting.push(resolve);
+      });
+    try {
+      return await fn();
+    } finally {
+      const next = waiting.shift();
+      if (next) next();
+      else active--;
+    }
+  };
+}
+
 function bodyInfo(
   body: UploadBody,
   contentType: string | undefined,
@@ -166,28 +191,36 @@ export function connectBucket<P extends string, Id extends string>(
   const walk = async (
     folder: string,
     signal: AbortSignal | undefined,
-    out: StoredObject[],
-  ) => {
+    request: <T>(fn: () => Promise<T>) => Promise<T>,
+  ): Promise<StoredObject[]> => {
     const limit = 1000;
+    const parts: (StoredObject | Promise<StoredObject[]>)[] = [];
     for (let offset = 0; ; offset += limit) {
       signal?.throwIfAborted();
-      const { data, error } = await api().list(
-        folder,
-        { limit, offset, sortBy: { column: "name", order: "asc" } },
-        signal ? { signal } : {},
+      const { data, error } = await request(() =>
+        api().list(
+          folder,
+          { limit, offset, sortBy: { column: "name", order: "asc" } },
+          signal ? { signal } : {},
+        ),
       );
       if (error) throw new DbException(fromStorageError(error, bucket.id));
       for (const item of data) {
         const path = folder ? `${folder}/${item.name}` : item.name;
-        if (item.id === null) await walk(path, signal, out);
-        else {
+        if (item.id === null) {
+          const nested = walk(path, signal, request);
+          // Awaited below in order; this only keeps an early failure from
+          // going unhandled while an earlier sibling is still pending.
+          nested.catch(() => undefined);
+          parts.push(nested);
+        } else {
           // SAFETY: Storage returns object metadata as JSON with optional size
           // and type fields.
           const metadata = (item.metadata ?? {}) as {
             size?: number;
             mimetype?: string;
           };
-          out.push({
+          parts.push({
             path,
             ...(typeof metadata.size === "number"
               ? { size: metadata.size }
@@ -198,16 +231,27 @@ export function connectBucket<P extends string, Id extends string>(
           });
         }
       }
-      if (data.length < limit) return;
+      if (data.length < limit) break;
     }
+    const out: StoredObject[] = [];
+    for (const part of parts) {
+      if (part instanceof Promise)
+        for (const each of await part) out.push(each);
+      else out.push(part);
+    }
+    return out;
   };
 
   const list: BucketClient<P, Id>["list"] = (within, options) =>
-    AsyncResult.from(async () => {
-      const out: StoredObject[] = [];
-      await walk(bucket.prefix(scopedWithin(within)), options?.signal, out);
-      return ok(out);
-    }).mapError((error) => ({ ...error, table: bucket.id }));
+    AsyncResult.from(async () =>
+      ok(
+        await walk(
+          bucket.prefix(scopedWithin(within)),
+          options?.signal,
+          pool(LIST_CONCURRENCY),
+        ),
+      ),
+    ).mapError((error) => ({ ...error, table: bucket.id }));
 
   const signedUrl: BucketClient<P, Id>["signedUrl"] = (target, options) =>
     AsyncResult.from(async () => {
@@ -224,12 +268,19 @@ export function connectBucket<P extends string, Id extends string>(
           ])
         : "";
       const cached = signed?.get(key);
-      if (cached && cached.until > Date.now()) return ok(cached.url);
+      if (cached) {
+        if (cached.until > Date.now()) return ok(cached.url);
+        signed?.delete(key);
+      }
       const result = await run(() =>
         api().createSignedUrl(path, ttl, urlExtras(options)),
       ).map((data) => data.signedUrl);
       if (signed && result.ok) {
         const margin = Math.min(60, ttl / 10);
+        if (signed.size >= SIGNED_CACHE_SIZE) {
+          const oldest = signed.keys().next();
+          if (!oldest.done) signed.delete(oldest.value);
+        }
         signed.set(key, {
           url: result.data,
           until: Date.now() + (ttl - margin) * 1000,
@@ -262,11 +313,19 @@ export function connectBucket<P extends string, Id extends string>(
     exists: (target) =>
       AsyncResult.from(async () => {
         const path = resolve(target);
-        const found = await api().exists(path);
-        if (!found.data) return ok(false);
-        return found.error
-          ? err(fromStorageError(found.error, bucket.id))
-          : ok(true);
+        let found: { data: boolean; error: unknown };
+        try {
+          found = await api().exists(path);
+        } catch (cause) {
+          return err(fromStorageError(cause, bucket.id));
+        }
+        if (found.data && !found.error) return ok(true);
+        if (!found.error) return ok(false);
+        // Only a 400 or 404 means missing; a denied or failed check is an error.
+        const error = fromStorageError(found.error, bucket.id);
+        return error.status === 400 || error.status === 404
+          ? ok(false)
+          : err(error);
       }),
     remove,
     copy: transfer("copy"),
