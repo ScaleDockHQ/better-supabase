@@ -1149,7 +1149,9 @@
       "TopicMessage",
       "TopicOptions",
       "TopicPayload",
-      "TriggerOptions"
+      "TriggerLookup",
+      "TriggerOptions",
+      "TriggerValue"
     ]
   },
   "./events": {
