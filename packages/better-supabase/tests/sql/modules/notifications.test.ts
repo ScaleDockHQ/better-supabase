@@ -290,6 +290,16 @@ describe("notification actors", () => {
       'create or replace function "better_supabase"."notification_actors"(ids uuid[])',
     );
     expect(sql).toContain("'username', pr.\"username\"");
+    expect(sql).toContain("'avatarPath', pr.\"avatar_path\"");
+    expect(
+      renderModules(["notifications", "profiles"], {
+        modules: {
+          profiles: { mode: "adopt", tables: { profiles: "public.profiles" } },
+        },
+      }).find(
+        (entry) => entry.module === "notifications" && entry.kind === "schema",
+      )!.contents,
+    ).not.toContain("avatarPath");
     expect(sql).toContain(
       'where rc."user_id" = auth.uid() and ev."actor_id" = pr."id"',
     );

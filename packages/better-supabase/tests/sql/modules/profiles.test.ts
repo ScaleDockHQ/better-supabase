@@ -36,13 +36,53 @@ const CENTRAKIT: ModulesConfig = {
 const body = (modules: ModulesConfig) => moduleBody("profiles", { modules })!;
 
 describe("profiles module", () => {
+  it("keeps an avatar_path column that auth metadata never writes", () => {
+    const sql = body({});
+    expect(sql).toContain('  "avatar_path" text,');
+    expect(sql).toContain(
+      'alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;',
+    );
+    expect(sql).not.toMatch(/insert into[^;]*"avatar_path"/);
+    expect(() =>
+      body({
+        profiles: { options: { metadata: { picture: "avatar_path" } } },
+      }),
+    ).toThrow(/avatar_path holds a Storage object path/);
+    expect(
+      body({
+        profiles: { options: { metadata: { picture: "avatar_url" } } },
+      }),
+    ).toContain("meta ->> 'picture'");
+    const adopted = body({
+      profiles: {
+        mode: "adopt",
+        tables: { profiles: "public.profiles" },
+        options: { columnGrants: true },
+      },
+    });
+    expect(adopted).not.toContain("avatar_path");
+    expect(
+      body({
+        profiles: {
+          mode: "adopt",
+          tables: { profiles: "public.profiles" },
+          columns: { profiles: { avatarPath: "avatar_object" } },
+          options: { columnGrants: true },
+        },
+      }),
+    ).toMatch(/grant update \([^)]*"avatar_object"/);
+    expect(
+      body({ profiles: { columns: { profiles: { avatarPath: null } } } }),
+    ).not.toContain("avatar_path");
+  });
+
   it("owns its table with grants, a guard and the auth triggers", () => {
     const sql = body({});
     expect(sql).toContain(
       'create table if not exists "better_supabase"."profiles" (',
     );
     expect(sql).toContain(
-      'grant update ("full_name", "first_name", "last_name", "avatar_url", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;',
+      'grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;',
     );
     expect(sql).toContain("hint = 'PROFILE_COLUMN_READONLY'");
     expect(sql).toContain(

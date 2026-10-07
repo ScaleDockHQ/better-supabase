@@ -4,6 +4,7 @@ import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 import { readers } from "./notifications-readers.ts";
+import { hasAvatarPath } from "./profiles.ts";
 
 export interface NotifyNames {
   readonly table: (table: string) => string;
@@ -690,9 +691,14 @@ $$;`);
         ["firstName", "firstName"],
         ["lastName", "lastName"],
         ["avatar", "avatar"],
+        ["avatarPath", "avatarPath"],
       ] as const
     )
-      .filter(([logical]) => profiles.has("profiles", logical))
+      .filter(([logical]) =>
+        logical === "avatarPath"
+          ? hasAvatarPath(profiles)
+          : profiles.has("profiles", logical),
+      )
       .map(([key, logical]) => `, '${key}', pr.${p(logical)}`)
       .join("");
     parts.push(`

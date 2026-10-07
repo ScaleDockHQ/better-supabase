@@ -400,6 +400,55 @@ describe("createNotifications reads and writes", () => {
     expect(calls[1]!.args).toEqual({ ids: ["u0", "gone"] });
   });
 
+  it("resolves actor avatars stored as Storage object paths", async () => {
+    const handlers = {
+      list_notifications: () => [
+        row(),
+        row({ id: "r2", actor_id: "u1" }),
+        row({ id: "r3", actor_id: "u2" }),
+      ],
+      notification_actors: () => ({
+        u0: { username: "ada", avatar: null, avatarPath: "u0/face 1.webp" },
+        u1: { username: "bob", avatarPath: null },
+        u2: { username: "cy", avatarPath: "" },
+      }),
+    };
+    const bucket = await createNotifications({
+      transport: fakeTransport(handlers).transport,
+      types,
+      avatars: { url: "https://project.supabase.co/", bucket: "users" },
+    })
+      .list({ include: ["actor"] })
+      .orThrow();
+    expect(bucket.map((item) => item.actor)).toEqual([
+      {
+        id: "u0",
+        username: "ada",
+        avatar: null,
+        avatarPath: "u0/face 1.webp",
+        avatarUrl:
+          "https://project.supabase.co/storage/v1/object/public/users/u0/face%201.webp",
+      },
+      { id: "u1", username: "bob", avatarPath: null },
+      { id: "u2", username: "cy", avatarPath: "" },
+    ]);
+    const custom = await createNotifications({
+      transport: fakeTransport(handlers).transport,
+      types,
+      avatars: (path) => `https://cdn.test/${path}`,
+    })
+      .list({ include: ["actor"] })
+      .orThrow();
+    expect(custom[0]!.actor?.avatarUrl).toBe("https://cdn.test/u0/face 1.webp");
+    const plain = await createNotifications({
+      transport: fakeTransport(handlers).transport,
+      types,
+    })
+      .list({ include: ["actor"] })
+      .orThrow();
+    expect(plain[0]!.actor).not.toHaveProperty("avatarUrl");
+  });
+
   it("skips the actor call without actors and maps its errors", async () => {
     const quiet = fakeTransport({
       list_notifications: () => [row({ actor_id: null })],

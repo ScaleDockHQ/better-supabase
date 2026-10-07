@@ -168,9 +168,22 @@ const notifications = createNotifications({
 
 With the [`profiles` module](/docs/blocks/profiles) installed alongside,
 `list({ include: ["actor"] })` adds each item's `actor` (`id`, `username`,
-`fullName`, `firstName`, `lastName` and `avatar`, those the profiles table
-has) in one call to `notification_actors(ids)`, which returns only actors of
-the caller's own notifications.
+`fullName`, `firstName`, `lastName`, `avatar` and `avatarPath`, those the
+profiles table has) in one call to `notification_actors(ids)`, which returns
+only actors of the caller's own notifications.
+
+`avatarPath` is a Storage object path. With the `avatars` option the block
+turns it into `actor.avatarUrl`: pass `{ url, bucket }` for a public bucket
+(`<url>/storage/v1/object/public/<bucket>/<path>`), or a function of the
+path for signed or transformed URLs:
+
+```ts
+const notifications = createNotifications({
+  transport,
+  types,
+  avatars: { url: process.env.SUPABASE_URL!, bucket: "users" },
+});
+```
 
 ## Realtime
 

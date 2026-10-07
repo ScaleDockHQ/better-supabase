@@ -119,7 +119,13 @@ export interface NotificationActor {
   readonly firstName?: string | null;
   readonly lastName?: string | null;
   readonly avatar?: string | null;
+  readonly avatarPath?: string | null;
+  readonly avatarUrl?: string | null;
 }
+
+export type AvatarUrls =
+  | { readonly url: string; readonly bucket: string }
+  | ((path: string) => string | null);
 
 export interface NotificationCounts {
   readonly unread: number;
@@ -188,6 +194,7 @@ export interface NotificationsOptions<
   ) => RenderedText;
   /** Types that wait for an action; `counts().actionable` counts them. */
   readonly actionable?: readonly TypeName<K>[];
+  readonly avatars?: AvatarUrls;
   /** Senders for the non-`in_app` channels, used by `deliver()`. */
   readonly channels?: readonly NotificationChannel[];
   /** Runs after a notification is stored, e.g. to call Next's `updateTag`. */
@@ -327,6 +334,15 @@ function cursorOf(before: ListOptions["before"]): {
   return { before: before.createdAt.toString(), before_id: before.id };
 }
 
+function publicObjectUrl(url: string, bucket: string, path: string): string {
+  const object = path
+    .replace(/^\/+/, "")
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
+  return `${url.replace(/\/+$/, "")}/storage/v1/object/public/${encodeURIComponent(bucket)}/${object}`;
+}
+
 function filtersOf(filters: PageOptions): Record<string, unknown> {
   return {
     tenant: filters.tenant ?? null,
@@ -405,6 +421,19 @@ export function createNotifications<
     };
   };
 
+  const withAvatarUrl = (actor: NotificationActor): NotificationActor => {
+    const avatars = options.avatars;
+    const path = actor.avatarPath;
+    if (!avatars || typeof path !== "string" || path === "") return actor;
+    return {
+      ...actor,
+      avatarUrl:
+        typeof avatars === "function"
+          ? avatars(path)
+          : publicObjectUrl(avatars.url, avatars.bucket, path),
+    };
+  };
+
   const actorsOf = async (
     items: readonly NotificationItem[],
   ): Promise<ReadonlyMap<string, NotificationActor>> => {
@@ -415,7 +444,7 @@ export function createNotifications<
     const value = await call("notification_actors", { ids });
     return new Map(
       Object.entries(isRecord(value) ? value : {}).flatMap(([id, profile]) =>
-        isRecord(profile) ? [[id, { ...profile, id }]] : [],
+        isRecord(profile) ? [[id, withAvatarUrl({ ...profile, id })]] : [],
       ),
     );
   };

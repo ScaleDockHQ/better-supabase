@@ -28,6 +28,11 @@ user has no profile yet, it inserts one:
 | `email`      | `auth.users.email`, and again after every change of address                           |
 | `username`   | metadata `user_name`, `preferred_username` or `username`, else the email's local part |
 
+`avatar_path` is never filled from metadata, and a `metadata` option that
+names it is refused. It holds the Storage object path of an avatar the user
+uploads (`<user id>/avatar.webp` in a public bucket), so a provider picture
+in `avatar_url` never overwrites it. Users update it like their name.
+
 Usernames are lowercased, stripped to `a-z`, `0-9` and `_` (plus the `.`
 or `-` of a `usernameFrom` separator), start with a letter, and get a number suffix while the name is reserved or another
 profile has it (`ada`, then `ada1`). `allocate_username(base)` returns a
@@ -156,7 +161,8 @@ sql: {
         profiles: {
           key: "user_id",
           fullName: null,
-          avatar: "avatar_path",
+          avatar: null,
+          avatarPath: "avatar_path",
           activeTenant: "active_organization_id",
           onboarding: null,
         },
@@ -176,6 +182,9 @@ installing warns about it. Keep it and set `syncTrigger: false`, calling
 `better_supabase.sync_profile(new.id)` from it, or drop it and move its
 extra work into `after_profile_sync`. With `mode: 'custom'` the module
 writes nothing and you provide `sync_profile` and `backfill_profiles`.
+
+An adopted table has no `avatarPath` column until you map one, so a table
+without it keeps working.
 
 Avatar and logo uploads use the [`avatarBucket` and `organizationLogoBucket`
 presets](/docs/platform/storage#avatars-and-organization-logos).

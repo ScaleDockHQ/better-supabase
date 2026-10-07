@@ -508,6 +508,7 @@ describe.skipIf(!live)("notifications", () => {
       transport: sqlTransport(sql),
       types: { "task.assigned": anything },
       render: (item) => ({ title: `Assigned: ${item.subject?.label ?? ""}` }),
+      avatars: { url: "http://127.0.0.1:55421", bucket: "users" },
       channels: [
         {
           apiVersion: 1,
@@ -534,6 +535,14 @@ describe.skipIf(!live)("notifications", () => {
       ))
         await client.query(file.contents);
       await client.query("select better_supabase.backfill_profiles()");
+      await client.query(
+        "update auth.users set raw_user_meta_data = jsonb_build_object('avatar_path', 'evil', 'picture', 'https://img.test/a.png') where id = $1",
+        [USERS.owner],
+      );
+      await client.query(
+        "update better_supabase.profiles set avatar_path = $2 where id = $1",
+        [USERS.owner, `${USERS.owner}/avatar.webp`],
+      );
       await s.as("owner");
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
@@ -576,6 +585,8 @@ describe.skipIf(!live)("notifications", () => {
       expect(withActor!.actor).toMatchObject({
         id: USERS.owner,
         username: expect.any(String),
+        avatarPath: `${USERS.owner}/avatar.webp`,
+        avatarUrl: `http://127.0.0.1:55421/storage/v1/object/public/users/${USERS.owner}/avatar.webp`,
       });
       expect(
         await notifications.counts({ tenant: organization }).orThrow(),
