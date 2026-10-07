@@ -889,6 +889,18 @@ describe.skipIf(!live)("organizations and invitations", () => {
         organization: null,
         role: support,
       });
+      const expire = (at: string) =>
+        client.query(
+          `update ${schema}.platform_invitations set expires_at = now() + $2::interval where id = $1`,
+          [platform.id, at],
+        );
+      await expire("-1 minute");
+      expect(
+        await s.hint(`${schema}.update_invitation($1, null, 'support')`, [
+          platform.id,
+        ]),
+      ).toBe("INVITATION_INVALID");
+      await expire("1 day");
       await s.as("outsider");
       expect(
         await s.hint(`${schema}.update_invitation($1, null, 'support')`, [
@@ -1180,6 +1192,21 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [open.id],
         ),
       ).toMatchObject({ role: "viewer", prefill: { name: "Renamed" } });
+      await client.query(
+        "update better_supabase.invitations set expires_at = now() - interval '1 minute' where id = $1",
+        [open.id],
+      );
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'member')", [
+          open.id,
+        ]),
+      ).toBe("INVITATION_INVALID");
+      await s.value("better_supabase.resend_invitation($1)", [open.id]);
+      expect(
+        await s.value("better_supabase.update_invitation($1, null, 'member')", [
+          open.id,
+        ]),
+      ).toMatchObject({ role: "member" });
       await s.value("better_supabase.revoke_invitation($1)", [open.id]);
       expect(
         await s.hint("better_supabase.update_invitation($1, null, 'member')", [

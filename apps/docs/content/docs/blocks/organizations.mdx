@@ -35,7 +35,7 @@ functions.
 | `mark_used(organization)`                                                    | sets `last_used_at` on the caller's membership                                                                                                                 |
 | `invite_member(tenant, invitee_email, invitee_role)`                         | creates an invitation and returns it with its token (`invite`)                                                                                                 |
 | `resend_invitation(invitation_id)`                                           | issues a new token and expiry; the old token stops working                                                                                                     |
-| `update_invitation(invitation_id, invitee_email, invitee_role, prefill)`     | changes an open invitation's email, role or prefill (null keeps the value) with the `invite` checks; the token and expiry stay                                 |
+| `update_invitation(invitation_id, invitee_email, invitee_role, prefill)`     | changes an open, unexpired invitation's email, role or prefill (null keeps the value) with the `invite` checks; the token and expiry stay                      |
 | `revoke_invitation(invitation_id)`                                           | revokes an open invitation (`revoke`)                                                                                                                          |
 | `invitation_preview(token)`                                                  | status, email, role and organization for the accept page; callable without a session                                                                           |
 | `accept_invitation(token)` and `decline_invitation(token)`                   | accepts for the signed-in user, or declines                                                                                                                    |
@@ -310,7 +310,9 @@ the current and the new role (`INVITATION_ROLE_FORBIDDEN`), and a new address
 must not belong to a member (`INVITATION_ALREADY_MEMBER`). Another open
 invitation for the new address is replaced. The token and expiry stay, so
 the link already sent keeps working: call `resend_invitation` to mail a new
-link to a changed address. It returns the invitation without its token and
+link to a changed address. An expired invitation is refused with
+`INVITATION_INVALID`, as accept refuses it; call `resend_invitation` first
+to renew its expiry, then edit it. It returns the invitation without its token and
 emits `invitation.updated`. In TypeScript:
 
 ```ts

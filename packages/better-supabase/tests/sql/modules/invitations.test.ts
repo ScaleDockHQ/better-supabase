@@ -422,6 +422,13 @@ describe("update_invitation", () => {
     expect(fn.slice(0, fn.indexOf("$$;"))).not.toContain("token_hash");
     expect(body({})).not.toContain('updated."prefill" := prefill;');
   });
+
+  it("refuses an expired invitation", () => {
+    const fn = body({}).slice(body({}).indexOf('"update_invitation"('));
+    expect(fn).toMatch(
+      /if current_invite\."expires_at" < now\(\) then\n\s*raise exception 'The invitation has expired; resend it to renew it' using errcode = '[0-9A-Z]{5}', hint = 'INVITATION_INVALID';/,
+    );
+  });
 });
 
 describe("invitation_preview_extra", () => {

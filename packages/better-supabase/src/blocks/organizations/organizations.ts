@@ -183,7 +183,8 @@ export interface Organizations {
   /**
    * A new email, role or prefill for an open invitation, with the checks
    * `invite` makes. The token and expiry stay, so the link already sent
-   * keeps working; call `resendInvitation` to mail the new address.
+   * keeps working; call `resendInvitation` to mail the new address. An
+   * expired invitation fails with `INVITATION_INVALID`; resend it first.
    */
   updateInvitation(
     invitationId: string,

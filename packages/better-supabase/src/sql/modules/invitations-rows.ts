@@ -136,8 +136,9 @@ $$;
 }
 
 /**
- * `update_invitation`: a new email, role or prefill for an open invitation,
- * with the checks `invite_member` makes. The token and expiry stay.
+ * `update_invitation`: a new email, role or prefill for an open invitation
+ * that has not expired, with the checks `invite_member` makes. The token and
+ * expiry stay.
  */
 export function updateInvitation(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
@@ -200,6 +201,9 @@ export function updateInvitation(ctx: ModuleContext): string {
     where i.${pc("id")} = invitation_id${pOpen ? ` and ${pOpen}` : ""}${p.only("i")}
     for update;
     if platform_current.${pc("id")} is not null then
+      if platform_current.${pc("expiresAt")} < now() then
+        ${fail("INVITATION_INVALID", "The invitation has expired; resend it to renew it")}
+      end if;
       if not service and not better_supabase.is_platform(${invitePlatform(ctx)}) then
         ${fail("INVITATION_FORBIDDEN", "Not allowed to invite platform users")}
       end if;
@@ -224,8 +228,8 @@ export function updateInvitation(ctx: ModuleContext): string {
     end if;`;
   }
   return `
--- A new email, role or prefill for an open invitation; null keeps the
--- current value. The caller needs what invite_member needs, and may assign
+-- A new email, role or prefill for an open invitation that has not expired;
+-- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
 -- open invitation for the new email is replaced. Returns the invitation
 -- without its token.
@@ -255,6 +259,9 @@ begin
   for update;
   if current_invite.${c("id")} is null then${platformEdit}
     ${fail("INVITATION_INVALID", "No open invitation %", "invitation_id")}
+  end if;
+  if current_invite.${c("expiresAt")} < now() then
+    ${fail("INVITATION_INVALID", "The invitation has expired; resend it to renew it")}
   end if;
   tenant := current_invite.${c("tenant")};
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", MODULE_PERMISSIONS.invitations.invite)}), false) then
