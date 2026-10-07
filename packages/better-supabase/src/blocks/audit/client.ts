@@ -19,12 +19,15 @@ import {
 } from "../shared.ts";
 import { toOcsf } from "./audit.ts";
 
+/** The adopted log's own columns, by column name, as `metadataColumns` maps them. */
+export type AuditColumns = Readonly<Record<string, unknown>>;
+
 /**
  * One entry as `list_audit_events` returns it: the module's columns under
  * stable keys, whatever the adopted log calls them. Fields the log doesn't
  * have, or the caller may not read, are missing.
  */
-export interface AuditRecord {
+export interface AuditRecord<Columns extends AuditColumns = AuditColumns> {
   readonly id: string;
   readonly occurredAt: Temporal.Instant;
   readonly op?: string;
@@ -53,6 +56,11 @@ export interface AuditRecord {
   readonly correlationId?: string;
   readonly scope?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
+  /**
+   * The adopted log's columns that `sql.modules.audit.options.metadataColumns`
+   * fills, by column name. Missing without that option.
+   */
+  readonly columns?: Readonly<Partial<Columns>>;
 }
 
 /** Where a page ends: pass it as `before` for the next, older page. */
@@ -88,8 +96,8 @@ export interface AuditListOptions {
   readonly offset?: number;
 }
 
-export interface AuditPage {
-  readonly entries: readonly AuditRecord[];
+export interface AuditPage<Columns extends AuditColumns = AuditColumns> {
+  readonly entries: readonly AuditRecord<Columns>[];
   /** The cursor of the next page, or `undefined` on the last one. */
   readonly next: AuditCursor | undefined;
   readonly total?: number;
@@ -180,10 +188,10 @@ export interface AuditLogOptions extends BlockTemporalOptions {
   readonly mappers?: readonly ErrorMapper[];
 }
 
-export interface AuditLog {
+export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
   record(event: AuditEventInput): AsyncResult<string>;
   /** A page of the entries the caller can read, newest first. */
-  list(options?: AuditListOptions): AsyncResult<AuditPage>;
+  list(options?: AuditListOptions): AsyncResult<AuditPage<Columns>>;
   /**
    * The restricted details of one entry for a caller with the reveal
    * permission in its tenant (or platform staff); the reveal is itself
@@ -227,7 +235,9 @@ const TEXT_KEYS = [
   "scope",
 ] as const;
 
-function recordOfEntry(value: unknown): AuditRecord {
+function recordOfEntry<Columns extends AuditColumns>(
+  value: unknown,
+): AuditRecord<Columns> {
   const row = isRecord(value) ? value : {};
   const text: Partial<Record<(typeof TEXT_KEYS)[number], string>> = {};
   for (const key of TEXT_KEYS) {
@@ -241,6 +251,7 @@ function recordOfEntry(value: unknown): AuditRecord {
   const old = json("old");
   const next = json("new");
   const metadata = json("metadata");
+  const columns = json("columns");
   return {
     id: textOf(row["id"]),
     occurredAt:
@@ -253,6 +264,12 @@ function recordOfEntry(value: unknown): AuditRecord {
     ...(old === undefined ? {} : { old }),
     ...(next === undefined ? {} : { new: next }),
     ...(metadata === undefined ? {} : { metadata }),
+    ...(columns === undefined
+      ? {}
+      : {
+          // SAFETY: Columns is the caller's description of the adopted columns, which list_audit_events returns by name.
+          columns: columns as Partial<Columns>,
+        }),
   };
 }
 
@@ -319,11 +336,15 @@ const csvRow = (record: AuditRecord): Record<string, unknown> => ({
  * read policy decides what `list` and `export` return, and column mappings
  * of an adopted log are already applied.
  */
-export function createAuditLog(options: AuditLogOptions): AuditLog {
+export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
+  options: AuditLogOptions,
+): AuditLog<Columns> {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
-  const list = (list: AuditListOptions = {}): AsyncResult<AuditPage> => {
+  const list = (
+    list: AuditListOptions = {},
+  ): AsyncResult<AuditPage<Columns>> => {
     const limit = list.limit ?? 50;
     const filters = {
       for_tenants: many(list.organizationId),
@@ -350,8 +371,10 @@ export function createAuditLog(options: AuditLogOptions): AuditLog {
         ascending: list.order === "asc",
         skip: list.offset,
       },
-      (value): AuditPage => {
-        const entries = (Array.isArray(value) ? value : []).map(recordOfEntry);
+      (value): AuditPage<Columns> => {
+        const entries = (Array.isArray(value) ? value : []).map((entry) =>
+          recordOfEntry<Columns>(entry),
+        );
         const last = entries.at(-1);
         return {
           entries,

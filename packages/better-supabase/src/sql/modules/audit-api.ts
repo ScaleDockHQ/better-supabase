@@ -1,5 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
@@ -41,7 +42,11 @@ const ENTRY_KEYS: readonly (readonly [string, string])[] = [
  * `list_audit_events` for the TypeScript side: a page of entries the caller
  * can read (security invoker, so the read policy decides), newest first.
  */
-export function listEntries(ctx: ModuleContext, restricted: boolean): string {
+export function listEntries(
+  ctx: ModuleContext,
+  restricted: boolean,
+  extra: readonly (readonly [column: string, key: string])[] = [],
+): string {
   const id = ctx.idType;
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
@@ -59,6 +64,10 @@ export function listEntries(ctx: ModuleContext, restricted: boolean): string {
     const value = `l.${c(logical)}`;
     return `'${key}', ${isAuditValueColumn(logical) ? auditRead(ctx, logical, value) : value}`;
   });
+  if (extra.length > 0)
+    pairs.push(
+      `'columns', jsonb_build_object(${extra.map(([column]) => `${sqlString(column)}, l.${sqlIdent(column)}`).join(", ")})`,
+    );
   // jsonb_build_object takes at most 100 arguments; split in chunks of 20 keys.
   const chunks: string[] = [];
   for (let index = 0; index < pairs.length; index += 20)

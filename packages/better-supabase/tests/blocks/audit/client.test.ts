@@ -75,12 +75,16 @@ describe("createAuditLog", () => {
           metadata: { k: 1 },
           new: { title: "b" },
           actorId: null,
+          columns: { ticket_id: "t1" },
         }),
         entry("1"),
       ],
       [entry("0")],
     ]);
-    const audit = createAuditLog({ transport, schema: "api" });
+    const audit = createAuditLog<{ ticket_id: string }>({
+      transport,
+      schema: "api",
+    });
     const page = await audit
       .list({ organizationId: "org", limit: 2 })
       .orThrow();
@@ -89,8 +93,11 @@ describe("createAuditLog", () => {
       changed: ["title"],
       metadata: { k: 1 },
       new: { title: "b" },
+      columns: { ticket_id: "t1" },
     });
+    expect(page.entries[0]?.columns?.ticket_id).toBe("t1");
     expect(page.entries[0]).not.toHaveProperty("actorId");
+    expect(page.entries[1]).not.toHaveProperty("columns");
     expect(page.next).toEqual({
       occurredAt: page.entries[1]!.occurredAt,
       id: "1",

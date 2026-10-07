@@ -209,7 +209,8 @@ describe.skipIf(!live)("audit block", () => {
           occurred_at timestamptz not null default now(),
           event_type text, category text, outcome text, source text,
           target_type text, record_id text, actor_id uuid, metadata jsonb,
-          request_ref text, scope text, ticket_id uuid, priority integer
+          request_ref text, scope text, ticket_id uuid,
+          priority integer not null default 3
         );`);
       await s.install(["audit"], {
         modules: {
@@ -255,7 +256,11 @@ describe.skipIf(!live)("audit block", () => {
         })
         .orThrow();
       await audit
-        .record({ eventType: "system.ping", scope: "platform" })
+        .record({
+          eventType: "system.ping",
+          scope: "platform",
+          metadata: { ticketId: null },
+        })
         .orThrow();
       const user = await s.user("member");
       await s.asRole(user);
@@ -269,7 +274,7 @@ describe.skipIf(!live)("audit block", () => {
         .orThrow();
       await s.service();
       const { rows } = await s.client.query<Record<string, unknown>>(
-        `select id::text, event_type, request_ref, scope, ticket_id, priority, metadata ->> 'note' as note from ${log} order by id`,
+        `select id::text, event_type, request_ref, scope, ticket_id, priority, metadata from ${log} order by id`,
       );
       expect(rows).toEqual([
         {
@@ -279,7 +284,7 @@ describe.skipIf(!live)("audit block", () => {
           scope: "region",
           ticket_id: ticket,
           priority: 2,
-          note: "kept",
+          metadata: { note: "kept" },
         },
         {
           id: expect.any(String),
@@ -287,8 +292,8 @@ describe.skipIf(!live)("audit block", () => {
           request_ref: null,
           scope: "global",
           ticket_id: null,
-          priority: null,
-          note: null,
+          priority: 3,
+          metadata: {},
         },
         {
           id: expect.any(String),
@@ -296,9 +301,21 @@ describe.skipIf(!live)("audit block", () => {
           request_ref: null,
           scope: "tenant",
           ticket_id: null,
-          priority: null,
-          note: null,
+          priority: 3,
+          metadata: {},
         },
+      ]);
+      const listed = await createAuditLog<{
+        ticket_id: string | null;
+        priority: number;
+      }>({ transport: sqlTransport(s.sql) })
+        .list({ organizationId: workspace, order: "asc" })
+        .orThrow();
+      expect(
+        listed.entries.map((entry) => [entry.eventType, entry.columns]),
+      ).toEqual([
+        ["ticket.escalated", { ticket_id: ticket, priority: 2 }],
+        ["ticket.viewed", { ticket_id: null, priority: 3 }],
       ]);
     } finally {
       await s.close();

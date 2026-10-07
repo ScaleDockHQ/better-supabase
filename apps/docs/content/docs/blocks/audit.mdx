@@ -49,7 +49,20 @@ to `tenant` with an organization and `platform` without one, and an adopted
 log can take its own value (`region`, say). An adopted log's columns outside
 the module's model are filled from metadata keys with
 `sql.modules.audit.options.metadataColumns` (see
-[SQL modules](/docs/blocks/sql#audit-log)).
+[SQL modules](/docs/blocks/sql#audit-log)). A key the event leaves out
+leaves its column to the column's default, so a `not null default` column
+keeps working, and the mapped keys are removed from the stored metadata
+unless `keepMappedMetadata` is `true`. `list` and `export` return those
+columns by name under `columns`; pass their types to `createAuditLog` to
+type them:
+
+```ts
+const audit = createAuditLog<{ ticket_id: string | null; priority: number }>({
+  transport: sqlTransport(ctx.postgres),
+});
+const page = await audit.list({ organizationId }).orThrow();
+// page.entries[0].columns: { ticket_id: "...", priority: 2 }
+```
 
 ## Listing entries
 

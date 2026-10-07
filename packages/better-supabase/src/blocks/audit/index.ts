@@ -1,5 +1,6 @@
 export { createAuditLog } from "./client.ts";
 export type {
+  AuditColumns,
   AuditCursor,
   AuditDetails,
   AuditEventInput,

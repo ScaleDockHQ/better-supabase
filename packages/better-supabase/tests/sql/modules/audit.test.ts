@@ -190,8 +190,27 @@ describe("audit value mapping", () => {
       options: { metadataColumns: { ticket_id: "ticketId" } },
     });
     expect(sql).toContain(
-      `(pg_catalog.jsonb_populate_record(null::"public"."activity_log", pg_catalog.jsonb_build_object('ticket_id', metadata -> 'ticketId')))."ticket_id"`,
+      "|| case when audit_event.metadata ? 'ticketId' then pg_catalog.jsonb_build_object('ticket_id', audit_event.metadata -> 'ticketId') else '{}'::jsonb end;",
     );
+    expect(sql).toContain(
+      `execute pg_catalog.format('insert into "public"."activity_log" (%s) select %s from pg_catalog.jsonb_populate_record(null::"public"."activity_log", $1) returning "id"', entry_columns, entry_columns)`,
+    );
+    expect(sql).toContain(
+      "'metadata', coalesce(metadata, '{}') - array['ticketId']::text[],",
+    );
+    expect(sql).toContain(
+      `'columns', jsonb_build_object('ticket_id', l."ticket_id")`,
+    );
+    expect(
+      audit({
+        ...ADOPTED,
+        options: {
+          metadataColumns: { ticket_id: "ticketId" },
+          keepMappedMetadata: true,
+        },
+      }),
+    ).toContain("'metadata', coalesce(metadata, '{}'),");
+    expect(audit(ADOPTED)).not.toContain("entry_row");
     expect(sql).toContain(
       "request_id text default null,\n  scope text default null",
     );

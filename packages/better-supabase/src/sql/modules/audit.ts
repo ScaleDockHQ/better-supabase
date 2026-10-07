@@ -1,5 +1,6 @@
 import type { ModuleContext, ModuleIdType, ModuleNames } from "../context.ts";
 import type { ModuleLayout, ModuleDefinition } from "../registry.ts";
+import type { AuditInsert } from "./audit-metadata.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -11,6 +12,11 @@ import {
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { listEntries, reveal } from "./audit-api.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
+import {
+  eventInsert,
+  metadataColumns,
+  storedMetadata,
+} from "./audit-metadata.ts";
 import { REGISTER } from "./audit-register.ts";
 import { auditTests } from "./audit-tests.ts";
 import { auditWrite, tenantLabel } from "./audit-values.ts";
@@ -23,6 +29,7 @@ const NAMES: ModuleNames = {
     "eventSource",
     "exempt",
     "impersonators",
+    "keepMappedMetadata",
     "metadataColumns",
     "readPolicy",
     "restricted",
@@ -202,11 +209,16 @@ function present(
   ctx: ModuleContext,
   table: string,
   pairs: readonly (readonly [string, string])[],
-): { columns: string; values: string } {
+): AuditInsert {
   const kept = pairs.filter(([logical]) => hasColumn(ctx, table, logical));
   return {
     columns: kept.map(([logical]) => ctx.col(table, logical)).join(", "),
     values: kept.map(([, value]) => value).join(",\n    "),
+    pairs: kept.map(([logical, value]) => [
+      ctx.config.columns[table]?.[logical] ??
+        NAMES.tables[table]!.columns[logical]!,
+      value,
+    ]),
   };
 }
 
@@ -483,40 +495,9 @@ const PREVIOUS_EVENT_ARGS = (id: string): readonly string[] => [
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text`,
 ];
 
-function metadataColumns(
-  ctx: ModuleContext,
-): readonly (readonly [column: string, key: string])[] {
-  const where = "sql.modules.audit.options.metadataColumns";
-  const configured = ctx.option("metadataColumns");
-  if (configured === undefined) return [];
-  if (typeof configured !== "object" || configured === null) {
-    throw new TypeError(`${where} must map columns to metadata keys`);
-  }
-  if (ctx.manages) {
-    throw new TypeError(
-      `${where} fills an adopted log's own columns; set mode: "adopt" or keep the values in metadata`,
-    );
-  }
-  const mapped = new Set(
-    Object.values(ctx.config.columns["log"] ?? {}).filter(
-      (column): column is string => typeof column === "string",
-    ),
-  );
-  return Object.entries(configured).map(([column, key]) => {
-    if (typeof key !== "string" || key === "") {
-      throw new TypeError(`${where}.${column} must be a metadata key`);
-    }
-    if (mapped.has(column)) {
-      throw new TypeError(
-        `${where}.${column}: the column is mapped in sql.modules.audit.columns.log, so the module already fills it`,
-      );
-    }
-    return [column, key] as const;
-  });
-}
-
 function auditEvent(ctx: ModuleContext, restricted: boolean): string {
   const id = ctx.idType;
+  const extra = metadataColumns(ctx);
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
   const insert = present(ctx, "log", [
@@ -554,7 +535,7 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
       ),
     ],
     ["targetType", "target_type"],
-    ["metadata", "coalesce(metadata, '{}')"],
+    ["metadata", storedMetadata(ctx, extra)],
     ["idempotencyKey", "idempotency_key"],
     ...contextPairs(ctx, "tenant", {
       targetLabel: "target_label",
@@ -567,18 +548,6 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
         "coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)",
     }),
   ]);
-  const extra = metadataColumns(ctx);
-  const columns = [
-    insert.columns,
-    ...extra.map(([column]) => sqlIdent(column)),
-  ].join(", ");
-  const values = [
-    insert.values,
-    ...extra.map(
-      ([column, key]) =>
-        `(pg_catalog.jsonb_populate_record(null::${log}, pg_catalog.jsonb_build_object(${sqlString(column)}, metadata -> ${sqlString(key)}))).${sqlIdent(column)}`,
-    ),
-  ].join(",\n    ");
   const roles = ctx.list("eventRoles", ["service_role"]);
   const noRestricted = restricted
     ? ""
@@ -648,7 +617,7 @@ set search_path = ''
 as $$
 declare
   existing text;
-  entry_id ${log}.${c("id")}%type;
+  entry_id ${log}.${c("id")}%type;${extra.length > 0 ? "\n  entry_row jsonb;\n  entry_columns text;" : ""}
 begin${noRestricted}
   if not (${SERVICE_CALLER}) then
     actor_id := auth.uid();
@@ -661,12 +630,7 @@ begin${noRestricted}
     scope := null;
   elsif actor_id is null then
     actor_id := auth.uid();
-  end if;${idempotent}
-  insert into ${log} (${columns})
-  values (
-    ${values}
-  )
-  returning ${c("id")} into entry_id;${restrictedInsert(ctx, restricted, { old: "null", new: "null", metadata: "coalesce(restricted, '{}')", ip: "coalesce(ip, better_supabase.request_ip())", userAgent: `coalesce(user_agent, ${requestHeader("user-agent")})`, sessionId: "coalesce(session_id, auth.jwt() ->> 'session_id')" })}
+  end if;${idempotent}${eventInsert(ctx, insert, extra)}${restrictedInsert(ctx, restricted, { old: "null", new: "null", metadata: "coalesce(restricted, '{}')", ip: "coalesce(ip, better_supabase.request_ip())", userAgent: `coalesce(user_agent, ${requestHeader("user-agent")})`, sessionId: "coalesce(session_id, auth.jwt() ->> 'session_id')" })}
   return entry_id::text;
 end;
 $$;
@@ -734,9 +698,14 @@ drop function if exists ${ctx.fn("audit_reads_all")}();`
       ? ["impersonatedBy", "impersonationReason", "supportSession"]
       : [],
   );
-  const readable = Object.keys(NAMES.tables["log"]!.columns)
-    .filter((logical) => hasColumn(ctx, "log", logical) && !hidden.has(logical))
-    .map(c);
+  const readable = [
+    ...Object.keys(NAMES.tables["log"]!.columns)
+      .filter(
+        (logical) => hasColumn(ctx, "log", logical) && !hidden.has(logical),
+      )
+      .map(c),
+    ...metadataColumns(ctx).map(([column]) => sqlIdent(column)),
+  ];
   return `-- Members read their tenant's entries with the ${ctx.permissionKey("view", MODULE_PERMISSIONS.audit.view)} permission;
 -- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and
 -- is_platform when it runs, so this file installs before the access module's.
@@ -891,7 +860,7 @@ function auditSql(ctx: ModuleContext, layout: ModuleLayout): string {
     appendOnly(ctx),
     readPolicy(ctx),
     retention(ctx),
-    listEntries(ctx, restricted),
+    listEntries(ctx, restricted, metadataColumns(ctx)),
     reveal(ctx, restricted),
   ]
     .filter(Boolean)
