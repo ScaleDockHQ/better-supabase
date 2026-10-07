@@ -32,6 +32,9 @@ functions.
 | `remove_member(organization, member)` and `leave_organization(organization)` | removes a member (`removeMember`), or the caller                                                                                                               |
 | `transfer_ownership(organization, new_owner, former_role)`                   | makes another member owner and gives the caller `former_role` (`transferOwnership`)                                                                            |
 | `switch_organization(organization)`                                          | makes it the caller's active organization (see [Switching](#switching-organizations))                                                                          |
+| `list_my_organizations()`                                                    | organizations the caller belongs to (`id`, `name`, `slug`, `role`)                                                                                             |
+| `list_members(organization)`                                                 | members the caller may read (`members.read`)                                                                                                                   |
+| `list_organization_invitations(organization)`                                | open invitations, when the invitations module is installed (`members.invite`)                                                                                  |
 | `mark_used(organization)`                                                    | sets `last_used_at` on the caller's membership                                                                                                                 |
 | `invite_member(tenant, invitee_email, invitee_role)`                         | creates an invitation and returns it with its token (`invite`)                                                                                                 |
 | `resend_invitation(invitation_id)`                                           | issues a new token and expiry; the old token stops working                                                                                                     |
@@ -85,6 +88,9 @@ without validating them and logs a warning.
 ## From TypeScript
 
 `createOrganizations` takes a transport that runs the functions as the user.
+`mine()`, `members(organizationId)` and `invitations(organizationId)` list
+the caller's organizations, an organization's members and its open
+invitations.
 `sqlTransport` uses a Postgres connection with the user's claims, and works
 whatever schema the modules are in:
 

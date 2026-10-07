@@ -251,7 +251,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."active_announcements"($1) $$;
-revoke execute on function "api"."active_announcements"(uuid) from public;
+revoke execute on function "api"."active_announcements"(uuid) from public, anon;
 grant execute on function "api"."active_announcements"(uuid) to authenticated, service_role;
 
 create or replace function "api"."dismiss_announcement"(id uuid)
@@ -260,7 +260,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."dismiss_announcement"($1) $$;
-revoke execute on function "api"."dismiss_announcement"(uuid) from public;
+revoke execute on function "api"."dismiss_announcement"(uuid) from public, anon;
 grant execute on function "api"."dismiss_announcement"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_announcements"()
@@ -269,7 +269,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_announcements"() $$;
-revoke execute on function "api"."list_announcements"() from public;
+revoke execute on function "api"."list_announcements"() from public, anon;
 grant execute on function "api"."list_announcements"() to authenticated, service_role;
 
 create or replace function "api"."save_announcement"(id uuid, fields jsonb)
@@ -278,7 +278,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."save_announcement"($1, $2) $$;
-revoke execute on function "api"."save_announcement"(uuid, jsonb) from public;
+revoke execute on function "api"."save_announcement"(uuid, jsonb) from public, anon;
 grant execute on function "api"."save_announcement"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_announcement"(id uuid)
@@ -287,7 +287,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."delete_announcement"($1) $$;
-revoke execute on function "api"."delete_announcement"(uuid) from public;
+revoke execute on function "api"."delete_announcement"(uuid) from public, anon;
 grant execute on function "api"."delete_announcement"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;

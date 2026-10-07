@@ -664,7 +664,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."invite_member"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."invite_member"(uuid, text, text, interval, jsonb) from public;
+revoke execute on function "api"."invite_member"(uuid, text, text, interval, jsonb) from public, anon;
 grant execute on function "api"."invite_member"(uuid, text, text, interval, jsonb) to authenticated, service_role;
 
 create or replace function "api"."create_invitation"(organization uuid, invitee_email text, invitee_role text default 'member', valid_for interval default '7 days')
@@ -673,7 +673,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."create_invitation"($1, $2, $3, $4) $$;
-revoke execute on function "api"."create_invitation"(uuid, text, text, interval) from public;
+revoke execute on function "api"."create_invitation"(uuid, text, text, interval) from public, anon;
 grant execute on function "api"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 
 create or replace function "api"."resend_invitation"(invitation_id uuid, valid_for interval default '7 days')
@@ -682,7 +682,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."resend_invitation"($1, $2) $$;
-revoke execute on function "api"."resend_invitation"(uuid, interval) from public;
+revoke execute on function "api"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "api"."resend_invitation"(uuid, interval) to authenticated, service_role;
 
 create or replace function "api"."update_invitation"(invitation_id uuid, invitee_email text default null, invitee_role text default null, prefill jsonb default null)
@@ -691,7 +691,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."update_invitation"($1, $2, $3, $4) $$;
-revoke execute on function "api"."update_invitation"(uuid, text, text, jsonb) from public;
+revoke execute on function "api"."update_invitation"(uuid, text, text, jsonb) from public, anon;
 grant execute on function "api"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."revoke_invitation"(invitation_id uuid)
@@ -700,7 +700,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."revoke_invitation"($1) $$;
-revoke execute on function "api"."revoke_invitation"(uuid) from public;
+revoke execute on function "api"."revoke_invitation"(uuid) from public, anon;
 grant execute on function "api"."revoke_invitation"(uuid) to authenticated, service_role;
 
 create or replace function "api"."decline_invitation"(token text)
@@ -727,7 +727,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accept_invitation"($1) $$;
-revoke execute on function "api"."accept_invitation"(text) from public;
+revoke execute on function "api"."accept_invitation"(text) from public, anon, service_role;
 grant execute on function "api"."accept_invitation"(text) to authenticated;
 
 create or replace function "api"."accept_invitation_by_id"(invitation_id uuid)
@@ -736,7 +736,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."accept_invitation_by_id"($1) $$;
-revoke execute on function "api"."accept_invitation_by_id"(uuid) from public;
+revoke execute on function "api"."accept_invitation_by_id"(uuid) from public, anon, service_role;
 grant execute on function "api"."accept_invitation_by_id"(uuid) to authenticated;
 
 create or replace function "api"."decline_invitation_by_id"(invitation_id uuid)
@@ -745,7 +745,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."decline_invitation_by_id"($1) $$;
-revoke execute on function "api"."decline_invitation_by_id"(uuid) from public;
+revoke execute on function "api"."decline_invitation_by_id"(uuid) from public, anon, service_role;
 grant execute on function "api"."decline_invitation_by_id"(uuid) to authenticated;
 
 create or replace function "api"."my_invitations"()
@@ -754,7 +754,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."my_invitations"() $$;
-revoke execute on function "api"."my_invitations"() from public;
+revoke execute on function "api"."my_invitations"() from public, anon, service_role;
 grant execute on function "api"."my_invitations"() to authenticated;
 
 create schema if not exists better_supabase;

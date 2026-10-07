@@ -148,16 +148,16 @@ USAGE better-supabase introspect [OPTIONS]
 
 OPTIONS
 
-                            --out=<file>    Defaults to supabase/snapshot.json, or supabase/generator-metadata.json     
-  --format=<snapshot|generator-metadata>    snapshot (the default) or generator-metadata (postgrest-typegen's input)    
-                                 --check    Fail when the file is out of date                                           
-                       --snapshot=<file>    Read a saved snapshot instead of the database                               
-                          --db-url-stdin    Read the connection string from stdin instead of $DATABASE_URL or the config
-                     --project-ref=<ref>    Read a hosted project through the Management API                            
-                             --cwd=<dir>    Project directory                                                           
-                         --config=<file>    Config file, relative to --cwd                                              
-                                  --json    Print one JSON document on stdout; errors as Problem Details                
-                               -y, --yes    Ask nothing; use the flags and the defaults                                 
+                            --out=<file>    Defaults to source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json
+  --format=<snapshot|generator-metadata>    snapshot (the default) or generator-metadata (postgrest-typegen's input)                
+                                 --check    Fail when the file is out of date                                                       
+                       --snapshot=<file>    Read a saved snapshot instead of the database                                           
+                          --db-url-stdin    Read the connection string from stdin instead of $DATABASE_URL or the config            
+                     --project-ref=<ref>    Read a hosted project through the Management API                                        
+                             --cwd=<dir>    Project directory                                                                       
+                         --config=<file>    Config file, relative to --cwd                                                          
+                                  --json    Print one JSON document on stdout; errors as Problem Details                            
+                               -y, --yes    Ask nothing; use the flags and the defaults                                             
 "
 `;
 

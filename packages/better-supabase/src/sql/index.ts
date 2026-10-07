@@ -34,6 +34,7 @@ export type {
   ModuleUpgradePlan,
   SqlModule,
 } from "./registry.ts";
+export { adoptedColumnProblems } from "./adopted-columns.ts";
 export { auditRegistrations } from "./audit-registrations.ts";
 export type { AuditedTable } from "./audit-registrations.ts";
 export {

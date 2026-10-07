@@ -180,8 +180,6 @@ export function tenantRole(ctx: ModuleContext): {
   const unknownRole =
     model === "catalog" || through
       ? `${stored} is null`
-      : model === "roles"
-        ? `not (invitee_role = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[]))`
-        : "false";
+      : `not (invitee_role = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[]))`;
   return { stored, unknownRole };
 }

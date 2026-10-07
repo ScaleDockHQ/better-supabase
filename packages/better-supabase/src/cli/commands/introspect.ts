@@ -16,7 +16,7 @@ const ARGS = {
   out: {
     type: "string",
     description:
-      "Defaults to supabase/snapshot.json, or supabase/generator-metadata.json",
+      "Defaults to source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json",
     valueHint: "file",
   },
   format: {
@@ -57,7 +57,7 @@ export const introspectCommand: AnyCommand = defineCliCommand({
     const out =
       args.out ??
       (format === "snapshot"
-        ? "supabase/snapshot.json"
+        ? (config.source.snapshot ?? "supabase/snapshot.json")
         : "supabase/generator-metadata.json");
     const contents =
       format === "snapshot"

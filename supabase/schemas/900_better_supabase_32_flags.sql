@@ -305,7 +305,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_flags"() $$;
-revoke execute on function "api"."list_flags"() from public;
+revoke execute on function "api"."list_flags"() from public, anon;
 grant execute on function "api"."list_flags"() to authenticated, service_role;
 
 create or replace function "api"."save_flag"(key text, definition jsonb)
@@ -314,7 +314,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."save_flag"($1, $2) $$;
-revoke execute on function "api"."save_flag"(text, jsonb) from public;
+revoke execute on function "api"."save_flag"(text, jsonb) from public, anon;
 grant execute on function "api"."save_flag"(text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_flag"(key text)
@@ -323,7 +323,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."delete_flag"($1) $$;
-revoke execute on function "api"."delete_flag"(text) from public;
+revoke execute on function "api"."delete_flag"(text) from public, anon;
 grant execute on function "api"."delete_flag"(text) to authenticated, service_role;
 
 create or replace function "api"."set_flag_override"(key text, variant text, tenant uuid default null, member uuid default null)
@@ -332,7 +332,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."set_flag_override"($1, $2, $3, $4) $$;
-revoke execute on function "api"."set_flag_override"(text, text, uuid, uuid) from public;
+revoke execute on function "api"."set_flag_override"(text, text, uuid, uuid) from public, anon;
 grant execute on function "api"."set_flag_override"(text, text, uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."tenant_ids_with_flag"(key text)
@@ -341,7 +341,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."tenant_ids_with_flag"($1) $$;
-revoke execute on function "api"."tenant_ids_with_flag"(text) from public;
+revoke execute on function "api"."tenant_ids_with_flag"(text) from public, anon;
 grant execute on function "api"."tenant_ids_with_flag"(text) to authenticated, service_role;
 
 create or replace function "api"."flag_bucket"(flag text, target text)
@@ -359,7 +359,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."flag_evaluation"($1, $2, $3) $$;
-revoke execute on function "api"."flag_evaluation"(text, uuid, uuid) from public;
+revoke execute on function "api"."flag_evaluation"(text, uuid, uuid) from public, anon, authenticated;
 grant execute on function "api"."flag_evaluation"(text, uuid, uuid) to service_role;
 
 create or replace function "api"."flag_enabled"(key text, tenant uuid default null)
@@ -368,7 +368,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."flag_enabled"($1, $2) $$;
-revoke execute on function "api"."flag_enabled"(text, uuid) from public;
+revoke execute on function "api"."flag_enabled"(text, uuid) from public, anon;
 grant execute on function "api"."flag_enabled"(text, uuid) to authenticated, service_role;
 
 create or replace function "api"."flag_definitions"()
@@ -377,7 +377,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."flag_definitions"() $$;
-revoke execute on function "api"."flag_definitions"() from public;
+revoke execute on function "api"."flag_definitions"() from public, anon, authenticated;
 grant execute on function "api"."flag_definitions"() to service_role;
 
 create schema if not exists better_supabase;

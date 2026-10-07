@@ -136,6 +136,16 @@ describe("expectDbBudget", () => {
     expect(Date.now() - started).toBeLessThan(1000);
   });
 
+  it("returns no renders when requireRequest is false and nothing was tagged", async () => {
+    const empty: BudgetPage = {
+      ...fakePage({}),
+      reload: () => Promise.resolve(),
+    };
+    await expect(
+      expectDbBudget(empty, { maxCalls: 0, requireRequest: false }),
+    ).resolves.toEqual([]);
+  });
+
   it("explains a missing debug route", async () => {
     await expect(
       expectDbBudget(fakePage({ doc: stats(1, 1) }), { maxCalls: 8 }),

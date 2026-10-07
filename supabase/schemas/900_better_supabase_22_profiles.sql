@@ -1,5 +1,5 @@
 -- better-supabase module: profiles (0.5.1)
--- @bs-module profiles@1 managed
+-- @bs-module profiles@2 managed
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,6 +14,7 @@ create table if not exists "better_supabase"."profiles" (
   "first_name" text,
   "last_name" text,
   "avatar_url" text,
+  "avatar_path" text,
   "active_organization_id" uuid,
   "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
@@ -21,6 +22,7 @@ create table if not exists "better_supabase"."profiles" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;
 
 create unique index if not exists profiles_username_idx on "better_supabase"."profiles" (lower("username"));
 alter table "better_supabase"."profiles" drop constraint if exists profiles_username_check;
@@ -53,7 +55,7 @@ grant all on "better_supabase"."profiles" to service_role;
 
 -- Users update only these columns; the rest go through the module's functions.
 revoke update on "better_supabase"."profiles" from authenticated;
-grant update ("full_name", "first_name", "last_name", "avatar_url", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
+grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
 -- definer functions (switch_organization, the email mirror) run as their
@@ -182,6 +184,44 @@ $$;
 revoke execute on function "better_supabase"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "better_supabase"."backfill_profiles"() to service_role;
 
+create or replace function "better_supabase"."my_profile"()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(p) from "better_supabase"."profiles" p where p."id" = (select auth.uid())
+$$;
+revoke execute on function "better_supabase"."my_profile"() from public, anon;
+grant execute on function "better_supabase"."my_profile"() to authenticated, service_role;
+
+create or replace function "better_supabase"."update_my_profile"(attrs jsonb)
+returns boolean
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  updated integer;
+begin
+  update "better_supabase"."profiles" p
+  set "full_name" = case when update_my_profile.attrs ? 'full_name' then update_my_profile.attrs ->> 'full_name' else p."full_name" end,
+    "first_name" = case when update_my_profile.attrs ? 'first_name' then update_my_profile.attrs ->> 'first_name' else p."first_name" end,
+    "last_name" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p."last_name" end,
+    "avatar_url" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p."avatar_url" end,
+    "username" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p."username" end,
+    "onboarding" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs ->> 'onboarding' else p."onboarding" end,
+    "updated_at" = now()
+  where p."id" = (select auth.uid());
+  get diagnostics updated = row_count;
+  return updated > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."update_my_profile"(jsonb) from public, anon;
+grant execute on function "better_supabase"."update_my_profile"(jsonb) to authenticated, service_role;
+
 create or replace function better_supabase.replace_equivalent_triggers(
   target regclass,
   module_trigger text,
@@ -263,7 +303,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."allocate_username"($1, $2) $$;
-revoke execute on function "api"."allocate_username"(text, uuid) from public;
+revoke execute on function "api"."allocate_username"(text, uuid) from public, anon;
 grant execute on function "api"."allocate_username"(text, uuid) to authenticated, service_role;
 
 create or replace function "api"."sync_profile"(user_id uuid)
@@ -272,7 +312,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."sync_profile"($1) $$;
-revoke execute on function "api"."sync_profile"(uuid) from public;
+revoke execute on function "api"."sync_profile"(uuid) from public, anon, authenticated;
 grant execute on function "api"."sync_profile"(uuid) to service_role;
 
 create or replace function "api"."backfill_profiles"()
@@ -281,8 +321,26 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."backfill_profiles"() $$;
-revoke execute on function "api"."backfill_profiles"() from public;
+revoke execute on function "api"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "api"."backfill_profiles"() to service_role;
+
+create or replace function "api"."my_profile"()
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."my_profile"() $$;
+revoke execute on function "api"."my_profile"() from public, anon;
+grant execute on function "api"."my_profile"() to authenticated, service_role;
+
+create or replace function "api"."update_my_profile"(attrs jsonb)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."update_my_profile"($1) $$;
+revoke execute on function "api"."update_my_profile"(jsonb) from public, anon;
+grant execute on function "api"."update_my_profile"(jsonb) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

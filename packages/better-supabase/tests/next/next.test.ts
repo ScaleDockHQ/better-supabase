@@ -42,6 +42,7 @@ vi.mock("next/cache.js", () => ({
   updateTag: mocks.updateTag,
   revalidateTag: mocks.revalidateTag,
   cacheTag: mocks.cacheTag,
+  io: () => Promise.resolve(),
 }));
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
@@ -671,9 +672,32 @@ describe("createNext", () => {
         method: "POST",
         headers: { cookie: expired },
       }),
-      { protect, expiredPrefetch: "render" },
+      { protect, expiredPrefetch: "render", protectMethods: true },
     );
     expect(api.status).toBe(307);
+  });
+
+  it("skips protect on Server Action POSTs unless asked", async () => {
+    const protect = vi.fn((_auth: unknown, request: NextRequest) =>
+      NextResponse.redirect(new URL("/login", request.url)),
+    );
+    const action = new NextRequest("https://app.test/customers", {
+      method: "POST",
+      headers: {
+        cookie: cookieFor(await signer.sign({ sub: USER }), "refresh-action"),
+      },
+    });
+    const skipped = await bs.proxy(action, { protect });
+    expect(protect).not.toHaveBeenCalled();
+    expect(skipped.headers.get("x-middleware-next")).toBe("1");
+
+    protect.mockClear();
+    const guarded = await bs.proxy(action, {
+      protect,
+      protectMethods: true,
+    });
+    expect(protect).toHaveBeenCalled();
+    expect(guarded.status).toBe(307);
   });
 
   it("never refreshes an expiring cookie session, and keeps it valid until exp", async () => {

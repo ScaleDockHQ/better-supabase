@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  declaredTableColumns,
   declaredTables,
   extensionSchema,
   policyGrants,
@@ -38,6 +39,30 @@ create policy internal on private.secrets for select to authenticated using (tru
         role: "authenticated",
         privileges: ["select", "insert", "update", "delete"],
       },
+    ]);
+  });
+});
+
+describe("declaredTableColumns", () => {
+  it("reads column names and skips table constraints", () => {
+    const columns = declaredTableColumns(
+      [
+        {
+          text: `create table public.organizations (
+  id uuid primary key,
+  name text not null,
+  slug text,
+  unique (slug),
+  constraint organizations_name_check check (length(name) > 0)
+);`,
+        },
+      ],
+      ["public"],
+    );
+    expect([...columns.get("public.organizations")!].sort()).toEqual([
+      "id",
+      "name",
+      "slug",
     ]);
   });
 });

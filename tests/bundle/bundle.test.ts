@@ -188,9 +188,11 @@ describe("bundle", () => {
     ).toBe(true);
   });
 
-  it('keeps "use client" on the react entry', async () => {
-    const source = await readFile(join(PACKAGE, "dist/react/index.js"), "utf8");
-    expect(source.startsWith('"use client";')).toBe(true);
+  it('keeps "use client" on the react and next/client entries', async () => {
+    for (const file of ["dist/react/index.js", "dist/next/client/index.js"]) {
+      const source = await readFile(join(PACKAGE, file), "utf8");
+      expect(source.startsWith('"use client";')).toBe(true);
+    }
   });
 
   it('ships a react-server build without "use client"', async () => {

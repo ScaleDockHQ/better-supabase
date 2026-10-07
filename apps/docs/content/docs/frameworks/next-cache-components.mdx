@@ -439,6 +439,20 @@ export async function sessionChanged(): Promise<void> {
 await supabase.auth.signInWithPassword({ email, password });
 await sessionChanged();
 router.push("/");
+// `refresh()` in the Server Action expires the server cache. Prefetched
+// private App Shells stay until the client refreshes too.
+router.refresh();
+```
+
+`useSessionChange` from `better-supabase/next/client` runs `sessionChanged`,
+then `router.push` and `router.refresh()`:
+
+```ts
+import { useSessionChange } from "better-supabase/next/client";
+
+const go = useSessionChange(sessionChanged);
+await supabase.auth.signInWithPassword({ email, password });
+await go("/");
 ```
 
 ## Asymmetric signing keys

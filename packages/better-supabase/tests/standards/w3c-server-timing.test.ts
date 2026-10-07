@@ -16,6 +16,7 @@ vi.mock("next/cache.js", () => ({
   updateTag: () => undefined,
   revalidateTag: () => undefined,
   cacheTag: () => undefined,
+  io: () => Promise.resolve(),
 }));
 
 // Server-Timing grammar (WD section 3): `#server-timing-metric`, each

@@ -41,6 +41,20 @@ const body = (modules: ModulesConfig) =>
   moduleBody("organizations", { modules })!;
 
 describe("organizations module", () => {
+  it("lists the caller's organizations, members and invitations", () => {
+    const sql = renderModules(["organizations", "invitations"], {
+      modules: { invitations: {} },
+    }).find((file) => file.module === "organizations")!.contents;
+    expect(sql).toContain(
+      'function "better_supabase"."list_my_organizations"()',
+    );
+    expect(sql).toContain('function "better_supabase"."list_members"');
+    expect(sql).toContain(
+      'function "better_supabase"."list_organization_invitations"',
+    );
+    expect(body({})).not.toContain("list_organization_invitations");
+  });
+
   it("resolves role keys among the tenant's own roles with a mapped roles.tenant", () => {
     const sql = body({
       access: {

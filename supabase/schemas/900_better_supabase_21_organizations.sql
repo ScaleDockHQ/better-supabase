@@ -439,6 +439,69 @@ begin
 end;
 $$;
 
+create or replace function "better_supabase"."list_my_organizations"()
+returns table (
+  id uuid,
+  name text,
+  slug text,
+  role text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select o."id", o."name", o."slug", m."role"::text
+  from "public"."memberships" m
+  join "public"."organizations" o on o."id" = m."organization_id"
+  where m."user_id" = (select auth.uid())
+    and not better_supabase.tenant_disabled(o."id")
+  order by o."name"
+$$;
+
+create or replace function "better_supabase"."list_members"(organization uuid)
+returns table (user_id uuid, role text)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not coalesce(better_supabase.member_can((select auth.uid()), organization, 'members.read'), false) then
+    raise exception 'Not allowed to list members' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return query
+  select m."user_id", m."role"::text
+  from "public"."memberships" m
+  where m."organization_id" = organization
+  order by m."user_id";
+end;
+$$;
+
+create or replace function "better_supabase"."list_organization_invitations"(organization uuid)
+returns table (
+  id uuid,
+  email text,
+  role text,
+  expires_at timestamptz
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not coalesce(better_supabase.member_can((select auth.uid()), organization, 'members.invite'), false) then
+    raise exception 'Not allowed to list invitations' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return query
+  select i."id", i."email", i."role"::text, i."expires_at"
+  from "better_supabase"."invitations" i
+  where i."organization_id" = organization and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null and i."expires_at" >= now()
+  order by i."expires_at" desc;
+end;
+$$;
+
 revoke execute on function "better_supabase"."create_organization"(jsonb) from public, anon;
 grant execute on function "better_supabase"."create_organization"(jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_organization"(uuid, jsonb) from public, anon;
@@ -457,6 +520,12 @@ revoke execute on function "better_supabase"."mark_used"(uuid) from public, anon
 grant execute on function "better_supabase"."mark_used"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."switch_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."switch_organization"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_my_organizations"() from public, anon;
+grant execute on function "better_supabase"."list_my_organizations"() to authenticated, service_role;
+revoke execute on function "better_supabase"."list_members"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_members"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_organization_invitations"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_organization_invitations"(uuid) to authenticated, service_role;
 
 -- sql.modules.organizations.api: entry points for the Data API.
 create schema if not exists "api";
@@ -471,7 +540,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."organization_slug_problem"($1, $2) $$;
-revoke execute on function "api"."organization_slug_problem"(text, uuid) from public;
+revoke execute on function "api"."organization_slug_problem"(text, uuid) from public, anon;
 grant execute on function "api"."organization_slug_problem"(text, uuid) to authenticated, service_role;
 
 create or replace function "api"."create_organization"(attrs jsonb)
@@ -480,7 +549,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."create_organization"($1) $$;
-revoke execute on function "api"."create_organization"(jsonb) from public;
+revoke execute on function "api"."create_organization"(jsonb) from public, anon;
 grant execute on function "api"."create_organization"(jsonb) to authenticated, service_role;
 
 create or replace function "api"."update_organization"(organization uuid, attrs jsonb)
@@ -489,7 +558,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."update_organization"($1, $2) $$;
-revoke execute on function "api"."update_organization"(uuid, jsonb) from public;
+revoke execute on function "api"."update_organization"(uuid, jsonb) from public, anon;
 grant execute on function "api"."update_organization"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_organization"(organization uuid)
@@ -498,7 +567,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."delete_organization"($1) $$;
-revoke execute on function "api"."delete_organization"(uuid) from public;
+revoke execute on function "api"."delete_organization"(uuid) from public, anon;
 grant execute on function "api"."delete_organization"(uuid) to authenticated, service_role;
 
 create or replace function "api"."update_member_role"(organization uuid, member uuid, role text)
@@ -507,7 +576,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."update_member_role"($1, $2, $3) $$;
-revoke execute on function "api"."update_member_role"(uuid, uuid, text) from public;
+revoke execute on function "api"."update_member_role"(uuid, uuid, text) from public, anon;
 grant execute on function "api"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
 
 create or replace function "api"."remove_member"(organization uuid, member uuid)
@@ -516,7 +585,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."remove_member"($1, $2) $$;
-revoke execute on function "api"."remove_member"(uuid, uuid) from public;
+revoke execute on function "api"."remove_member"(uuid, uuid) from public, anon;
 grant execute on function "api"."remove_member"(uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."leave_organization"(organization uuid)
@@ -525,7 +594,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."leave_organization"($1) $$;
-revoke execute on function "api"."leave_organization"(uuid) from public;
+revoke execute on function "api"."leave_organization"(uuid) from public, anon;
 grant execute on function "api"."leave_organization"(uuid) to authenticated, service_role;
 
 create or replace function "api"."transfer_ownership"(organization uuid, new_owner uuid, former_role text default 'admin')
@@ -534,7 +603,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."transfer_ownership"($1, $2, $3) $$;
-revoke execute on function "api"."transfer_ownership"(uuid, uuid, text) from public;
+revoke execute on function "api"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "api"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 
 create or replace function "api"."mark_used"(organization uuid)
@@ -543,7 +612,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."mark_used"($1) $$;
-revoke execute on function "api"."mark_used"(uuid) from public;
+revoke execute on function "api"."mark_used"(uuid) from public, anon;
 grant execute on function "api"."mark_used"(uuid) to authenticated, service_role;
 
 create or replace function "api"."switch_organization"(organization uuid)
@@ -552,8 +621,45 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."switch_organization"($1) $$;
-revoke execute on function "api"."switch_organization"(uuid) from public;
+revoke execute on function "api"."switch_organization"(uuid) from public, anon;
 grant execute on function "api"."switch_organization"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_my_organizations"()
+returns table (
+  id uuid,
+  name text,
+  slug text,
+  role text
+)
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."list_my_organizations"() $$;
+revoke execute on function "api"."list_my_organizations"() from public, anon;
+grant execute on function "api"."list_my_organizations"() to authenticated, service_role;
+
+create or replace function "api"."list_members"(organization uuid)
+returns table (user_id uuid, role text)
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."list_members"($1) $$;
+revoke execute on function "api"."list_members"(uuid) from public, anon;
+grant execute on function "api"."list_members"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_organization_invitations"(organization uuid)
+returns table (
+  id uuid,
+  email text,
+  role text,
+  expires_at timestamptz
+)
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."list_organization_invitations"($1) $$;
+revoke execute on function "api"."list_organization_invitations"(uuid) from public, anon;
+grant execute on function "api"."list_organization_invitations"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

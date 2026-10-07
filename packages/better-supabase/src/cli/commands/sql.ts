@@ -24,6 +24,7 @@ import {
   moduleBody,
   moduleSchemaExtensions,
   moduleTopics,
+  adoptedColumnProblems,
   declaredTables,
   extensionSchema,
   policyGrants,
@@ -248,6 +249,12 @@ async function layoutFor(
       ...(permdock ? { permdock } : {}),
     }).map((module) => module.name),
   );
+  const adopted = adoptedColumnProblems(
+    config.sql.modules,
+    await declarativeTexts(config),
+    config.schemas,
+  );
+  if (adopted.length > 0) throw new TypeError(adopted.join("\n"));
   return {
     ...moduleLayout(
       config,

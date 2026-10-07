@@ -369,7 +369,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."create_comment"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public;
+revoke execute on function "api"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public, anon;
 grant execute on function "api"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."edit_comment"(id uuid, body text, mentions uuid[] default null, document jsonb default null, clear_document boolean default false)
@@ -378,7 +378,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."edit_comment"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."edit_comment"(uuid, text, uuid[], jsonb, boolean) from public;
+revoke execute on function "api"."edit_comment"(uuid, text, uuid[], jsonb, boolean) from public, anon;
 grant execute on function "api"."edit_comment"(uuid, text, uuid[], jsonb, boolean) to authenticated, service_role;
 
 create or replace function "api"."copy_comments"(tenant uuid, from_type text, from_id text, to_type text, to_id text)
@@ -387,7 +387,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."copy_comments"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."copy_comments"(uuid, text, text, text, text) from public;
+revoke execute on function "api"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
 grant execute on function "api"."copy_comments"(uuid, text, text, text, text) to service_role;
 
 create or replace function "api"."list_activity"(tenant uuid, subject_type text default null, subject_id text default null, before timestamptz default null, max_rows integer default 50)
@@ -396,7 +396,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_activity"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer) from public;
+revoke execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer) from public, anon;
 grant execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
 
 create or replace function "api"."delete_comment"(id uuid)
@@ -405,7 +405,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."delete_comment"($1) $$;
-revoke execute on function "api"."delete_comment"(uuid) from public;
+revoke execute on function "api"."delete_comment"(uuid) from public, anon;
 grant execute on function "api"."delete_comment"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_comments"(tenant uuid, subject_type text, subject_id text, after timestamptz default null, max_rows integer default 100, skip integer default 0)
@@ -414,7 +414,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_comments"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer) from public;
+revoke execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer) from public, anon;
 grant execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer) to authenticated, service_role;
 
 create or replace function "api"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
@@ -423,7 +423,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."comment_counts"($1, $2, $3) $$;
-revoke execute on function "api"."comment_counts"(uuid, text, text[]) from public;
+revoke execute on function "api"."comment_counts"(uuid, text, text[]) from public, anon;
 grant execute on function "api"."comment_counts"(uuid, text, text[]) to authenticated, service_role;
 
 create or replace function "api"."record_activity"(batch jsonb)
@@ -432,7 +432,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."record_activity"($1) $$;
-revoke execute on function "api"."record_activity"(jsonb) from public;
+revoke execute on function "api"."record_activity"(jsonb) from public, anon, authenticated;
 grant execute on function "api"."record_activity"(jsonb) to service_role;
 
 create schema if not exists better_supabase;

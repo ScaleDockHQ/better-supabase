@@ -612,7 +612,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_history"($1, $2, $3, $4) $$;
-revoke execute on function "api"."usage_history"(uuid, text, integer, bigint) from public;
+revoke execute on function "api"."usage_history"(uuid, text, integer, bigint) from public, anon;
 grant execute on function "api"."usage_history"(uuid, text, integer, bigint) to authenticated, service_role;
 
 create or replace function "api"."usage_breakdown"(tenant uuid, meter text)
@@ -621,7 +621,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_breakdown"($1, $2) $$;
-revoke execute on function "api"."usage_breakdown"(uuid, text) from public;
+revoke execute on function "api"."usage_breakdown"(uuid, text) from public, anon;
 grant execute on function "api"."usage_breakdown"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."purge_usage_history"(older_than interval default '400 days', batch integer default 10000)
@@ -630,7 +630,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."purge_usage_history"($1, $2) $$;
-revoke execute on function "api"."purge_usage_history"(interval, integer) from public;
+revoke execute on function "api"."purge_usage_history"(interval, integer) from public, anon, authenticated;
 grant execute on function "api"."purge_usage_history"(interval, integer) to service_role;
 
 create or replace function "api"."purge_usage_events"(older_than interval default '30 days', batch integer default 10000)
@@ -639,7 +639,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."purge_usage_events"($1, $2) $$;
-revoke execute on function "api"."purge_usage_events"(interval, integer) from public;
+revoke execute on function "api"."purge_usage_events"(interval, integer) from public, anon, authenticated;
 grant execute on function "api"."purge_usage_events"(interval, integer) to service_role;
 
 create or replace function "api"."usage_window"(tenant uuid, period text default 'month')
@@ -648,7 +648,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."usage_window"($1, $2) $$;
-revoke execute on function "api"."usage_window"(uuid, text) from public;
+revoke execute on function "api"."usage_window"(uuid, text) from public, anon, authenticated;
 grant execute on function "api"."usage_window"(uuid, text) to service_role;
 
 create or replace function "api"."usage_window_start"(tenant uuid, period text, day date)
@@ -657,7 +657,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_window_start"($1, $2, $3) $$;
-revoke execute on function "api"."usage_window_start"(uuid, text, date) from public;
+revoke execute on function "api"."usage_window_start"(uuid, text, date) from public, anon, authenticated;
 grant execute on function "api"."usage_window_start"(uuid, text, date) to service_role;
 
 create or replace function "api"."usage_meters"()
@@ -675,7 +675,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_overview"($1) $$;
-revoke execute on function "api"."usage_overview"(uuid) from public;
+revoke execute on function "api"."usage_overview"(uuid) from public, anon;
 grant execute on function "api"."usage_overview"(uuid) to authenticated, service_role;
 
 create or replace function "api"."record_usage_batch"(tenant uuid, entries jsonb, idempotency_key text default null, "check" boolean default false, source text default null, metadata jsonb default null, actor uuid default null)
@@ -684,7 +684,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."record_usage_batch"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."record_usage_batch"(uuid, jsonb, text, boolean, text, jsonb, uuid) from public;
+revoke execute on function "api"."record_usage_batch"(uuid, jsonb, text, boolean, text, jsonb, uuid) from public, anon;
 grant execute on function "api"."record_usage_batch"(uuid, jsonb, text, boolean, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."usage_quota"(tenant uuid, meter text)
@@ -693,7 +693,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."usage_quota"($1, $2) $$;
-revoke execute on function "api"."usage_quota"(uuid, text) from public;
+revoke execute on function "api"."usage_quota"(uuid, text) from public, anon, authenticated;
 grant execute on function "api"."usage_quota"(uuid, text) to service_role;
 
 create or replace function "api"."usage_used"(tenant uuid, meter text, period text default 'month')
@@ -702,7 +702,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_used"($1, $2, $3) $$;
-revoke execute on function "api"."usage_used"(uuid, text, text) from public;
+revoke execute on function "api"."usage_used"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."usage_used"(uuid, text, text) to service_role;
 
 create or replace function "api"."usage_status"(tenant uuid, meter text)
@@ -711,7 +711,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."usage_status"($1, $2) $$;
-revoke execute on function "api"."usage_status"(uuid, text) from public;
+revoke execute on function "api"."usage_status"(uuid, text) from public, anon;
 grant execute on function "api"."usage_status"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."within_quota"(tenant uuid, meter text, quantity bigint default 1)
@@ -720,7 +720,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."within_quota"($1, $2, $3) $$;
-revoke execute on function "api"."within_quota"(uuid, text, bigint) from public;
+revoke execute on function "api"."within_quota"(uuid, text, bigint) from public, anon;
 grant execute on function "api"."within_quota"(uuid, text, bigint) to authenticated, service_role;
 
 create or replace function "api"."record_usage"(tenant uuid, meter text, quantity numeric default 1, idempotency_key text default null, source text default null, metadata jsonb default null, actor uuid default null)
@@ -729,7 +729,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."record_usage"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."record_usage"(uuid, text, numeric, text, text, jsonb, uuid) from public;
+revoke execute on function "api"."record_usage"(uuid, text, numeric, text, text, jsonb, uuid) from public, anon;
 grant execute on function "api"."record_usage"(uuid, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."consume_quota"(tenant uuid, meter text, quantity numeric default 1, idempotency_key text default null, source text default null, metadata jsonb default null, actor uuid default null)
@@ -738,7 +738,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."consume_quota"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."consume_quota"(uuid, text, numeric, text, text, jsonb, uuid) from public;
+revoke execute on function "api"."consume_quota"(uuid, text, numeric, text, text, jsonb, uuid) from public, anon;
 grant execute on function "api"."consume_quota"(uuid, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."unreported_usage"(max_rows integer default 500, skip_meters text[] default '{}', skip_tenants uuid[] default '{}')
@@ -747,7 +747,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."unreported_usage"($1, $2, $3) $$;
-revoke execute on function "api"."unreported_usage"(integer, text[], uuid[]) from public;
+revoke execute on function "api"."unreported_usage"(integer, text[], uuid[]) from public, anon, authenticated;
 grant execute on function "api"."unreported_usage"(integer, text[], uuid[]) to service_role;
 
 create or replace function "api"."mark_usage_reported"(tenant uuid, meter text, day date, value numeric)
@@ -756,7 +756,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."mark_usage_reported"($1, $2, $3, $4) $$;
-revoke execute on function "api"."mark_usage_reported"(uuid, text, date, numeric) from public;
+revoke execute on function "api"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "api"."mark_usage_reported"(uuid, text, date, numeric) to service_role;
 
 create schema if not exists better_supabase;

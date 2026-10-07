@@ -774,7 +774,69 @@ as $$
   select count(*)::integer from auth.users u where ${ctx.fn("sync_profile")}(u.id)
 $$;
 revoke execute on function ${ctx.fn("backfill_profiles")}() from public, anon, authenticated;
-grant execute on function ${ctx.fn("backfill_profiles")}() to service_role;`;
+grant execute on function ${ctx.fn("backfill_profiles")}() to service_role;
+
+create or replace function ${ctx.fn("my_profile")}()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(p) from ${t} p where p.${key} = (select auth.uid())
+$$;
+revoke execute on function ${ctx.fn("my_profile")}() from public, anon;
+grant execute on function ${ctx.fn("my_profile")}() to authenticated, service_role;
+
+create or replace function ${ctx.fn("update_my_profile")}(attrs jsonb)
+returns boolean
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  updated integer;
+begin
+  update ${t} p
+  set ${selfUpdates(ctx)}${ctx.has("profiles", "updatedAt") ? `,\n    ${ctx.col("profiles", "updatedAt")} = now()` : ""}
+  where p.${key} = (select auth.uid());
+  get diagnostics updated = row_count;
+  return updated > 0;
+end;
+$$;
+revoke execute on function ${ctx.fn("update_my_profile")}(jsonb) from public, anon;
+grant execute on function ${ctx.fn("update_my_profile")}(jsonb) to authenticated, service_role;`;
+}
+
+function profilePhysical(ctx: ModuleContext, logical: string): string {
+  const mapped = ctx.config.columns["profiles"]?.[logical];
+  return typeof mapped === "string"
+    ? mapped
+    : NAMES.tables["profiles"]!.columns[logical]!;
+}
+
+function selfUpdates(ctx: ModuleContext): string {
+  const columns = (
+    [
+      "fullName",
+      "firstName",
+      "lastName",
+      "avatar",
+      "username",
+      "onboarding",
+    ] as const
+  ).filter((logical) => ctx.has("profiles", logical));
+  if (columns.length === 0) {
+    return `${ctx.col("profiles", "key")} = p.${ctx.col("profiles", "key")}`;
+  }
+  return columns
+    .map((logical) => {
+      const quoted = ctx.col("profiles", logical);
+      const key = sqlString(profilePhysical(ctx, logical));
+      return `${quoted} = case when update_my_profile.attrs ? ${key} then update_my_profile.attrs ->> ${key} else p.${quoted} end`;
+    })
+    .join(",\n    ");
 }
 
 /** The auth.users triggers: sync on sign-up and the email mirror. */
@@ -874,6 +936,8 @@ export const PROFILES: ModuleDefinition = {
   contract: () => [
     { name: "sync_profile", args: ["uuid"], returns: "boolean" },
     { name: "backfill_profiles", args: [], returns: "integer" },
+    { name: "my_profile", args: [], returns: "jsonb" },
+    { name: "update_my_profile", args: ["jsonb"], returns: "boolean" },
   ],
   build,
   data: (ctx) =>

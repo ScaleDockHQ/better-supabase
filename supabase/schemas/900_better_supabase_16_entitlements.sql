@@ -158,7 +158,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tenant_entitlements"($1) $$;
-revoke execute on function "api"."tenant_entitlements"(uuid) from public;
+revoke execute on function "api"."tenant_entitlements"(uuid) from public, anon, authenticated;
 grant execute on function "api"."tenant_entitlements"(uuid) to service_role;
 
 create or replace function "api"."tenant_entitlement_value"(tenant uuid, key text)
@@ -167,7 +167,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tenant_entitlement_value"($1, $2) $$;
-revoke execute on function "api"."tenant_entitlement_value"(uuid, text) from public;
+revoke execute on function "api"."tenant_entitlement_value"(uuid, text) from public, anon, authenticated;
 grant execute on function "api"."tenant_entitlement_value"(uuid, text) to service_role;
 
 create or replace function "api"."tenant_plans"(tenant uuid)
@@ -176,7 +176,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."tenant_plans"($1) $$;
-revoke execute on function "api"."tenant_plans"(uuid) from public;
+revoke execute on function "api"."tenant_plans"(uuid) from public, anon, authenticated;
 grant execute on function "api"."tenant_plans"(uuid) to service_role;
 
 create or replace function "api"."has_entitlement"(tenant uuid, key text)
@@ -185,7 +185,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."has_entitlement"($1, $2) $$;
-revoke execute on function "api"."has_entitlement"(uuid, text) from public;
+revoke execute on function "api"."has_entitlement"(uuid, text) from public, anon;
 grant execute on function "api"."has_entitlement"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."entitlement_value"(tenant uuid, key text)
@@ -194,7 +194,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."entitlement_value"($1, $2) $$;
-revoke execute on function "api"."entitlement_value"(uuid, text) from public;
+revoke execute on function "api"."entitlement_value"(uuid, text) from public, anon;
 grant execute on function "api"."entitlement_value"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."tenant_ids_with_entitlement"(key text)
@@ -203,7 +203,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."tenant_ids_with_entitlement"($1) $$;
-revoke execute on function "api"."tenant_ids_with_entitlement"(text) from public;
+revoke execute on function "api"."tenant_ids_with_entitlement"(text) from public, anon;
 grant execute on function "api"."tenant_ids_with_entitlement"(text) to authenticated, service_role;
 
 create or replace function "api"."feature_claims"(user_id uuid)
@@ -212,7 +212,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."feature_claims"($1) $$;
-revoke execute on function "api"."feature_claims"(uuid) from public;
+revoke execute on function "api"."feature_claims"(uuid) from public, anon, authenticated;
 grant execute on function "api"."feature_claims"(uuid) to service_role;
 
 create schema if not exists better_supabase;

@@ -95,6 +95,78 @@ export function declaredTables(
   return [...found];
 }
 
+const TABLE_CONSTRAINT =
+  /^(constraint|check|unique|primary|foreign|exclude|like)\b/i;
+
+/**
+ * Columns each `create table` in `files` declares, as `schema.table` to
+ * unquoted names. `like` and table constraints are skipped. Only tables in
+ * `schemas` are kept.
+ */
+export function declaredTableColumns(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): ReadonlyMap<string, ReadonlySet<string>> {
+  const found = new Map<string, Set<string>>();
+  for (const file of files) {
+    const text = withoutComments(file.text);
+    for (const match of text.matchAll(TABLE)) {
+      const table = qualified(match[1]!);
+      if (!schemas.includes(table.slice(0, table.indexOf(".")))) continue;
+      const open = match.index + match[0].length - 1;
+      const close = closingParen(text, open);
+      if (close === -1) continue;
+      const columns = found.get(table) ?? new Set<string>();
+      for (const part of splitTopLevel(text.slice(open + 1, close))) {
+        const first = new RegExp(NAME).exec(part)?.[0];
+        if (first === undefined || TABLE_CONSTRAINT.test(part)) continue;
+        columns.add(unquote(first));
+      }
+      found.set(table, columns);
+    }
+  }
+  return found;
+}
+
+function closingParen(text: string, open: number): number {
+  let depth = 0;
+  let quote: string | undefined;
+  for (let i = open; i < text.length; i++) {
+    const char = text[i]!;
+    if (quote) {
+      if (char === quote) quote = undefined;
+    } else if (char === "'" || char === '"') quote = char;
+    else if (char === "(") depth++;
+    else if (char === ")") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function splitTopLevel(text: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote: string | undefined;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!;
+    if (quote) {
+      if (char === quote) quote = undefined;
+    } else if (char === "'" || char === '"') quote = char;
+    else if (char === "(") depth++;
+    else if (char === ")") depth--;
+    else if (char === "," && depth === 0) {
+      parts.push(text.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  const last = text.slice(start).trim();
+  if (last !== "") parts.push(last);
+  return parts;
+}
+
 /**
  * The privileges the permissive policies in `files` imply, per table and
  * role: `for all` gives the four commands, `to public` (or no `to`) counts

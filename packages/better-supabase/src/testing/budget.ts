@@ -45,6 +45,12 @@ export interface DbBudgetExpectation {
   readonly prefetches?: boolean;
   /** How long to wait for a streamed response to finish. Defaults to 10 seconds. */
   readonly timeoutMs?: number;
+  /**
+   * When no document or RSC response carries `x-bs-request-id`, throw
+   * (the default) or return `[]`. Cache-only navigations never hit the
+   * proxy, so they have no request id.
+   */
+  readonly requireRequest?: boolean;
 }
 
 export interface MeasuredRender {
@@ -117,6 +123,7 @@ export async function expectDbBudget(
       page.off("response", listener);
     }
     if (seen.length === 0) {
+      if (expectation.requireRequest === false) return [];
       throw new Error(
         "expectDbBudget: no response carried x-bs-request-id. Enable createNext(betterSupabase, { debug: { enabled: true } }) and run the proxy.",
       );

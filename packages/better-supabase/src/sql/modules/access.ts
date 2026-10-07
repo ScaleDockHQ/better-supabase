@@ -926,6 +926,16 @@ export const ACCESS: ModuleDefinition = {
       returns: "boolean",
     },
     { name: "can_assign", args: ["{id}", "text"], returns: "boolean" },
+    {
+      name: "member_can",
+      args: ["uuid", "{id}", "text"],
+      returns: "boolean",
+    },
+    {
+      name: "can_assign_as",
+      args: ["uuid", "{id}", "text"],
+      returns: "boolean",
+    },
     { name: "permission_claims", args: ["uuid"], returns: "jsonb" },
   ],
   build: accessSql,

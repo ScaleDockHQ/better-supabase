@@ -13,6 +13,7 @@ import {
   migrationOptionUses,
   sharedRolesProblems,
 } from "../../sql/index.ts";
+import { tomlGet } from "../supabase-toml.ts";
 import { configuredHooks, hookClaims, isRecord, signatureOf } from "./hooks.ts";
 import { errorText, literal } from "./live.ts";
 import { accessModule, entitlementsModule } from "./permdock.ts";
@@ -810,4 +811,104 @@ export const MODULE_RULES: readonly Rule[] = [
       "Under the `permdock` model, the tenant module's `roleThrough` and the invitations module's `platformRoles.through` name the same roles table, and one of them has no `where` condition on `{row}`. That side then resolves a role id or key of the other kind: an organization invitation, accept or `update_member_role` can grant a platform role, or a platform invitation a tenant role. `sql sync` refuses the config; set `where` on both, such as `{row}.scope = 'organization'` and `{row}.scope = 'system'`.",
     check: sharedRoleTables,
   },
+  {
+    code: "BS325",
+    severity: "warning",
+    title: "Audit log readable only as the service role",
+    description:
+      "The `audit` module defaults `eventRoles` to `service_role` and `readPolicy` to false, so `audit.list()` under a user session is 403. Set `options.readPolicy: true` and include `authenticated` in `options.eventRoles` when the app lists the log as the signed-in user.",
+    check: auditUserSession,
+  },
+  {
+    code: "BS326",
+    severity: "warning",
+    title: "Admin Auth call without a secret key in env files",
+    description:
+      "`deleteAccount` and `bs.admin()` need `SUPABASE_SECRET_KEY`. The env files doctor reads do not set it, so those calls fail at run time.",
+    check: missingSecretKey,
+  },
+  {
+    code: "BS327",
+    severity: "warning",
+    title: "aal2 required without MFA enabled",
+    description:
+      "The app calls `requireAal('aal2')` (or otherwise requires aal2), but `[auth.mfa.totp]` in `config.toml` does not enable enroll and verify, so no user can satisfy the check.",
+    check: aal2WithoutMfa,
+  },
 ];
+
+function auditUserSession(context: DoctorContext): FindingInput[] {
+  if (!context.config.sql.moduleNames.includes("audit")) return [];
+  const options = context.config.sql.modules["audit"]?.options ?? {};
+  const roles = Array.isArray(options["eventRoles"])
+    ? options["eventRoles"].filter(
+        (role): role is string => typeof role === "string",
+      )
+    : ["service_role"];
+  const readPolicy = options["readPolicy"] === true;
+  if (readPolicy && roles.includes("authenticated")) return [];
+  const calls = context.sources.some((file) =>
+    /\baudit\.(list|listAll)\s*\(/.test(file.text),
+  );
+  if (!calls) return [];
+  return [
+    {
+      message:
+        "sql.modules.audit leaves the log readable only as the service role (`eventRoles` defaults to service_role, `readPolicy` defaults to false), but the app calls audit.list() or audit.listAll() as a user. Set options.readPolicy to true and include authenticated in options.eventRoles.",
+      target: "sql.modules.audit",
+    },
+  ];
+}
+
+function missingSecretKey(context: DoctorContext): FindingInput[] {
+  const usesAdmin = context.sources.some((file) =>
+    /\bdeleteAccount\b|\.admin\s*\(|supabaseAdmin\b/.test(file.text),
+  );
+  if (!usesAdmin) return [];
+  const hasKey = context.envFiles.some((file) =>
+    /^\s*(?:SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY)\s*=\s*\S+/m.test(
+      file.text,
+    ),
+  );
+  if (hasKey) return [];
+  return [
+    {
+      message:
+        "The app calls deleteAccount or bs.admin(), which need SUPABASE_SECRET_KEY, but no env file doctor reads sets it. Add it to .env.local (and the hosted environments), listed without a value in .env.example.",
+      target: "SUPABASE_SECRET_KEY",
+    },
+  ];
+}
+
+function aal2WithoutMfa(context: DoctorContext): FindingInput[] {
+  const toml = context.configToml;
+  if (!toml) return [];
+  const requiresAal2 = context.sources.some((file) =>
+    /requireAal\s*\(\s*['"]aal2['"]/.test(file.text),
+  );
+  if (!requiresAal2) return [];
+  const enroll = tomlGet(toml.document, [
+    "auth",
+    "mfa",
+    "totp",
+    "enroll_enabled",
+  ]);
+  const verify = tomlGet(toml.document, [
+    "auth",
+    "mfa",
+    "totp",
+    "verify_enabled",
+  ]);
+  if (enroll === true && verify === true) return [];
+  return [
+    {
+      message:
+        "The app requires aal2, but [auth.mfa.totp] in config.toml does not set enroll_enabled and verify_enabled to true, so no user can satisfy the check.",
+      target: toml.path,
+      location: {
+        file: toml.path,
+        line: lineOf(toml.text, /^\[auth\.mfa\.totp\]/) ?? 1,
+      },
+    },
+  ];
+}

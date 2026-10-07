@@ -169,7 +169,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."onboarding_progress"($1, $2) $$;
-revoke execute on function "api"."onboarding_progress"(text, uuid) from public;
+revoke execute on function "api"."onboarding_progress"(text, uuid) from public, anon;
 grant execute on function "api"."onboarding_progress"(text, uuid) to authenticated, service_role;
 
 create or replace function "api"."complete_onboarding_step"(checklist text, step text, tenant uuid default null)
@@ -178,7 +178,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."complete_onboarding_step"($1, $2, $3) $$;
-revoke execute on function "api"."complete_onboarding_step"(text, text, uuid) from public;
+revoke execute on function "api"."complete_onboarding_step"(text, text, uuid) from public, anon;
 grant execute on function "api"."complete_onboarding_step"(text, text, uuid) to authenticated, service_role;
 
 create or replace function "api"."reset_onboarding_step"(checklist text, step text, tenant uuid default null)
@@ -187,7 +187,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."reset_onboarding_step"($1, $2, $3) $$;
-revoke execute on function "api"."reset_onboarding_step"(text, text, uuid) from public;
+revoke execute on function "api"."reset_onboarding_step"(text, text, uuid) from public, anon;
 grant execute on function "api"."reset_onboarding_step"(text, text, uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;

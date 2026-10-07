@@ -111,6 +111,8 @@ describe("buildModel config keys", () => {
     );
     expect(built.warnings).toEqual([
       expect.stringContaining('tables["nope.tags"]: no table by that name'),
+      expect.stringContaining("better_supabase.my_profile:"),
+      expect.stringContaining("better_supabase.update_my_profile:"),
     ]);
   });
 
@@ -124,6 +126,8 @@ describe("buildModel config keys", () => {
     );
     expect(built.warnings).toEqual([
       'tables["tags"]: better_supabase.tags and public.tags share the name, so the entry applies to each. Key it `schema.table` to pick one.',
+      expect.stringContaining("better_supabase.my_profile:"),
+      expect.stringContaining("better_supabase.update_my_profile:"),
     ]);
   });
 });

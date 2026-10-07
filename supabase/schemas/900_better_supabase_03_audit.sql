@@ -1022,7 +1022,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."audit_event"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) $$;
-revoke execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) from public;
+revoke execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) from public, anon;
 grant execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."audit_event_trusted"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null)
@@ -1031,7 +1031,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."audit_event_trusted"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) $$;
-revoke execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) from public;
+revoke execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) from public, anon, authenticated;
 grant execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) to service_role;
 
 create or replace function "api"."audit_read_tenants"()
@@ -1040,7 +1040,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."audit_read_tenants"() $$;
-revoke execute on function "api"."audit_read_tenants"() from public;
+revoke execute on function "api"."audit_read_tenants"() from public, anon;
 grant execute on function "api"."audit_read_tenants"() to authenticated, service_role;
 
 create or replace function "api"."audit_reads_all"()
@@ -1049,7 +1049,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."audit_reads_all"() $$;
-revoke execute on function "api"."audit_reads_all"() from public;
+revoke execute on function "api"."audit_reads_all"() from public, anon;
 grant execute on function "api"."audit_reads_all"() to authenticated, service_role;
 
 create or replace function "api"."purge_audit_log"(older_than interval default '1 year', batch integer default 10000, tenant uuid default null, for_tenant boolean default false)
@@ -1058,7 +1058,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."purge_audit_log"($1, $2, $3, $4) $$;
-revoke execute on function "api"."purge_audit_log"(interval, integer, uuid, boolean) from public;
+revoke execute on function "api"."purge_audit_log"(interval, integer, uuid, boolean) from public, anon, authenticated;
 grant execute on function "api"."purge_audit_log"(interval, integer, uuid, boolean) to service_role;
 
 create or replace function "api"."audit_events_tenants"(older_than interval default '1 day')
@@ -1067,7 +1067,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select * from "better_supabase"."audit_events_tenants"($1) $$;
-revoke execute on function "api"."audit_events_tenants"(interval) from public;
+revoke execute on function "api"."audit_events_tenants"(interval) from public, anon, authenticated;
 grant execute on function "api"."audit_events_tenants"(interval) to service_role;
 
 create or replace function "api"."list_audit_events"(for_tenants uuid[] default null, for_event_types text[] default null, for_actors uuid[] default null, for_target_types text[] default null, for_records text[] default null, for_categories text[] default null, for_outcomes text[] default null, search text default null, for_sources text[] default null, for_actor_kinds text[] default null, for_correlation_ids text[] default null, since timestamptz default null, until timestamptz default null, cursor_at timestamptz default null, cursor_id text default null, max_items integer default 50, ascending boolean default false, skip integer default 0)
@@ -1076,7 +1076,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_audit_events"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) $$;
-revoke execute on function "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) from public;
+revoke execute on function "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) from public, anon;
 grant execute on function "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) to authenticated, service_role;
 
 create or replace function "api"."count_audit_events"(for_tenants uuid[] default null, for_event_types text[] default null, for_actors uuid[] default null, for_target_types text[] default null, for_records text[] default null, for_categories text[] default null, for_outcomes text[] default null, search text default null, for_sources text[] default null, for_actor_kinds text[] default null, for_correlation_ids text[] default null, since timestamptz default null, until timestamptz default null)
@@ -1085,7 +1085,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."count_audit_events"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) $$;
-revoke execute on function "api"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) from public;
+revoke execute on function "api"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) from public, anon;
 grant execute on function "api"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) to authenticated, service_role;
 
 create schema if not exists better_supabase;

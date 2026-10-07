@@ -440,12 +440,12 @@ const OWN_RULES: readonly Rule[] = [
           table.name,
         );
         if (options?.exclude || options?.serviceRole) return [];
+        const forAuthenticated = (policy: CatalogPolicy): boolean =>
+          policy.roles.some((role) =>
+            ["authenticated", "public"].includes(role),
+          );
         const granting = table.policies.filter(
-          (policy) =>
-            policy.permissive &&
-            policy.roles.some((role) =>
-              ["authenticated", "public"].includes(role),
-            ),
+          (policy) => policy.permissive && forAuthenticated(policy),
         );
         if (granting.length === 0) return [];
         const scoped =
@@ -461,8 +461,14 @@ const OWN_RULES: readonly Rule[] = [
             ),
           );
         if (!scoped) return [];
+        const denying = table.policies.filter(
+          (policy) =>
+            !policy.permissive &&
+            forAuthenticated(policy) &&
+            /^\s*false\s*$/i.test(policy.using ?? ""),
+        );
         const covered = new Set(
-          granting.flatMap((policy) =>
+          [...granting, ...denying].flatMap((policy) =>
             policy.command === "all" ? COMMANDS : [policy.command],
           ),
         );

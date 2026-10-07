@@ -53,7 +53,10 @@ options), BS315 (tables without an audit trigger), BS320 (tables without
 the session policy), BS322 (audit registrations of dropped tables),
 BS323 (module event triggers missing from the database or the migrations)
 and BS324 (a roles table shared by tenant and platform roles without a
-`where` on both sides).
+`where` on both sides), BS325 (the audit log readable only as the service
+role while the app lists it as a user), BS326 (`deleteAccount` or `admin`
+without `SUPABASE_SECRET_KEY` in the env files) and BS327 (`requireAal('aal2')`
+without MFA enroll and verify in `config.toml`).
 
 ## SQL module objects and claims
 

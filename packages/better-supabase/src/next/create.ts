@@ -1,6 +1,12 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import { cacheLife, cacheTag, revalidateTag, updateTag } from "next/cache.js";
+import {
+  cacheLife,
+  cacheTag,
+  io,
+  revalidateTag,
+  updateTag,
+} from "next/cache.js";
 import { cookies, headers } from "next/headers.js";
 import { after, type NextRequest, NextResponse } from "next/server.js";
 import { cache } from "react";
@@ -101,6 +107,12 @@ export interface ProxyOptions<C = unknown, P = unknown> {
    * out of the App Shell, and the navigation itself refreshes the session.
    */
   readonly expiredPrefetch?: "protect" | "render";
+  /**
+   * Methods that run `protect`. Defaults to `GET` and `HEAD`, so a Server
+   * Action POST is not redirected before the action runs. Set `true` to
+   * include mutations, or pass the methods yourself.
+   */
+  readonly protectMethods?: true | readonly string[];
   /** Post-processes the final response; return a new one to replace it. */
   readonly after?: (
     response: Response,
@@ -629,6 +641,9 @@ export function createNext<
       readonly request: Request;
       readonly resolution: AuthResolution<C, P>;
     }> => {
+      // Auth reads cookies and the clock. `io()` marks that as I/O for
+      // Cache Components without blocking a prefetch the way `connection()` does.
+      await io();
       const request = await incomingRequest();
       return {
         request,
@@ -774,9 +789,15 @@ export function createNext<
         resolution.auth.kind === "anon" &&
         resolution.auth.reason === "expired" &&
         isPrefetch(request);
-      const custom = rendersSignedOut
-        ? undefined
-        : await proxyOptions.protect?.(resolution.auth, request);
+      const protectMethods = proxyOptions.protectMethods;
+      const runsProtect =
+        protectMethods === true
+          ? true
+          : (protectMethods ?? ["GET", "HEAD"]).includes(request.method);
+      const custom =
+        rendersSignedOut || !runsProtect
+          ? undefined
+          : await proxyOptions.protect?.(resolution.auth, request);
       const initial = custom ?? early;
       if (
         !initial &&

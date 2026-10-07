@@ -791,6 +791,28 @@ sync` refuses the config. Set `where` on both, a condition on the roles row
 A `roleThrough` read from PermDock's manifest has no `where`, so set
 `sql.modules.tenant.options.roleThrough` in the config.
 
+### BS325
+
+**Warning: audit log readable only as the service role.** The `audit` module
+defaults `eventRoles` to `service_role` and `readPolicy` to false, so
+`audit.list()` under a user session is 403. Set `options.readPolicy: true`
+and include `authenticated` in `options.eventRoles` when the app lists the
+log as the signed-in user.
+
+### BS326
+
+**Warning: admin Auth call without a secret key in env files.**
+`deleteAccount` and `bs.admin()` need `SUPABASE_SECRET_KEY`. Add it to
+`.env.local` (and the hosted environments), listed without a value in
+`.env.example`.
+
+### BS327
+
+**Warning: aal2 required without MFA enabled.** The app calls
+`requireAal('aal2')`, but `[auth.mfa.totp]` in `config.toml` does not set
+`enroll_enabled` and `verify_enabled` to true, so no user can satisfy the
+check.
+
 ## Auth config
 
 ### BS401

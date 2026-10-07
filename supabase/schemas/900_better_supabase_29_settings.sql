@@ -240,7 +240,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."set_platform_setting"($1, $2) $$;
-revoke execute on function "api"."set_platform_setting"(text, jsonb) from public;
+revoke execute on function "api"."set_platform_setting"(text, jsonb) from public, anon;
 grant execute on function "api"."set_platform_setting"(text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."reset_platform_setting"(key text)
@@ -249,7 +249,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."reset_platform_setting"($1) $$;
-revoke execute on function "api"."reset_platform_setting"(text) from public;
+revoke execute on function "api"."reset_platform_setting"(text) from public, anon;
 grant execute on function "api"."reset_platform_setting"(text) to authenticated, service_role;
 
 create or replace function "api"."get_user_settings"()
@@ -258,7 +258,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_user_settings"() $$;
-revoke execute on function "api"."get_user_settings"() from public;
+revoke execute on function "api"."get_user_settings"() from public, anon;
 grant execute on function "api"."get_user_settings"() to authenticated, service_role;
 
 create or replace function "api"."set_user_setting"(key text, value jsonb)
@@ -267,7 +267,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."set_user_setting"($1, $2) $$;
-revoke execute on function "api"."set_user_setting"(text, jsonb) from public;
+revoke execute on function "api"."set_user_setting"(text, jsonb) from public, anon;
 grant execute on function "api"."set_user_setting"(text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."reset_user_setting"(key text)
@@ -276,7 +276,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."reset_user_setting"($1) $$;
-revoke execute on function "api"."reset_user_setting"(text) from public;
+revoke execute on function "api"."reset_user_setting"(text) from public, anon;
 grant execute on function "api"."reset_user_setting"(text) to authenticated, service_role;
 
 create or replace function "api"."get_organization_settings"(tenant uuid)
@@ -285,7 +285,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."get_organization_settings"($1) $$;
-revoke execute on function "api"."get_organization_settings"(uuid) from public;
+revoke execute on function "api"."get_organization_settings"(uuid) from public, anon;
 grant execute on function "api"."get_organization_settings"(uuid) to authenticated, service_role;
 
 create or replace function "api"."set_organization_setting"(tenant uuid, key text, value jsonb)
@@ -294,7 +294,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."set_organization_setting"($1, $2, $3) $$;
-revoke execute on function "api"."set_organization_setting"(uuid, text, jsonb) from public;
+revoke execute on function "api"."set_organization_setting"(uuid, text, jsonb) from public, anon;
 grant execute on function "api"."set_organization_setting"(uuid, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."reset_organization_setting"(tenant uuid, key text)
@@ -303,7 +303,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."reset_organization_setting"($1, $2) $$;
-revoke execute on function "api"."reset_organization_setting"(uuid, text) from public;
+revoke execute on function "api"."reset_organization_setting"(uuid, text) from public, anon;
 grant execute on function "api"."reset_organization_setting"(uuid, text) to authenticated, service_role;
 
 create schema if not exists better_supabase;

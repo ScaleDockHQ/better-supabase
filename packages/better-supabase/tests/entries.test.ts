@@ -14,6 +14,7 @@ const PURE_BARRELS = [
   "blocks/announcements",
   "blocks/waitlist",
   "blocks/onboarding",
+  "blocks/profiles",
   "blocks/sso",
   "blocks/data-lifecycle",
   "blocks/attachments",

@@ -353,7 +353,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."create_api_key"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) from public;
+revoke execute on function "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) from public, anon;
 grant execute on function "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) to authenticated, service_role;
 
 create or replace function "api"."list_api_keys"(tenant uuid default null)
@@ -362,7 +362,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."list_api_keys"($1) $$;
-revoke execute on function "api"."list_api_keys"(uuid) from public;
+revoke execute on function "api"."list_api_keys"(uuid) from public, anon;
 grant execute on function "api"."list_api_keys"(uuid) to authenticated, service_role;
 
 create or replace function "api"."revoke_api_key"(key uuid)
@@ -371,7 +371,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."revoke_api_key"($1) $$;
-revoke execute on function "api"."revoke_api_key"(uuid) from public;
+revoke execute on function "api"."revoke_api_key"(uuid) from public, anon;
 grant execute on function "api"."revoke_api_key"(uuid) to authenticated, service_role;
 
 create or replace function "api"."rotate_api_key"(key uuid, public_id text, secret_hash text, grace interval default interval '1 day')
@@ -380,7 +380,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."rotate_api_key"($1, $2, $3, $4) $$;
-revoke execute on function "api"."rotate_api_key"(uuid, text, text, interval) from public;
+revoke execute on function "api"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 grant execute on function "api"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
 
 create or replace function "api"."verify_api_key"(public_id text, secret_hash text)
@@ -389,7 +389,7 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."verify_api_key"($1, $2) $$;
-revoke execute on function "api"."verify_api_key"(text, text) from public;
+revoke execute on function "api"."verify_api_key"(text, text) from public, anon, authenticated;
 grant execute on function "api"."verify_api_key"(text, text) to service_role;
 
 create or replace function "api"."has_scope"(scope text)

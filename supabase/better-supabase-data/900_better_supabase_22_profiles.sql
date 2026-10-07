@@ -9,6 +9,6 @@
 select better_supabase.replace_equivalent_triggers('auth.users', 'bs_profile_sync', '(handle_new_user|create_profile|new_user_profile)', false);
 
 insert into better_supabase.modules (name, version, mode)
-values ('profiles', 1, 'managed')
+values ('profiles', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

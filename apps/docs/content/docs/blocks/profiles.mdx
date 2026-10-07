@@ -64,7 +64,17 @@ Run it once after installing on a project that already has users.
 With `readPolicy: 'members'`, `authenticated` gets `select` on the public
 columns only, so select them by name instead of `*`. `email`, the active
 organization and team and `onboarding` stay private: read your own through
-`better_supabase.my_profile()`, which returns your full row.
+`better_supabase.my_profile()`, which returns your full row as jsonb.
+`update_my_profile(attrs)` updates the `updatable` columns present in
+`attrs`. `createProfiles` from `better-supabase/blocks/profiles` calls both:
+
+```ts
+import { createProfiles } from "better-supabase/blocks/profiles";
+
+const profiles = createProfiles({ transport });
+const row = await profiles.mine().orThrow();
+await profiles.updateMine({ full_name: "Ada Lovelace" }).orThrow();
+```
 
 On a managed table the guard also sets `updated_at`. An adopted table keeps
 its own `updated_at` trigger: the guard neither checks nor writes the column.
