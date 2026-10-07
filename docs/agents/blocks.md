@@ -29,6 +29,9 @@ user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
   empty without the `outbox` module.
 - Raise errors with an `errcode` and a `hint` such as `API_KEY_FORBIDDEN`;
   the TypeScript side passes the hint through as the `DbError` hint.
+- Module functions never create temporary tables. `supabase db lint` runs
+  plpgsql_check, which reports a table created at runtime as missing
+  (42P01) and fails every adopter's lint; use a `materialized` CTE instead.
 - Every new module installs next to every other one with the default
   config: `sql-modules.integration.test.ts` installs them all into
   `better_supabase`, and the pg-delta round trip diffs them.

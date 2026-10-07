@@ -46,6 +46,18 @@ describe("pg-safeupdate", () => {
   });
 });
 
+describe("plpgsql_check", () => {
+  it("creates no temporary tables that supabase db lint cannot see", () => {
+    const sql = renderModules(
+      Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
+      { modules: { usage: { options: { history: true } } } },
+    )
+      .map((file) => file.contents.replaceAll(/--.*$/gm, ""))
+      .join("\n");
+    expect(sql).not.toMatch(/\bcreate\s+(?:temporary|temp)\s+table\b/i);
+  });
+});
+
 describe("moduleTopics", () => {
   it("lists the topics whose policies the modules write", () => {
     expect(
