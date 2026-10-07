@@ -122,10 +122,18 @@ export async function loadSnapshot(
 ): Promise<Snapshot> {
   const path = snapshotFile(config, source);
   if (path) return readSnapshotFile(resolve(config.root, path), path);
-  const [toml, db] = await Promise.all([
+  const [tomlRead, opened] = await Promise.allSettled([
     readSupabaseToml(config.root),
     shared ? shared() : openSource(config, env, source, open),
   ]);
+  if (tomlRead.status === "rejected") {
+    if (opened.status === "fulfilled" && !shared)
+      await opened.value.close().catch(() => undefined);
+    throw tomlRead.reason;
+  }
+  if (opened.status === "rejected") throw opened.reason;
+  const toml = tomlRead.value;
+  const db = opened.value;
   const hooks = toml ? pgFunctionHooks(toml.document) : [];
   const schemas = [...config.schemas, ...EXTRA_SCHEMAS];
   try {

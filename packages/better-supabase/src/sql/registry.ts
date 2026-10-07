@@ -2962,17 +2962,19 @@ function moduleExtras(
   return "";
 }
 
-/** Whether an installed file matches, ignoring the version stamped in its header. */
+/** Whether an installed file matches, ignoring the version stamped in its header and line endings. */
 export function sameModuleFile(
   current: string | undefined,
   expected: string,
 ): boolean {
   if (current === undefined) return false;
   const strip = (text: string): string =>
-    text.replace(
-      /^(-- better-supabase module: [^\n(]*?)(?: \([^)]*\))?\n/,
-      "$1\n",
-    );
+    text
+      .replaceAll("\r\n", "\n")
+      .replace(
+        /^(-- better-supabase module: [^\n(]*?)(?: \([^)]*\))?\n/,
+        "$1\n",
+      );
   return strip(current) === strip(expected);
 }
 

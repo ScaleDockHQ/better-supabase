@@ -171,13 +171,16 @@ export function fromCatalog(catalog: Catalog): Snapshot {
       ...fn.args.map((arg) => ({
         mode: "in" as const,
         name: arg.name,
-        type_id: argType(fn.schema, arg.isArray ? `_${arg.udt}` : arg.udt),
+        type_id: argType(
+          arg.typeSchema ?? fn.schema,
+          arg.isArray ? `_${arg.udt}` : arg.udt,
+        ),
         has_default: arg.hasDefault,
       })),
       ...(fn.returnsTable ?? []).map((entry) => ({
         mode: "table" as const,
         name: entry.name,
-        type_id: argType(fn.schema, entry.udt),
+        type_id: argType(entry.typeSchema ?? fn.schema, entry.udt),
         has_default: false,
       })),
     ];
@@ -193,7 +196,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
       identity_argument_types: fn.signature,
       return_type_id: fn.returnsRelation
         ? typeId(fn.returnsRelation.split(".")[0]!, fn.returns)
-        : argType(fn.schema, fn.returns),
+        : argType(fn.returnsSchema ?? fn.schema, fn.returns),
       return_type: fn.returns,
       return_type_relation_id: fn.returnsRelation
         ? (relationIds.get(fn.returnsRelation) ?? null)

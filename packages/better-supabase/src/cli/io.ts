@@ -32,14 +32,28 @@ export interface CommandResult {
   readonly data?: unknown;
 }
 
-/** Writes a file when its contents changed. Returns whether it wrote. */
+/** `text` with `\r\n` line endings turned into `\n`. */
+const withLf = (text: string): string => text.replaceAll("\r\n", "\n");
+
+/**
+ * Whether a file on disk holds `expected`, ignoring line endings: a checkout
+ * with `core.autocrlf` turns every `\n` into `\r\n`.
+ */
+export function sameText(
+  current: string | undefined,
+  expected: string,
+): boolean {
+  return current !== undefined && withLf(current) === withLf(expected);
+}
+
+/** Writes a file when its contents changed, ignoring line endings. Returns whether it wrote. */
 export async function writeIfChanged(
   path: string,
   contents: string,
 ): Promise<boolean> {
   if (existsSync(path)) {
     const current = await readFile(path, "utf8");
-    if (current === contents) return false;
+    if (sameText(current, contents)) return false;
   }
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, contents);

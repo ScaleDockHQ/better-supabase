@@ -48,6 +48,7 @@ import {
   type CommandResult,
   display,
   importPath,
+  sameText,
   writeIfChanged,
 } from "../io.ts";
 import { readPermdock, unsafeKey } from "../permdock.ts";
@@ -347,7 +348,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       const current = existsSync(path)
         ? await readFile(path, "utf8")
         : undefined;
-      if (current !== file.contents) compare(file, current);
+      if (!sameText(current, file.contents)) compare(file, current);
     }
     if (readSets) {
       const path = resolve(config.root, readSets.path);

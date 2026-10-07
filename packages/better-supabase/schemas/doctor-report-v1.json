@@ -134,7 +134,11 @@
             "properties": {
               "kind": { "enum": ["table", "function", "policy"] },
               "schema": { "type": "string" },
-              "name": { "type": "string" }
+              "name": { "type": "string" },
+              "table": {
+                "description": "The table a policy is on.",
+                "type": "string"
+              }
             }
           },
           "help": { "type": "string", "format": "uri" }

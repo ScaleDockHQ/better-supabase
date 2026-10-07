@@ -276,10 +276,17 @@ export interface CatalogFunction {
   readonly args: readonly CatalogFunctionArg[];
   /** Columns for `returns table (...)` functions. */
   readonly returnsTable:
-    | readonly { readonly name: string; readonly udt: string }[]
+    | readonly {
+        readonly name: string;
+        readonly udt: string;
+        /** Schema of the column's type, when typegen knows it. */
+        readonly typeSchema?: string;
+      }[]
     | null;
   /** Return type name (`int4`, `_text`, a table's row type). */
   readonly returns: string;
+  /** Schema of the return type, when typegen knows it. */
+  readonly returnsSchema?: string;
   /** `schema.table` when the function returns rows of a table or view. */
   readonly returnsRelation: string | null;
   readonly returnsSet: boolean;
@@ -293,7 +300,7 @@ export interface CatalogFunction {
 export interface CatalogFunctionArg {
   readonly name: string;
   readonly udt: string;
-  /** Schema of the argument's type, when the catalog knows it. */
+  /** Schema of the argument's type, when typegen knows it. */
   readonly typeSchema?: string;
   readonly isArray: boolean;
   readonly hasDefault: boolean;
