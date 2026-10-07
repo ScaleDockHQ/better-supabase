@@ -676,6 +676,7 @@ function contract(): readonly ModuleContractFunction[] {
 }
 
 export const COMMENTS: ModuleDefinition = {
+  internal: ["comment_subject_readable"],
   name: "comments",
   title: "Comments and activity",
   description:

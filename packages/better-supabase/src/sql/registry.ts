@@ -143,6 +143,12 @@ export interface SqlModule {
     layout: ModuleLayout,
   ) => readonly ModuleTestFile[];
   readonly topics?: (ctx: ModuleContext) => readonly string[];
+  /**
+   * Functions granted to `anon` or `authenticated` only so the module's
+   * policies and triggers can call them as the client. `api` writes no
+   * entry point for them.
+   */
+  readonly internal?: readonly string[];
 }
 
 /** A pgTAP file a module writes for the layout, e.g. one per audited table. */
@@ -314,6 +320,7 @@ revoke execute on function better_supabase.track_actor(regclass, text, text, tex
 };
 
 const MFA: SqlModule = {
+  internal: ["mfa_satisfied"],
   name: "mfa",
   title: "MFA enforcement",
   description:
@@ -376,6 +383,7 @@ ${statements.join("\n")}`;
 }
 
 const SESSIONS: ModuleDefinition = {
+  internal: ["session_active"],
   name: "sessions",
   names: { tables: {}, options: ["exclude", "policies"] },
   title: "Session revocation",
@@ -3170,7 +3178,13 @@ export function renderModules(
     const wrappers = deprecationWrappers(module, ctx);
     const body = moduleSql(module, ctx, layout).trim();
     const api = ctx.config.api
-      ? apiWrappers(body, ctx.schemaName, ctx.config.api, module.name)
+      ? apiWrappers(
+          body,
+          ctx.schemaName,
+          ctx.config.api,
+          module.name,
+          module.internal,
+        )
       : "";
     if (module.target === "test") {
       return [

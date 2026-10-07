@@ -983,6 +983,7 @@ ${grants}`;
 }
 
 export const ORGANIZATIONS: ModuleDefinition = {
+  internal: ["guard_membership_role"],
   name: "organizations",
   title: "Organizations",
   description:

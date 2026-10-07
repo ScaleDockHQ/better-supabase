@@ -297,6 +297,10 @@ grant execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) to
 }
 
 export const WEBHOOKS_IN: ModuleDefinition = {
+  internal: [
+    "incoming_webhook_tenant_ids",
+    "incoming_webhook_subject_readable",
+  ],
   name: "webhooks-in",
   title: "Incoming webhook endpoints",
   description:

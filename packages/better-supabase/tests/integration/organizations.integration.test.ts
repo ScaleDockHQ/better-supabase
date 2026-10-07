@@ -1039,6 +1039,48 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
+  it("writes api entry points for the functions only, not the guard helper", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const api = `bs_api_${USERS.owner.slice(0, 8)}`;
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+         values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+        [USERS.owner, email("owner")],
+      );
+      await client.query(`create schema ${api};
+        create function ${api}.guard_membership_role(uuid, uuid, text, uuid, text) returns void
+          language sql as $$ select $$;`);
+      for (const file of renderModules(["organizations", "invitations"], {
+        modules: { organizations: { api }, invitations: { api } },
+      }))
+        await client.query(file.contents);
+      const exists = (signature: string) =>
+        s.value<boolean>(`to_regprocedure($1) is not null`, [
+          `${api}.${signature}`,
+        ]);
+      expect(
+        await exists("guard_membership_role(uuid, uuid, text, uuid, text)"),
+      ).toBe(false);
+      expect(await exists("invitation_tenant_ids()")).toBe(false);
+      expect(await exists("update_member_role(uuid, uuid, text)")).toBe(true);
+      expect(await exists("update_invitation(uuid, text, text, jsonb)")).toBe(
+        true,
+      );
+      await s.as("owner");
+      const organization = await s.value<string>(
+        `${api}.create_organization($1)`,
+        [{ name: "Api", slug: `wrapped-${USERS.owner.slice(0, 8)}` }],
+      );
+      expect(await s.role(organization, "owner")).toBe("owner");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("updates an open invitation in place with the invite checks", async () => {
     const client = await pool.connect();
     const s = new Session(client);

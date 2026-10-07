@@ -783,6 +783,12 @@ function contract(): readonly ModuleContractFunction[] {
 }
 
 export const ATTACHMENTS: ModuleDefinition = {
+  internal: [
+    "attachment_subject_readable",
+    "attachment_object_allowed",
+    "attachment_object_visible",
+    "object_clean",
+  ],
   name: "attachments",
   title: "Attachments",
   description:

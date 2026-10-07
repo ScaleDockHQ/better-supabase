@@ -780,6 +780,7 @@ ${grant("my_invitations", "", "authenticated")}`;
 }
 
 export const INVITATIONS: ModuleDefinition = {
+  internal: ["invitation_tenant_ids", "platform_invitations_readable"],
   name: "invitations",
   title: "Invitations",
   description:

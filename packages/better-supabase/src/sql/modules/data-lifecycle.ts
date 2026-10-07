@@ -966,6 +966,7 @@ function contract(): readonly ModuleContractFunction[] {
 }
 
 export const DATA_LIFECYCLE: ModuleDefinition = {
+  internal: ["data_export_object_allowed"],
   name: "data-lifecycle",
   title: "Data lifecycle",
   description:

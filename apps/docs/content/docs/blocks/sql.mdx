@@ -241,8 +241,17 @@ function that `anon`, `authenticated` or `service_role` may execute, or only
 those listed in `functions`, with the same name and arguments, granted to the
 same of those roles. The wrapper runs as the caller, so the module's own
 permission checks and RLS still apply, and a service function such as
-`flag_definitions` stays callable by `service_role` only. Add the schema to
-`[api] schemas` in `config.toml` and pass it to the transport:
+`flag_definitions` stays callable by `service_role` only. Helpers that a
+module grants to `authenticated` only so its own policies and triggers can
+call them get no entry point, and `functions` refuses them:
+`guard_membership_role` (organizations), `invitation_tenant_ids` and
+`platform_invitations_readable` (invitations), `comment_subject_readable`
+(comments), the `attachment_*` and `object_clean` policy helpers
+(attachments), `incoming_webhook_tenant_ids` and
+`incoming_webhook_subject_readable` (webhooks-in), `data_export_object_allowed`
+(data-lifecycle), `mfa_satisfied` (mfa) and `session_active` (sessions). A
+wrapper an earlier `sql sync` wrote for one of them is dropped. Add the
+schema to `[api] schemas` in `config.toml` and pass it to the transport:
 
 ```ts
 const client = settings.connect({
