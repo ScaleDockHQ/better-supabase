@@ -834,7 +834,8 @@ function selfUpdates(ctx: ModuleContext): string {
     .map((logical) => {
       const quoted = ctx.col("profiles", logical);
       const key = sqlString(profilePhysical(ctx, logical));
-      return `${quoted} = case when update_my_profile.attrs ? ${key} then update_my_profile.attrs ->> ${key} else p.${quoted} end`;
+      const extract = logical === "onboarding" ? "->" : "->>";
+      return `${quoted} = case when update_my_profile.attrs ? ${key} then update_my_profile.attrs ${extract} ${key} else p.${quoted} end`;
     })
     .join(",\n    ");
 }

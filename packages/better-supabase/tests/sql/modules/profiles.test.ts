@@ -112,6 +112,9 @@ describe("profiles module", () => {
       "exception when others then\n    raise warning 'No profile for user %",
     );
     expect(sql).toContain('"id" = (select auth.uid())');
+    // jsonb `onboarding` must stay jsonb; `->>` makes plpgsql reject the CASE.
+    expect(sql).toContain("attrs -> 'onboarding'");
+    expect(sql).not.toContain("attrs ->> 'onboarding'");
   });
 
   it("adopts CentraKit's profiles without touching its table or grants", () => {

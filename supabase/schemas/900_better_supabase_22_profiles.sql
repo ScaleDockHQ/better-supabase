@@ -212,7 +212,7 @@ begin
     "last_name" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p."last_name" end,
     "avatar_url" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p."avatar_url" end,
     "username" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p."username" end,
-    "onboarding" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs ->> 'onboarding' else p."onboarding" end,
+    "onboarding" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs -> 'onboarding' else p."onboarding" end,
     "updated_at" = now()
   where p."id" = (select auth.uid());
   get diagnostics updated = row_count;
