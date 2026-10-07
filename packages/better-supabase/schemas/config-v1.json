@@ -529,7 +529,8 @@
                         "table": { "type": "string" },
                         "plan": { "type": "string" },
                         "feature": { "type": "string" },
-                        "included": { "type": "string" }
+                        "included": { "type": "string" },
+                        "value": { "type": "string" }
                       }
                     }
                   }

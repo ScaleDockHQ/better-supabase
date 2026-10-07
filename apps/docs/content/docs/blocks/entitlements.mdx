@@ -77,22 +77,58 @@ With a plan catalog, the module also writes
 `better_supabase.tenant_plans(tenant)`, the tenant's active plan keys, which
 [usage quotas](/docs/blocks/usage) match by plan key.
 
+### Feature values
+
+A feature can carry a value, such as how many days of file history a plan
+keeps (30, 90 or 365) or a support level, so the tier needs no parsing from
+the feature key. Name the column in `features.value` (a number, text or
+`jsonb` column):
+
+```ts
+features: {
+  table: "public.plan_features",
+  plan: "plan_key",
+  feature: "feature_key",
+  value: "value",
+},
+```
+
+`better_supabase.tenant_entitlement_value(tenant, key)` returns it as
+`jsonb`: the largest number when several active plans set the feature,
+otherwise the first plan's value, `true` for a feature whose value is null,
+and null when the tenant lacks the feature. `entitlement_value(tenant, key)`
+returns the same to a member of the tenant (null to anyone else):
+
+```sql
+select (better_supabase.tenant_entitlement_value(organization_id, 'file_history_days') #>> '{}')::integer;
+```
+
+The Sync Engine source has no values, since Stripe entitlements are on or
+off: its `tenant_entitlement_value` returns `true` or null. For limits that
+are counted, such as API calls per month, use
+[usage quotas](/docs/blocks/usage) instead; a value is for a setting the
+plan fixes.
+
 `source: "custom"` writes everything except
 `better_supabase.tenant_entitlements(tenant)`, which you write yourself and
 which returns the tenant's feature keys as `text[]`, such as plan features
-plus per-tenant overrides. Neither source needs `customer`, and
+plus per-tenant overrides, and
+`better_supabase.tenant_entitlement_value(tenant, key)`, which returns a
+feature's value as `jsonb` for `entitlement_value`. Neither source needs `customer`, and
 `entitlementMembers` (the Stripe event helper below) applies to the Sync
 Engine only.
 
 ## SQL
 
-| Function                           | Grants                                | Returns                                                           |
-| ---------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
-| `tenant_entitlements(tenant)`      | `service_role`, `supabase_auth_admin` | Sorted lookup keys, `{}` without a customer                       |
-| `has_entitlement(tenant, key)`     | `authenticated`                       | `true` when the caller is a member of `tenant` and it has `key`   |
-| `tenant_ids_with_entitlement(key)` | `authenticated`                       | The caller's tenants that have `key`, for one set check per query |
-| `feature_claims(user_id)`          | `service_role`, `supabase_auth_admin` | The `features` claim for the user: lookup keys per tenant         |
-| `entitlement_members(customer)`    | `service_role`                        | Members of the tenants billed to `customer`                       |
+| Function                                | Grants                                | Returns                                                                      |
+| --------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------- |
+| `tenant_entitlements(tenant)`           | `service_role`, `supabase_auth_admin` | Sorted lookup keys, `{}` without a customer                                  |
+| `has_entitlement(tenant, key)`          | `authenticated`                       | `true` when the caller is a member of `tenant` and it has `key`              |
+| `tenant_entitlement_value(tenant, key)` | `service_role`                        | The feature's value as `jsonb`, `true` without one, null without the feature |
+| `entitlement_value(tenant, key)`        | `authenticated`                       | The same for a member of `tenant`, null for anyone else                      |
+| `tenant_ids_with_entitlement(key)`      | `authenticated`                       | The caller's tenants that have `key`, for one set check per query            |
+| `feature_claims(user_id)`               | `service_role`, `supabase_auth_admin` | The `features` claim for the user: lookup keys per tenant                    |
+| `entitlement_members(customer)`         | `service_role`                        | Members of the tenants billed to `customer`                                  |
 
 RLS reads the live table, so a downgrade takes effect on the next query:
 

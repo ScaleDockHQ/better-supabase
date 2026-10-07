@@ -1106,6 +1106,115 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("returns feature values from the plan catalog", async () => {
+    const client = await pool.connect();
+    const organization = crypto.randomUUID();
+    const member = crypto.randomUUID();
+    const outsider = crypto.randomUUID();
+    const as = async (user: string, key: string) => {
+      await client.query("savepoint values");
+      await client.query(
+        "select set_config('request.jwt.claims', $1, true), set_config('role', 'authenticated', true)",
+        [JSON.stringify({ sub: user, role: "authenticated" })],
+      );
+      const { rows } = await client.query<{ value: unknown }>(
+        "select better_supabase.entitlement_value($1, $2) as value",
+        [organization, key],
+      );
+      await client.query("rollback to savepoint values");
+      return rows[0]!.value;
+    };
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into auth.users (id, instance_id, aud, role, email)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)`,
+        [member, `values-${RUN}@example.com`],
+      );
+      await client.query(`
+        create table public.bs_value_subs_${RUN} (team_id uuid, plan_key text, status text);
+        create table public.bs_value_features_${RUN} (plan_key text, feature_key text, included boolean, value jsonb);
+        insert into public.bs_value_subs_${RUN} values
+          ('${organization}', 'pro', 'active'), ('${organization}', 'archive', 'active'),
+          ('${organization}', 'max', 'canceled');
+        insert into public.bs_value_features_${RUN} values
+          ('pro', 'file_history_days', true, '90'), ('archive', 'file_history_days', true, '365'),
+          ('max', 'file_history_days', true, '3650'), ('pro', 'support', true, '"email"'),
+          ('pro', 'exports', true, null), ('pro', 'sso', false, 'true');
+        insert into better_supabase.organizations (id, name, slug) values ('${organization}', 'Values', 'values-${organization.slice(0, 8)}');
+        insert into better_supabase.memberships (organization_id, user_id, role) values ('${organization}', '${member}', 'member');
+      `);
+      const source = {
+        plans: {
+          subscriptions: {
+            table: `public.bs_value_subs_${RUN}`,
+            tenant: "team_id",
+            plan: "plan_key",
+            status: "status",
+          },
+          features: {
+            table: `public.bs_value_features_${RUN}`,
+            plan: "plan_key",
+            feature: "feature_key",
+            included: "included",
+            value: "value",
+          },
+        },
+      };
+      await client.query(
+        renderModules(["entitlements"], {
+          entitlements: { key: "id", source },
+        }).find(
+          (file) => file.module === "entitlements" && file.kind === "schema",
+        )!.contents,
+      );
+      const { rows } = await client.query<Record<string, unknown>>(
+        `select better_supabase.tenant_entitlement_value($1, 'file_history_days') as days,
+           better_supabase.tenant_entitlement_value($1, 'support') as support,
+           better_supabase.tenant_entitlement_value($1, 'exports') as exports,
+           better_supabase.tenant_entitlement_value($1, 'sso') as sso`,
+        [organization],
+      );
+      expect(rows[0]).toEqual({
+        days: 365,
+        support: "email",
+        exports: true,
+        sso: null,
+      });
+      expect(await as(member, "file_history_days")).toBe(365);
+      expect(await as(outsider, "file_history_days")).toBeNull();
+      await client.query(
+        renderModules(["entitlements"], {
+          entitlements: {
+            key: "id",
+            source: {
+              plans: {
+                ...source.plans,
+                features: {
+                  table: source.plans.features.table,
+                  plan: "plan_key",
+                  feature: "feature_key",
+                  included: "included",
+                },
+              },
+            },
+          },
+        }).find(
+          (file) => file.module === "entitlements" && file.kind === "schema",
+        )!.contents,
+      );
+      const { rows: plain } = await client.query<Record<string, unknown>>(
+        `select better_supabase.tenant_entitlement_value($1, 'file_history_days') as days,
+           better_supabase.tenant_entitlement_value($1, 'sso') as sso`,
+        [organization],
+      );
+      expect(plain[0]).toEqual({ days: true, sso: null });
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("reads PermDock's member helpers in PermDock mode", async () => {
     const pd = `bs_pd_${RUN}`;
     const billing = `bs_billing_pd_${RUN}`;

@@ -494,6 +494,41 @@ ${rows}
   ) r`;
 }
 
+/** `entitlement_value`: a member's read of `tenant_entitlement_value`. */
+const entitlementValueCheck = (id: string, member: string): string => `
+-- The value of a feature for a member of the tenant: a number or text from
+-- the plan catalog's value column, true for a feature without one, null
+-- when the tenant lacks it or the caller is not a member.
+create or replace function better_supabase.entitlement_value(tenant ${id}, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when ${member} then better_supabase.tenant_entitlement_value(tenant, key) end
+$$;
+
+revoke execute on function better_supabase.entitlement_value(${id}, text) from public, anon;
+grant execute on function better_supabase.entitlement_value(${id}, text) to authenticated, service_role;`;
+
+/** `tenant_entitlement_value` for sources without values: true when the tenant has the key. */
+const booleanEntitlementValue = (id: string): string => `
+-- The value of a feature for the tenant: true when it has the key, null
+-- otherwise. Numeric limits come from the plan catalog's value column.
+create or replace function better_supabase.tenant_entitlement_value(tenant ${id}, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when key = any (better_supabase.tenant_entitlements(tenant)) then 'true'::jsonb end
+$$;
+
+revoke execute on function better_supabase.tenant_entitlement_value(${id}, text) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlement_value(${id}, text) to service_role;`;
+
 /** `has_entitlement` and `feature_claims` on the tenant module's memberships. */
 const tenantEntitlementChecks = (
   claims: ClaimsMeta,
@@ -514,6 +549,7 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(${m.idType}, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(${m.idType}, text) to authenticated, service_role;
+${entitlementValueCheck(m.idType, "better_supabase.has_organization_role(tenant)")}
 
 -- Every tenant of the caller with \`key\`, for one set check per query instead of
 -- one call per row:
@@ -582,6 +618,7 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(${id}, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(${id}, text) to authenticated, service_role;
+${entitlementValueCheck(id, `tenant in (select ${member}())`)}
 
 -- Every tenant of the caller with \`key\`, for one set check per query instead of
 -- one call per row:
@@ -635,7 +672,9 @@ const entitlementsSql = (
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- entitlements.source is "custom": your better_supabase.tenant_entitlements(tenant ${id})
--- returns the tenant's feature keys (text[]); the checks below call it.
+-- returns the tenant's feature keys (text[]) and your
+-- better_supabase.tenant_entitlement_value(tenant ${id}, key text) a feature's
+-- value (jsonb); the checks below call them.
 set check_function_bodies = off;
 ${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
@@ -681,6 +720,7 @@ $$;
 
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
+${booleanEntitlementValue(id)}
 ${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
@@ -722,6 +762,7 @@ $$;
 
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
+${planEntitlementValue(plans, id, status, included)}
 
 -- The tenant's active plan keys, so other modules (usage quotas) can match a
 -- plan by its key as well as by its features.
@@ -740,6 +781,42 @@ $$;
 
 revoke execute on function better_supabase.tenant_plans(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_plans(${id}) to service_role;`;
+}
+
+/** `tenant_entitlement_value` over the plan catalog, from `features.value` when set. */
+function planEntitlementValue(
+  plans: EntitlementPlansSource["plans"],
+  id: string,
+  status: string,
+  included: string,
+): string {
+  const subs = plans.subscriptions;
+  const features = plans.features;
+  if (features.value === undefined) return booleanEntitlementValue(id);
+  const value = `to_jsonb(f.${sqlIdent(features.value)})`;
+  return `
+-- The value of a feature for the tenant (entitlements.source.plans.features.value):
+-- the largest number when several active plans set it, else the first
+-- plan's value; true for a feature whose value is null, null without it.
+create or replace function better_supabase.tenant_entitlement_value(tenant ${id}, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(${value}, 'true'::jsonb)
+    from ${qualified(subs.table)} s
+    join ${qualified(features.table)} f on f.${sqlIdent(features.plan)}::text = s.${sqlIdent(subs.plan)}::text
+    where s.${sqlIdent(subs.tenant)} = tenant_entitlement_value.tenant${status}${included}
+      and f.${sqlIdent(features.feature)}::text = tenant_entitlement_value.key
+    order by case when jsonb_typeof(${value}) = 'number' then (${value} #>> '{}')::numeric end desc nulls last,
+      s.${sqlIdent(subs.plan)}::text
+    limit 1
+$$;
+
+revoke execute on function better_supabase.tenant_entitlement_value(${id}, text) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlement_value(${id}, text) to service_role;`;
 }
 
 const ENTITLEMENTS: SqlModule = {

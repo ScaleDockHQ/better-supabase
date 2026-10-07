@@ -38,6 +38,21 @@ $$;
 revoke execute on function better_supabase.tenant_entitlements(bigint) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(bigint) to service_role, supabase_auth_admin;
 
+-- The value of a feature for the tenant: true when it has the key, null
+-- otherwise. Numeric limits come from the plan catalog's value column.
+create or replace function better_supabase.tenant_entitlement_value(tenant bigint, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when key = any (better_supabase.tenant_entitlements(tenant)) then 'true'::jsonb end
+$$;
+
+revoke execute on function better_supabase.tenant_entitlement_value(bigint, text) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlement_value(bigint, text) to service_role;
+
 -- PermDock mode: memberships come from PermDock's organization scope
 -- ("authz"."member_organization_ids"() and "authz"."member_organization_ids_for"(uuid), from \`permdock rls generate\`).
 
@@ -55,6 +70,22 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(bigint, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(bigint, text) to authenticated, service_role;
+
+-- The value of a feature for a member of the tenant: a number or text from
+-- the plan catalog's value column, true for a feature without one, null
+-- when the tenant lacks it or the caller is not a member.
+create or replace function better_supabase.entitlement_value(tenant bigint, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when tenant in (select "authz"."member_organization_ids"()) then better_supabase.tenant_entitlement_value(tenant, key) end
+$$;
+
+revoke execute on function better_supabase.entitlement_value(bigint, text) from public, anon;
+grant execute on function better_supabase.entitlement_value(bigint, text) to authenticated, service_role;
 
 -- Every tenant of the caller with \`key\`, for one set check per query instead of
 -- one call per row:
@@ -192,6 +223,21 @@ $$;
 revoke execute on function better_supabase.tenant_entitlements(integer) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(integer) to service_role, supabase_auth_admin;
 
+-- The value of a feature for the tenant: true when it has the key, null
+-- otherwise. Numeric limits come from the plan catalog's value column.
+create or replace function better_supabase.tenant_entitlement_value(tenant integer, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when key = any (better_supabase.tenant_entitlements(tenant)) then 'true'::jsonb end
+$$;
+
+revoke execute on function better_supabase.tenant_entitlement_value(integer, text) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlement_value(integer, text) to service_role;
+
 -- PermDock mode: memberships come from PermDock's organization scope
 -- ("authz"."member_organization_ids"() and "authz"."member_organization_ids_for"(uuid), from \`permdock rls generate\`).
 
@@ -209,6 +255,22 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(integer, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(integer, text) to authenticated, service_role;
+
+-- The value of a feature for a member of the tenant: a number or text from
+-- the plan catalog's value column, true for a feature without one, null
+-- when the tenant lacks it or the caller is not a member.
+create or replace function better_supabase.entitlement_value(tenant integer, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when tenant in (select "authz"."member_organization_ids"()) then better_supabase.tenant_entitlement_value(tenant, key) end
+$$;
+
+revoke execute on function better_supabase.entitlement_value(integer, text) from public, anon;
+grant execute on function better_supabase.entitlement_value(integer, text) to authenticated, service_role;
 
 -- Every tenant of the caller with \`key\`, for one set check per query instead of
 -- one call per row:
@@ -346,6 +408,21 @@ $$;
 revoke execute on function better_supabase.tenant_entitlements(text) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(text) to service_role, supabase_auth_admin;
 
+-- The value of a feature for the tenant: true when it has the key, null
+-- otherwise. Numeric limits come from the plan catalog's value column.
+create or replace function better_supabase.tenant_entitlement_value(tenant text, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when key = any (better_supabase.tenant_entitlements(tenant)) then 'true'::jsonb end
+$$;
+
+revoke execute on function better_supabase.tenant_entitlement_value(text, text) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlement_value(text, text) to service_role;
+
 -- PermDock mode: memberships come from PermDock's organization scope
 -- ("authz"."member_organization_ids"() and "authz"."member_organization_ids_for"(uuid), from \`permdock rls generate\`).
 
@@ -363,6 +440,22 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(text, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(text, text) to authenticated, service_role;
+
+-- The value of a feature for a member of the tenant: a number or text from
+-- the plan catalog's value column, true for a feature without one, null
+-- when the tenant lacks it or the caller is not a member.
+create or replace function better_supabase.entitlement_value(tenant text, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when tenant in (select "authz"."member_organization_ids"()) then better_supabase.tenant_entitlement_value(tenant, key) end
+$$;
+
+revoke execute on function better_supabase.entitlement_value(text, text) from public, anon;
+grant execute on function better_supabase.entitlement_value(text, text) to authenticated, service_role;
 
 -- Every tenant of the caller with \`key\`, for one set check per query instead of
 -- one call per row:
@@ -500,6 +593,21 @@ $$;
 revoke execute on function better_supabase.tenant_entitlements(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(uuid) to service_role, supabase_auth_admin;
 
+-- The value of a feature for the tenant: true when it has the key, null
+-- otherwise. Numeric limits come from the plan catalog's value column.
+create or replace function better_supabase.tenant_entitlement_value(tenant uuid, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when key = any (better_supabase.tenant_entitlements(tenant)) then 'true'::jsonb end
+$$;
+
+revoke execute on function better_supabase.tenant_entitlement_value(uuid, text) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlement_value(uuid, text) to service_role;
+
 -- PermDock mode: memberships come from PermDock's organization scope
 -- ("authz"."member_organization_ids"() and "authz"."member_organization_ids_for"(uuid), from \`permdock rls generate\`).
 
@@ -517,6 +625,22 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(uuid, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(uuid, text) to authenticated, service_role;
+
+-- The value of a feature for a member of the tenant: a number or text from
+-- the plan catalog's value column, true for a feature without one, null
+-- when the tenant lacks it or the caller is not a member.
+create or replace function better_supabase.entitlement_value(tenant uuid, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when tenant in (select "authz"."member_organization_ids"()) then better_supabase.tenant_entitlement_value(tenant, key) end
+$$;
+
+revoke execute on function better_supabase.entitlement_value(uuid, text) from public, anon;
+grant execute on function better_supabase.entitlement_value(uuid, text) to authenticated, service_role;
 
 -- Every tenant of the caller with \`key\`, for one set check per query instead of
 -- one call per row:
