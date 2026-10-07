@@ -145,6 +145,12 @@ const TRIGGER = new RegExp(
   "gi",
 );
 
+const TABLE_NAME = String.raw`${IDENT}(?:\s*\.\s*${IDENT})?`;
+const DROP = new RegExp(
+  String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${TABLE_NAME}(?:\s*,\s*${TABLE_NAME})*)`,
+  "gi",
+);
+
 const names = (value: unknown): string[] =>
   Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
@@ -175,7 +181,8 @@ function triggerRegistration(
  * `create trigger bs_audit ... execute function
  * better_supabase.audit_row_change('{...}')`, in file order: a later
  * registration for the same table replaces the earlier one, and
- * `unaudit(...)` removes it. Calls with non-literal arguments are skipped.
+ * `unaudit(...)` or a `drop table` removes it. Calls with non-literal
+ * arguments are skipped.
  */
 export function auditRegistrations(
   files: readonly { readonly text: string }[],
@@ -184,10 +191,27 @@ export function auditRegistrations(
   for (const file of files) {
     const text = withoutComments(file.text);
     const found = [
-      ...[...text.matchAll(CALL)].map((match) => ({ match, trigger: false })),
-      ...[...text.matchAll(TRIGGER)].map((match) => ({ match, trigger: true })),
+      ...[...text.matchAll(CALL)].map((match) => ({
+        match,
+        kind: "call" as const,
+      })),
+      ...[...text.matchAll(TRIGGER)].map((match) => ({
+        match,
+        kind: "trigger" as const,
+      })),
+      ...[...text.matchAll(DROP)].map((match) => ({
+        match,
+        kind: "drop" as const,
+      })),
     ].sort((a, b) => a.match.index - b.match.index);
-    for (const { match, trigger } of found) {
+    for (const { match, kind } of found) {
+      if (kind === "drop") {
+        for (const [name] of match[1]!.matchAll(new RegExp(TABLE_NAME, "g"))) {
+          tables.delete(qualifiedName(name.replaceAll(/\s+/g, "")));
+        }
+        continue;
+      }
+      const trigger = kind === "trigger";
       const args = callArgs(text, match.index + match[0].length - 1);
       if (!args) continue;
       if (trigger) {

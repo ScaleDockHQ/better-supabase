@@ -357,9 +357,17 @@ same `ignore` and `redact` lists, then runs an insert, an update and a delete
 on a copy of the table and checks the entries: one per change, without the
 ignored columns, with the redacted values masked. `supabase test db` runs it
 with your other tests, and `sql sync --check` fails when a registration changed
-and the file is stale. A later `unaudit(...)` call removes the table's file on
-the next `sql sync`. Calls with computed arguments, such as
-`audit(format(...))`, are skipped.
+and the file is stale. A later `unaudit(...)` call or `drop table` removes
+the table's file on the next `sql sync`. Calls with computed arguments, such
+as `audit(format(...))`, are skipped.
+
+Dropping an audited table also drops its registration: the module installs
+a `sql_drop` event trigger (`bs_audit_forget_dropped`) that deletes the
+table's row from `better_supabase.audited_tables`, so install the module as
+`postgres`, which supautils lets create event triggers. `unaudit` takes the
+table name as text, so a migration can still call
+`select better_supabase.unaudit('public.old_notes')` after the table is
+gone; it then clears the registrations of tables that no longer exist.
 
 An app with its own audit table adopts it: map `sql.modules.audit.tables.log` and
 `columns.log` to your names, and `null` the columns you don't have (the row

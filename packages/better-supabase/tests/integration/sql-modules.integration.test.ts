@@ -2607,6 +2607,42 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("forgets a dropped table's registration and unaudits a table that is gone", async () => {
+    const legacy = `public.bs_audit_dropped_${RUN}`;
+    const stray = `public.bs_audit_stray_${RUN}`;
+    await pool.query(`
+      create table ${legacy} (id int primary key, organization_id uuid);
+      create table ${stray} (id int primary key, organization_id uuid);
+      select better_supabase.audit('${legacy}');
+      insert into better_supabase.audited_tables (target) values ('${legacy}'), ('${stray}');
+    `);
+    const registered = async () =>
+      (
+        await pool.query<{ n: number }>(
+          "select count(*)::int as n from better_supabase.audited_tables a where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid)",
+        )
+      ).rows[0]!.n;
+    try {
+      await pool.query(`drop table ${legacy}`);
+      expect(await registered()).toBe(0);
+      await pool.query(`select better_supabase.unaudit('${legacy}')`);
+      await pool.query(`
+        alter event trigger bs_audit_forget_dropped disable;
+        drop table ${stray};
+        alter event trigger bs_audit_forget_dropped enable;
+      `);
+      expect(await registered()).toBe(1);
+      await pool.query(`select better_supabase.unaudit('${stray}')`);
+      expect(await registered()).toBe(0);
+    } finally {
+      await pool.query("alter event trigger bs_audit_forget_dropped enable");
+      await pool.query(`
+        drop table if exists ${legacy};
+        drop table if exists ${stray};
+      `);
+    }
+  });
+
   it("takes the actor and request details from service-role events only", async () => {
     const client = await pool.connect();
     const actor = crypto.randomUUID();

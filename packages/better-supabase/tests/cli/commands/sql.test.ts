@@ -342,6 +342,27 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     expect(await sql(["sync", "--check"], config)).toMatchObject({ code: 0 });
   });
 
+  it("removes a dropped table's pgTAP file", async () => {
+    const config: BetterSupabaseConfig = { sql: { modules: ["audit"] } };
+    const migrations = join(root, "supabase/migrations");
+    await mkdir(migrations, { recursive: true });
+    await writeFile(
+      join(migrations, "20260101000000_crm.sql"),
+      "create table public.notes (id int primary key);\nselect better_supabase.audit('public.notes');\n",
+    );
+    const test =
+      "supabase/tests/900_better_supabase_audit_public_notes.test.sql";
+    expect((await sql(["sync"], config)).output).toContain(
+      `Wrote ${test} (audit)`,
+    );
+    await writeFile(
+      join(migrations, "20260201000000_drop_notes.sql"),
+      "drop table if exists public.notes;\n",
+    );
+    expect((await sql(["sync"], config)).output).toContain(`Removed ${test}`);
+    expect(await sql(["sync", "--check"], config)).toMatchObject({ code: 0 });
+  });
+
   it("leaves the generated pgTAP files out of sql upgrade --check", async () => {
     const config: BetterSupabaseConfig = {
       sql: { modules: ["audit", "pgtap"] },
