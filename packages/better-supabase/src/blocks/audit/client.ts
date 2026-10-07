@@ -5,7 +5,6 @@ import type { AuditEntry, OcsfProduct } from "./audit.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { toCsv } from "../csv.ts";
 import {
   blockCall,
   instantArg,
@@ -18,6 +17,7 @@ import {
   applyTemporal,
 } from "../shared.ts";
 import { toOcsf } from "./audit.ts";
+import { csvPage, revealsDetails, type AuditCsvOptions } from "./csv.ts";
 
 /** The adopted log's own columns, by column name, as `metadataColumns` maps them. */
 export type AuditColumns = Readonly<Record<string, unknown>>;
@@ -115,10 +115,10 @@ export interface AuditDetails {
   readonly changes?: unknown;
 }
 
-export interface AuditExportOptions extends Omit<
-  AuditListOptions,
-  "before" | "limit" | "count"
-> {
+export interface AuditExportOptions<Columns extends AuditColumns = AuditColumns>
+  extends
+    Omit<AuditListOptions, "before" | "limit" | "count">,
+    AuditCsvOptions<Columns> {
   /**
    * `ndjson` (default) writes the records as they are, `csv` a spreadsheet
    * with a header row, `ocsf` each record mapped with `toOcsf`.
@@ -147,7 +147,9 @@ export interface AuditExportBucket {
   }>;
 }
 
-export interface AuditExportToStorageOptions extends AuditExportOptions {
+export interface AuditExportToStorageOptions<
+  Columns extends AuditColumns = AuditColumns,
+> extends AuditExportOptions<Columns> {
   readonly storage: { from(bucket: string): AuditExportBucket };
   readonly bucket: string;
   /** The object path, such as `{organizationId}/audit/{jobId}.csv`. */
@@ -199,14 +201,14 @@ export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
    */
   reveal(entryId: string): AsyncResult<AuditDetails>;
   /** Every matching entry as NDJSON, CSV or OCSF, read page by page as the caller. */
-  export(options?: AuditExportOptions): ReadableStream<Uint8Array>;
+  export(options?: AuditExportOptions<Columns>): ReadableStream<Uint8Array>;
   /**
    * Writes an export to a Storage object, for a job that runs it in the
    * background (the data lifecycle export bucket, say), and returns the path
    * and a signed URL when `signedUrlTtl` is set.
    */
   exportToStorage(
-    options: AuditExportToStorageOptions,
+    options: AuditExportToStorageOptions<Columns>,
   ): AsyncResult<{ readonly path: string; readonly url: string | undefined }>;
 }
 
@@ -296,40 +298,33 @@ function entryOf(record: AuditRecord): AuditEntry {
   };
 }
 
-const CSV_COLUMNS = [
-  "id",
-  "occurredAt",
-  "op",
-  "eventType",
-  "category",
-  "outcome",
-  "actorId",
-  "actorLabel",
-  "actorRole",
-  "actorKind",
-  "tenant",
-  "tenantLabel",
-  "table",
-  "record",
-  "targetType",
-  "targetLabel",
-  "summary",
-  "changed",
-  "source",
-  "requestId",
-  "correlationId",
-  "impersonatedBy",
-  "metadata",
-];
-
 const many = (value: OneOrMany | undefined): readonly string[] | undefined =>
   value === undefined ? undefined : typeof value === "string" ? [value] : value;
 
-const csvRow = (record: AuditRecord): Record<string, unknown> => ({
-  ...record,
-  occurredAt: record.occurredAt.toString(),
-  changed: record.changed?.join(" "),
-});
+/** `reveal_audit_entry`'s details, or one of `reveal_audit_entries`'. */
+function detailsOf(value: unknown, entryId: string): AuditDetails {
+  const row = isRecord(value) ? value : {};
+  const json = (key: string) => {
+    const found = row[key];
+    return isRecord(found) ? { [key]: found } : {};
+  };
+  const text = (key: string) => {
+    const found = optionalText(row[key]);
+    return found === undefined ? {} : { [key]: found };
+  };
+  return {
+    entry: textOf(row["entry"] ?? entryId),
+    ...json("old"),
+    ...json("new"),
+    ...json("metadata"),
+    ...text("ip"),
+    ...text("userAgent"),
+    ...text("sessionId"),
+    ...(row["changes"] === undefined || row["changes"] === null
+      ? {}
+      : { changes: row["changes"] }),
+  };
+}
 
 /**
  * The audit log over the `audit` module's functions, as the caller: the
@@ -394,8 +389,23 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
     );
   };
 
+  const revealPage = (
+    entries: readonly AuditRecord<Columns>[],
+  ): AsyncResult<ReadonlyMap<string, AuditDetails>> =>
+    call(
+      "reveal_audit_entries",
+      { entries: entries.map((entry) => entry.id) },
+      (value) =>
+        new Map(
+          (Array.isArray(value) ? value : []).map((row) => {
+            const details = detailsOf(row, "");
+            return [details.entry, details] as const;
+          }),
+        ),
+    );
+
   const exportStream = (
-    exporting: AuditExportOptions = {},
+    exporting: AuditExportOptions<Columns> = {},
   ): ReadableStream<Uint8Array> => {
     const format = exporting.format ?? "ndjson";
     const product = exporting.product;
@@ -406,7 +416,19 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
     }
     const encoder = new TextEncoder();
     let before: AuditCursor | undefined;
-    const { offset: start, ...filters } = exporting;
+    const {
+      offset: start,
+      columns,
+      preamble,
+      formatRow,
+      ...filters
+    } = exporting;
+    const csv = {
+      ...(columns === undefined ? {} : { columns }),
+      ...(preamble === undefined ? {} : { preamble }),
+      ...(formatRow === undefined ? {} : { formatRow }),
+    };
+    const reveals = format === "csv" && revealsDetails(columns);
     let offset = start;
     let header = format === "csv";
     let done = false;
@@ -428,8 +450,17 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
         const { entries, next } = page.data;
         let text = "";
         if (format === "csv") {
-          const csv = toCsv(entries.map(csvRow), { columns: CSV_COLUMNS });
-          text = header ? csv : csv.slice(csv.indexOf("\r\n") + 2);
+          let details: ReadonlyMap<string, AuditDetails> | undefined;
+          if (reveals && entries.length > 0) {
+            const revealed = await revealPage(entries);
+            if (!revealed.ok) {
+              done = true;
+              controller.error(new Error(revealed.error.message));
+              return;
+            }
+            details = revealed.data;
+          }
+          text = csvPage(entries, csv, details, header);
           header = false;
         } else if (entries.length > 0) {
           text = `${entries
@@ -485,29 +516,9 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
     record,
     list,
     reveal: (entryId) =>
-      call("reveal_audit_entry", { entry: entryId }, (value): AuditDetails => {
-        const row = isRecord(value) ? value : {};
-        const json = (key: string) => {
-          const found = row[key];
-          return isRecord(found) ? { [key]: found } : {};
-        };
-        const text = (key: string) => {
-          const found = optionalText(row[key]);
-          return found === undefined ? {} : { [key]: found };
-        };
-        return {
-          entry: textOf(row["entry"] ?? entryId),
-          ...json("old"),
-          ...json("new"),
-          ...json("metadata"),
-          ...text("ip"),
-          ...text("userAgent"),
-          ...text("sessionId"),
-          ...(row["changes"] === undefined || row["changes"] === null
-            ? {}
-            : { changes: row["changes"] }),
-        };
-      }),
+      call("reveal_audit_entry", { entry: entryId }, (value) =>
+        detailsOf(value, entryId),
+      ),
     export: exportStream,
     exportToStorage: (target) =>
       AsyncResult.from(async () => {

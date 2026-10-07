@@ -469,7 +469,10 @@ The [audit block](/docs/blocks/audit) reads the log from TypeScript: a list
 query, NDJSON and OCSF exports, and retention per tenant. In SQL,
 `list_audit_events` lists the entries the caller can read, and
 `reveal_audit_entry(entry)` returns an entry's restricted details and records
-the read as `audit.revealed`.
+the read as `audit.revealed`. `reveal_audit_entries(entries)` does the same
+for a list of entry ids, such as one page of an export: it returns the
+details of the entries the caller may reveal, skips the rest, and records
+one `audit.revealed` entry per tenant with the ids in `metadata.entries`.
 
 ## Retention
 

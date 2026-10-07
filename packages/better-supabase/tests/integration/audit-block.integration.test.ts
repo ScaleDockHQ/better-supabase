@@ -436,6 +436,40 @@ describe.skipIf(!live)("audit block", () => {
       );
       expect(stored.get(target.path)!.trim().split("\n")).toHaveLength(4);
 
+      const revealed = await new Response(
+        audit.export({
+          organizationId: organization,
+          eventType: ["invoice.sent", "invoice.paid"],
+          order: "asc",
+          format: "csv",
+          preamble: ["Invoices"],
+          columns: [
+            "eventType",
+            { key: "restricted.metadata", label: "Details" },
+          ],
+        }),
+      ).text();
+      expect(revealed.split("\r\n")).toEqual([
+        "Invoices",
+        "eventType,Details",
+        `invoice.sent,"{""card"":""4242""}"`,
+        `invoice.paid,"{""card"":""4242""}"`,
+        "",
+      ]);
+      const ids = (
+        await audit
+          .list({
+            organizationId: organization,
+            eventType: ["invoice.sent", "invoice.paid"],
+            order: "asc",
+          })
+          .orThrow()
+      ).entries.map((entry) => entry.id);
+      const exported = await audit
+        .list({ organizationId: organization, eventType: "audit.revealed" })
+        .orThrow();
+      expect(exported.entries[0]?.metadata).toEqual({ entries: ids });
+
       await s.asRole(outsider);
       expect(
         (await audit.list({ organizationId: organization }).orThrow()).entries,

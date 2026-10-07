@@ -13,6 +13,7 @@ export type {
   AuditPage,
   AuditRecord,
 } from "./client.ts";
+export type { AuditCsvColumn, AuditCsvOptions } from "./csv.ts";
 export {
   auditListQuery,
   exportAuditLog,

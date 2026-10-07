@@ -28,6 +28,10 @@ function fake(pages: unknown[][], fail = false) {
           metadata: "not an object",
         };
       if (fn === "count_audit_events") return "3";
+      if (fn === "reveal_audit_entries")
+        return (args["entries"] as string[])
+          .filter((id) => id !== "1")
+          .map((id) => ({ entry: id, ip: `10.0.0.${id}` }));
       return pages.shift() ?? [];
     },
   };
@@ -213,6 +217,74 @@ describe("createAuditLog", () => {
         createAuditLog({ transport: fake([], true).transport }).export(),
       ).text(),
     ).rejects.toThrow(/denied/);
+  });
+
+  it("writes CSV with chosen columns, a preamble, restricted details and a row hook", async () => {
+    const { transport, calls } = fake([
+      [
+        entry("2", { columns: { ticket_id: "t2" }, summary: "Sent" }),
+        entry("1"),
+      ],
+      [entry("0", { columns: { ticket_id: "t0" } })],
+    ]);
+    const csv = await new Response(
+      createAuditLog<{ ticket_id: string }>({ transport }).export({
+        format: "csv",
+        batch: 2,
+        preamble: ["Audit export", "=org"],
+        columns: [
+          "id",
+          { key: "columns.ticket_id", label: "Ticket" },
+          { key: "restricted.ip", label: "IP" },
+          "summary",
+        ],
+        formatRow: (row, record, details) => ({
+          ...row,
+          summary: `${record.summary ?? "none"}${details ? "" : " (hidden)"}`,
+        }),
+      }),
+    ).text();
+    expect(csv.split("\r\n")).toEqual([
+      "Audit export",
+      "'=org",
+      "id,Ticket,IP,summary",
+      "2,t2,10.0.0.2,Sent",
+      "1,,,none (hidden)",
+      "0,t0,10.0.0.0,none",
+      "",
+    ]);
+    expect(
+      calls
+        .filter(([fn]) => fn === "reveal_audit_entries")
+        .map(([, args]) => args["entries"]),
+    ).toEqual([["2", "1"], ["0"]]);
+    const plain = fake([[entry("1")]]);
+    const header = (
+      await new Response(
+        createAuditLog({ transport: plain.transport }).export({
+          format: "csv",
+        }),
+      ).text()
+    ).split("\r\n")[0];
+    expect(header).toBe(
+      "id,occurredAt,op,eventType,category,outcome,actorId,actorLabel,actorRole,actorKind,tenant,tenantLabel,table,record,targetType,targetLabel,summary,changed,source,requestId,correlationId,impersonatedBy,metadata",
+    );
+    expect(plain.calls.map(([fn]) => fn)).toEqual(["list_audit_events"]);
+    const failing: BlockTransport = {
+      async call(_schema, fn) {
+        if (fn === "reveal_audit_entries")
+          throw Object.assign(new Error("not allowed"), { code: "42501" });
+        return [entry("1")];
+      },
+    };
+    await expect(
+      new Response(
+        createAuditLog({ transport: failing }).export({
+          format: "csv",
+          columns: ["restricted.ip"],
+        }),
+      ).text(),
+    ).rejects.toThrow(/not allowed/);
   });
 
   it("stores an export and reports upload failures", async () => {

@@ -165,7 +165,40 @@ export const GET = bs.handler(async (request, ctx) => {
 ```
 
 `format: "csv"` writes a header row and one row per entry, with text that
-starts like a spreadsheet formula prefixed with `'`. For an export that runs
+starts like a spreadsheet formula prefixed with `'`. `columns` picks and
+orders the columns (a record key, a key with its header label,
+`columns.<name>` for a column `metadataColumns` fills, or
+`restricted.<field>` for restricted details), `preamble` writes lines
+before the header row, and `formatRow` changes each row before it is
+written:
+
+```ts
+const stream = audit.export({
+  organizationId,
+  format: "csv",
+  preamble: [`Audit log for ${organization.name}`, `Exported ${now}`],
+  columns: [
+    { key: "occurredAt", label: "Time" },
+    { key: "actorLabel", label: "Who" },
+    "eventType",
+    { key: "columns.ticket_id", label: "Ticket" },
+    { key: "restricted.ip", label: "IP address" },
+  ],
+  formatRow: (row, record) => ({
+    ...row,
+    occurredAt: record.occurredAt.toLocaleString("en-GB"),
+  }),
+});
+```
+
+A `restricted.<field>` column (`ip`, `userAgent`, `sessionId`, `metadata`,
+`old`, `new` or `changes`) reads each page's details through
+`reveal_audit_entries(entries)`, which returns them for the entries the
+caller may reveal (the same check as `reveal`), leaves the cells of the
+others empty, and records one `audit.revealed` entry per tenant with the
+revealed ids in `metadata.entries`. It needs the `restricted` option and
+the access module. Without `columns`, the export keeps its default
+columns. For an export that runs
 in the background (a jobs handler that emails a link, say),
 `audit.exportToStorage({ storage, bucket, path, signedUrlTtl, ...filters })`
 writes the file to Storage, such as the data lifecycle `data-exports`

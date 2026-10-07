@@ -161,6 +161,19 @@ describe("audit module", () => {
     expect(audit()).toContain("    ip := null;");
   });
 
+  it("reveals a page of entries for an export, with one audit.revealed per tenant", () => {
+    const sql = audit({ options: { restricted: true, readPolicy: true } });
+    expect(sql).toContain(
+      `create or replace function "better_supabase"."reveal_audit_entries"(entries text[])`,
+    );
+    expect(sql).toContain(
+      "metadata => jsonb_build_object('entries', revealed.ids)",
+    );
+    expect(audit({ options: { restricted: true } })).not.toContain(
+      "reveal_audit_entries",
+    );
+  });
+
   it("drops the old signatures when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "audit", version: 1 }]);
     expect(plan!.steps[0]!.sql).toContain(
