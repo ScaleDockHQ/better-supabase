@@ -324,15 +324,24 @@ describe.skipIf(!live)("billing", () => {
         alter table stripe.invoices add column if not exists invoice_pdf text;
         alter table stripe.invoices add column if not exists customer_email text;
         alter table stripe.invoices add column if not exists status_transitions jsonb;
+        alter table stripe.invoices add column if not exists customer_name text;
+        alter table stripe.invoices add column if not exists updated_at timestamptz;
+        alter table stripe.prices add column if not exists metadata jsonb;
+        insert into stripe.customers (id, email, name, created)
+          values ('cus_bs_plans', 'owner@example.com', 'Example Ltd', 1)
+          on conflict (id) do update set email = excluded.email, name = excluded.name;
+        update stripe.prices set metadata = '{"plan": "pro"}' where id = 'price_pro_y';
         update stripe.subscriptions set current_period_start = 4 where id = 'sub_bs_new';
         update stripe.prices set recurring = '{"interval": "year", "interval_count": 1}' where id = 'price_pro_y';
         update stripe.invoices set amount_remaining = 0, hosted_invoice_url = 'https://invoice.stripe.com/i/in_bs_1',
           invoice_pdf = 'https://pay.stripe.com/invoice/in_bs_1/pdf', customer_email = 'billing@example.com',
-          status_transitions = '{"paid_at": 7}' where id = 'in_bs_1'`);
+          status_transitions = '{"finalized_at": 6, "paid_at": 7}', updated_at = to_timestamp(8)
+          where id = 'in_bs_1'`);
       await s.asRole(staff, { platform_permissions: ["billing.read"] });
       expect(
         await s.rows(
-          `select s.subscription, s.status, s.price, s.plan, s.quantity, s.amount, s.currency,
+          `select s.subscription, s.customer_email, s.customer_name, s.status, s.price, s.price_metadata,
+             s.plan, s.quantity, s.amount, s.currency,
              s.recurring_interval, s.current_period_start = to_timestamp(4) as period_start,
              s.created = to_timestamp(5) as created, s.cancel_at_period_end
            from better_supabase.billing_platform_subscriptions() s
@@ -342,8 +351,11 @@ describe.skipIf(!live)("billing", () => {
       ).toEqual([
         {
           subscription: "sub_bs_new",
+          customer_email: "owner@example.com",
+          customer_name: "Example Ltd",
           status: "active",
           price: "price_pro_y",
+          price_metadata: { plan: "pro" },
           plan: "pro",
           quantity: "3",
           amount: "3600",
@@ -365,8 +377,9 @@ describe.skipIf(!live)("billing", () => {
       ).toEqual([{ name: expect.any(String), plan: "pro" }]);
       expect(
         await s.rows(
-          `select i.invoice, i.amount_remaining, i.paid_at = to_timestamp(7) as paid, i.hosted_invoice_url,
-             i.invoice_pdf, i.customer_email
+          `select i.invoice, i.amount_remaining, i.finalized_at = to_timestamp(6) as finalized,
+             i.paid_at = to_timestamp(7) as paid, i.hosted_invoice_url, i.invoice_pdf, i.customer_email,
+             i.customer_name, i.updated_at = to_timestamp(8) as updated
            from better_supabase.billing_platform_invoices() i
            where i.tenant = $1 order by i.invoice`,
           [organization],
@@ -375,18 +388,24 @@ describe.skipIf(!live)("billing", () => {
         {
           invoice: "in_bs_1",
           amount_remaining: "0",
+          finalized: true,
           paid: true,
           hosted_invoice_url: "https://invoice.stripe.com/i/in_bs_1",
           invoice_pdf: "https://pay.stripe.com/invoice/in_bs_1/pdf",
           customer_email: "billing@example.com",
+          customer_name: "Example Ltd",
+          updated: true,
         },
         {
           invoice: "in_bs_2",
           amount_remaining: null,
+          finalized: null,
           paid: null,
           hosted_invoice_url: null,
           invoice_pdf: null,
-          customer_email: null,
+          customer_email: "owner@example.com",
+          customer_name: "Example Ltd",
+          updated: null,
         },
       ]);
       expect(

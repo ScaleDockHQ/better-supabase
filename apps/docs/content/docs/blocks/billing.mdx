@@ -210,16 +210,31 @@ An admin list that searches by tenant name, sorts by plan, period end or
 amount, or counts rows needs typed columns it can join in SQL rather than
 raw JSON pages. `billing_platform_subscriptions()` returns one row per
 tenant (its newest subscription, preferring an active one) with `tenant`,
-`customer`, `subscription`, `status`, `price`, `plan` (the key from
-`options.plans`, when set), `quantity`, `amount` (the price's unit amount
-times the quantity), `currency`, `recurring_interval` (the price's
-`month`, `year` and so on), `current_period_start`, `current_period_end`,
-`cancel_at_period_end` and `created`. `billing_platform_invoices()` returns
-every invoice with `tenant`, `customer`, `invoice`, `subscription`, `number`,
-`status`, `amount_due`, `amount_paid`, `amount_remaining`, `total`,
-`currency`, `due_date`, `paid_at` (from the invoice's status transitions),
-`hosted_invoice_url`, `invoice_pdf`, `customer_email` and `created`. Both read the Sync Engine's tables when they exist, and are open
-to the service role and platform staff with `viewAll`:
+`customer`, `customer_email` and `customer_name` (from `stripe.customers`),
+`subscription`, `status`, `price`, `price_metadata` (the price's Stripe
+metadata), `plan` (the key from `options.plans`, when set), `quantity`,
+`amount` (the price's unit amount times the quantity), `currency`,
+`recurring_interval` (the price's `month`, `year` and so on),
+`current_period_start`, `current_period_end`, `cancel_at_period_end` and
+`created`. `billing_platform_invoices()` returns every invoice with
+`tenant`, `customer`, `invoice`, `subscription`, `number`, `status`,
+`amount_due`, `amount_paid`, `amount_remaining`, `total`, `currency`,
+`due_date`, `finalized_at` and `paid_at` (from the invoice's status
+transitions), `hosted_invoice_url`, `invoice_pdf`, `customer_email` and
+`customer_name` (the invoice's, else the customer's), `created` and
+`updated_at` (when the Sync Engine last wrote the row). Both read the Sync
+Engine's tables when they exist, and are open to the service role and
+platform staff with `viewAll`.
+
+`plan` is `null` for a price that `options.plans` doesn't list. When your
+plans keep their key in the price's metadata instead, fall back to it:
+
+```sql
+select s.tenant, coalesce(s.plan, s.price_metadata ->> 'plan') as plan
+from better_supabase.billing_platform_subscriptions() s;
+```
+
+A list of subscriptions for platform staff:
 
 ```sql
 select o.name, s.plan, s.status, s.current_period_end, s.amount
