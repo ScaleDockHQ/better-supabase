@@ -275,6 +275,27 @@ select better_supabase.audit(
 );
 ```
 
+`audit()` keeps these settings on the table's `bs_audit` trigger, as the
+JSON argument of `audit_row_change`, and writes no rows. So a call in a
+schema file leaves nothing a schema diff refuses (pg-delta rejects a table
+that has rows after loading the schema), and the generated migration carries
+the trigger with its settings; no data migration is needed. You can also
+write the trigger yourself, which pg-delta orders after the table:
+
+```sql title="supabase/schemas/020_customers.sql"
+create trigger bs_audit after insert or update or delete on public.customers
+  for each row execute function better_supabase.audit_row_change(
+    '{"ignore": ["updated_at"], "redact": ["tax_id"], "event_prefix": "customer"}'
+  );
+```
+
+The argument takes `ignore`, `redact`, `key_columns` (the primary key by
+default), `category`, `event_prefix`, `target_type`, `tenant_column` and
+`label_column`. `audit_settings(table)` returns a table's settings. Tables
+registered before this release keep their rows in `audited_tables`, and the
+trigger reads them while it has no argument; calling `audit()` again moves
+them onto the trigger.
+
 `redact` columns are stored as `[redacted]` in the old and new records. The
 event type is `<event_prefix>.created`, `.updated` or `.deleted` (the table
 name without a prefix), and `tenant_column` overrides the tenant column for
@@ -308,8 +329,8 @@ The module options (`sql.modules.audit.options`):
 | `tenantLabel`   | the organizations module | `schema.table.column` that `tenant_label` copies, matched on `tenantLabelKey` (`id` by default), for apps without the `organizations` module                                                              |
 | `values`        | none                     | adopt mode only: the adopted log's values for `scope`, `actorKind`, `outcome` and `source`, see below                                                                                                     |
 
-`sql add` and `sql sync` read the `audit(...)` calls in your schema files and
-migrations, and write a pgTAP file per audited table to `sql.testsDir`
+`sql add` and `sql sync` read the `audit(...)` calls and `bs_audit` triggers in
+your schema files and migrations, and write a pgTAP file per audited table to `sql.testsDir`
 (`supabase/tests/900_better_supabase_audit_public_customers.test.sql`). It
 checks that the table has the `bs_audit` trigger and is registered with the
 same `ignore` and `redact` lists, then runs an insert, an update and a delete

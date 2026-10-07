@@ -107,3 +107,29 @@ describe("audit pgTAP files", () => {
     ).toEqual([]);
   });
 });
+
+describe("auditRegistrations of static triggers", () => {
+  it("reads bs_audit triggers that pass their settings to audit_row_change", () => {
+    expect(
+      auditRegistrations([
+        {
+          text: `create trigger bs_audit after insert or update or delete on public.invoices
+  for each row execute function better_supabase.audit_row_change('{"ignore": ["updated_at"], "redact": ["iban"], "event_prefix": "invoice"}');
+create trigger bs_audit after insert or update or delete on "Billing"."Plans"
+  for each row execute function better_supabase.audit_row_change();
+create trigger other after insert on public.skipped
+  for each row execute function better_supabase.audit_row_change();
+create trigger bs_audit after insert on public.broken
+  for each row execute function better_supabase.audit_row_change('not json');`,
+        },
+        { text: "select better_supabase.unaudit('Billing.\"Plans\"');" },
+        {
+          text: "select better_supabase.audit('public.invoices', ignore => '{seen_at}');",
+        },
+      ]),
+    ).toEqual([
+      { target: "Billing.Plans", ignore: [], redact: [] },
+      { target: "public.invoices", ignore: ["seen_at"], redact: [] },
+    ]);
+  });
+});

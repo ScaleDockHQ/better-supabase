@@ -89,8 +89,8 @@ function auditTableTest(
   const checks: string[] = [
     `select extensions.has_trigger(${schema}, ${name}, 'bs_audit', ${sqlString(`${table.target} has the bs_audit trigger`)});`,
     `select extensions.trigger_is(${schema}, ${name}, 'bs_audit', 'better_supabase', 'audit_row_change', ${sqlString(`bs_audit on ${table.target} calls audit_row_change()`)});`,
-    `select extensions.is((select a.ignore from better_supabase.audited_tables a where a.target = ${regclass}), ${textArray(table.ignore)}, ${sqlString(`${table.target} is registered with its ignored columns`)});`,
-    `select extensions.is((select a.redact from better_supabase.audited_tables a where a.target = ${regclass}), ${textArray(table.redact)}, ${sqlString(`${table.target} is registered with its redacted columns`)});`,
+    `select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings(${regclass}) -> 'ignore', '[]'))), ${textArray(table.ignore)}, ${sqlString(`${table.target} is registered with its ignored columns`)});`,
+    `select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings(${regclass}) -> 'redact', '[]'))), ${textArray(table.redact)}, ${sqlString(`${table.target} is registered with its redacted columns`)});`,
   ];
   const behaviour = ctx.has("log", "table") && ctx.has("log", "op");
   if (!behaviour) {

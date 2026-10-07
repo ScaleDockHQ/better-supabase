@@ -2518,6 +2518,95 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("keeps audit settings on the trigger, so registrations leave no rows", async () => {
+    const called = `public.bs_audit_call_${RUN}`;
+    const declared = `public.bs_audit_static_${RUN}`;
+    const legacy = `public.bs_audit_legacy_${RUN}`;
+    await pool.query(`
+      create table ${called} (code text primary key, organization_id uuid, secret text, note text, seen_at timestamptz);
+      create table ${declared} (id int primary key, organization_id uuid, note text);
+      create table ${legacy} (id int primary key, organization_id uuid, note text, noise text);
+      select better_supabase.audit('${called}', ignore => '{seen_at}', redact => '{secret}', event_prefix => 'vault');
+      create trigger bs_audit after insert or update or delete on ${declared}
+        for each row execute function better_supabase.audit_row_change('{"event_prefix": "memo", "category": "notes"}');
+      create trigger bs_audit after insert or update or delete on ${legacy}
+        for each row execute function better_supabase.audit_row_change();
+      insert into better_supabase.audited_tables (target, ignore, event_prefix)
+        values ('${legacy}', '{noise}', 'old');
+    `);
+    try {
+      const { rows: registry } = await pool.query(
+        "select target::text from better_supabase.audited_tables where target = any(array[$1, $2]::regclass[])",
+        [called, declared],
+      );
+      expect(registry).toEqual([]);
+      expect(
+        (
+          await pool.query<{ settings: unknown }>(
+            "select better_supabase.audit_settings($1::regclass) as settings",
+            [called],
+          )
+        ).rows[0]!.settings,
+      ).toEqual({
+        ignore: ["seen_at"],
+        redact: ["secret"],
+        key_columns: ["code"],
+        event_prefix: "vault",
+      });
+      await pool.query(`
+        insert into ${called} values ('c1', '${ACME}', 's1', 'a', now());
+        update ${called} set seen_at = now() where code = 'c1';
+        update ${called} set note = 'b', secret = 's2' where code = 'c1';
+        insert into ${declared} values (1, '${ACME}', 'x');
+        insert into ${legacy} values (1, '${ACME}', 'x', 'n');
+        update ${legacy} set noise = 'm' where id = 1;
+      `);
+      const { rows } = await pool.query<{
+        table_name: string;
+        event_type: string;
+        record_id: string;
+        category: string;
+        changed: string[] | null;
+        new_record: Record<string, unknown>;
+      }>(
+        `select table_name, event_type, record_id, category, changed, new_record
+         from better_supabase.audit_events where table_name = any($1) order by id`,
+        [[called, declared, legacy]],
+      );
+      expect(
+        rows.map((row) => [row.event_type, row.record_id, row.changed]),
+      ).toEqual([
+        ["vault.created", "c1", null],
+        ["vault.updated", "c1", ["note", "secret"]],
+        ["memo.created", "1", null],
+        ["old.created", "1", null],
+      ]);
+      expect(rows[1]!.new_record).toMatchObject({ secret: "[redacted]" });
+      expect(rows[1]!.new_record).not.toHaveProperty("seen_at");
+      expect(rows[2]!.category).toBe("notes");
+      expect(
+        (
+          await pool.query<{ settings: unknown }>(
+            "select better_supabase.audit_settings($1::regclass) as settings",
+            [legacy],
+          )
+        ).rows[0]!.settings,
+      ).toMatchObject({ ignore: ["noise"], event_prefix: "old" });
+    } finally {
+      await pool.query(
+        `delete from better_supabase.audited_tables where target = '${legacy}'::regclass`,
+      );
+      await pool.query(`
+        drop table if exists ${called};
+        drop table if exists ${declared};
+        drop table if exists ${legacy};
+      `);
+      await pool.query(deleteAudit("table_name = any($1)"), [
+        [called, declared, legacy],
+      ]);
+    }
+  });
+
   it("records actor, labels, request ids and per-column changes", async () => {
     const client = await pool.connect();
     const name = `bs_audit_ctx_${RUN}`;

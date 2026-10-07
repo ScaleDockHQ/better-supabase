@@ -64,8 +64,10 @@ describe("audit module", () => {
     );
     expect(sql).not.toContain("audit_events_restricted");
     expect(sql).toContain(
-      "execute function better_supabase.audit_row_change()",
+      "execute function better_supabase.audit_row_change(%L)",
     );
+    expect(sql).toContain("settings := tg_argv[0]::jsonb;");
+    expect(sql).not.toMatch(/insert into better_supabase\.audited_tables/);
     expect(sql).toContain(
       "raise exception 'audit_event got restricted details, and the audit module has no restricted table'",
     );
