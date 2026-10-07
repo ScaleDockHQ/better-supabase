@@ -206,22 +206,23 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role copies comments' using errcode = '42501', hint = 'COMMENT_FORBIDDEN';
   end if;
-  create temporary table if not exists bs_comment_copy (old_id uuid primary key, new_id uuid not null) on commit drop;
-  delete from bs_comment_copy where old_id is not null;
-  insert into bs_comment_copy (old_id, new_id)
-  select y."id", gen_random_uuid()
-  from "better_supabase"."comments" y
-  where y."organization_id" = copy_comments.tenant
-    and y."subject_type" = copy_comments.from_type
-    and y."subject_id" = copy_comments.from_id;
-  insert into "better_supabase"."comments" ("id", "organization_id", "subject_type", "subject_id", "author_id", "body", "document", "mentions", "parent_id", "created_at", "edited_at", "deleted_at")
-  select m.new_id, y."organization_id", copy_comments.to_type, copy_comments.to_id, y."author_id",
-    y."body", y."document", '{}', p.new_id, y."created_at", y."edited_at", y."deleted_at"
-  from "better_supabase"."comments" y
-  join bs_comment_copy m on m.old_id = y."id"
-  left join bs_comment_copy p on p.old_id = y."parent_id"
-  order by y."created_at", y."id";
-  get diagnostics copied = row_count;
+  with copies as materialized (
+    select y."id" as old_id, gen_random_uuid() as new_id
+    from "better_supabase"."comments" y
+    where y."organization_id" = copy_comments.tenant
+      and y."subject_type" = copy_comments.from_type
+      and y."subject_id" = copy_comments.from_id
+  ), inserted as (
+    insert into "better_supabase"."comments" ("id", "organization_id", "subject_type", "subject_id", "author_id", "body", "document", "mentions", "parent_id", "created_at", "edited_at", "deleted_at")
+    select m.new_id, y."organization_id", copy_comments.to_type, copy_comments.to_id, y."author_id",
+      y."body", y."document", '{}', p.new_id, y."created_at", y."edited_at", y."deleted_at"
+    from "better_supabase"."comments" y
+    join copies m on m.old_id = y."id"
+    left join copies p on p.old_id = y."parent_id"
+    order by y."created_at", y."id"
+    returning 1
+  )
+  select count(*)::integer into copied from inserted;
   return copied;
 end;
 $$;

@@ -31,6 +31,9 @@ comments. Put these in a hand-written migration instead:
   `_better_supabase_extensions.sql` migration stamped before the schema
   migration you generate next, and `sql data` refuses to run while one is
   missing. Doctor BS321 warns about an extension no migration creates.
+- Event triggers under `-s <schemas>`: they belong to no schema, so a
+  filtered sync drops them. The module data files repeat them, and doctor
+  BS323 reports one the database or the migrations lack.
 - Objects in `auth`, `storage` or other Supabase-managed schemas, except
   policies and triggers whose function lives in your own schema.
 - Object kinds pg-delta doesn't track (casts, operators, text search

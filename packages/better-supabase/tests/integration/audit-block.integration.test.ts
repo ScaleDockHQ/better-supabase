@@ -197,6 +197,131 @@ describe.skipIf(!live)("audit block", () => {
     }
   });
 
+  it("records events with a request id, a scope and metadata in adopted columns", async () => {
+    const s = await BlockSession.open(pool);
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const log = `public.bs_activity_${suffix}`;
+    try {
+      await s.client.query(`
+        create table ${log} (
+          id bigint generated always as identity primary key,
+          workspace_id uuid,
+          occurred_at timestamptz not null default now(),
+          event_type text, category text, outcome text, source text,
+          target_type text, record_id text, actor_id uuid, metadata jsonb,
+          request_ref text, scope text, ticket_id uuid,
+          priority integer not null default 3
+        );`);
+      await s.install(["audit"], {
+        modules: {
+          audit: {
+            mode: "adopt",
+            tables: { log },
+            columns: {
+              log: {
+                tenant: "workspace_id",
+                requestId: "request_ref",
+                scope: "scope",
+                table: null,
+                op: null,
+                old: null,
+                new: null,
+                changed: null,
+                actorRole: null,
+                impersonatedBy: null,
+                impersonationReason: null,
+                supportSession: null,
+                idempotencyKey: null,
+              },
+            },
+            options: {
+              values: { scope: { platform: "global" } },
+              metadataColumns: { ticket_id: "ticketId", priority: "priority" },
+              eventRoles: ["service_role", "authenticated"],
+            },
+          },
+        },
+      });
+      const workspace = crypto.randomUUID();
+      const ticket = crypto.randomUUID();
+      const audit = createAuditLog({ transport: sqlTransport(s.sql) });
+      await s.service();
+      const id = await audit
+        .record({
+          eventType: "ticket.escalated",
+          organizationId: workspace,
+          requestId: "req-1",
+          scope: "region",
+          metadata: { ticketId: ticket, priority: 2, note: "kept" },
+        })
+        .orThrow();
+      await audit
+        .record({
+          eventType: "system.ping",
+          scope: "platform",
+          metadata: { ticketId: null },
+        })
+        .orThrow();
+      const user = await s.user("member");
+      await s.asRole(user);
+      await audit
+        .record({
+          eventType: "ticket.viewed",
+          organizationId: workspace,
+          requestId: "forged",
+          scope: "forged",
+        })
+        .orThrow();
+      await s.service();
+      const { rows } = await s.client.query<Record<string, unknown>>(
+        `select id::text, event_type, request_ref, scope, ticket_id, priority, metadata from ${log} order by id`,
+      );
+      expect(rows).toEqual([
+        {
+          id,
+          event_type: "ticket.escalated",
+          request_ref: "req-1",
+          scope: "region",
+          ticket_id: ticket,
+          priority: 2,
+          metadata: { note: "kept" },
+        },
+        {
+          id: expect.any(String),
+          event_type: "system.ping",
+          request_ref: null,
+          scope: "global",
+          ticket_id: null,
+          priority: 3,
+          metadata: {},
+        },
+        {
+          id: expect.any(String),
+          event_type: "ticket.viewed",
+          request_ref: null,
+          scope: "tenant",
+          ticket_id: null,
+          priority: 3,
+          metadata: {},
+        },
+      ]);
+      const listed = await createAuditLog<{
+        ticket_id: string | null;
+        priority: number;
+      }>({ transport: sqlTransport(s.sql) })
+        .list({ organizationId: workspace, order: "asc" })
+        .orThrow();
+      expect(
+        listed.entries.map((entry) => [entry.eventType, entry.columns]),
+      ).toEqual([
+        ["ticket.escalated", { ticket_id: ticket, priority: 2 }],
+        ["ticket.viewed", { ticket_id: null, priority: 3 }],
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("lists, reveals and exports through list_audit_events as the caller", async () => {
     const s = await BlockSession.open(pool);
     try {
@@ -242,6 +367,18 @@ describe.skipIf(!live)("audit block", () => {
         "invoice.sent",
       ]);
       expect(second.next).toBeUndefined();
+      const third = await audit
+        .list({
+          organizationId: organization,
+          limit: 1,
+          offset: 2,
+          count: true,
+        })
+        .orThrow();
+      expect(third.entries.map((entry) => entry.eventType)).toEqual([
+        "invoice.sent",
+      ]);
+      expect(third.total).toBe(3);
 
       const details = await audit.reveal(first.entries[0]!.id).orThrow();
       expect(details.entry).toBe(first.entries[0]!.id);
@@ -298,6 +435,40 @@ describe.skipIf(!live)("audit block", () => {
         `https://storage.test/${organization}/audit.ndjson`,
       );
       expect(stored.get(target.path)!.trim().split("\n")).toHaveLength(4);
+
+      const revealed = await new Response(
+        audit.export({
+          organizationId: organization,
+          eventType: ["invoice.sent", "invoice.paid"],
+          order: "asc",
+          format: "csv",
+          preamble: ["Invoices"],
+          columns: [
+            "eventType",
+            { key: "restricted.metadata", label: "Details" },
+          ],
+        }),
+      ).text();
+      expect(revealed.split("\r\n")).toEqual([
+        "Invoices",
+        "eventType,Details",
+        `invoice.sent,"{""card"":""4242""}"`,
+        `invoice.paid,"{""card"":""4242""}"`,
+        "",
+      ]);
+      const ids = (
+        await audit
+          .list({
+            organizationId: organization,
+            eventType: ["invoice.sent", "invoice.paid"],
+            order: "asc",
+          })
+          .orThrow()
+      ).entries.map((entry) => entry.id);
+      const exported = await audit
+        .list({ organizationId: organization, eventType: "audit.revealed" })
+        .orThrow();
+      expect(exported.entries[0]?.metadata).toEqual({ entries: ids });
 
       await s.asRole(outsider);
       expect(

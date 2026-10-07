@@ -151,6 +151,29 @@ describe("audit module", () => {
     ).toThrow(/impersonators/);
   });
 
+  it("takes an event's restricted details from service callers' arguments only", () => {
+    const sql = audit({ options: { restricted: true } });
+    expect(sql).toContain("    ip := better_supabase.request_ip();");
+    expect(sql).toContain(
+      "if coalesce(restricted, '{}') <> '{}' or ip is not null or nullif(user_agent, '') is not null or nullif(session_id, '') is not null then",
+    );
+    expect(sql).not.toContain("coalesce(ip, better_supabase.request_ip())");
+    expect(audit()).toContain("    ip := null;");
+  });
+
+  it("reveals a page of entries for an export, with one audit.revealed per tenant", () => {
+    const sql = audit({ options: { restricted: true, readPolicy: true } });
+    expect(sql).toContain(
+      `create or replace function "better_supabase"."reveal_audit_entries"(entries text[])`,
+    );
+    expect(sql).toContain(
+      "metadata => jsonb_build_object('entries', revealed.ids)",
+    );
+    expect(audit({ options: { restricted: true } })).not.toContain(
+      "reveal_audit_entries",
+    );
+  });
+
   it("drops the old signatures when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "audit", version: 1 }]);
     expect(plan!.steps[0]!.sql).toContain(
@@ -183,6 +206,47 @@ describe("audit value mapping", () => {
       tenantLabelKey: "workspace_id",
     },
   };
+
+  it("fills an adopted log's own columns from metadata keys", () => {
+    const sql = audit({
+      ...ADOPTED,
+      options: { metadataColumns: { ticket_id: "ticketId" } },
+    });
+    expect(sql).toContain(
+      "|| case when audit_event.metadata ? 'ticketId' then pg_catalog.jsonb_build_object('ticket_id', audit_event.metadata -> 'ticketId') else '{}'::jsonb end;",
+    );
+    expect(sql).toContain(
+      `execute pg_catalog.format('insert into "public"."activity_log" (%s) select %s from pg_catalog.jsonb_populate_record(null::"public"."activity_log", $1) returning "id"', entry_columns, entry_columns)`,
+    );
+    expect(sql).toContain(
+      "'metadata', coalesce(metadata, '{}') - array['ticketId']::text[],",
+    );
+    expect(sql).toContain(
+      `'columns', jsonb_build_object('ticket_id', l."ticket_id")`,
+    );
+    expect(
+      audit({
+        ...ADOPTED,
+        options: {
+          metadataColumns: { ticket_id: "ticketId" },
+          keepMappedMetadata: true,
+        },
+      }),
+    ).toContain("'metadata', coalesce(metadata, '{}'),");
+    expect(audit(ADOPTED)).not.toContain("entry_row");
+    expect(sql).toContain(
+      "request_id text default null,\n  scope text default null",
+    );
+    expect(() =>
+      audit({ options: { metadataColumns: { ticket_id: "ticketId" } } }),
+    ).toThrow(/adopted log/);
+    expect(() =>
+      audit({ ...ADOPTED, options: { metadataColumns: { scope: "scope" } } }),
+    ).toThrow(/already fills it/);
+    expect(() =>
+      audit({ ...ADOPTED, options: { metadataColumns: { ticket_id: 1 } } }),
+    ).toThrow(/metadata key/);
+  });
 
   it("writes the adopted log's values and reads them back as the module's", () => {
     const sql = audit(ADOPTED);

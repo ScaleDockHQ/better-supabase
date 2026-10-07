@@ -34,6 +34,26 @@ select better_supabase.audit('crm."Deals"', redact := array['secret']::text[], c
     ).toEqual([{ target: "public.a", ignore: ["x"], redact: [] }]);
   });
 
+  it("treats a later drop table like unaudit and keeps a table audited again", () => {
+    expect(
+      auditRegistrations([
+        file(`
+select better_supabase.audit('public.a');
+select better_supabase.audit('public.b');
+select better_supabase.audit('crm."Deals"');
+select better_supabase.audit('public.c');
+`),
+        file(`
+drop table public.a;
+DROP TABLE IF EXISTS b, crm . "Deals" cascade;
+drop table public.c;
+create table public.c (id int primary key);
+select better_supabase.audit('public.c', ignore => '{x}');
+`),
+      ]),
+    ).toEqual([{ target: "public.c", ignore: ["x"], redact: [] }]);
+  });
+
   it("skips comments, the module's own definitions and non-literal arguments", () => {
     expect(
       auditRegistrations([

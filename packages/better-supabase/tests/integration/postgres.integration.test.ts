@@ -482,6 +482,82 @@ describe.skipIf(!live)("Postgres executor", async () => {
     );
   });
 
+  it("calls functions with $rpc like PostgREST", async () => {
+    const calls = [
+      (db: typeof rest | typeof sql) =>
+        db.$rpc("customers_by_status", { p_status: "active", p_limit: 5 }),
+      (db: typeof rest | typeof sql) =>
+        db.$rpc("customer_note_counts", { p_customer_ids: [ROAD_RUNNER] }),
+      (db: typeof rest | typeof sql) =>
+        db.$rpc("rs_workspace_summary", { p: { userId: USER } }),
+      (db: typeof rest | typeof sql) =>
+        db.$rpc("customer_note_counts", { p_customer_ids: ["nope"] }),
+    ];
+    const results = [];
+    for (const call of calls) {
+      const [overRest, overSql] = await Promise.all([call(rest), call(sql)]);
+      expect(overSql.ok).toBe(overRest.ok);
+      expect(overSql.data).toEqual(overRest.data);
+      expect(overSql.error?.kind).toBe(overRest.error?.kind);
+      results.push(overSql);
+    }
+    expect(results.map((result) => result.ok)).toEqual([
+      true,
+      true,
+      true,
+      false,
+    ]);
+    expect(results[0]!.data).not.toEqual([]);
+    expect(results[1]!.data).toEqual([
+      expect.objectContaining({ customerId: ROAD_RUNNER }),
+    ]);
+    expect(results[2]!.data).toMatchObject({ customers: { rows: [] } });
+    expect(results[3]!.error?.kind).toBe("invalid_input");
+  });
+
+  it("calls functions without generated metadata over Postgres", async () => {
+    const probe = `bs_rpc_probe_${String(Date.now())}`;
+    await postgres.admin.queryRaw(`
+      create function public.${probe}_scalar(n integer) returns integer language sql as 'select n * 2';
+      create function public.${probe}_set(n integer) returns setof integer language sql as 'select generate_series(1, n)';
+      create function public.${probe}_void(note text) returns void language sql as 'select';
+      create function public.${probe}_raise() returns integer language plpgsql as $$ begin raise exception 'Nope' using hint = 'PROBE'; end; $$;
+      grant execute on function public.${probe}_scalar(integer), public.${probe}_set(integer), public.${probe}_void(text), public.${probe}_raise() to authenticated;
+    `);
+    try {
+      const executor = postgresExecutor(postgres.asUser(claims));
+      const call = (name: string, args: Record<string, unknown> = {}) =>
+        executor.rpc!(name, args, { schema: "public", errorMappers: [] });
+      expect(await call(`${probe}_scalar`, { n: 21 })).toMatchObject({
+        ok: true,
+        data: 42,
+      });
+      expect(await call(`${probe}_set`, { n: 3 })).toMatchObject({
+        ok: true,
+        data: [1, 2, 3],
+      });
+      expect(await call(`${probe}_void`, { note: "x" })).toMatchObject({
+        ok: true,
+        data: null,
+      });
+      expect(await call(`${probe}_raise`)).toMatchObject({
+        ok: false,
+        error: { kind: "raised", message: "Nope", hint: "PROBE" },
+      });
+      expect(await call(`${probe}_missing`)).toMatchObject({
+        ok: false,
+        error: { kind: "invalid_request" },
+      });
+    } finally {
+      await postgres.admin.queryRaw(`
+        drop function if exists public.${probe}_scalar(integer);
+        drop function if exists public.${probe}_set(integer);
+        drop function if exists public.${probe}_void(text);
+        drop function if exists public.${probe}_raise();
+      `);
+    }
+  });
+
   it("runs several operations in one transaction", async () => {
     await expect(
       postgres.transaction(

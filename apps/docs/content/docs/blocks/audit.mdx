@@ -1,6 +1,6 @@
 ---
 title: Audit log
-description: List, reveal and export a tenant's audit entries as NDJSON, CSV or OCSF, and purge them per tenant's retention.
+description: Record events, and list, reveal and export a tenant's audit entries as NDJSON, CSV or OCSF, and purge them per tenant's retention.
 ---
 
 The `audit` SQL module records row changes and `audit_event()` calls (see
@@ -19,6 +19,49 @@ Turn on `readPolicy` so members read their tenant's entries with
 export default defineConfig({
   sql: { modules: { audit: { options: { readPolicy: true } } } },
 });
+```
+
+## Recording events
+
+`audit.record` writes a semantic event through `audit_event` and returns the
+entry id. Call it with a service-role transport from a job, a webhook
+handler or an API route:
+
+```ts
+const id = await audit
+  .record({
+    eventType: "ticket.escalated",
+    category: "support",
+    organizationId,
+    record: ticket.id,
+    summary: "Escalated to the on-call team",
+    requestId: request.headers.get("x-request-id") ?? undefined,
+    metadata: { ticketId: ticket.id, priority: 2 },
+  })
+  .orThrow();
+```
+
+Its fields are the arguments of `audit_event`. `actorId`, `actorKind`,
+`actorLabel`, `ip`, `userAgent`, `sessionId`, `requestId` and `scope` count
+only for the service role and direct admin connections; any other caller
+gets its own user and the request's `x-request-id` header. `scope` defaults
+to `tenant` with an organization and `platform` without one, and an adopted
+log can take its own value (`region`, say). An adopted log's columns outside
+the module's model are filled from metadata keys with
+`sql.modules.audit.options.metadataColumns` (see
+[SQL modules](/docs/blocks/sql#audit-log)). A key the event leaves out
+leaves its column to the column's default, so a `not null default` column
+keeps working, and the mapped keys are removed from the stored metadata
+unless `keepMappedMetadata` is `true`. `list` and `export` return those
+columns by name under `columns`; pass their types to `createAuditLog` to
+type them:
+
+```ts
+const audit = createAuditLog<{ ticket_id: string | null; priority: number }>({
+  transport: sqlTransport(ctx.postgres),
+});
+const page = await audit.list({ organizationId }).orThrow();
+// page.entries[0].columns: { ticket_id: "...", priority: 2 }
 ```
 
 ## Listing entries
@@ -65,6 +108,23 @@ const page = await audit
 // page.total: 12
 ```
 
+A table with page numbers opens page N with `offset` next to `count`:
+
+```ts
+const page = await audit
+  .list({
+    organizationId,
+    limit: 25,
+    offset: (pageNumber - 1) * 25,
+    count: true,
+  })
+  .orThrow();
+// page.entries: the entries of that page; page.total: every match
+```
+
+`offset` skips that many entries after the filters (and after `before`, when
+both are set), and `export` takes it too, to start an export at that entry.
+
 `export` takes the same filters, `search` and `order`. Restricted details (row snapshots, IP, user agent) are
 never in the list. `audit.reveal(entryId)` returns them for a member with the
 reveal permission in the entry's tenant, or platform staff, and records the
@@ -105,7 +165,40 @@ export const GET = bs.handler(async (request, ctx) => {
 ```
 
 `format: "csv"` writes a header row and one row per entry, with text that
-starts like a spreadsheet formula prefixed with `'`. For an export that runs
+starts like a spreadsheet formula prefixed with `'`. `columns` picks and
+orders the columns (a record key, a key with its header label,
+`columns.<name>` for a column `metadataColumns` fills, or
+`restricted.<field>` for restricted details), `preamble` writes lines
+before the header row, and `formatRow` changes each row before it is
+written:
+
+```ts
+const stream = audit.export({
+  organizationId,
+  format: "csv",
+  preamble: [`Audit log for ${organization.name}`, `Exported ${now}`],
+  columns: [
+    { key: "occurredAt", label: "Time" },
+    { key: "actorLabel", label: "Who" },
+    "eventType",
+    { key: "columns.ticket_id", label: "Ticket" },
+    { key: "restricted.ip", label: "IP address" },
+  ],
+  formatRow: (row, record) => ({
+    ...row,
+    occurredAt: record.occurredAt.toLocaleString("en-GB"),
+  }),
+});
+```
+
+A `restricted.<field>` column (`ip`, `userAgent`, `sessionId`, `metadata`,
+`old`, `new` or `changes`) reads each page's details through
+`reveal_audit_entries(entries)`, which returns them for the entries the
+caller may reveal (the same check as `reveal`), leaves the cells of the
+others empty, and records one `audit.revealed` entry per tenant with the
+revealed ids in `metadata.entries`. It needs the `restricted` option and
+the access module. Without `columns`, the export keeps its default
+columns. For an export that runs
 in the background (a jobs handler that emails a link, say),
 `audit.exportToStorage({ storage, bucket, path, signedUrlTtl, ...filters })`
 writes the file to Storage, such as the data lifecycle `data-exports`

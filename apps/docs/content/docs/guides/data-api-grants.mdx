@@ -54,8 +54,11 @@ expose: {
 },
 ```
 
-Doctor (BS106) checks the table-level privileges only, since column grants
-don't show in a table's privileges.
+The CLI validates the config with the same rule, so `sql sync` accepts a
+column privilege in `better-supabase.config.ts` or `.json` and rejects a
+string that is neither a privilege nor a column list. Doctor (BS106) checks
+the table-level privileges only, since column grants don't show in a table's
+privileges.
 
 Each entry is the complete privilege set of that table or function. The
 `grants` module first revokes everything from `public`, `anon`,

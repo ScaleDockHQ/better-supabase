@@ -466,3 +466,85 @@ describe("fromPgError", () => {
     expect(fromPgError("23505")).toBeUndefined();
   });
 });
+
+describe("postgresExecutor rpc", () => {
+  const fn = schema.meta.functions["rs_workspace_summary"]!;
+
+  it("calls the function by schema and named arguments, as json for json types", async () => {
+    const fake = fakeSql([["to_json(bs_call)", [{ value: { ok: true } }]]]);
+    const executor = postgresExecutor(fake.sql);
+    const result = await executor.rpc!(
+      "rs_workspace_summary",
+      { p: [1, 2], skipped: undefined },
+      { schema: "public", errorMappers: [], function: fn },
+    );
+    expect(result).toMatchObject({ ok: true, data: { ok: true } });
+    expect(fake.calls).toEqual([
+      {
+        text: 'select to_json(bs_call) as value from "public"."rs_workspace_summary"("p" => $1) as bs_call',
+        values: ["[1,2]"],
+      },
+    ]);
+  });
+
+  it("sends objects as json, Temporal values as text and bigints as strings", async () => {
+    const fake = fakeSql([
+      ["pg_proc", [{ returns_set: true, returns_void: false }]],
+      ["to_json(bs_call)", [{ value: 1 }, { value: 2 }]],
+    ]);
+    const at = Temporal.Instant.from("2026-01-02T03:04:05Z");
+    const result = await postgresExecutor(fake.sql).rpc!(
+      "probe",
+      { a: { b: 1 }, at, n: 9007199254740993n, ids: ["x", "y"], none: null },
+      { schema: "app", errorMappers: [] },
+    );
+    expect(result).toMatchObject({ ok: true, data: [1, 2] });
+    expect(fake.calls[0]!.values).toEqual(["app", "probe"]);
+    expect(fake.calls[1]).toEqual({
+      text: 'select to_json(bs_call) as value from "app"."probe"("a" => $1, "at" => $2, "n" => $3, "ids" => $4, "none" => $5) as bs_call',
+      values: [
+        '{"b":1}',
+        "2026-01-02T03:04:05Z",
+        "9007199254740993",
+        ["x", "y"],
+        null,
+      ],
+    });
+  });
+
+  it("returns null for void, maps errors and reports a missing function", async () => {
+    const fake = fakeSql([
+      [
+        /pg_proc.*/,
+        (call) =>
+          call.values[1] === "gone"
+            ? []
+            : [{ returns_set: false, returns_void: call.values[1] === "noop" }],
+      ],
+      ['"noop"', []],
+      ['"boom"', { throws: pgError("P0001", "Nope", { hint: "PROBE" }) }],
+    ]);
+    const executor = postgresExecutor(fake.sql);
+    const call = (name: string) =>
+      executor.rpc!(name, {}, { schema: "public", errorMappers: [] });
+    expect(await call("noop")).toMatchObject({ ok: true, data: null });
+    expect(fake.texts()).toContain('select "public"."noop"()');
+    expect(await call("boom")).toMatchObject({
+      ok: false,
+      error: { kind: "raised", hint: "PROBE" },
+    });
+    expect(await call("gone")).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request", code: "PGRST202" },
+    });
+    const aborted = new AbortController();
+    aborted.abort();
+    expect(
+      await executor.rpc!(
+        "noop",
+        {},
+        { schema: "public", errorMappers: [], signal: aborted.signal },
+      ),
+    ).toMatchObject({ ok: false, error: { kind: "aborted" } });
+  });
+});

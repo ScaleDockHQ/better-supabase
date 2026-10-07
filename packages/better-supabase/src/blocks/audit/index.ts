@@ -1,7 +1,9 @@
 export { createAuditLog } from "./client.ts";
 export type {
+  AuditColumns,
   AuditCursor,
   AuditDetails,
+  AuditEventInput,
   AuditExportBucket,
   AuditExportOptions,
   AuditExportToStorageOptions,
@@ -11,6 +13,7 @@ export type {
   AuditPage,
   AuditRecord,
 } from "./client.ts";
+export type { AuditCsvColumn, AuditCsvOptions } from "./csv.ts";
 export {
   auditListQuery,
   exportAuditLog,

@@ -121,7 +121,8 @@ call it from the code that duplicates the record, after that code checked the
 caller may read both. It works over `sqlTransport` and over `rpcTransport`
 with a service-role client; PostgREST sessions on Supabase load
 pg-safeupdate, which refuses a `delete` or `update` without a `where`
-clause, and every statement the SQL modules run has one.
+clause, and every statement the SQL modules run has one. The function
+creates no temporary table, so `supabase db lint` checks it like any other.
 
 ## Comments
 

@@ -44,6 +44,16 @@ migration, stamped after the newest one so it runs after the schema migration.
 Its statements are idempotent, and it writes nothing when the latest data
 migration already has them. `sql add` and `sql sync` say when to run it.
 
+Event triggers belong to no schema, so a diff limited to some schemas
+(`supabase db schema declarative sync -s public,better_supabase`) leaves
+them out of its migration. Run the sync without `-s` when you use `audit`
+(`bs_audit_forget_dropped`) or `ensure-rls` (`bs_ensure_rls`). Their data
+files repeat the event triggers (`drop event trigger if exists`, then
+`create event trigger`), so the `sql data` migration creates them even when
+the schema migration lacks them, and
+[doctor BS323](/docs/cli/doctor#bs323) reports a module event trigger that
+the database, or every migration, lacks.
+
 The sync uses pg-delta, the Supabase CLI's diff engine (2.119 or later), which
 orders the schema files by dependency and carries grants, comments and
 `security_invoker` on views into the migration. It needs
@@ -315,12 +325,18 @@ select better_supabase.audit_event(
 
 A job, a webhook handler or an admin tool that records an event as the
 service role can say who acted and from where: `actor_id`, `actor_kind`
-(such as `job` or `api-key`), `actor_label`, and, with the restricted table,
-`ip`, `user_agent` and `session_id`. The function takes these only from the
+(such as `job` or `api-key`), `actor_label`, `request_id` (the request it
+handled), `scope` (an adopted log's own value, or `tenant` and `platform`),
+and, with the restricted table, `ip`, `user_agent` and `session_id`. The function takes these only from the
 service role and direct admin connections; for any other caller it uses
 `auth.uid()`, the request's JWT and headers, so a user can't record an event
-in someone else's name. Without the restricted table, passing `ip`,
-`user_agent` or `session_id` fails with `22023`, as `restricted` does:
+in someone else's name. For the service role these three come only from
+the arguments, never from the request, so a server that calls
+`audit_event` over the Data API doesn't store its own address and user
+agent as the user's. An event whose `restricted`, `ip`, `user_agent` and
+`session_id` are all empty writes no restricted row. Without the restricted
+table, passing `ip`, `user_agent` or `session_id` fails with `22023`, as
+`restricted` does:
 
 ```sql
 select better_supabase.audit_event(
@@ -335,19 +351,21 @@ select better_supabase.audit_event(
 
 The module options (`sql.modules.audit.options`):
 
-| Option          | Default                  | What it does                                                                                                                                                                                              |
-| --------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tenantColumn`  | `plugins.tenant`         | the tenant column of audited tables                                                                                                                                                                       |
-| `appendOnly`    | `true` when managed      | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                      |
-| `readPolicy`    | `false`                  | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/access))                                                           |
-| `impersonators` | `show`                   | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                               |
-| `restricted`    | `false`                  | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023` |
-| `eventRoles`    | `['service_role']`       | the roles that can call `audit_event`                                                                                                                                                                     |
-| `eventCategory` | `system`                 | the category of an `audit_event` call without one                                                                                                                                                         |
-| `eventSource`   | `app`                    | the source of an `audit_event` call without one                                                                                                                                                           |
-| `exempt`        | `[]`                     | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                  |
-| `tenantLabel`   | the organizations module | `schema.table.column` that `tenant_label` copies, matched on `tenantLabelKey` (`id` by default), for apps without the `organizations` module                                                              |
-| `values`        | none                     | adopt mode only: the adopted log's values for `scope`, `actorKind`, `outcome`, `source` and `category`, see below                                                                                         |
+| Option               | Default                  | What it does                                                                                                                                                                                                                                                                                        |
+| -------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenantColumn`       | `plugins.tenant`         | the tenant column of audited tables                                                                                                                                                                                                                                                                 |
+| `appendOnly`         | `true` when managed      | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                                                                                                                |
+| `readPolicy`         | `false`                  | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/access))                                                                                                                                                     |
+| `impersonators`      | `show`                   | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                                                                                                                         |
+| `restricted`         | `false`                  | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023`                                                                                           |
+| `eventRoles`         | `['service_role']`       | the roles that can call `audit_event`                                                                                                                                                                                                                                                               |
+| `eventCategory`      | `system`                 | the category of an `audit_event` call without one                                                                                                                                                                                                                                                   |
+| `eventSource`        | `app`                    | the source of an `audit_event` call without one                                                                                                                                                                                                                                                     |
+| `exempt`             | `[]`                     | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                                                                                                            |
+| `tenantLabel`        | the organizations module | `schema.table.column` that `tenant_label` copies, matched on `tenantLabelKey` (`id` by default), for apps without the `organizations` module                                                                                                                                                        |
+| `values`             | none                     | adopt mode only: the adopted log's values for `scope`, `actorKind`, `outcome`, `source` and `category`, see below                                                                                                                                                                                   |
+| `metadataColumns`    | none                     | adopt mode only: the adopted log's own columns that `audit_event` fills from a key of its `metadata`, such as `{ ticket_id: "ticketId" }`; the value is converted to the column's type, a missing key leaves the column to its default, and `list_audit_events` returns the columns under `columns` |
+| `keepMappedMetadata` | `false`                  | keeps the keys `metadataColumns` maps in the stored `metadata` too; by default they are removed, since the columns hold them                                                                                                                                                                        |
 
 `sql add` and `sql sync` read the `audit(...)` calls and `bs_audit` triggers in
 your schema files and migrations, and write a pgTAP file per audited table to `sql.testsDir`
@@ -357,9 +375,21 @@ same `ignore` and `redact` lists, then runs an insert, an update and a delete
 on a copy of the table and checks the entries: one per change, without the
 ignored columns, with the redacted values masked. `supabase test db` runs it
 with your other tests, and `sql sync --check` fails when a registration changed
-and the file is stale. A later `unaudit(...)` call removes the table's file on
-the next `sql sync`. Calls with computed arguments, such as
-`audit(format(...))`, are skipped.
+and the file is stale. A later `unaudit(...)` call or `drop table` removes
+the table's file on the next `sql sync`. Calls with computed arguments, such
+as `audit(format(...))`, are skipped.
+
+Dropping an audited table also drops its registration: the module installs
+a `sql_drop` event trigger (`bs_audit_forget_dropped`) that deletes the
+table's row from `better_supabase.audited_tables`, so install the module as
+`postgres`, which supautils lets create event triggers. `unaudit` takes the
+table name as text, so a migration can still call
+`select better_supabase.unaudit('public.old_notes')` after the table is
+gone; it then clears the registrations of tables that no longer exist.
+Tables dropped before the event trigger existed keep their rows; the
+module's data file deletes them, so the next `sql data` migration cleans
+them up, and [doctor BS322](/docs/cli/doctor#bs322) reports any that remain
+on a database.
 
 An app with its own audit table adopts it: map `sql.modules.audit.tables.log` and
 `columns.log` to your names, and `null` the columns you don't have (the row
@@ -453,7 +483,10 @@ The [audit block](/docs/blocks/audit) reads the log from TypeScript: a list
 query, NDJSON and OCSF exports, and retention per tenant. In SQL,
 `list_audit_events` lists the entries the caller can read, and
 `reveal_audit_entry(entry)` returns an entry's restricted details and records
-the read as `audit.revealed`.
+the read as `audit.revealed`. `reveal_audit_entries(entries)` does the same
+for a list of entry ids, such as one page of an export: it returns the
+details of the entries the caller may reveal, skips the rest, and records
+one `audit.revealed` entry per tenant with the ids in `metadata.entries`.
 
 ## Retention
 

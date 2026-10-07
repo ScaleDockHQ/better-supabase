@@ -2383,7 +2383,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
        from unnest(array['anon', 'authenticated', 'service_role']) as r(role),
             unnest(array[
               'better_supabase.purge_audit_log(interval, integer, uuid, boolean)',
-              'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text)',
+              'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text)',
               'better_supabase.purge_webhooks(interval, boolean, integer, text)',
               'better_supabase.purge_job_archive(text, interval, integer, interval)',
               'better_supabase.replay_dead_job(text, bigint)'
@@ -2607,6 +2607,81 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("creates a module's event trigger from its data file", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query("drop event trigger bs_audit_forget_dropped");
+      const data = renderModules(["audit"]).find(
+        (file) => file.kind === "data",
+      )!.contents;
+      const statements =
+        /^drop event trigger if exists bs_audit_forget_dropped;\n[^;]*;/m.exec(
+          data,
+        )![0];
+      await client.query(statements);
+      await client.query(statements);
+      const { rows } = await client.query<{ event: string }>(
+        "select evtevent as event from pg_catalog.pg_event_trigger where evtname = 'bs_audit_forget_dropped'",
+      );
+      expect(rows).toEqual([{ event: "sql_drop" }]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("forgets a dropped table's registration and unaudits a table that is gone", async () => {
+    const legacy = `public.bs_audit_dropped_${RUN}`;
+    const stray = `public.bs_audit_stray_${RUN}`;
+    await pool.query(`
+      create table ${legacy} (id int primary key, organization_id uuid);
+      create table ${stray} (id int primary key, organization_id uuid);
+      select better_supabase.audit('${legacy}');
+      insert into better_supabase.audited_tables (target) values ('${legacy}'), ('${stray}');
+    `);
+    const registered = async () =>
+      (
+        await pool.query<{ n: number }>(
+          "select count(*)::int as n from better_supabase.audited_tables a where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid)",
+        )
+      ).rows[0]!.n;
+    try {
+      await pool.query(`drop table ${legacy}`);
+      expect(await registered()).toBe(0);
+      await pool.query(`select better_supabase.unaudit('${legacy}')`);
+      await pool.query(`
+        alter event trigger bs_audit_forget_dropped disable;
+        drop table ${stray};
+        alter event trigger bs_audit_forget_dropped enable;
+      `);
+      expect(await registered()).toBe(1);
+      await pool.query(`select better_supabase.unaudit('${stray}')`);
+      expect(await registered()).toBe(0);
+      await pool.query(`
+        create table ${stray} (id int primary key, organization_id uuid);
+        insert into better_supabase.audited_tables (target) values ('${stray}');
+        alter event trigger bs_audit_forget_dropped disable;
+        drop table ${stray};
+        alter event trigger bs_audit_forget_dropped enable;
+      `);
+      expect(await registered()).toBe(1);
+      const data = renderModules(["audit"]).find(
+        (file) => file.kind === "data",
+      )!.contents;
+      await pool.query(
+        /^delete from better_supabase\.audited_tables[^;]*;/m.exec(data)![0],
+      );
+      expect(await registered()).toBe(0);
+    } finally {
+      await pool.query("alter event trigger bs_audit_forget_dropped enable");
+      await pool.query(`
+        drop table if exists ${legacy};
+        drop table if exists ${stray};
+      `);
+    }
+  });
+
   it("takes the actor and request details from service-role events only", async () => {
     const client = await pool.connect();
     const actor = crypto.randomUUID();
@@ -2682,6 +2757,40 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         user_agent: "request-agent",
         session_id: "s-1",
       });
+      const restrictedRows = async (sql: string) => {
+        const { rows } = await client.query<{ id: string }>(
+          `select ${sql} as id`,
+        );
+        const { rows: details } = await client.query(
+          `select host(r.ip_address) as ip, r.user_agent, r.session_id, r.metadata
+           from better_supabase.audit_events_restricted r where r.entry_id = $1::bigint`,
+          [rows[0]!.id],
+        );
+        return details;
+      };
+      await client.query(
+        `select set_config('request.jwt.claims', '{"role": "service_role", "session_id": "server"}', true)`,
+      );
+      expect(
+        await restrictedRows("better_supabase.audit_event('job.started')"),
+      ).toEqual([]);
+      expect(
+        await restrictedRows(
+          "better_supabase.audit_event('job.started', restricted => '{}', user_agent => '')",
+        ),
+      ).toEqual([]);
+      expect(
+        await restrictedRows(
+          `better_supabase.audit_event('job.started', restricted => '{"card": "4242"}')`,
+        ),
+      ).toEqual([
+        {
+          ip: null,
+          user_agent: null,
+          session_id: null,
+          metadata: { card: "4242" },
+        },
+      ]);
     } finally {
       await client.query("rollback");
       client.release();

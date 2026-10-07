@@ -82,6 +82,41 @@ begin
 end;
 $$;
 
+create or replace function better_supabase.unaudit(target text)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  relation regclass := pg_catalog.to_regclass(unaudit.target);
+begin
+  if relation is not null then
+    perform better_supabase.unaudit(relation);
+  end if;
+  delete from better_supabase.audited_tables a
+  where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);
+end;
+$$;
+
+create or replace function better_supabase.audit_forget_dropped()
+returns event_trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  delete from better_supabase.audited_tables a
+  where a.target::oid in (
+    select d.objid from pg_catalog.pg_event_trigger_dropped_objects() d
+    where d.object_type = 'table'
+  );
+end;
+$$;
+
+drop event trigger if exists bs_audit_forget_dropped;
+create event trigger bs_audit_forget_dropped on sql_drop
+  when tag in ('DROP TABLE', 'DROP SCHEMA')
+  execute function better_supabase.audit_forget_dropped();
+
 -- The audit() calls for every table in schema_name with tenant_column,
 -- except tables whose name matches an exempt pattern (like 'audit_%').
 -- Paste them into a schema file: static calls keep their place in a
@@ -152,6 +187,8 @@ $$;
 
 revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
+revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
+revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;
 revoke execute on function better_supabase.audit_settings(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_schema_calls(text, text, text[]) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_schema(text, text, text[]) from public, anon, authenticated;`;
