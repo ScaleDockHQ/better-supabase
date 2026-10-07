@@ -164,7 +164,7 @@ export type Models = {
       customers_id_organization_id_key: readonly ["id", "organization_id"];
       customers_organization_id_kvk_key: readonly ["organization_id", "kvk"];
     };
-    Checks: "customers_name_check" | "customers_status_check";
+    Checks: "customers_archived_check" | "customers_name_check" | "customers_status_check";
     ForeignKeys: "customers_organization_id_fkey" | "customers_primary_contact_id_fkey";
     Flags: {
       softDelete: "archived_at";
