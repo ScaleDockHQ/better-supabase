@@ -255,7 +255,7 @@ export function updateInvitation(ctx: ModuleContext): string {
     for update;
     if platform_current.${pc("id")} is not null then
       if platform_current.${pc("expiresAt")} < now() then
-        ${fail("INVITATION_INVALID", "The invitation has expired; resend it to renew it")}
+        ${fail("INVITATION_EXPIRED", "The invitation has expired; resend it to renew it")}
       end if;
       if not service and not better_supabase.is_platform(${invitePlatform(ctx)}) then
         ${fail("INVITATION_FORBIDDEN", "Not allowed to invite platform users")}
@@ -314,7 +314,7 @@ begin
     ${fail("INVITATION_INVALID", "No open invitation %", "invitation_id")}
   end if;
   if current_invite.${c("expiresAt")} < now() then
-    ${fail("INVITATION_INVALID", "The invitation has expired; resend it to renew it")}
+    ${fail("INVITATION_EXPIRED", "The invitation has expired; resend it to renew it")}
   end if;
   tenant := current_invite.${c("tenant")};
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", MODULE_PERMISSIONS.invitations.invite)}), false) then

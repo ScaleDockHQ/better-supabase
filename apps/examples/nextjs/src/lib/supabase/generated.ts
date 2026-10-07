@@ -212,7 +212,7 @@ export type Models = {
   };
   notes: {
     Row: {
-      id: number;
+      id: bigint;
       organizationId: string;
       customerId: string;
       kind: "call" | "meeting" | "email";
@@ -258,7 +258,7 @@ export type Models = {
   };
   notifications: {
     Row: {
-      id: number;
+      id: bigint;
       organizationId: string;
       userId: string;
       title: string;
@@ -381,7 +381,7 @@ export type Functions = {
     Args: {
       p_customer_ids?: string[] | null;
     };
-    Returns: { "customerId": string | null; "lastNoteAt": string | null; "noteCount": number | null }[];
+    Returns: { "customerId": string | null; "lastNoteAt": string | null; "noteCount": bigint | null }[];
   };
   customers_by_status: {
     Args: {

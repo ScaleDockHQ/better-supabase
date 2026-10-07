@@ -21,7 +21,14 @@ function store() {
             status: null,
             response: null,
           });
-          return [{ state: "started", status_code: null, response: null }];
+          return [
+            {
+              state: "started",
+              status_code: null,
+              response: null,
+              holder: "h1",
+            },
+          ];
         }
         if (row.fingerprint !== fingerprint)
           return [{ state: "mismatch", status_code: null, response: null }];
@@ -34,7 +41,7 @@ function store() {
     ],
     [
       "complete_idempotent",
-      ({ values: [scope, key, status, body] }) => {
+      ({ values: [scope, key, , status, body] }) => {
         rows.get(`${String(scope)}:${String(key)}`)!.status = Number(status);
         rows.get(`${String(scope)}:${String(key)}`)!.response = JSON.parse(
           String(body),

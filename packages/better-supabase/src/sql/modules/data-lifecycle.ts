@@ -13,6 +13,7 @@ import {
   tenantIn,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { anonymizeSql } from "./data-lifecycle-anonymize.ts";
 
 const NAMES: ModuleNames = {
   options: [
@@ -22,6 +23,7 @@ const NAMES: ModuleNames = {
     "tables",
     "autoTables",
     "tenantRow",
+    "anonymize",
   ],
   hooks: ["on_organization_purge"],
   tables: {
@@ -895,6 +897,7 @@ $$;
 revoke execute on function ${fn("expired_data_exports")}(integer) from public, anon, authenticated;
 revoke execute on function ${fn("forget_data_exports")}(uuid[]) from public, anon, authenticated;
 grant execute on function ${fn("expired_data_exports")}(integer) to service_role;
+${anonymizeSql(ctx)}
 grant execute on function ${fn("forget_data_exports")}(uuid[]) to service_role;
 revoke execute on function ${fn("data_lifecycle_tables")}() from public, anon, authenticated;
 revoke execute on function ${fn("request_data_export")}(text, ${id}) from public, anon;
@@ -962,6 +965,7 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "organization_deletion", args: ["{id}"], returns: "jsonb" },
     { name: "due_organization_deletions", args: ["integer"], returns: "jsonb" },
     { name: "purge_organization", args: ["{id}"], returns: "jsonb" },
+    { name: "anonymize_due", args: ["integer"], returns: "jsonb" },
   ];
 }
 

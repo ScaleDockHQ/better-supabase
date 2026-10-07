@@ -78,4 +78,53 @@ describe("entitlements sources", () => {
     expect(sql).not.toContain("any (array['active'");
     expect(sql).not.toContain('and f."included"');
   });
+
+  it("returns feature values from the plan catalog's value column", () => {
+    const sql = entitlements({
+      plans: {
+        ...PLANS.plans,
+        features: { ...PLANS.plans.features, value: "limit_value" },
+      },
+    });
+    expect(sql).toContain(
+      "create or replace function better_supabase.tenant_entitlement_value(tenant uuid, key text)",
+    );
+    expect(sql).toContain(
+      `select coalesce(to_jsonb(f."limit_value"), 'true'::jsonb)`,
+    );
+    expect(sql).toContain(
+      `order by case when jsonb_typeof(to_jsonb(f."limit_value")) = 'number' then (to_jsonb(f."limit_value") #>> '{}')::numeric end desc nulls last`,
+    );
+    expect(sql).toContain(
+      "select case when better_supabase.has_organization_role(tenant) then better_supabase.tenant_entitlement_value(tenant, key) end",
+    );
+    expect(sql).toContain(
+      "grant execute on function better_supabase.entitlement_value(uuid, text) to authenticated, service_role;",
+    );
+    for (const source of [PLANS, "stripe-sync"] as const) {
+      const plain =
+        source === "stripe-sync"
+          ? renderModules(["entitlements"], {
+              entitlements: {
+                table: "public.teams",
+                column: "stripe_id",
+                key: "id",
+              },
+            }).find(
+              (file) =>
+                file.module === "entitlements" && file.kind === "schema",
+            )!.contents
+          : entitlements(source);
+      expect(plain).toContain(
+        "select case when key = any (better_supabase.tenant_entitlements(tenant)) then 'true'::jsonb end",
+      );
+    }
+    const custom = entitlements("custom");
+    expect(custom).not.toContain(
+      "create or replace function better_supabase.tenant_entitlement_value",
+    );
+    expect(custom).toContain(
+      "better_supabase.entitlement_value(tenant uuid, key text)",
+    );
+  });
 });

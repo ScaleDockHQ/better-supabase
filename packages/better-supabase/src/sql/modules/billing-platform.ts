@@ -159,6 +159,54 @@ begin
   $q$, customers);
 end;
 $$;
+drop function if exists ${fn("billing_platform_customers")}();
+-- Every linked customer, with or without a subscription or invoice, for
+-- platform staff: the tenant, the Stripe customer and its contact from the
+-- Sync Engine's stripe.customers (null without the table).
+create or replace function ${fn("billing_platform_customers")}()
+returns table (
+  tenant ${id},
+  customer text,
+  email text,
+  name text,
+  created timestamptz
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  customers text := ${customers};
+begin
+  ${guard}
+  return query execute format($q$
+    select b.${c("tenant")}, b.${c("customer")}::text,
+      cu.customer_row ->> 'email', cu.customer_row ->> 'name',
+      ${instant("cu.customer_row -> 'created'")}
+    from ${t} b
+    %s
+    where b.${c("customer")} is not null
+    order by b.${c("tenant")}
+  $q$, customers);
+end;
+$$;
+
+-- billing_platform_customers as jsonb, for createBilling().allCustomers().
+create or replace function ${fn("billing_all_customers")}()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(c.*) order by c.tenant), '[]'::jsonb)
+  from ${fn("billing_platform_customers")}() c
+$$;
+revoke execute on function ${fn("billing_platform_customers")}() from public, anon;
+grant execute on function ${fn("billing_platform_customers")}() to authenticated, service_role;
+revoke execute on function ${fn("billing_all_customers")}() from public, anon;
+grant execute on function ${fn("billing_all_customers")}() to authenticated, service_role;
 revoke execute on function ${fn("billing_platform_subscriptions")}() from public, anon;
 grant execute on function ${fn("billing_platform_subscriptions")}() to authenticated, service_role;
 revoke execute on function ${fn("billing_platform_invoices")}() from public, anon;

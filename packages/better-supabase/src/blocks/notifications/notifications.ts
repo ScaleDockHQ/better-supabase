@@ -51,6 +51,14 @@ export interface SendInput<D = unknown> {
   readonly resolved?: boolean;
   /** The actor, when the service sends on a user's behalf. */
   readonly actorId?: string;
+  /**
+   * Add the watchers of `subject`. Defaults to `true`; `false` reaches only
+   * `recipients` and the audience hook (members ignoring the subject stay
+   * out either way).
+   */
+  readonly watchers?: boolean;
+  /** Users left out after the watchers and the audience hook are added. */
+  readonly exclude?: readonly string[];
 }
 
 export interface ListOptions<K extends string = string> {
@@ -202,8 +210,16 @@ export interface Notifications<K extends NotificationTypes> {
     readonly subject: NotificationSubject;
     readonly level: SubscriptionLevel | null;
     readonly tenant?: string;
-    /** Another member; only the service can set it. */
+    /**
+     * Another member; the service can set it, and with `ifAbsent` so can a
+     * sender with the send permission in `tenant`.
+     */
     readonly userId?: string;
+    /**
+     * Only add `level` when the member has no level for the subject, so an
+     * auto-follow keeps their own `ignore` or `all`.
+     */
+    readonly ifAbsent?: boolean;
   }): AsyncResult<void>;
   /** Turns a type (`*` for all) on or off on a channel; `null` removes it. */
   setPreference(input: {
@@ -444,6 +460,8 @@ export function createNotifications<
           activity: input.activity,
           resolved: input.resolved,
           actor: input.actorId,
+          watchers: input.watchers,
+          exclude: input.exclude,
         };
         const sent = await run("notify", { notification }, (value) =>
           value === null ? null : String(value),
@@ -557,6 +575,7 @@ export function createNotifications<
           level: input.level,
           tenant: input.tenant ?? null,
           member: input.userId ?? null,
+          if_absent: input.ifAbsent,
         },
         () => undefined,
       );

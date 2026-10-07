@@ -899,7 +899,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
         await s.hint(`${schema}.update_invitation($1, null, 'support')`, [
           platform.id,
         ]),
-      ).toBe("INVITATION_INVALID");
+      ).toBe("INVITATION_EXPIRED");
+      await s.as("member");
+      expect(
+        await s.hint(`${schema}.accept_invitation_by_id($1)`, [platform.id]),
+      ).toBe("INVITATION_EXPIRED");
       await expire("1 day");
       await s.as("outsider");
       expect(
@@ -1200,7 +1204,12 @@ describe.skipIf(!live)("organizations and invitations", () => {
         await s.hint("better_supabase.update_invitation($1, null, 'member')", [
           open.id,
         ]),
-      ).toBe("INVITATION_INVALID");
+      ).toBe("INVITATION_EXPIRED");
+      await s.as("outsider");
+      expect(
+        await s.hint("better_supabase.accept_invitation($1)", [open.token]),
+      ).toBe("INVITATION_EXPIRED");
+      await s.as("owner");
       await s.value("better_supabase.resend_invitation($1)", [open.id]);
       expect(
         await s.value("better_supabase.update_invitation($1, null, 'member')", [

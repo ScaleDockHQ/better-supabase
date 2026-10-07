@@ -264,6 +264,107 @@ describe.skipIf(!live)("comments", () => {
     }
   });
 
+  it("labels mention notifications, keeps them to readers of the subject and can stay quiet", async () => {
+    const s = await BlockSession.open(pool);
+    const table = `public.bs_test_tasks_${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await s.rows(
+        `create table ${table} (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           title text not null,
+           owner_id uuid,
+           private boolean not null default false
+         );
+         alter table ${table} enable row level security;
+         grant select on ${table} to authenticated;
+         create policy "read" on ${table} for select to authenticated
+           using (better_supabase.has_organization_role(organization_id));`,
+      );
+      const subjects = {
+        task: {
+          table,
+          idType: "uuid",
+          label: "{row}.title",
+          path: "'/tasks/' || {row}.id",
+          readableBy: "not {row}.private or {row}.owner_id = {user}",
+        },
+      };
+      await s.install(
+        ["organizations", "outbox", "notifications", "comments"],
+        {
+          modules: { comments: { options: { subjects } } },
+        },
+      );
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const author = await s.user("author");
+      const organization = await s.organization(owner, {
+        member,
+        member2: author,
+      });
+      const [task] = await s.rows<{ id: string }>(
+        `insert into ${table} (organization_id, title, owner_id, private) values ($1, 'Fix the pump', $2, true) returning id`,
+        [organization, owner.id],
+      );
+      const comments = createComments({ transport: sqlTransport(s.sql) });
+      await s.asRole(author);
+      await comments
+        .create({
+          organizationId: organization,
+          subjectType: "task",
+          subjectId: task!.id,
+          body: `@[Owner](${owner.id}) @[Member](${member.id})`,
+        })
+        .orThrow();
+      await s.service();
+      const notified = await s.rows(
+        `select r.user_id::text, e.subject_label, e.action_path from better_supabase.notification_recipients r
+         join better_supabase.notification_events e on e.id = r.event_id
+         where e.subject_id = $1`,
+        [task!.id],
+      );
+      expect(notified).toEqual([
+        {
+          user_id: owner.id,
+          subject_label: "Fix the pump",
+          action_path: `/tasks/${task!.id}`,
+        },
+      ]);
+
+      await s.install(
+        ["organizations", "outbox", "notifications", "comments"],
+        {
+          modules: { comments: { options: { subjects, notify: false } } },
+        },
+      );
+      await s.asRole(author);
+      await comments
+        .create({
+          organizationId: organization,
+          subjectType: "task",
+          subjectId: task!.id,
+          body: `Again @[Owner](${owner.id})`,
+        })
+        .orThrow();
+      await s.service();
+      expect(
+        await s.value(
+          "(select count(*)::int from better_supabase.notification_events where subject_id = $1)",
+          [task!.id],
+        ),
+      ).toBe(1);
+      expect(
+        await s.value(
+          "(select count(*)::int from better_supabase.outbox_events where type = 'comment.mentioned' and payload ->> 'subjectId' = $1)",
+          [task!.id],
+        ),
+      ).toBe(2);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("checks a subject type's own read, create and moderate permissions", async () => {
     const s = await BlockSession.open(pool);
     try {

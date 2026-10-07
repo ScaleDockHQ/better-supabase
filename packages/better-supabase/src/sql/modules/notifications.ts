@@ -529,7 +529,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   if (ctx.hasTable("subscriptions")) {
     fns.push({
       name: "set_notification_subscription",
-      args: ["text", "text", "text", "{id}", "uuid"],
+      args: ["text", "text", "text", "{id}", "uuid", "boolean"],
       returns: "void",
     });
   }

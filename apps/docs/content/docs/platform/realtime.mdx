@@ -161,6 +161,38 @@ The trigger function goes into the `better_supabase` schema, which the Data
 API does not expose, so clients can't call it through `/rpc`. Pass
 `functionSchema` to put it somewhere else.
 
+A placeholder can also come from a parent row. A lookup `{ from, via,
+select }` reads the `select` column of the `from` row whose primary key
+(or `key`) equals `via`, a column of the changed row or another lookup, so a
+delivery can reach its thread's topic through the message it belongs to.
+A row whose topic comes out null, such as one whose parent is gone, sends
+nothing.
+
+```ts
+threadTopic.triggerSql(betterSupabase, "deliveries", {
+  values: {
+    threadId: { from: "messages", via: "messageId", select: "threadId" },
+  },
+  event: { insert: "delivery_added", update: "delivery_changed" },
+  payload: {
+    deliveryId: "id",
+    organizationId: {
+      from: "threads",
+      select: "organizationId",
+      via: { from: "messages", via: "messageId", select: "threadId" },
+    },
+    operation: { sql: "lower(tg_op)" },
+  },
+});
+```
+
+`event` names the broadcast event, for every operation or per operation
+(`INSERT`, `UPDATE` or `DELETE` otherwise). With `payload` the trigger
+sends that object with `realtime.send` instead of the row change: each key is
+a column, a lookup, or `{ sql }`, an expression on the row `{row}` with
+`tg_op` for the operation. `rowChange` reads only the row-change shape, so
+handle a custom payload with its own event schema.
+
 On the client, `rowChange` turns a message into an app-cased change, or `null`
 for other tables:
 

@@ -64,6 +64,25 @@ const page = await audit.list({ organizationId }).orThrow();
 // page.entries[0].columns: { ticket_id: "...", priority: 2 }
 ```
 
+A column that follows from what the module already records, such as a flag
+for entries by platform staff, needs no metadata key: make it a generated
+column of the adopted log. Postgres fills it for every entry, from
+`audit_event` and from the row-change trigger alike, and the module never
+writes it:
+
+```sql
+alter table public.audit_logs
+  drop column actor_is_platform_admin,
+  add column actor_is_platform_admin boolean not null
+    generated always as (coalesce(actor_kind = 'platform_admin', false)) stored;
+```
+
+With `values: { actorKind: { support: "platform_admin" } }`, a support
+session's entries and a service call with `actorKind: "support"` store
+`platform_admin`, and the flag follows. An expression that needs another
+table (a role lookup) can't be a generated column; pass that value as a
+metadata key instead.
+
 ## Listing entries
 
 `createAuditLog` reads the log through the module's own functions, as the

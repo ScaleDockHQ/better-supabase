@@ -230,6 +230,91 @@ describe.skipIf(!live)("data lifecycle", () => {
     }
   });
 
+  it("anonymizes rows once their time is up, unless the condition holds", async () => {
+    const s = await BlockSession.open(pool);
+    const table = `public.bs_candidates_${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await s.client.query(`
+        create table ${table} (
+          id integer primary key,
+          first_name text not null,
+          email text,
+          ended_at timestamptz,
+          keep_until timestamptz,
+          anonymized_at timestamptz
+        );
+        insert into ${table} (id, first_name, email, ended_at, keep_until) values
+          (1, 'Ada', 'ada@example.test', now() - interval '200 days', null),
+          (2, 'Bo', 'bo@example.test', now() - interval '200 days', now() + interval '1 day'),
+          (3, 'Cy', 'cy@example.test', now() - interval '10 days', null),
+          (4, 'Di', 'di@example.test', null, null),
+          (5, 'Ed', 'ed@example.test', now() - interval '300 days', null);`);
+      await s.install(["data-lifecycle"], {
+        modules: {
+          "data-lifecycle": {
+            options: {
+              anonymize: [
+                {
+                  table,
+                  after: "180 days",
+                  from: "ended_at",
+                  unless: "{row}.keep_until > now()",
+                  set: {
+                    first_name: "Anonymized",
+                    email: { sql: "null" },
+                  },
+                  markedBy: "anonymized_at",
+                },
+              ],
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      await s.as(owner);
+      expect(await s.hint("better_supabase.anonymize_due()")).toBe(
+        "DATA_ANONYMIZE_FORBIDDEN",
+      );
+      await s.service();
+      const purger = createOrganizationPurger({
+        transport: sqlTransport(s.sql),
+      });
+      expect(await purger.anonymizeDue({ limit: 1 }).orThrow()).toEqual({
+        [table]: 1,
+      });
+      expect(await purger.anonymizeDue().orThrow()).toEqual({ [table]: 1 });
+      expect(await purger.anonymizeDue().orThrow()).toEqual({ [table]: 0 });
+      expect(
+        await s.rows(
+          `select id, first_name, email, anonymized_at is not null as anonymized from ${table} order by id`,
+        ),
+      ).toEqual([
+        { id: 1, first_name: "Anonymized", email: null, anonymized: true },
+        {
+          id: 2,
+          first_name: "Bo",
+          email: "bo@example.test",
+          anonymized: false,
+        },
+        {
+          id: 3,
+          first_name: "Cy",
+          email: "cy@example.test",
+          anonymized: false,
+        },
+        {
+          id: 4,
+          first_name: "Di",
+          email: "di@example.test",
+          anonymized: false,
+        },
+        { id: 5, first_name: "Anonymized", email: null, anonymized: true },
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("purges an adopted tenant row last, retrying blocked tables", async () => {
     const s = await BlockSession.open(pool);
     try {

@@ -21,6 +21,7 @@ import { entitlementMembers } from "../entitlements/entitlements.ts";
 import {
   blockCall,
   isRecord,
+  optionalInstant,
   optionalText,
   recordOf,
   textOf,
@@ -169,6 +170,16 @@ export interface TenantStripeRow {
   readonly row: StripeRow;
 }
 
+/** A linked Stripe customer, from `billing_all_customers`. */
+export interface BillingCustomer {
+  readonly organizationId: string;
+  readonly customerId: string;
+  /** From the Sync Engine's `stripe.customers`; `undefined` before it syncs. */
+  readonly email: string | undefined;
+  readonly name: string | undefined;
+  readonly created: Temporal.Instant | undefined;
+}
+
 export interface PlatformListOptions {
   /** Only rows with this Stripe status, such as `active` or `open`. */
   readonly status?: string;
@@ -218,6 +229,12 @@ export interface Billing {
   allSubscriptions(
     options?: PlatformListOptions,
   ): AsyncResult<readonly TenantStripeRow[]>;
+  /**
+   * Every linked customer, with or without a subscription, by tenant, for
+   * platform staff (`billing.read` in the platform scope) or a service
+   * transport.
+   */
+  allCustomers(): AsyncResult<readonly BillingCustomer[]>;
   /**
    * Cancels the tenant's active subscription in Stripe now; `undefined`
    * when it has none. The `customer.subscription.deleted` webhook then
@@ -272,10 +289,15 @@ export interface Billing {
   /** The billing contact as Stripe holds it, from the Sync Engine's customers table. */
   customerDetails(organizationId: string): AsyncResult<StripeRow | undefined>;
   /**
-   * The tenant customer's tax ids from Stripe, `[]` before the tenant has a
-   * customer. Needs `customers.listTaxIds` on the client.
+   * The tenant customer's tax ids, `[]` before the tenant has a customer.
+   * From Stripe by default, which needs `customers.listTaxIds` on the
+   * client; `{ from: "sync" }` reads the Sync Engine's `stripe.tax_ids`
+   * through `billing_tax_ids` instead (`billing.read`, or platform staff).
    */
-  taxIds(organizationId: string): AsyncResult<readonly StripeTaxId[]>;
+  taxIds(
+    organizationId: string,
+    options?: { readonly from?: "stripe" | "sync" },
+  ): AsyncResult<readonly StripeTaxId[]>;
   /**
    * Adds a tax id (`{ type: 'eu_vat', value: 'DE123456789' }`) to the
    * tenant's customer, creating the customer first when there is none.
@@ -312,6 +334,20 @@ function subscriptionItemOf(value: unknown): SubscriptionItem | undefined {
     price: optionalText(value["price"]),
     quantity: Number(value["quantity"] ?? 0),
     status: textOf(value["status"]),
+  };
+}
+
+/** A row of `billing_tax_ids` as Stripe's tax id object. */
+function syncedTaxId(row: Readonly<Record<string, unknown>>): StripeTaxId {
+  const verification = row["verification"];
+  return {
+    id: textOf(row["id"]),
+    type: textOf(row["type"]),
+    value: textOf(row["value"]),
+    country: optionalText(row["country"]) ?? null,
+    verification: isRecord(verification)
+      ? { status: optionalText(verification["status"]) ?? null }
+      : null,
   };
 }
 
@@ -770,17 +806,21 @@ export function createBilling(options: BillingOptions): Billing {
       call("billing_customer_details", { tenant: organizationId }, (value) =>
         isRecord(value) ? value : undefined,
       ),
-    taxIds: (organizationId) =>
-      customer(organizationId).andThen(async (customerId) => {
-        if (customerId === undefined) return ok([]);
-        const listed = await withStripe(async (client) =>
-          client.customers.listTaxIds?.(customerId, { limit: 100 }),
-        );
-        if (!listed.ok) return listed;
-        return listed.data === undefined
-          ? missing("customers.listTaxIds")
-          : ok(listed.data.data);
-      }),
+    taxIds: (organizationId, taxOptions = {}) =>
+      taxOptions.from === "sync"
+        ? call("billing_tax_ids", { tenant: organizationId }, (value) =>
+            Array.isArray(value) ? value.filter(isRecord).map(syncedTaxId) : [],
+          )
+        : customer(organizationId).andThen(async (customerId) => {
+            if (customerId === undefined) return ok([]);
+            const listed = await withStripe(async (client) =>
+              client.customers.listTaxIds?.(customerId, { limit: 100 }),
+            );
+            if (!listed.ok) return listed;
+            return listed.data === undefined
+              ? missing("customers.listTaxIds")
+              : ok(listed.data.data);
+          }),
     addTaxId: (organizationId, taxId) =>
       ensureCustomer(organizationId).andThen(async (customerId) => {
         const created = await withStripe(async (client) =>
@@ -906,6 +946,16 @@ export function createBilling(options: BillingOptions): Billing {
       ),
     allInvoices: (list) =>
       call("billing_all_invoices", platformArgs(list), tenantRows("invoice")),
+    allCustomers: () =>
+      call("billing_all_customers", {}, (value) =>
+        (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
+          organizationId: textOf(row["tenant"]),
+          customerId: textOf(row["customer"]),
+          email: optionalText(row["email"]),
+          name: optionalText(row["name"]),
+          created: optionalInstant(row["created"]),
+        })),
+      ),
     allSubscriptions: (list) =>
       call(
         "billing_all_subscriptions",

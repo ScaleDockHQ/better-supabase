@@ -218,7 +218,10 @@ describe("defineTopic", () => {
       'create or replace function "better_supabase"."bs_broadcast_organization_customers_customers"()',
     );
     expect(sql).toContain(
-      "'organization:' || rec.\"organization_id\"::text || ':customers',",
+      "  topic := 'organization:' || rec.\"organization_id\"::text || ':customers';\n  if topic is null then\n    return null;\n  end if;",
+    );
+    expect(sql).toContain(
+      "realtime.broadcast_changes(\n    topic, tg_op, tg_op, tg_table_name, tg_table_schema, new, old\n  );",
     );
     expect(sql).toContain(
       'create trigger "bs_broadcast_organization_customers" after insert or update or delete on "public"."customers"',
@@ -637,6 +640,97 @@ describe("triggerSql", () => {
         values: { organizationId: "missing" },
       }),
     ).toThrow('defineTopic: no column for {organizationId} on "customers"');
+  });
+
+  it("fills placeholders from parent rows and sends a custom event and payload", () => {
+    const tagged = defineTopic("org:{organizationSlug}:customer:{customerId}");
+    const sql = tagged.triggerSql(betterSupabase, "customerTags", {
+      values: {
+        customerId: "customerId",
+        organizationSlug: {
+          from: "organizations",
+          select: "slug",
+          via: {
+            from: "customers",
+            select: "organizationId",
+            via: "customerId",
+          },
+        },
+      },
+      event: { insert: "tag_added", delete: "tag_removed" },
+      payload: {
+        tagId: "tagId",
+        customerName: { from: "customers", via: "customerId", select: "name" },
+        operation: { sql: "lower(tg_op) || ':' || {row}.tag_id" },
+      },
+    });
+    expect(sql).toContain(
+      `topic := 'org:' || (select j0."slug" from "public"."organizations" j0 where j0."id" = (select j1."organization_id" from "public"."customers" j1 where j1."id" = rec."customer_id" limit 1) limit 1)::text || ':customer:' || rec."customer_id"::text;`,
+    );
+    expect(sql).toContain(`perform realtime.send(
+    jsonb_build_object('tagId', rec."tag_id", 'customerName', (select j0."name" from "public"."customers" j0 where j0."id" = rec."customer_id" limit 1), 'operation', (lower(tg_op) || ':' || rec.tag_id)),
+    case tg_op when 'INSERT' then 'tag_added' when 'DELETE' then 'tag_removed' else tg_op end, topic, true
+  );`);
+    expect(sql).not.toContain("broadcast_changes");
+    const named = customers.triggerSql(betterSupabase, "customers", {
+      values: { organizationId: "organizationId" },
+      event: "customer_changed",
+    });
+    expect(named).toContain(
+      "topic, 'customer_changed', tg_op, tg_table_name, tg_table_schema, new, old",
+    );
+    expect(
+      customers.triggerSql(betterSupabase, "customers", {
+        values: { organizationId: "organizationId" },
+        event: {},
+      }),
+    ).toContain("topic, tg_op, tg_op,");
+    expect(
+      defineTopic("public:{customerId}", { private: false }).triggerSql(
+        betterSupabase,
+        "notes",
+        {
+          values: { customerId: "customerId" },
+          event: "note",
+          payload: { id: "id" },
+        },
+      ),
+    ).toContain("'note', topic, false");
+  });
+
+  it("rejects lookups through unknown tables, keys and columns", () => {
+    const tagged = defineTopic("org:{organizationId}");
+    const lookup = (value: object) => () =>
+      tagged.triggerSql(betterSupabase, "customerTags", {
+        // @ts-expect-error a lookup the types reject or the schema lacks
+        values: { organizationId: value },
+      });
+    expect(
+      lookup({ from: "nope", via: "customerId", select: "organizationId" }),
+    ).toThrow('defineTopic: unknown table "nope" for {organizationId}');
+    expect(
+      lookup({ from: "customerTags", via: "customerId", select: "tagId" }),
+    ).toThrow(/"customerTags" has no single-column primary key/);
+    expect(
+      lookup({ from: "customers", via: "customerId", select: "missing" }),
+    ).toThrow(
+      'defineTopic: no column for {organizationId} on "customers" ("missing")',
+    );
+    expect(
+      lookup({ from: "customers", via: "missing", select: "organizationId" }),
+    ).toThrow(/on "customerTags" \("missing"\)/);
+    expect(
+      tagged.triggerSql(betterSupabase, "customerTags", {
+        values: {
+          organizationId: {
+            from: "customerTags",
+            key: "customerId",
+            via: "customerId",
+            select: "organizationId",
+          },
+        },
+      }),
+    ).toContain(`where j0."customer_id" = rec."customer_id"`);
   });
 
   it("uses the given events and function schema", () => {

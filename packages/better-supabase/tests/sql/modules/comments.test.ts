@@ -105,4 +105,42 @@ describe("comments module", () => {
       }),
     ).toThrow(/cascade must be true or false/);
   });
+
+  it("labels mention notifications, filters recipients by the subject and can stay quiet", () => {
+    const subjects = {
+      task: {
+        table: "tasks",
+        idType: "uuid",
+        permission: "tasks.read",
+        permissions: { read: "tasks.comments.read" },
+        label: "{row}.title",
+        path: "'/tasks/' || {row}.id",
+        readableBy: "{row}.owner_id = {user}",
+      },
+    };
+    const sql = sqlOf(["notifications", "comments"], { subjects });
+    expect(sql).toContain(
+      `'subject_label', case new."subject_type" when 'task' then (select (s.title)::text from "public"."tasks" s where s."id" = (new."subject_id"::text)::uuid limit 1) end`,
+    );
+    expect(sql).toContain(`then (select ('/tasks/' || s.id)::text`);
+    expect(sql).toContain(
+      `case new."subject_type" when 'task' then 'tasks.comments.read' else 'comments.read' end`,
+    );
+    expect(sql).toContain(
+      `coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'tasks.read'), false) and exists (select 1 from "public"."tasks" s where s."id" = (new."subject_id"::text)::uuid and (s.owner_id = x))`,
+    );
+    const quiet = sqlOf(["notifications", "comments"], {
+      subjects,
+      notify: false,
+    });
+    expect(quiet).not.toContain('"notify"(');
+    expect(quiet).toContain("comments_after_write");
+    const plain = sqlOf(["notifications", "comments"]);
+    expect(plain).toContain("'subject_label', null::text");
+    expect(() =>
+      sqlOf(["comments"], {
+        subjects: { task: { table: "tasks", label: "title" } },
+      }),
+    ).toThrow(/subjects\.task\.label must be SQL on the subject row \{row\}/);
+  });
 });

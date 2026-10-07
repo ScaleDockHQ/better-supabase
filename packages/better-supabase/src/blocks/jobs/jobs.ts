@@ -60,14 +60,22 @@ export interface Idempotency {
     state: IdempotencyState;
     status: number | null;
     body: unknown;
+    /** The token `complete` and `release` need, when `state` is `started`. */
+    holder: string | undefined;
   }>;
+  /**
+   * Stores the response for `holder`. `false` when the lock ran out and
+   * another caller took the key over, so the response was not stored.
+   */
   complete(
     key: string,
+    holder: string,
     status: number,
     body: unknown,
     scope?: string,
-  ): AsyncResult<void>;
-  release(key: string, scope?: string): AsyncResult<void>;
+  ): AsyncResult<boolean>;
+  /** Forgets the key so it can be retried; `false` when `holder` lost it. */
+  release(key: string, holder: string, scope?: string): AsyncResult<boolean>;
 }
 
 async function sha256(text: string): Promise<string> {
@@ -116,6 +124,7 @@ export function createIdempotency(
         state: IdempotencyState;
         status_code: number | null;
         response: unknown;
+        holder: string | null;
       }>(
         "select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)",
         [scope, key, fingerprint, ttl, lock],
@@ -124,21 +133,30 @@ export function createIdempotency(
         state: row!.state,
         status: row!.status_code,
         body: row!.response,
+        holder: row!.holder ?? undefined,
       };
     });
-  const complete: Idempotency["complete"] = (key, status, body, scope = "") =>
+  const complete: Idempotency["complete"] = (
+    key,
+    holder,
+    status,
+    body,
+    scope = "",
+  ) =>
     run(async () => {
-      await sql.queryRaw(
-        "select better_supabase.complete_idempotent($1, $2, $3, $4)",
-        [scope, key, status, JSON.stringify(body)],
+      const [row] = await sql.queryRaw<{ done: boolean }>(
+        "select better_supabase.complete_idempotent($1, $2, $3, $4, $5) as done",
+        [scope, key, holder, status, JSON.stringify(body)],
       );
+      return row?.done === true;
     });
-  const release: Idempotency["release"] = (key, scope = "") =>
+  const release: Idempotency["release"] = (key, holder, scope = "") =>
     run(async () => {
-      await sql.queryRaw("select better_supabase.release_idempotent($1, $2)", [
-        scope,
-        key,
-      ]);
+      const [row] = await sql.queryRaw<{ done: boolean }>(
+        "select better_supabase.release_idempotent($1, $2, $3) as done",
+        [scope, key, holder],
+      );
+      return row?.done === true;
     });
 
   return {
@@ -181,7 +199,7 @@ export function createIdempotency(
       const started = await begin(key, fingerprint, scope);
       if (!started.ok)
         return problemResponse(started.error, { instance, format });
-      const { state } = started.data;
+      const { state, holder = "" } = started.data;
       switch (state) {
         case "replay": {
           // SAFETY: the replay state is only written with the stored response
@@ -236,21 +254,85 @@ export function createIdempotency(
       try {
         response = await handler(request);
       } catch (cause) {
-        await release(key, scope);
+        await release(key, holder, scope);
         throw cause;
       }
       if (response.status >= 500) {
-        await release(key, scope);
+        await release(key, holder, scope);
         return response;
       }
       const stored: StoredResponse = {
         body: await response.clone().text(),
         contentType: response.headers.get("content-type"),
       };
-      await complete(key, response.status, stored, scope);
+      await complete(key, holder, response.status, stored, scope);
       return response;
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Leases (SQL module `idempotency`)
+
+export interface LeaseOptions {
+  /** How long the lease holds without an `extend`. Defaults to 60 seconds. */
+  readonly seconds?: number;
+  readonly scope?: string;
+}
+
+/** The held lease, passed to the `withLease` callback. */
+export interface Lease {
+  readonly holder: string;
+  /** Moves the expiry; `false` once the lease was lost to another holder. */
+  extend(seconds?: number): AsyncResult<boolean>;
+}
+
+export type LeaseOutcome<T> =
+  | { readonly acquired: true; readonly value: T }
+  | { readonly acquired: false };
+
+/**
+ * Runs `fn` while holding the lease on `key`, one holder at a time, and
+ * releases it afterwards, also when `fn` throws. `{ acquired: false }` while
+ * another holder has it. A lease that expires mid-run is taken by the next
+ * caller; call `lease.extend()` for long work.
+ */
+export function withLease<T>(
+  sql: SqlClient,
+  key: string,
+  fn: (lease: Lease) => Promise<T> | T,
+  options: LeaseOptions = {},
+): AsyncResult<LeaseOutcome<T>> {
+  const scope = options.scope ?? "";
+  const ttl = options.seconds ?? 60;
+  return run(async (): Promise<LeaseOutcome<T>> => {
+    const [row] = await sql.queryRaw<{ holder: string | null }>(
+      "select better_supabase.acquire_lease($1, $2, $3) as holder",
+      [key, ttl, scope],
+    );
+    const holder = row?.holder;
+    if (!holder) return { acquired: false };
+    const lease: Lease = {
+      holder,
+      extend: (next = ttl) =>
+        run(async () => {
+          const [extended] = await sql.queryRaw<{ done: boolean }>(
+            "select better_supabase.extend_lease($1, $2, $3, $4) as done",
+            [key, holder, next, scope],
+          );
+          return extended?.done === true;
+        }),
+    };
+    try {
+      return { acquired: true, value: await fn(lease) };
+    } finally {
+      await sql.queryRaw("select better_supabase.release_lease($1, $2, $3)", [
+        key,
+        holder,
+        scope,
+      ]);
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ export default defineConfig({
     dbUrl: "postgresql://postgres:postgres@127.0.0.1:55422/postgres",
   },
   casing: "camel",
+  codecs: { int8: "bigint" },
   output: "src/lib/supabase/generated.ts",
   expose: {
     customers: crud,

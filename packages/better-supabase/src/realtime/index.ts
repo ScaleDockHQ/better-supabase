@@ -12,7 +12,9 @@ export type {
   TopicMessage,
   TopicOptions,
   TopicPayload,
+  TriggerLookup,
   TriggerOptions,
+  TriggerValue,
 } from "./topic.ts";
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
 export type { PermdockTopicPolicy } from "../schema/types.ts";

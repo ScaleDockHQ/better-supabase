@@ -115,7 +115,11 @@ await jobs.work(
   then twice as long each time. Any other claim error, or a fourth in a row,
   stops every lane, and `work` or `drain` rejects with a `TypeError` whose
   `cause` is the `DbError`.
-- A `dedupeKey` keeps one waiting or running job per key.
+- A `dedupeKey` keeps one waiting or running job per key. With
+  `dedupe: "waiting"` it coalesces only onto a job no worker has claimed
+  yet, so a change made while the job runs queues one follow-up instead of
+  being dropped: a debounce per entity. In SQL this is
+  `enqueue_job(..., dedupe_key => key, dedupe_running => false)`.
 - `drain(queue, handler)` works the queue until it is empty, which suits cron
   and Edge Functions. `claim`, `complete`, `fail` and `extend` are available
   when you want to drive the queue yourself.
@@ -471,6 +475,54 @@ The fingerprint is a SHA-256 of the method, path and body. Set
 `required: true` to reject requests that have no key. The error responses
 are Problem Details; pass `problem` to answer in your app's error format
 instead (see [Problem Details](/docs/auth/problems#your-own-error-format)).
+
+Outside HTTP, `begin(key, fingerprint, scope)` returns a `holder` token with
+the `started` state, and `complete(key, holder, status, body, scope)` and
+`release(key, holder, scope)` need it. A caller whose lock ran out may find
+that another caller took the key over; its `complete` and `release` then
+return `false` and change nothing, so it can't store its late result over
+the new holder's or free a key someone else holds:
+
+```ts
+const started = await idempotency.begin(key, fingerprint).orThrow();
+if (started.state === "started") {
+  const stored = await idempotency
+    .complete(key, started.holder!, 200, result)
+    .orThrow();
+  if (!stored) console.warn("lost the key to another caller");
+}
+```
+
+### Leases
+
+`withLease(sql, key, fn)` runs `fn` while it holds the lease on `key`, so
+work that must not run twice at once (one automation per conversation, one
+mutation per agent run) runs once, and other callers get
+`{ acquired: false }`. The lease holds for `seconds` (60 by default) and is
+released when `fn` ends or throws; for long work, `lease.extend()` moves
+the expiry and returns `false` once the lease was lost:
+
+```ts
+import { withLease } from "better-supabase/blocks/jobs";
+
+const outcome = await withLease(
+  postgres.admin,
+  `conversation:${conversationId}`,
+  async (lease) => {
+    await step1();
+    await lease.extend();
+    return step2();
+  },
+  { seconds: 30 },
+).orThrow();
+if (!outcome.acquired) return; // another worker has it
+```
+
+In SQL the same lease is `better_supabase.acquire_lease(key, seconds,
+scope)`, which returns a holder token or null, `extend_lease(key, holder,
+seconds, scope)` and `release_lease(key, holder, scope)`, for the service
+role. An expired lease goes to the next caller, and the former holder's
+`extend_lease` and `release_lease` return false.
 
 ## Webhook inbox
 

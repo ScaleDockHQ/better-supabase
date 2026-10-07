@@ -30,6 +30,8 @@ function jobsScheduler(ctx: ModuleContext): JobsScheduler {
 
 const LEGACY = `-- Functions of the earlier table-based queue (better_supabase.jobs is left in place).
 drop function if exists better_supabase.enqueue_job(text, jsonb, timestamptz, integer, text, integer);
+-- enqueue_job before dedupe_running.
+drop function if exists better_supabase.enqueue_job(text, jsonb, integer, integer, text);
 drop function if exists better_supabase.claim_jobs(text, text, integer, interval);
 drop function if exists better_supabase.complete_job(bigint, text);
 drop function if exists better_supabase.fail_job(bigint, text, text, interval);
@@ -79,13 +81,16 @@ begin
 end;
 $$;
 
--- While a message with dedupe_key is waiting or running, enqueueing again returns its id.
+-- While a message with dedupe_key is waiting or running, enqueueing again
+-- returns its id. With dedupe_running false only a message no worker has
+-- claimed yet counts, so a change made during a run queues one follow-up.
 create or replace function better_supabase.enqueue_job(
   queue text,
   payload jsonb default '{}',
   delay integer default 0,
   max_attempts integer default 5,
-  dedupe_key text default null
+  dedupe_key text default null,
+  dedupe_running boolean default true
 )
 returns bigint
 language plpgsql
@@ -98,8 +103,8 @@ begin
   perform better_supabase.ensure_job_queue(queue);
   if dedupe_key is not null then
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));
-    execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 limit 1', 'q_' || queue)
-      into existing using dedupe_key;
+    execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 and ($2 or read_ct = 0) limit 1', 'q_' || queue)
+      into existing using dedupe_key, dedupe_running;
     if existing is not null then
       return existing;
     end if;
@@ -360,7 +365,12 @@ create table if not exists better_supabase.job_messages (
 );
 create index if not exists job_messages_ready_idx
   on better_supabase.job_messages (queue, visible_at) where archived_at is null;
-create unique index if not exists job_messages_dedupe_idx
+-- One waiting message per dedupe key; a claimed one can have a follow-up
+-- queued behind it (enqueue_job with dedupe_running false).
+drop index if exists better_supabase.job_messages_dedupe_idx;
+create unique index if not exists job_messages_waiting_dedupe_idx
+  on better_supabase.job_messages (queue, dedupe_key) where archived_at is null and dedupe_key is not null and attempts = 0;
+create index if not exists job_messages_dedupe_lookup_idx
   on better_supabase.job_messages (queue, dedupe_key) where archived_at is null and dedupe_key is not null;
 create index if not exists job_messages_archived_idx
   on better_supabase.job_messages (queue, archived_at) where archived_at is not null;
@@ -373,13 +383,16 @@ create index if not exists job_messages_exhausted_idx
 alter table better_supabase.job_messages enable row level security;
 revoke all on better_supabase.job_messages from anon, authenticated;
 
--- While a message with dedupe_key is waiting or running, enqueueing again returns its id.
+-- While a message with dedupe_key is waiting or running, enqueueing again
+-- returns its id. With dedupe_running false only a message no worker has
+-- claimed yet counts, so a change made during a run queues one follow-up.
 create or replace function better_supabase.enqueue_job(
   queue text,
   payload jsonb default '{}',
   delay integer default 0,
   max_attempts integer default 5,
-  dedupe_key text default null
+  dedupe_key text default null,
+  dedupe_running boolean default true
 )
 returns bigint
 language plpgsql
@@ -395,6 +408,7 @@ begin
     select m.id into existing
     from better_supabase.job_messages m
     where m.queue = enqueue_job.queue and m.dedupe_key = enqueue_job.dedupe_key and m.archived_at is null
+      and (enqueue_job.dedupe_running or m.attempts = 0)
     limit 1;
     if existing is not null then
       return existing;
@@ -919,7 +933,7 @@ const GRANTS = (backend: JobsBackend): string =>
     ...(backend === "pgmq"
       ? ["index_job_queue(text)", "ensure_job_queue(text)"]
       : []),
-    "enqueue_job(text, jsonb, integer, integer, text)",
+    "enqueue_job(text, jsonb, integer, integer, text, boolean)",
     "claim_jobs(text, integer, integer)",
     "complete_job(text, bigint, integer)",
     "fail_job(text, bigint, integer, text, integer)",

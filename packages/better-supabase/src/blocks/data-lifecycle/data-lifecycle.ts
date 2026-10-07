@@ -451,6 +451,11 @@ export interface OrganizationPurgerOptions extends BlockTemporalOptions {
   readonly billing?: {
     cancelSubscription(organizationId: string): AsyncResult<unknown>;
   };
+  /**
+   * Also run the `sql.modules.data-lifecycle.options.anonymize` rules in
+   * `job`, after the due purges. Default false.
+   */
+  readonly anonymize?: boolean;
   readonly schema?: string;
 }
 
@@ -514,6 +519,13 @@ export interface OrganizationPurger {
    * their rows; returns how many exports it removed. Needs `storage`.
    */
   purgeExports(options?: { readonly limit?: number }): AsyncResult<number>;
+  /**
+   * Applies the `options.anonymize` rules to the rows whose time is up, at
+   * most `limit` (1000) per rule; returns the rows anonymized per table.
+   */
+  anonymizeDue(options?: {
+    readonly limit?: number;
+  }): AsyncResult<Readonly<Record<string, number>>>;
 }
 
 const REMOVE_BATCH = 1000;
@@ -644,12 +656,25 @@ export function createOrganizationPurger(
         (value) => Number(value ?? 0),
       );
     });
+  const anonymizeDue = (
+    due: { readonly limit?: number } = {},
+  ): AsyncResult<Readonly<Record<string, number>>> =>
+    call("anonymize_due", { max_rows: due.limit }, (value) =>
+      Object.fromEntries(
+        Object.entries(isRecord(value) ? value : {}).map(([table, count]) => [
+          table,
+          Number(count),
+        ]),
+      ),
+    );
   return {
     purgeExports,
     purge,
     purgeDue,
+    anonymizeDue,
     job: async (payload) => {
       await purgeDue(payload).orThrow();
+      if (options.anonymize) await anonymizeDue().orThrow();
     },
   };
 }

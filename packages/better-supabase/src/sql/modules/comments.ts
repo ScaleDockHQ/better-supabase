@@ -13,15 +13,17 @@ import {
   tenantIn,
 } from "../shared.ts";
 import {
+  qualifiedTable,
   type Subject,
   subjectCascades,
+  subjectIdMatches,
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
-  options: ["subjects", "maxBodyLength", "documentSchema"],
+  options: ["subjects", "maxBodyLength", "documentSchema", "notify"],
   tables: {
     comments: {
       name: "comments",
@@ -104,7 +106,12 @@ function build(ctx: ModuleContext): string {
       "sql.modules.comments.options.maxBodyLength must be a whole number above zero",
     );
   }
-  const subjects = subjectsOption(ctx, ["permissions"]);
+  const subjects = subjectsOption(ctx, [
+    "permissions",
+    "label",
+    "path",
+    "readableBy",
+  ]);
   type Action = "read" | "create" | "moderate";
   const actions: ReadonlySet<string> = new Set(["read", "create", "moderate"]);
   // options.subjects.<type>.permissions: a key per action for that subject
@@ -189,8 +196,79 @@ function build(ctx: ModuleContext): string {
     subjects,
     `delete from ${comments} x where x.${c("subjectType")} = v_type and x.${c("subjectId")} = v_id;`,
   );
-  const notifications = ctx.installed("notifications")
-    ? `
+  // options.subjects.<type>.label, path and readableBy: SQL on the subject
+  // row {row} (and the mentioned user {user} for readableBy).
+  const expression = (
+    type: string,
+    subject: Subject,
+    key: string,
+  ): string | undefined => {
+    const value = subject.extra[key];
+    if (value === undefined) return undefined;
+    if (typeof value !== "string" || !value.includes("{row}")) {
+      throw new TypeError(
+        `sql.modules.comments.options.subjects.${type}.${key} must be SQL on the subject row {row}`,
+      );
+    }
+    return value.replaceAll("{row}", "s");
+  };
+  for (const [type, subject] of subjects)
+    for (const key of ["label", "path", "readableBy"])
+      expression(type, subject, key);
+  const subjectValue = (key: "label" | "path"): string => {
+    const cases = subjects.flatMap(([type, subject]) => {
+      const value = expression(type, subject, key);
+      return value === undefined
+        ? []
+        : [
+            `when ${sqlString(type)} then (select (${value})::text from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, `new.${c("subjectId")}::text`)} limit 1)`,
+          ];
+    });
+    return cases.length === 0
+      ? "null::text"
+      : `case new.${c("subjectType")} ${cases.join(" ")} end`;
+  };
+  // A mentioned member must be able to read comments on the subject: the
+  // subject's read key, its permission and readableBy when it sets them.
+  const mentionable = (user: string): string => {
+    const keyCases = overrides.flatMap(([type, keys]) => {
+      const key = keys.get("read");
+      return key === undefined
+        ? []
+        : [`when ${sqlString(type)} then ${sqlString(key)}`];
+    });
+    const key =
+      keyCases.length === 0
+        ? permission("read")
+        : `case new.${c("subjectType")} ${keyCases.join(" ")} else ${permission("read")} end`;
+    const subjectCases = subjects.flatMap(([type, subject]) => {
+      const checks: string[] = [];
+      if (subject.permission !== undefined) {
+        checks.push(
+          `coalesce(better_supabase.can_user(${user}, 'tenant', new.${c("tenant")}, ${sqlString(subject.permission)}), false)`,
+        );
+      }
+      const readableBy = expression(type, subject, "readableBy");
+      if (readableBy !== undefined) {
+        checks.push(
+          `exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, `new.${c("subjectId")}::text`)} and (${readableBy.replaceAll("{user}", user)}))`,
+        );
+      }
+      return checks.length === 0
+        ? []
+        : [`when ${sqlString(type)} then ${checks.join(" and ")}`];
+    });
+    return `coalesce(better_supabase.can_user(${user}, 'tenant', new.${c("tenant")}, ${key}), false)${
+      subjectCases.length === 0
+        ? ""
+        : `
+      and case new.${c("subjectType")} ${subjectCases.join(" ")} else true end`
+    }`;
+  };
+  const notify = ctx.flag("notify", true);
+  const notifications =
+    ctx.installed("notifications") && notify
+      ? `
   -- notify() trusts only the service role, so the mention is sent as it,
   -- with the comment's author as the actor; the claims are restored after.
   if cardinality(v_new) > 0 then
@@ -203,13 +281,15 @@ function build(ctx: ModuleContext): string {
       'subject_type', new.${c("subjectType")},
       'subject_id', new.${c("subjectId")},
       'summary', left(new.${c("body")}, 140),
+      'subject_label', ${subjectValue("label")},
+      'action_path', ${subjectValue("path")},
       'recipients', to_jsonb(v_new),
       'key', 'comment.mentioned:' || new.${c("id")}::text || ':' || md5(array_to_string(v_new, ',')),
       'data', jsonb_build_object('commentId', new.${c("id")})
     ));
     perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end if;`
-    : "";
+      : "";
   const payload = (extra: string): string =>
     `jsonb_build_object('commentId', new.${c("id")}, 'organizationId', new.${c("tenant")}::text, 'subjectType', new.${c("subjectType")}, 'subjectId', new.${c("subjectId")}, 'authorId', new.${c("author")}${extra})`;
   const subject = `'comments/' || new.${c("id")}::text`;
@@ -358,7 +438,7 @@ begin
   v_new := array(
     select x from unnest(new.${c("mentions")}) x
     where (tg_op = 'INSERT' or not x = any(old.${c("mentions")}))
-      and coalesce(better_supabase.can_user(x, 'tenant', new.${c("tenant")}, ${permission("read")}), false)
+      and ${mentionable("x")}
   );
   if tg_op = 'INSERT' then
     ${created || "null;"}

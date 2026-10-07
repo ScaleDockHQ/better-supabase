@@ -631,8 +631,11 @@ function accept(
     ${fail("INVITATION_SELF", "You cannot accept your own invitation")}
   end if;`
       : "";
-    return `if not (${open || "true"}) or ${col("expiresAt")} < now() then
+    return `if not (${open || "true"}) then
     ${fail("INVITATION_INVALID", "The invitation is invalid or has expired")}
+  end if;
+  if ${col("expiresAt")} < now() then
+    ${fail("INVITATION_EXPIRED", "The invitation has expired; ask for a new one")}
   end if;
   if lower(${col("email")}) <> lower(coalesce(auth.jwt() ->> 'email', '')) then
     ${fail("INVITATION_EMAIL_MISMATCH", "The invitation is for another email address")}

@@ -318,4 +318,25 @@ describe("audit value mapping", () => {
       audit({ ...ADOPTED, options: { values: { outcome: "ok" } } }),
     ).toThrow(/must map values to values/);
   });
+
+  it("writes audit_event_trusted for definer functions, granted to trusted roles only", () => {
+    const sql = audit({ options: { trustedRoles: ["app_owner"] } });
+    const trusted = sql.slice(
+      sql.indexOf(
+        "create or replace function better_supabase.audit_event_trusted(",
+      ),
+    );
+    const body = trusted.slice(0, trusted.indexOf("$$;"));
+    expect(body).toContain("actor_id := coalesce(actor_id, auth.uid());");
+    expect(body).not.toContain("actor_kind := null;");
+    expect(body).not.toContain("audit_event.");
+    expect(body).toContain("audit_event_trusted.idempotency_key");
+    expect(sql).toContain(
+      "revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) from public, anon, authenticated;",
+    );
+    expect(sql).toContain('to "service_role", "app_owner";');
+    const plain = audit();
+    expect(plain).toContain("actor_kind := null;");
+    expect(plain).toMatch(/audit_event_trusted\([^)]*\) to "service_role";/);
+  });
 });

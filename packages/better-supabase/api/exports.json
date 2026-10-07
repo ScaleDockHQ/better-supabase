@@ -828,7 +828,8 @@
       "nextCronRun",
       "pgmqPublicBackend",
       "rateLimited",
-      "sqlQueueBackend"
+      "sqlQueueBackend",
+      "withLease"
     ],
     "types": [
       "ClaimOptions",
@@ -859,6 +860,9 @@
       "JobContext",
       "JobHandler",
       "Jobs",
+      "Lease",
+      "LeaseOptions",
+      "LeaseOutcome",
       "ListDeadOptions",
       "QueueBackend",
       "QueueMessageBody",
@@ -949,6 +953,7 @@
       "CreateOrganizationOptions",
       "Invitation",
       "InvitationChanges",
+      "InvitationErrorHint",
       "InvitationPreview",
       "InvitationSent",
       "InvitationStatus",
@@ -1149,7 +1154,9 @@
       "TopicMessage",
       "TopicOptions",
       "TopicPayload",
-      "TriggerOptions"
+      "TriggerLookup",
+      "TriggerOptions",
+      "TriggerValue"
     ]
   },
   "./events": {
@@ -1370,6 +1377,7 @@
     ],
     "types": [
       "Billing",
+      "BillingCustomer",
       "BillingCustomerUpdate",
       "BillingEventData",
       "BillingOptions",

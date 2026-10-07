@@ -426,7 +426,12 @@ describe("update_invitation", () => {
   it("refuses an expired invitation", () => {
     const fn = body({}).slice(body({}).indexOf('"update_invitation"('));
     expect(fn).toMatch(
-      /if current_invite\."expires_at" < now\(\) then\n\s*raise exception 'The invitation has expired; resend it to renew it' using errcode = '[0-9A-Z]{5}', hint = 'INVITATION_INVALID';/,
+      /if current_invite\."expires_at" < now\(\) then\n\s*raise exception 'The invitation has expired; resend it to renew it' using errcode = '[0-9A-Z]{5}', hint = 'INVITATION_EXPIRED';/,
+    );
+    expect(fn).not.toMatch(/expired[^\n]*\n[^\n]*INVITATION_INVALID/);
+    const accept = body({}).slice(body({}).indexOf('"accept_invitation"('));
+    expect(accept).toMatch(
+      /if invite\."expires_at" < now\(\) then\n\s*raise exception 'The invitation has expired; ask for a new one' using errcode = 'P0002', hint = 'INVITATION_EXPIRED';/,
     );
   });
 });
