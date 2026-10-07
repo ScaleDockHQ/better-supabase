@@ -6,7 +6,12 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { columnRef, SERVICE_CALLER, schemaPreamble } from "../shared.ts";
+import {
+  columnRef,
+  SERVICE_CALLER,
+  schemaPreamble,
+  tenantIn,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -452,7 +457,7 @@ grant select on ${e} to authenticated;
 grant all on ${e} to service_role;
 drop policy if exists "data_exports_read" on ${e};
 create policy "data_exports_read" on ${e} for select to authenticated
-  using (${ce("requestedBy")} = (select auth.uid()) or (${ce("tenant")} is not null and ${can(ce("tenant"), "export")}));
+  using (${ce("requestedBy")} = (select auth.uid()) or ${tenantIn(ce("tenant"), ctx.permission("export", permissions.export))});
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was

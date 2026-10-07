@@ -506,6 +506,7 @@ grant execute on function better_supabase.has_entitlement(${m.idType}, text) to 
 create or replace function better_supabase.tenant_ids_with_entitlement(key text)
 returns setof ${m.idType}
 language sql
+rows 1
 stable
 security definer
 set search_path = ''
@@ -573,6 +574,7 @@ grant execute on function better_supabase.has_entitlement(${id}, text) to authen
 create or replace function better_supabase.tenant_ids_with_entitlement(key text)
 returns setof ${id}
 language sql
+rows 1
 stable
 security definer
 set search_path = ''

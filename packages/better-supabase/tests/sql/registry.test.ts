@@ -200,6 +200,59 @@ describe("renderModules", () => {
     expect(unwrapped).toEqual([]);
   });
 
+  it("checks tenant permissions in read policies with a set, not can() per row", () => {
+    const layouts = [
+      {},
+      {
+        modules: {
+          comments: {
+            options: {
+              subjects: {
+                deal: {
+                  table: "public.deals",
+                  idType: "uuid",
+                  permissions: {
+                    read: "deals.read",
+                    moderate: "deals.moderate",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    ];
+    for (const layout of layouts) {
+      const perRow = renderModules(Object.keys(SQL_MODULES), layout).flatMap(
+        (file) =>
+          [...file.contents.matchAll(/create policy[\s\S]*?;\n/g)]
+            .map((match) => match[0].split(/\bwith check\b/)[0]!)
+            .filter((using) =>
+              /\busing \([\s\S]*better_supabase\.can\('tenant', "/.test(using),
+            )
+            .map((policy) => `${file.module}: ${policy.slice(0, 100)}`),
+      );
+      expect(perRow).toEqual([]);
+    }
+  });
+
+  it("compares subject ids on the id column's type when idType is set", () => {
+    const comments = (subject: Record<string, unknown>) =>
+      renderModules(["comments"], {
+        modules: { comments: { options: { subjects: { deal: subject } } } },
+      }).find((file) => file.module === "comments")!.contents;
+    expect(comments({ table: "deals", idType: "uuid" })).toContain(
+      `s."id" = (subject_id)::uuid`,
+    );
+    expect(comments({ table: "deals" })).toContain(`s."id"::text = subject_id`);
+    expect(() => comments({ table: "deals", idType: "uuid; drop" })).toThrow(
+      /idType/,
+    );
+    expect(renderModules(["comments"])[0]!.contents).not.toMatch(
+      /using \([^;]*comment_subject_readable/,
+    );
+  });
+
   it("creates the extensions a module's schema file creates in its data file", () => {
     const data = (name: string, layout = {}) =>
       renderModules([name], layout).find(

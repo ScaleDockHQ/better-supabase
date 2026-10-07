@@ -11,6 +11,7 @@ import {
   columnRef,
   schemaPreamble,
   SERVICE_CALLER,
+  tenantIn,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { type PlanLookup, platformLists } from "./billing-platform.ts";
@@ -213,7 +214,7 @@ grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
 ${tenantKey}drop policy if exists "billing_customers_read" on ${t};
 create policy "billing_customers_read" on ${t} for select to authenticated
-  using (${can(c("tenant"), "read")});
+  using (${tenantIn(c("tenant"), ctx.permission("read", permissions.read))});
 
 create or replace function ${fn("billing_customer")}(tenant ${id})
 returns text

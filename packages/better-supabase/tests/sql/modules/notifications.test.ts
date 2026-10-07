@@ -92,7 +92,7 @@ describe("notifications module", () => {
     )!.contents;
     expect(sql).toContain("member_can");
     expect(sql).toMatch(
-      /create policy [\s\S]*better_supabase\.can\('tenant', /,
+      /create policy [\s\S]*better_supabase\.tenant_ids_with\('notifications\.read'\)/,
     );
     expect(sql).not.toMatch(/create policy [^;]*member_can/);
     expect(sql).toContain("'notifications.send'");

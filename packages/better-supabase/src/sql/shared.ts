@@ -21,6 +21,16 @@ create schema if not exists ${ctx.schema};
 grant usage on schema ${ctx.schema} to anon, authenticated, service_role;`;
 }
 
+/**
+ * A policy condition for "the caller holds `permission` in this row's
+ * tenant". Postgres never inlines `can()` (it is `security definer`), so a
+ * `can('tenant', column, ...)` in `using` runs once per row and can't use the
+ * tenant index; the `tenant_ids_with` set runs once per statement.
+ */
+export function tenantIn(tenant: string, permission: string): string {
+  return `${tenant} in (select better_supabase.tenant_ids_with(${permission}))`;
+}
+
 /** A claim from the top level of the token, then `app_metadata`. */
 export function jwtClaim(name: string): string {
   return `coalesce(auth.jwt() ->> ${sqlString(name)}, auth.jwt() -> 'app_metadata' ->> ${sqlString(name)})`;

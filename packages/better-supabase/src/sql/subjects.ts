@@ -12,6 +12,12 @@ export interface Subject {
   /** Default `id`. */
   readonly id?: string;
   /**
+   * The id column's type, such as `uuid` or `bigint`. With it, the stored
+   * text id is cast to that type, so the lookup uses the subject table's
+   * primary key; without it the column is cast to text, which can't.
+   */
+  readonly idType?: string;
+  /**
    * The subject's tenant column, default `organization_id`. `false` for a
    * subject without a tenant (a user's own records), where the subject
    * table's policies alone decide, in modules that allow it.
@@ -30,7 +36,24 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 const SUBJECT_TYPE: RegExp = /^[a-z][a-z0-9_]{0,62}$/;
 
-const BASE_KEYS = new Set(["table", "id", "tenant", "permission", "cascade"]);
+const BASE_KEYS = new Set([
+  "table",
+  "id",
+  "idType",
+  "tenant",
+  "permission",
+  "cascade",
+]);
+
+const ID_TYPE: RegExp = /^[a-z][a-z0-9_ ]{0,62}$/;
+
+/** `s.<id> = <value>`, comparing on the id column's own type when it is known. */
+export function subjectIdMatches(subject: Subject, value: string): string {
+  const column = `s.${sqlIdent(subject.id ?? "id")}`;
+  return subject.idType === undefined
+    ? `${column}::text = ${value}`
+    : `${column} = (${value})::${subject.idType}`;
+}
 
 /**
  * `sql.modules.<module>.options.subjects`: subject type to
@@ -79,6 +102,12 @@ export function subjectsOption(
       throw new TypeError(`${where}.${type}.cascade must be true or false`);
     }
     const id = text("id");
+    const idType = text("idType");
+    if (idType !== undefined && !ID_TYPE.test(idType)) {
+      throw new TypeError(
+        `${where}.${type}.idType must be a type name such as uuid, text or bigint`,
+      );
+    }
     const tenantless = entry["tenant"] === false;
     if (tenantless && allow.tenantless !== true) {
       throw new TypeError(
@@ -92,6 +121,7 @@ export function subjectsOption(
       {
         table: text("table") ?? "",
         ...(id !== undefined && { id }),
+        ...(idType !== undefined && { idType }),
         ...(tenant !== undefined && { tenant }),
         ...(permission !== undefined && { permission }),
         ...(cascade === true && { cascade }),
@@ -123,12 +153,12 @@ export function subjectReadable(
   return `case ${args.type}\n${subjects
     .map(([type, subject]) => {
       if (subject.tenant === false) {
-        return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where s.${sqlIdent(subject.id ?? "id")}::text = ${args.id})`;
+        return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)})`;
       }
       const extra = subject.permission
         ? ` and coalesce(better_supabase.can('tenant', ${args.tenant}, ${sqlString(subject.permission)}), false)`
         : "";
-      return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where s.${sqlIdent(subject.id ?? "id")}::text = ${args.id} and s.${sqlIdent(subject.tenant ?? "organization_id")} = ${args.tenant})${extra}`;
+      return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and s.${sqlIdent(subject.tenant ?? "organization_id")} = ${args.tenant})${extra}`;
     })
     .join("\n")}\n    else false\n  end`;
 }

@@ -6,7 +6,7 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { schemaPreamble, updatedAt } from "../shared.ts";
+import { schemaPreamble, tenantIn, updatedAt } from "../shared.ts";
 import { accessModel } from "./access-model.ts";
 import { permdockForUser } from "./access.ts";
 import {
@@ -330,7 +330,7 @@ grant all on ${n.table(table)} to service_role;${policy(
       `bs_notification_${table}_own`,
       `for all to authenticated using (${mine}) with check (${mine}${
         n.has(table, "tenant") && ctx.installed("access")
-          ? ` and (${c(table, "tenant")} is null or coalesce(better_supabase.can('tenant', ${c(table, "tenant")}, ${n.readPermission}), false))`
+          ? ` and (${c(table, "tenant")} is null or ${tenantIn(c(table, "tenant"), n.readPermission)})`
           : ""
       })`,
     )}`);

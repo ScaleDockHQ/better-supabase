@@ -6,7 +6,7 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, schemaPreamble } from "../shared.ts";
+import { SERVICE_CALLER, schemaPreamble, tenantIn } from "../shared.ts";
 import {
   type Subject,
   subjectCascades,
@@ -207,6 +207,20 @@ function build(ctx: ModuleContext): string {
     tenantless.length === 0
       ? can(tenant, action)
       : `(${tenant} is null or ${can(tenant, action)})`;
+  // The policy form of inTenant: the tenant_ids_with set runs once per
+  // statement instead of can() once per row.
+  const memberIn = (
+    tenant: string,
+    action: keyof typeof permissions,
+  ): string => {
+    const member = tenantIn(
+      tenant,
+      ctx.permission(action, permissions[action]),
+    );
+    return tenantless.length === 0
+      ? member
+      : `(${tenant} is null or ${member})`;
+  };
   const perSubject = subjectBuckets(subjects, bucket);
   const buckets = [
     ...new Set([bucket, ...perSubject.map((entry) => entry.bucket)]),
@@ -360,7 +374,7 @@ grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}
 
 drop policy if exists "attachments_read" on ${t};
 create policy "attachments_read" on ${t} for select to authenticated
-  using (${inTenant(c("tenant"), "read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
+  using (${memberIn(c("tenant"), "read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
 drop policy if exists "attachments_insert" on ${t};
 create policy "attachments_insert" on ${t} for insert to authenticated
   with check (
@@ -370,7 +384,7 @@ create policy "attachments_insert" on ${t} for insert to authenticated
   );
 drop policy if exists "attachments_delete" on ${t};
 create policy "attachments_delete" on ${t} for delete to authenticated
-  using (${c("uploadedBy")} = (select auth.uid()) or ${can(c("tenant"), "manage")});
+  using (${c("uploadedBy")} = (select auth.uid()) or ${tenantIn(c("tenant"), ctx.permission("manage", permissions.manage))});
 
 -- Whether the caller may run action (insert, select or delete) on the
 -- object at path in bucket: an upload needs the caller's pending record, a

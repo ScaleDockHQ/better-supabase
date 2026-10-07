@@ -57,7 +57,7 @@ describe("comments module", () => {
       `case "subject_type" when 'deal' then 'deals.comment' else 'comments.create' end`,
     );
     expect(sql).toContain(
-      `coalesce(better_supabase.can('tenant', "organization_id", 'comments.read'), false) and`,
+      `using ("organization_id" in (select better_supabase.tenant_ids_with('comments.read')) and`,
     );
     expect(() =>
       sqlOf(["comments"], {

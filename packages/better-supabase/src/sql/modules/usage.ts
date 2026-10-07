@@ -6,7 +6,7 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -206,6 +206,8 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const permissions = MODULE_PERMISSIONS.usage;
   const canRead = (tenant: string): string =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission("read", permissions.read)}), false))`;
+  const readPolicy = (tenant: string): string =>
+    tenantIn(tenant, ctx.permission("read", permissions.read));
   const member = (tenant: string): string =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.has_organization_role(${tenant}), false))`;
   // Plan quotas apply to tenants with that entitlement key, to tenants on that
@@ -272,7 +274,7 @@ grant select on ${counters} to authenticated;
 grant all on ${counters} to service_role;
 drop policy if exists "usage_counters_read" on ${counters};
 create policy "usage_counters_read" on ${counters} for select to authenticated
-  using (${canRead(cc("tenant"))});
+  using (${readPolicy(cc("tenant"))});
 
 -- One row per idempotency key, so a retried increment counts once.
 create table if not exists ${events} (
@@ -306,7 +308,7 @@ grant select on ${history} to authenticated;
 grant all on ${history} to service_role;
 drop policy if exists "usage_history_read" on ${history};
 create policy "usage_history_read" on ${history} for select to authenticated
-  using (${canRead(hc("tenant"))});
+  using (${readPolicy(hc("tenant"))});
 `
     : ""
 }
@@ -338,7 +340,7 @@ grant select on ${quotas} to authenticated;
 grant all on ${quotas} to service_role;
 drop policy if exists "usage_quotas_read" on ${quotas};
 create policy "usage_quotas_read" on ${quotas} for select to authenticated
-  using (${qc("tenant")} is null or ${canRead(qc("tenant"))});
+  using (${qc("tenant")} is null or ${readPolicy(qc("tenant"))});
 
 -- The bigint signatures and return types before quantities were numeric.
 drop function if exists ${fn("usage_quota")}(${id}, text);

@@ -237,6 +237,7 @@ ${currentTenant(ctx)}
 create or replace function better_supabase.member_organization_ids(roles text[] default null)
 returns setof ${id}
 language sql
+rows 1
 stable
 security definer
 set search_path = ''

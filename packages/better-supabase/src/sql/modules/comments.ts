@@ -6,7 +6,12 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { jsonSchemaChecks, SERVICE_CALLER, schemaPreamble } from "../shared.ts";
+import {
+  jsonSchemaChecks,
+  SERVICE_CALLER,
+  schemaPreamble,
+  tenantIn,
+} from "../shared.ts";
 import {
   type Subject,
   subjectCascades,
@@ -139,11 +144,35 @@ function build(ctx: ModuleContext): string {
       ? can(tenant, action)
       : `coalesce(better_supabase.can('tenant', ${tenant}, case ${type} ${cases.join(" ")} else ${permission(action)} end), false)`;
   };
+  // The policy form of canOn: one tenant_ids_with set per permission key,
+  // each computed once per statement, instead of a can() call per row.
+  const memberOn = (tenant: string, type: string, action: Action): string => {
+    const keyed = overrides.flatMap(([subjectType, keys]) => {
+      const key = keys.get(action);
+      return key === undefined ? [] : [[subjectType, key] as const];
+    });
+    if (keyed.length === 0) return tenantIn(tenant, permission(action));
+    const branches = keyed.map(
+      ([subjectType, key]) =>
+        `(${type} = ${sqlString(subjectType)} and ${tenantIn(tenant, sqlString(key))})`,
+    );
+    const listed = keyed.map(([subjectType]) => sqlString(subjectType));
+    branches.push(
+      `(${type} not in (${listed.join(", ")}) and ${tenantIn(tenant, permission(action))})`,
+    );
+    return `(${branches.join(" or ")})`;
+  };
   const readable = subjectReadable(subjects, {
     type: "subject_type",
     id: "subject_id",
     tenant: "tenant",
   });
+  // Without options.subjects every subject is readable, so the policies
+  // leave out the per-row call that would only return true.
+  const subjectCheck =
+    subjects.length === 0
+      ? ""
+      : ` and ${fn("comment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`;
   const documentSchema = documentSchemaOf(ctx);
   const target = ctx.tableName("comments");
   const documentCheck = documentSchema
@@ -251,18 +280,17 @@ $$;
 
 drop policy if exists "comments_read" on ${comments};
 create policy "comments_read" on ${comments} for select to authenticated
-  using (${canOn(c("tenant"), c("subjectType"), "read")} and ${fn("comment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
+  using (${memberOn(c("tenant"), c("subjectType"), "read")}${subjectCheck});
 drop policy if exists "comments_insert" on ${comments};
 create policy "comments_insert" on ${comments} for insert to authenticated
   with check (
     ${c("author")} = (select auth.uid())
-    and ${canOn(c("tenant"), c("subjectType"), "create")}
-    and ${fn("comment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})
+    and ${canOn(c("tenant"), c("subjectType"), "create")}${subjectCheck}
   );
 drop policy if exists "comments_update" on ${comments};
 create policy "comments_update" on ${comments} for update to authenticated
-  using (${c("author")} = (select auth.uid()) or ${canOn(c("tenant"), c("subjectType"), "moderate")})
-  with check (${c("author")} = (select auth.uid()) or ${canOn(c("tenant"), c("subjectType"), "moderate")});
+  using (${c("author")} = (select auth.uid()) or ${memberOn(c("tenant"), c("subjectType"), "moderate")})
+  with check (${c("author")} = (select auth.uid()) or ${memberOn(c("tenant"), c("subjectType"), "moderate")});
 
 -- Keeps mentions to distinct members other than the author, a reply on its
 -- parent's subject, and edited_at; a deleted comment keeps no body.
@@ -515,7 +543,7 @@ grant select on ${activity} to authenticated;
 grant all on ${activity} to service_role;
 drop policy if exists "activity_entries_read" on ${activity};
 create policy "activity_entries_read" on ${activity} for select to authenticated
-  using (${can(a("tenant"), "activity")});
+  using (${tenantIn(a("tenant"), permission("activity"))});
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
