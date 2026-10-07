@@ -33,9 +33,14 @@ export interface WaitlistEntry {
   readonly createdAt: Temporal.Instant;
 }
 
-/** What `join` tells the person: rejected entries read as `waiting`. */
+/**
+ * What `join` tells the person. Without the service role it is always
+ * `waiting`, with the place a new address would get once the entry left the
+ * line, so it never reveals who was approved or signed up. The service role
+ * sees the real status, with rejected entries read as `waiting`.
+ */
 export interface WaitlistPlace {
-  /** Their place among the waiting entries; `undefined` once approved. */
+  /** Their place among the waiting entries; `undefined` for the service role once the entry left the line. */
   readonly position: number | undefined;
   readonly status: Exclude<WaitlistStatus, "rejected">;
 }
@@ -80,7 +85,7 @@ export interface WaitlistOptions extends BlockTemporalOptions {
 }
 
 export interface Waitlist {
-  /** Adds an address, or returns its place when it is already there. Works signed out. */
+  /** Adds an address, or returns its place when it is already there. Works signed out; see `WaitlistPlace`. */
   join(
     email: string,
     options?: {

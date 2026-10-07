@@ -173,6 +173,52 @@ describe.skipIf(!live)("usage", () => {
     }
   });
 
+  it("keeps a tenant's usage and quota from members without usage.read and from outsiders", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "usage"]);
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const outsider = await s.user("outsider");
+      const organization = await s.organization(owner, { member });
+      const usage = createUsage({ transport: sqlTransport(s.sql) });
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.usage_quotas (plan, meter, "limit", period)
+         values ('*', 'projects', 5, 'month')`,
+      );
+      await usage.record(organization, "projects", { quantity: 3 }).orThrow();
+      const fits = (quantity: number) =>
+        s.value<boolean>(
+          `better_supabase.within_quota('${organization}', 'projects', ${quantity})`,
+        );
+
+      await s.asRole(outsider);
+      expect(await fits(1)).toBe(false);
+      expect(await fits(0)).toBe(false);
+
+      await s.asRole(member);
+      expect(await fits(2)).toBe(true);
+      expect(await fits(3)).toBe(false);
+      for (const result of [
+        await usage.current(organization, "projects"),
+        await usage.overview(organization),
+      ]) {
+        expect(result).toMatchObject({
+          ok: false,
+          error: { kind: "forbidden", hint: "USAGE_FORBIDDEN" },
+        });
+      }
+
+      await s.asRole(owner);
+      expect(
+        await usage.current(organization, "projects").orThrow(),
+      ).toMatchObject({ used: 3, limit: 5, remaining: 2 });
+    } finally {
+      await s.close();
+    }
+  });
+
   it("reports past counters it can't send without waiting for them", async () => {
     const s = await BlockSession.open(pool);
     try {

@@ -48,6 +48,9 @@ export function invalidRequest(message: string, table?: string): never {
 
 type Input = Readonly<Record<string, unknown>>;
 
+/** A regconfig name, optionally schema-qualified; PostgREST puts it in the operator unquoted. */
+const TEXT_SEARCH_CONFIG = /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)?$/;
+
 const FIELD_OPS = new Set([
   "eq",
   "neq",
@@ -449,6 +452,12 @@ export class IrBuilder {
         // SAFETY: a search operand is a query string or a query object, and the
         // string case returned above.
         const { query, config } = operand as { query: string; config?: string };
+        if (config && !TEXT_SEARCH_CONFIG.test(config)) {
+          invalidRequest(
+            `"search" on "${name}" needs a text search configuration name, such as "english"`,
+            table.key,
+          );
+        }
         return config
           ? { kind: "column", column, op: "fts", value: query, config }
           : col("fts", query);

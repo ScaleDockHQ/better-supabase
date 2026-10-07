@@ -321,6 +321,17 @@ describe("IrBuilder.where field operators", () => {
         config: "dutch",
       },
     ],
+    [
+      "search with a schema-qualified config",
+      { search: { query: "acme", config: "pg_catalog.dutch" } },
+      {
+        kind: "column",
+        column: "name",
+        op: "fts",
+        value: "acme",
+        config: "pg_catalog.dutch",
+      },
+    ],
     ["only undefined operands", { gt: undefined }, { kind: "and", items: [] }],
     [
       "several operators",
@@ -329,6 +340,25 @@ describe("IrBuilder.where field operators", () => {
     ],
   ])("%s", (_name, operand, expected) => {
     expect(ir.where(customers, { name: operand })).toEqual(expected);
+  });
+
+  it.each([
+    "english),id.not.is.null,name.wfts(english",
+    "english)",
+    "dutch.",
+    "1dutch",
+    "a.b.c",
+  ])("rejects the search config %j", (config) => {
+    expect(
+      rejection(() =>
+        ir.where(customers, {
+          OR: [{ name: { search: { query: "acme", config } } }],
+        }),
+      ),
+    ).toMatchObject({
+      kind: "invalid_request",
+      table: "customers",
+    });
   });
 
   it("matches json with contains", () => {

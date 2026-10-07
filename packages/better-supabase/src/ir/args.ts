@@ -38,7 +38,11 @@ interface TextOps {
   readonly contains?: string;
   readonly startsWith?: string;
   readonly endsWith?: string;
-  /** Full-text search (`websearch_to_tsquery`). */
+  /**
+   * Full-text search (`websearch_to_tsquery`). `config` is a text search
+   * configuration name such as `english` or `pg_catalog.dutch`; anything else
+   * is an `invalid_request` error.
+   */
   readonly search?:
     | string
     | { readonly query: string; readonly config?: string };

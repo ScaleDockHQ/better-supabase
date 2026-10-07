@@ -45,7 +45,12 @@ export async function join(email: string) {
 }
 ```
 
-`join_waitlist` is open to `anon`, so rate-limit the route that calls it.
+`join_waitlist` is open to `anon`, so rate-limit the route that calls it. It
+never tells a caller what happened to an address: called with a user's
+session or signed out, it always returns `status: "waiting"`, and for an
+address that was approved, rejected or already signed up it returns the place
+a new address would get. Only the service role sees the real status, with
+`position` undefined once the entry left the line.
 
 ## Approving
 

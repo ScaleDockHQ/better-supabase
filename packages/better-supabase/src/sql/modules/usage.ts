@@ -437,7 +437,8 @@ as $$
 $$;
 
 -- { meter, used, limit, remaining, unlimited, period, resets_at }; limit and
--- remaining are null without a quota and for an unlimited one.
+-- remaining are null without a quota and for an unlimited one. Needs usage.read,
+-- like usage_overview.
 create or replace function ${fn("usage_status")}(tenant ${id}, meter text)
 returns jsonb
 language plpgsql
@@ -450,7 +451,7 @@ declare
   used numeric;
   win record;
 begin
-  if not ${member("tenant")} then
+  if not ${canRead("tenant")} then
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   select * into quota from ${fn("usage_quota")}(tenant, meter);
@@ -477,7 +478,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ${member("tenant")} then
+  if not ${canRead("tenant")} then
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   return (
@@ -496,7 +497,8 @@ begin
 end;
 $$;
 
--- For policies: whether quantity more fits the tenant's quota.
+-- For policies: whether quantity more fits the tenant's quota. False for a
+-- caller outside the tenant, so it can't probe another tenant's usage.
 --   with check (better_supabase.within_quota(organization_id, 'projects'))
 create or replace function ${fn("within_quota")}(tenant ${id}, meter text, quantity bigint default 1)
 returns boolean
@@ -508,6 +510,9 @@ as $$
 declare
   quota record;
 begin
+  if not ${member("tenant")} then
+    return false;
+  end if;
   select * into quota from ${fn("usage_quota")}(tenant, meter);
   if quota.quota_limit is null then
     return true;
