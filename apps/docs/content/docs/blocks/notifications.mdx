@@ -187,6 +187,27 @@ routine activity too, `participating` only what involves them, and `ignore`
 mutes the subject even when a sender names them. `null` removes the
 subscription.
 
+To make the author or an assignee follow a subject without overriding a
+choice they made, pass `ifAbsent: true` with their `userId`:
+
+```ts
+await notifications
+  .subscribe({
+    subject: { type: "task", id: taskId },
+    level: "participating",
+    tenant: organizationId,
+    userId: assigneeId,
+    ifAbsent: true,
+  })
+  .orThrow();
+```
+
+It adds the level only when the member has none for the subject, so their
+`ignore` or `all` stays. A signed-in sender with the send permission in the
+tenant may do this for another member of it; without `ifAbsent`, only the
+service sets another member's level. In SQL the flag is
+`set_notification_subscription(..., member, if_absent => true)`.
+
 `setPreference({ type, channel, enabled, tenant? })` turns a type (or `*`)
 on or off on a channel. The most specific row wins: the organization and
 type, the organization and `*`, everywhere and type, everywhere and `*`,

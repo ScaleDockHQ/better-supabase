@@ -656,8 +656,12 @@ function settings(ctx: ModuleContext, n: NotifyNames): string {
     const fn = "set_notification_subscription";
     parts.push(`
 -- Watches (all), follows (participating) or ignores a subject; a null level
--- removes the choice. The service can set it for another member.
-create or replace function ${ctx.fn(fn)}(subject_type text, subject_id text, level text, tenant ${id} default null, member uuid default null)
+-- removes the choice. The service can set it for another member. With
+-- if_absent it only adds a level for a member without one, and then a
+-- sender (the send permission in the tenant) may set it for another member,
+-- to make the author or an assignee follow without overriding their choice.
+drop function if exists ${ctx.fn(fn)}(text, text, text, ${id}, uuid);
+create or replace function ${ctx.fn(fn)}(subject_type text, subject_id text, level text, tenant ${id} default null, member uuid default null, if_absent boolean default false)
 returns void
 language plpgsql
 security definer
@@ -666,12 +670,37 @@ as $$
 declare
   v_user uuid := coalesce(${fn}.member, auth.uid());
 begin
-  if v_user is distinct from auth.uid() and not (${SERVICE_CALLER}) then
-    ${fail("NOTIFICATION_FORBIDDEN", "Only the service sets subscriptions for others")}
+  if v_user is distinct from auth.uid() and not (${SERVICE_CALLER})${
+    ctx.installed("access")
+      ? ` and not (
+    coalesce(${fn}.if_absent, false) and ${fn}.level is not null and ${fn}.tenant is not null
+    and coalesce(better_supabase.member_can(auth.uid(), ${fn}.tenant, ${n.sendPermission}), false)
+    and coalesce(better_supabase.member_can(v_user, ${fn}.tenant, ${n.readPermission}), false)
+  )`
+      : ""
+  } then
+    ${fail("NOTIFICATION_FORBIDDEN", "Only the service, or a sender with if_absent, sets subscriptions for others")}
   end if;
   if ${fn}.level is not null and ${fn}.level not in ('participating', 'all', 'ignore') then
     ${fail("NOTIFICATION_LEVEL_UNKNOWN", "level must be participating, all or ignore", "22023")}
   end if;${member(fn)}
+  if coalesce(${fn}.if_absent, false) then
+    if ${fn}.level is not null and not exists (
+      select 1 from ${n.table("subscriptions")} s
+      where s.${s("user")} = v_user
+        and s.${s("subjectType")} = ${fn}.subject_type
+        and s.${s("subjectId")} = ${fn}.subject_id${
+          t
+            ? `
+        and s.${s("tenant")} is not distinct from ${fn}.tenant`
+            : ""
+        }
+    ) then
+      insert into ${n.table("subscriptions")} (${[...(t ? [s("tenant")] : []), s("user"), s("subjectType"), s("subjectId"), s("level")].join(", ")})
+      values (${[...(t ? [`${fn}.tenant`] : []), "v_user", `${fn}.subject_type`, `${fn}.subject_id`, `${fn}.level`].join(", ")});
+    end if;
+    return;
+  end if;
   delete from ${n.table("subscriptions")} s
   where s.${s("user")} = v_user
     and s.${s("subjectType")} = ${fn}.subject_type
@@ -682,8 +711,8 @@ begin
   end if;
 end;
 $$;
-revoke execute on function ${ctx.fn(fn)}(text, text, text, ${id}, uuid) from public, anon;
-grant execute on function ${ctx.fn(fn)}(text, text, text, ${id}, uuid) to authenticated, service_role;`);
+revoke execute on function ${ctx.fn(fn)}(text, text, text, ${id}, uuid, boolean) from public, anon;
+grant execute on function ${ctx.fn(fn)}(text, text, text, ${id}, uuid, boolean) to authenticated, service_role;`);
   }
   if (ctx.hasTable("preferences")) {
     const p = (logical: string) => n.col("preferences", logical);

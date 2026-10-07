@@ -210,8 +210,16 @@ export interface Notifications<K extends NotificationTypes> {
     readonly subject: NotificationSubject;
     readonly level: SubscriptionLevel | null;
     readonly tenant?: string;
-    /** Another member; only the service can set it. */
+    /**
+     * Another member; the service can set it, and with `ifAbsent` so can a
+     * sender with the send permission in `tenant`.
+     */
     readonly userId?: string;
+    /**
+     * Only add `level` when the member has no level for the subject, so an
+     * auto-follow keeps their own `ignore` or `all`.
+     */
+    readonly ifAbsent?: boolean;
   }): AsyncResult<void>;
   /** Turns a type (`*` for all) on or off on a channel; `null` removes it. */
   setPreference(input: {
@@ -567,6 +575,7 @@ export function createNotifications<
           level: input.level,
           tenant: input.tenant ?? null,
           member: input.userId ?? null,
+          if_absent: input.ifAbsent,
         },
         () => undefined,
       );

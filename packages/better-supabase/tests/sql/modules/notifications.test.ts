@@ -251,4 +251,21 @@ describe("notification actors", () => {
       "where not x = any (array(select e::uuid from jsonb_array_elements_text(notification -> 'exclude') e))",
     );
   });
+
+  it("lets a sender add a level for another member only when none is set", () => {
+    const sql = renderModules(["access", "notifications"])
+      .filter((file) => file.module === "notifications")
+      .map((file) => file.contents)
+      .join("\n");
+    expect(body({})).not.toContain("member_can(v_user");
+    expect(sql).toContain(
+      'set_notification_subscription"(subject_type text, subject_id text, level text, tenant uuid default null, member uuid default null, if_absent boolean default false)',
+    );
+    expect(sql).toContain(
+      "and coalesce(better_supabase.member_can(auth.uid(), set_notification_subscription.tenant, 'notifications.send'), false)",
+    );
+    expect(sql).toContain(
+      "if coalesce(set_notification_subscription.if_absent, false) then",
+    );
+  });
 });
