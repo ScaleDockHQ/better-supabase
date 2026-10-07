@@ -262,6 +262,22 @@ describe("platform invitations under the permdock model", () => {
   });
 });
 
+describe("update_invitation", () => {
+  it("edits an open invitation with the invite checks and keeps the token", () => {
+    const sql = body({ invitations: { options: { prefill: true } } });
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."update_invitation"(\n  invitation_id uuid,\n  invitee_email text default null,\n  invitee_role text default null,\n  prefill jsonb default null\n)',
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;',
+    );
+    expect(sql).toContain('updated."prefill" := prefill;');
+    const fn = sql.slice(sql.indexOf('"update_invitation"('));
+    expect(fn.slice(0, fn.indexOf("$$;"))).not.toContain("token_hash");
+    expect(body({})).not.toContain('updated."prefill" := prefill;');
+  });
+});
+
 describe("invitation_preview_extra", () => {
   it("merges the app's keys into the preview when the hook exists", () => {
     const sql = body({

@@ -61,6 +61,15 @@ export interface Invitation {
   readonly extra: Readonly<Record<string, unknown>>;
 }
 
+/** What `updateInvitation` changes; a missing key keeps the current value. */
+export interface InvitationChanges {
+  readonly email?: string;
+  /** A role name, or a role id or key under the catalog model. */
+  readonly role?: string;
+  /** Replaces the profile fields to fill in on sign-up. */
+  readonly prefill?: Readonly<Record<string, unknown>>;
+}
+
 /** What `onInvite` receives: the place to send the email. */
 export interface InvitationSent {
   readonly invitation: Invitation;
@@ -171,6 +180,15 @@ export interface Organizations {
     invitationId: string,
     validFor?: string,
   ): AsyncResult<InvitationSent>;
+  /**
+   * A new email, role or prefill for an open invitation, with the checks
+   * `invite` makes. The token and expiry stay, so the link already sent
+   * keeps working; call `resendInvitation` to mail the new address.
+   */
+  updateInvitation(
+    invitationId: string,
+    changes: InvitationChanges,
+  ): AsyncResult<Invitation>;
   /** `false` when it was not open. */
   revokeInvitation(invitationId: string): AsyncResult<boolean>;
   declineInvitation(token: string): AsyncResult<boolean>;
@@ -557,6 +575,32 @@ export function createOrganizations(
         "resend_invitation",
         { invitation_id: invitationId, valid_for: validFor },
         (value) => sent(value, "resend_invitation", true),
+      );
+    },
+    updateInvitation(invitationId, changes) {
+      return run(
+        "invitations",
+        "update_invitation",
+        {
+          invitation_id: invitationId,
+          invitee_email: changes.email,
+          invitee_role: changes.role,
+          prefill: changes.prefill,
+        },
+        (value) => {
+          const invitation = invitationFrom(
+            recordOf(value, "update_invitation"),
+          );
+          invitationEvent("invitation.updated", {
+            invitationId: invitation.id,
+            ...(invitation.organizationId === null
+              ? {}
+              : { organizationId: invitation.organizationId }),
+            email: invitation.email,
+            role: invitation.role,
+          });
+          return invitation;
+        },
       );
     },
     revokeInvitation(invitationId) {

@@ -873,7 +873,28 @@ describe.skipIf(!live)("organizations and invitations", () => {
         `${schema}.invite_member($1, $2, 'member')`,
         [organization, email("admin")],
       );
+      expect(
+        await s.hint(`${schema}.update_invitation($1, null, 'nope')`, [
+          platform.id,
+        ]),
+      ).toBe("INVITATION_ROLE_UNKNOWN");
+      expect(
+        await s.value(`${schema}.update_invitation($1, $2, 'support')`, [
+          platform.id,
+          email("member"),
+        ]),
+      ).toMatchObject({
+        id: platform.id,
+        tenant: null,
+        organization: null,
+        role: support,
+      });
       await s.as("outsider");
+      expect(
+        await s.hint(`${schema}.update_invitation($1, null, 'support')`, [
+          platform.id,
+        ]),
+      ).toBe("INVITATION_FORBIDDEN");
       expect(
         await s.hint(`${schema}.accept_invitation_by_id($1)`, [platform.id]),
       ).toBe("INVITATION_EMAIL_MISMATCH");
@@ -1012,6 +1033,117 @@ describe.skipIf(!live)("organizations and invitations", () => {
       expect(
         await s.hint(`${schema}.accept_invitation($1)`, [kept.token]),
       ).toBe("INVITATION_INVITER_REVOKED");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("updates an open invitation in place with the invite checks", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    try {
+      await client.query("begin");
+      for (const who of Object.keys(USERS) as Who[]) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      for (const file of renderModules(
+        ["organizations", "invitations"],
+        LAYOUT,
+      ))
+        await client.query(file.contents);
+
+      await s.as("owner");
+      const organization = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Edit", slug: `edit-${USERS.owner.slice(0, 8)}` }],
+      );
+      const invite = (to: string, role: string) =>
+        s.value<{ token: string; id: string }>(
+          "better_supabase.invite_member($1, $2, $3, '7 days', $4)",
+          [organization, to, role, { name: "Out" }],
+        );
+      const admin = await invite(email("admin"), "admin");
+      const open = await invite(email("outsider"), "member");
+      const owner = await invite(`owner-${email("outsider")}`, "owner");
+      const other = await invite(`renamed-${email("outsider")}`, "member");
+      await s.as("admin");
+      await s.value("better_supabase.accept_invitation($1)", [admin.token]);
+
+      await s.as("outsider");
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'viewer')", [
+          open.id,
+        ]),
+      ).toBe("INVITATION_FORBIDDEN");
+      await s.as("admin");
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'member')", [
+          owner.id,
+        ]),
+      ).toBe("INVITATION_ROLE_FORBIDDEN");
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'owner')", [
+          open.id,
+        ]),
+      ).toBe("INVITATION_ROLE_FORBIDDEN");
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'nope')", [
+          open.id,
+        ]),
+      ).toBe("INVITATION_ROLE_UNKNOWN");
+      expect(
+        await s.hint("better_supabase.update_invitation($1, $2)", [
+          open.id,
+          email("owner"),
+        ]),
+      ).toBe("INVITATION_ALREADY_MEMBER");
+
+      const updated = await s.value<Record<string, unknown>>(
+        "better_supabase.update_invitation($1, $2, 'viewer', $3)",
+        [open.id, ` Renamed-${email("outsider")} `, { name: "Renamed" }],
+      );
+      expect(updated).toMatchObject({
+        id: open.id,
+        email: `renamed-${email("outsider")}`,
+        role: "viewer",
+        prefill: { name: "Renamed" },
+        organization: { id: organization, name: "Edit" },
+      });
+      expect(updated).not.toHaveProperty("token");
+      expect(
+        await s.value(
+          "(select count(*)::int from better_supabase.invitations where id = $1)",
+          [other.id],
+        ),
+      ).toBe(0);
+      await s.as("anon");
+      expect(
+        await s.value("better_supabase.invitation_preview($1)", [open.token]),
+      ).toMatchObject({
+        status: "pending",
+        email: `renamed-${email("outsider")}`,
+        role: "viewer",
+        prefill: { name: "Renamed" },
+      });
+
+      await s.as("owner");
+      expect(
+        await s.value(
+          "better_supabase.update_invitation($1, null, null, null)",
+          [open.id],
+        ),
+      ).toMatchObject({ role: "viewer", prefill: { name: "Renamed" } });
+      await s.value("better_supabase.revoke_invitation($1)", [open.id]);
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'member')", [
+          open.id,
+        ]),
+      ).toBe("INVITATION_INVALID");
     } finally {
       await client.query("rollback");
       client.release();

@@ -44,6 +44,7 @@ describe("block events", () => {
       expectTypeOf(event.type).toEqualTypeOf<
         | "invitation.created"
         | "invitation.resent"
+        | "invitation.updated"
         | "invitation.accepted"
         | "invitation.declined"
         | "invitation.revoked"

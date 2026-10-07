@@ -221,6 +221,52 @@ describe("createOrganizations", () => {
     expect(JSON.stringify(seen[0]?.data)).not.toContain("secret");
   });
 
+  it("updates an open invitation and emits invitation.updated", async () => {
+    const { transport, calls } = fake({
+      update_invitation: {
+        ...invitationRow,
+        token: undefined,
+        email: "grace@example.com",
+        role: "admin",
+      },
+    });
+    const events = new EventHub();
+    const seen: BlockEvent[] = [];
+    events.on("block", (event) => seen.push(event));
+    const organizations = createOrganizations({ transport, events });
+    const updated = await organizations
+      .updateInvitation("inv-1", { email: "grace@example.com", role: "admin" })
+      .orThrow();
+    expect(updated).toMatchObject({
+      id: "inv-1",
+      email: "grace@example.com",
+      role: "admin",
+    });
+    expect(calls).toEqual([
+      {
+        schema: "better_supabase",
+        fn: "update_invitation",
+        args: {
+          invitation_id: "inv-1",
+          invitee_email: "grace@example.com",
+          invitee_role: "admin",
+          prefill: undefined,
+        },
+      },
+    ]);
+    expect(seen.map((event) => [event.type, event.data])).toEqual([
+      [
+        "invitation.updated",
+        {
+          invitationId: "inv-1",
+          organizationId: "org-1",
+          email: "grace@example.com",
+          role: "admin",
+        },
+      ],
+    ]);
+  });
+
   it("returns an error when onInvite throws", async () => {
     const { transport } = fake({ invite_member: invitationRow });
     const result = await createOrganizations({

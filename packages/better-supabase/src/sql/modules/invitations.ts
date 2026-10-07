@@ -12,12 +12,22 @@ import {
 import {
   accessModel,
   MODULE_PERMISSIONS,
-  permdockPlatformRoles,
   roleNames,
-  roleScopeIs,
   tenantScope,
 } from "./access-model.ts";
 import { hasCanAssignAs, permdockForUser } from "./access.ts";
+import {
+  invitePlatform,
+  platformAssignment,
+  tenantRole,
+} from "./invitations-roles.ts";
+import {
+  extraHook,
+  inviteJson,
+  myInvitations,
+  organizationJson,
+  updateInvitation,
+} from "./invitations-rows.ts";
 import {
   PLATFORM_COLUMNS,
   openFilter,
@@ -29,7 +39,7 @@ import {
   tokenHash,
   type InviteTable,
 } from "./invitations-tables.ts";
-import { assignableRole, roleValue, tenantRoleScope } from "./organizations.ts";
+import { assignableRole, roleValue } from "./organizations.ts";
 import { roleThrough } from "./tenant.ts";
 
 const NAMES: ModuleNames = {
@@ -82,92 +92,6 @@ const NAMES: ModuleNames = {
     "invitation_preview_extra",
   ],
 };
-
-/**
- * The catalog role id for a key or id, in `scope`, among `tenant`'s roles
- * when given; `roleValue` in other models.
- */
-function roleIn(
-  ctx: ModuleContext,
-  expr: string,
-  scope: "tenant" | "platform",
-  tenant?: string,
-): string {
-  if (accessModel(ctx) !== "catalog") return roleValue(ctx, expr, tenant);
-  const scoped = roleScopeIs(ctx, "r", scope);
-  if (!scoped) return roleValue(ctx, expr, tenant);
-  const access = ctx.of("access");
-  const rid = access.col("roles", "id");
-  const key = access.col("roles", "key");
-  const text = `(${expr})::text`;
-  const own = tenantRoleScope(ctx, tenant);
-  return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text}) and ${scoped}${own.where} order by (r.${rid}::text = ${text}) desc${own.order} limit 1)`;
-}
-
-/** Where an accepted platform invitation assigns its role, and the checks around it. */
-interface PlatformAssignment {
-  /** The stored role for a role name or id; null when it is unknown. */
-  value(expr: string): string;
-  /** The assignment table's role value for an invitation's stored role. */
-  assign(stored: string): string;
-  /** Whether `member` may assign the stored role `stored`; `undefined` for no ceiling. */
-  canAssign(member: string, stored: string): string | undefined;
-  inviterCanAssign(member: string, stored: string): string | undefined;
-  readonly table: string;
-  readonly user: string;
-  readonly role: string;
-  /** Whether the inviter's authority can be checked again at accept. */
-  readonly recheck: boolean;
-}
-
-function platformAssignment(ctx: ModuleContext): PlatformAssignment {
-  const permdock = permdockPlatformRoles(ctx);
-  if (permdock) {
-    const through = permdock.through;
-    const name = (stored: string) =>
-      through
-        ? `(select r.${through.column}::text from ${through.table} r where r.${through.id}::text = (${stored})::text)`
-        : `(${stored})::text`;
-    return {
-      value: (expr) =>
-        through
-          ? `(select r.${through.id} from ${through.table} r where r.${through.id}::text = (${expr})::text or r.${through.column}::text = (${expr})::text order by (r.${through.id}::text = (${expr})::text) desc limit 1)`
-          : expr,
-      assign(stored) {
-        return this.value(stored);
-      },
-      canAssign: (member, stored) =>
-        permdock.canAssign === undefined
-          ? undefined
-          : `coalesce((${permdock.canAssign.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`,
-      inviterCanAssign: (member, stored) => {
-        const template = permdock.canAssign?.includes("{user}")
-          ? permdock.canAssign
-          : permdock.canAssignFor;
-        return template === undefined
-          ? undefined
-          : `coalesce((${template.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`;
-      },
-      table: permdock.table,
-      user: permdock.user,
-      role: permdock.role,
-      recheck: false,
-    };
-  }
-  const access = ctx.of("access");
-  return {
-    value: (expr) => roleIn(ctx, expr, "platform"),
-    assign: (stored) => roleValue(ctx, stored),
-    canAssign: (member, stored) =>
-      `better_supabase.platform_can_assign(${member}, ${stored}::text)`,
-    inviterCanAssign: (member, stored) =>
-      `better_supabase.platform_can_assign(${member}, ${stored}::text)`,
-    table: access.table("platformAssignments"),
-    user: access.col("platformAssignments", "user"),
-    role: access.col("platformAssignments", "role"),
-    recheck: true,
-  };
-}
 
 function tenantTableSql(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
@@ -278,58 +202,6 @@ create policy bs_platform_invitations_read on ${p.table} for select to authentic
 `;
 }
 
-const invitePlatform = (ctx: ModuleContext): string =>
-  ctx.permission(
-    "invitePlatform",
-    MODULE_PERMISSIONS.invitations.invitePlatform,
-  );
-
-/**
- * The invitation's organization: its id plus
- * `sql.modules.invitations.options.previewColumns` when the organizations
- * module is installed.
- */
-function organizationJson(ctx: ModuleContext, tenant: string): string {
-  if (!ctx.installed("organizations")) {
-    return `jsonb_build_object('id', ${tenant})`;
-  }
-  const organizations = ctx.of("organizations");
-  const id = organizations.col("organizations", "id");
-  const columns = ctx.list("previewColumns", ["name"]).map((column) => {
-    if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
-      throw new TypeError(
-        `sql.modules.invitations.options.previewColumns: "${column}" is not a valid column`,
-      );
-    }
-    return `, ${sqlString(column)}, o.${sqlIdent(column)}`;
-  });
-  return `(select jsonb_build_object('id', o.${id}${columns.join("")})
-      from ${organizations.table("organizations")} o where o.${id} = ${tenant})`;
-}
-
-/** The invitation as returned to the inviter; the token only right after creating it. */
-function inviteJson(
-  ctx: ModuleContext,
-  t: InviteTable,
-  row: string,
-  token: string,
-  tenant: string | null,
-): string {
-  const c = (logical: string) => `${row}.${t.col(logical)}`;
-  return `jsonb_build_object(
-    'id', ${c("id")},
-    'tenant', ${tenant ?? "null"},
-    'email', ${c("email")},
-    'role', ${c("role")},
-    'expires_at', ${c("expiresAt")},
-    'created_at', ${optionalCol(t, row, "createdAt", "null")},
-    'invited_by', ${optionalCol(t, row, "invitedBy", "null")},
-    'organization', ${tenant === null ? "null" : organizationJson(ctx, tenant)},
-    'prefill', ${optionalCol(t, row, "prefill", "'{}'::jsonb")},
-    'token', ${token}
-  )`;
-}
-
 /** Raises unless `valid_for` is positive and at most `sql.modules.invitations.options.maxValidFor`. */
 function validity(ctx: ModuleContext): string {
   const max = sqlString(ctx.text("maxValidFor", "30 days"));
@@ -402,15 +274,7 @@ function invite(ctx: ModuleContext): string {
   const mu = tenantMembers.col("memberships", "user");
   const bytes = ctx.number("tokenBytes", 24);
   const validFor = sqlString(ctx.text("validFor", "7 days"));
-  const model = accessModel(ctx);
-  const stored = roleIn(ctx, "invitee_role", "tenant", "tenant");
-  const through = roleThrough(ctx.of("tenant")) !== undefined;
-  const unknownRole =
-    model === "catalog" || through
-      ? `${stored} is null`
-      : model === "roles"
-        ? `not (invitee_role = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[]))`
-        : "false";
+  const { stored, unknownRole } = tenantRole(ctx);
   const columns: (readonly [string, string])[] = [
     ["tenant", "tenant"],
     ["email", "lower(btrim(invitee_email))"],
@@ -538,77 +402,6 @@ begin
   end if;
   ${ctx.emit({ type: "invitation.resent", payload: `jsonb_build_object('invitationId', updated.${c("id")}, 'organizationId', updated.${c("tenant")}::text, 'email', updated.${c("email")})`, subject: `'invitations/' || updated.${c("id")}::text`, tenant: `updated.${c("tenant")}` })}
   return ${inviteJson(ctx, t, "updated", "token", `updated.${c("tenant")}`)};
-end;
-$$;
-`;
-}
-
-/** The `invitation_preview_extra(uuid)` hook's signature, for `to_regprocedure`. */
-const extraHook = (ctx: ModuleContext): string =>
-  sqlString(`${ctx.hookTarget("invitation_preview_extra")}(uuid)`);
-
-/**
- * `my_invitations()`: the caller's open invitations without their tokens,
- * with the organization and the `invitation_preview_extra` keys.
- */
-function mine(ctx: ModuleContext): string {
-  const t = tenantTable(ctx);
-  const p = platformTable(ctx);
-  const confirmed = ctx.flag("requireConfirmedEmail", true)
-    ? " and u.email_confirmed_at is not null"
-    : "";
-  const rows = (table: InviteTable, tenant: string | null) => {
-    const open = openFilter(table, "i");
-    return `select ${inviteJson(ctx, table, "i", "null", tenant)} - 'token' as invitation, i.${table.col("id")} as id, i.${table.col("expiresAt")} as expires_at
-    from ${table.table} i
-    where lower(i.${table.col("email")}) = invitee_email
-      and i.${table.col("expiresAt")} >= now()${open ? ` and ${open}` : ""}${table.only("i")}`;
-  };
-  return `
--- The caller's open invitations, for an in-app inbox: the invitation without
--- its token, its organization (id plus previewColumns) and the keys an
--- invitation_preview_extra(invitation uuid) hook adds.
-create or replace function ${ctx.fn("my_invitations")}()
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  invitee_email text;
-  hook regprocedure := to_regprocedure(${extraHook(ctx)});
-  entry record;
-  extra jsonb;
-  result jsonb := '[]'::jsonb;
-begin
-  select lower(u.email) into invitee_email
-  from auth.users u
-  where u.id = auth.uid()${confirmed};
-  if invitee_email is null then
-    return result;
-  end if;
-  for entry in
-    select x.invitation, x.id
-    from (
-    ${rows(t, `i.${t.col("tenant")}`)}${
-      p
-        ? `
-    union all
-    ${rows(p, null)}`
-        : ""
-    }
-    ) x
-    order by x.expires_at
-  loop
-    extra := null;
-    if hook is not null then
-      -- Not a literal name, so plpgsql_check passes without the hook.
-      execute format('select %s($1)', hook::oid::regproc) into extra using entry.id;
-    end if;
-    result := result || jsonb_build_array(entry.invitation || coalesce(extra, '{}'));
-  end loop;
-  return result;
 end;
 $$;
 `;
@@ -969,10 +762,11 @@ function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
     `revoke execute on function ${ctx.fn(fn)}(${args}) from ${revokeFrom};
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
   return `${schemaPreamble(ctx)}
-${tenantTableSql(ctx)}${platformTableSql(ctx)}${invite(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${mine(ctx)}
+${tenantTableSql(ctx)}${platformTableSql(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
 ${grant("invite_member", `${id}, text, text, interval, jsonb`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}
+${grant("update_invitation", "uuid, text, text, jsonb", "authenticated, service_role")}
 ${grant("revoke_invitation", "uuid", "authenticated, service_role")}
 ${grant("decline_invitation", "text", "anon, authenticated, service_role", "public")}
 ${grant("invitation_preview", "text", "anon, authenticated, service_role", "public")}
@@ -1006,6 +800,11 @@ export const INVITATIONS: ModuleDefinition = {
     { name: "my_invitations", args: [], returns: "jsonb" },
     { name: "revoke_invitation", args: ["uuid"], returns: "boolean" },
     { name: "resend_invitation", args: ["uuid", "interval"], returns: "jsonb" },
+    {
+      name: "update_invitation",
+      args: ["uuid", "text", "text", "jsonb"],
+      returns: "jsonb",
+    },
   ],
   upgrades: [
     {

@@ -35,6 +35,7 @@ functions.
 | `mark_used(organization)`                                                    | sets `last_used_at` on the caller's membership                                                                                                                 |
 | `invite_member(tenant, invitee_email, invitee_role)`                         | creates an invitation and returns it with its token (`invite`)                                                                                                 |
 | `resend_invitation(invitation_id)`                                           | issues a new token and expiry; the old token stops working                                                                                                     |
+| `update_invitation(invitation_id, invitee_email, invitee_role, prefill)`     | changes an open invitation's email, role or prefill (null keeps the value) with the `invite` checks; the token and expiry stay                                 |
 | `revoke_invitation(invitation_id)`                                           | revokes an open invitation (`revoke`)                                                                                                                          |
 | `invitation_preview(token)`                                                  | status, email, role and organization for the accept page; callable without a session                                                                           |
 | `accept_invitation(token)` and `decline_invitation(token)`                   | accepts for the signed-in user, or declines                                                                                                                    |
@@ -279,6 +280,27 @@ what to show. Each one carries `created_at`, its `organization` (the id plus
 the invitations table. In TypeScript, `organizations.myInvitations()` returns
 them as `createdAt`, `organization` and `extra`, and
 `acceptInvitationById(id)` and `declineInvitationById(id)` answer them.
+
+### Editing an invitation
+
+`update_invitation(invitation_id, invitee_email, invitee_role, prefill)`
+changes an open invitation in place, so apps don't need a client update
+policy on the invitations table. A null argument keeps the current value. It
+makes the checks `invite_member` makes: the caller needs `invite` in the
+organization (`invitePlatform` for a platform invitation), may assign both
+the current and the new role (`INVITATION_ROLE_FORBIDDEN`), and a new address
+must not belong to a member (`INVITATION_ALREADY_MEMBER`). Another open
+invitation for the new address is replaced. The token and expiry stay, so
+the link already sent keeps working: call `resend_invitation` to mail a new
+link to a changed address. It returns the invitation without its token and
+emits `invitation.updated`. In TypeScript:
+
+```ts
+await organizations.updateInvitation(invitationId, {
+  role: "admin",
+  prefill: { name: "Ada Lovelace" },
+});
+```
 
 ## Existing tables
 

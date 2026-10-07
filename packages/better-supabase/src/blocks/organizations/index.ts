@@ -2,6 +2,7 @@ export {
   createOrganizations,
   type CreateOrganizationOptions,
   type Invitation,
+  type InvitationChanges,
   type InvitationPreview,
   type InvitationSent,
   type InvitationStatus,
