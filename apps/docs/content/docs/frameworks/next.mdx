@@ -52,6 +52,13 @@ To combine the proxy with next-intl or other middleware, use `before` and
 `serverTiming: true` adds a `Server-Timing` header with the verify and proxy
 durations.
 
+A prefetch never refreshes, so a session whose token expired reaches
+`protect` as `{ kind: "anon", reason: "expired" }`. `expiredPrefetch: "render"`
+skips `protect` for those prefetches, so they render signed out instead of
+caching a redirect to sign-in; the click refreshes the session
+([details](/docs/frameworks/next-cache-components#5-optimistic-redirects-in-the-proxy)).
+The default, `"protect"`, passes them to `protect` like any other request.
+
 ## Server Components
 
 ```tsx
@@ -67,6 +74,13 @@ export default async function Customers() {
 `bs.context()` is memoized per request with React `cache()`, so layouts and
 pages share one context. It verifies the token locally and builds a
 stateless client; no auth call happens during rendering.
+
+`bs.context({ tenant })` scopes the context to a tenant from the route
+params, in place of the `tenant` resolver, which has no request URL here.
+The tenant gets the same checks as the resolver's
+([the active tenant](/docs/blocks/access#the-active-tenant)), and each
+tenant gets its own memoized context. `bs.cached({ tenant })` does the same
+in a private cache; pass the tenant in as an argument of your function.
 
 `bs.liveCount(spec)` counts on the server and returns a serializable
 `{ spec, count }` seed for `useLiveCount`, so a badge renders with its
@@ -185,7 +199,8 @@ export const createCustomer = bs.action(
 The action accepts a plain object or `FormData`, validates it, and returns a
 serializable `ActionResult`: `{ ok: true, data }` or `{ ok: false, error }`,
 where `error` is a plain `DbError` your form can render (`validation`
-errors carry `issues` with paths).
+errors carry `issues` with paths). `tenant: (input) => input.organizationId`
+scopes the action's context to a tenant from the validated input.
 
 Route handlers and actions pass event sink sends they started to `after()`
 from `next/server`, so the function stays alive until the sends finish (see

@@ -25,6 +25,7 @@ import { isReadSet, type ReadSet } from "../core/read-set.ts";
 import { validate } from "../core/standard.ts";
 import { type DbStats, EMPTY_STATS } from "../core/stats.ts";
 import { bearerRequest, flushEvents, handle } from "../server/adapter.ts";
+import { serverCore } from "../server/entries/core.ts";
 import {
   defaultExpose,
   guard,
@@ -91,6 +92,15 @@ export interface ProxyOptions<C = unknown, P = unknown> {
     auth: AuthState<C, P>,
     request: NextRequest,
   ) => Response | undefined | Promise<Response | undefined>;
+  /**
+   * A prefetch never refreshes, so a session cookie whose token expired
+   * resolves to `{ kind: 'anon', reason: 'expired' }` there. `'protect'`
+   * (the default) passes that to `protect` like any other caller.
+   * `'render'` skips `protect` for it, so the prefetch renders signed out
+   * instead of caching a redirect to sign-in; `sessionStale` keeps that view
+   * out of the App Shell, and the navigation itself refreshes the session.
+   */
+  readonly expiredPrefetch?: "protect" | "render";
   /** Post-processes the final response; return a new one to replace it. */
   readonly after?: (
     response: Response,
@@ -112,6 +122,23 @@ export interface ActionOptions<
 > extends GuardOptions {
   /** Validates the input (plain object or `FormData`) with any Standard Schema. */
   readonly input?: S;
+  /**
+   * The active tenant for the action's context, from the validated input,
+   * instead of `NextOptions.tenant`. It is checked the same way: the
+   * `tenant()` plugin and `current_tenant_id()` only honor a tenant the
+   * caller belongs to.
+   */
+  readonly tenant?: (input: ActionParsed<S>) => string | undefined;
+}
+
+export interface ScopeOptions {
+  /**
+   * The active tenant, e.g. from route params, instead of `NextOptions.tenant`
+   * (whose request has the incoming headers but no URL here). It goes where
+   * the resolver's result goes, so it gets the same checks: the `tenant()`
+   * plugin and `current_tenant_id()` only honor a tenant the caller belongs to.
+   */
+  readonly tenant?: string;
 }
 
 type ActionInput<S> = S extends StandardSchemaV1
@@ -137,10 +164,15 @@ export interface BetterNext<
   proxy(request: NextRequest, options?: ProxyOptions<C, P>): Promise<Response>;
   /**
    * The caller's context. Without a request (Server Components, actions) it
-   * reads the incoming headers and is memoized per request.
+   * reads the incoming headers and is memoized per request and tenant.
+   *
+   * ```ts
+   * const { db } = await bs.context({ tenant: organizationId });
+   * ```
    */
+  context(options?: ScopeOptions): Promise<ServerContext<M, F, E, C, P>>;
   context(
-    request?: Request,
+    request: Request | undefined,
     options?: ContextOptions,
   ): Promise<ServerContext<M, F, E, C, P>>;
   /**
@@ -309,7 +341,13 @@ export function sessionStale(
   }
 }
 
-export interface CachedOptions {
+export interface CachedOptions extends ScopeOptions {
+  /**
+   * The active tenant, as for `bs.context({ tenant })`. Next.js keys the
+   * private cache on your function's arguments, so take the tenant as an
+   * argument and pass it through; never read it from anywhere else.
+   */
+  readonly tenant?: string;
   /**
    * `cacheLife` for the entry. `stale` is `sessionStale`, and never more than
    * `stale` when it is set: pass PermDock's `cacheLifeFor(snapshot)` so the
@@ -476,18 +514,22 @@ export function requireAal(
   };
 }
 
+/** A router or browser prefetch, by its request headers. */
+function isPrefetch(request: Request): boolean {
+  const h = request.headers;
+  return (
+    h.has("next-router-prefetch") ||
+    h.get("purpose") === "prefetch" ||
+    (h.get("sec-purpose")?.includes("prefetch") ?? false)
+  );
+}
+
 /** Page loads, client navigations and server actions; never prefetches or assets. */
 export function shouldRefresh(request: Request): boolean {
   const h = request.headers;
   if (request.method !== "GET" && request.method !== "HEAD")
     return h.has("next-action");
-  if (
-    h.has("next-router-prefetch") ||
-    h.get("purpose") === "prefetch" ||
-    h.get("sec-purpose")?.includes("prefetch")
-  ) {
-    return false;
-  }
+  if (isPrefetch(request)) return false;
   if (h.get("rsc") === "1") return true;
   const dest = h.get("sec-fetch-dest");
   if (dest) return dest === "document";
@@ -522,6 +564,7 @@ export function createNext<
   options: NextOptions = {},
 ): BetterNext<M, F, E, C, P> {
   const base = createServer(betterSupabase, options);
+  const core = serverCore(base);
   const expose = options.exposeErrors ?? defaultExpose();
 
   if (
@@ -592,24 +635,33 @@ export function createNext<
     },
   );
 
-  const current = cache(async (): Promise<ServerContext<M, F, E, C, P>> => {
-    const { request, resolution } = await incoming();
-    const [tenant, support] = await Promise.all([
-      options.tenant?.(request, resolution.auth),
-      base.support.current(request, resolution.auth),
-    ]);
-    return base.contextFromResolution(resolution, request, {
-      ...statsFor(request),
-      ...(tenant === undefined ? {} : { tenant }),
-      ...(support ? { support } : {}),
-    });
-  });
+  /** `null` runs `NextOptions.tenant`; a string is the caller's explicit tenant. */
+  const scoped = cache(
+    async (explicit: string | null): Promise<ServerContext<M, F, E, C, P>> => {
+      const { request, resolution } = await incoming();
+      const [tenant, support] = await Promise.all([
+        explicit ?? options.tenant?.(request, resolution.auth),
+        base.support.current(request, resolution.auth),
+      ]);
+      // Both tenants take the resolver's path, so they get the same checks.
+      return core.context(
+        resolution,
+        request,
+        { ...statsFor(request), ...(support ? { support } : {}) },
+        tenant,
+      );
+    },
+  );
+  const current = (tenant?: string): Promise<ServerContext<M, F, E, C, P>> =>
+    scoped(tenant ?? null);
 
   const context = (
-    request?: Request,
+    first?: Request | ScopeOptions,
     contextOptions?: ContextOptions,
   ): Promise<ServerContext<M, F, E, C, P>> =>
-    request ? base.context(request, contextOptions) : current();
+    first instanceof Request
+      ? base.context(first, contextOptions)
+      : current(first?.tenant ?? contextOptions?.tenant);
 
   /** In a support session, the target's view: `impersonator` names the admin. */
   const session = cache(async (): Promise<AuthSession<C, P>> =>
@@ -665,7 +717,10 @@ export function createNext<
     contextForSession,
 
     async cached(cachedOptions = {}) {
-      const [view, ctx] = await Promise.all([session(), current()]);
+      const [view, ctx] = await Promise.all([
+        session(),
+        current(cachedOptions.tenant),
+      ]);
       const life = cachedOptions.life;
       const stale = sessionStale(view, life);
       cacheLife({
@@ -712,7 +767,14 @@ export function createNext<
             return resolved;
           }),
       ]);
-      const custom = await proxyOptions.protect?.(resolution.auth, request);
+      const rendersSignedOut =
+        proxyOptions.expiredPrefetch === "render" &&
+        resolution.auth.kind === "anon" &&
+        resolution.auth.reason === "expired" &&
+        isPrefetch(request);
+      const custom = rendersSignedOut
+        ? undefined
+        : await proxyOptions.protect?.(resolution.auth, request);
       const initial = custom ?? early;
       if (
         !initial &&
@@ -829,7 +891,7 @@ export function createNext<
     action(actionOptions, fn) {
       type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
       return async (input) => {
-        const ctx = await current();
+        let ctx = await current();
         const denied = guard(
           ctx.auth,
           actionOptions.allow,
@@ -845,6 +907,10 @@ export function createNext<
             return { ok: false, data: null, error: checked.error };
           parsed = checked.data;
         }
+        // SAFETY: parsed is the validated input, or the raw input when the
+        // action has no schema.
+        const tenant = actionOptions.tenant?.(parsed as never);
+        if (tenant !== undefined) ctx = await current(tenant);
         let settled: Settled;
         try {
           // SAFETY: parsed is the validated input, or the raw input when the

@@ -20,6 +20,7 @@ export type {
   NextOptions,
   ProxyOptions,
   RequireAalOptions,
+  ScopeOptions,
   SessionStaleOptions,
   SupportStarted,
   TagOptions,

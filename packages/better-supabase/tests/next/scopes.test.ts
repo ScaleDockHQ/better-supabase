@@ -1,6 +1,7 @@
 import type * as ServerCore from "@supabase/server/core";
 import type * as SupabaseJs from "@supabase/supabase-js";
 
+import * as v from "valibot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
@@ -227,6 +228,76 @@ describe("private-cache scopes", () => {
     } finally {
       fetchMock.mockRestore();
     }
+  });
+});
+
+describe("explicit tenants", () => {
+  const TENANT = "00000000-0000-4000-8000-0000000000aa";
+  const OTHER_TENANT = "00000000-0000-4000-8000-0000000000bb";
+  const resolver = vi.fn(async (request: Request) => {
+    await Promise.resolve();
+    return request.headers.get("x-organization") ?? undefined;
+  });
+  const bs = createNext(defineSupabase(schema), {
+    env,
+    cacheTags: false,
+    auth: { jwks: signer.jwks as never },
+    tenant: resolver,
+  });
+
+  beforeEach(async () => {
+    resolver.mockClear();
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+  });
+
+  it("puts a tenant from route params where the resolver's goes", async () => {
+    const resolved = await bs.context(
+      new Request("https://app.test/", {
+        headers: {
+          authorization: mocks.headers.get("authorization")!,
+          "x-organization": TENANT,
+        },
+      }),
+    );
+    const explicit = await bs.context({ tenant: TENANT });
+    expect(explicit.db.$context).toEqual(resolved.db.$context);
+    expect(explicit.db.$context.tenant).toBe(TENANT);
+    expect(resolver).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the resolver, even when an async one finds no tenant", async () => {
+    expect((await bs.context()).db.$context.tenant).toBeUndefined();
+    mocks.headers.set("x-organization", OTHER_TENANT);
+    expect((await bs.context()).db.$context.tenant).toBe(OTHER_TENANT);
+    expect((await bs.context({ tenant: TENANT })).db.$context.tenant).toBe(
+      TENANT,
+    );
+  });
+
+  it("scopes bs.cached() and actions to the tenant passed in", async () => {
+    const ctx = await bs.cached({ tenant: TENANT });
+    expect(ctx.db.$context.tenant).toBe(TENANT);
+    expect(ctx.session).toMatchObject({ kind: "user" });
+
+    const action = bs.action(
+      {
+        input: v.object({ organizationId: v.string() }),
+        tenant: (input) => input.organizationId,
+      },
+      (_input, actionCtx) => actionCtx.db.$context.tenant ?? null,
+    );
+    expect(await action({ organizationId: TENANT })).toEqual({
+      ok: true,
+      data: TENANT,
+      error: null,
+    });
+    const unscoped = bs.action(
+      {},
+      (_input, actionCtx) => actionCtx.db.$context.tenant ?? null,
+    );
+    expect(await unscoped(undefined)).toMatchObject({ data: null });
   });
 });
 
