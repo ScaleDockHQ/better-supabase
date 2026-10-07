@@ -1373,6 +1373,7 @@
     ],
     "types": [
       "Billing",
+      "BillingCustomer",
       "BillingCustomerUpdate",
       "BillingEventData",
       "BillingOptions",

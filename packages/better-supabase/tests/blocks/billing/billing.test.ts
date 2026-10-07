@@ -700,6 +700,58 @@ describe("createBilling", () => {
     }
   });
 
+  it("lists linked customers through billing_all_customers", async () => {
+    const t = setup((fn) =>
+      fn === "billing_all_customers"
+        ? [
+            {
+              tenant: "org-1",
+              customer: "cus_1",
+              email: "a@b.c",
+              name: "A",
+              created: "2026-01-01T00:00:00+00:00",
+            },
+            {
+              tenant: "org-2",
+              customer: "cus_2",
+              email: null,
+              name: null,
+              created: null,
+            },
+            "junk",
+          ]
+        : null,
+    );
+    const customers = await createBilling(t).allCustomers().orThrow();
+    expect(
+      customers.map((entry) => ({
+        ...entry,
+        created: entry.created?.toString(),
+      })),
+    ).toEqual([
+      {
+        organizationId: "org-1",
+        customerId: "cus_1",
+        email: "a@b.c",
+        name: "A",
+        created: "2026-01-01T00:00:00Z",
+      },
+      {
+        organizationId: "org-2",
+        customerId: "cus_2",
+        email: undefined,
+        name: undefined,
+        created: undefined,
+      },
+    ]);
+    expect(t.calls).toEqual([["billing_all_customers", {}]]);
+    expect(
+      await createBilling(setup(() => null))
+        .allCustomers()
+        .orThrow(),
+    ).toEqual([]);
+  });
+
   it("reads synced tax ids through billing_tax_ids", async () => {
     const t = setup((fn) =>
       fn === "billing_tax_ids"

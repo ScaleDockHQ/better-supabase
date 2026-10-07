@@ -522,4 +522,80 @@ describe.skipIf(!live)("billing", () => {
       await s.close();
     }
   });
+
+  it("lists every linked customer for platform staff", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "billing"]);
+      const owner = await s.user("owner");
+      const first = await s.organization(owner);
+      const second = await s.organization(owner);
+      await s.service();
+      if (
+        !(await s.value<boolean>("to_regclass('stripe.customers') is not null"))
+      ) {
+        await s.rows(`create schema if not exists stripe;
+          create table stripe.customers (id text primary key, email text, name text, created bigint)`);
+      }
+      await s.rows(
+        `select better_supabase.link_billing_customer($1, 'cus_bs_list_1'), better_supabase.link_billing_customer($2, 'cus_bs_list_2')`,
+        [first, second],
+      );
+      await s.rows(
+        "insert into stripe.customers (id, email, name, created) values ('cus_bs_list_1', 'billing@first.test', 'First', 1767225600)",
+      );
+      const billing = createBilling({
+        stripe: { secretKey: "sk_test_unused" },
+        transport: sqlTransport(s.sql),
+      });
+      await s.asRole(owner);
+      expect(await billing.allCustomers()).toMatchObject({
+        error: { hint: "BILLING_FORBIDDEN" },
+      });
+      await s.service();
+      const staff = await s.user("staff");
+      await s.asRole(staff, { platform_permissions: ["billing.read"] });
+      const listed = (await billing.allCustomers().orThrow()).filter(
+        (entry) =>
+          entry.organizationId === first || entry.organizationId === second,
+      );
+      expect(
+        listed.map((entry) => ({
+          ...entry,
+          created: entry.created?.toString(),
+        })),
+      ).toEqual(
+        [
+          {
+            organizationId: first,
+            customerId: "cus_bs_list_1",
+            email: "billing@first.test",
+            name: "First",
+            created: "2026-01-01T00:00:00Z",
+          },
+          {
+            organizationId: second,
+            customerId: "cus_bs_list_2",
+            email: undefined,
+            name: undefined,
+            created: undefined,
+          },
+        ].sort((a, b) => a.organizationId.localeCompare(b.organizationId)),
+      );
+      const rows = await s.rows<Record<string, unknown>>(
+        "select tenant::text, customer, email from better_supabase.billing_platform_customers() where tenant = any ($1::uuid[]) order by customer",
+        [[first, second]],
+      );
+      expect(rows).toEqual([
+        {
+          tenant: first,
+          customer: "cus_bs_list_1",
+          email: "billing@first.test",
+        },
+        { tenant: second, customer: "cus_bs_list_2", email: null },
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
 });

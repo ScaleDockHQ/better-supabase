@@ -591,6 +591,8 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "billing_invoices", args: ["{id}", "integer"], returns: "jsonb" },
     { name: "billing_platform_subscriptions", args: [], returns: "record" },
     { name: "billing_platform_invoices", args: [], returns: "record" },
+    { name: "billing_platform_customers", args: [], returns: "record" },
+    { name: "billing_all_customers", args: [], returns: "jsonb" },
     { name: "billing_payment_methods", args: ["{id}"], returns: "jsonb" },
     { name: "billing_customer_details", args: ["{id}"], returns: "jsonb" },
     { name: "billing_tax_ids", args: ["{id}"], returns: "jsonb" },

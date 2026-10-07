@@ -21,6 +21,7 @@ import { entitlementMembers } from "../entitlements/entitlements.ts";
 import {
   blockCall,
   isRecord,
+  optionalInstant,
   optionalText,
   recordOf,
   textOf,
@@ -169,6 +170,16 @@ export interface TenantStripeRow {
   readonly row: StripeRow;
 }
 
+/** A linked Stripe customer, from `billing_all_customers`. */
+export interface BillingCustomer {
+  readonly organizationId: string;
+  readonly customerId: string;
+  /** From the Sync Engine's `stripe.customers`; `undefined` before it syncs. */
+  readonly email: string | undefined;
+  readonly name: string | undefined;
+  readonly created: Temporal.Instant | undefined;
+}
+
 export interface PlatformListOptions {
   /** Only rows with this Stripe status, such as `active` or `open`. */
   readonly status?: string;
@@ -218,6 +229,12 @@ export interface Billing {
   allSubscriptions(
     options?: PlatformListOptions,
   ): AsyncResult<readonly TenantStripeRow[]>;
+  /**
+   * Every linked customer, with or without a subscription, by tenant, for
+   * platform staff (`billing.read` in the platform scope) or a service
+   * transport.
+   */
+  allCustomers(): AsyncResult<readonly BillingCustomer[]>;
   /**
    * Cancels the tenant's active subscription in Stripe now; `undefined`
    * when it has none. The `customer.subscription.deleted` webhook then
@@ -929,6 +946,16 @@ export function createBilling(options: BillingOptions): Billing {
       ),
     allInvoices: (list) =>
       call("billing_all_invoices", platformArgs(list), tenantRows("invoice")),
+    allCustomers: () =>
+      call("billing_all_customers", {}, (value) =>
+        (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
+          organizationId: textOf(row["tenant"]),
+          customerId: textOf(row["customer"]),
+          email: optionalText(row["email"]),
+          name: optionalText(row["name"]),
+          created: optionalInstant(row["created"]),
+        })),
+      ),
     allSubscriptions: (list) =>
       call(
         "billing_all_subscriptions",

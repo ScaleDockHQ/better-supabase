@@ -102,4 +102,18 @@ describe("billing module", () => {
       'return "better_supabase"."billing_tenant_subscription"(billing_subscription.tenant);',
     );
   });
+
+  it("lists every linked customer for platform staff", () => {
+    const sql = billing();
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."billing_platform_customers"()',
+    );
+    expect(sql).toContain("Not allowed to read every tenant''s billing");
+    expect(sql).toContain(
+      'from "better_supabase"."billing_platform_customers"() c',
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."billing_all_customers"() to authenticated, service_role;',
+    );
+  });
 });
