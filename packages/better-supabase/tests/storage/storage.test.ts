@@ -79,8 +79,10 @@ describe("defineBucket", () => {
     expect(sql).toContain(
       'drop policy if exists "bs_customer_logos_insert" on storage.objects;',
     );
+    const tenant =
+      "(coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id'))";
     expect(sql).toContain(
-      "with check (bucket_id = 'customer-logos' and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) and name ~ '^[^/]+/[^/]+/logo/[^/]+\\.webp$')",
+      `with check (bucket_id = 'customer-logos' and name collate "C" >= (${tenant} || '/') and name collate "C" < (${tenant} || '0') and split_part(name, '/', 1) = ${tenant} and name ~ '^[^/]+/[^/]+/logo/[^/]+\\.webp$')`,
     );
     const owner = defineBucket({
       id: "avatars",
@@ -89,6 +91,15 @@ describe("defineBucket", () => {
     }).sql();
     expect(owner).toContain(
       "split_part(name, '/', 2) = (select auth.uid())::text",
+    );
+    expect(owner).not.toContain('collate "C"');
+    const ownerFirst = defineBucket({
+      id: "drafts",
+      path: "{userId}/{file}",
+      policy: "owner",
+    }).sql();
+    expect(ownerFirst).toContain(
+      `name collate "C" >= ((select auth.uid())::text || '/') and name collate "C" < ((select auth.uid())::text || '0') and split_part(name, '/', 1) = (select auth.uid())::text`,
     );
     const open = defineBucket({
       id: "public",
