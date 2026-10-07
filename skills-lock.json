@@ -73,6 +73,18 @@
       "skillPath": "skills/mcp-authorization/SKILL.md",
       "computedHash": "7b25bb1644b3b6ad98125120dfd6012ddf11654e69082633737cde8574d61331"
     },
+    "next-cache-components-optimizer": {
+      "source": "vercel/next.js",
+      "sourceType": "github",
+      "skillPath": "skills/next-cache-components-optimizer/SKILL.md",
+      "computedHash": "45a4f4ad46ce791d42f310c4734795c9ff4e26fbf27ed0285a43a903ef469000"
+    },
+    "next-partial-prefetching-optimizer": {
+      "source": "vercel/next.js",
+      "sourceType": "github",
+      "skillPath": "skills/next-partial-prefetching-optimizer/SKILL.md",
+      "computedHash": "97b935496e9f821417229fd4afe153dc57732911991b48144371b15b11716fbe"
+    },
     "oauth": {
       "source": "ScaleDockHQ/scaledock-skills",
       "sourceType": "github",
@@ -234,6 +246,18 @@
       "sourceType": "github",
       "skillPath": "skills/typespec/SKILL.md",
       "computedHash": "920dcf65ee93ad286c360a008752a5544df73a3c3b067a5f888f9f29ef72091e"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "3219a1944e404ffc14d1d9d6aef6dd2e3855b81387ee0a044ccbfe14d34c2357"
+    },
+    "vercel-react-native-skills": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-native-skills/SKILL.md",
+      "computedHash": "2e9088a7333666d8c2833b8ff58bd51b955501c42b4c7244f72b4cbf22dafcc4"
     },
     "web-bot-auth": {
       "source": "ScaleDockHQ/scaledock-skills",
