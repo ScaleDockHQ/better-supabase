@@ -1617,6 +1617,7 @@ $$;
 create or replace function tests.authenticate_as(user_id uuid, claims jsonb default '{}')
 returns void
 language plpgsql
+set search_path = ''
 as $$
 declare
   user_email text;
@@ -1634,6 +1635,7 @@ $$;
 create or replace function tests.authenticate_as_anon()
 returns void
 language plpgsql
+set search_path = ''
 as $$
 begin
   perform set_config('request.jwt.claims', '{"role": "anon"}', true);
@@ -1644,6 +1646,7 @@ $$;
 create or replace function tests.clear_authentication()
 returns void
 language plpgsql
+set search_path = ''
 as $$
 begin
   perform set_config('request.jwt.claims', '', true);

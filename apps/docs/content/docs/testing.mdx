@@ -202,3 +202,8 @@ rollback;
 | `tests.authenticate_as_anon()`                          | Switches to `anon`                                                                 |
 | `tests.clear_authentication()`                          | Switches back to the test runner's role                                            |
 | `tests.rls_enabled(schema)`                             | Fails and lists every table in the schema without row level security               |
+
+The helpers stay installed after the run, so `supabase db advisors` sees
+them too. Each one sets its own `search_path`, so the advisors report no
+`function_search_path_mutable` warning for them; run `sql sync` after
+upgrading to rewrite a kit file from an earlier version.
