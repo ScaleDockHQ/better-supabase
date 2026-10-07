@@ -59,6 +59,32 @@ describe("tenant module sameTenant", () => {
     );
   });
 
+  it("passes match columns after the condition and watches them", () => {
+    const sql = body([
+      {
+        table: "jobs",
+        column: "asset_id",
+        references: "assets",
+        match: { customer_id: "customer_id", site_id: "location_id" },
+      },
+      {
+        table: "quote_materials",
+        column: "material_id",
+        references: { table: "materials", where: "{row}.active" },
+        match: { customer_id: "customer_id", organization_id: "owner_id" },
+      },
+    ]);
+    expect(sql).toContain(
+      `create trigger "bs_same_tenant_asset_id" before insert or update of "asset_id", "organization_id", "customer_id", "site_id" on "public"."jobs"
+  for each row execute function better_supabase.same_tenant('asset_id', 'organization_id', '"public"."assets"', 'id', 'organization_id', '', 'customer_id', 'customer_id', 'site_id', 'location_id');`,
+    );
+    expect(sql).toContain(
+      `create trigger "bs_same_tenant_material_id" before insert or update of "material_id", "organization_id", "customer_id" on "public"."quote_materials"
+  for each row execute function better_supabase.same_tenant('material_id', 'organization_id', '"public"."materials"', 'id', 'organization_id', 'p.active', 'customer_id', 'customer_id', 'organization_id', 'owner_id');`,
+    );
+    expect(sql).toContain("while i + 1 < tg_nargs loop");
+  });
+
   it("writes nothing without entries and checks their shape", () => {
     expect(moduleBody("tenant", { modules: {} })).not.toContain("same_tenant");
     expect(() => body({ table: "tasks" })).toThrow(/must be a list/);
@@ -80,5 +106,35 @@ describe("tenant module sameTenant", () => {
     expect(() =>
       body([{ table: "tasks", column: "project_id", references: {} }]),
     ).toThrow(/references.table/);
+    expect(() =>
+      body([
+        {
+          table: "tasks",
+          column: "project_id",
+          references: "projects",
+          match: ["customer_id"],
+        },
+      ]),
+    ).toThrow(/sameTenant\[0\]\.match must be \{ <column>/);
+    expect(() =>
+      body([
+        {
+          table: "tasks",
+          column: "project_id",
+          references: "projects",
+          match: { Customer: "customer_id" },
+        },
+      ]),
+    ).toThrow(/sameTenant\[0\]\.match must be a lowercase column name/);
+    expect(() =>
+      body([
+        {
+          table: "tasks",
+          column: "project_id",
+          references: "projects",
+          match: { customer_id: 1 },
+        },
+      ]),
+    ).toThrow(/match\.customer_id must be a lowercase column name/);
   });
 });

@@ -391,6 +391,28 @@ sql: {
 | `references.column` | `id`                          | the referenced table's key column                          |
 | `references.tenant` | the row's tenant column       | the referenced table's tenant column                       |
 | `references.where`  | none                          | a condition the referenced row `{row}` must also meet      |
+| `match`             | none                          | `{ <column>: <referenced column> }` pairs that must match  |
+
+`match` ties the reference to other columns of the row being written. An
+asset on a job must belong to the job's customer, and a material on a quote
+line must belong to the quote's customer:
+
+```ts
+sameTenant: [
+  {
+    table: "public.jobs",
+    column: "asset_id",
+    references: "public.assets",
+    match: { customer_id: "customer_id" },
+  },
+],
+```
+
+Each key is a column of the row and each value a column of the referenced
+row, and the two must hold the same value. The comparison is `is not
+distinct from`, so a job without a customer accepts only an asset without
+one. An update of a `match` column runs the check again, so moving the job
+to another customer fails while its asset still belongs to the first one.
 
 Every trigger calls the one function `better_supabase.same_tenant()` with the
 entry as its arguments. A null reference passes, so a nullable column stays
