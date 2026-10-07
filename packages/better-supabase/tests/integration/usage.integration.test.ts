@@ -117,8 +117,23 @@ describe.skipIf(!live)("usage", () => {
       expect(
         (await usage.current(organization, "storage").orThrow()).unlimited,
       ).toBe(false);
+      expect(
+        (await usage.overview(organization).orThrow()).map((status) => [
+          status.meter,
+          status.used,
+          status.limit,
+          status.unlimited,
+        ]),
+      ).toEqual([
+        ["api_calls", 3, 10, false],
+        ["seats", 5, undefined, true],
+      ]);
 
       await s.asRole(outsider);
+      expect(await usage.overview(organization)).toMatchObject({
+        ok: false,
+        error: { kind: "forbidden", hint: "USAGE_FORBIDDEN" },
+      });
       expect(await usage.record(organization, "api_calls")).toMatchObject({
         ok: false,
         error: { kind: "forbidden", hint: "USAGE_FORBIDDEN" },

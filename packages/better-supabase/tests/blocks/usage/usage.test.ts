@@ -192,6 +192,45 @@ describe("createUsage", () => {
     });
   });
 
+  it("reads every meter's status in one call", async () => {
+    const { transport, calls } = fakeTransport(() => [
+      {
+        meter: "api_calls",
+        used: 4,
+        limit: 10,
+        remaining: 6,
+        unlimited: false,
+        period: "month",
+        resets_at: "2026-11-01T00:00:00+00:00",
+      },
+      {
+        meter: "seats",
+        used: 2,
+        limit: null,
+        remaining: null,
+        unlimited: true,
+        period: "year",
+        resets_at: "2027-01-01T00:00:00+00:00",
+        unit: "seats",
+      },
+    ]);
+    const overview = await createUsage({ transport }).overview("org").orThrow();
+    expect(calls).toEqual([
+      ["better_supabase", "usage_overview", { tenant: "org" }],
+    ]);
+    expect(
+      overview.map((status) => [
+        status.meter,
+        status.remaining,
+        status.unlimited,
+      ]),
+    ).toEqual([
+      ["api_calls", 6, false],
+      ["seats", undefined, true],
+    ]);
+    expect(overview[1]).toMatchObject({ unit: "seats", period: "year" });
+  });
+
   it("reads billing periods, catalog fields and the meter catalog", async () => {
     const { transport } = fakeTransport((fn) =>
       fn === "usage_meters"

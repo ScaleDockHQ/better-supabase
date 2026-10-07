@@ -177,6 +177,19 @@ resets. `problemResponse` turns it into Problem Details with a `Retry-After`
 header. In SQL, `consume_quota` raises it with SQLSTATE `BSQ29`, so an RPC
 that calls it fails the same way.
 
+### Every meter of a tenant
+
+A usage page that shows every meter calls `overview` instead of `current`
+once per meter. It returns the status of each meter in the catalog, each
+meter a quota applies to and each meter the tenant has used, sorted by
+meter, in one request (`usage_overview(tenant)` in SQL). It needs the same
+membership as `current`.
+
+```ts
+const meters = await usage.overview(organizationId).orThrow();
+// [{ meter: "api_calls", used: 420, limit: 1000, remaining: 580, unlimited: false, ... }]
+```
+
 ### Several meters at once
 
 `recordMany` and `consumeMany` record several meters in one transaction, all
@@ -292,6 +305,7 @@ optional peer; pass a Stripe client instead of `secretKey` to use your own.
 | `within_quota(tenant, meter, quantity)`                                    | `authenticated`, `service_role` | whether `quantity` more fits                                                                          |
 | `record_usage_batch(tenant, entries, key, check, source, metadata, actor)` | `authenticated`, `service_role` | `{ recorded, used }` with `used` per meter, or raises `BSQ29`                                         |
 | `usage_status(tenant, meter)`                                              | `authenticated`, `service_role` | `{ meter, used, limit, remaining, unlimited, period, starts_at, resets_at }`, plus the catalog fields |
+| `usage_overview(tenant)`                                                   | `authenticated`, `service_role` | `usage_status` of every meter of the tenant, by meter                                                 |
 | `usage_meters()`                                                           | everyone                        | the meter catalog                                                                                     |
 | `usage_history(tenant, meter, max_rows, before_id)`                        | `authenticated`, `service_role` | the history entries, for `usage.read`                                                                 |
 | `usage_breakdown(tenant, meter)`                                           | `authenticated`, `service_role` | `[{ actor, source, quantity }]` in the current window                                                 |

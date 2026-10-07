@@ -153,6 +153,7 @@ export interface Usage {
     options?: Omit<RecordUsageOptions, "quantity">,
   ): AsyncResult<UsageBatchRecorded>;
   current(organizationId: string, meter: string): AsyncResult<UsageStatus>;
+  overview(organizationId: string): AsyncResult<readonly UsageStatus[]>;
   /** Units left in the period, or `undefined` without a quota. */
   remaining(
     organizationId: string,
@@ -299,6 +300,10 @@ export function createUsage(options: UsageOptions): Usage {
     recordMany: batch(false),
     consumeMany: batch(true),
     current,
+    overview: (organizationId) =>
+      call("usage_overview", { tenant: organizationId }, (value) =>
+        (Array.isArray(value) ? value : []).map(statusOf),
+      ),
     remaining: (organizationId, meter) =>
       current(organizationId, meter).map((status) => status.remaining),
     history: (organizationId, list = {}) =>

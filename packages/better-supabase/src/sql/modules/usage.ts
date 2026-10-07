@@ -458,6 +458,33 @@ begin
 end;
 $$;
 
+create or replace function ${fn("usage_overview")}(tenant ${id})
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ${member("tenant")} then
+    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(${fn("usage_status")}(usage_overview.tenant, m.meter) order by m.meter), '[]'::jsonb)
+    from (
+      select jsonb_object_keys(${fn("usage_meters")}()) as meter
+      union
+      select q.${qc("meter")} from ${quotas} q
+      where q.${qc("tenant")} = usage_overview.tenant
+        or (q.${qc("tenant")} is null and (${planMatches.replaceAll("(tenant)", "(usage_overview.tenant)")}))
+      union
+      select distinct c.${cc("meter")} from ${counters} c
+      where c.${cc("tenant")} = usage_overview.tenant
+    ) m
+  );
+end;
+$$;
+
 -- For policies: whether quantity more fits the tenant's quota.
 --   with check (better_supabase.within_quota(organization_id, 'projects'))
 create or replace function ${fn("within_quota")}(tenant ${id}, meter text, quantity bigint default 1)
@@ -819,6 +846,8 @@ grant execute on function ${fn("usage_meters")}() to anon, authenticated, servic
 revoke execute on function ${fn("usage_quota")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_used")}(${id}, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_status")}(${id}, text) from public, anon;
+revoke execute on function ${fn("usage_overview")}(${id}) from public, anon;
+grant execute on function ${fn("usage_overview")}(${id}) to authenticated, service_role;
 revoke execute on function ${fn("within_quota")}(${id}, text, bigint) from public, anon;
 revoke execute on function ${fn("record_usage")}(${id}, text, numeric, text, text, jsonb, uuid) from public, anon;
 revoke execute on function ${fn("consume_quota")}(${id}, text, numeric, text, text, jsonb, uuid) from public, anon;
@@ -839,6 +868,7 @@ grant execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeri
 function contract(): readonly ModuleContractFunction[] {
   return [
     { name: "usage_status", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "usage_overview", args: ["{id}"], returns: "jsonb" },
     { name: "usage_meters", args: [], returns: "jsonb" },
     { name: "usage_window", args: ["{id}", "text"], returns: "record" },
     {
