@@ -183,7 +183,13 @@ const input: GeneratorInput = {
       eventView: tableMeta(
         "eventView",
         "event_view",
-        { id: column("id", "int8") },
+        { id: column("id", "int8", { insertable: false, updatable: false }) },
+        "view",
+      ),
+      noteView: tableMeta(
+        "noteView",
+        "note_view",
+        { title: column("title", "text") },
         "view",
       ),
       files: tableMeta("files", "files", {
@@ -259,6 +265,9 @@ describe("zod()", () => {
       "  events: { insert: eventsInsert, update: eventsUpdate },",
     );
     expect(file!.contents).not.toContain("eventView: { insert");
+    expect(text).toContain(
+      "export const noteViewInsert: z.ZodType<InsertOf<'noteView'>> = z.object({",
+    );
   });
 
   it("honours a custom output path", async () => {

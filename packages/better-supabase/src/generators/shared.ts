@@ -111,7 +111,9 @@ export function fieldsFor(
         variant === "Update" ||
         (variant === "Insert" && (column.nullable || column.hasDefault)),
       customJson: Boolean(
-        column.json && input.config.json[`${table.name}.${column.db}`],
+        column.json &&
+        (input.config.json[`${table.schema}.${table.name}.${column.db}`] ??
+          input.config.json[`${table.name}.${column.db}`]),
       ),
       managed: managed.has(name),
     });
@@ -482,7 +484,19 @@ export function optionalLine(line: string | undefined): string[] {
 }
 
 export function variantsFor(table: TableMeta): readonly Variant[] {
-  return table.kind === "view" ? ["Row"] : ["Row", "Insert", "Update"];
+  if (table.kind !== "view") return ["Row", "Insert", "Update"];
+  const columns = Object.values(table.columns).filter(
+    (column) => !column.generated,
+  );
+  return [
+    "Row",
+    ...(columns.some((column) => column.insertable !== false)
+      ? (["Insert"] as const)
+      : []),
+    ...(columns.some((column) => column.updatable !== false)
+      ? (["Update"] as const)
+      : []),
+  ];
 }
 
 export function tableEntries(input: SchemaSource): [string, TableMeta][] {

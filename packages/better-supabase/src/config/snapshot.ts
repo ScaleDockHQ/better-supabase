@@ -293,6 +293,8 @@ export interface CatalogFunction {
 export interface CatalogFunctionArg {
   readonly name: string;
   readonly udt: string;
+  /** Schema of the argument's type, when the catalog knows it. */
+  readonly typeSchema?: string;
   readonly isArray: boolean;
   readonly hasDefault: boolean;
 }

@@ -51,7 +51,7 @@ select ix.indrelid::int8 as table_id, i.relname as name,
   ix.indisunique as unique, ix.indisprimary as primary,
   (ix.indpred is not null or 0 = any(ix.indkey::int2[])) as partial,
   am.amname as method, pg_get_expr(ix.indpred, ix.indrelid) as predicate,
-  array(select a.attname from unnest(ix.indkey::int2[]) with ordinality k(attnum, ord)
+  array(select a.attname from unnest((ix.indkey::int2[])[0:ix.indnkeyatts - 1]) with ordinality k(attnum, ord)
     join pg_attribute a on a.attrelid = ix.indrelid and a.attnum = k.attnum order by k.ord)::text[] as columns
 from pg_index ix
 join pg_class i on i.oid = ix.indexrelid
@@ -157,13 +157,19 @@ join pg_namespace pn on pn.oid = p.pronamespace
 where not t.tgisinternal and n.nspname = any(${schemas})
 order by 1, 2`;
 
+// From the ACL rather than information_schema, which hides grants the
+// introspecting role is neither grantor nor grantee of. MAINTAIN (Postgres 17)
+// stays out so snapshots match older servers.
 const GRANTS = (schemas: string) => `
-select c.oid::int8 as table_id, g.grantee as role,
-  array_agg(g.privilege_type::text order by g.privilege_type)::text[] as privileges
-from information_schema.role_table_grants g
-join pg_namespace n on n.nspname = g.table_schema
-join pg_class c on c.relnamespace = n.oid and c.relname = g.table_name
-where g.table_schema = any(${schemas}) and g.grantee in ('anon', 'authenticated', 'service_role')
+select c.oid::int8 as table_id, r.rolname as role,
+  array_agg(distinct acl.privilege_type order by acl.privilege_type)::text[] as privileges
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+cross join lateral aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
+join pg_roles r on r.oid = acl.grantee
+where n.nspname = any(${schemas}) and c.relkind in ('r', 'p', 'v', 'm', 'f')
+  and r.rolname in ('anon', 'authenticated', 'service_role')
+  and acl.privilege_type <> 'MAINTAIN'
 group by 1, 2
 order by 1, 2`;
 

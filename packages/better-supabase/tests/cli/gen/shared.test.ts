@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   arrayOf,
   block,
+  configFor,
+  identifier,
   indent,
   nullable,
   parseCheckUnion,
@@ -15,6 +17,19 @@ describe("gen helpers", () => {
   it("quotes property keys that are not identifiers", () => {
     expect(prop("organizationId")).toBe("organizationId");
     expect(prop("organization-id")).toBe('"organization-id"');
+  });
+
+  it("turns any name into an identifier", () => {
+    expect(identifier("noteKind")).toBe("noteKind");
+    expect(identifier("note-kind level")).toBe("note_kind_level");
+    expect(identifier("2fa")).toBe("_2fa");
+  });
+
+  it("prefers the schema-qualified config entry", () => {
+    const entries = { tags: 1, "crm.tags": 2 };
+    expect(configFor(entries, "crm", "tags")).toBe(2);
+    expect(configFor(entries, "public", "tags")).toBe(1);
+    expect(configFor(entries, "public", "notes")).toBeUndefined();
   });
 
   it("adds null only to nullable types", () => {
