@@ -241,6 +241,9 @@ describe("createNotifications reads and writes", () => {
       max_items: 10,
       subject_types: null,
       search: null,
+      read: null,
+      resolved: null,
+      dismissed: false,
     });
     await notifications.list({ before: first! });
     expect(calls[1]?.args).toMatchObject({
@@ -283,6 +286,9 @@ describe("createNotifications reads and writes", () => {
         search: "ship",
         max_items: 10,
         skip: 30,
+        read: null,
+        resolved: null,
+        dismissed: false,
       },
     });
     const empty = fakeTransport({ notification_page: () => null });

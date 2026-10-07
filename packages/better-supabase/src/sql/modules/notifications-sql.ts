@@ -454,7 +454,9 @@ function inbox(ctx: ModuleContext, n: NotifyNames): string {
   const where = (fn: string) => {
     const like = `'%' || replace(replace(replace(btrim(${fn}.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%'`;
     return `rc.${r("user")} = auth.uid()
-      and case when coalesce(${fn}.status, 'all') = 'settled' then ${settled} else rc.${r("dismissedAt")} is null end
+      and case when coalesce(${fn}.status, 'all') = 'settled' then ${settled} when ${fn}.dismissed is null then true else (rc.${r("dismissedAt")} is not null) = ${fn}.dismissed end
+      and (${fn}.read is null or (rc.${r("readAt")} is not null) = ${fn}.read)
+      and (${fn}.resolved is null or ${resolved ? `(rc.${r("resolvedAt")} is not null) = ${fn}.resolved` : `not ${fn}.resolved`})
       ${tenantFilter(fn)}
       and (${fn}.types is null or ev.${e("type")} = any(${fn}.types))
       and (${fn}.subject_types is null${subjectType ? ` or ev.${e("subjectType")} = any(${fn}.subject_types)` : ""})
@@ -488,6 +490,8 @@ function inbox(ctx: ModuleContext, n: NotifyNames): string {
     `
 drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer);
 drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer, uuid);
+drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer, uuid, text[], text);
+drop function if exists ${ctx.fn("notification_page")}(${id}, text, text[], text[], text, integer, integer);
 -- The signed-in user's notifications, newest first, without dismissed ones.
 -- status: all, unread, read${resolved ? " or unresolved" : ""}. Page with the last item's
 -- created_at and id (before, before_id).
@@ -499,7 +503,10 @@ create or replace function ${ctx.fn("list_notifications")}(
   max_items integer default 50,
   before_id uuid default null,
   subject_types text[] default null,
-  search text default null
+  search text default null,
+  read boolean default null,
+  resolved boolean default null,
+  dismissed boolean default false
 )
 returns jsonb
 language sql
@@ -529,7 +536,10 @@ create or replace function ${ctx.fn("notification_page")}(
   subject_types text[] default null,
   search text default null,
   max_items integer default 50,
-  skip integer default 0
+  skip integer default 0,
+  read boolean default null,
+  resolved boolean default null,
+  dismissed boolean default false
 )
 returns jsonb
 language sql
@@ -638,8 +648,8 @@ end;
 $$;`,
   ];
   const grants = [
-    `list_notifications(${id}, text, text[], timestamptz, integer, uuid, text[], text)`,
-    `notification_page(${id}, text, text[], text[], text, integer, integer)`,
+    `list_notifications(${id}, text, text[], timestamptz, integer, uuid, text[], text, boolean, boolean, boolean)`,
+    `notification_page(${id}, text, text[], text[], text, integer, integer, boolean, boolean, boolean)`,
     `notification_counts(${id}, text[])`,
     `mark_notifications_unread(uuid[], ${id})`,
     `mark_notifications_read(uuid[], ${id})`,

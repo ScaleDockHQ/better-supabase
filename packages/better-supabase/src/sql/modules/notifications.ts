@@ -501,12 +501,26 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "uuid",
         "text[]",
         "text",
+        "boolean",
+        "boolean",
+        "boolean",
       ],
       returns: "jsonb",
     },
     {
       name: "notification_page",
-      args: ["{id}", "text", "text[]", "text[]", "text", "integer", "integer"],
+      args: [
+        "{id}",
+        "text",
+        "text[]",
+        "text[]",
+        "text",
+        "integer",
+        "integer",
+        "boolean",
+        "boolean",
+        "boolean",
+      ],
       returns: "jsonb",
     },
     {
@@ -591,7 +605,7 @@ export const NOTIFICATIONS: ModuleDefinition = {
   requires: ["updated-at"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 3,
+  version: 4,
   names: NAMES,
   contract,
   upgrades: [
@@ -607,6 +621,16 @@ export const NOTIFICATIONS: ModuleDefinition = {
         "list_notifications takes subject_types and search and a settled status; notification_page pages with an offset and a total; mark_notifications_unread and the subscription and preference readers are new.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("list_notifications")}(${ctx.idType}, text, text[], timestamptz, integer, uuid);`,
+    },
+    {
+      from: 3,
+      description:
+        "list_notifications and notification_page filter on read, resolved and dismissed.",
+      sql: (ctx) =>
+        [
+          `drop function if exists ${ctx.fn("list_notifications")}(${ctx.idType}, text, text[], timestamptz, integer, uuid, text[], text);`,
+          `drop function if exists ${ctx.fn("notification_page")}(${ctx.idType}, text, text[], text[], text, integer, integer);`,
+        ].join("\n"),
     },
   ],
   build,

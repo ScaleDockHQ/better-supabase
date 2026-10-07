@@ -107,7 +107,7 @@ await notifications.resolve({
 `list` pages with `before` and `limit` (50 by default, at most 200). Pass the
 last item of the previous page as `before`: the block orders by `created_at`
 and then `id`, so items created at the same instant are not skipped. It filters with `status` (`all`, `unread`, `read`, `unresolved`, `settled`),
-`types`, `subjectTypes` and `search`. `resolve` marks every recipient's copy of a type about one subject
+`read`, `resolved`, `dismissed`, `types`, `subjectTypes` and `search`. `resolve` marks every recipient's copy of a type about one subject
 as handled, for example when someone approves the invoice.
 
 `search` matches text in the summary, the subject label and the type,
@@ -115,6 +115,23 @@ ignoring case; `%` and `_` in it are plain characters. `subjectTypes` keeps
 notifications about subjects of the listed types. Every status except
 `settled` leaves dismissed notifications out, and `settled` lists the
 resolved and the dismissed ones, for an archive view.
+
+`read`, `resolved` and `dismissed` are independent booleans that combine
+with each other and with `status`. `read: false` keeps unread ones, and
+`resolved: true` keeps resolved ones. `dismissed` defaults to `false`;
+`true` lists only dismissed notifications and `null` lists both. `settled`
+keeps its meaning and ignores `dismissed`.
+
+| View              | Filters                            |
+| ----------------- | ---------------------------------- |
+| Unread and open   | `{ read: false, resolved: false }` |
+| Handled           | `{ resolved: true }`               |
+| Dismissed         | `{ dismissed: true }`              |
+| Everything        | `{ dismissed: null }`              |
+| Archive (settled) | `{ status: "settled" }`            |
+
+Without a `resolved_at` column, `resolved: true` matches nothing and
+`resolved: false` matches everything.
 
 ### Pages with a total
 
@@ -129,7 +146,9 @@ const { items, total } = await notifications
 ```
 
 It calls `notification_page(tenant, status, types, subject_types, search,
-max_items, skip)`, which counts the matches in the same query. `list` stays
+max_items, skip, read, resolved, dismissed)`, which counts the matches in
+the same query. `list_notifications` takes the same three filters after
+`search`. `list` stays
 the cheaper choice for an infinite scroll.
 
 ### Unread again and counts

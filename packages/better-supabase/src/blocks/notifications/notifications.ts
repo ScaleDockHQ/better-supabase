@@ -64,6 +64,9 @@ export interface SendInput<D = unknown> {
 export interface ListOptions<K extends string = string> {
   readonly tenant?: string;
   readonly status?: "all" | "unread" | "read" | "unresolved" | "settled";
+  readonly read?: boolean;
+  readonly resolved?: boolean;
+  readonly dismissed?: boolean | null;
   readonly types?: readonly K[];
   readonly subjectTypes?: readonly string[];
   readonly search?: string;
@@ -347,6 +350,9 @@ function filtersOf(filters: PageOptions): Record<string, unknown> {
   return {
     tenant: filters.tenant ?? null,
     status: filters.status ?? "all",
+    read: filters.read ?? null,
+    resolved: filters.resolved ?? null,
+    dismissed: filters.dismissed === undefined ? false : filters.dismissed,
     types: filters.types ?? null,
     subject_types: filters.subjectTypes ?? null,
     search: filters.search ?? null,

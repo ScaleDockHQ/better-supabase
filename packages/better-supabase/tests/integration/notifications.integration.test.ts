@@ -836,6 +836,33 @@ describe.skipIf(!live)("notifications", () => {
         "Approve invoice",
         "Fence",
       ]);
+      const summaries = async (options: {
+        readonly read?: boolean;
+        readonly resolved?: boolean;
+        readonly dismissed?: boolean | null;
+      }) =>
+        (
+          await notifications
+            .list({ tenant: organization, ...options })
+            .orThrow()
+        ).map((item) => item.summary);
+      expect(await summaries({ resolved: true })).toEqual([
+        "Approve invoice again",
+        "Approve invoice",
+      ]);
+      expect(await summaries({ resolved: true, read: false })).toEqual([]);
+      expect(await summaries({ resolved: false, read: false })).toEqual([
+        "Roof 100% done",
+      ]);
+      expect(await summaries({ dismissed: true })).toEqual(["Fence"]);
+      expect(await summaries({ dismissed: null })).toHaveLength(4);
+      expect(
+        (
+          await notifications
+            .page({ tenant: organization, resolved: false, dismissed: null })
+            .orThrow()
+        ).items.map((item) => item.summary),
+      ).toEqual(["Fence", "Roof 100% done"]);
       expect(
         (await notifications.list({ tenant: organization }).orThrow()).map(
           (item) => item.summary,

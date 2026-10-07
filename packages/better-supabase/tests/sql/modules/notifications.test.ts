@@ -222,7 +222,16 @@ describe("notifications module", () => {
       "offset greatest(coalesce(notification_page.skip, 0), 0)",
     );
     expect(sql).toContain(
-      `case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) else rc."dismissed_at" is null end`,
+      `case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when list_notifications.dismissed is null then true else (rc."dismissed_at" is not null) = list_notifications.dismissed end`,
+    );
+    expect(sql).toContain(
+      `and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)`,
+    );
+    expect(sql).toContain(
+      `and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)`,
+    );
+    expect(sql).toContain(
+      `drop function if exists "better_supabase"."notification_page"(uuid, text, text[], text[], text, integer, integer);`,
     );
     expect(sql).toContain(
       `or ev."subject_type" = any(list_notifications.subject_types)`,
@@ -258,7 +267,10 @@ describe("notifications module", () => {
     expect(bare).toContain("(list_notifications.subject_types is null)");
     expect(bare).toContain(`'actionable_subjects', 0`);
     expect(bare).toContain(
-      `then rc."dismissed_at" is not null else rc."dismissed_at" is null end`,
+      `then rc."dismissed_at" is not null when list_notifications.dismissed is null then true`,
+    );
+    expect(bare).toContain(
+      "and (list_notifications.resolved is null or not list_notifications.resolved)",
     );
   });
 
