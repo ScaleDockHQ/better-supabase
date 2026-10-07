@@ -36,7 +36,7 @@ describe("webhooks-in module", () => {
       "left join vault.decrypted_secrets ds on ds.id = e.secret_id",
     );
     expect(vault).toContain(
-      "delete from vault.secrets vs where vs.id = old.secret_id;",
+      "delete from vault.secrets vs where vs.id in (old.secret_id, old.previous_secret_id);",
     );
     const column = moduleBody("webhooks-in", {
       modules: { "webhooks-in": { options: { secretStorage: "column" } } },
@@ -62,12 +62,12 @@ describe("webhooks-in module", () => {
         (entry) => entry.module === "webhooks-in",
       ),
     ).toEqual([
-      {
+      ...["create", "update", "delete"].map((action) => ({
         module: "webhooks-in",
-        action: "manage",
+        action,
         key: "webhooks.manage",
         scope: "tenant",
-      },
+      })),
       {
         module: "webhooks-in",
         action: "view",
@@ -75,5 +75,95 @@ describe("webhooks-in module", () => {
         scope: "tenant",
       },
     ]);
+  });
+
+  it("checks create, update and delete keys, with manage as their shorthand", () => {
+    const keys = (permissions: Record<string, string>) =>
+      modulePermissionKeys({ "webhooks-in": { permissions } }, ["webhooks-in"])
+        .filter((entry) => entry.module === "webhooks-in")
+        .map((entry) => [entry.action, entry.key]);
+    expect(keys({ manage: "hooks.admin", delete: "hooks.delete" })).toEqual([
+      ["create", "hooks.admin"],
+      ["update", "hooks.admin"],
+      ["delete", "hooks.delete"],
+      ["view", "webhooks.read"],
+    ]);
+    const sql = moduleBody("webhooks-in", {
+      modules: {
+        "webhooks-in": {
+          permissions: {
+            create: "hooks.create",
+            update: "hooks.update",
+            delete: "hooks.delete",
+          },
+        },
+      },
+    })!;
+    const fn = (name: string) =>
+      sql
+        .slice(sql.indexOf(`function "better_supabase"."${name}"(`))
+        .split("\n$$;")[0]!;
+    expect(fn("create_incoming_webhook")).toContain("'hooks.create'");
+    expect(fn("rotate_incoming_webhook")).toContain("'hooks.update'");
+    expect(fn("set_incoming_webhook_enabled")).toContain("'hooks.update'");
+    expect(fn("delete_incoming_webhook")).toContain("'hooks.delete'");
+    expect(sql).not.toContain("'webhooks.manage'");
+  });
+
+  it("updates name, metadata and verification with the update key", () => {
+    const sql = moduleBody("webhooks-in", {
+      modules: { "webhooks-in": { permissions: { update: "hooks.update" } } },
+    })!;
+    const update = sql.slice(
+      sql.indexOf('function "better_supabase"."update_incoming_webhook"('),
+    );
+    expect(update).toContain("'hooks.update'");
+    expect(update).toContain("hint = 'WEBHOOK_IN_NOT_FOUND'");
+    expect(update).toContain("hint = 'WEBHOOK_IN_VERIFY_UNKNOWN'");
+    expect(update).toContain(
+      "delete from vault.secrets vs where vs.id in (previous.secret_id, previous.previous_secret_id);",
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."update_incoming_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;',
+    );
+  });
+
+  it("rotates the secret with a grace window and keeps tokens apart", () => {
+    const sql = moduleBody("webhooks-in")!;
+    const rotate = sql.slice(
+      sql.indexOf(
+        'function "better_supabase"."rotate_incoming_webhook_secret"(',
+      ),
+    );
+    expect(rotate).toContain(
+      "previous_secret_expires_at = case when v_keep then now() + grace end",
+    );
+    expect(rotate).toContain("hint = 'WEBHOOK_IN_NO_SECRET'");
+    expect(rotate.slice(0, rotate.indexOf("$$;"))).not.toContain("token_hash");
+    expect(sql).toContain(
+      "case when e.previous_secret_expires_at > now() then coalesce(dp.decrypted_secret, e.previous_secret) end",
+    );
+    expect(sql).toContain(
+      "delete from vault.secrets vs where vs.id in (old.secret_id, old.previous_secret_id);",
+    );
+    const column = moduleBody("webhooks-in", {
+      modules: { "webhooks-in": { options: { secretStorage: "column" } } },
+    })!;
+    expect(column).toContain(
+      "case when e.previous_secret_expires_at > now() then e.previous_secret end",
+    );
+  });
+
+  it("accepts a shared secret header mode with its own default header", () => {
+    const sql = moduleBody("webhooks-in")!;
+    expect(sql).toContain(
+      "add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));",
+    );
+    expect(sql).toContain(
+      "when 'shared-secret' then coalesce(signature_header, null, 'x-webhook-secret')",
+    );
+    expect(sql).toContain(
+      "when 'shared-secret' then encode(extensions.gen_random_bytes(32), 'hex')",
+    );
   });
 });

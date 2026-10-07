@@ -246,6 +246,7 @@ describe("createDataExporter", () => {
       transport,
       storage: storage.storage,
       pageSize: 2,
+      concurrency: 1,
     });
     const done = await exporter.run("x1").orThrow();
     expect(done.files).toEqual([
@@ -269,6 +270,63 @@ describe("createDataExporter", () => {
       { id: "x1", table_name: "public.projects", after: "(0,2)", page_size: 2 },
       { id: "x1", table_name: "public.empty", after: undefined, page_size: 2 },
     ]);
+  });
+
+  it("exports tables in parallel up to concurrency and keeps their order", async () => {
+    const tables = Array.from({ length: 9 }, (_, index) => `public.t${index}`);
+    const run = async (concurrency: number | undefined, failOn?: string) => {
+      let active = 0;
+      let peak = 0;
+      const started: string[] = [];
+      const { transport, calls } = fakeTransport({
+        claim_data_export: {
+          ...exportRow({ status: "running", files: [] }),
+          tables,
+        },
+        data_export_rows: async (args: Record<string, unknown>) => {
+          const table = String(args["table_name"]);
+          started.push(table);
+          active += 1;
+          peak = Math.max(peak, active);
+          await new Promise((resolve) => {
+            setTimeout(resolve, 5);
+          });
+          active -= 1;
+          if (table === failOn)
+            throw Object.assign(new Error("boom"), { code: "XX000" });
+          return { rows: [{ table }], after: null };
+        },
+        complete_data_export: (args: Record<string, unknown>) =>
+          exportRow({ files: args["files"] }),
+        fail_data_export: null,
+      });
+      const result = await createDataExporter({
+        transport,
+        storage: fakeStorage().storage,
+        ...(concurrency === undefined ? {} : { concurrency }),
+      }).run("x1");
+      return { result, peak, started, calls };
+    };
+    const parallel = await run(3);
+    expect(parallel.peak).toBe(3);
+    expect(parallel.result.ok ? parallel.result.data.files : []).toEqual(
+      tables.map((table) => `x1/${table}.ndjson`),
+    );
+    expect((await run(undefined)).peak).toBe(4);
+    expect((await run(1)).peak).toBe(1);
+    const failing = await run(2, "public.t1");
+    expect(failing.result.ok).toBe(false);
+    expect(failing.started.length).toBeLessThan(tables.length);
+    expect(failing.calls.at(-1)![0]).toBe("fail_data_export");
+    for (const concurrency of [0, 1.5]) {
+      expect(() =>
+        createDataExporter({
+          transport: fakeTransport({}).transport,
+          storage: fakeStorage().storage,
+          concurrency,
+        }),
+      ).toThrow(/concurrency/);
+    }
   });
 
   it("writes CSV files with a header row when format is csv", async () => {

@@ -127,10 +127,46 @@ language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."set_user_setting"($1, $2) $$;
-revoke execute on function "api"."set_user_setting"(text, jsonb) from public;
+revoke execute on function "api"."set_user_setting"(text, jsonb) from public, anon;
 grant execute on function "api"."set_user_setting"(text, jsonb) to authenticated, service_role;`);
     expect(file).toContain(`"api"."get_user_settings"()`);
     expect(file).not.toContain(`"api"."reset_user_setting"`);
+  });
+
+  it("revokes execute from anon on every function it does not grant to anon", () => {
+    const signature = (text: string) =>
+      text.replaceAll('"', "").replaceAll(/\s+/g, " ").trim();
+    const missing: string[] = [];
+    for (const module of Object.values(SQL_MODULES)) {
+      if (module.target !== "schema") continue;
+      let file: string;
+      try {
+        file = schemaFile(module.name, "api");
+      } catch {
+        continue;
+      }
+      const revoked = new Set(
+        [
+          ...file.matchAll(
+            /^revoke execute on function ([^\n]+?\)) from ([^;]+);/gm,
+          ),
+        ]
+          .filter((match) =>
+            match[2]!.split(",").some((role) => role.trim() === "anon"),
+          )
+          .map((match) => signature(match[1]!)),
+      );
+      for (const match of file.matchAll(
+        /^grant execute on function ([^\n]+?\)) to ([^;]+);/gm,
+      )) {
+        const roles = match[2]!.split(",").map((role) => role.trim());
+        if (roles.includes("anon")) continue;
+        if (!revoked.has(signature(match[1]!))) {
+          missing.push(`${module.name}: ${signature(match[1]!)}`);
+        }
+      }
+    }
+    expect(missing).toEqual([]);
   });
 
   it("selects from functions that return rows and keeps defaults", () => {

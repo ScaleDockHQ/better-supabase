@@ -249,6 +249,268 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     }
   });
 
+  it("updates endpoints and checks the split create, update and delete keys", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "webhooks-in"], {
+        modules: {
+          "webhooks-in": { permissions: { delete: "organization.delete" } },
+        },
+      });
+      const owner = await s.user("owner");
+      const admin = await s.user("admin");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { admin, member });
+      const hooks = createIncomingWebhooks(s.sql);
+      const vaulted = (id: string) =>
+        s.value<string | null>(
+          `(select ds.decrypted_secret from better_supabase.incoming_webhooks e
+            left join vault.decrypted_secrets ds on ds.id = e.secret_id where e.id = $1)`,
+          [id],
+        );
+      const vaultCount = () =>
+        s.value<number>(
+          "(select count(*)::int from vault.secrets where name like 'webhook-in:%')",
+        );
+
+      await s.as(admin);
+      const created = await hooks
+        .create({
+          tenant: organization,
+          name: "Form",
+          verify: "standard-webhooks",
+          metadata: { workflow: "w1" },
+        })
+        .orThrow();
+      const count = await vaultCount();
+      expect(
+        await hooks
+          .update(created.id, {
+            name: "Signup form",
+            metadata: { workflow: "w2" },
+          })
+          .orThrow(),
+      ).toEqual({
+        id: created.id,
+        tenant: organization,
+        name: "Signup form",
+        verify: "standard-webhooks",
+        secret: null,
+        signatureHeader: null,
+        metadata: { workflow: "w2" },
+      });
+      expect(await vaulted(created.id)).toBe(created.secret);
+
+      const hmac = await hooks
+        .update(created.id, { verify: "hmac-sha256", signatureHeader: "x-hub" })
+        .orThrow();
+      expect(hmac).toMatchObject({
+        verify: "hmac-sha256",
+        signatureHeader: "x-hub",
+        name: "Signup form",
+      });
+      expect(hmac.secret).toMatch(/^[0-9a-f]{64}$/);
+      expect(await vaulted(created.id)).toBe(hmac.secret);
+      expect(await vaultCount()).toBe(count);
+
+      const none = await hooks.update(created.id, { verify: "none" }).orThrow();
+      expect(none).toMatchObject({
+        verify: "none",
+        secret: null,
+        signatureHeader: null,
+      });
+      expect(await vaulted(created.id)).toBeNull();
+      expect(await vaultCount()).toBe(count - 1);
+
+      expect(await hooks.update(created.id, { name: " " })).toMatchObject({
+        ok: false,
+        error: { hint: "WEBHOOK_IN_NAME_REQUIRED" },
+      });
+      expect(
+        await s.hint(
+          "better_supabase.update_incoming_webhook($1, metadata => '[]'::jsonb)",
+          [created.id],
+        ),
+      ).toBe("WEBHOOK_IN_METADATA_INVALID");
+      expect(
+        await s.hint(
+          "better_supabase.update_incoming_webhook($1, verify => 'magic')",
+          [created.id],
+        ),
+      ).toBe("WEBHOOK_IN_VERIFY_UNKNOWN");
+
+      await s.as(member);
+      expect(await hooks.update(created.id, { name: "Mine" })).toMatchObject({
+        ok: false,
+        error: { hint: "WEBHOOK_IN_NOT_FOUND" },
+      });
+      expect(
+        await hooks.create({ tenant: organization, name: "x" }),
+      ).toMatchObject({
+        ok: false,
+        error: { hint: "WEBHOOK_IN_FORBIDDEN" },
+      });
+
+      await s.as(admin);
+      expect(await hooks.setEnabled(created.id, false).orThrow()).toBe(true);
+      expect(await hooks.remove(created.id).orThrow()).toBe(false);
+      await s.as(owner);
+      expect(await hooks.remove(created.id).orThrow()).toBe(true);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("rotates a signing secret and verifies the old one during the grace", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "webhooks-in"]);
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+      const hooks = createIncomingWebhooks(s.sql, {
+        source: `rotate-${organization.slice(0, 8)}`,
+      });
+      const vaultCount = () =>
+        s.value<number>(
+          "(select count(*)::int from vault.secrets where name like 'webhook-in:%')",
+        );
+      await s.as(owner);
+      const created = await hooks
+        .create({
+          tenant: organization,
+          name: "Signed",
+          verify: "standard-webhooks",
+        })
+        .orThrow();
+      const plain = await hooks
+        .create({ tenant: organization, name: "Plain" })
+        .orThrow();
+      const count = await vaultCount();
+      const rotated = await hooks
+        .rotateSecret(created.id, { grace: "1 hour" })
+        .orThrow();
+      expect(rotated.secret).toMatch(/^whsec_/);
+      expect(rotated.secret).not.toBe(created.secret);
+      expect(rotated.previousSecretExpiresAt).not.toBeNull();
+      expect(await vaultCount()).toBe(count + 1);
+
+      const body = '{"type":"x"}';
+      const post = async (secret: string, id: string) =>
+        (
+          await hooks.receive(
+            new Request(`https://api.test/hooks/${created.token}`, {
+              method: "POST",
+              headers: await signWebhook(secret, { id, body }),
+              body,
+            }),
+            created.token,
+          )
+        ).status;
+      await s.service();
+      expect(await post(created.secret!, "a1")).toBe(202);
+      expect(await post(rotated.secret, "a2")).toBe(202);
+
+      await s.client.query(
+        "update better_supabase.incoming_webhooks set previous_secret_expires_at = now() - interval '1 second' where id = $1",
+        [created.id],
+      );
+      expect(await post(created.secret!, "a3")).toBe(401);
+      expect(await post(rotated.secret, "a4")).toBe(202);
+
+      await s.as(owner);
+      const again = await hooks.rotateSecret(created.id).orThrow();
+      expect(again.previousSecretExpiresAt).toBeNull();
+      expect(await vaultCount()).toBe(count);
+      await s.service();
+      expect(await post(rotated.secret, "a5")).toBe(401);
+      expect(await post(again.secret, "a6")).toBe(202);
+
+      await s.as(owner);
+      expect(await hooks.rotateSecret(plain.id)).toMatchObject({
+        ok: false,
+        error: { hint: "WEBHOOK_IN_NO_SECRET" },
+      });
+      await s.as(member);
+      expect(await hooks.rotateSecret(created.id)).toMatchObject({
+        ok: false,
+        error: { hint: "WEBHOOK_IN_NOT_FOUND" },
+      });
+      await s.as(owner);
+      await hooks.rotateSecret(created.id, { grace: "1 day" }).orThrow();
+      expect(await vaultCount()).toBe(count + 1);
+      expect(await hooks.remove(created.id).orThrow()).toBe(true);
+      expect(await vaultCount()).toBe(count - 1);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("verifies senders that cannot sign with a shared secret header", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "webhooks-in"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      const hooks = createIncomingWebhooks(s.sql, {
+        source: `shared-${organization.slice(0, 8)}`,
+        keepHeaders: ["x-api-key"],
+      });
+      await s.as(owner);
+      const created = await hooks
+        .create({
+          tenant: organization,
+          name: "Legacy CRM",
+          verify: "shared-secret",
+          signatureHeader: "x-api-key",
+        })
+        .orThrow();
+      expect(created).toMatchObject({
+        verify: "shared-secret",
+        signatureHeader: "x-api-key",
+      });
+      expect(created.secret).toMatch(/^[0-9a-f]{64}$/);
+      const plain = await hooks
+        .create({ tenant: organization, name: "Other" })
+        .orThrow();
+      expect(
+        await hooks.update(plain.id, { verify: "shared-secret" }).orThrow(),
+      ).toMatchObject({ signatureHeader: "x-webhook-secret" });
+
+      const post = async (headers: Record<string, string>) =>
+        (
+          await hooks.receive(
+            new Request(`https://api.test/hooks/${created.token}`, {
+              method: "POST",
+              headers,
+              body: "{}",
+            }),
+            created.token,
+          )
+        ).status;
+      await s.service();
+      expect(await post({ "x-api-key": created.secret! })).toBe(202);
+      expect(await post({ "x-api-key": "wrong" })).toBe(401);
+      expect(await post({ "x-webhook-secret": created.secret! })).toBe(401);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.webhook_inbox where headers::text like '%' || $1 || '%')",
+          [created.secret],
+        ),
+      ).toBe(0);
+
+      await s.as(owner);
+      const rotated = await hooks
+        .rotateSecret(created.id, { grace: "1 hour" })
+        .orThrow();
+      await s.service();
+      expect(await post({ "x-api-key": created.secret! })).toBe(202);
+      expect(await post({ "x-api-key": rotated.secret })).toBe(202);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("ties endpoints to readable subjects and cascades their deletes", async () => {
     const s = await BlockSession.open(pool);
     try {

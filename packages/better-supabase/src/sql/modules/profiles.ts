@@ -37,6 +37,7 @@ const NAMES: ModuleNames = {
         firstName: "first_name",
         lastName: "last_name",
         avatar: "avatar_url",
+        avatarPath: "avatar_path",
         activeTenant: "active_organization_id",
         activeTeam: "active_team_id",
         onboarding: "onboarding",
@@ -51,6 +52,7 @@ const NAMES: ModuleNames = {
         "firstName",
         "lastName",
         "avatar",
+        "avatarPath",
         "activeTenant",
         "activeTeam",
         "onboarding",
@@ -70,6 +72,13 @@ const DEFAULT_METADATA: readonly (readonly [string, readonly string[]])[] = [
   ["lastName", ["last_name", "family_name"]],
   ["avatar", ["avatar_url", "picture"]],
 ];
+
+export function hasAvatarPath(ctx: ModuleContext): boolean {
+  return (
+    ctx.has("profiles", "avatarPath") &&
+    (ctx.manages || ctx.config.columns["profiles"]?.["avatarPath"] != null)
+  );
+}
 
 const USERNAME_SOURCES = ["user_name", "preferred_username", "username"];
 
@@ -132,6 +141,11 @@ function metadataColumns(ctx: ModuleContext): Map<string, string[]> {
         );
       }
       const name = column("sql.modules.profiles.options.metadata", target);
+      if (hasAvatarPath(ctx) && name === ctx.col("profiles", "avatarPath")) {
+        throw new TypeError(
+          `sql.modules.profiles.options.metadata.${key}: ${target} holds a Storage object path the app sets, so auth metadata never writes it`,
+        );
+      }
       map.set(name, [...(map.get(name) ?? []), key]);
     }
     return map;
@@ -391,6 +405,7 @@ function table(ctx: ModuleContext): string {
     ["firstName", "text"],
     ["lastName", "text"],
     ["avatar", "text"],
+    ["avatarPath", "text"],
     ["activeTenant", id],
     ["activeTeam", id],
     ["onboarding", "jsonb not null default '{}'"],
@@ -440,7 +455,7 @@ grant execute on function ${ctx.fn("my_profile")}() to authenticated, service_ro
   return `
 create table if not exists ${t} (
   ${columns.join(",\n  ")}
-);${extra.map(([name, type]) => `\nalter table ${t} add column if not exists ${name} ${type};`).join("")}
+);${hasAvatarPath(ctx) ? `\nalter table ${t} add column if not exists ${c("avatarPath")} text;` : ""}${extra.map(([name, type]) => `\nalter table ${t} add column if not exists ${name} ${type};`).join("")}
 ${username}
 alter table ${t} enable row level security;
 drop policy if exists bs_profiles_read on ${t};
@@ -558,10 +573,15 @@ function grants(ctx: ModuleContext): string {
     "firstName",
     "lastName",
     "avatar",
+    "avatarPath",
     "username",
     "onboarding",
   ]
-    .filter((logical) => ctx.has("profiles", logical))
+    .filter((logical) =>
+      logical === "avatarPath"
+        ? hasAvatarPath(ctx)
+        : ctx.has("profiles", logical),
+    )
     .map((logical) => ctx.col("profiles", logical));
   const configured = ctx.option("updatable");
   const columns =
@@ -837,7 +857,15 @@ export const PROFILES: ModuleDefinition = {
   },
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Managed profiles get an avatar_path column for an avatar stored in Storage; sync never writes it from auth metadata.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract: () => [
     { name: "sync_profile", args: ["uuid"], returns: "boolean" },

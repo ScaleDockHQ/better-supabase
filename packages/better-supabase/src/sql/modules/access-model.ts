@@ -72,7 +72,12 @@ export const MODULE_PERMISSIONS = {
   },
   notifications: { send: "notifications.send", read: "notifications.read" },
   "webhooks-out": { manage: "webhooks.manage", view: "webhooks.read" },
-  "webhooks-in": { manage: "webhooks.manage", view: "webhooks.read" },
+  "webhooks-in": {
+    create: "webhooks.manage",
+    update: "webhooks.manage",
+    delete: "webhooks.manage",
+    view: "webhooks.read",
+  },
   "api-keys": { manage: "api_keys.manage", own: "api_keys.own" },
   settings: {
     read: "settings.read",
@@ -138,7 +143,12 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   notifications: { send: "tenant", read: "tenant" },
   "webhooks-out": { manage: "tenant", view: "tenant" },
-  "webhooks-in": { manage: "tenant", view: "tenant" },
+  "webhooks-in": {
+    create: "tenant",
+    update: "tenant",
+    delete: "tenant",
+    view: "tenant",
+  },
   "api-keys": { manage: "tenant", own: "tenant" },
   settings: { read: "tenant", update: "tenant", platform: "platform" },
   usage: { read: "tenant", record: "tenant" },
@@ -320,4 +330,22 @@ export function roleScopeIs(
       ? access.text("tenantRoleScope", "tenant")
       : access.text("platformRoleScope", "platform");
   return `${alias}.${access.col("roles", "scope")}::text = ${sqlString(value)}`;
+}
+
+const MODULE_PERMISSION_SHORTHANDS: Readonly<
+  Record<string, Readonly<Record<string, string>>>
+> = {
+  "webhooks-in": { create: "manage", update: "manage", delete: "manage" },
+};
+
+export function modulePermissionKey(
+  ctx: ModuleContext,
+  action: string,
+  fallback: string,
+): string {
+  const shorthand = MODULE_PERMISSION_SHORTHANDS[ctx.module]?.[action];
+  return ctx.permissionKey(
+    action,
+    shorthand === undefined ? fallback : ctx.permissionKey(shorthand, fallback),
+  );
 }

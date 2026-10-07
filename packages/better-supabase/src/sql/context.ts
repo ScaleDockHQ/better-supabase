@@ -54,6 +54,7 @@ export interface ModuleTableLifecycle {
   readonly user?: string;
   readonly tenant?: string;
   readonly purge?: boolean;
+  readonly omit?: readonly string[];
 }
 
 export interface ModuleNames {

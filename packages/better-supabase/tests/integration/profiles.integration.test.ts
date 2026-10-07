@@ -88,7 +88,12 @@ describe.skipIf(!live)("profiles", () => {
         await client.query(file.contents);
 
       const meta = {
-        ada: { full_name: "Ada King Lovelace", user_name: "ada" },
+        ada: {
+          full_name: "Ada King Lovelace",
+          user_name: "ada",
+          avatar_path: "evil/path.png",
+          picture: "https://img.test/ada.png",
+        },
         bob: { full_name: "Bob", user_name: "Ada" },
         eve: { given_name: "Eve", family_name: "Online" },
       };
@@ -111,6 +116,8 @@ describe.skipIf(!live)("profiles", () => {
         first_name: "Ada",
         last_name: "King Lovelace",
         email: `ada-${USERS.ada}@example.test`,
+        avatar_url: "https://img.test/ada.png",
+        avatar_path: null,
       });
       expect((await profile("bob"))?.["username"]).toBe("ada1");
       expect(await profile("eve")).toMatchObject({
@@ -131,6 +138,15 @@ describe.skipIf(!live)("profiles", () => {
         [USERS.ada],
       );
       expect(renamed.rows).toEqual([{ full_name: "Ada L" }]);
+      const avatar = await as(
+        client,
+        "ada",
+        `update ${PROFILES} set avatar_path = $2 where id = $1 returning avatar_path`,
+        [USERS.ada, `${USERS.ada}/avatar.webp`],
+      );
+      expect(avatar.rows).toEqual([
+        { avatar_path: `${USERS.ada}/avatar.webp` },
+      ]);
       const email = await as(
         client,
         "ada",

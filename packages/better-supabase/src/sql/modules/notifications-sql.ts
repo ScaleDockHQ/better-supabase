@@ -3,6 +3,8 @@ import type { ModuleContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
+import { readers } from "./notifications-readers.ts";
+import { hasAvatarPath } from "./profiles.ts";
 
 export interface NotifyNames {
   readonly table: (table: string) => string;
@@ -435,18 +437,51 @@ function inbox(ctx: ModuleContext, n: NotifyNames): string {
       ? `and (${fn}.tenant is null or ${alias}.${r("tenant")} = ${fn}.tenant)`
       : "";
   const resolved = n.has("recipients", "resolvedAt");
-  const unresolvedStatus = resolved
-    ? `
+  const subjectType = n.has("events", "subjectType");
+  const subjects = subjectType && n.has("events", "subjectId");
+  const settled = resolved
+    ? `(rc.${r("resolvedAt")} is not null or rc.${r("dismissedAt")} is not null)`
+    : `rc.${r("dismissedAt")} is not null`;
+  const haystack = (["summary", "subjectLabel"] as const)
+    .filter((logical) => n.has("events", logical))
+    .map((logical) => `ev.${e(logical)}`);
+  const where = (fn: string) => {
+    const like = `'%' || replace(replace(replace(btrim(${fn}.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%'`;
+    return `rc.${r("user")} = auth.uid()
+      and case when coalesce(${fn}.status, 'all') = 'settled' then ${settled} else rc.${r("dismissedAt")} is null end
+      ${tenantFilter(fn)}
+      and (${fn}.types is null or ev.${e("type")} = any(${fn}.types))
+      and (${fn}.subject_types is null${subjectType ? ` or ev.${e("subjectType")} = any(${fn}.subject_types)` : ""})
+      and (${fn}.search is null or btrim(${fn}.search) = '' or concat_ws(' ', ${[...haystack, `ev.${e("type")}`].join(", ")}) ilike ${like})
+      and case coalesce(${fn}.status, 'all')
+        when 'unread' then rc.${r("readAt")} is null
+        when 'read' then rc.${r("readAt")} is not null${
+          resolved
+            ? `
         when 'unresolved' then rc.${r("resolvedAt")} is null`
-    : "";
+            : ""
+        }
+        else true
+      end`;
+  };
+  const isActionable = `${resolved ? `rc.${r("resolvedAt")} is null and ` : ""}ev.${e("type")} = any(coalesce(notification_counts.actionable, '{}'))`;
   const actionable = resolved
     ? `count(*) filter (
-      where rc.${r("resolvedAt")} is null and ev.${e("type")} = any(coalesce(notification_counts.actionable, '{}'))
+      where ${isActionable}
+    )`
+    : "0";
+  const subjectKey = subjects
+    ? `case when ev.${e("subjectType")} is not null and ev.${e("subjectId")} is not null then jsonb_build_array(${n.has("events", "tenant") ? `ev.${e("tenant")}, ` : ""}ev.${e("subjectType")}, ev.${e("subjectId")})::text else rc.${r("id")}::text end`
+    : `rc.${r("id")}::text`;
+  const actionableSubjects = resolved
+    ? `count(distinct ${subjectKey}) filter (
+      where ${isActionable}
     )`
     : "0";
   const parts = [
     `
 drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer);
+drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer, uuid);
 -- The signed-in user's notifications, newest first, without dismissed ones.
 -- status: all, unread, read${resolved ? " or unresolved" : ""}. Page with the last item's
 -- created_at and id (before, before_id).
@@ -456,7 +491,9 @@ create or replace function ${ctx.fn("list_notifications")}(
   types text[] default null,
   before timestamptz default null,
   max_items integer default 50,
-  before_id uuid default null
+  before_id uuid default null,
+  subject_types text[] default null,
+  search text default null
 )
 returns jsonb
 language sql
@@ -469,22 +506,49 @@ as $$
     select ${itemJson(n)} as item, rc.${r("createdAt")} as created_at, rc.${r("id")} as id
     from ${n.table("recipients")} rc
     join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
-    where rc.${r("user")} = auth.uid()
-      and rc.${r("dismissedAt")} is null
-      ${tenantFilter("list_notifications")}
-      and (list_notifications.types is null or ev.${e("type")} = any(list_notifications.types))
+    where ${where("list_notifications")}
       and (
         list_notifications.before is null
         or (rc.${r("createdAt")}, rc.${r("id")}) < (list_notifications.before, coalesce(list_notifications.before_id, '00000000-0000-0000-0000-000000000000'::uuid))
       )
-      and case coalesce(list_notifications.status, 'all')
-        when 'unread' then rc.${r("readAt")} is null
-        when 'read' then rc.${r("readAt")} is not null${unresolvedStatus}
-        else true
-      end
     order by rc.${r("createdAt")} desc, rc.${r("id")} desc
     limit least(coalesce(list_notifications.max_items, 50), 200)
   ) x
+$$;
+
+create or replace function ${ctx.fn("notification_page")}(
+  tenant ${id} default null,
+  status text default 'all',
+  types text[] default null,
+  subject_types text[] default null,
+  search text default null,
+  max_items integer default 50,
+  skip integer default 0
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with matched as (
+    select ${itemJson(n)} as item, rc.${r("createdAt")} as created_at, rc.${r("id")} as id
+    from ${n.table("recipients")} rc
+    join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
+    where ${where("notification_page")}
+  )
+  select jsonb_build_object(
+    'items', coalesce((
+      select jsonb_agg(p.item order by p.created_at desc, p.id desc)
+      from (
+        select m.item, m.created_at, m.id from matched m
+        order by m.created_at desc, m.id desc
+        offset greatest(coalesce(notification_page.skip, 0), 0)
+        limit least(greatest(coalesce(notification_page.max_items, 50), 1), 200)
+      ) p
+    ), '[]'),
+    'total', (select count(*) from matched)
+  )
 $$;
 
 -- Unread and, for the types in actionable, unresolved counts.
@@ -497,13 +561,34 @@ set search_path = ''
 as $$
   select jsonb_build_object(
     'unread', count(*) filter (where rc.${r("readAt")} is null),
-    'actionable', ${actionable}
+    'actionable', ${actionable},
+    'actionable_subjects', ${actionableSubjects}
   )
   from ${n.table("recipients")} rc
   join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
   where rc.${r("user")} = auth.uid()
     and rc.${r("dismissedAt")} is null
     ${tenantFilter("notification_counts")}
+$$;
+
+create or replace function ${ctx.fn("mark_notifications_unread")}(ids uuid[], tenant ${id} default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  changed integer;
+begin
+  update ${n.table("recipients")} rc set ${r("readAt")} = null
+  where rc.${r("user")} = auth.uid()
+    and rc.${r("readAt")} is not null
+    and rc.${r("dismissedAt")} is null
+    and rc.${r("id")} = any(mark_notifications_unread.ids)
+    ${tenantFilter("mark_notifications_unread")};
+  get diagnostics changed = row_count;
+  return changed;
+end;
 $$;
 
 -- Marks the given notifications, or all of them, read. Returns how many changed.
@@ -547,8 +632,10 @@ end;
 $$;`,
   ];
   const grants = [
-    `list_notifications(${id}, text, text[], timestamptz, integer, uuid)`,
+    `list_notifications(${id}, text, text[], timestamptz, integer, uuid, text[], text)`,
+    `notification_page(${id}, text, text[], text[], text, integer, integer)`,
     `notification_counts(${id}, text[])`,
+    `mark_notifications_unread(uuid[], ${id})`,
     `mark_notifications_read(uuid[], ${id})`,
     "dismiss_notifications(uuid[])",
   ];
@@ -604,9 +691,14 @@ $$;`);
         ["firstName", "firstName"],
         ["lastName", "lastName"],
         ["avatar", "avatar"],
+        ["avatarPath", "avatarPath"],
       ] as const
     )
-      .filter(([logical]) => profiles.has("profiles", logical))
+      .filter(([logical]) =>
+        logical === "avatarPath"
+          ? hasAvatarPath(profiles)
+          : profiles.has("profiles", logical),
+      )
       .map(([key, logical]) => `, '${key}', pr.${p(logical)}`)
       .join("");
     parts.push(`
@@ -911,6 +1003,7 @@ export function functions(ctx: ModuleContext, n: NotifyNames): string {
     notify(ctx, n),
     inbox(ctx, n),
     settings(ctx, n),
+    readers(ctx, n),
     delivery(ctx, n),
     purge(ctx, n),
   ].join("\n");

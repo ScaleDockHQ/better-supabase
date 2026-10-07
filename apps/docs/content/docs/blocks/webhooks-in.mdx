@@ -16,8 +16,7 @@ better-supabase sql add webhooks-in   # adds access, tenant and webhook-inbox
 
 ## Endpoints
 
-A member with `webhooks.manage` (`sql.modules.webhooks-in.permissions.manage`)
-creates an endpoint for their tenant. The token, which goes in the URL, and
+A member with `webhooks.manage` (see Permissions below) creates an endpoint for their tenant. The token, which goes in the URL, and
 the signing secret are returned once. Only the token's hash is stored, and
 the secret is a [Vault](https://supabase.com/docs/guides/database/vault)
 secret that only the receiving route decrypts. Set
@@ -48,6 +47,79 @@ await hooks.remove(endpoint.id);
 | `none` (default)    | only the token in the URL                                                                                       |
 | `standard-webhooks` | a [Standard Webhooks](/docs/standards) signature with the endpoint's `whsec_` secret                            |
 | `hmac-sha256`       | the hex HMAC-SHA256 of the body, optionally prefixed `sha256=`, in `signatureHeader` (`x-signature` by default) |
+| `shared-secret`     | the endpoint's secret itself in `signatureHeader` (`x-webhook-secret` by default), for senders that cannot sign |
+
+### Rotating the secret
+
+`rotate(id)` issues a new token, so the old URL stops working. To replace
+only the signing secret and keep the URL, call `rotateSecret(id, { grace })`:
+
+```ts
+const { secret, previousSecretExpiresAt } = await hooks
+  .rotateSecret(endpoint.id, { grace: "24 hours" })
+  .orThrow();
+```
+
+During `grace` (a Postgres interval or a `Temporal.Duration`) deliveries
+signed with the old secret still verify, so the sender can switch over
+without dropped deliveries. Without `grace` the old secret stops at once.
+The old Vault secret is deleted at the next rotation, a change of `verify`
+or the endpoint's deletion. An endpoint without a secret (`verify: "none"`)
+is refused with `WEBHOOK_IN_NO_SECRET`. In SQL it is
+`rotate_incoming_webhook_secret(endpoint, grace)`, checked with the `update`
+key.
+
+### Changing an endpoint
+
+`update(id, { name?, metadata?, verify?, signatureHeader? })` renames an
+endpoint, replaces its `metadata` (to bind it to another workflow, say) or
+changes how deliveries are verified, and keeps its token and URL. Fields
+you leave out stay as they are.
+
+```ts
+const changed = await hooks
+  .update(endpoint.id, {
+    metadata: { workflowId: nextWorkflowId },
+    verify: "hmac-sha256",
+  })
+  .orThrow();
+// changed.secret is the new HMAC secret, shown once
+```
+
+Changing `verify` to a signing mode returns a new secret once, and the old
+Vault secret is deleted; changing it to `none` drops the secret. The same
+`verify` keeps the secret, and `secret` comes back `null`. In SQL it is
+`update_incoming_webhook(endpoint, name, metadata, verify, signature_header)`,
+which refuses an empty name (`WEBHOOK_IN_NAME_REQUIRED`), metadata that is
+not an object (`WEBHOOK_IN_METADATA_INVALID`), an unknown mode
+(`WEBHOOK_IN_VERIFY_UNKNOWN`), and a caller without the `update` key
+(`WEBHOOK_IN_NOT_FOUND`).
+
+### Permissions
+
+Creating, changing and deleting an endpoint check three keys, each
+`webhooks.manage` by default. `permissions.manage` sets all three at once,
+and `create`, `update` or `delete` override one of them, so an app can let
+members add endpoints while only admins remove them:
+
+```ts title="better-supabase.config.ts"
+"webhooks-in": {
+  permissions: { manage: "integrations.manage", delete: "integrations.delete" },
+},
+```
+
+| Action   | Checked by                                                                                                                |
+| -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `create` | `create_incoming_webhook`                                                                                                 |
+| `update` | `update_incoming_webhook`, `rotate_incoming_webhook`, `rotate_incoming_webhook_secret` and `set_incoming_webhook_enabled` |
+| `delete` | `delete_incoming_webhook`                                                                                                 |
+| `view`   | the read policy and `list_incoming_webhooks` (`webhooks.read`)                                                            |
+
+Use `shared-secret` only for a sender that can set a fixed header but
+cannot compute a signature, such as a form tool or an older CRM. The secret
+travels with every request, so it protects against a leaked URL but not
+against someone who can read the traffic. `receive` compares it in constant
+time and never stores that header, even when `keepHeaders` names it.
 
 Members with `webhooks.read` read their tenant's endpoints, including
 `receive_count`, `last_received_at` and `last_status`. `hooks.list(tenant)`
@@ -121,6 +193,14 @@ when the same delivery arrived before: one with a `webhook-id` seen before
 or, on an `hmac-sha256` endpoint, one with a signature seen before. The id
 header isn't signed there, so a replayed body is stored once whatever id it
 carries. Every answer after the lookup is counted on the endpoint.
+
+### Tenant exports and purges
+
+With the [`data-lifecycle` module](/docs/blocks/data-lifecycle) installed,
+a tenant's endpoints are in its organization export, without `token_hash`,
+the secrets and their Vault ids, and the purge deletes them together with
+their Vault secrets. The endpoint table's columns can't be renamed in
+`sql.modules.webhooks-in.columns`.
 
 ### Upgrading from version 1
 

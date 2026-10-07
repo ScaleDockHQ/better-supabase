@@ -95,7 +95,8 @@ describe.skipIf(!live)("api-keys", () => {
       expect(await keys.verify(ci.token).orThrow()).toMatchObject({
         status: "rate_limited",
       });
-      expect(await keys.verify(`${ci.token.slice(0, -1)}x`).orThrow()).toEqual({
+      const tampered = `${ci.token.slice(0, -1)}${ci.token.endsWith("x") ? "y" : "x"}`;
+      expect(await keys.verify(tampered).orThrow()).toEqual({
         status: "invalid",
       });
       expect(

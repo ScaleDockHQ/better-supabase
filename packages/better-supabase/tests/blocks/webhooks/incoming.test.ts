@@ -260,6 +260,216 @@ describe("createIncomingWebhooks", () => {
     expect(await broken.rotate("e1")).toMatchObject({ ok: false });
   });
 
+  it("checks a shared secret header in constant time and never stores it", async () => {
+    const fake = fakeSql([
+      [
+        "incoming_webhook_by_token",
+        (call) => [
+          endpoint({
+            verify: "shared-secret",
+            secret: "s3cret",
+            previous_secret: call.values[0] === "grace" ? "old" : null,
+            signature_header: call.values[0] === "custom" ? "x-token" : null,
+            max_body_bytes: 99,
+          }),
+        ],
+      ],
+      ["receive_webhook", [{ id: 1, duplicate: false }]],
+    ]);
+    const hooks = createIncomingWebhooks(fake.sql, {
+      keepHeaders: ["x-webhook-secret", "X-Token", "x-request-id"],
+    });
+    const status = async (token: string, headers: Record<string, string>) =>
+      (await hooks.receive(post("{}", headers), token)).status;
+    expect(
+      await status("tok", {
+        "x-webhook-secret": "s3cret",
+        "x-request-id": "r1",
+      }),
+    ).toBe(202);
+    expect(await status("tok", { "x-webhook-secret": "s3cre" })).toBe(401);
+    expect(await status("tok", {})).toBe(401);
+    expect(await status("custom", { "x-token": "s3cret" })).toBe(202);
+    expect(await status("custom", { "x-webhook-secret": "s3cret" })).toBe(401);
+    expect(await status("grace", { "x-webhook-secret": "old" })).toBe(202);
+    expect(await status("tok", { "x-webhook-secret": "old" })).toBe(401);
+    const stored = fake.calls
+      .filter((call) => call.text.includes("receive_webhook"))
+      .map((call) => JSON.parse(String(call.values[4])));
+    expect(stored[0]).toEqual({
+      "x-request-id": "r1",
+      "x-bs-endpoint-id": "e1",
+    });
+    expect(JSON.stringify(stored)).not.toContain("s3cret");
+    expect(JSON.stringify(stored)).not.toContain('"old"');
+  });
+
+  it("rotates the secret and verifies with the previous one during the grace", async () => {
+    const [oldStd, newStd] = [
+      `whsec_${btoa("old-unit-secret")}`,
+      `whsec_${btoa("new-unit-secret")}`,
+    ];
+    const body = '{"type":"x"}';
+    const fake = fakeSql([
+      [
+        "incoming_webhook_by_token",
+        (call) => [
+          call.values[0] === "std"
+            ? endpoint({
+                verify: "standard-webhooks",
+                secret: newStd,
+                previous_secret: oldStd,
+                max_body_bytes: 99,
+              })
+            : endpoint({
+                verify: "hmac-sha256",
+                secret: "new",
+                previous_secret: call.values[0] === "mac" ? "old" : null,
+                max_body_bytes: 99,
+              }),
+        ],
+      ],
+      ["receive_webhook", [{ id: 1, duplicate: false }]],
+      [
+        "rotate_incoming_webhook_secret",
+        (call) => [
+          {
+            value: {
+              id: "e1",
+              secret: "s2",
+              previousSecretExpiresAt:
+                call.values[1] === null ? null : "2026-10-08T10:00:00+00:00",
+            },
+          },
+        ],
+      ],
+    ]);
+    const hooks = createIncomingWebhooks(fake.sql);
+    for (const secret of [oldStd, newStd]) {
+      const headers = await signWebhook(secret, { id: "w1", body });
+      expect((await hooks.receive(post(body, headers), "std")).status).toBe(
+        202,
+      );
+    }
+    const stranger = await signWebhook(`whsec_${btoa("other")}`, {
+      id: "w1",
+      body,
+    });
+    expect((await hooks.receive(post(body, stranger), "std")).status).toBe(401);
+    const hex = async (key: string) =>
+      Array.from(
+        new Uint8Array(
+          await crypto.subtle.sign(
+            "HMAC",
+            await crypto.subtle.importKey(
+              "raw",
+              new TextEncoder().encode(key),
+              { name: "HMAC", hash: "SHA-256" },
+              false,
+              ["sign"],
+            ),
+            new TextEncoder().encode(body),
+          ),
+        ),
+        (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("");
+    const old = { "x-signature": await hex("old") };
+    expect((await hooks.receive(post(body, old), "mac")).status).toBe(202);
+    expect(
+      (
+        await hooks.receive(
+          post(body, { "x-signature": await hex("new") }),
+          "mac",
+        )
+      ).status,
+    ).toBe(202);
+    expect((await hooks.receive(post(body, old), "expired")).status).toBe(401);
+    expect(
+      await hooks.rotateSecret("e1", { grace: "1 hour" }).orThrow(),
+    ).toMatchObject({ secret: "s2" });
+    const timed = await hooks
+      .rotateSecret("e1", { grace: Temporal.Duration.from({ minutes: 30 }) })
+      .orThrow();
+    expect(timed.previousSecretExpiresAt?.toString()).toBe(
+      "2026-10-08T10:00:00Z",
+    );
+    expect(await hooks.rotateSecret("e1").orThrow()).toEqual({
+      secret: "s2",
+      previousSecretExpiresAt: null,
+    });
+    expect(
+      fake.calls
+        .filter((call) => call.text.includes("rotate_incoming_webhook_secret"))
+        .map((call) => call.values[1]),
+    ).toEqual(["1 hour", "PT30M", null]);
+  });
+
+  it("updates an endpoint's name, metadata and verification", async () => {
+    const fake = fakeSql([
+      [
+        "update_incoming_webhook",
+        [
+          {
+            value: {
+              id: "e1",
+              tenant: 7,
+              name: "Renamed",
+              verify: "hmac-sha256",
+              secret: "new",
+              signatureHeader: "x-signature",
+              metadata: { workflow: "w2" },
+            },
+          },
+        ],
+      ],
+    ]);
+    const hooks = createIncomingWebhooks(fake.sql);
+    expect(
+      await hooks
+        .update("e1", {
+          name: "Renamed",
+          metadata: { workflow: "w2" },
+          verify: "hmac-sha256",
+        })
+        .orThrow(),
+    ).toEqual({
+      id: "e1",
+      tenant: "7",
+      name: "Renamed",
+      verify: "hmac-sha256",
+      secret: "new",
+      signatureHeader: "x-signature",
+      metadata: { workflow: "w2" },
+    });
+    expect(fake.calls[0]!.values).toEqual([
+      "e1",
+      "Renamed",
+      '{"workflow":"w2"}',
+      "hmac-sha256",
+      null,
+    ]);
+    await hooks.update("e1", { signatureHeader: "x-hub" }).orThrow();
+    expect(fake.calls[1]!.values).toEqual(["e1", null, null, null, "x-hub"]);
+    const odd = fakeSql([
+      [
+        "update_incoming_webhook",
+        [{ value: { id: "e1", tenant: 7, name: "x", verify: "odd" } }],
+      ],
+    ]);
+    expect(
+      await createIncomingWebhooks(odd.sql).update("e1", {}),
+    ).toMatchObject({ ok: false });
+    const sparse = fakeSql([
+      [
+        "update_incoming_webhook",
+        [{ value: { id: "e1", tenant: 7, name: "x", verify: "none" } }],
+      ],
+    ]);
+    expect(
+      await createIncomingWebhooks(sparse.sql).update("e1", {}).orThrow(),
+    ).toMatchObject({ secret: null, signatureHeader: null, metadata: {} });
+  });
+
   it("verifies Standard Webhooks and HMAC signatures", async () => {
     const secret = `whsec_${btoa("incoming-unit-secret")}`;
     const body = '{"type":"x"}';

@@ -67,6 +67,7 @@ export interface LifecycleTable {
   readonly tenant?: string;
   /** Delete its tenant rows in the purge. Default true. */
   readonly purge?: boolean;
+  readonly omit?: readonly string[];
 }
 
 /** One table an export reads or the purge clears. */
@@ -79,6 +80,7 @@ interface Entry {
   /** Unquoted, for `%I`. */
   readonly column: string;
   readonly purge: boolean;
+  readonly omit: readonly string[];
 }
 
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
@@ -107,6 +109,9 @@ function entries(ctx: ModuleContext): readonly Entry[] {
           table: of.table(logical),
           column: of.col(logical, column).replaceAll('"', ""),
           purge: spec.lifecycle?.purge !== false,
+          omit: (spec.lifecycle?.omit ?? [])
+            .filter((name) => of.has(logical, name))
+            .map((name) => of.col(logical, name).replaceAll('"', "")),
         });
       }
     }
@@ -144,6 +149,15 @@ function entries(ctx: ModuleContext): readonly Entry[] {
         );
       }
     }
+    const omit: unknown = config.omit ?? [];
+    if (
+      !Array.isArray(omit) ||
+      !omit.every((name) => typeof name === "string" && IDENT.test(name))
+    ) {
+      throw new TypeError(
+        `${where}.${key}.omit must be a list of lowercase column names`,
+      );
+    }
     if (config.user === undefined && config.tenant === undefined) {
       throw new TypeError(`${where}.${key} needs a user or a tenant column`);
     }
@@ -151,6 +165,7 @@ function entries(ctx: ModuleContext): readonly Entry[] {
       name: `${schema}.${table}`,
       table: `${sqlIdent(schema)}.${sqlIdent(table)}`,
       purge: config.purge !== false,
+      omit: omit.filter((name) => typeof name === "string"),
     };
     if (config.user !== undefined) {
       list.push({ ...base, subject: "user", column: config.user });
@@ -229,7 +244,7 @@ function autoTablesSql(auto: AutoTables, explicit: readonly Entry[]): string {
       `n.nspname || '.' || c.relname like ${sqlString(pattern.replaceAll("_", "\\_").replaceAll("*", "%"))}`,
   );
   const select = (subject: string, column: string): string => `
-  select ${sqlString(subject)}::text, n.nspname || '.' || c.relname, format('%I.%I', n.nspname, c.relname), a.attname::text, ${String(auto.purge)}
+  select ${sqlString(subject)}::text, n.nspname || '.' || c.relname, format('%I.%I', n.nspname, c.relname), a.attname::text, ${String(auto.purge)}, '{}'::text[]
   from pg_catalog.pg_class c
   join pg_catalog.pg_namespace n on n.oid = c.relnamespace
   join pg_catalog.pg_attribute a on a.attrelid = c.oid and a.attname = ${sqlString(column)} and not a.attisdropped
@@ -358,14 +373,14 @@ function build(ctx: ModuleContext): string {
   const values = list
     .map(
       (entry) =>
-        `(${sqlString(entry.subject)}, ${sqlString(entry.name)}, ${sqlString(entry.table)}, ${sqlString(entry.column)}, ${String(entry.purge)})`,
+        `(${sqlString(entry.subject)}, ${sqlString(entry.name)}, ${sqlString(entry.table)}, ${sqlString(entry.column)}, ${String(entry.purge)}, ${entry.omit.length === 0 ? "'{}'::text[]" : `array[${entry.omit.map(sqlString).join(", ")}]::text[]`})`,
     )
     .join(",\n    ");
   const auto = autoTablesOf(ctx);
   const explicitBody =
     list.length === 0
-      ? "select null::text, null::text, null::text, null::text, null::boolean where false"
-      : `select * from (values\n    ${values}\n  ) as t(subject, name, tbl, col, purge)`;
+      ? "select null::text, null::text, null::text, null::text, null::boolean, null::text[] where false"
+      : `select * from (values\n    ${values}\n  ) as t(subject, name, tbl, col, purge, omit)`;
   const autoBody = auto ? autoTablesSql(auto, list) : "";
   const tablesBody = autoBody
     ? `${explicitBody}\n  union all${autoBody}`
@@ -484,7 +499,7 @@ grant all on ${d} to service_role;
 -- quoted table, column and whether the purge deletes it.
 drop function if exists ${fn("data_lifecycle_tables")}();
 create or replace function ${fn("data_lifecycle_tables")}()
-returns table (subject text, name text, tbl text, col text, purge boolean)
+returns table (subject text, name text, tbl text, col text, purge boolean, omit text[])
 language sql
 ${auto ? "stable" : "immutable"}
 set search_path = ''
@@ -638,12 +653,12 @@ begin
   from pg_catalog.pg_attribute a
   where a.attrelid = to_regclass(v_table.tbl) and a.attname = v_table.col and not a.attisdropped;
   execute format(
-    'select coalesce(jsonb_agg(to_jsonb(p.*) - ''_ctid'' order by p._ctid), ''[]''::jsonb), max(p._ctid)::text, count(*)
+    'select coalesce(jsonb_agg((to_jsonb(p.*) - ''_ctid'') - $4::text[] order by p._ctid), ''[]''::jsonb), max(p._ctid)::text, count(*)
      from (select t.ctid as _ctid, t.* from %s t where t.%I = $1::%s and ($2::tid is null or t.ctid > $2::tid) order by t.ctid limit $3) p',
     v_table.tbl, v_table.col, v_type
   ) into v_rows, v_after
   using case when v_row.${ce("subject")} = 'user' then v_row.${ce("user")}::text else v_row.${ce("tenant")}::text end,
-    data_export_rows.after, greatest(1, least(data_export_rows.page_size, 10000));
+    data_export_rows.after, greatest(1, least(data_export_rows.page_size, 10000)), coalesce(v_table.omit, '{}');
   return jsonb_build_object(
     'rows', v_rows,
     'after', case when jsonb_array_length(v_rows) < greatest(1, least(data_export_rows.page_size, 10000)) then null else v_after end
@@ -980,7 +995,7 @@ export const DATA_LIFECYCLE: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   names: NAMES,
   contract,
   upgrades: [
@@ -988,6 +1003,12 @@ export const DATA_LIFECYCLE: ModuleDefinition = {
       from: 1,
       description:
         "The storage policy for export files finds the export by the id in the file path.",
+      sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "data_lifecycle_tables returns the columns an export leaves out (omit), such as the incoming webhook secrets and token hashes.",
       sql: () => "",
     },
   ],

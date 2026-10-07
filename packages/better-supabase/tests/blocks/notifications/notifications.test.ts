@@ -239,12 +239,118 @@ describe("createNotifications reads and writes", () => {
       before: "2026-02-01T00:00:00Z",
       before_id: null,
       max_items: 10,
+      subject_types: null,
+      search: null,
     });
     await notifications.list({ before: first! });
     expect(calls[1]?.args).toMatchObject({
       before: "2026-01-01T00:00:00Z",
       before_id: "r1",
     });
+  });
+
+  it("pages by offset with a total, search and subject types", async () => {
+    const { transport, calls } = fakeTransport({
+      notification_page: () => ({ items: [row()], total: 31 }),
+    });
+    const notifications = createNotifications({
+      transport,
+      types,
+      render: (item) => ({ title: item.summary ?? "" }),
+    });
+    const page = await notifications
+      .page({
+        status: "settled",
+        subjectTypes: ["task"],
+        search: "ship",
+        limit: 10,
+        offset: 30,
+      })
+      .orThrow();
+    expect(page.total).toBe(31);
+    expect(page.items[0]).toMatchObject({
+      id: "r1",
+      text: { title: "Assigned" },
+    });
+    expect(calls[0]).toEqual({
+      schema: "better_supabase",
+      fn: "notification_page",
+      args: {
+        tenant: null,
+        status: "settled",
+        types: null,
+        subject_types: ["task"],
+        search: "ship",
+        max_items: 10,
+        skip: 30,
+      },
+    });
+    const empty = fakeTransport({ notification_page: () => null });
+    expect(
+      await createNotifications({ transport: empty.transport, types })
+        .page()
+        .orThrow(),
+    ).toEqual({ items: [], total: 0 });
+    expect(empty.calls[0]!.args).toMatchObject({ max_items: 50, skip: 0 });
+  });
+
+  it("marks unread and reads the caller's subscriptions and preferences", async () => {
+    const { transport, calls } = fakeTransport({
+      mark_notifications_unread: () => 2,
+      list_notification_subscriptions: () => [
+        {
+          subject_type: "task",
+          subject_id: "42",
+          level: "all",
+          tenant: "organization_1",
+          created_at: "2026-01-01T00:00:00Z",
+        },
+        { subject_type: "task", subject_id: "43", level: "odd", tenant: null },
+      ],
+      list_notification_preferences: () => [
+        { type: "*", channel: "email", enabled: false, tenant: null },
+        "not a row",
+      ],
+    });
+    const notifications = createNotifications({ transport, types });
+    expect(
+      await notifications
+        .markUnread({ ids: ["r1", "r2"], tenant: "organization_1" })
+        .orThrow(),
+    ).toBe(2);
+    const subscriptions = await notifications
+      .subscriptions({ tenant: "organization_1", subject: { type: "task" } })
+      .orThrow();
+    expect(subscriptions).toHaveLength(1);
+    expect(subscriptions[0]).toMatchObject({
+      subject: { type: "task", id: "42" },
+      level: "all",
+      tenant: "organization_1",
+    });
+    expect(subscriptions[0]!.createdAt?.toString()).toBe(
+      "2026-01-01T00:00:00Z",
+    );
+    expect(await notifications.preferences().orThrow()).toEqual([
+      { type: "*", channel: "email", enabled: false, tenant: null },
+    ]);
+    expect(calls.map((call) => [call.fn, call.args])).toEqual([
+      [
+        "mark_notifications_unread",
+        { ids: ["r1", "r2"], tenant: "organization_1" },
+      ],
+      [
+        "list_notification_subscriptions",
+        { tenant: "organization_1", subject_type: "task", subject_id: null },
+      ],
+      ["list_notification_preferences", { tenant: null }],
+    ]);
+    const odd = fakeTransport({
+      list_notification_subscriptions: () => null,
+      list_notification_preferences: () => null,
+    });
+    const quiet = createNotifications({ transport: odd.transport, types });
+    expect(await quiet.subscriptions().orThrow()).toEqual([]);
+    expect(await quiet.preferences().orThrow()).toEqual([]);
   });
 
   it("hydrates a page once and adds actor profiles in one call", async () => {
@@ -292,6 +398,55 @@ describe("createNotifications reads and writes", () => {
       "notification_actors",
     ]);
     expect(calls[1]!.args).toEqual({ ids: ["u0", "gone"] });
+  });
+
+  it("resolves actor avatars stored as Storage object paths", async () => {
+    const handlers = {
+      list_notifications: () => [
+        row(),
+        row({ id: "r2", actor_id: "u1" }),
+        row({ id: "r3", actor_id: "u2" }),
+      ],
+      notification_actors: () => ({
+        u0: { username: "ada", avatar: null, avatarPath: "u0/face 1.webp" },
+        u1: { username: "bob", avatarPath: null },
+        u2: { username: "cy", avatarPath: "" },
+      }),
+    };
+    const bucket = await createNotifications({
+      transport: fakeTransport(handlers).transport,
+      types,
+      avatars: { url: "https://project.supabase.co/", bucket: "users" },
+    })
+      .list({ include: ["actor"] })
+      .orThrow();
+    expect(bucket.map((item) => item.actor)).toEqual([
+      {
+        id: "u0",
+        username: "ada",
+        avatar: null,
+        avatarPath: "u0/face 1.webp",
+        avatarUrl:
+          "https://project.supabase.co/storage/v1/object/public/users/u0/face%201.webp",
+      },
+      { id: "u1", username: "bob", avatarPath: null },
+      { id: "u2", username: "cy", avatarPath: "" },
+    ]);
+    const custom = await createNotifications({
+      transport: fakeTransport(handlers).transport,
+      types,
+      avatars: (path) => `https://cdn.test/${path}`,
+    })
+      .list({ include: ["actor"] })
+      .orThrow();
+    expect(custom[0]!.actor?.avatarUrl).toBe("https://cdn.test/u0/face 1.webp");
+    const plain = await createNotifications({
+      transport: fakeTransport(handlers).transport,
+      types,
+    })
+      .list({ include: ["actor"] })
+      .orThrow();
+    expect(plain[0]!.actor).not.toHaveProperty("avatarUrl");
   });
 
   it("skips the actor call without actors and maps its errors", async () => {
@@ -343,7 +498,11 @@ describe("createNotifications reads and writes", () => {
 
   it("counts, marks read, dismisses, resolves, subscribes and sets preferences", async () => {
     const { transport, calls } = fakeTransport({
-      notification_counts: () => ({ unread: 3, actionable: 1 }),
+      notification_counts: () => ({
+        unread: 3,
+        actionable: 4,
+        actionable_subjects: 1,
+      }),
       mark_notifications_read: () => 2,
       dismiss_notifications: () => 1,
       resolve_notifications: () => 4,
@@ -358,7 +517,7 @@ describe("createNotifications reads and writes", () => {
       await notifications.counts({ tenant: "organization_1" }),
     ).toMatchObject({
       ok: true,
-      data: { unread: 3, actionable: 1 },
+      data: { unread: 3, actionable: 4, actionableSubjects: 1 },
     });
     expect(await notifications.markRead()).toMatchObject({ data: 2 });
     expect(await notifications.dismiss(["r1"])).toMatchObject({ data: 1 });
@@ -423,7 +582,7 @@ describe("createNotifications reads and writes", () => {
     const { transport } = fakeTransport();
     const notifications = createNotifications({ transport, types });
     expect(await notifications.counts()).toMatchObject({
-      data: { unread: 0, actionable: 0 },
+      data: { unread: 0, actionable: 0, actionableSubjects: 0 },
     });
     expect(await notifications.list()).toMatchObject({ ok: true, data: [] });
   });

@@ -241,7 +241,11 @@ function that `anon`, `authenticated` or `service_role` may execute, or only
 those listed in `functions`, with the same name and arguments, granted to the
 same of those roles. The wrapper runs as the caller, so the module's own
 permission checks and RLS still apply, and a service function such as
-`flag_definitions` stays callable by `service_role` only. Helpers that a
+`flag_definitions` stays callable by `service_role` only. Each wrapper
+revokes execute from `public` and from every API role it isn't meant for,
+so `alter default privileges in schema api grant execute on functions to
+anon` (a common setup for an exposed schema) doesn't let `anon` call a
+member or service function. Helpers that a
 module grants to `authenticated` only so its own policies and triggers can
 call them get no entry point, and `functions` refuses them:
 `guard_membership_role` (organizations), `invitation_tenant_ids` and

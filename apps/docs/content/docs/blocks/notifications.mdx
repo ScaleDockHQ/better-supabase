@@ -106,9 +106,42 @@ await notifications.resolve({
 
 `list` pages with `before` and `limit` (50 by default, at most 200). Pass the
 last item of the previous page as `before`: the block orders by `created_at`
-and then `id`, so items created at the same instant are not skipped. It filters with `status` (`all`, `unread`, `read`, `unresolved`) and
-`types`. `resolve` marks every recipient's copy of a type about one subject
+and then `id`, so items created at the same instant are not skipped. It filters with `status` (`all`, `unread`, `read`, `unresolved`, `settled`),
+`types`, `subjectTypes` and `search`. `resolve` marks every recipient's copy of a type about one subject
 as handled, for example when someone approves the invoice.
+
+`search` matches text in the summary, the subject label and the type,
+ignoring case; `%` and `_` in it are plain characters. `subjectTypes` keeps
+notifications about subjects of the listed types. Every status except
+`settled` leaves dismissed notifications out, and `settled` lists the
+resolved and the dismissed ones, for an archive view.
+
+### Pages with a total
+
+An inbox with numbered pages uses `page`, which takes the same filters with
+an `offset` instead of `before` and returns the matching total next to the
+items:
+
+```ts
+const { items, total } = await notifications
+  .page({ tenant: organizationId, search: "invoice", limit: 20, offset: 40 })
+  .orThrow();
+```
+
+It calls `notification_page(tenant, status, types, subject_types, search,
+max_items, skip)`, which counts the matches in the same query. `list` stays
+the cheaper choice for an infinite scroll.
+
+### Unread again and counts
+
+`markUnread({ ids, tenant? })` clears the read time of the caller's own
+notifications, so a reader can keep one for later. It returns how many
+changed and leaves dismissed notifications alone.
+
+`counts()` returns `unread`, `actionable` (unresolved notifications of the
+`actionable` types) and `actionableSubjects`, which counts each subject
+once. Two reminders about the same invoice count as two in `actionable` and
+as one in `actionableSubjects`, which suits a badge that counts open tasks.
 
 ### Hydrating a page
 
@@ -135,9 +168,22 @@ const notifications = createNotifications({
 
 With the [`profiles` module](/docs/blocks/profiles) installed alongside,
 `list({ include: ["actor"] })` adds each item's `actor` (`id`, `username`,
-`fullName`, `firstName`, `lastName` and `avatar`, those the profiles table
-has) in one call to `notification_actors(ids)`, which returns only actors of
-the caller's own notifications.
+`fullName`, `firstName`, `lastName`, `avatar` and `avatarPath`, those the
+profiles table has) in one call to `notification_actors(ids)`, which returns
+only actors of the caller's own notifications.
+
+`avatarPath` is a Storage object path. With the `avatars` option the block
+turns it into `actor.avatarUrl`: pass `{ url, bucket }` for a public bucket
+(`<url>/storage/v1/object/public/<bucket>/<path>`), or a function of the
+path for signed or transformed URLs:
+
+```ts
+const notifications = createNotifications({
+  transport,
+  types,
+  avatars: { url: process.env.SUPABASE_URL!, bucket: "users" },
+});
+```
 
 ## Realtime
 
@@ -207,6 +253,14 @@ It adds the level only when the member has none for the subject, so their
 tenant may do this for another member of it; without `ifAbsent`, only the
 service sets another member's level. In SQL the flag is
 `set_notification_subscription(..., member, if_absent => true)`.
+
+The caller reads their own subscriptions with `subscriptions({ tenant?,
+subject? })`, where `subject` is `{ type, id? }`, and their channel choices
+with `preferences({ tenant? })`. With `tenant`, `preferences` returns the
+choices for that organization and the ones that hold everywhere (`tenant`
+null), so a settings page can show both. In SQL they are
+`list_notification_subscriptions(tenant, subject_type, subject_id)` and
+`list_notification_preferences(tenant)`, granted to `authenticated`.
 
 `setPreference({ type, channel, enabled, tenant? })` turns a type (or `*`)
 on or off on a channel. The most specific row wins: the organization and

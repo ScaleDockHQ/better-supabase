@@ -11,6 +11,7 @@ import { fromPgError } from "../../postgres/executor.ts";
 import {
   isRecord,
   optionalText,
+  toInstant,
   readBodyCapped,
   type BlockTemporalOptions,
   applyTemporal,
@@ -21,7 +22,11 @@ import { timingSafeEqual, verifyWebhook } from "./verify.ts";
 // Incoming webhook endpoints (SQL module `webhooks-in`)
 
 /** How a delivery proves it came from the sender. */
-export type IncomingVerify = "none" | "standard-webhooks" | "hmac-sha256";
+export type IncomingVerify =
+  | "none"
+  | "standard-webhooks"
+  | "hmac-sha256"
+  | "shared-secret";
 
 export interface IncomingWebhooksOptions
   extends BlockProblemOptions, BlockTemporalOptions {
@@ -84,6 +89,28 @@ export interface CreatedIncomingWebhook {
   readonly subject: { readonly type: string; readonly id: string } | null;
 }
 
+export interface UpdateIncomingWebhookInput {
+  readonly name?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly verify?: IncomingVerify;
+  readonly signatureHeader?: string;
+}
+
+export interface UpdatedIncomingWebhook {
+  readonly id: string;
+  readonly tenant: string;
+  readonly name: string;
+  readonly verify: IncomingVerify;
+  readonly secret: string | null;
+  readonly signatureHeader: string | null;
+  readonly metadata: Readonly<Record<string, unknown>>;
+}
+
+export interface RotatedIncomingSecret {
+  readonly secret: string;
+  readonly previousSecretExpiresAt: Temporal.Instant | null;
+}
+
 export interface IncomingWebhooks {
   /**
    * The route for `/hooks/<token>`: finds the endpoint, checks the body
@@ -104,6 +131,14 @@ export interface IncomingWebhooks {
     id: string,
     options?: { readonly rotateSecret?: boolean },
   ): AsyncResult<{ readonly token: string; readonly secret: string | null }>;
+  rotateSecret(
+    id: string,
+    options?: { readonly grace?: Temporal.Duration | string },
+  ): AsyncResult<RotatedIncomingSecret>;
+  update(
+    id: string,
+    input: UpdateIncomingWebhookInput,
+  ): AsyncResult<UpdatedIncomingWebhook>;
   setEnabled(id: string, enabled: boolean): AsyncResult<boolean>;
   remove(id: string): AsyncResult<boolean>;
   /**
@@ -127,9 +162,25 @@ interface EndpointRow {
   readonly secret: string | null;
   readonly signature_header: string | null;
   readonly max_body_bytes: number;
+  readonly previous_secret?: string | null;
 }
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
+
+const VERIFY_MODES: readonly IncomingVerify[] = [
+  "none",
+  "standard-webhooks",
+  "hmac-sha256",
+  "shared-secret",
+];
+
+function verifyOf(value: unknown): IncomingVerify {
+  const mode = VERIFY_MODES.find((entry) => entry === value);
+  if (mode === undefined) {
+    throw new TypeError(`Unknown verification mode ${String(value)}`);
+  }
+  return mode;
+}
 
 const encoder = /* @__PURE__ */ new TextEncoder();
 
@@ -254,18 +305,52 @@ export function createIncomingWebhooks(
           request.headers.get("svix-id") ??
           crypto.randomUUID();
         if (endpoint.verify === "standard-webhooks") {
-          const verified = await verifyWebhook(
+          let verified = await verifyWebhook(
             { headers: request.headers, body },
             endpoint.secret ?? "",
           );
+          if (!verified.ok && endpoint.previous_secret) {
+            const previous = await verifyWebhook(
+              { headers: request.headers, body },
+              endpoint.previous_secret,
+            );
+            if (previous.ok) verified = previous;
+          }
           if (!verified.ok) return await problem(verified.error, endpoint.id);
           messageId = verified.data.id;
+        } else if (endpoint.verify === "shared-secret") {
+          const given =
+            request.headers.get(
+              endpoint.signature_header ?? "x-webhook-secret",
+            ) ?? "";
+          const matches =
+            (endpoint.secret !== null &&
+              timingSafeEqual(given, endpoint.secret)) ||
+            (endpoint.previous_secret !== null &&
+              endpoint.previous_secret !== undefined &&
+              timingSafeEqual(given, endpoint.previous_secret));
+          if (given === "" || !matches) {
+            return await problem(
+              dbError("unauthorized", "Invalid webhook secret", {
+                code: "WEBHOOK_INVALID_SIGNATURE",
+              }),
+              endpoint.id,
+            );
+          }
         } else if (endpoint.verify === "hmac-sha256") {
           const given =
             request.headers.get(endpoint.signature_header ?? "x-signature") ??
             "";
-          const expected = await hmacHex(endpoint.secret ?? "", body);
-          if (!timingSafeEqual(given.replace(/^sha256=/, ""), expected)) {
+          const signature = given.replace(/^sha256=/, "");
+          let expected = await hmacHex(endpoint.secret ?? "", body);
+          if (
+            !timingSafeEqual(signature, expected) &&
+            endpoint.previous_secret
+          ) {
+            const previous = await hmacHex(endpoint.previous_secret, body);
+            if (timingSafeEqual(signature, previous)) expected = previous;
+          }
+          if (!timingSafeEqual(signature, expected)) {
             return await problem(
               dbError("unauthorized", "Invalid webhook signature", {
                 code: "WEBHOOK_INVALID_SIGNATURE",
@@ -285,8 +370,13 @@ export function createIncomingWebhooks(
         } catch {
           payload = { body };
         }
+        const secretHeader =
+          endpoint.verify === "shared-secret"
+            ? (endpoint.signature_header ?? "x-webhook-secret").toLowerCase()
+            : undefined;
         const kept: [string, string][] = (options.keepHeaders ?? []).flatMap(
           (name): [string, string][] => {
+            if (name.toLowerCase() === secretHeader) return [];
             const header = request.headers.get(name);
             return header === null ? [] : [[name.toLowerCase(), header]];
           },
@@ -400,6 +490,48 @@ export function createIncomingWebhooks(
           [id, rotateOptions.rotateSecret ?? false],
         );
         return { token: rotated.token, secret: rotated.secret };
+      }),
+    rotateSecret: (id, rotateOptions = {}) =>
+      attempt(async () => {
+        const rotated = await value<Record<string, unknown>>(
+          `select ${fn("rotate_incoming_webhook_secret")}($1, $2::interval) as value`,
+          [
+            id,
+            rotateOptions.grace === undefined
+              ? null
+              : String(rotateOptions.grace),
+          ],
+        );
+        const expires = optionalText(rotated["previousSecretExpiresAt"]);
+        return {
+          secret: String(rotated["secret"]),
+          previousSecretExpiresAt:
+            expires === undefined ? null : toInstant(expires),
+        };
+      }),
+    update: (id, input) =>
+      attempt(async () => {
+        const updated = await value<Record<string, unknown>>(
+          `select ${fn("update_incoming_webhook")}($1, $2, $3, $4, $5) as value`,
+          [
+            id,
+            input.name ?? null,
+            input.metadata === undefined
+              ? null
+              : JSON.stringify(input.metadata),
+            input.verify ?? null,
+            input.signatureHeader ?? null,
+          ],
+        );
+        return {
+          id: String(updated["id"]),
+          tenant: String(updated["tenant"]),
+          name: String(updated["name"]),
+          verify: verifyOf(updated["verify"]),
+          secret: optionalText(updated["secret"]) ?? null,
+          signatureHeader: optionalText(updated["signatureHeader"]) ?? null,
+          metadata: isRecord(updated["metadata"]) ? updated["metadata"] : {},
+        };
       }),
     setEnabled: (id, enabled) =>
       attempt(() =>

@@ -162,13 +162,17 @@ function wrapper(
   const call = `${sqlIdent(source)}.${sqlIdent(signature.name)}(${params})`;
   const set = /^(setof\s|table\s*\()/i.test(signature.returns);
   const types = grant.types.join(", ");
+  const revoked = [
+    "public",
+    ...[...API_ROLES].filter((role) => !grant.roles.includes(role)),
+  ].join(", ");
   return `create or replace function ${target}(${signature.args.map((arg) => arg.declaration).join(", ")})
 returns ${signature.returns}
 language sql
 security invoker
 set search_path = ''
 as $$ select ${set ? "* from " : ""}${call} $$;
-revoke execute on function ${target}(${types}) from public;
+revoke execute on function ${target}(${types}) from ${revoked};
 grant execute on function ${target}(${types}) to ${grant.roles.join(", ")};`;
 }
 

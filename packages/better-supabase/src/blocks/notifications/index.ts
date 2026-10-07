@@ -7,14 +7,19 @@ export type {
 } from "./channel.ts";
 export { createNotifications } from "./notifications.ts";
 export type {
+  AvatarUrls,
   DeliverOptions,
   DeliverResult,
   ListOptions,
   NotificationActor,
   NotificationCounts,
+  NotificationPage,
+  NotificationPreference,
+  NotificationSubscription,
   NotificationTypes,
   Notifications,
   NotificationsOptions,
+  PageOptions,
   Rendered,
   SendInput,
   SubscriptionLevel,
