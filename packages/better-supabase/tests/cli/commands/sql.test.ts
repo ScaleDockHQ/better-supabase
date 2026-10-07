@@ -1,4 +1,12 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -318,6 +326,62 @@ export const notATopic = { template: "x" };
     expect(synced.output).toContain(
       "Wrote supabase/better-supabase-data/900_better_supabase_04_tenant.sql (tenant)",
     );
+  });
+
+  it("writes the module extensions into a migration before the schema migration", async () => {
+    const config: BetterSupabaseConfig = {
+      sql: { modules: ["jobs", "jsonb-schemas"] },
+    };
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/migrations/20200101000000_init.sql"),
+      "create extension if not exists pgmq;\n",
+    );
+    expect((await sql(["sync", "--dry-run"], config)).output).toMatch(
+      /^Would write supabase\/migrations\/\d{14}_better_supabase_extensions\.sql$/m,
+    );
+    const synced = await sql(["sync"], config);
+    const path =
+      /^Wrote (supabase\/migrations\/\d{14}_better_supabase_extensions\.sql)$/m.exec(
+        synced.output ?? "",
+      )?.[1];
+    expect(path).toBeDefined();
+    expect(synced.output).toContain("create the schema migration after it");
+    expect(await readFile(join(root, path!), "utf8")).toBe(
+      '-- better-supabase sql: the extensions of pg_jsonschema, created before the schema migration that needs them.\n\ncreate extension if not exists "pg_jsonschema" with schema "extensions";\n',
+    );
+    expect((await sql(["sync"], config)).output).not.toContain(
+      "_better_supabase_extensions.sql",
+    );
+    expect((await sql(["data"], config)).output).toMatch(
+      /^Wrote supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
+    );
+  });
+
+  it("refuses a data migration while no earlier migration creates a module extension", async () => {
+    const config: BetterSupabaseConfig = {
+      sql: { modules: ["jsonb-schemas"] },
+    };
+    await sql(["sync"], config);
+    const migrations = join(root, "supabase/migrations");
+    const written = (await readdir(migrations)).find((name) =>
+      name.endsWith("_better_supabase_extensions.sql"),
+    );
+    await rm(join(migrations, written!));
+    await writeFile(
+      join(migrations, "20200101000000_better_supabase_module_data.sql"),
+      'create extension if not exists "pg_jsonschema" with schema "extensions";\n',
+    );
+    expect(await sql(["data"], config)).toEqual({
+      code: 1,
+      error:
+        "No migration before the data migration creates pg_jsonschema, and the schema migration needs it while it applies.\nRun `better-supabase sql sync` to write the extensions migration, then create the schema migration again after it.",
+    });
+    await writeFile(
+      join(migrations, "20200101000001_extensions.sql"),
+      'CREATE EXTENSION "pg_jsonschema" WITH SCHEMA extensions;\n',
+    );
+    expect((await sql(["data"], config)).code).toBe(0);
   });
 
   it("stamps the data migration after the newest migration", async () => {

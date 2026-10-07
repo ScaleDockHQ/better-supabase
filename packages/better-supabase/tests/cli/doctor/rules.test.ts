@@ -1546,7 +1546,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
       ["supabase/schemas/900_better_supabase_07_jobs.sql", 2],
       ["supabase/schemas/010_extensions.sql", 2],
     ]);
-    expect(findings[0]!.message).toContain("better-supabase sql data");
+    expect(findings[0]!.message).toContain("better-supabase sql sync");
     expect(findings[1]!.message).toContain(
       "create extension if not exists pg_cron;",
     );

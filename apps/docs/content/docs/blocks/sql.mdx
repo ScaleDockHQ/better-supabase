@@ -19,11 +19,22 @@ supabase db schema declarative sync -f better_supabase_block
 better-supabase sql data
 ```
 
+The extensions a module's schema file creates (`pgmq` for `jobs`,
+`pg_jsonschema` for `jsonb-schemas`, `vector` for `vector-search`) have to
+exist before the schema migration applies, because objects in it use them: a
+check constraint on `jsonb_matches_schema`, a pgmq queue. A schema diff can
+leave them out of its migration, so `sql add`, `sql sync` and `sql upgrade`
+write the ones no migration creates yet into
+`supabase/migrations/<stamp>_better_supabase_extensions.sql`, stamped before
+the schema migration you create next. A migration you wrote yourself that
+creates the extension counts too, so the CLI writes nothing for it.
+`sql data` refuses to write the data migration while a module extension is
+missing from every earlier migration; run `sql sync`, then create the schema
+migration again after the extensions migration.
+
 A schema diff only captures objects, so each module's rows and settings (its
 `better_supabase.modules` row, the reserved slugs, the rate-limit role
-setting) and the extensions its schema file creates (`pgmq` for `jobs`,
-`pg_jsonschema` for `jsonb-schemas`, which a schema diff can leave out)
-go to a second file in `supabase/better-supabase-data/`, outside the schema folder:
+setting) go to a second file in `supabase/better-supabase-data/`, outside the schema folder:
 pg-delta loads every file under `supabase/schemas`, nested folders included,
 and refuses a table that has rows afterwards. When `sql.dir` is a folder
 inside the schema folder (`supabase/schemas/block`), the data files still go

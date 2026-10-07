@@ -736,10 +736,11 @@ globs. See [Ended sessions](/docs/auth/account-deletion#ended-sessions).
 no migration in `supabase/migrations` repeats. pg-delta can leave an
 extension that owns its own schema, such as `pgmq`, out of the generated
 migration, so a database built from the migrations (a branch, CI or
-production) lacks it. A module that owns such an extension creates it in its
-data file, so run `better-supabase sql data`. For your own schema files, add
-`create extension if not exists <name>;` to a migration. The rule stays
-quiet until the project has a migration.
+production) lacks it. For a module that owns such an extension, run
+`better-supabase sql sync`: it writes the extension into a migration that
+runs before the schema migration. For your own schema files, add
+`create extension if not exists <name>;` to a migration that runs before the
+one that uses it. The rule stays quiet until the project has a migration.
 
 ## Auth config
 

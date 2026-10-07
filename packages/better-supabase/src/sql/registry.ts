@@ -2936,17 +2936,41 @@ const CREATE_EXTENSION =
  * and `sql data` then still puts it in one.
  */
 function moduleExtensions(body: string): string {
-  const seen = new Set<string>();
-  return [...body.matchAll(CREATE_EXTENSION)]
-    .flatMap(([, name = "", schema]) => {
-      if (seen.has(name)) return [];
-      seen.add(name);
-      return [
-        `create extension if not exists ${sqlIdent(name)}${schema === undefined ? "" : ` with schema ${sqlIdent(schema)}`};`,
-      ];
-    })
+  return extensionsOf([body])
+    .map((extension) => extension.statement)
     .join("\n");
 }
+
+export interface ModuleExtension {
+  readonly name: string;
+  readonly statement: string;
+}
+
+function extensionsOf(bodies: readonly string[]): ModuleExtension[] {
+  const seen = new Set<string>();
+  return bodies.flatMap((body) =>
+    [...body.matchAll(CREATE_EXTENSION)].flatMap(
+      ([, name = "", schema]): ModuleExtension[] => {
+        const key = name.toLowerCase();
+        if (seen.has(key)) return [];
+        seen.add(key);
+        return [
+          {
+            name: key,
+            statement: `create extension if not exists ${sqlIdent(name)}${schema === undefined ? "" : ` with schema ${sqlIdent(schema)}`};`,
+          },
+        ];
+      },
+    ),
+  );
+}
+
+export const moduleSchemaExtensions = (
+  files: readonly ModuleFile[],
+): ModuleExtension[] =>
+  extensionsOf(
+    files.filter((file) => file.kind === "schema").map((file) => file.contents),
+  );
 
 /** Whether `contents` is a data file `renderModules` wrote. */
 export const isModuleDataFile = (contents: string): boolean =>

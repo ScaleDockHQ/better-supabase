@@ -8,6 +8,7 @@ export {
   MODULE_ID_TYPES,
   modulePermissionKeys,
   moduleBody,
+  moduleSchemaExtensions,
   moduleVersion,
   renderModules,
   resolveModules,
@@ -18,6 +19,7 @@ export {
 export type {
   InstalledModule,
   ModuleDeprecation,
+  ModuleExtension,
   ModuleAccessPermdock,
   ModuleFile,
   ModuleIdType,
