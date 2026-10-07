@@ -292,6 +292,26 @@ from jsonb_array_elements(better_supabase.billing_tax_ids(tenant)) t;
 It returns `[]` before the tenant has a customer or the Sync Engine has the
 `tax_ids` table.
 
+### Reading a subscription in your own functions
+
+Every reader above checks the caller, so a function that resolves the plan
+for an ordinary member (say, to apply a limit) can't use them.
+`better_supabase.billing_tenant_subscription(tenant)` returns what
+`billing_subscription` returns without that check. No role may execute it,
+not even `service_role`, and `api` writes no entry point for it: only
+functions owned by the module's owner, such as your `security definer`
+functions created by `postgres`, call it.
+
+```sql
+create function public.plan_price(tenant uuid)
+returns text language sql stable security definer set search_path = '' as $$
+  select better_supabase.billing_tenant_subscription(tenant) -> 'items' -> 0 ->> 'price'
+$$;
+```
+
+Check what the caller may see in that function before you return anything
+beyond what a member may know.
+
 ### Audit retention by plan
 
 The [audit](/docs/blocks/audit) module calls an `audit_retention(tenant)`
@@ -401,6 +421,7 @@ plan's entitlements on their next request. `verifyStripeWebhook` checks the
 | `billing_customer(tenant)`                                        | `authenticated`, `service_role` | the customer id, for callers with `billing.read`                                           |
 | `billing_status(tenant)`                                          | `authenticated`, `service_role` | `{ customer, seats, subscription }`                                                        |
 | `billing_subscription(tenant)`                                    | `authenticated`, `service_role` | the newest `stripe.subscriptions` row with `items`, for `billing.read` or platform staff   |
+| `billing_tenant_subscription(tenant)`                             | none (the owner)                | the same row without checking the caller, for your own `security definer` functions        |
 | `billing_all_subscriptions(for_status, max_rows, before_created)` | `authenticated`, `service_role` | `[{ tenant, customer, subscription }]`, for platform staff                                 |
 | `billing_all_invoices(for_status, max_rows, before_created)`      | `authenticated`, `service_role` | `[{ tenant, customer, invoice }]`, for platform staff                                      |
 | `link_billing_customer(tenant, customer)`                         | `service_role`                  | the linked customer                                                                        |

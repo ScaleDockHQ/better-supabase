@@ -387,8 +387,9 @@ as $$
 $$;
 
 -- The tenant's newest subscription as the Sync Engine stores it, with its
--- items, or null. For billing.read in the tenant, or platform staff.
-create or replace function ${fn("billing_subscription")}(tenant ${id})
+-- items, or null, without checking the caller: for the app's own security
+-- definer functions (resolving a member's plan), executable by its owner only.
+create or replace function ${fn("billing_tenant_subscription")}(tenant ${id})
 returns jsonb
 language plpgsql
 stable
@@ -396,12 +397,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  customer text := (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_subscription.tenant);
+  customer text := (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_tenant_subscription.tenant);
   found jsonb;
 begin
-  if not (${can("tenant", "read")} or ${viewAll}) then
-    raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
-  end if;
   if customer is null or to_regclass('stripe.subscriptions') is null then
     return null;
   end if;
@@ -416,6 +414,22 @@ begin
     limit 1
   $q$ into found using customer;
   return found;
+end;
+$$;
+
+-- billing_tenant_subscription for billing.read in the tenant, or platform staff.
+create or replace function ${fn("billing_subscription")}(tenant ${id})
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (${can("tenant", "read")} or ${viewAll}) then
+    raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+  end if;
+  return ${fn("billing_tenant_subscription")}(billing_subscription.tenant);
 end;
 $$;
 
@@ -532,6 +546,7 @@ revoke execute on function ${fn("billing_seat_count")}(${id}) from public, anon,
 revoke execute on function ${fn("billing_subscription_item")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("billing_status")}(${id}) from public, anon;
 revoke execute on function ${fn("billing_subscription")}(${id}) from public, anon;
+revoke execute on function ${fn("billing_tenant_subscription")}(${id}) from public, anon, authenticated, service_role;
 revoke execute on function ${fn("billing_all_subscriptions")}(text, integer, bigint) from public, anon;
 revoke execute on function ${fn("billing_all_invoices")}(text, integer, bigint) from public, anon;
 grant execute on function ${fn("billing_all_invoices")}(text, integer, bigint) to authenticated, service_role;

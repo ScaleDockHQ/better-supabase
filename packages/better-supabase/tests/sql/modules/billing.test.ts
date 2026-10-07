@@ -86,4 +86,20 @@ describe("billing module", () => {
     );
     expect(sql).toContain("BILLING_FORBIDDEN");
   });
+
+  it("reads a tenant's subscription unchecked for the owner's functions only", () => {
+    const sql = billing();
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."billing_tenant_subscription"(tenant uuid)',
+    );
+    expect(sql).toContain(
+      'revoke execute on function "better_supabase"."billing_tenant_subscription"(uuid) from public, anon, authenticated, service_role;',
+    );
+    expect(sql).not.toMatch(
+      /grant execute on function "better_supabase"\."billing_tenant_subscription"/,
+    );
+    expect(sql).toContain(
+      'return "better_supabase"."billing_tenant_subscription"(billing_subscription.tenant);',
+    );
+  });
 });
