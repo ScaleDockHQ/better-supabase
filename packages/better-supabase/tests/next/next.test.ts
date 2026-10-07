@@ -628,6 +628,54 @@ describe("createNext", () => {
     expect(passed.headers.get("x-middleware-next")).toBe("1");
   });
 
+  it("renders prefetches with an expired token signed out when asked to", async () => {
+    const expired = writeSession([], NAME, {
+      access_token: await signer.sign({ sub: USER, expiresIn: -60 }),
+      refresh_token: "expired-1",
+      expires_at: Math.floor(Date.now() / 1000) - 60,
+    })
+      .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
+      .join("; ");
+    const prefetch = () =>
+      page({
+        cookie: expired,
+        headers: { "next-router-prefetch": "1", rsc: "1" },
+      });
+    const protect = vi.fn((_auth: unknown, request: NextRequest) =>
+      NextResponse.redirect(new URL("/login", request.url)),
+    );
+
+    const redirected = await bs.proxy(prefetch(), { protect });
+    expect(redirected.status).toBe(307);
+    expect(protect).toHaveBeenLastCalledWith(
+      { kind: "anon", reason: "expired" },
+      expect.anything(),
+    );
+
+    protect.mockClear();
+    const rendered = await bs.proxy(prefetch(), {
+      protect,
+      expiredPrefetch: "render",
+    });
+    expect(protect).not.toHaveBeenCalled();
+    expect(rendered.headers.get("x-middleware-next")).toBe("1");
+    expect(fresh).not.toHaveBeenCalled();
+
+    const signedOut = await bs.proxy(
+      page({ headers: { "next-router-prefetch": "1", rsc: "1" } }),
+      { protect, expiredPrefetch: "render" },
+    );
+    expect(signedOut.status).toBe(307);
+    const api = await bs.proxy(
+      new NextRequest("https://app.test/api/x", {
+        method: "POST",
+        headers: { cookie: expired },
+      }),
+      { protect, expiredPrefetch: "render" },
+    );
+    expect(api.status).toBe(307);
+  });
+
   it("never refreshes an expiring cookie session, and keeps it valid until exp", async () => {
     const token = await signer.sign({ sub: USER });
     mocks.headers = new Headers({ cookie: cookieFor(token, "refresh-1") });

@@ -194,8 +194,9 @@ const ctx = await bs.context(request, { tenant: organizationId });
 `context(request, { tenant })` overrides the resolver for one call.
 `contextFromResolution` can't wait for an async resolver, so it throws unless
 you pass `{ tenant }`. Under `createNext`, Server Components and actions
-pass the resolver a request built from the incoming headers only, so read a
-header (or one your proxy sets) rather than the URL.
+have no request URL; pass the tenant from route params with
+`bs.context({ tenant })` or `bs.cached({ tenant })` (see
+[The active tenant](/docs/blocks/access#the-active-tenant)).
 
 ## Machine callers
 

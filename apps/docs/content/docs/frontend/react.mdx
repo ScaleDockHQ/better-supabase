@@ -93,3 +93,56 @@ export function SideNav() {
 
 See [Cache Components](/docs/frameworks/next-cache-components) for the full
 pattern, including role-filtered menus.
+
+## A tenant from the URL
+
+When the tenant is part of the route (`/[organizationId]/customers`), the
+browser client doesn't read the URL: `useDb()`, `useQueries()` and the live
+hooks scope tenant tables to the `tenant_id` claim. Resolve the tenant on the
+server and hand it down:
+
+- Read the rows in a Server Component with
+  `bs.context({ tenant: organizationId })`, or in a
+  `'use cache: private'` function that takes `organizationId` as an argument
+  and calls `bs.cached({ tenant: organizationId })`. Pass the rows to the
+  Client Component.
+- Pass `organizationId` to the Client Component as a prop, and send it in the
+  action's input. The action scopes its context with
+  `tenant: (input) => input.organizationId`, so a tenant the caller doesn't
+  belong to grants nothing, the same as a tenant from the resolver.
+- Pass the same id to the live hooks: `useLiveQuery(spec, { tenant })` and
+  `useLiveCount(seed, { tenant })`. Seed the count with the `db` from the
+  scoped context: `bs.liveCount(spec, db)`.
+
+```tsx title="src/app/[organizationId]/customers/page.tsx"
+export default async function Customers({
+  params,
+}: PageProps<"/[organizationId]/customers">) {
+  const { organizationId } = await params;
+  const customers = await getCustomers(organizationId);
+  return <CustomerList organizationId={organizationId} customers={customers} />;
+}
+```
+
+```tsx title="src/features/customers/customer-list.tsx"
+"use client";
+
+export function CustomerList({ organizationId, customers }: Props) {
+  useLiveQuery(customersSpec, { tenant: organizationId });
+  const add = (name: string) => createCustomer({ organizationId, name });
+  // ...
+}
+```
+
+```ts title="src/features/customers/customer-actions.ts"
+"use server";
+
+export const createCustomer = bs.action(
+  { input: CreateCustomer, tenant: (input) => input.organizationId },
+  (input, { db }) =>
+    db.customers.create({ name: input.name }, { select: ["id"] }),
+);
+```
+
+The Realtime policy still decides which tenant topics a user may join (see
+[live queries](/docs/frontend/live-queries)).
