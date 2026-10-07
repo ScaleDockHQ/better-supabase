@@ -210,6 +210,14 @@ export const fromApiKey = subjectFromApiKey({
 });
 ```
 
+A personal key verifies to a `user` credential with the key's scopes as its
+permissions. When the key is limited to one tenant, the credential carries
+that tenant in `tenant`, which PermDock reads on user credentials to narrow
+the owner's memberships to that tenant; the permissions carry no `ids`, since
+PermDock reads those as ids of the permission's own resource. That needs a
+PermDock release whose user credentials accept `tenant`. A tenant key
+verifies to a `service` credential of its tenant with `serviceRoles`.
+
 Queries for a key run with the `api_key` claim, and PermDock's `rls.apiKeys`
 reads a claim of the same name to make the key's scopes a ceiling in its
 generated helpers. Pass `permdock` to the resolver (or to `apiKeyClaims`) so

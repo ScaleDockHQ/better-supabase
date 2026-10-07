@@ -184,7 +184,7 @@ describe("permdockVerifier", () => {
     return created.token;
   };
 
-  it("maps a personal key to a user credential narrowed to its scopes", async () => {
+  it("maps a personal key to a user credential narrowed to its scopes and tenant", async () => {
     expect(
       await verifier({
         user_id: USER,
@@ -195,17 +195,21 @@ describe("permdockVerifier", () => {
       id: "0123456789abcdef",
       kind: "user",
       principal: USER,
-      permissions: [{ permission: "deals:read", ids: [ORG] }],
+      tenant: ORG,
+      permissions: [{ permission: "deals:read" }],
       createdBy: USER,
       createdAt: 1_791_277_200,
       expiresAt: 1_798_761_600,
       name: "CI",
     });
-    expect(
-      await verifier({ user_id: USER, organization_id: null }).verify(
-        await token(),
-      ),
-    ).toMatchObject({ permissions: [{ permission: "deals:read" }] });
+    const unlimited = await verifier({
+      user_id: USER,
+      organization_id: null,
+    }).verify(await token());
+    expect(unlimited).toMatchObject({
+      permissions: [{ permission: "deals:read" }],
+    });
+    expect(unlimited).not.toHaveProperty("tenant");
   });
 
   it("maps a tenant key to a service credential only with its roles", async () => {

@@ -518,7 +518,7 @@ const seconds = (instant: Temporal.Instant): number =>
  * PermDock's `pdk` prefix (`createApiKeys({ prefix: "pdk" })` and
  * `sql.modules.api-keys.options.prefix: "pdk"`). A personal key is a `user`
  * credential acting as its user (on its tenant's instances only when the
- * key is limited to one), a tenant key a `service` credential with
+ * key is limited to one, through the credential's `tenant`), a tenant key a `service` credential with
  * `serviceRoles` in its tenant, and the scopes are the credential's
  * permissions. `verify_api_key` already records the use, so there is no
  * `touch`. An invalid, revoked, expired or rate-limited key is `null`.
@@ -536,21 +536,24 @@ export function permdockVerifier(
         : key.scopes;
       if (scopes === undefined) return null;
       const owner = key.userId;
-      const limited =
-        owner !== undefined && key.organizationId !== undefined
-          ? { ids: [key.organizationId] }
-          : {};
       const base = {
         v: 1 as const,
         id: key.publicId,
-        permissions: scopes.map((permission) => ({ permission, ...limited })),
+        permissions: scopes.map((permission) => ({ permission })),
         createdBy: key.createdBy ?? owner ?? key.publicId,
         createdAt: seconds(key.createdAt),
         ...(key.expiresAt ? { expiresAt: seconds(key.expiresAt) } : {}),
         name: key.name,
       };
       if (owner !== undefined)
-        return { ...base, kind: "user", principal: owner };
+        return {
+          ...base,
+          kind: "user",
+          principal: owner,
+          ...(key.organizationId === undefined
+            ? {}
+            : { tenant: key.organizationId }),
+        };
       const roles = options.serviceRoles?.(key);
       if (!roles || key.organizationId === undefined) return null;
       return {
