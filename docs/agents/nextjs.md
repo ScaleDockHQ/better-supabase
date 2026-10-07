@@ -1,4 +1,4 @@
-# Next.js in docs and marketing
+# Next.js in docs, marketing and the example
 
 Both apps build on `createNextConfig()` from `packages/next-config`, with Cache
 Components, typed routes and the security headers. Read
@@ -19,6 +19,23 @@ flag.
   `next/dynamic` and `ssr: false`, so its client code stays out of the page.
 - `experimental.globalNotFound` needs `app/global-not-found.tsx` with its own
   `<html>`, fonts and `metadataBase`.
+
+## Instant navigation tests
+
+The Next.js example proves its navigations with `@next/playwright`'s
+`instant()` (`apps/examples/nextjs/e2e`, run with `test:e2e`).
+`instant-nav.rig.md` next to it records the build, the users and the
+contracts.
+
+- Never measure on `next dev`. The verdict comes from `next build` with
+  `EXPOSE_TESTING_API=1` and `next start`; Playwright's `webServer` builds
+  with it. A build without the testing API passes every test vacuously.
+- Build `packages/better-supabase` first in a fresh worktree; the example
+  imports its `dist`.
+- Before trusting a GREEN, show that the spec can go RED: remove the cache
+  scope the contract depends on (`'use cache: private'` in `getCustomers`)
+  and watch the rows disappear under the lock. No retries and no timeouts in
+  `instant()` specs.
 
 ## Routes and env
 
