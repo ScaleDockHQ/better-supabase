@@ -48,6 +48,13 @@ contracts.
   entirely from the client cache, because no response carries
   `x-bs-request-id`. Budget only navigations that reach the server.
 
+## Lint needs generated Next types
+
+`PageProps<Route>` and `next/root-params` come from `next typegen` (`.next/types`).
+The example `lint` script runs typegen first so type-aware Oxlint has them on a
+clean CI checkout. Local `next dev` leaves those files around, which hid the
+gap. Docs and marketing do not use those names, so their `lint` stays `oxlint`.
+
 ## The example app
 
 - `protect` in `src/proxy.ts` runs on GET and HEAD only. Server Actions post
