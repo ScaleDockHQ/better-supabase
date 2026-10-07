@@ -1,4 +1,8 @@
-/** Decides whether a webhook may be sent to `url`. Rejecting counts as `false`. */
+/**
+ * Decides whether a webhook may be sent to `url`. Throwing means the check
+ * itself failed (a DNS lookup error): deliveries retry it, and `safeFetch`
+ * throws `UrlCheckError`.
+ */
 export type AllowUrl = (url: URL) => boolean | Promise<boolean>;
 
 /** The addresses a host name resolves to. */

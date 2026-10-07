@@ -9,6 +9,7 @@ import {
 import { type AsyncResult, ok, type Result } from "../../core/result.ts";
 import {
   errorText,
+  readBodyCapped,
   run,
   seconds,
   toInstant,
@@ -411,6 +412,11 @@ export interface InboxOptions
    * each message as it arrives. Defaults to 8.
    */
   readonly maxAttempts?: number;
+  /**
+   * The largest body `receive` reads; a larger one gets 413 without being
+   * read to the end. Defaults to 1 MiB.
+   */
+  readonly maxBodyBytes?: number;
 }
 
 export interface InboxProcessOptions {
@@ -523,20 +529,24 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
       `createInbox maxAttempts must be a positive integer, not ${String(maxAttempts)}`,
     );
   }
+  const maxBodyBytes = options.maxBodyBytes ?? 1_048_576;
+  if (!Number.isInteger(maxBodyBytes) || maxBodyBytes < 1) {
+    throw new TypeError(
+      `createInbox maxBodyBytes must be a positive integer, not ${String(maxBodyBytes)}`,
+    );
+  }
 
   const verified = async (
     request: Request,
+    body: string,
   ): Promise<
     Result<{ id: string; payload: unknown; tenant?: string | null }>
   > => {
-    if (options.verify)
-      return options.verify(request, await request.clone().text());
-    if (!options.secrets) {
-      throw new TypeError(
-        `The inbox for "${options.source}" has no \`secrets\` or \`verify\`, so it only stores events through \`store\``,
-      );
-    }
-    const result = await verifyWebhook(request, options.secrets);
+    if (options.verify) return options.verify(request, body);
+    const result = await verifyWebhook(
+      { headers: request.headers, body },
+      options.secrets ?? [],
+    );
     return result.ok
       ? ok({ id: result.data.id, payload: result.data.payload })
       : result;
@@ -613,7 +623,24 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
       if (request.method !== "POST") {
         return new Response(null, { status: 405, headers: { allow: "POST" } });
       }
-      const message = await verified(request);
+      if (!options.verify && !options.secrets) {
+        throw new TypeError(
+          `The inbox for "${options.source}" has no \`secrets\` or \`verify\`, so it only stores events through \`store\``,
+        );
+      }
+      const body = await readBodyCapped(request.clone(), maxBodyBytes);
+      if (body === undefined) {
+        return problemResponse(
+          {
+            ...dbError("invalid_input", "The body is too large", {
+              code: "WEBHOOK_TOO_LARGE",
+            }),
+            status: 413,
+          },
+          { instance, format },
+        );
+      }
+      const message = await verified(request, body);
       if (!message.ok)
         return problemResponse(message.error, { instance, format });
       const headers = Object.fromEntries(

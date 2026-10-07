@@ -2342,6 +2342,37 @@ describe("createInbox", () => {
     expect(saved.values.slice(2)).toEqual(['{"cursor":"b"}', 2]);
   });
 
+  it("answers 413 for a body over maxBodyBytes without reading it all", async () => {
+    const fake = fakeSql();
+    const seen: string[] = [];
+    const inbox = createInbox(fake.sql, {
+      source: "forms",
+      maxBodyBytes: 8,
+      verify: (_request, body) => {
+        seen.push(body);
+        return Promise.resolve(ok({ id: "f1", payload: {} }));
+      },
+    });
+    const big = await inbox.receive(
+      new Request("https://api.test/hooks", {
+        method: "POST",
+        body: '{"too":"long"}',
+      }),
+    );
+    expect(big.status).toBe(413);
+    expect(await big.json()).toMatchObject({ code: "WEBHOOK_TOO_LARGE" });
+    await inbox.receive(
+      new Request("https://api.test/hooks", { method: "POST", body: "{}" }),
+    );
+    expect(seen).toEqual(["{}"]);
+    expect(fake.calls).toHaveLength(1);
+    for (const maxBodyBytes of [0, 2.5]) {
+      expect(() =>
+        createInbox(fake.sql, { source: "forms", maxBodyBytes }),
+      ).toThrow(/maxBodyBytes must be a positive integer/);
+    }
+  });
+
   it("answers with a problem when storing fails", async () => {
     const fake = fakeSql([
       ["receive_webhook", { throws: pgError("42501", "permission denied") }],

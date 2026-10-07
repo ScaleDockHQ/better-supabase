@@ -137,6 +137,42 @@ export function run<T>(fn: () => Promise<T>): AsyncResult<T> {
   });
 }
 
+/**
+ * The request body as text, or `undefined` once it is longer than `limit`
+ * bytes. A larger `Content-Length` is refused before reading; otherwise
+ * reading stops at the limit, so a body without one can't fill memory.
+ */
+export async function readBodyCapped(
+  request: Request,
+  limit: number,
+): Promise<string | undefined> {
+  const length = Number(request.headers.get("content-length") ?? Number.NaN);
+  if (Number.isFinite(length) && length > limit) return undefined;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      // Not awaited: a branch of a cloned request settles its cancel only
+      // once the other branch is cancelled too.
+      void reader.cancel().catch(() => undefined);
+      return undefined;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 export function seconds(value: number | string): string {
   return typeof value === "number" ? `${String(value)} seconds` : value;
 }

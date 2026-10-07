@@ -12,6 +12,7 @@ import {
   createWebhooks,
   sqlSecretStore,
   verifyWebhook,
+  UrlCheckError,
   WebhookPolicyError,
 } from "../../../src/blocks/webhooks/index.ts";
 import { EventHub } from "../../../src/core/events.ts";
@@ -214,19 +215,25 @@ describe("createWebhooks: deliver", () => {
     );
   });
 
-  it("retries network errors and never retries a policy rejection", async () => {
+  it("retries network errors and failed URL checks, never a policy rejection", async () => {
     const { webhooks, outcomes, calls } = setup(
-      [row(), row({ id: "del-2" })],
+      [row(), row({ id: "del-2" }), row({ id: "del-3" })],
       (request) =>
         request.headers["webhook-id"] === "del-1"
           ? new Error("socket hang up")
-          : new WebhookPolicyError("Endpoint URL is not allowed"),
+          : request.headers["webhook-id"] === "del-3"
+            ? new UrlCheckError("Could not check endpoint URL: a.test")
+            : new WebhookPolicyError("Endpoint URL is not allowed"),
     );
     expect(await webhooks.deliver()).toMatchObject({
-      retrying: 1,
+      retrying: 2,
       dead: 1,
     });
-    expect(outcomes()).toHaveLength(2);
+    expect(outcomes()).toHaveLength(3);
+    expect(outcomeOf(calls, "del-3")).toMatchObject({
+      status: "retrying",
+      error: "Could not check endpoint URL: a.test",
+    });
     expect(outcomeOf(calls, "del-1")).toMatchObject({
       status: "retrying",
       error: "socket hang up",
