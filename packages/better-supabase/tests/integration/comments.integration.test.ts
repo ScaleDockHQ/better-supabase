@@ -365,6 +365,87 @@ describe.skipIf(!live)("comments", () => {
     }
   });
 
+  it("expands group mentions and keeps them to readers", async () => {
+    const s = await BlockSession.open(pool);
+    const teams = `public.bs_test_team_members_${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await s.rows(
+        `create table ${teams} (
+           team_id uuid not null,
+           user_id uuid not null,
+           organization_id uuid not null
+         );`,
+      );
+      await s.install(["organizations", "notifications", "comments"], {
+        modules: {
+          comments: {
+            options: {
+              mentionGroups: {
+                table: teams,
+                group: "team_id",
+                member: "user_id",
+                tenant: "organization_id",
+              },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const viewer = await s.user("viewer");
+      const outsider = await s.user("outsider");
+      const organization = await s.organization(owner, { member, viewer });
+      const team = crypto.randomUUID();
+      const elsewhere = crypto.randomUUID();
+      await s.rows(
+        `insert into ${teams} (team_id, user_id, organization_id)
+         values ($1, $3, $2), ($1, $4, $2), ($1, $5, $2), ($1, $6, $2), ($7, $3, $8)`,
+        [
+          team,
+          organization,
+          owner.id,
+          member.id,
+          viewer.id,
+          outsider.id,
+          elsewhere,
+          crypto.randomUUID(),
+        ],
+      );
+      const comments = createComments({ transport: sqlTransport(s.sql) });
+      const recipients = async () => {
+        await s.service();
+        const rows = await s.rows<{ user_id: string }>(
+          `select r.user_id::text from better_supabase.notification_recipients r
+           join better_supabase.notification_events e on e.id = r.event_id
+           where e.subject_id = 'p1' order by e.created_at, r.user_id`,
+        );
+        await s.asRole(owner);
+        return rows.map((row) => row.user_id);
+      };
+
+      await s.asRole(owner);
+      const comment = await comments
+        .create({
+          organizationId: organization,
+          subjectType: "project",
+          subjectId: "p1",
+          body: `Team @[Team](${team}) and @[Elsewhere](${elsewhere})`,
+        })
+        .orThrow();
+      expect(comment.mentions).toEqual([team, elsewhere].toSorted());
+      expect(await recipients()).toEqual([member.id]);
+
+      await comments
+        .edit(comment.id, {
+          body: `Team @[Team](${team}) and @[Member](${member.id})`,
+        })
+        .orThrow();
+      expect(await recipients()).toEqual([member.id]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("checks a subject type's own read, create and moderate permissions", async () => {
     const s = await BlockSession.open(pool);
     try {
