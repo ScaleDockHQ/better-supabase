@@ -40,6 +40,19 @@ insert into better_supabase.usage_quotas (organization_id, meter, "limit", perio
   values ('8d1c...', 'api_calls', 250000, 'month');
 ```
 
+A `null` limit is unlimited. It wins over every other plan row, so an
+`enterprise` plan row with a `null` limit lifts the `*` limit for those
+tenants, and a tenant row with a `null` limit lifts the plan limits for one
+tenant. `consume` and `within_quota` always pass for an unlimited meter, and
+`current` returns `unlimited: true` with no `limit` or `remaining`. Unlike a
+meter with no quota row at all, the unlimited quota still sets the meter's
+`period`.
+
+```sql
+insert into better_supabase.usage_quotas (plan, meter, "limit", period)
+  values ('enterprise', 'api_calls', null, 'month');
+```
+
 ### Billing periods
 
 Calendar periods reset at the start of the UTC day, week, month or year.
@@ -256,7 +269,8 @@ customer: async (organizationId) =>
 When a plan includes an allowance and Stripe bills only what goes over it,
 pass `overage: true`: in each quota window, usage up to the tenant's quota
 is marked reported without an event, and only the units above it are sent.
-A meter without a quota sends everything. `unreported_usage` returns each
+A meter without a quota sends everything, and a meter with an unlimited quota
+sends nothing. `unreported_usage` returns each
 counter's `included` quota and `window_before` (the earlier days' usage in
 that window) for the calculation; usage that arrives late on an earlier day
 is counted with that day.
@@ -271,16 +285,16 @@ optional peer; pass a Stripe client instead of `secretKey` to use your own.
 
 ## Functions
 
-| Function                                                                   | Granted to                      | Returns                                                                                    |
-| -------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------ |
-| `record_usage(tenant, meter, quantity, key, source, metadata, actor)`      | `authenticated`, `service_role` | `{ recorded, used }`                                                                       |
-| `consume_quota(tenant, meter, quantity, key, source, metadata, actor)`     | `authenticated`, `service_role` | the same, or raises `BSQ29`                                                                |
-| `within_quota(tenant, meter, quantity)`                                    | `authenticated`, `service_role` | whether `quantity` more fits                                                               |
-| `record_usage_batch(tenant, entries, key, check, source, metadata, actor)` | `authenticated`, `service_role` | `{ recorded, used }` with `used` per meter, or raises `BSQ29`                              |
-| `usage_status(tenant, meter)`                                              | `authenticated`, `service_role` | `{ meter, used, limit, remaining, period, starts_at, resets_at }`, plus the catalog fields |
-| `usage_meters()`                                                           | everyone                        | the meter catalog                                                                          |
-| `usage_history(tenant, meter, max_rows, before_id)`                        | `authenticated`, `service_role` | the history entries, for `usage.read`                                                      |
-| `usage_breakdown(tenant, meter)`                                           | `authenticated`, `service_role` | `[{ actor, source, quantity }]` in the current window                                      |
-| `usage_window(tenant, period)`                                             | `service_role`                  | the current window's `starts_at` and `ends_at`                                             |
-| `unreported_usage(max_rows, skip_meters, skip_tenants)`                    | `service_role`                  | counters with `value > reported_value`                                                     |
-| `mark_usage_reported(tenant, meter, day, value)`                           | `service_role`                  | whether the counter exists                                                                 |
+| Function                                                                   | Granted to                      | Returns                                                                                               |
+| -------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `record_usage(tenant, meter, quantity, key, source, metadata, actor)`      | `authenticated`, `service_role` | `{ recorded, used }`                                                                                  |
+| `consume_quota(tenant, meter, quantity, key, source, metadata, actor)`     | `authenticated`, `service_role` | the same, or raises `BSQ29`                                                                           |
+| `within_quota(tenant, meter, quantity)`                                    | `authenticated`, `service_role` | whether `quantity` more fits                                                                          |
+| `record_usage_batch(tenant, entries, key, check, source, metadata, actor)` | `authenticated`, `service_role` | `{ recorded, used }` with `used` per meter, or raises `BSQ29`                                         |
+| `usage_status(tenant, meter)`                                              | `authenticated`, `service_role` | `{ meter, used, limit, remaining, unlimited, period, starts_at, resets_at }`, plus the catalog fields |
+| `usage_meters()`                                                           | everyone                        | the meter catalog                                                                                     |
+| `usage_history(tenant, meter, max_rows, before_id)`                        | `authenticated`, `service_role` | the history entries, for `usage.read`                                                                 |
+| `usage_breakdown(tenant, meter)`                                           | `authenticated`, `service_role` | `[{ actor, source, quantity }]` in the current window                                                 |
+| `usage_window(tenant, period)`                                             | `service_role`                  | the current window's `starts_at` and `ends_at`                                                        |
+| `unreported_usage(max_rows, skip_meters, skip_tenants)`                    | `service_role`                  | counters with `value > reported_value`                                                                |
+| `mark_usage_reported(tenant, meter, day, value)`                           | `service_role`                  | whether the counter exists                                                                            |

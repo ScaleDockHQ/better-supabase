@@ -107,9 +107,10 @@ export interface UsageStatus {
   readonly meter: string;
   /** Usage in the current period. */
   readonly used: number;
-  /** `undefined` without a quota. */
+  /** `undefined` without a quota and for an unlimited one. */
   readonly limit: number | undefined;
   readonly remaining: number | undefined;
+  readonly unlimited: boolean;
   readonly period: UsagePeriod;
   /** When the current period started. */
   readonly startsAt: Temporal.Instant | undefined;
@@ -209,6 +210,7 @@ function statusOf(value: unknown): UsageStatus {
     used: numberOf(row["used"]),
     limit: optionalNumber(row["limit"]),
     remaining: optionalNumber(row["remaining"]),
+    unlimited: row["unlimited"] === true,
     period: periodOf(row["period"]),
     startsAt:
       row["starts_at"] === undefined || row["starts_at"] === null
@@ -357,7 +359,7 @@ export interface ReportUsageOptions {
   /**
    * Send only the usage above the tenant's quota (the allowance its plan
    * includes) in each quota window, instead of every unit. A meter without
-   * a quota sends everything.
+   * a quota sends everything, and one with an unlimited quota sends nothing.
    */
   readonly overage?: boolean;
 }
@@ -440,10 +442,12 @@ export async function reportUsageToStripe(
       const included = optionalNumber(row["included"]);
       const before = numberOf(row["window_before"] ?? 0);
       const delta =
-        options.overage === true && included !== undefined
-          ? Math.max(0, before + value - included) -
-            Math.max(0, before + previous - included)
-          : value - previous;
+        options.overage === true && row["unlimited"] === true
+          ? 0
+          : options.overage === true && included !== undefined
+            ? Math.max(0, before + value - included) -
+              Math.max(0, before + previous - included)
+            : value - previous;
       const identifier = `${organizationId}:${meter}:${day}:${String(value)}`;
       if (delta > 0) {
         await stripe.billing.meterEvents.create(

@@ -89,6 +89,35 @@ describe.skipIf(!live)("usage", () => {
         7,
       );
 
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.usage_quotas (plan, meter, "limit", period)
+         values ('*', 'seats', 2, 'month');
+         insert into better_supabase.usage_quotas (organization_id, meter, "limit", period)
+         values ('${organization}', 'seats', null, 'year')`,
+      );
+      await s.asRole(owner);
+      expect(
+        await usage.consume(organization, "seats", { quantity: 5 }).orThrow(),
+      ).toEqual({ recorded: true, today: 5 });
+      expect(
+        await usage.current(organization, "seats").orThrow(),
+      ).toMatchObject({
+        used: 5,
+        limit: undefined,
+        remaining: undefined,
+        unlimited: true,
+        period: "year",
+      });
+      expect(
+        await s.value(
+          `better_supabase.within_quota('${organization}', 'seats', 1000)`,
+        ),
+      ).toBe(true);
+      expect(
+        (await usage.current(organization, "storage").orThrow()).unlimited,
+      ).toBe(false);
+
       await s.asRole(outsider);
       expect(await usage.record(organization, "api_calls")).toMatchObject({
         ok: false,
@@ -113,7 +142,7 @@ describe.skipIf(!live)("usage", () => {
           stripe,
           customer: async (id) => (id === organization ? "cus_1" : undefined),
         });
-      expect(await report()).toEqual({ reported: 1, skipped: 0 });
+      expect(await report()).toEqual({ reported: 2, skipped: 0 });
       expect(sent).toMatchObject([
         {
           params: {
@@ -121,6 +150,7 @@ describe.skipIf(!live)("usage", () => {
             payload: { stripe_customer_id: "cus_1", value: "3" },
           },
         },
+        { params: { event_name: "seats", payload: { value: "5" } } },
       ]);
       expect(await report()).toEqual({ reported: 0, skipped: 0 });
     } finally {

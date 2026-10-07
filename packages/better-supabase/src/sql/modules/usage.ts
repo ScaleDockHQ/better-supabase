@@ -312,19 +312,20 @@ revoke all on ${events} from anon, authenticated;
 grant all on ${events} to service_role;
 
 -- A tenant row overrides the plan rows; of several plan rows the highest
--- limit wins.
+-- limit wins. A null limit is unlimited, so it wins over every limit.
 create table if not exists ${quotas} (
   ${qc("id")} uuid primary key default gen_random_uuid(),
   ${qc("tenant")} ${id},
   ${qc("plan")} text,
   ${qc("meter")} text not null check (${qc("meter")} ~ ${METER}),
-  ${qc("limit")} numeric not null check (${qc("limit")} >= 0),
+  ${qc("limit")} numeric check (${qc("limit")} >= 0),
   ${qc("period")} text not null default 'month' check (${periodCheck}),
   ${qc("createdAt")} timestamptz not null default now(),
   check ((${qc("tenant")} is null) <> (${qc("plan")} is null)),
   unique nulls not distinct (${qc("tenant")}, ${qc("plan")}, ${qc("meter")})
 );
 alter table ${quotas} alter column ${qc("limit")} type numeric;
+alter table ${quotas} alter column ${qc("limit")} drop not null;
 alter table ${quotas} drop constraint if exists ${periodConstraint};
 alter table ${quotas} add constraint ${periodConstraint} check (${periodCheck});
 alter table ${quotas} enable row level security;
@@ -347,7 +348,8 @@ drop function if exists ${fn("consume_quota")}(${id}, text, numeric, text);
 -- The signature before the report could skip meters and tenants.
 drop function if exists ${fn("unreported_usage")}(integer);
 
--- The quota that applies to tenant and meter, or no row.
+-- The quota that applies to tenant and meter, or no row. An unlimited quota
+-- is a row with a null quota_limit.
 create or replace function ${fn("usage_quota")}(tenant ${id}, meter text)
 returns table (quota_limit numeric, period text)
 language sql
@@ -359,7 +361,7 @@ as $$
   from ${quotas} q
   where q.${qc("meter")} = usage_quota.meter
     and (q.${qc("tenant")} = usage_quota.tenant or (q.${qc("tenant")} is null and (${planMatches})))
-  order by (q.${qc("tenant")} is not null) desc, q.${qc("limit")} desc
+  order by (q.${qc("tenant")} is not null) desc, q.${qc("limit")} desc nulls first
   limit 1
 $$;
 
@@ -423,8 +425,8 @@ as $$
   select ${catalog}
 $$;
 
--- { meter, used, limit, remaining, period, resets_at }; limit and remaining
--- are null without a quota.
+-- { meter, used, limit, remaining, unlimited, period, resets_at }; limit and
+-- remaining are null without a quota and for an unlimited one.
 create or replace function ${fn("usage_status")}(tenant ${id}, meter text)
 returns jsonb
 language plpgsql
@@ -448,6 +450,7 @@ begin
     'used', used,
     'limit', quota.quota_limit,
     'remaining', case when quota.quota_limit is null then null else greatest(quota.quota_limit - used, 0) end,
+    'unlimited', quota.period is not null and quota.quota_limit is null,
     'period', coalesce(quota.period, 'month'),
     'resets_at', win.ends_at,
     'starts_at', win.starts_at
@@ -660,6 +663,7 @@ as $$
     'value', c.${cc("value")},
     'reported_value', c.${cc("reported")},
     'included', q.quota_limit,
+    'unlimited', q.period is not null and q.quota_limit is null,
     'window_before', (
       select coalesce(sum(o.${cc("value")}), 0)
       from ${counters} o

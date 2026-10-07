@@ -170,6 +170,7 @@ describe("createUsage", () => {
       used: 4,
       limit,
       remaining: limit === null ? null : limit - 4,
+      unlimited: limit === null,
       period: "week",
       resets_at: "2026-10-12T00:00:00+00:00",
     }));
@@ -179,11 +180,16 @@ describe("createUsage", () => {
       used: 4,
       limit: 10,
       remaining: 6,
+      unlimited: false,
       period: "week",
     });
     expect(status.resetsAt.toString()).toBe("2026-10-12T00:00:00Z");
     limit = null;
     expect(await usage.remaining("org", "api_calls").orThrow()).toBe(undefined);
+    expect(await usage.current("org", "api_calls").orThrow()).toMatchObject({
+      limit: undefined,
+      unlimited: true,
+    });
   });
 
   it("reads billing periods, catalog fields and the meter catalog", async () => {
@@ -297,6 +303,7 @@ describe("reportUsageToStripe", () => {
           counter("2026-10-02", 70, 0, 60),
           counter("2026-10-03", 20, 10, 130),
           counter("2026-10-04", 5, 0, 0, null),
+          { ...counter("2026-10-05", 7, 0, 0, null), unlimited: true },
         ];
       if (fn === "tenant_stripe_customer") return "cus_1";
       return true;
@@ -317,7 +324,7 @@ describe("reportUsageToStripe", () => {
     ).toEqual({ reported: 3, skipped: 0 });
     expect(sent).toEqual(["30", "10", "5"]);
     expect(calls.filter(([, fn]) => fn === "mark_usage_reported")).toHaveLength(
-      4,
+      5,
     );
   });
 
