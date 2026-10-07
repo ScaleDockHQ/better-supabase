@@ -8,6 +8,7 @@ export {
   MODULE_ID_TYPES,
   modulePermissionKeys,
   moduleBody,
+  moduleEventTriggers,
   moduleSchemaExtensions,
   moduleTopics,
   moduleVersion,

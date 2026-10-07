@@ -44,6 +44,16 @@ migration, stamped after the newest one so it runs after the schema migration.
 Its statements are idempotent, and it writes nothing when the latest data
 migration already has them. `sql add` and `sql sync` say when to run it.
 
+Event triggers belong to no schema, so a diff limited to some schemas
+(`supabase db schema declarative sync -s public,better_supabase`) leaves
+them out of its migration. Run the sync without `-s` when you use `audit`
+(`bs_audit_forget_dropped`) or `ensure-rls` (`bs_ensure_rls`). Their data
+files repeat the event triggers (`drop event trigger if exists`, then
+`create event trigger`), so the `sql data` migration creates them even when
+the schema migration lacks them, and
+[doctor BS323](/docs/cli/doctor#bs323) reports a module event trigger that
+the database, or every migration, lacks.
+
 The sync uses pg-delta, the Supabase CLI's diff engine (2.119 or later), which
 orders the schema files by dependency and carries grants, comments and
 `security_invoker` on views into the migration. It needs

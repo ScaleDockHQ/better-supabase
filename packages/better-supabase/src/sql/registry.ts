@@ -18,6 +18,7 @@ import {
   type ModuleIdType,
   type ModuleNames,
 } from "./context.ts";
+import { eventTriggersOf } from "./event-triggers.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import {
   hasPlatformRoles,
@@ -3039,6 +3040,27 @@ export const moduleSchemaExtensions = (
     files.filter((file) => file.kind === "schema").map((file) => file.contents),
   );
 
+/**
+ * The event triggers each of these modules creates, as its default file
+ * renders them, for doctor's check of a database.
+ */
+export function moduleEventTriggers(
+  names: readonly string[],
+  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
+): { readonly module: string; readonly name: string }[] {
+  return names.flatMap((module) => {
+    const definition = modules[module];
+    if (!definition) return [];
+    let body: string;
+    try {
+      body = definition.sql;
+    } catch {
+      return [];
+    }
+    return eventTriggersOf(body).map(({ name }) => ({ module, name }));
+  });
+}
+
 /** Whether `contents` is a data file `renderModules` wrote. */
 export const isModuleDataFile = (contents: string): boolean =>
   MODULE_DATA_MARKER.test(contents);
@@ -3089,6 +3111,9 @@ export function renderModules(
     }
     const data = [
       moduleExtensions(body),
+      eventTriggersOf(body)
+        .map((trigger) => trigger.statement)
+        .join("\n"),
       module.data?.(ctx, layout).trim() ?? "",
       moduleRow(module, ctx.mode),
     ]

@@ -2607,6 +2607,30 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("creates a module's event trigger from its data file", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query("drop event trigger bs_audit_forget_dropped");
+      const data = renderModules(["audit"]).find(
+        (file) => file.kind === "data",
+      )!.contents;
+      const statements =
+        /^drop event trigger if exists bs_audit_forget_dropped;\n[^;]*;/m.exec(
+          data,
+        )![0];
+      await client.query(statements);
+      await client.query(statements);
+      const { rows } = await client.query<{ event: string }>(
+        "select evtevent as event from pg_catalog.pg_event_trigger where evtname = 'bs_audit_forget_dropped'",
+      );
+      expect(rows).toEqual([{ event: "sql_drop" }]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("forgets a dropped table's registration and unaudits a table that is gone", async () => {
     const legacy = `public.bs_audit_dropped_${RUN}`;
     const stray = `public.bs_audit_stray_${RUN}`;

@@ -7,6 +7,7 @@ import {
   customContracts,
   type ModuleDeprecation,
   moduleDeprecations,
+  moduleEventTriggers,
   moduleFileVersion,
   moduleLayout,
   migrationOptionUses,
@@ -155,6 +156,53 @@ async function danglingAuditRegistrations(
     message: `better_supabase.audited_tables registers the table with oid ${row.oid}, which no longer exists. It was dropped before the audit module's sql_drop event trigger was installed. Run \`better-supabase sql sync\` and apply the migration \`better-supabase sql data\` writes, which deletes such rows, or run \`delete from better_supabase.audited_tables where not exists (select 1 from pg_catalog.pg_class c where c.oid = target::oid)\`.`,
     target: `better_supabase.audited_tables ${row.oid}`,
   }));
+}
+
+const EVENT_TRIGGER_FIX =
+  "Event triggers belong to no schema, so a schema diff limited to some schemas (`supabase db schema declarative sync -s ...`) leaves them out of the migration. Run `better-supabase sql sync`, then `better-supabase sql data`: the module's data migration creates it.";
+
+/** Event triggers the `sql.modules` create that the database, or every migration, lacks. */
+async function missingEventTriggers(
+  context: DoctorContext,
+): Promise<FindingInput[]> {
+  const expected = moduleEventTriggers(context.config.sql.moduleNames);
+  if (expected.length === 0) return [];
+  const db = context.database;
+  if (db && !("skipped" in db)) {
+    let rows: { name: string }[];
+    try {
+      rows = await db.query(
+        "select evtname as name from pg_catalog.pg_event_trigger",
+      );
+    } catch {
+      return [];
+    }
+    const present = new Set(rows.map((row) => row.name));
+    return expected
+      .filter((trigger) => !present.has(trigger.name))
+      .map((trigger) => ({
+        message: `The database has no event trigger ${trigger.name}, which the ${trigger.module} module creates. ${EVENT_TRIGGER_FIX}`,
+        target: trigger.name,
+      }));
+  }
+  const toml = context.configToml;
+  if (toml === undefined) return [];
+  const migrations = (context.sqlFiles ?? []).filter((file) =>
+    file.path.startsWith(`${toml.dir}/migrations/`),
+  );
+  if (migrations.length === 0) return [];
+  return expected
+    .filter((trigger) => {
+      const pattern = new RegExp(
+        `create\\s+event\\s+trigger\\s+${ident(trigger.name)}\\s`,
+        "i",
+      );
+      return !migrations.some((file) => pattern.test(file.text));
+    })
+    .map((trigger) => ({
+      message: `No migration creates the event trigger ${trigger.name}, which the ${trigger.module} module creates, so a database built from the migrations lacks it. ${EVENT_TRIGGER_FIX}`,
+      target: trigger.name,
+    }));
 }
 
 /** Custom-mode modules whose contract functions the database or SQL files don't have. */
@@ -716,5 +764,13 @@ export const MODULE_RULES: readonly Rule[] = [
     description:
       "The `audit` module is in `sql.modules`, and `better_supabase.audited_tables` on the live database has a row whose table no longer exists. A table dropped before the module's `sql_drop` event trigger was installed keeps its row; the module's data migration deletes such rows.",
     check: danglingAuditRegistrations,
+  },
+  {
+    code: "BS323",
+    severity: "warning",
+    title: "Module event trigger missing",
+    description:
+      "A module in `sql.modules` creates an event trigger (`bs_audit_forget_dropped` for `audit`, `bs_ensure_rls` for `ensure-rls`) that the live database lacks, or, without a database, that no migration creates. Event triggers belong to no schema, so a schema diff limited to some schemas leaves them out; the module's data migration creates them.",
+    check: missingEventTriggers,
   },
 ];

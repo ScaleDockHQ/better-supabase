@@ -939,6 +939,99 @@ describe("audit registrations of dropped tables (BS322)", () => {
   });
 });
 
+describe("module event triggers (BS323)", () => {
+  const modules = { sql: { modules: ["audit", "ensure-rls", "tenant"] } };
+  const live = (rows: Record<string, unknown>[] | Error) => ({
+    describe: "test",
+    session: true,
+    query: <R>() =>
+      rows instanceof Error
+        ? Promise.reject(rows)
+        : Promise.resolve(rows as R[]),
+  });
+
+  it("reports the module event triggers the database lacks", async () => {
+    const findings = await run(
+      "BS323",
+      context(base, { database: live([{ name: "bs_ensure_rls" }]) }, modules),
+    );
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "bs_audit_forget_dropped",
+        message: expect.stringContaining(
+          "The database has no event trigger bs_audit_forget_dropped, which the audit module creates.",
+        ),
+      }),
+    ]);
+    expect(findings[0]!.message).toContain("better-supabase sql data");
+    expect(
+      await run(
+        "BS323",
+        context(
+          base,
+          {
+            database: live([
+              { name: "bs_ensure_rls" },
+              { name: "bs_audit_forget_dropped" },
+            ]),
+          },
+          modules,
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS323",
+        context(base, { database: live(new Error("denied")) }, modules),
+      ),
+    ).toEqual([]);
+  });
+
+  it("checks the migrations without a database", async () => {
+    const migration = (text: string, name = "1_init.sql") => ({
+      path: `supabase/migrations/${name}`,
+      text,
+    });
+    const findings = await run(
+      "BS323",
+      context(
+        base,
+        {
+          configToml: toml(""),
+          sqlFiles: [
+            {
+              path: "supabase/schemas/audit.sql",
+              text: "create event trigger bs_audit_forget_dropped on sql_drop execute function f();",
+            },
+            migration(
+              'create event trigger "bs_ensure_rls" on ddl_command_end execute function g();',
+            ),
+          ],
+        },
+        modules,
+      ),
+    );
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "bs_audit_forget_dropped",
+    ]);
+    expect(findings[0]!.message).toContain("No migration creates");
+    expect(
+      await run(
+        "BS323",
+        context(base, { configToml: toml(""), sqlFiles: [] }, modules),
+      ),
+    ).toEqual([]);
+    expect(await run("BS323", context(base, {}, modules))).toEqual([]);
+    expect(
+      await run(
+        "BS323",
+        context(base, { database: live([]) }, { sql: { modules: ["tenant"] } }),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("migration-only module options (BS314)", () => {
   it("warns about each weakening option on a module in sql.modules", async () => {
     const findings = await run(

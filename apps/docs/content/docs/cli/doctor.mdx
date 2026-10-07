@@ -753,6 +753,19 @@ and apply the migration `better-supabase sql data` writes: the module's data
 file deletes registrations whose table is gone. Doctor checks this only
 against a database.
 
+### BS323
+
+**Warning: module event trigger missing.** A module in `sql.modules`
+creates an event trigger (`bs_audit_forget_dropped` for `audit`,
+`bs_ensure_rls` for `ensure-rls`) that the live database lacks, or, without
+a database, that no migration in `supabase/migrations` creates. Event
+triggers belong to no schema, so a schema diff limited to some schemas
+(`supabase db schema declarative sync -s ...`) leaves them out of the
+migration, and dropped tables keep their audit registrations or new tables
+get no RLS. Run `better-supabase sql sync`, then `better-supabase sql data`:
+the module's data file repeats its event triggers, so the data migration
+creates them. Run the declarative sync without `-s` from then on.
+
 ## Auth config
 
 ### BS401

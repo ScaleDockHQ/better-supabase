@@ -3,8 +3,10 @@ import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
+import { eventTriggersOf } from "../../src/sql/event-triggers.ts";
 import { moduleLayout } from "../../src/sql/layout.ts";
 import {
+  moduleEventTriggers,
   modulePermissionKeys,
   moduleTopics,
   renderModules,
@@ -156,7 +158,7 @@ describe("renderModules", () => {
       for (const file of files.filter((entry) => entry.kind === "data")) {
         expect(file.path).toMatch(/\/better-supabase-data\/[^/]+\.sql$/);
         expect(file.contents).not.toMatch(
-          /^(create(?! extension if not exists "\w+"( with schema "\w+")?;$)|drop|alter table)\b/im,
+          /^(create(?! extension if not exists "\w+"( with schema "\w+")?;$| event trigger )|drop(?! event trigger if exists \w+;$)|alter table)\b/im,
         );
       }
     }
@@ -213,6 +215,53 @@ describe("renderModules", () => {
     expect(data("flags")).toContain(
       'create extension if not exists "pgcrypto" with schema "extensions";',
     );
+  });
+});
+
+describe("module event triggers", () => {
+  it("repeats a module's event triggers in its data file", () => {
+    const data = (name: string) =>
+      renderModules([name]).find(
+        (file) => file.kind === "data" && file.module === name,
+      )!.contents;
+    expect(data("audit")).toContain(
+      "drop event trigger if exists bs_audit_forget_dropped;\ncreate event trigger bs_audit_forget_dropped on sql_drop\n  when tag in ('DROP TABLE', 'DROP SCHEMA')\n  execute function better_supabase.audit_forget_dropped();",
+    );
+    expect(data("ensure-rls")).toContain(
+      "drop event trigger if exists bs_ensure_rls;\ncreate event trigger bs_ensure_rls on ddl_command_end",
+    );
+    expect(data("tenant")).not.toContain("event trigger");
+  });
+
+  it("names the event triggers of the installed modules", () => {
+    expect(moduleEventTriggers(["audit", "ensure-rls", "tenant"])).toEqual([
+      { module: "audit", name: "bs_audit_forget_dropped" },
+      { module: "ensure-rls", name: "bs_ensure_rls" },
+    ]);
+    expect(
+      moduleEventTriggers(["broken", "missing"], {
+        broken: {
+          ...SQL_MODULES["tenant"]!,
+          get sql(): string {
+            throw new Error("no default layout");
+          },
+        },
+      }),
+    ).toEqual([]);
+  });
+
+  it("reads quoted names once", () => {
+    expect(
+      eventTriggersOf(
+        'create event trigger "Bs_Quoted" on sql_drop execute function f();\ncreate event trigger "Bs_Quoted" on sql_drop execute function f();',
+      ),
+    ).toEqual([
+      {
+        name: "Bs_Quoted",
+        statement:
+          'drop event trigger if exists "Bs_Quoted";\ncreate event trigger "Bs_Quoted" on sql_drop execute function f();',
+      },
+    ]);
   });
 });
 
