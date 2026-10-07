@@ -75,6 +75,7 @@ const config: KnipConfig = {
     "apps/examples/orpc-api": serverExample,
     "apps/examples/nextjs": {
       ...browserExample,
+      ignore: [...exampleIgnore, "src/components/ui/**"],
       // Knip's Playwright plugin finds the specs; the setup project is a
       // `testMatch` regex it can't read.
       entry: [

@@ -9,7 +9,7 @@ schema, and runs against the local stack from `supabase/config.toml`.
 
 | Example          | Shows                                                                                                                    |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `nextjs`         | Proxy session refresh, a Server Component, route handlers and a server action                                            |
+| `nextjs`         | A multi-tenant SaaS app on Cache Components, with every page proved instant by `instant()` tests                         |
 | `hono-api`       | `createHono`, `bs.resource` with a list query, and a custom route                                                        |
 | `orpc-api`       | An oRPC router with valibot inputs and `bs.unwrap`, and a contract-first OpenAPI server on Hono                          |
 | `expo-powersync` | An Expo Router app: web reads in server loaders, iOS and Android read a PowerSync database with the same list definition |
@@ -28,6 +28,43 @@ pnpm --filter @better-supabase/example-nextjs dev
 The examples use the stack from `supabase/config.toml` (API on port 55421).
 To use another stack, set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and
 `SUPABASE_SECRET_KEY`.
+
+## The Next.js SaaS app
+
+`apps/examples/nextjs` is a generic SaaS app on Next.js Cache Components,
+shadcn/ui (Base UI), next-intl and the local stack. Every page runs on the
+real Auth server and database; nothing is mocked. Sign in with one of the
+seeded users from `supabase/seed.sql` (password `password123`):
+
+| User                | Role                            |
+| ------------------- | ------------------------------- |
+| `admin@acme.test`   | Owner of Acme, member of Globex |
+| `member@acme.test`  | Member of Acme                  |
+| `owner@globex.test` | Owner of Globex                 |
+
+The features and the better-supabase parts they use:
+
+| Feature                               | Uses                                                                                          |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Sign-in, sign-up, password reset, MFA | `bs.proxy` with `protect`, the browser client, the Auth server and Mailpit                    |
+| Organizations, switcher, invitations  | the `organizations` and `invitations` SQL modules with `better-supabase/blocks/organizations` |
+| Customers list and detail             | `defineListQuery` with facets, `bs.cached()` in `"use cache: private"`, comments, logo upload |
+| Inbox                                 | notifications read per request, with an unread badge                                          |
+| Members, roles and permissions        | the `access` module in custom mode, `can()` in policies and the UI                            |
+| Billing and plan features             | the `entitlements` and `usage` modules                                                        |
+| API keys and audit log                | the `api-keys` and `audit` modules, with a CSV export                                         |
+| Profile, settings, onboarding         | the `profiles`, `settings` and `onboarding` modules                                           |
+| Announcements and a beta page         | the `announcements` and `flags` modules                                                       |
+
+The routes are localized under `/en` and `/nl` with `next/root-params`, and
+the translations are `.po` files read directly by next-intl. The theme
+(light, dark or system) is applied before the first paint.
+
+`pnpm --filter @better-supabase/example-nextjs test:e2e` resets the stack,
+builds the app with the testing API and runs the Playwright specs in
+`apps/examples/nextjs/e2e`. They click every menu page for each user in both
+languages under `instant()`, and walk through sign-in, the organization
+switch, the language and theme switches and an invitation.
 
 ## Real-world ports
 

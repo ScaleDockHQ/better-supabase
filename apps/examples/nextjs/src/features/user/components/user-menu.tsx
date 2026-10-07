@@ -1,34 +1,37 @@
-import Link from "next/link";
+import {
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuSkeleton,
+} from "@/components/ui/sidebar";
 
-import { rolesOf } from "../user-permissions";
-import { getSession } from "../user-queries";
-import { SignOutButton } from "./sign-out-button";
+import { roleOf } from "../user-permissions";
+import { getMyProfile, getSession } from "../user-queries";
+import { UserMenuDropdown } from "./user-menu-dropdown";
 
+/** Render inside `<Suspense>`; the fallback is `UserMenuSkeleton`. */
 export async function UserMenu() {
-  const session = await getSession();
-  if (session.kind !== "user") return <Link href="/login">Sign in</Link>;
-  const roles = rolesOf(session.claims);
+  const [session, profile] = await Promise.all([getSession(), getMyProfile()]);
+  if (session.kind !== "user") return null;
   return (
-    <div className="user-menu">
-      {session.impersonator ? (
-        <output>
-          <strong>
-            Support session by {session.impersonator.id}
-            {session.impersonator.reason
-              ? ` (${session.impersonator.reason})`
-              : ""}
-          </strong>
-        </output>
-      ) : null}
-      <span>{session.user.email}</span>
-      <small data-testid="role">
-        {roles.length > 0 ? roles.join(", ") : "no role"}
-      </small>
-      <SignOutButton />
-    </div>
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <UserMenuDropdown
+          name={profile?.fullName ?? null}
+          email={session.user.email ?? profile?.email ?? null}
+          avatarUrl={profile?.avatarUrl ?? null}
+          role={roleOf(session) ?? null}
+        />
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 
 export function UserMenuSkeleton() {
-  return <div className="user-menu skeleton" aria-busy="true" />;
+  return (
+    <SidebarMenu aria-busy="true">
+      <SidebarMenuItem>
+        <SidebarMenuSkeleton showIcon />
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
 }

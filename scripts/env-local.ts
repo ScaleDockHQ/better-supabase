@@ -33,6 +33,7 @@ const lines = [
   "DOCS_ORIGIN=https://docs.localhost",
   `SUPABASE_URL=${required("API_URL")}`,
   `SUPABASE_DB_URL=${required("DB_URL")}`,
+  `SUPABASE_SECRET_KEY=${required("SECRET_KEY")}`,
   "",
 ];
 

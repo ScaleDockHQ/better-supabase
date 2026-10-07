@@ -1,8 +1,10 @@
 "use server";
 
 import { dbError, err } from "better-supabase";
+import { toSession } from "better-supabase/next";
 import * as v from "valibot";
 
+import { activeOrganizationId } from "@/features/user/user-permissions";
 import { bs } from "@/lib/supabase/server";
 
 /** Sends the caller a notification; the header badge updates over Realtime. */
@@ -13,8 +15,7 @@ export const notifyMe = bs.action(
     }),
   },
   async ({ title }, { auth, db }) => {
-    const organizationId =
-      auth.kind === "user" ? auth.claims.app_metadata?.tenant_id : undefined;
+    const organizationId = activeOrganizationId(toSession(auth));
     if (!organizationId) {
       return err(dbError("forbidden", "Your account has no organization"));
     }

@@ -1,0 +1,1658 @@
+msgid ""
+msgstr ""
+"Language: nl\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: next-intl\n"
+"X-Message-Key: msgctxt\n"
+
+#: src/app/[locale]/(app)/beta/page.tsx
+msgctxt "beta.riw_yc"
+msgid "Beta"
+msgstr "Bèta"
+
+#: src/app/[locale]/(app)/beta/page.tsx
+msgctxt "beta.IlDsVX"
+msgid "Features still behind a flag."
+msgstr "Functies die nog achter een flag zitten."
+
+#: src/app/[locale]/(app)/customers/[id]/page.tsx
+msgctxt "customers.ljxw1z"
+msgid "All customers"
+msgstr "Alle klanten"
+
+#: src/app/[locale]/(app)/customers/page.tsx
+msgctxt "customers.TkYZBT"
+msgid "Customers"
+msgstr "Klanten"
+
+#: src/app/[locale]/(app)/customers/page.tsx
+msgctxt "customers.BOCaFq"
+msgid "Everyone your organization works with."
+msgstr "Iedereen met wie je organisatie werkt."
+
+#: src/app/[locale]/(app)/inbox/page.tsx
+msgctxt "inbox.VCMKbt"
+msgid "Inbox"
+msgstr "Inbox"
+
+#: src/app/[locale]/(app)/inbox/page.tsx
+msgctxt "inbox.bT5l3i"
+msgid "Every signed-in user has one. The count stays live over Realtime."
+msgstr "Elke ingelogde gebruiker heeft er een. Het aantal blijft live via Realtime."
+
+#: src/app/[locale]/(app)/layout.tsx
+#: src/features/navigation/components/app-header.tsx
+msgctxt "navigation.6D4Ghb"
+msgid "Toggle sidebar"
+msgstr "Zijbalk tonen of verbergen"
+
+#: src/app/[locale]/(app)/page.tsx
+msgctxt "dashboard.hzSNj4"
+msgid "Dashboard"
+msgstr "Dashboard"
+
+#: src/app/[locale]/(app)/page.tsx
+msgctxt "dashboard.6_sorY"
+msgid "Your organization at a glance."
+msgstr "Je organisatie in één oogopslag."
+
+#: src/app/[locale]/(app)/settings/layout.tsx
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.D3idYv"
+msgid "Settings"
+msgstr "Instellingen"
+
+#: src/app/[locale]/(app)/settings/layout.tsx
+msgctxt "settings.59uu8y"
+msgid "Your account and your organization."
+msgstr "Je account en je organisatie."
+
+#: src/app/[locale]/layout.tsx
+msgctxt "app.pZg_tf"
+msgid "A multi-tenant SaaS example built on better-supabase."
+msgstr "Een multi-tenant SaaS-voorbeeld op better-supabase."
+
+#: src/app/[locale]/not-found.tsx
+msgctxt "app.QRccCM"
+msgid "Page not found"
+msgstr "Pagina niet gevonden"
+
+#: src/app/[locale]/not-found.tsx
+msgctxt "app.HetEY5"
+msgid "It moved, or it isn't available to your organization."
+msgstr "Ze is verplaatst, of niet beschikbaar voor je organisatie."
+
+#: src/app/[locale]/not-found.tsx
+msgctxt "app.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Terug naar het dashboard"
+
+#: src/features/announcements/components/announcement-banner.tsx
+msgctxt "announcements.TDaF6J"
+msgid "Dismiss"
+msgstr "Sluiten"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.5bo-CW"
+msgid "No API keys yet"
+msgstr "Nog geen API-sleutels"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.JQDXHx"
+msgid "Create one to call the API from a script."
+msgstr "Maak er een om de API vanuit een script aan te roepen."
+
+#: src/features/api-keys/components/api-key-table.tsx
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.EcglP9"
+msgid "Key"
+msgstr "Sleutel"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.ORGv1Q"
+msgid "Created"
+msgstr "Aangemaakt"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.iQhFxR"
+msgid "Last used"
+msgstr "Laatst gebruikt"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.NDx-B0"
+msgid "Personal"
+msgstr "Persoonlijk"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.f0W26f"
+msgid "Revoked"
+msgstr "Ingetrokken"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.5CT3F9"
+msgid "Key revoked"
+msgstr "Sleutel ingetrokken"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.tnRDuU"
+msgid "Revoke"
+msgstr "Intrekken"
+
+#: src/features/api-keys/components/api-keys-section.tsx
+msgctxt "apiKeys.yOFPA6"
+msgid "API keys"
+msgstr "API-sleutels"
+
+#: src/features/api-keys/components/api-keys-section.tsx
+msgctxt "apiKeys.gyS_6w"
+msgid "Organization keys act for the organization. Verified by the api-keys module."
+msgstr "Organisatiesleutels handelen namens de organisatie. Gecontroleerd door de api-keys-module."
+
+#: src/features/api-keys/components/api-keys-section.tsx
+msgctxt "apiKeys.uJFbFt"
+msgid "Personal keys act as you, with your role."
+msgstr "Persoonlijke sleutels handelen als jou, met jouw rol."
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.wEebuR"
+msgid "Create key"
+msgstr "Sleutel maken"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.mEdvqW"
+msgid "Copy your key"
+msgstr "Kopieer je sleutel"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.24DkQi"
+msgid "This is the only time it is shown. Only its hash is stored."
+msgstr "Dit is de enige keer dat hij wordt getoond. Alleen de hash wordt opgeslagen."
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.KTNoOq"
+msgid "API key"
+msgstr "API-sleutel"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.E_3uwL"
+msgid "Copy key"
+msgstr "Sleutel kopiëren"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.JsSMof"
+msgid "Key copied"
+msgstr "Sleutel gekopieerd"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.Jx-Dpp"
+msgid "Your service checks it with apiKeys.verify. Revoke it here when you're done."
+msgstr "Je service controleert hem met apiKeys.verify. Trek hem hier in als je klaar bent."
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.FcPByA"
+msgid "Create an API key"
+msgstr "Een API-sleutel maken"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.eFFkuT"
+msgid "Name it after the script or service that uses it."
+msgstr "Noem hem naar het script of de service die hem gebruikt."
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.VzzYJk"
+msgid "Create"
+msgstr "Maken"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.hE7RvK"
+msgid "The audit log is on the Pro plan"
+msgstr "Het auditlog zit in het Pro-abonnement"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.lkNql3"
+msgid "Upgrade to see who changed what, and to export it."
+msgstr "Upgrade om te zien wie wat heeft gewijzigd, en om het te exporteren."
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.vbFKkT"
+msgid "See plans"
+msgstr "Abonnementen bekijken"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.ED9RG5"
+msgid "Audit log"
+msgstr "Auditlog"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.vXaH2b"
+msgid "Database changes and app events, recorded by the audit module."
+msgstr "Databasewijzigingen en app-gebeurtenissen, vastgelegd door de audit-module."
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.TE51b7"
+msgid "Export CSV"
+msgstr "CSV exporteren"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.N0gXcw"
+msgid "Nothing recorded yet."
+msgstr "Nog niets vastgelegd."
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.McnLsx"
+msgid "When"
+msgstr "Wanneer"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.m1czzY"
+msgid "Event"
+msgstr "Gebeurtenis"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.CHXoWz"
+msgid "Actor"
+msgstr "Door"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.rzbYbE"
+msgid "Target"
+msgstr "Doel"
+
+#: src/features/auth/components/forgot-password-form.tsx
+msgctxt "auth.p-kmJg"
+msgid "Reset your password"
+msgstr "Wachtwoord opnieuw instellen"
+
+#: src/features/auth/components/forgot-password-form.tsx
+msgctxt "auth.U_sxzo"
+msgid "If that address has an account, a reset link is on its way."
+msgstr "Als dat adres een account heeft, is er een herstellink onderweg."
+
+#: src/features/auth/components/forgot-password-form.tsx
+msgctxt "auth.udESX3"
+msgid "We'll email you a link to choose a new one."
+msgstr "We mailen je een link om een nieuw wachtwoord te kiezen."
+
+#: src/features/auth/components/forgot-password-form.tsx
+#: src/features/auth/components/login-form.tsx
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/auth/components/forgot-password-form.tsx
+msgctxt "auth.DkQ5Q8"
+msgid "Send reset link"
+msgstr "Herstellink versturen"
+
+#: src/features/auth/components/forgot-password-form.tsx
+msgctxt "auth.odTkf5"
+msgid "Back to sign in"
+msgstr "Terug naar inloggen"
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.YHxk2E"
+msgid "That email and password don't match."
+msgstr "Dat e-mailadres en wachtwoord horen niet bij elkaar."
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.UKxoV8"
+msgid "Welcome back"
+msgstr "Welkom terug"
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.ULi4Ks"
+msgid "Sign in to your organization."
+msgstr "Log in bij je organisatie."
+
+#: src/features/auth/components/login-form.tsx
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.5sg7KC"
+msgid "Password"
+msgstr "Wachtwoord"
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.cyRU1N"
+msgid "Forgot your password?"
+msgstr "Wachtwoord vergeten?"
+
+#: src/features/auth/components/login-form.tsx
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.SQJto2"
+msgid "Sign in"
+msgstr "Inloggen"
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.8rjc1j"
+msgid "No account yet?"
+msgstr "Nog geen account?"
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.8HJxXG"
+msgid "Sign up"
+msgstr "Registreren"
+
+#: src/features/auth/components/mfa-challenge-form.tsx
+msgctxt "auth.3vAb4l"
+msgid "That code didn't work. Try the next one."
+msgstr "Die code werkte niet. Probeer de volgende."
+
+#: src/features/auth/components/mfa-challenge-form.tsx
+msgctxt "auth.Zmrie7"
+msgid "Two-factor authentication"
+msgstr "Tweestapsverificatie"
+
+#: src/features/auth/components/mfa-challenge-form.tsx
+msgctxt "auth.PsYaj1"
+msgid "Enter the code from your authenticator app."
+msgstr "Voer de code uit je authenticator-app in."
+
+#: src/features/auth/components/mfa-challenge-form.tsx
+msgctxt "auth.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/auth/components/mfa-challenge-form.tsx
+msgctxt "auth.q5Xl0M"
+msgid "Verify"
+msgstr "Verifiëren"
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.weOT3A"
+msgid "The passwords don't match."
+msgstr "De wachtwoorden komen niet overeen."
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.BYGVQF"
+msgid "This link has expired. Ask for a new one."
+msgstr "Deze link is verlopen. Vraag een nieuwe aan."
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.h9aBq7"
+msgid "Password changed"
+msgstr "Wachtwoord gewijzigd"
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.h_HeZb"
+msgid "Choose a new password"
+msgstr "Kies een nieuw wachtwoord"
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.l-GezH"
+msgid "You stay signed in afterwards."
+msgstr "Je blijft daarna ingelogd."
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.fTHhSB"
+msgid "New password"
+msgstr "Nieuw wachtwoord"
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.9o3oCD"
+msgid "Repeat it"
+msgstr "Herhaal het"
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.L4nXIc"
+msgid "Change password"
+msgstr "Wachtwoord wijzigen"
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.zx7CKB"
+msgid "Check your email"
+msgstr "Controleer je e-mail"
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.buMrVn"
+msgid "We sent a confirmation link to {email}."
+msgstr "We hebben een bevestigingslink naar {email} gestuurd."
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.SeO7GZ"
+msgid "Create your account"
+msgstr "Maak je account"
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.GQ7dZI"
+msgid "Then create an organization or accept an invitation."
+msgstr "Maak daarna een organisatie of accepteer een uitnodiging."
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.yk4PT9"
+msgid "Full name"
+msgstr "Volledige naam"
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.1DX5CO"
+msgid "At least 8 characters."
+msgstr "Minstens 8 tekens."
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.huqKGl"
+msgid "Create account"
+msgstr "Account maken"
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.uCk8r-"
+msgid "Already have an account?"
+msgstr "Heb je al een account?"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.tf1lIh"
+msgid "Free"
+msgstr "Gratis"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.MdFvGX"
+msgid "{price} per month"
+msgstr "{price} per maand"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.kW-_4r"
+msgid "{seats} seats"
+msgstr "{seats} plaatsen"
+
+#: src/features/billing/components/billing-overview.tsx
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.ICR82m"
+msgid "CSV exports"
+msgstr "CSV-exports"
+
+#: src/features/billing/components/billing-overview.tsx
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.ED9RG5"
+msgid "Audit log"
+msgstr "Auditlog"
+
+#: src/features/billing/components/billing-overview.tsx
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.YQJkxw"
+msgid "Single sign-on"
+msgstr "Single sign-on"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.ZBALng"
+msgid "Current plan"
+msgstr "Huidig abonnement"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.wL4Olp"
+msgid "Renews {date}"
+msgstr "Verlengt op {date}"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.lyN_DP"
+msgid "No renewal date"
+msgstr "Geen verlengdatum"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.450Fty"
+msgid "None"
+msgstr "Geen"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.n1Whvj"
+msgid "Switch"
+msgstr "Overstappen"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.1Z5h3H"
+msgid "Plan changes go through Stripe Checkout with the billing SQL module, which this example doesn't install."
+msgstr "Abonnementswijzigingen lopen via Stripe Checkout met de billing-SQL-module, die dit voorbeeld niet installeert."
+
+#: src/features/billing/components/mark-plan-reviewed-button.tsx
+msgctxt "billing.TNms_8"
+msgid "Onboarding step done"
+msgstr "Onboardingstap afgerond"
+
+#: src/features/billing/components/mark-plan-reviewed-button.tsx
+msgctxt "billing.5u9EI1"
+msgid "Mark as reviewed"
+msgstr "Markeren als bekeken"
+
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.0LfhAK"
+msgid "Plan features"
+msgstr "Functies van het abonnement"
+
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.REsckX"
+msgid "included"
+msgstr "inbegrepen"
+
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.Im0KqV"
+msgid "not in your plan"
+msgstr "niet in je abonnement"
+
+#: src/features/customers/components/comment-form.tsx
+msgctxt "customers.LgbKvU"
+msgid "Comment"
+msgstr "Reageren"
+
+#: src/features/customers/components/comment-form.tsx
+msgctxt "customers.Y8zV4A"
+msgid "Write a comment"
+msgstr "Schrijf een reactie"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.7vI2x3"
+msgid "Too many new customers. Try again in {seconds, number} seconds."
+msgstr "Te veel nieuwe klanten. Probeer het over {seconds, number} seconden opnieuw."
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.ckQ_gN"
+msgid "{name} added"
+msgstr "{name} toegevoegd"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.e7e8yl"
+msgid "Add customer"
+msgstr "Klant toevoegen"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.yD9TdY"
+msgid "New customers start as leads and count toward your plan's quota."
+msgstr "Nieuwe klanten beginnen als lead en tellen mee voor het quotum van je abonnement."
+
+#: src/features/customers/components/create-customer-form.tsx
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.k0So_A"
+msgid "New customer"
+msgstr "Nieuwe klant"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.2_2yg-"
+msgid "Add"
+msgstr "Toevoegen"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.QITeYE"
+msgid "Customer since {date}"
+msgstr "Klant sinds {date}"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.wCgTu5"
+msgid "Comments"
+msgstr "Reacties"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.p38jo8"
+msgid "Visible to everyone in the organization."
+msgstr "Zichtbaar voor iedereen in de organisatie."
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.ZTbdfB"
+msgid "No comments yet."
+msgstr "Nog geen reacties."
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.XDWEZM"
+msgid "Someone"
+msgstr "Iemand"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.QwtMmD"
+msgid "Recent notes"
+msgstr "Recente notities"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.7PEOXA"
+msgid "No notes yet."
+msgstr "Nog geen notities."
+
+#: src/features/customers/components/customer-list.tsx
+msgctxt "customers.Zl6bWT"
+msgid "Only admins can add customers."
+msgstr "Alleen beheerders kunnen klanten toevoegen."
+
+#: src/features/customers/components/customer-logo-form.tsx
+msgctxt "customers.f6R09m"
+msgid "Logo updated"
+msgstr "Logo bijgewerkt"
+
+#: src/features/customers/components/customer-logo-form.tsx
+msgctxt "customers.k81S1y"
+msgid "Logo"
+msgstr "Logo"
+
+#: src/features/customers/components/customer-logo-form.tsx
+msgctxt "customers.RAjOeN"
+msgid "PNG, JPEG or WebP. Stored in the public logos bucket."
+msgstr "PNG, JPEG of WebP. Opgeslagen in de openbare logos-bucket."
+
+#: src/features/customers/components/customer-logo-form.tsx
+msgctxt "customers.zfs6a2"
+msgid "Upload logo"
+msgstr "Logo uploaden"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.bVjFta"
+msgid "Search customers"
+msgstr "Klanten zoeken"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.zQvVDJ"
+msgid "All"
+msgstr "Alle"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.FpIcp9"
+msgid "No customers found"
+msgstr "Geen klanten gevonden"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.S2OMpP"
+msgid "Add a customer, or change the filters."
+msgstr "Voeg een klant toe, of pas de filters aan."
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.gzp6xc"
+msgid "Change the filters to see more."
+msgstr "Pas de filters aan om meer te zien."
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.7-Domh"
+msgid "Notes"
+msgstr "Notities"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.dyyiUt"
+msgid "Last note"
+msgstr "Laatste notitie"
+
+#: src/features/customers/use-status-label.ts
+msgctxt "customers.bhfSJZ"
+msgid "Lead"
+msgstr "Lead"
+
+#: src/features/customers/use-status-label.ts
+msgctxt "customers.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/customers/use-status-label.ts
+msgctxt "customers.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.rBq8VO"
+msgid "Add your first customer"
+msgstr "Voeg je eerste klant toe"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.919U2i"
+msgid "Invite a teammate"
+msgstr "Nodig een teamgenoot uit"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.FcPByA"
+msgid "Create an API key"
+msgstr "Een API-sleutel maken"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.o0pfvI"
+msgid "Review your plan"
+msgstr "Bekijk je abonnement"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard._aBLH2"
+msgid "Get started"
+msgstr "Aan de slag"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.Own5i4"
+msgid "{completed, number} of {total, number} steps done"
+msgstr "{completed, number} van {total, number} stappen gedaan"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.mOFG3K"
+msgid "Start"
+msgstr "Starten"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.0SeTPP"
+msgid "API calls"
+msgstr "API-aanroepen"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.KvtrM7"
+msgid "Customers added"
+msgstr "Klanten toegevoegd"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.ZXdvOl"
+msgid "Usage this period"
+msgstr "Gebruik deze periode"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.nxnBVV"
+msgid "Counted by the usage module, limited by your plan."
+msgstr "Geteld door de usage-module, begrensd door je abonnement."
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.t1jLkm"
+msgid "{used} used, no limit"
+msgstr "{used} gebruikt, geen limiet"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.12Ss7G"
+msgid "{used} of {limit}"
+msgstr "{used} van {limit}"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.lyXkXc"
+msgid "Resets {date}"
+msgstr "Reset op {date}"
+
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.TkYZBT"
+msgid "Customers"
+msgstr "Klanten"
+
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.nnI4gk"
+msgid "Added by you"
+msgstr "Door jou toegevoegd"
+
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.cZ-k_2"
+msgid "Latest note"
+msgstr "Nieuwste notitie"
+
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.YIjtSu"
+msgid "None yet"
+msgstr "Nog geen"
+
+#: src/features/flags/components/beta-content.tsx
+msgctxt "beta.hKwqKr"
+msgid "You're in the beta"
+msgstr "Je zit in de bèta"
+
+#: src/features/flags/components/beta-content.tsx
+msgctxt "beta.EALeEv"
+msgid "The beta-page flag is on for your organization, through an override in the flags module."
+msgstr "De beta-page-flag staat aan voor je organisatie, via een override in de flags-module."
+
+#: src/features/flags/components/beta-content.tsx
+msgctxt "beta.2jXw4s"
+msgid "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh."
+msgstr "Zet hem uit met better_supabase.set_flag_override, en deze pagina en het menu-item verdwijnen bij de volgende sessievernieuwing."
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.aFRo3k"
+msgid "Hello from the inbox"
+msgstr "Hallo vanuit de inbox"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.OCmHfl"
+msgid "Notification sent"
+msgstr "Melding verstuurd"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.ipGe-B"
+msgid "Notify me"
+msgstr "Stuur me een melding"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.wMC6M8"
+msgid "All caught up"
+msgstr "Helemaal bij"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.ShdEie"
+msgid "Mark all read"
+msgstr "Alles als gelezen markeren"
+
+#: src/features/inbox/components/notification-list.tsx
+msgctxt "inbox.KjR3ZD"
+msgid "Nothing here yet"
+msgstr "Hier staat nog niets"
+
+#: src/features/inbox/components/notification-list.tsx
+msgctxt "inbox.5L9NEw"
+msgid "Send yourself a notification to see it arrive."
+msgstr "Stuur jezelf een melding om hem binnen te zien komen."
+
+#: src/features/inbox/components/notification-list.tsx
+msgctxt "inbox.bW7B87"
+msgid "New"
+msgstr "Nieuw"
+
+#: src/features/inbox/components/unread-badge.tsx
+msgctxt "inbox.Z6J1K8"
+msgid "Inbox, {count, number} unread"
+msgstr "Inbox, {count, number} ongelezen"
+
+#: src/features/inbox/components/unread-badge.tsx
+msgctxt "inbox.jrdovp"
+msgid "Counting…"
+msgstr "Tellen…"
+
+#: src/features/inbox/components/unread-badge.tsx
+msgctxt "inbox.94cCzv"
+msgid "{count, number} unread"
+msgstr "{count, number} ongelezen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.hzSNj4"
+msgid "Dashboard"
+msgstr "Dashboard"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.TkYZBT"
+msgid "Customers"
+msgstr "Klanten"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.VCMKbt"
+msgid "Inbox"
+msgstr "Inbox"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.riw_yc"
+msgid "Beta"
+msgstr "Bèta"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.-a-2ug"
+msgid "Members"
+msgstr "Leden"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Tbo377"
+msgid "Billing"
+msgstr "Facturatie"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.yOFPA6"
+msgid "API keys"
+msgstr "API-sleutels"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.ED9RG5"
+msgid "Audit log"
+msgstr "Auditlog"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.D3idYv"
+msgid "Settings"
+msgstr "Instellingen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.rOZptg"
+msgid "Workspace"
+msgstr "Werkruimte"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.K56Dim"
+msgid "Organization"
+msgstr "Organisatie"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.EFTSMc"
+msgid "Main"
+msgstr "Hoofdmenu"
+
+#: src/features/notes/components/similar-notes.tsx
+msgctxt "notes.dRm0tn"
+msgid "Similar notes"
+msgstr "Vergelijkbare notities"
+
+#: src/features/notes/components/similar-notes.tsx
+msgctxt "notes.XMSvnd"
+msgid "Nearest to “{body}”, found by the vector-search module."
+msgstr "Het dichtst bij “{body}”, gevonden door de vector-search-module."
+
+#: src/features/organization/components/create-organization-dialog.tsx
+msgctxt "organization.lehIHr"
+msgid "Organization created"
+msgstr "Organisatie aangemaakt"
+
+#: src/features/organization/components/create-organization-dialog.tsx
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.BUx5CV"
+msgid "Create organization"
+msgstr "Organisatie maken"
+
+#: src/features/organization/components/create-organization-dialog.tsx
+msgctxt "organization.TfSH2p"
+msgid "You become its owner. Invite your team from the members page."
+msgstr "Jij wordt de eigenaar. Nodig je team uit via de ledenpagina."
+
+#: src/features/organization/components/create-organization-dialog.tsx
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/organization/components/create-organization-dialog.tsx
+#: src/features/organization/components/invite-member-dialog.tsx
+#: src/features/organization/components/leave-organization-button.tsx
+msgctxt "organization.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/organization/components/create-organization-dialog.tsx
+msgctxt "organization.VzzYJk"
+msgid "Create"
+msgstr "Maken"
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.3iBnPs"
+msgid "This invitation can't be used"
+msgstr "Deze uitnodiging kan niet worden gebruikt"
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.N4Fbfe"
+msgid "It expired. Ask for a new one."
+msgstr "Ze is verlopen. Vraag een nieuwe aan."
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.4x_p5I"
+msgid "It was already used, revoked or never existed."
+msgstr "Ze is al gebruikt, ingetrokken of heeft nooit bestaan."
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.eVQ7El"
+msgid "Go to the dashboard"
+msgstr "Naar het dashboard"
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.BR9G0H"
+msgid "Join {organization}"
+msgstr "Word lid van {organization}"
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.41-s-i"
+msgid "Invitation for {email}, valid until {date}."
+msgstr "Uitnodiging voor {email}, geldig tot {date}."
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.beer0U"
+msgid "You're signed in as {email}. The invitation only works for its own address."
+msgstr "Je bent ingelogd als {email}. De uitnodiging werkt alleen voor het eigen adres."
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.0vL5u1"
+msgid "Create an account"
+msgstr "Een account maken"
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.65cFZc"
+msgid "I already have one"
+msgstr "Ik heb er al een"
+
+#: src/features/organization/components/invitation-list.tsx
+msgctxt "organization.HAhXzK"
+msgid "No open invitations."
+msgstr "Geen openstaande uitnodigingen."
+
+#: src/features/organization/components/invitation-list.tsx
+msgctxt "organization._VQpyO"
+msgid "Expires {date}"
+msgstr "Verloopt op {date}"
+
+#: src/features/organization/components/invitation-list.tsx
+msgctxt "organization.Hvn8PP"
+msgid "Revoke invitation for {email}"
+msgstr "Uitnodiging voor {email} intrekken"
+
+#: src/features/organization/components/invitation-list.tsx
+msgctxt "organization.SpBqjJ"
+msgid "Invitation revoked"
+msgstr "Uitnodiging ingetrokken"
+
+#: src/features/organization/components/invitation-response.tsx
+msgctxt "invitation.pvtgR2"
+msgid "Decline"
+msgstr "Afwijzen"
+
+#: src/features/organization/components/invitation-response.tsx
+msgctxt "invitation.RbaSnf"
+msgid "Welcome aboard"
+msgstr "Welkom aan boord"
+
+#: src/features/organization/components/invitation-response.tsx
+msgctxt "invitation.j2QN5I"
+msgid "Accept invitation"
+msgstr "Uitnodiging accepteren"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.LzKmIB"
+msgid "That person is already a member or invited."
+msgstr "Die persoon is al lid of uitgenodigd."
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.hYOE-U"
+msgid "Invite"
+msgstr "Uitnodigen"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.VUOqRw"
+msgid "Invitation created"
+msgstr "Uitnodiging aangemaakt"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.JbO9sG"
+msgid "Send this link. It works once and expires in seven days."
+msgstr "Stuur deze link. Hij werkt één keer en verloopt na zeven dagen."
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.G8P44K"
+msgid "Invitation link"
+msgstr "Uitnodigingslink"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.lbr3Lq"
+msgid "Copy link"
+msgstr "Link kopiëren"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.zU_q1N"
+msgid "Link copied"
+msgstr "Link gekopieerd"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.919U2i"
+msgid "Invite a teammate"
+msgstr "Nodig een teamgenoot uit"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.30Bj4o"
+msgid "They join with the role you pick. You can't give a role above your own."
+msgstr "Ze worden lid met de rol die je kiest. Je kunt geen hogere rol geven dan je eigen rol."
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.1ZgrhW"
+msgid "Role"
+msgstr "Rol"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.83nTSd"
+msgid "Send invitation"
+msgstr "Uitnodiging versturen"
+
+#: src/features/organization/components/leave-organization-button.tsx
+#: src/features/organization/components/organization-general.tsx
+msgctxt "organization.0Xqin6"
+msgid "Leave organization"
+msgstr "Organisatie verlaten"
+
+#: src/features/organization/components/leave-organization-button.tsx
+msgctxt "organization.hQ_iFM"
+msgid "Leave {name}?"
+msgstr "{name} verlaten?"
+
+#: src/features/organization/components/leave-organization-button.tsx
+msgctxt "organization.el7IHQ"
+msgid "You lose access to its customers until someone invites you again."
+msgstr "Je verliest toegang tot de klanten tot iemand je opnieuw uitnodigt."
+
+#: src/features/organization/components/leave-organization-button.tsx
+msgctxt "organization.fnihsY"
+msgid "Leave"
+msgstr "Verlaten"
+
+#: src/features/organization/components/member-table.tsx
+#: src/features/organization/use-role-label.ts
+msgctxt "organization.7L86Z5"
+msgid "Member"
+msgstr "Lid"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.l8wanU"
+msgid "Joined"
+msgstr "Lid sinds"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.Jjrc4P"
+msgid "you"
+msgstr "jij"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.U_vZbF"
+msgid "Role updated"
+msgstr "Rol bijgewerkt"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.T0e6Lh"
+msgid "Remove {name}"
+msgstr "{name} verwijderen"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.6tBv0v"
+msgid "Member removed"
+msgstr "Lid verwijderd"
+
+#: src/features/organization/components/members-section.tsx
+msgctxt "organization.-a-2ug"
+msgid "Members"
+msgstr "Leden"
+
+#: src/features/organization/components/members-section.tsx
+msgctxt "organization.hzby55"
+msgid "{count, number} people in this organization"
+msgstr "{count, number} mensen in deze organisatie"
+
+#: src/features/organization/components/members-section.tsx
+msgctxt "organization.ESlZHv"
+msgid "Pending invitations"
+msgstr "Openstaande uitnodigingen"
+
+#: src/features/organization/components/members-section.tsx
+msgctxt "organization.z7B1G5"
+msgid "There is no mailer in this example: copy the link and send it yourself."
+msgstr "Dit voorbeeld heeft geen mailer: kopieer de link en stuur hem zelf."
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.-_Neko"
+msgid "That URL is taken. Pick another one."
+msgstr "Die URL is al bezet. Kies een andere."
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.ABbHiq"
+msgid "Organization saved"
+msgstr "Organisatie opgeslagen"
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.bWjdfa"
+msgid "URL"
+msgstr "URL"
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.oReql8"
+msgid "Lowercase letters, numbers and dashes."
+msgstr "Kleine letters, cijfers en streepjes."
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.jvo0vs"
+msgid "Save"
+msgstr "Opslaan"
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.FvheCd"
+msgid "Only owners and admins can change the organization."
+msgstr "Alleen eigenaren en beheerders kunnen de organisatie wijzigen."
+
+#: src/features/organization/components/organization-general.tsx
+msgctxt "organization.1iEPTM"
+msgid "General"
+msgstr "Algemeen"
+
+#: src/features/organization/components/organization-general.tsx
+msgctxt "organization.vfSw6X"
+msgid "Managed by the organizations module."
+msgstr "Beheerd door de organizations-module."
+
+#: src/features/organization/components/organization-general.tsx
+msgctxt "organization.x6K-Ry"
+msgid "Defaults"
+msgstr "Standaarden"
+
+#: src/features/organization/components/organization-general.tsx
+msgctxt "organization._aWPNo"
+msgid "Owners transfer ownership before they can leave."
+msgstr "Eigenaren dragen het eigendom over voordat ze kunnen vertrekken."
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.2G6Qs7"
+msgid "Settings saved"
+msgstr "Instellingen opgeslagen"
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.azMsfM"
+msgid "Monday"
+msgstr "Maandag"
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.mJR06P"
+msgid "Sunday"
+msgstr "Zondag"
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.iEdIXH"
+msgid "Default role for invitations"
+msgstr "Standaardrol voor uitnodigingen"
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.ytO0XE"
+msgid "Week starts on"
+msgstr "Week begint op"
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.eRCBo1"
+msgid "Stored per organization by the settings module."
+msgstr "Per organisatie opgeslagen door de settings-module."
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.muqizb"
+msgid "Save settings"
+msgstr "Instellingen opslaan"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.qQ6ahH"
+msgid "Switched to {name}"
+msgstr "Overgestapt naar {name}"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.0lmKIf"
+msgid "Switch organization"
+msgstr "Van organisatie wisselen"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.5VHXqC"
+msgid "No organization"
+msgstr "Geen organisatie"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.9ocI0I"
+msgid "Create one to start"
+msgstr "Maak er een om te beginnen"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.JD2pwH"
+msgid "Organizations"
+msgstr "Organisaties"
+
+#: src/features/organization/use-role-label.ts
+msgctxt "organization.zINlao"
+msgid "Owner"
+msgstr "Eigenaar"
+
+#: src/features/organization/use-role-label.ts
+msgctxt "organization.iHN12u"
+msgid "Admin"
+msgstr "Beheerder"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.itPgxd"
+msgid "Profile"
+msgstr "Profiel"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Py189G"
+msgid "Security"
+msgstr "Beveiliging"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.K56Dim"
+msgid "Organization"
+msgstr "Organisatie"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.-a-2ug"
+msgid "Members"
+msgstr "Leden"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Tbo377"
+msgid "Billing"
+msgstr "Facturatie"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.yOFPA6"
+msgid "API keys"
+msgstr "API-sleutels"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.ED9RG5"
+msgid "Audit log"
+msgstr "Auditlog"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.wyxJrL"
+msgid "Delete account"
+msgstr "Account verwijderen"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security._cYV6z"
+msgid "Removes your user and your notifications. Organizations you own stay."
+msgstr "Verwijdert je gebruiker en je meldingen. Organisaties waarvan je eigenaar bent blijven bestaan."
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.TcCxtt"
+msgid "Delete your account?"
+msgstr "Je account verwijderen?"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.4Y9r1i"
+msgid "This can't be undone. You need a verified second factor in this session."
+msgstr "Dit kan niet ongedaan worden gemaakt. Je hebt in deze sessie een geverifieerde tweede factor nodig."
+
+#: src/features/user/components/delete-account-button.tsx
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.HmKCAW"
+msgid "Verify a second factor first, then try again."
+msgstr "Verifieer eerst een tweede factor en probeer het daarna opnieuw."
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.K3r6DQ"
+msgid "Delete"
+msgstr "Verwijderen"
+
+#: src/features/user/components/impersonation-banner.tsx
+msgctxt "user.GXJkeD"
+msgid "Support session"
+msgstr "Supportsessie"
+
+#: src/features/user/components/impersonation-banner.tsx
+msgctxt "user.VAZP5L"
+msgid "Signed in by support ({id}): {reason}"
+msgstr "Ingelogd door support ({id}): {reason}"
+
+#: src/features/user/components/impersonation-banner.tsx
+msgctxt "user.7cuPOb"
+msgid "Signed in by support ({id})."
+msgstr "Ingelogd door support ({id})."
+
+#: src/features/user/components/permission-gate.tsx
+msgctxt "user.yO2v_w"
+msgid "You don't have access"
+msgstr "Je hebt geen toegang"
+
+#: src/features/user/components/permission-gate.tsx
+msgctxt "user.53bplh"
+msgid "This needs the {permission} permission in this organization."
+msgstr "Hiervoor is de permissie {permission} in deze organisatie nodig."
+
+#: src/features/user/components/profile-details.tsx
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.itPgxd"
+msgid "Profile"
+msgstr "Profiel"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.Y0jjJp"
+msgid "How your teammates see you."
+msgstr "Hoe je teamgenoten je zien."
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.PCSt5T"
+msgid "Preferences"
+msgstr "Voorkeuren"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.qxg3uo"
+msgid "Access"
+msgstr "Toegang"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.JfBQtj"
+msgid "From the memberships claim in your access token, for the active organization."
+msgstr "Uit de memberships-claim in je toegangstoken, voor de actieve organisatie."
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.1ZgrhW"
+msgid "Role"
+msgstr "Rol"
+
+#: src/features/user/components/profile-details.tsx
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.VQB58n"
+msgid "No role"
+msgstr "Geen rol"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.SFuk1v"
+msgid "Permissions"
+msgstr "Permissies"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.450Fty"
+msgid "None"
+msgstr "Geen"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.A6OIRq"
+msgid "Token expires"
+msgstr "Token verloopt"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.5jeq8P"
+msgid "Unknown"
+msgstr "Onbekend"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.CKdAvh"
+msgid "Profile saved"
+msgstr "Profiel opgeslagen"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.yk4PT9"
+msgid "Full name"
+msgstr "Volledige naam"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.-N-UI2"
+msgid "Your sign-in address. It comes from Supabase Auth."
+msgstr "Je inlogadres. Het komt uit Supabase Auth."
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.jvo0vs"
+msgid "Save"
+msgstr "Opslaan"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.3vAb4l"
+msgid "That code didn't work. Try the next one."
+msgstr "Die code werkte niet. Probeer de volgende."
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.OIYSz8"
+msgid "Two-factor authentication is on"
+msgstr "Tweestapsverificatie staat aan"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.vhpOyb"
+msgid "Two-factor authentication is off"
+msgstr "Tweestapsverificatie staat uit"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.Zmrie7"
+msgid "Two-factor authentication"
+msgstr "Tweestapsverificatie"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.P9ictx"
+msgid "An authenticator app code at sign-in. Needed to delete your account."
+msgstr "Een code uit een authenticator-app bij het inloggen. Nodig om je account te verwijderen."
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.Zh-5A6"
+msgid "On"
+msgstr "Aan"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.OvzONl"
+msgid "Off"
+msgstr "Uit"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.MBwRvF"
+msgid "QR code for your authenticator app"
+msgstr "QR-code voor je authenticator-app"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.a2WJGp"
+msgid "Code from the app"
+msgstr "Code uit de app"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.Avaq8g"
+msgid "Or enter this key by hand: {secret}"
+msgstr "Of voer deze sleutel met de hand in: {secret}"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.q5Xl0M"
+msgid "Verify"
+msgstr "Verifiëren"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.XZ-Fx6"
+msgid "Turn off"
+msgstr "Uitzetten"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.rrGMSx"
+msgid "Set up"
+msgstr "Instellen"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.yuQ593"
+msgid "Account menu"
+msgstr "Accountmenu"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.Py189G"
+msgid "Security"
+msgstr "Beveiliging"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.Pe0ogR"
+msgid "Theme"
+msgstr "Thema"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.3cc4Ct"
+msgid "Light"
+msgstr "Licht"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.tOdNiY"
+msgid "Dark"
+msgstr "Donker"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.-CwN9C"
+msgid "System"
+msgstr "Systeem"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.y1Z3or"
+msgid "Language"
+msgstr "Taal"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.xXbJso"
+msgid "Sign out"
+msgstr "Uitloggen"
+
+#: src/features/user/components/weekly-digest-switch.tsx
+msgctxt "user.kaIjsz"
+msgid "Weekly digest"
+msgstr "Wekelijks overzicht"
+
+#: src/features/user/components/weekly-digest-switch.tsx
+msgctxt "user.pY7RRr"
+msgid "A Monday summary of your customers. Saved by the settings module."
+msgstr "Elke maandag een overzicht van je klanten. Opgeslagen door de settings-module."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.p0Vi70"
+msgid "Sign in again to continue."
+msgstr "Log opnieuw in om door te gaan."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.7GZhCN"
+msgid "You don't have permission to do that."
+msgstr "Je hebt geen toestemming om dat te doen."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.ZT3lBq"
+msgid "That item no longer exists."
+msgstr "Dat item bestaat niet meer."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.JI3eca"
+msgid "That already exists."
+msgstr "Dat bestaat al."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.GhZx8v"
+msgid "Too many requests. Wait a moment and try again."
+msgstr "Te veel verzoeken. Wacht even en probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.L-85Jk"
+msgid "Your plan's limit is reached. Upgrade to continue."
+msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.U8S-VX"
+msgid "Check the highlighted fields and try again."
+msgstr "Controleer de gemarkeerde velden en probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.l4YmKm"
+msgid "Someone else changed this. Reload and try again."
+msgstr "Iemand anders heeft dit gewijzigd. Herlaad en probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.0Wy2tt"
+msgid "The server didn't answer. Try again."
+msgstr "De server antwoordde niet. Probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.3kJE8G"
+msgid "Something went wrong. Try again."
+msgstr "Er ging iets mis. Probeer het opnieuw."
