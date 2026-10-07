@@ -1043,6 +1043,7 @@
       "NotificationSubject",
       "NotificationSubscription",
       "NotificationTypes",
+      "NotificationUpdate",
       "PageOptions",
       "Rendered",
       "RenderedText",

@@ -3,6 +3,11 @@ import type { ModuleContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
+import {
+  changedJson,
+  integerMutations,
+  itemJson,
+} from "./notifications-items.ts";
 import { readers } from "./notifications-readers.ts";
 import { hasAvatarPath } from "./profiles.ts";
 
@@ -400,40 +405,6 @@ revoke execute on function ${ctx.fn("notify")}(jsonb) from public, anon${access 
 grant execute on function ${ctx.fn("notify")}(jsonb) to ${access ? "authenticated, " : ""}service_role;`;
 }
 
-/** The recipient's view: the event's columns next to its own state. */
-function itemJson(n: NotifyNames): string {
-  const e = (logical: string) => n.col("events", logical);
-  const r = (logical: string) => n.col("recipients", logical);
-  const pairs: [string, string][] = [
-    ["id", `rc.${r("id")}`],
-    ["event_id", `ev.${e("id")}`],
-    ["type", `ev.${e("type")}`],
-    ["data", `ev.${e("data")}`],
-    ["created_at", `rc.${r("createdAt")}`],
-    ["read_at", `rc.${r("readAt")}`],
-  ];
-  const optional: [string, string, string][] = [
-    ["tenant", "events", "tenant"],
-    ["actor_id", "events", "actor"],
-    ["subject_type", "events", "subjectType"],
-    ["subject_id", "events", "subjectId"],
-    ["subject_label", "events", "subjectLabel"],
-    ["summary", "events", "summary"],
-    ["action_path", "events", "actionPath"],
-    ["priority", "events", "priority"],
-    ["resolved_at", "recipients", "resolvedAt"],
-  ];
-  for (const [key, table, logical] of optional) {
-    if (n.has(table, logical)) {
-      pairs.push([
-        key,
-        `${table === "events" ? "ev" : "rc"}.${n.col(table, logical)}`,
-      ]);
-    }
-  }
-  return `jsonb_build_object(${pairs.map(([key, value]) => `'${key}', ${value}`).join(", ")})`;
-}
-
 function inbox(ctx: ModuleContext, n: NotifyNames): string {
   const id = ctx.idType;
   const e = (logical: string) => n.col("events", logical);
@@ -492,6 +463,7 @@ drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], tim
 drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer, uuid);
 drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer, uuid, text[], text);
 drop function if exists ${ctx.fn("notification_page")}(${id}, text, text[], text[], text, integer, integer);
+${integerMutations(ctx)}
 -- The signed-in user's notifications, newest first, without dismissed ones.
 -- status: all, unread, read${resolved ? " or unresolved" : ""}. Page with the last item's
 -- created_at and id (before, before_id).
@@ -587,64 +559,71 @@ as $$
     ${tenantFilter("notification_counts")}
 $$;
 
-create or replace function ${ctx.fn("mark_notifications_unread")}(ids uuid[], tenant ${id} default null)
-returns integer
-language plpgsql
+create or replace function ${ctx.fn("get_notification")}(id uuid)
+returns jsonb
+language sql
+stable
 security definer
 set search_path = ''
 as $$
-declare
-  changed integer;
-begin
-  update ${n.table("recipients")} rc set ${r("readAt")} = null
-  where rc.${r("user")} = auth.uid()
-    and rc.${r("readAt")} is not null
-    and rc.${r("dismissedAt")} is null
-    and rc.${r("id")} = any(mark_notifications_unread.ids)
-    ${tenantFilter("mark_notifications_unread")};
-  get diagnostics changed = row_count;
-  return changed;
-end;
+  select ${itemJson(n)}
+  from ${n.table("recipients")} rc
+  join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
+  where rc.${r("id")} = get_notification.id
+    and rc.${r("user")} = auth.uid()
 $$;
 
--- Marks the given notifications, or all of them, read. Returns how many changed.
-create or replace function ${ctx.fn("mark_notifications_read")}(ids uuid[] default null, tenant ${id} default null)
-returns integer
-language plpgsql
+create or replace function ${ctx.fn("mark_notifications_unread")}(ids uuid[], tenant ${id} default null)
+returns jsonb
+language sql
 security definer
 set search_path = ''
 as $$
-declare
-  changed integer;
-begin
-  update ${n.table("recipients")} rc set ${r("readAt")} = now()
-  where rc.${r("user")} = auth.uid()
-    and rc.${r("readAt")} is null
-    and rc.${r("dismissedAt")} is null
-    and (mark_notifications_read.ids is null or rc.${r("id")} = any(mark_notifications_read.ids))
-    ${tenantFilter("mark_notifications_read")};
-  get diagnostics changed = row_count;
-  return changed;
-end;
+  with rc as (
+    update ${n.table("recipients")} rc set ${r("readAt")} = null
+    where rc.${r("user")} = auth.uid()
+      and rc.${r("readAt")} is not null
+      and rc.${r("dismissedAt")} is null
+      and rc.${r("id")} = any(mark_notifications_unread.ids)
+      ${tenantFilter("mark_notifications_unread")}
+    returning rc.*
+  )
+  ${changedJson(n)}
+$$;
+
+create or replace function ${ctx.fn("mark_notifications_read")}(ids uuid[] default null, tenant ${id} default null)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  with rc as (
+    update ${n.table("recipients")} rc set ${r("readAt")} = now()
+    where rc.${r("user")} = auth.uid()
+      and rc.${r("readAt")} is null
+      and rc.${r("dismissedAt")} is null
+      and (mark_notifications_read.ids is null or rc.${r("id")} = any(mark_notifications_read.ids))
+      ${tenantFilter("mark_notifications_read")}
+    returning rc.*
+  )
+  ${changedJson(n)}
 $$;
 
 create or replace function ${ctx.fn("dismiss_notifications")}(ids uuid[])
-returns integer
-language plpgsql
+returns jsonb
+language sql
 security definer
 set search_path = ''
 as $$
-declare
-  changed integer;
-begin
-  update ${n.table("recipients")} rc
-  set ${r("dismissedAt")} = now(), ${r("readAt")} = coalesce(rc.${r("readAt")}, now())
-  where rc.${r("user")} = auth.uid()
-    and rc.${r("dismissedAt")} is null
-    and rc.${r("id")} = any(dismiss_notifications.ids);
-  get diagnostics changed = row_count;
-  return changed;
-end;
+  with rc as (
+    update ${n.table("recipients")} rc
+    set ${r("dismissedAt")} = now(), ${r("readAt")} = coalesce(rc.${r("readAt")}, now())
+    where rc.${r("user")} = auth.uid()
+      and rc.${r("dismissedAt")} is null
+      and rc.${r("id")} = any(dismiss_notifications.ids)
+    returning rc.*
+  )
+  ${changedJson(n)}
 $$;`,
   ];
   const grants = [
@@ -654,6 +633,7 @@ $$;`,
     `mark_notifications_unread(uuid[], ${id})`,
     `mark_notifications_read(uuid[], ${id})`,
     "dismiss_notifications(uuid[])",
+    "get_notification(uuid)",
   ];
   if (
     resolved &&
@@ -670,29 +650,32 @@ $$;`,
 -- Marks every recipient's notification of this type about this subject
 -- resolved (and read), e.g. once the approval it asked for is given.
 create or replace function ${ctx.fn("resolve_notifications")}(type text, subject_type text, subject_id text, tenant ${id} default null)
-returns integer
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  changed integer;
+  v_changed jsonb;
 begin
   if not (${allowed}) then
     ${fail("NOTIFICATION_FORBIDDEN", "Not allowed to resolve notifications here")}
   end if;
-  update ${n.table("recipients")} rc
-  set ${r("resolvedAt")} = now(), ${r("readAt")} = coalesce(rc.${r("readAt")}, now())
-  from ${n.table("events")} ev
-  where ev.${e("id")} = rc.${r("event")}
-    and ev.${e("type")} = resolve_notifications.type
-    and ev.${e("subjectType")} = resolve_notifications.subject_type
-    and ev.${e("subjectId")} = resolve_notifications.subject_id
-    ${tenantMatch}
-    and rc.${r("resolvedAt")} is null
-    and rc.${r("dismissedAt")} is null;
-  get diagnostics changed = row_count;
-  return changed;
+  with rc as (
+    update ${n.table("recipients")} rc
+    set ${r("resolvedAt")} = now(), ${r("readAt")} = coalesce(rc.${r("readAt")}, now())
+    from ${n.table("events")} ev
+    where ev.${e("id")} = rc.${r("event")}
+      and ev.${e("type")} = resolve_notifications.type
+      and ev.${e("subjectType")} = resolve_notifications.subject_type
+      and ev.${e("subjectId")} = resolve_notifications.subject_id
+      ${tenantMatch}
+      and rc.${r("resolvedAt")} is null
+      and rc.${r("dismissedAt")} is null
+    returning rc.*
+  )
+  ${changedJson(n)} into v_changed;
+  return v_changed;
 end;
 $$;`);
     grants.push(`resolve_notifications(text, text, text, ${id})`);

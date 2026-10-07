@@ -17,6 +17,7 @@ export type {
   NotificationPreference,
   NotificationSubscription,
   NotificationTypes,
+  NotificationUpdate,
   Notifications,
   NotificationsOptions,
   PageOptions,

@@ -96,13 +96,29 @@ const items = await notifications
 const { unread, actionable } = await notifications
   .counts({ tenant: organizationId })
   .orThrow();
-await notifications.markRead({ ids: [items[0].id] });
+const one = await notifications.get(items[0].id).orThrow();
+const { count, items: changed } = await notifications
+  .markRead({ ids: [items[0].id] })
+  .orThrow();
 await notifications.dismiss([items[0].id]);
 await notifications.resolve({
   type: "approval.requested",
   subject: { type: "invoice", id },
 });
 ```
+
+`get(id, { locale?, include? })` reads one of the caller's notifications by
+its recipient row id, dismissed ones included, rendered like a list item, or
+`null` when the caller has no such notification. It calls
+`get_notification(id)`.
+
+`markRead`, `markUnread`, `dismiss` and `resolve` return `{ count, items }`:
+how many rows changed, and the caller's own notifications as they are after
+the change, so an app can update its state without reading them back. For
+`resolve`, `count` covers every recipient and `items` holds only the
+caller's own copies, which is empty for the service. The SQL functions
+return the same object as `jsonb`, with each item in the shape that
+`list_notifications` returns.
 
 `list` pages with `before` and `limit` (50 by default, at most 200). Pass the
 last item of the previous page as `before`: the block orders by `created_at`
@@ -154,8 +170,8 @@ the cheaper choice for an infinite scroll.
 ### Unread again and counts
 
 `markUnread({ ids, tenant? })` clears the read time of the caller's own
-notifications, so a reader can keep one for later. It returns how many
-changed and leaves dismissed notifications alone.
+notifications, so a reader can keep one for later. It returns the count and
+the changed notifications and leaves dismissed notifications alone.
 
 `counts()` returns `unread`, `actionable` (unresolved notifications of the
 `actionable` types) and `actionableSubjects`, which counts each subject

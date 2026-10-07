@@ -130,6 +130,11 @@ export type AvatarUrls =
   | { readonly url: string; readonly bucket: string }
   | ((path: string) => string | null);
 
+export interface NotificationUpdate {
+  readonly count: number;
+  readonly items: readonly NotificationItem[];
+}
+
 export interface NotificationCounts {
   readonly unread: number;
   /** Unresolved notifications of the `actionable` types. */
@@ -226,6 +231,10 @@ export interface Notifications<K extends NotificationTypes> {
     type: N,
     input: SendInput<StandardSchemaV1.InferInput<K[N]>>,
   ): AsyncResult<string | null>;
+  get(
+    id: string,
+    options?: Pick<ListOptions, "locale" | "include">,
+  ): AsyncResult<Rendered<TypeName<K>> | null>;
   list(
     options?: ListOptions<TypeName<K>>,
   ): AsyncResult<readonly Rendered<TypeName<K>>[]>;
@@ -239,18 +248,18 @@ export interface Notifications<K extends NotificationTypes> {
   markRead(options?: {
     readonly ids?: readonly string[];
     readonly tenant?: string;
-  }): AsyncResult<number>;
+  }): AsyncResult<NotificationUpdate>;
   markUnread(options: {
     readonly ids: readonly string[];
     readonly tenant?: string;
-  }): AsyncResult<number>;
-  dismiss(ids: readonly string[]): AsyncResult<number>;
+  }): AsyncResult<NotificationUpdate>;
+  dismiss(ids: readonly string[]): AsyncResult<NotificationUpdate>;
   /** Resolves every recipient's notification of a type about a subject. */
   resolve(input: {
     readonly type: TypeName<K>;
     readonly subject: NotificationSubject;
     readonly tenant?: string;
-  }): AsyncResult<number>;
+  }): AsyncResult<NotificationUpdate>;
   /** Sets the user's level for a subject; `null` removes it. */
   subscribe(input: {
     readonly subject: NotificationSubject;
@@ -458,6 +467,11 @@ export function createNotifications<
   const itemsOf = (value: unknown): NotificationItem[] =>
     (Array.isArray(value) ? value : []).filter(isRecord).map(toItem);
 
+  const updateOf = (value: unknown): NotificationUpdate => ({
+    count: Number(isRecord(value) ? (value["count"] ?? 0) : 0),
+    items: itemsOf(isRecord(value) ? value["items"] : []),
+  });
+
   const decorate = (
     items: readonly NotificationItem[],
     listOptions: Pick<ListOptions, "locale" | "include">,
@@ -612,6 +626,15 @@ export function createNotifications<
         return sent;
       });
     },
+    get(id, getOptions = {}) {
+      return run("get_notification", { id }, (value) =>
+        isRecord(value) ? toItem(value) : null,
+      ).andThen((item) =>
+        item === null
+          ? AsyncResult.ok(null)
+          : decorate([item], getOptions).map((items) => items[0] ?? null),
+      );
+    },
     list(listOptions = {}) {
       return run(
         "list_notifications",
@@ -662,18 +685,18 @@ export function createNotifications<
       return run(
         "mark_notifications_read",
         { ids: readOptions.ids ?? null, tenant: readOptions.tenant ?? null },
-        Number,
+        updateOf,
       );
     },
     markUnread(unreadOptions) {
       return run(
         "mark_notifications_unread",
         { ids: unreadOptions.ids, tenant: unreadOptions.tenant ?? null },
-        Number,
+        updateOf,
       );
     },
     dismiss(ids) {
-      return run("dismiss_notifications", { ids }, Number);
+      return run("dismiss_notifications", { ids }, updateOf);
     },
     resolve(input) {
       return run(
@@ -684,7 +707,7 @@ export function createNotifications<
           subject_id: input.subject.id,
           tenant: input.tenant ?? null,
         },
-        Number,
+        updateOf,
       );
     },
     subscribe(input) {

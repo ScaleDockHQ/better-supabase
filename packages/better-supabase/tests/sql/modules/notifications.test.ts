@@ -184,6 +184,7 @@ describe("notifications module", () => {
     const [contract] = customContracts(["notifications"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "notify",
+      "get_notification",
       "notification_enabled",
       "list_notifications",
       "notification_page",
@@ -209,7 +210,34 @@ describe("notifications module", () => {
         },
       },
     });
-    expect(minimal!.functions).toHaveLength(9);
+    expect(minimal!.functions).toHaveLength(10);
+  });
+
+  it("reads one notification and returns the changed ones from each update", () => {
+    const sql = body();
+    expect(sql).toContain(
+      `create or replace function "better_supabase"."get_notification"(id uuid)`,
+    );
+    expect(sql).toContain(
+      `where rc."id" = get_notification.id\n    and rc."user_id" = auth.uid()`,
+    );
+    for (const fn of [
+      "mark_notifications_read",
+      "mark_notifications_unread",
+      "dismiss_notifications",
+      "resolve_notifications",
+    ]) {
+      expect(sql).toMatch(
+        new RegExp(
+          `function "better_supabase"\\."${fn}"\\([^)]*\\)\\nreturns jsonb`,
+        ),
+      );
+      expect(sql).toContain(
+        `drop function if exists "better_supabase"."${fn}"(`,
+      );
+    }
+    expect(sql).toContain(`filter (where rc."user_id" = auth.uid()), '[]')`);
+    expect(sql).toContain(`rc."event_id" into v_changed;`);
   });
 
   it("pages, searches, filters by subject type and reads the caller's settings", () => {

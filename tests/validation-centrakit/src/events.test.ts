@@ -117,7 +117,7 @@ describe.skipIf(!live)(
         });
         expect(
           await notifications.markRead({ tenant: organization }).orThrow(),
-        ).toBe(1);
+        ).toMatchObject({ count: 1, items: [{ eventId: id }] });
 
         await s.as("service");
         expect(await notifications.deliver()).toEqual({

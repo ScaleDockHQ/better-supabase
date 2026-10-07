@@ -9,6 +9,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble, tenantIn, updatedAt } from "../shared.ts";
 import { accessModel } from "./access-model.ts";
 import { permdockForUser } from "./access.ts";
+import { integerMutations } from "./notifications-items.ts";
 import {
   functions,
   type NotifyNames,
@@ -485,6 +486,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const fns: ModuleContractFunction[] = [
     { name: "notify", args: ["jsonb"], returns: "uuid" },
+    { name: "get_notification", args: ["uuid"], returns: "jsonb" },
     {
       name: "notification_enabled",
       args: ["uuid", "{id}", "text", "text"],
@@ -531,14 +533,14 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     {
       name: "mark_notifications_read",
       args: ["uuid[]", "{id}"],
-      returns: "integer",
+      returns: "jsonb",
     },
     {
       name: "mark_notifications_unread",
       args: ["uuid[]", "{id}"],
-      returns: "integer",
+      returns: "jsonb",
     },
-    { name: "dismiss_notifications", args: ["uuid[]"], returns: "integer" },
+    { name: "dismiss_notifications", args: ["uuid[]"], returns: "jsonb" },
     {
       name: "purge_notifications",
       args: ["interval", "integer"],
@@ -549,7 +551,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     fns.push({
       name: "resolve_notifications",
       args: ["text", "text", "text", "{id}"],
-      returns: "integer",
+      returns: "jsonb",
     });
   }
   if (ctx.hasTable("subscriptions")) {
@@ -625,11 +627,12 @@ export const NOTIFICATIONS: ModuleDefinition = {
     {
       from: 3,
       description:
-        "list_notifications and notification_page filter on read, resolved and dismissed.",
+        "list_notifications and notification_page filter on read, resolved and dismissed; mark_notifications_read, mark_notifications_unread, dismiss_notifications and resolve_notifications return the count and the caller's changed notifications; get_notification is new.",
       sql: (ctx) =>
         [
           `drop function if exists ${ctx.fn("list_notifications")}(${ctx.idType}, text, text[], timestamptz, integer, uuid, text[], text);`,
           `drop function if exists ${ctx.fn("notification_page")}(${ctx.idType}, text, text[], text[], text, integer, integer);`,
+          integerMutations(ctx),
         ].join("\n"),
     },
   ],
