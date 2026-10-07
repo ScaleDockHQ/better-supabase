@@ -163,7 +163,7 @@ hosted Supabase runs Postgres 18
 ([supabase/postgres#2051](https://github.com/supabase/postgres/pull/2051)).
 
 Errors raised by the modules carry a stable code in the `hint` field, for example
-`SLUG_RESERVED`, `SLUG_INVALID`, `INVITATION_INVALID`,
+`SLUG_RESERVED`, `SLUG_INVALID`, `INVITATION_INVALID`, `INVITATION_EXPIRED`,
 `INVITATION_ROLE_FORBIDDEN` or `INVITATION_EMAIL_UNCONFIRMED`. They come back as
 typed `DbError`s through the repository.
 

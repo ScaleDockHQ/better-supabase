@@ -334,7 +334,7 @@ must not belong to a member (`INVITATION_ALREADY_MEMBER`). Another open
 invitation for the new address is replaced. The token and expiry stay, so
 the link already sent keeps working: call `resend_invitation` to mail a new
 link to a changed address. An expired invitation is refused with
-`INVITATION_INVALID`, as accept refuses it; call `resend_invitation` first
+`INVITATION_EXPIRED`, as accept refuses it; call `resend_invitation` first
 to renew its expiry, then edit it. It returns the invitation without its token and
 emits `invitation.updated`. In TypeScript:
 
@@ -427,9 +427,23 @@ In TypeScript, `previewInvitation(token)` returns the keys the hook added in
 | `ORGANIZATION_SLUG_INVALID`, `ORGANIZATION_SLUG_RESERVED`, `ORGANIZATION_SLUG_TAKEN` | the slug can't be used                             |
 | `INVITATION_FORBIDDEN`, `INVITATION_ROLE_FORBIDDEN`                                  | the caller may not invite, or not with that role   |
 | `INVITATION_ROLE_UNKNOWN`, `INVITATION_ALREADY_MEMBER`                               | no such role, or the address is already a member   |
-| `INVITATION_INVALID`                                                                 | unknown, used, revoked or expired token            |
+| `INVITATION_INVALID`                                                                 | unknown, accepted, declined or revoked invitation  |
+| `INVITATION_EXPIRED`                                                                 | an open invitation past its expiry: resend it      |
 | `INVITATION_VALIDITY`                                                                | `valid_for` is not positive or above `maxValidFor` |
 | `INVITATION_SIGN_IN`, `INVITATION_EMAIL_MISMATCH`                                    | not signed in, or signed in with another address   |
 | `INVITATION_EMAIL_UNCONFIRMED`                                                       | the address is not confirmed yet                   |
 | `INVITATION_SELF`, `INVITATION_INVITER_REVOKED`                                      | your own invitation, or the inviter lost the right |
 | `INVITATION_SCOPE_UNSUPPORTED`                                                       | a platform invitation without platform roles       |
+
+`INVITATION_EXPIRED` and `INVITATION_INVALID` share the SQLSTATE `P0002`, so
+code that checks only the SQLSTATE sees no change; check the `hint` to tell
+an expired invitation, which `resend_invitation` renews, from one that is
+gone. In TypeScript, `InvitationErrorHint` lists the invitation codes, and a
+failed call carries one as `error.hint`:
+
+```ts
+const accepted = await organizations.acceptInvitation(token);
+if (!accepted.ok && accepted.error.hint === "INVITATION_EXPIRED") {
+  // Ask the organization to resend the invitation.
+}
+```

@@ -949,6 +949,7 @@
       "CreateOrganizationOptions",
       "Invitation",
       "InvitationChanges",
+      "InvitationErrorHint",
       "InvitationPreview",
       "InvitationSent",
       "InvitationStatus",

@@ -8,6 +8,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
+import type { InvitationError } from "../../sql/modules/invitations-tables.ts";
 
 import { emitBlockEvent } from "../../core/block-events.ts";
 import { rawError } from "../../core/block-transport.ts";
@@ -147,9 +148,16 @@ export interface OrganizationsOptions extends BlockTemporalOptions {
 }
 
 /**
+ * The `hint` of an invitation error: `INVITATION_EXPIRED` for an open
+ * invitation past its expiry, `INVITATION_INVALID` for one that is unknown,
+ * accepted, declined or revoked, and the other `INVITATION_*` codes.
+ */
+export type InvitationErrorHint = InvitationError;
+
+/**
  * The `organizations` and `invitations` SQL modules as typed calls. Each
  * method returns an `AsyncResult`; database errors carry the module's error
- * code (`ORGANIZATION_FORBIDDEN`, `INVITATION_INVALID`) as `hint`.
+ * code (`ORGANIZATION_FORBIDDEN`, `INVITATION_EXPIRED`) as `hint`.
  */
 export interface Organizations {
   create(
@@ -191,7 +199,7 @@ export interface Organizations {
    * A new email, role or prefill for an open invitation, with the checks
    * `invite` makes. The token and expiry stay, so the link already sent
    * keeps working; call `resendInvitation` to mail the new address. An
-   * expired invitation fails with `INVITATION_INVALID`; resend it first.
+   * expired invitation fails with `INVITATION_EXPIRED`; resend it first.
    */
   updateInvitation(
     invitationId: string,
