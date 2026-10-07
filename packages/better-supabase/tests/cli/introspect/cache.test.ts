@@ -16,6 +16,7 @@ import type { Snapshot } from "../../../src/cli/introspect/types.ts";
 
 import {
   CACHE_DIR,
+  cachedDatabaseTypes,
   cachedIntrospect,
   writeAtomic,
 } from "../../../src/cli/introspect/cache.ts";
@@ -136,6 +137,22 @@ describe("cachedIntrospect", () => {
         .digest("hex");
     expect(entry.key).toBe(key(TYPEGEN_VERSION));
     expect(entry.key).not.toBe(key("0.0.0"));
+  });
+});
+
+describe("cachedDatabaseTypes", () => {
+  it("reuses the output for the same inputs and renders again for others", async () => {
+    let calls = 0;
+    const produce = () => {
+      calls += 1;
+      return Promise.resolve(`types ${calls}`);
+    };
+    expect(await cachedDatabaseTypes(root, ["a"], produce)).toBe("types 1");
+    expect(await cachedDatabaseTypes(root, ["a"], produce)).toBe("types 1");
+    expect(await cachedDatabaseTypes(root, ["b"], produce)).toBe("types 2");
+    await writeFile(join(root, CACHE_DIR, "database-types.json"), "{");
+    expect(await cachedDatabaseTypes(root, ["b"], produce)).toBe("types 3");
+    expect(calls).toBe(3);
   });
 });
 

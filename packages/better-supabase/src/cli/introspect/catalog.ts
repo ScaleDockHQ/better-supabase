@@ -61,19 +61,21 @@ function toColumn(column: PostgresColumn): CatalogColumn {
 
 function toFunction(
   fn: PostgresFunction,
-  typeName: (id: number) => string | undefined,
+  typeOf: (id: number) => { name: string; schema: string } | undefined,
   relationName: (id: number | null) => string | null,
 ): CatalogFunction {
   const args: CatalogFunction["args"][number][] = [];
   const table: { name: string; udt: string }[] = [];
   fn.args.forEach((arg, index) => {
-    const raw = typeName(arg.type_id) ?? "unknown";
+    const type = typeOf(arg.type_id);
+    const raw = type?.name ?? "unknown";
     const name = arg.name || `arg${index + 1}`;
     if (arg.mode === "in" || arg.mode === "inout" || arg.mode === "variadic") {
       const isArray = raw.startsWith("_");
       args.push({
         name,
         udt: isArray ? raw.slice(1) : raw,
+        ...(type ? { typeSchema: type.schema } : {}),
         isArray,
         hasDefault: arg.has_default === true,
       });
@@ -88,7 +90,7 @@ function toFunction(
     signature: fn.identity_argument_types,
     args,
     returnsTable: fn.args.some((arg) => arg.mode === "table") ? table : null,
-    returns: typeName(fn.return_type_id) ?? fn.return_type,
+    returns: typeOf(fn.return_type_id)?.name ?? fn.return_type,
     returnsRelation: relationName(fn.return_type_relation_id),
     returnsSet: fn.is_set_returning_function,
     // SAFETY: typegen reports behavior as IMMUTABLE, STABLE or VOLATILE, so the
@@ -262,12 +264,12 @@ export function toCatalog(snapshot: Snapshot): Catalog {
     }))
     .sort(byName);
 
-  const typeNames = new Map(meta.types.map((type) => [type.id, type.name]));
+  const types = new Map(meta.types.map((type) => [type.id, type]));
   const functions = meta.functions
     .map((fn) =>
       toFunction(
         fn,
-        (id) => typeNames.get(id),
+        (id) => types.get(id),
         (id) => (id === null ? null : (relationNames.get(id) ?? null)),
       ),
     )

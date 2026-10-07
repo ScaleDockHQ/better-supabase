@@ -502,6 +502,17 @@ Doctor checks the env files when the sources export route handlers, a
 `runtime`, a `fetch` handler or `Deno.serve`, or an env file sets `VERCEL`
 variables. The message names the variable, never its value.
 
+### BS222
+
+**Warning: column that can exceed a JavaScript number.** `int8` and `numeric`
+decode as `number` by default, which matches `supabase gen types`, but a
+`number` loses precision past 2^53 (about 15 to 17 significant digits). Doctor
+reports `int8` identity and sequence columns, which keep growing toward that
+limit, and `numeric` columns, which usually hold exact amounts. Set
+`codecs.int8` to `"bigint"` or `"string"`, or `codecs.numeric` to `"string"`,
+in `better-supabase.config.ts` ([codecs](/docs/cli/config#options)), or add BS222
+to `doctor.ignore` when the values stay small.
+
 ## Drift
 
 ### BS301

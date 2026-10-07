@@ -5,6 +5,7 @@ import type {
 } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { configFor } from "../gen/shared.ts";
 import { splinterTables } from "./advisor-rules.ts";
 import { escape, withoutStrings } from "./rls.ts";
 import { catalogOf, exposed, qualified, tableObject } from "./shared.ts";
@@ -237,6 +238,45 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
           ];
         }),
       );
+    },
+  },
+  {
+    code: "BS222",
+    severity: "warning",
+    title: "Column that can exceed a JavaScript number",
+    description:
+      "`int8` and `numeric` decode as `number` by default, which matches `supabase gen types` but loses precision past 2^53 (or 15 to 17 significant digits). An `int8` identity or sequence keeps growing toward that limit, and `numeric` usually holds exact amounts. Set `codecs.int8` to `bigint` or `string`, or `codecs.numeric` to `string`.",
+    check: (context) => {
+      const { int8, numeric } = context.config.codecs;
+      if (int8 !== "number" && numeric !== "number") return [];
+      return exposed(context).flatMap((table): FindingInput[] => {
+        if (configFor(context.config.tables, table.schema, table.name)?.exclude)
+          return [];
+        const columns = table.columns.filter((column) =>
+          column.udt === "int8"
+            ? int8 === "number" &&
+              !column.isArray &&
+              (column.identity !== null ||
+                (column.default?.includes("nextval(") ?? false))
+            : column.udt === "numeric" && numeric === "number",
+        );
+        if (columns.length === 0) return [];
+        const codecs = [
+          ...(columns.some((column) => column.udt === "int8")
+            ? ['`int8: "bigint"`']
+            : []),
+          ...(columns.some((column) => column.udt === "numeric")
+            ? ['`numeric: "string"`']
+            : []),
+        ];
+        return [
+          {
+            message: `${qualified(table)} ${columns.map((column) => `${column.name} (${column.udt})`).join(", ")} decode as number and lose precision past 2^53. Set ${codecs.join(" and ")} in \`codecs\`.`,
+            target: qualified(table),
+            object: tableObject(table),
+          },
+        ];
+      });
     },
   },
 ];
