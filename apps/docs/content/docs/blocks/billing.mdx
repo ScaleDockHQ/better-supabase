@@ -282,7 +282,7 @@ await billing.addTaxId(organizationId, {
   value: "DE123456789",
 });
 const taxIds = await billing.taxIds(organizationId).orThrow();
-// [{ id, type, value, country, verification }]
+// [{ id, type, value, country, verification, created }]
 ```
 
 They need `customers.listTaxIds`, `createTaxId` and `deleteTaxId` on the
@@ -292,8 +292,9 @@ Stripe client, which the `stripe` package has. Guard them with your own
 `taxIds(organizationId, { from: "sync" })` reads the Sync Engine's
 `stripe.tax_ids` instead, without a Stripe call, through
 `billing_tax_ids(tenant)`. That function checks `billing.read` (or platform
-staff) itself and returns the same shape, newest first, so SQL can use it
-too, for example in an admin list:
+staff) itself and returns the same shape, newest first, with `created` in
+epoch seconds as Stripe reports it (`null` when the row has none), so SQL
+can use it too, for example in an admin list:
 
 ```sql
 select t ->> 'type' as type, t ->> 'value' as value,

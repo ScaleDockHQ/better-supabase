@@ -311,6 +311,7 @@ describe.skipIf(!live)("billing", () => {
           value: "GB123456789",
           country: "GB",
           verification: null,
+          created: 2,
         },
         {
           id: "txi_bs_1",
@@ -318,6 +319,7 @@ describe.skipIf(!live)("billing", () => {
           value: "DE123456789",
           country: "DE",
           verification: { status: "verified" },
+          created: 1,
         },
       ]);
       await s.asRole(member);

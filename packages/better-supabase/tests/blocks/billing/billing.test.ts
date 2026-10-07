@@ -766,6 +766,13 @@ describe("createBilling", () => {
               created: 1,
             },
             { id: "txi_2", type: "gb_vat", value: "GB1", country: null },
+            {
+              id: "txi_3",
+              type: "us_ein",
+              value: "12-3456789",
+              created: "1767225600",
+            },
+            { id: "txi_4", type: "us_ein", value: "1", created: true },
             "junk",
           ]
         : null,
@@ -778,6 +785,7 @@ describe("createBilling", () => {
         value: "DE123456789",
         country: "DE",
         verification: { status: "verified" },
+        created: 1,
       },
       {
         id: "txi_2",
@@ -785,6 +793,23 @@ describe("createBilling", () => {
         value: "GB1",
         country: null,
         verification: null,
+        created: null,
+      },
+      {
+        id: "txi_3",
+        type: "us_ein",
+        value: "12-3456789",
+        country: null,
+        verification: null,
+        created: 1_767_225_600,
+      },
+      {
+        id: "txi_4",
+        type: "us_ein",
+        value: "1",
+        country: null,
+        verification: null,
+        created: null,
       },
     ]);
     expect(t.calls).toEqual([["billing_tax_ids", { tenant: "org" }]]);
