@@ -2718,6 +2718,40 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         user_agent: "request-agent",
         session_id: "s-1",
       });
+      const restrictedRows = async (sql: string) => {
+        const { rows } = await client.query<{ id: string }>(
+          `select ${sql} as id`,
+        );
+        const { rows: details } = await client.query(
+          `select host(r.ip_address) as ip, r.user_agent, r.session_id, r.metadata
+           from better_supabase.audit_events_restricted r where r.entry_id = $1::bigint`,
+          [rows[0]!.id],
+        );
+        return details;
+      };
+      await client.query(
+        `select set_config('request.jwt.claims', '{"role": "service_role", "session_id": "server"}', true)`,
+      );
+      expect(
+        await restrictedRows("better_supabase.audit_event('job.started')"),
+      ).toEqual([]);
+      expect(
+        await restrictedRows(
+          "better_supabase.audit_event('job.started', restricted => '{}', user_agent => '')",
+        ),
+      ).toEqual([]);
+      expect(
+        await restrictedRows(
+          `better_supabase.audit_event('job.started', restricted => '{"card": "4242"}')`,
+        ),
+      ).toEqual([
+        {
+          ip: null,
+          user_agent: null,
+          session_id: null,
+          metadata: { card: "4242" },
+        },
+      ]);
     } finally {
       await client.query("rollback");
       client.release();

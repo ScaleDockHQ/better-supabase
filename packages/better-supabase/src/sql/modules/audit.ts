@@ -18,6 +18,7 @@ import {
   storedMetadata,
 } from "./audit-metadata.ts";
 import { REGISTER } from "./audit-register.ts";
+import { retention } from "./audit-retention.ts";
 import { auditTests } from "./audit-tests.ts";
 import { auditWrite, tenantLabel } from "./audit-values.ts";
 
@@ -359,6 +360,22 @@ function restrictedInsert(
   values (${kept.map(([, value]) => value).join(", ")});`;
 }
 
+/** `audit_event`'s restricted row, skipped when every restricted value is empty. */
+function eventRestricted(ctx: ModuleContext, restricted: boolean): string {
+  const insert = restrictedInsert(ctx, restricted, {
+    old: "null",
+    new: "null",
+    metadata: "coalesce(restricted, '{}')",
+    ip: "ip",
+    userAgent: "user_agent",
+    sessionId: "session_id",
+  });
+  if (insert === "") return "";
+  return `
+  if coalesce(restricted, '{}') <> '{}' or ip is not null or nullif(user_agent, '') is not null or nullif(session_id, '') is not null then${insert.replaceAll("\n  ", "\n    ")}
+  end if;`;
+}
+
 function triggerFunction(
   ctx: ModuleContext,
   tenantColumn: string,
@@ -577,9 +594,11 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
   return `-- Records a semantic app event (invoice.sent, member.invited) next to the
 -- row changes. A repeated idempotency_key returns the first entry's id.
 -- actor_id, actor_kind, actor_label, ip, user_agent, session_id, request_id
--- and scope are honoured for the service role and direct admin connections;
--- everyone else gets auth.uid() and the request's own values. restricted goes to the restricted table;
--- without that table, passing it fails instead of dropping the details.
+-- and scope are honoured for the service role and direct admin connections,
+-- which never get the request's own address, user agent or session; everyone
+-- else gets auth.uid() and the request's own values. restricted goes to the
+-- restricted table, with no row when every restricted value is empty; without
+-- that table, passing it fails instead of dropping the details.
 drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid);
 ${PREVIOUS_EVENT_ARGS(id)
   .map(
@@ -623,14 +642,14 @@ begin${noRestricted}
     actor_id := auth.uid();
     actor_kind := null;
     actor_label := null;
-    ip := null;
-    user_agent := null;
-    session_id := null;
+    ip := ${restricted ? "better_supabase.request_ip()" : "null"};
+    user_agent := ${restricted ? requestHeader("user-agent") : "null"};
+    session_id := ${restricted ? "auth.jwt() ->> 'session_id'" : "null"};
     request_id := null;
     scope := null;
   elsif actor_id is null then
     actor_id := auth.uid();
-  end if;${idempotent}${eventInsert(ctx, insert, extra)}${restrictedInsert(ctx, restricted, { old: "null", new: "null", metadata: "coalesce(restricted, '{}')", ip: "coalesce(ip, better_supabase.request_ip())", userAgent: `coalesce(user_agent, ${requestHeader("user-agent")})`, sessionId: "coalesce(session_id, auth.jwt() ->> 'session_id')" })}
+  end if;${idempotent}${eventInsert(ctx, insert, extra)}${eventRestricted(ctx, restricted)}
   return entry_id::text;
 end;
 $$;
@@ -746,86 +765,6 @@ ${
 grant select (${readable.join(", ")}) on ${log} to authenticated;`
     : `grant select on ${log} to authenticated;`
 }`;
-}
-
-function retention(ctx: ModuleContext): string {
-  const log = ctx.table("log");
-  const c = (logical: string) => ctx.col("log", logical);
-  const id = ctx.idType;
-  const hook = ctx.hookTarget("audit_retention");
-  const signature = sqlString(`${hook}(${id})`);
-  return `-- Deletes up to batch entries older than older_than and returns how many.
--- With an audit_retention(tenant) function, each tenant keeps its own
--- interval (a plan's days, say); null falls back to older_than. With
--- for_tenant, only entries of tenant (null: entries without one).
--- Nightly with pg_cron or the jobs drain route:
---   select better_supabase.purge_audit_log();
-drop function if exists better_supabase.purge_audit_log(interval, integer);
-create or replace function better_supabase.purge_audit_log(
-  older_than interval default '1 year',
-  batch integer default 10000,
-  tenant ${id} default null,
-  for_tenant boolean default false
-)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  purged integer;
-begin
-  perform set_config('better_supabase.audit_purge', 'on', true);
-  if not for_tenant and to_regprocedure(${signature}) is not null then
-    -- Not a literal name, so plpgsql_check passes without the hook.
-    execute format(
-      ${sqlString(`with gone as (
-      delete from ${log}
-      where ${c("id")} in (
-        select l.${c("id")} from ${log} l
-        where l.${c("occurredAt")} < now() - coalesce(%s(l.${c("tenant")}), $1)
-        order by l.${c("occurredAt")}
-        limit $2
-      )
-      returning 1
-    )
-    select count(*)::integer from gone`)},
-      to_regprocedure(${signature})::oid::regproc
-    ) into purged using older_than, batch;
-  else
-    with gone as (
-      delete from ${log}
-      where ${c("id")} in (
-        select l.${c("id")} from ${log} l
-        where l.${c("occurredAt")} < now() - older_than
-          and (not for_tenant or l.${c("tenant")} is not distinct from purge_audit_log.tenant)
-        order by l.${c("occurredAt")}
-        limit batch
-      )
-      returning 1
-    )
-    select count(*)::integer into purged from gone;
-  end if;
-  perform set_config('better_supabase.audit_purge', 'off', true);
-  return purged;
-end;
-$$;
-revoke execute on function better_supabase.purge_audit_log(interval, integer, ${id}, boolean) from public, anon, authenticated;
-grant execute on function better_supabase.purge_audit_log(interval, integer, ${id}, boolean) to service_role;
-
--- Tenants with entries older than older_than, for a retention callback in TypeScript.
-create or replace function better_supabase.audit_events_tenants(older_than interval default '1 day')
-returns setof ${id}
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select distinct l.${c("tenant")} from ${log} l
-  where l.${c("occurredAt")} < now() - older_than
-$$;
-revoke execute on function better_supabase.audit_events_tenants(interval) from public, anon, authenticated;
-grant execute on function better_supabase.audit_events_tenants(interval) to service_role;`;
 }
 
 /** The 0.4 table name and columns, read-only, until the next minor release. */

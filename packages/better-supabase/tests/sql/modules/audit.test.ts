@@ -151,6 +151,16 @@ describe("audit module", () => {
     ).toThrow(/impersonators/);
   });
 
+  it("takes an event's restricted details from service callers' arguments only", () => {
+    const sql = audit({ options: { restricted: true } });
+    expect(sql).toContain("    ip := better_supabase.request_ip();");
+    expect(sql).toContain(
+      "if coalesce(restricted, '{}') <> '{}' or ip is not null or nullif(user_agent, '') is not null or nullif(session_id, '') is not null then",
+    );
+    expect(sql).not.toContain("coalesce(ip, better_supabase.request_ip())");
+    expect(audit()).toContain("    ip := null;");
+  });
+
   it("drops the old signatures when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "audit", version: 1 }]);
     expect(plan!.steps[0]!.sql).toContain(

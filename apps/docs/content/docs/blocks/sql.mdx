@@ -320,8 +320,13 @@ handled), `scope` (an adopted log's own value, or `tenant` and `platform`),
 and, with the restricted table, `ip`, `user_agent` and `session_id`. The function takes these only from the
 service role and direct admin connections; for any other caller it uses
 `auth.uid()`, the request's JWT and headers, so a user can't record an event
-in someone else's name. Without the restricted table, passing `ip`,
-`user_agent` or `session_id` fails with `22023`, as `restricted` does:
+in someone else's name. For the service role these three come only from
+the arguments, never from the request, so a server that calls
+`audit_event` over the Data API doesn't store its own address and user
+agent as the user's. An event whose `restricted`, `ip`, `user_agent` and
+`session_id` are all empty writes no restricted row. Without the restricted
+table, passing `ip`, `user_agent` or `session_id` fails with `22023`, as
+`restricted` does:
 
 ```sql
 select better_supabase.audit_event(
