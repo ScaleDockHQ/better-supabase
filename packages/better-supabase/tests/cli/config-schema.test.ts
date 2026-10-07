@@ -42,6 +42,29 @@ describe("configIssues", () => {
     expect(configIssues({ entitlements: { claim: false } })).toEqual([]);
   });
 
+  it("accepts column privileges in expose and rejects other strings", () => {
+    expect(
+      configIssues({
+        expose: {
+          profiles: ["select", "update(username, first_name)"],
+          notes: {
+            anon: ["select(id,title)"],
+            authenticated: ["insert(body)"],
+          },
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      configIssues({
+        expose: { profiles: ["update(username", "delete(id)", "truncate"] },
+      }),
+    ).toEqual([
+      expect.stringMatching(/^expose\.profiles\.0: /),
+      expect.stringMatching(/^expose\.profiles\.1: /),
+      expect.stringMatching(/^expose\.profiles\.2: /),
+    ]);
+  });
+
   it("names the key path of every problem", () => {
     expect(
       configIssues({

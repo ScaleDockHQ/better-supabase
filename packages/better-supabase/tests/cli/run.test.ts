@@ -559,6 +559,31 @@ describe("run", () => {
     });
   });
 
+  it("syncs a config whose expose names column privileges", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        expose: {
+          profiles: {
+            authenticated: ["select", "update(username, first_name)"],
+          },
+          notes: ["select", "insert(body)"],
+        },
+        sql: { modules: ["grants"] },
+      }),
+    );
+    const synced = await run(["sql", "sync", "--cwd", dir]);
+    expect(synced).toMatchObject({ code: 0, stderr: "" });
+    const path = /Wrote (\S+) \(grants\)/.exec(synced.stdout)?.[1];
+    const grants = await readFile(join(dir, path!), "utf8");
+    expect(grants).toContain(
+      'grant select, update ("username", "first_name") on table "public"."profiles" to authenticated;',
+    );
+    expect(grants).toContain(
+      'grant select, insert ("body") on table "public"."notes" to authenticated;',
+    );
+  });
+
   it("drops the prompter under --json, --yes and CI", async () => {
     registerCommand(
       "asks",
