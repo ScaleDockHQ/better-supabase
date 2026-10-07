@@ -575,22 +575,13 @@ export function createRepository(
     },
 
     aggregate(args: Args) {
-      return guarded(async () => {
+      return guarded<unknown>(async () => {
         const aggregation = builder.aggregation(table, args);
-        const orderBy = builder.orderBy(table, args["orderBy"]);
-        const grouped = new Set(aggregation.columns.map((c) => c.column));
-        const loose = orderBy.find(
-          (term) => term.relation !== undefined || !grouped.has(term.column),
+        const orderBy = builder.aggregateOrderBy(
+          table,
+          args["orderBy"],
+          aggregation,
         );
-        if (loose) {
-          return runner.fail(
-            table,
-            dbError(
-              "invalid_request",
-              `aggregate on "${table.key}" can only sort by groupBy columns, not "${loose.column}"`,
-            ),
-          );
-        }
         const op = selectOp(
           {
             where: args["where"],

@@ -104,17 +104,20 @@ Each facet gets its own grouped aggregate, filtered by the search, your own
 doesn't turn `lead` into 0. Enum and CHECK values with no rows show up as 0.
 Empty values are keyed `UNSET`.
 
-Each aggregate counts at most `facetLimit` values (100 by default), in column
-order. A facet with more values keeps the first `facetLimit` and its key is
-listed in `page.facetCountsTruncated`, so the UI can say the list is cut:
+Each aggregate counts at most `facetLimit` values (100 by default), the most
+frequent first, with ties in column order. A facet with more values keeps the
+`facetLimit` values that match the most rows, and its key is listed in
+`page.facetCountsTruncated`, so the UI can say the list is cut:
 
 ```ts
 page.facetCountsTruncated; // [] when every facet was counted in full
 ```
 
 This needs PostgREST aggregates (`pgrst.db_aggregates_enabled`); doctor warns
-with [BS210](/docs/cli/doctor) when they are off. If an aggregate fails, the
-whole `run` fails with its `DbError`.
+with [BS210](/docs/cli/doctor) when they are off. The counts
+[sort by `_count`](/docs/repository/aggregates#sort-groups-by-an-aggregate),
+which PostgREST can't do on a table with a column named `count`. If an
+aggregate fails, the whole `run` fails with its `DbError`.
 
 ## Request budget
 

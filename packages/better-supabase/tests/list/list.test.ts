@@ -492,11 +492,15 @@ describe("defineListQuery", () => {
       facetCounts: true,
       facetLimit: 2,
     });
-    const { client } = capturingClient((request) => {
+    const { client, requests } = capturingClient((request) => {
       const select = request.params.get("select");
       if (select?.startsWith("kvk"))
         return {
-          body: ["1", "2", "3"].map((kvk) => ({ kvk, _count: 1 })),
+          body: [
+            { kvk: "3", _count: 7 },
+            { kvk: "1", _count: 2 },
+            { kvk: "2", _count: 2 },
+          ],
         };
       if (select?.startsWith("status"))
         return { body: [{ status: "lead", _count: 4 }] };
@@ -505,8 +509,13 @@ describe("defineListQuery", () => {
     const page = await faceted
       .run(betterSupabase.connect(client), faceted.defaults)
       .orThrow();
-    expect(page.facetCounts.kvk).toEqual({ "1": 1, "2": 1 });
+    expect(page.facetCounts.kvk).toEqual({ "3": 7, "1": 2 });
     expect(page.facetCountsTruncated).toEqual(["kvk"]);
+    const kvkRequest = requests.find((request) =>
+      request.params.get("select")?.startsWith("kvk"),
+    );
+    expect(kvkRequest!.params.get("order")).toBe("count.desc,kvk.asc");
+    expect(kvkRequest!.params.get("limit")).toBe("3");
   });
 
   it("pages by cursor when pagination is cursor", async () => {

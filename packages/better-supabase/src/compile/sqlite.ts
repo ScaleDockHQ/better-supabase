@@ -393,7 +393,13 @@ class SqliteCompiler {
           unsupported(`a sort by the relation "${term.relation.name}"`, table);
         const nulls =
           term.nulls ?? (term.direction === "asc" ? "last" : "first");
-        return `${this.sortable(table, alias, term.column)} ${term.direction} nulls ${nulls}`;
+        const key =
+          term.aggregate === "count"
+            ? "count(*)"
+            : term.aggregate
+              ? `${term.aggregate}(${this.sortable(table, alias, term.column)})`
+              : this.sortable(table, alias, term.column);
+        return `${key} ${term.direction} nulls ${nulls}`;
       })
       .join(", ");
   }
