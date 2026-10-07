@@ -6,7 +6,7 @@ create table public.customers (
   status text not null default 'lead' check (status in ('lead', 'active', 'archived')),
   primary_contact_id uuid,
   metadata jsonb not null default '{}'::jsonb,
-  created_by uuid,
+  created_by uuid default auth.uid(),
   updated_by uuid,
   archived_at timestamptz,
   created_at timestamptz not null default now(),
@@ -14,6 +14,8 @@ create table public.customers (
   -- The object path in the customer-logos bucket, never a URL: signed URLs
   -- expire and public URLs pin the project host.
   logo_path text,
+  -- One way only: the softDelete plugin sets archived_at without a status.
+  constraint customers_archived_check check (status <> 'archived' or archived_at is not null),
   -- Archived customers keep their KvK number, so restoring one can't create a
   -- duplicate. The key is not partial on archived_at for that reason.
   constraint customers_organization_id_kvk_key unique (organization_id, kvk),
@@ -32,7 +34,8 @@ comment on column public.customers.kvk is 'Chamber of Commerce (KvK) number.
 
 create index customers_primary_contact_id_idx on public.customers (primary_contact_id, organization_id);
 create index customers_organization_id_created_by_idx on public.customers (organization_id, created_by);
-create index customers_organization_id_status_idx on public.customers (organization_id, status);
+-- customers_by_status filters on status and sorts by name within a tenant.
+create index customers_organization_id_status_name_idx on public.customers (organization_id, status, name);
 create index customers_active_idx on public.customers (organization_id, created_at desc)
   where archived_at is null;
 create index customers_name_trgm_idx on public.customers using gin (name extensions.gin_trgm_ops);

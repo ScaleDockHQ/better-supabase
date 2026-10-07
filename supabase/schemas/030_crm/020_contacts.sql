@@ -9,7 +9,7 @@ create table public.contacts (
   constraint contacts_id_organization_id_key unique (id, organization_id)
 );
 
-create index contacts_organization_id_idx on public.contacts (organization_id);
+create index contacts_organization_id_created_at_idx on public.contacts (organization_id, created_at desc);
 -- Lookups by email ignore case.
 create index contacts_organization_id_email_idx on public.contacts (organization_id, lower(email));
 
