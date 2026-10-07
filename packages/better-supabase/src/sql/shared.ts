@@ -424,7 +424,7 @@ $$;`;
  * gets a hash of the key, so two keys never share a name and drop each
  * other's check.
  */
-export function jsonCheckName(check: JsonSchemaCheck): string {
+function jsonCheckName(check: JsonSchemaCheck): string {
   const base = `bs_json_${check.column}`;
   if (!check.where) return base.slice(0, 63);
   const key = check.where.value;
