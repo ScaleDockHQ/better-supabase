@@ -749,26 +749,118 @@ export class IrBuilder {
           terms.push(...this.relationOrder(table, name, spec, scope));
           continue;
         }
-        const column = this.column(table, name);
-        if (spec === "asc" || spec === "desc") {
-          terms.push({ column, direction: spec });
-        } else if (isPlainObject(spec)) {
-          const direction = spec["direction"] === "desc" ? "desc" : "asc";
-          const nulls = spec["nulls"];
-          terms.push(
-            nulls === "first" || nulls === "last"
-              ? { column, direction, nulls }
-              : { column, direction },
-          );
+        terms.push(this.sortTerm(table, name, this.column(table, name), spec));
+      }
+    }
+    return terms;
+  }
+
+  /**
+   * Sort terms for `db.x.aggregate(args)`: `groupBy` columns of `grouped`,
+   * `{ _count: "desc" }` and measures such as `{ _sum: { amount: "desc" } }`.
+   */
+  aggregateOrderBy(
+    table: TableMeta,
+    input: unknown,
+    grouped: Selection,
+  ): OrderTerm[] {
+    if (input === undefined) return [];
+    const list: unknown[] = Array.isArray(input) ? input : [input];
+    const columns = new Set(grouped.columns.map((entry) => entry.column));
+    const terms: OrderTerm[] = [];
+    for (const item of list) {
+      if (!isPlainObject(item)) {
+        invalidRequest(
+          `"orderBy" on "${table.key}" must be an object`,
+          table.key,
+        );
+      }
+      for (const [name, spec] of Object.entries(item)) {
+        if (spec === undefined) continue;
+        if (
+          Object.hasOwn(table.columns, name) ||
+          Object.hasOwn(table.relations, name)
+        ) {
+          terms.push(...this.groupOrder(table, name, spec, columns));
+        } else if (name === "_count") {
+          terms.push({
+            ...this.sortTerm(table, name, "*", spec),
+            aggregate: "count",
+          });
         } else {
-          invalidRequest(
-            `Invalid sort for "${name}" on "${table.key}"`,
-            table.key,
-          );
+          terms.push(...this.measureOrder(table, name, spec));
         }
       }
     }
     return terms;
+  }
+
+  /** A sort on a column, which an aggregate allows only for `groupBy` columns. */
+  private groupOrder(
+    table: TableMeta,
+    name: string,
+    spec: unknown,
+    grouped: ReadonlySet<string>,
+  ): OrderTerm[] {
+    const terms = this.orderBy(table, { [name]: spec });
+    const loose = terms.find(
+      (term) => term.relation !== undefined || !grouped.has(term.column),
+    );
+    if (loose) {
+      invalidRequest(
+        `aggregate on "${table.key}" can only sort by groupBy columns, _count and measures, not "${loose.column}"`,
+        table.key,
+      );
+    }
+    return terms;
+  }
+
+  /** `_sum: { amount: "desc" }` in an aggregate's `orderBy`. */
+  private measureOrder(
+    table: TableMeta,
+    key: string,
+    spec: unknown,
+  ): OrderTerm[] {
+    const fn = Object.hasOwn(AGGREGATE_KEYS, key)
+      ? AGGREGATE_KEYS[key]
+      : undefined;
+    if (fn === undefined) {
+      invalidRequest(`Unknown column "${key}" on "${table.key}"`, table.key);
+    }
+    if (!isPlainObject(spec)) {
+      invalidRequest(
+        `"orderBy.${key}" on "${table.key}" must map columns to a direction`,
+        table.key,
+      );
+    }
+    const terms: OrderTerm[] = [];
+    for (const [alias, direction] of Object.entries(spec)) {
+      if (direction === undefined) continue;
+      const { column } = this.measure(table, fn, alias, alias);
+      terms.push({
+        ...this.sortTerm(table, `${key}.${alias}`, column, direction),
+        aggregate: fn,
+      });
+    }
+    return terms;
+  }
+
+  /** One sort term from `"asc"`, `"desc"` or `{ direction, nulls }`. */
+  private sortTerm(
+    table: TableMeta,
+    name: string,
+    column: string,
+    spec: unknown,
+  ): OrderTerm {
+    if (spec === "asc" || spec === "desc") return { column, direction: spec };
+    if (!isPlainObject(spec)) {
+      invalidRequest(`Invalid sort for "${name}" on "${table.key}"`, table.key);
+    }
+    const direction = spec["direction"] === "desc" ? "desc" : "asc";
+    const nulls = spec["nulls"];
+    return nulls === "first" || nulls === "last"
+      ? { column, direction, nulls }
+      : { column, direction };
   }
 
   private relationOrder(

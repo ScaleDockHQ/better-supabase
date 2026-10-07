@@ -896,6 +896,96 @@ describe("IrBuilder.aggregation", () => {
   });
 });
 
+describe("IrBuilder.aggregateOrderBy", () => {
+  const grouped = ir.aggregation(ledger, {
+    groupBy: ["bookedAt"],
+    _count: true,
+  });
+
+  it("orders by _count, measures and groupBy columns with database names", () => {
+    expect(
+      ir.aggregateOrderBy(
+        ledger,
+        [
+          { _count: "desc" },
+          { _sum: { amount: { direction: "desc", nulls: "last" } } },
+          { _avg: { amount: "asc" }, _min: { bookedAt: "asc" } },
+          { _max: { id: "desc", label: undefined } },
+          { bookedAt: "asc", _count: undefined },
+        ],
+        grouped,
+      ),
+    ).toEqual([
+      { column: "*", direction: "desc", aggregate: "count" },
+      {
+        column: "amount",
+        direction: "desc",
+        nulls: "last",
+        aggregate: "sum",
+      },
+      { column: "amount", direction: "asc", aggregate: "avg" },
+      { column: "booked_at", direction: "asc", aggregate: "min" },
+      { column: "id", direction: "desc", aggregate: "max" },
+      { column: "booked_at", direction: "asc" },
+    ]);
+  });
+
+  it("returns no terms without orderBy", () => {
+    expect(ir.aggregateOrderBy(ledger, undefined, grouped)).toEqual([]);
+  });
+
+  it.each<[string, unknown, string]>([
+    [
+      "a column outside groupBy",
+      { label: "asc" },
+      'aggregate on "ledger" can only sort by groupBy columns, _count and measures, not "label"',
+    ],
+    [
+      "a measure that isn't an object",
+      { _sum: "desc" },
+      '"orderBy._sum" on "ledger" must map columns to a direction',
+    ],
+    [
+      "_avg of a text column",
+      { _avg: { label: "desc" } },
+      '_avg needs a numeric column; "label" on "ledger" is text',
+    ],
+    [
+      "an invalid _count sort",
+      { _count: 1 },
+      'Invalid sort for "_count" on "ledger"',
+    ],
+    ["a string", "_count", '"orderBy" on "ledger" must be an object'],
+    [
+      "an unknown key",
+      { toString: "asc" },
+      'Unknown column "toString" on "ledger"',
+    ],
+  ])("rejects %s", (_name, input, message) => {
+    expect(
+      rejection(() => ir.aggregateOrderBy(ledger, input, grouped)),
+    ).toMatchObject({ message, table: "ledger" });
+  });
+
+  it("rejects a relation sort, even on a grouped column name", () => {
+    const byName = ir.aggregation(customers, {
+      groupBy: ["name"],
+      _count: true,
+    });
+    expect(
+      rejection(() =>
+        ir.aggregateOrderBy(
+          customers,
+          { organization: { name: "asc" } },
+          byName,
+        ),
+      ).message,
+    ).toBe(
+      'aggregate on "customers" can only sort by groupBy columns, _count and measures, not "name"',
+    );
+  });
+});
+
 describe("IrBuilder.orderBy", () => {
   it.each<[string, unknown, unknown[]]>([
     ["nothing", undefined, []],

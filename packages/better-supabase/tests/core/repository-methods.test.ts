@@ -297,11 +297,30 @@ describe("count, exists and aggregate", () => {
         kind: "invalid_request",
         status: 400,
         message:
-          'aggregate on "customers" can only sort by groupBy columns, not "name"',
+          'aggregate on "customers" can only sort by groupBy columns, _count and measures, not "name"',
         table: "customers",
       },
     });
     expect(ops).toHaveLength(0);
+  });
+
+  it("sorts groups by _count and measures, then by groupBy columns", async () => {
+    const { db, select } = connect(() => rowsOf([]));
+    await db.notes.aggregate({
+      groupBy: ["customerId"],
+      _count: true,
+      orderBy: [
+        { _count: "desc" },
+        { _max: { id: "desc" } },
+        { customerId: "asc" },
+      ],
+      limit: 3,
+    });
+    expect(select().orderBy).toEqual([
+      { column: "*", direction: "desc", aggregate: "count" },
+      { column: "id", direction: "desc", aggregate: "max" },
+      { column: "customer_id", direction: "asc" },
+    ]);
   });
 
   it("returns grouped rows with paging", async () => {

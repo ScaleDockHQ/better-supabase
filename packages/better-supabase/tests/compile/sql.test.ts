@@ -474,6 +474,28 @@ describe("compileSql selections", () => {
     );
   });
 
+  it("orders groups by the row count and measures", () => {
+    const selection: Selection = {
+      columns: [{ alias: "status", column: "status" }],
+      includes: [],
+      aggregate: { count: true, measures: [] },
+    };
+    expect(
+      rows(
+        select({
+          selection,
+          orderBy: [
+            { column: "*", direction: "desc", aggregate: "count" },
+            { column: "id", direction: "asc", nulls: "last", aggregate: "max" },
+            { column: "status", direction: "asc" },
+          ],
+        }),
+      ).text,
+    ).toBe(
+      `select json_build_object('status', t0."status", '_count', count(*)) as row from "public"."customers" as t0 group by t0."status" order by count(*) desc, max(t0."id") asc nulls last, t0."status" asc`,
+    );
+  });
+
   it("returns one aggregate row without grouping columns", () => {
     const selection: Selection = {
       columns: [],

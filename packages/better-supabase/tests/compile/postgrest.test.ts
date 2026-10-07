@@ -711,6 +711,73 @@ describe("compilePostgrest paging", () => {
       },
     ]);
   });
+
+  it("orders groups by the row count", () => {
+    expect(
+      plan(
+        select({
+          orderBy: [
+            { column: "*", direction: "desc", aggregate: "count" },
+            { column: "status", direction: "asc" },
+          ],
+        }),
+      ).orders,
+    ).toEqual([
+      {
+        column: "count",
+        ascending: false,
+        nullsFirst: undefined,
+        referencedTable: undefined,
+      },
+      {
+        column: "status",
+        ascending: true,
+        nullsFirst: undefined,
+        referencedTable: undefined,
+      },
+    ]);
+  });
+
+  it("rejects a count order on a table with a count column", () => {
+    const tallies: TableMeta = {
+      ...customers,
+      columns: {
+        ...customers.columns,
+        total: {
+          db: "count",
+          type: "int4",
+          nullable: false,
+          hasDefault: false,
+        },
+      },
+    };
+    expect(
+      invalid(() =>
+        plan(
+          select({
+            table: tallies,
+            orderBy: [{ column: "*", direction: "desc", aggregate: "count" }],
+          }),
+        ),
+      ),
+    ).toBe(
+      'PostgREST can\'t sort "customers" by _count because the table has a column named "count"; sort by a groupBy column or use the postgres adapter',
+    );
+  });
+
+  it("rejects a measure order", () => {
+    expect(
+      invalid(() =>
+        plan(
+          select({
+            orderBy: [{ column: "id", direction: "desc", aggregate: "sum" }],
+          }),
+        ),
+      ),
+    ).toBe(
+      'PostgREST can\'t sort "customers" by _sum; sort by _count or a groupBy column, or use the postgres adapter',
+    );
+  });
 });
 
 describe("compilePostgrest mutations", () => {

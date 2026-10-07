@@ -74,8 +74,8 @@ const totals = await db.invoices
 ## Grouped totals
 
 With `groupBy`, it returns one result per distinct combination of those
-columns. `orderBy` can sort by the `groupBy` columns; `limit` and `offset`
-page through the groups:
+columns. `orderBy` sorts the groups by the `groupBy` columns; `limit` and
+`offset` page through the groups:
 
 ```ts
 const byStatus = await db.customers
@@ -88,6 +88,38 @@ const byStatus = await db.customers
   .orThrow();
 // { status: 'lead' | 'active' | 'archived'; _count: number; _min: { createdAt: string | null } }[]
 ```
+
+## Sort groups by an aggregate
+
+`orderBy` also takes `_count` and the measures, mixed with `groupBy` columns.
+A list applies the terms in order, so this returns the five statuses with the
+most customers, and breaks ties by status:
+
+```ts
+const top = await db.customers
+  .aggregate({
+    groupBy: ["status"],
+    _count: true,
+    orderBy: [{ _count: "desc" }, { status: "asc" }],
+    limit: 5,
+  })
+  .orThrow();
+```
+
+A measure takes the columns it aggregates, each with a direction or
+`{ direction, nulls }`: `{ _sum: { amount: "desc" } }`,
+`{ _avg: { amount: "asc" } }`, `{ _min: { issuedAt: "asc" } }` and
+`{ _max: { issuedAt: "desc" } }`. The sort doesn't need the aggregate in the
+result, and the result type doesn't change. `_sum` and `_avg` sort by number
+columns only, like the aggregates themselves.
+
+PostgREST has no syntax to sort by an aggregate. better-supabase sends
+`order=count.desc` for `_count`, which Postgres reads as `count(customers)`,
+the row count of each group. That needs a table without a column named
+`count`; on such a table the call returns an `invalid_request` error.
+Sorting by `_sum`, `_avg`, `_min` or `_max` returns an `invalid_request`
+error on PostgREST; over [`better-supabase/postgres`](/docs/auth/postgres)
+and SQLite every sort compiles to `order by` in SQL.
 
 ## Value types
 

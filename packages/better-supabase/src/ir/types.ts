@@ -77,6 +77,11 @@ export interface OrderTerm {
    * for by the caller, so a split read may sort it approximately.
    */
   readonly implicit?: true;
+  /**
+   * Sort `aggregate()` groups by this aggregate of `column`; `count` counts
+   * the group's rows and its `column` is `*`.
+   */
+  readonly aggregate?: AggregateFn | "count";
   /** Sort by `column` of this to-one relation's row (only on the root table). */
   readonly relation?: {
     readonly name: string;

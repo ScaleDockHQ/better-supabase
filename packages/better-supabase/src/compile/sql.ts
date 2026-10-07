@@ -273,8 +273,14 @@ class SqlCompiler {
       .join(", ");
   }
 
-  /** A column, or the column of a to-one relation's row as a scalar subquery. */
+  /**
+   * A column, an aggregate of the group, or the column of a to-one
+   * relation's row as a scalar subquery.
+   */
   private sortKey(term: OrderTerm, alias: string, table?: TableMeta): string {
+    if (term.aggregate === "count") return "count(*)";
+    if (term.aggregate)
+      return `${term.aggregate}(${this.column(alias, term.column)})`;
     const { relation } = term;
     if (!relation) return this.column(alias, term.column);
     if (!table) invalidRequest("A relation sort needs the root table");

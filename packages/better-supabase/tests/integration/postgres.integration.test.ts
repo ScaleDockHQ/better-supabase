@@ -57,6 +57,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
     facets: { status: "status", kvk: "kvk" },
     sorts: { name: [{ name: "asc" }, { id: "asc" }] },
     defaultSort: "name",
+    facetCounts: true,
   });
 
   const queries: [
@@ -248,6 +249,17 @@ describe.skipIf(!live)("Postgres executor", async () => {
           .orThrow(),
     ],
     [
+      "aggregate sorted by count",
+      (db) =>
+        db.customers
+          .aggregate({
+            groupBy: ["status"],
+            _count: true,
+            orderBy: [{ _count: "asc" }, { status: "desc" }],
+          })
+          .orThrow(),
+    ],
+    [
       "single aggregate",
       (db) =>
         db.notes
@@ -344,6 +356,15 @@ describe.skipIf(!live)("Postgres executor", async () => {
         .orThrow();
       const total = groups.reduce((sum, group) => sum + group._count, 0);
       expect(total).toBe(await db.customers.count().orThrow());
+      const sorted = await db.customers
+        .aggregate({
+          groupBy: ["status"],
+          _count: true,
+          orderBy: [{ _count: "desc" }, { status: "asc" }],
+        })
+        .orThrow();
+      const counts = sorted.map((group) => group._count);
+      expect(counts).toEqual(counts.toSorted((a, b) => b - a));
       const [roadRunner] = await db.customers
         .findMany({
           select: ["id"],
@@ -354,6 +375,19 @@ describe.skipIf(!live)("Postgres executor", async () => {
       expect(roadRunner?._count.notes).toBeGreaterThan(0);
       expect(roadRunner?._max.notes.id).toEqual(expect.any(Number));
     }
+  });
+
+  it("sorts groups by a measure in SQL and refuses it on PostgREST", async () => {
+    const args = {
+      groupBy: ["customerId"],
+      _max: { id: true },
+      orderBy: [{ _max: { id: "desc" } }],
+    } as const;
+    const groups = await sql.notes.aggregate(args).orThrow();
+    const maxima = groups.map((group) => group._max.id ?? 0);
+    expect(maxima).toEqual(maxima.toSorted((a, b) => b - a));
+    const refused = await rest.notes.aggregate(args);
+    expect(refused.error).toMatchObject({ kind: "invalid_request" });
   });
 
   it("walks every row by cursor over a nullable sort column", async () => {
