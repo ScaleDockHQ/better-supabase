@@ -17,6 +17,7 @@
     "gen:check": "better-supabase gen --check && better-supabase sql sync --check",
     "lint": "oxlint",
     "start": "next start -p 3100",
+    "test:e2e": "pnpm --dir ../../.. supabase:reset && playwright test",
     "transit": "true",
     "typecheck": "next typegen && tsc --noEmit"
   },
@@ -36,6 +37,8 @@
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
+    "@next/playwright": "catalog:",
+    "@playwright/test": "catalog:",
     "@supabase/middleware": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

@@ -28,6 +28,11 @@ apps/examples/nextjs/CLAUDE.md
 apps/marketing/AGENTS.md
 apps/marketing/CLAUDE.md
 
+# playwright (the e2e sessions hold access tokens)
+**/e2e/.auth/
+test-results/
+playwright-report/
+
 # fumadocs-mdx
 .source/
 
