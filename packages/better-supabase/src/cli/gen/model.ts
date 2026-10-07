@@ -347,7 +347,8 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       }
       byApp.set(column.app, column.db);
     }
-    return { table, casing, columns };
+    const byDb = new Map(columns.map((column) => [column.db, column]));
+    return { table, casing, columns, byDb };
   });
   storagePaths.assertUsed();
   const schemasOf = new Map<string, string[]>();
@@ -394,7 +395,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   }
   const appName = (schema: string, table: string, column: string): string => {
     const entry = byKey.get(`${schema}.${table}`);
-    return entry?.columns.find((col) => col.db === column)?.app ?? column;
+    return entry?.byDb.get(column)?.app ?? column;
   };
 
   // Relations: forward from each FK, reverse on the referenced table.
@@ -405,7 +406,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     else relations.set(tableId, [relation]);
   };
 
-  for (const { table, casing, columns } of tables) {
+  for (const { table, casing, byDb: own } of tables) {
     const sourceId = `${table.schema}.${table.name}`;
     for (const fk of table.foreignKeys) {
       const targetId = `${fk.refSchema}.${fk.refTable}`;
@@ -421,10 +422,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       );
       const nullable =
         (config.relations.nullableUnderRls && target.table.rls) ||
-        fk.columns.some(
-          (column) =>
-            columns.find((col) => col.db === column)?.nullable ?? true,
-        );
+        fk.columns.some((column) => own.get(column)?.nullable ?? true);
       const onDelete =
         fk.onDelete === "cascade" ||
         fk.onDelete === "set null" ||
@@ -479,125 +477,127 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   }
 
   const flagsConfig = config.plugins;
-  const tableModels: TableModel[] = tables.map(({ table, casing, columns }) => {
-    const id = `${table.schema}.${table.name}`;
-    const renames = optionsOf(table)?.relations ?? {};
-    const columnNames = new Set(columns.map((column) => column.app));
-    const list = dedupeRelations(
-      relations.get(id) ?? [],
-      columnNames,
-      casing,
-    ).map((relation) => ({
-      ...relation,
-      name: renames[relation.name] ?? relation.name,
-    }));
+  const tableModels: TableModel[] = tables.map(
+    ({ table, casing, columns, byDb }) => {
+      const id = `${table.schema}.${table.name}`;
+      const renames = optionsOf(table)?.relations ?? {};
+      const columnNames = new Set(columns.map((column) => column.app));
+      const list = dedupeRelations(
+        relations.get(id) ?? [],
+        columnNames,
+        casing,
+      ).map((relation) => ({
+        ...relation,
+        name: renames[relation.name] ?? relation.name,
+      }));
 
-    const has = (db: string): string | undefined =>
-      columns.find((col) => col.db === db)?.app;
-    const flags: {
-      softDelete?: string;
-      timestamps?: { createdAt?: string; updatedAt?: string };
-      tenant?: string;
-      actor?: {
-        createdBy?: string;
-        updatedBy?: string;
-        impersonatedBy?: string;
-      };
-    } = {};
-    if (flagsConfig.softDelete) {
-      const db = flagsConfig.softDelete.column;
-      const column = columns.find((col) => col.db === db);
-      if (column) {
-        const udt = column.snapshot.udt;
-        if (column.snapshot.isArray || !SOFT_DELETE_UDTS.has(udt)) {
-          throw new TypeError(
-            `plugins.softDelete.column: ${table.schema}.${table.name}.${db} is ${udt}, but softDelete() writes a timestamp. Use timestamptz or timestamp.`,
-          );
+      const has = (db: string): string | undefined => byDb.get(db)?.app;
+      const flags: {
+        softDelete?: string;
+        timestamps?: { createdAt?: string; updatedAt?: string };
+        tenant?: string;
+        actor?: {
+          createdBy?: string;
+          updatedBy?: string;
+          impersonatedBy?: string;
+        };
+      } = {};
+      if (flagsConfig.softDelete) {
+        const db = flagsConfig.softDelete.column;
+        const column = byDb.get(db);
+        if (column) {
+          const udt = column.snapshot.udt;
+          if (column.snapshot.isArray || !SOFT_DELETE_UDTS.has(udt)) {
+            throw new TypeError(
+              `plugins.softDelete.column: ${table.schema}.${table.name}.${db} is ${udt}, but softDelete() writes a timestamp. Use timestamptz or timestamp.`,
+            );
+          }
+          flags.softDelete = column.app;
         }
-        flags.softDelete = column.app;
       }
-    }
-    if (flagsConfig.timestamps) {
-      const createdAt = has(flagsConfig.timestamps.createdAt);
-      const updatedAt = has(flagsConfig.timestamps.updatedAt);
-      if (createdAt || updatedAt) {
-        flags.timestamps = {
-          ...(createdAt ? { createdAt } : {}),
-          ...(updatedAt ? { updatedAt } : {}),
-        };
+      if (flagsConfig.timestamps) {
+        const createdAt = has(flagsConfig.timestamps.createdAt);
+        const updatedAt = has(flagsConfig.timestamps.updatedAt);
+        if (createdAt || updatedAt) {
+          flags.timestamps = {
+            ...(createdAt ? { createdAt } : {}),
+            ...(updatedAt ? { updatedAt } : {}),
+          };
+        }
       }
-    }
-    if (flagsConfig.tenant) {
-      const column = has(flagsConfig.tenant.column);
-      if (column) flags.tenant = column;
-    }
-    if (flagsConfig.actor) {
-      const createdBy = has(flagsConfig.actor.createdBy);
-      const updatedBy = has(flagsConfig.actor.updatedBy);
-      const impersonatedBy = has(flagsConfig.actor.impersonatedBy);
-      if (createdBy || updatedBy || impersonatedBy) {
-        flags.actor = {
-          ...(createdBy ? { createdBy } : {}),
-          ...(updatedBy ? { updatedBy } : {}),
-          ...(impersonatedBy ? { impersonatedBy } : {}),
-        };
+      if (flagsConfig.tenant) {
+        const column = has(flagsConfig.tenant.column);
+        if (column) flags.tenant = column;
       }
-    }
+      if (flagsConfig.actor) {
+        const createdBy = has(flagsConfig.actor.createdBy);
+        const updatedBy = has(flagsConfig.actor.updatedBy);
+        const impersonatedBy = has(flagsConfig.actor.impersonatedBy);
+        if (createdBy || updatedBy || impersonatedBy) {
+          flags.actor = {
+            ...(createdBy ? { createdBy } : {}),
+            ...(updatedBy ? { updatedBy } : {}),
+            ...(impersonatedBy ? { impersonatedBy } : {}),
+          };
+        }
+      }
 
-    const key = keyOf.get(id) ?? table.name;
-    const columnMeta: Record<string, ColumnMeta> = {};
-    for (const column of columns) {
-      const meta: {
-        -readonly [K in keyof ColumnMeta]: ColumnMeta[K];
-      } = {
-        db: column.db,
-        type: column.snapshot.udt,
-        nullable: column.nullable,
-        hasDefault: column.filled,
-      };
-      if (column.readonly) meta.generated = true;
-      if (column.snapshot.identity) meta.identity = column.snapshot.identity;
-      if (!column.readonly && !column.insertable) meta.insertable = false;
-      if (!column.readonly && !column.updatable) meta.updatable = false;
-      if (column.snapshot.isArray) meta.array = true;
-      if (column.json) meta.json = true;
-      if (column.values) meta.enum = column.values;
-      if (column.codec) meta.codec = column.codec;
-      if (column.storage) meta.storage = column.storage;
-      if (
-        config.sensitive.includes(`${table.name}.${column.db}`) ||
-        config.sensitive.includes(`${table.schema}.${table.name}.${column.db}`)
-      )
-        meta.sensitive = true;
-      columnMeta[column.app] = meta;
-    }
-    const app = (db: string): string =>
-      columns.find((col) => col.db === db)?.app ?? db;
-    const uniqueKeys: Record<string, readonly string[]> = {};
-    for (const unique of table.uniques)
-      uniqueKeys[unique.name] = unique.columns.map(app);
-    const relationMeta: Record<string, RelationMeta> = {};
-    for (const relation of list) relationMeta[relation.name] = relation.meta;
+      const key = keyOf.get(id) ?? table.name;
+      const columnMeta: Record<string, ColumnMeta> = {};
+      for (const column of columns) {
+        const meta: {
+          -readonly [K in keyof ColumnMeta]: ColumnMeta[K];
+        } = {
+          db: column.db,
+          type: column.snapshot.udt,
+          nullable: column.nullable,
+          hasDefault: column.filled,
+        };
+        if (column.readonly) meta.generated = true;
+        if (column.snapshot.identity) meta.identity = column.snapshot.identity;
+        if (!column.readonly && !column.insertable) meta.insertable = false;
+        if (!column.readonly && !column.updatable) meta.updatable = false;
+        if (column.snapshot.isArray) meta.array = true;
+        if (column.json) meta.json = true;
+        if (column.values) meta.enum = column.values;
+        if (column.codec) meta.codec = column.codec;
+        if (column.storage) meta.storage = column.storage;
+        if (
+          config.sensitive.includes(`${table.name}.${column.db}`) ||
+          config.sensitive.includes(
+            `${table.schema}.${table.name}.${column.db}`,
+          )
+        )
+          meta.sensitive = true;
+        columnMeta[column.app] = meta;
+      }
+      const app = (db: string): string => byDb.get(db)?.app ?? db;
+      const uniqueKeys: Record<string, readonly string[]> = {};
+      for (const unique of table.uniques)
+        uniqueKeys[unique.name] = unique.columns.map(app);
+      const relationMeta: Record<string, RelationMeta> = {};
+      for (const relation of list) relationMeta[relation.name] = relation.meta;
 
-    return {
-      key,
-      snapshot: table,
-      casing,
-      columns,
-      relations: list,
-      meta: {
+      return {
         key,
-        name: table.name,
-        schema: table.schema,
-        kind: table.kind,
-        columns: columnMeta,
-        primaryKey: table.primaryKey.map(app),
-        uniqueKeys,
-        relations: relationMeta,
-        flags: flags,
-      },
-    };
-  });
+        snapshot: table,
+        casing,
+        columns,
+        relations: list,
+        meta: {
+          key,
+          name: table.name,
+          schema: table.schema,
+          kind: table.kind,
+          columns: columnMeta,
+          primaryKey: table.primaryKey.map(app),
+          uniqueKeys,
+          relations: relationMeta,
+          flags: flags,
+        },
+      };
+    },
+  );
 
   const includedEnums = catalog.enums.filter((entry) =>
     config.schemas.includes(entry.schema),

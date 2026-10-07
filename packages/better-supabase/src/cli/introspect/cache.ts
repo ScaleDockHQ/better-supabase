@@ -71,6 +71,38 @@ export async function cachedIntrospect(
   return snapshot;
 }
 
+/**
+ * Calls `produce`, or returns the `database.types.ts` cached under `root`
+ * for the same `inputs`, CLI version and typegen version. Typegen and oxfmt
+ * are most of a `gen` run on a large schema, and their output only depends
+ * on the inputs.
+ */
+export async function cachedDatabaseTypes(
+  root: string,
+  inputs: unknown,
+  produce: () => Promise<string>,
+): Promise<string> {
+  const key = sha256(JSON.stringify([VERSION, TYPEGEN_VERSION, inputs]));
+  const file = resolve(root, CACHE_DIR, "database-types.json");
+  const cached: unknown = await readFile(file, "utf8")
+    .then((text): unknown => JSON.parse(text))
+    .catch(() => undefined);
+  if (
+    typeof cached === "object" &&
+    cached !== null &&
+    "key" in cached &&
+    cached.key === key &&
+    "contents" in cached &&
+    typeof cached.contents === "string"
+  )
+    return cached.contents;
+  const contents = await produce();
+  await writeAtomic(file, JSON.stringify({ key, contents })).catch(
+    () => undefined,
+  );
+  return contents;
+}
+
 /** Writes through a temporary file, so a concurrent reader never sees half a file. */
 export async function writeAtomic(
   file: string,

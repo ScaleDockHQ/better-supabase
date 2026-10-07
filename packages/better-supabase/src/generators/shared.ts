@@ -355,6 +355,60 @@ export function titleOf(name: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+type Catalog = NonNullable<DocsSource["introspection"]>;
+
+interface DocsIndex {
+  readonly entries: ReadonlyMap<string, CommentEntry>;
+  readonly columns: ReadonlyMap<number, Catalog["columns"][number][]>;
+}
+
+const docsIndexes = new WeakMap<Catalog, DocsIndex>();
+
+type Extras = NonNullable<DocsSource["extras"]>;
+
+const checkIndexes = new WeakMap<Extras, ReadonlyMap<string, string[]>>();
+
+/** CHECK definitions by `schema.name`, built once per extras. */
+function checksIndex(extras: Extras): ReadonlyMap<string, string[]> {
+  let index = checkIndexes.get(extras);
+  if (index) return index;
+  const map = new Map<string, string[]>();
+  for (const table of extras.tables) {
+    const key = `${table.schema}.${table.name}`;
+    map.set(key, [
+      ...(map.get(key) ?? []),
+      ...table.checks.map((check) => check.definition),
+    ]);
+  }
+  index = map;
+  checkIndexes.set(extras, index);
+  return index;
+}
+
+/** The catalog keyed for `tableDocs`, built once per catalog. */
+function docsIndex(catalog: Catalog): DocsIndex {
+  let index = docsIndexes.get(catalog);
+  if (index) return index;
+  const entries = new Map<string, CommentEntry>();
+  for (const item of [
+    ...catalog.tables,
+    ...catalog.views,
+    ...(catalog.materializedViews ?? []),
+  ]) {
+    const key = `${item.schema}.${item.name}`;
+    if (!entries.has(key)) entries.set(key, item);
+  }
+  const columns = new Map<number, Catalog["columns"][number][]>();
+  for (const column of catalog.columns) {
+    const list = columns.get(column.table_id);
+    if (list) list.push(column);
+    else columns.set(column.table_id, [column]);
+  }
+  index = { entries, columns };
+  docsIndexes.set(catalog, index);
+  return index;
+}
+
 /** Title, description and per-column docs, or `undefined` without a catalog. */
 export function tableDocs(
   input: DocsSource,
@@ -362,23 +416,20 @@ export function tableDocs(
 ): TableDocs | undefined {
   const catalog = input.introspection;
   if (!catalog) return undefined;
-  const entry = [
-    ...catalog.tables,
-    ...catalog.views,
-    ...(catalog.materializedViews ?? []),
-  ].find((item) => item.schema === table.schema && item.name === table.name);
+  const index = docsIndex(catalog);
+  const entry = index.entries.get(`${table.schema}.${table.name}`);
   const checks = new Map<string, Bounds>();
   const addChecks = (definition: string): void => {
     for (const [column, bounds] of parseCheckBounds(definition))
       checks.set(column, { ...checks.get(column), ...bounds });
   };
-  for (const extra of input.extras?.tables ?? []) {
-    if (extra.schema !== table.schema || extra.name !== table.name) continue;
-    for (const check of extra.checks) addChecks(check.definition);
-  }
+  const extras = input.extras;
+  for (const definition of extras
+    ? (checksIndex(extras).get(`${table.schema}.${table.name}`) ?? [])
+    : [])
+    addChecks(definition);
   const fields = new Map<string, FieldDocs>();
-  for (const column of catalog.columns) {
-    if (entry === undefined || column.table_id !== entry.id) continue;
+  for (const column of entry ? (index.columns.get(entry.id) ?? []) : []) {
     if (column.check) addChecks(column.check);
     const { description, examples } = parseComment(column.comment);
     fields.set(column.name, {

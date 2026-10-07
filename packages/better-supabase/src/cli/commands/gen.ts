@@ -27,7 +27,11 @@ import { fileDiff } from "../diff.ts";
 import { configuredPermdockKeys } from "../doctor/permdock.ts";
 import { emitMeta, emitModule, metaPaths } from "../gen/emit.ts";
 import { buildModel, generatorModel } from "../gen/model.ts";
-import { CACHE_DIR, writeAtomic } from "../introspect/cache.ts";
+import {
+  CACHE_DIR,
+  cachedDatabaseTypes,
+  writeAtomic,
+} from "../introspect/cache.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
 import {
   fromMetadata,
@@ -109,10 +113,15 @@ export async function render(
     ? { runtimeImport: options.runtimeImport }
     : {};
   const output = resolve(config.root, config.output);
-  const databaseTypes = await generateDatabaseTypes(snapshot.generator, {
+  const typegenOptions = {
     schemas: config.schemas,
     postgrestVersion: config.postgrestVersion,
-  });
+  };
+  const databaseTypes = await cachedDatabaseTypes(
+    config.root,
+    [typegenOptions, await oxfmtInstalled(), snapshot.generator],
+    () => generateDatabaseTypes(snapshot.generator, typegenOptions),
+  );
   const metaFiles = metaPaths(config.output);
   const main = emitModule(model, {
     databaseTypesImport: importPath(

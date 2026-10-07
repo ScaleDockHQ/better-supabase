@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 
 import { readExtras } from "../../src/cli/introspect/extras.ts";
+import { catalogFingerprint } from "../../src/cli/introspect/fingerprint.ts";
 import { openPg } from "../fixtures/pg.ts";
 
 const dbUrl =
@@ -44,6 +45,21 @@ describe.skipIf(!source)("readExtras against the local stack", () => {
         role: "anon",
         privileges: ["SELECT"],
       });
+    } finally {
+      await db.query("rollback");
+    }
+  });
+
+  it("keeps the fingerprint across temporary tables", async () => {
+    const before = await catalogFingerprint(db);
+    await db.query("begin");
+    try {
+      await db.query(
+        "create temp table introspect_scratch (id int primary key, note text default 'x')",
+      );
+      expect(await catalogFingerprint(db)).toBe(before);
+      await db.query("create table public.introspect_probe (id int)");
+      expect(await catalogFingerprint(db)).not.toBe(before);
     } finally {
       await db.query("rollback");
     }
