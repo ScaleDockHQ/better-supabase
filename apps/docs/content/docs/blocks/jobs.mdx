@@ -291,17 +291,42 @@ Under the drain scheduler, a database trigger or function can schedule a job
 itself with `better_supabase.schedule_job`. Leave out `next_run`: the
 schedule is stored without one, and the next drain computes its first run
 in the schedule's time zone, counted from when it was written, so a run
-that falls between the write and the drain still happens.
+that falls between the write and the drain still happens. The app needs no
+job that copies rows into schedules: a trigger on the table that holds the
+cron keeps the schedule current, and the drain route runs it.
 
-```sql
-select better_supabase.schedule_job(
-  'reminder:' || new.id,
-  '0 9 * * MON',
-  'send_reminder',
-  jsonb_build_object('id', new.id),
-  'Europe/Amsterdam'
-);
+```sql title="supabase/schemas/040_reminders.sql"
+create function public.schedule_reminder()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.schedule_job(
+    'reminder:' || new.id,
+    new.cron,
+    'send_reminder',
+    jsonb_build_object('id', new.id),
+    new.time_zone,
+    null,
+    new.organization_id::text
+  );
+  return null;
+end;
+$$;
+
+create trigger schedule_reminder
+  after insert or update of cron, time_zone on public.reminders
+  for each row execute function public.schedule_reminder();
 ```
+
+Make the trigger function `security definer`, so a signed-in user's insert
+can write the schedule without access to `better_supabase`. Writing a
+schedule again with the same cron and time zone keeps its next run; a new
+cron or time zone clears it, and the next drain computes the first run of
+the new one. Call `better_supabase.unschedule_job('reminder:' || old.id)`
+from a delete trigger to remove it.
 
 `schedule_job` rejects a schedule that isn't five cron fields, a macro or an
 interval. A cron that passes that check but that the drain can't read (a

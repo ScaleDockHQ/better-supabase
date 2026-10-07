@@ -1868,6 +1868,120 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("drains a schedule that a database trigger writes, with no sync job", async () => {
+    const queue = `block_${RUN}_trigger`;
+    const table = `public.bs_${RUN}_reminders`;
+    const fn = `public.bs_${RUN}_schedule_reminder`;
+    await pool.query(
+      moduleBody("jobs", {
+        modules: {
+          jobs: { options: { backend: "table", scheduler: "drain" } },
+        },
+      })!,
+    );
+    await pool.query(`
+      create table ${table} (id text primary key, cron text not null, time_zone text not null, tenant text);
+      grant insert, update on ${table} to authenticated;
+      create function ${fn}() returns trigger
+      language plpgsql security definer set search_path = '' as $$
+      begin
+        perform better_supabase.schedule_job(
+          'reminder:' || new.id, new.cron, '${queue}',
+          jsonb_build_object('id', new.id), new.time_zone, null, new.tenant
+        );
+        return null;
+      end;
+      $$;
+      create trigger bs_schedule after insert or update on ${table}
+        for each row execute function ${fn}();
+    `);
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query("set local role authenticated");
+      await client.query(
+        `insert into ${table} values ($1, '1 second', 'Europe/Amsterdam', 'tenant-r')`,
+        [RUN],
+      );
+      await client.query("commit");
+      const written = await pool.query<{
+        next_run: Date | null;
+        first_after: Date | null;
+        tenant: string;
+      }>(
+        "select next_run, first_after, tenant from better_supabase.job_schedules where job_name = $1",
+        [`reminder:${RUN}`],
+      );
+      expect(written.rows[0]).toMatchObject({
+        next_run: null,
+        tenant: "tenant-r",
+      });
+      expect(written.rows[0]!.first_after).toBeInstanceOf(Date);
+      await new Promise((done) => {
+        setTimeout(done, 1100);
+      });
+
+      const jobs = createJobs(postgres.admin, {
+        [queue]: v.object({ id: v.string() }),
+      });
+      const seen: string[] = [];
+      const route = jobs.drainRoute({
+        secret: "s3cret",
+        handlers: {
+          [queue]: (payload) => {
+            seen.push(payload.id);
+          },
+        },
+      });
+      const drain = () =>
+        route(
+          new Request("https://app.test/api/jobs/drain", {
+            method: "POST",
+            headers: { authorization: "Bearer s3cret" },
+          }),
+        );
+      expect(await (await drain()).json()).toMatchObject({
+        schedules: 1,
+        queues: { [queue]: { succeeded: 1, failed: 0 } },
+        errors: 0,
+      });
+      expect(seen).toEqual([RUN]);
+      const advanced = await pool.query<{ timed: boolean; ran: boolean }>(
+        "select next_run is not null and first_after is null as timed, last_run is not null as ran from better_supabase.job_schedules where job_name = $1",
+        [`reminder:${RUN}`],
+      );
+      expect(advanced.rows[0]).toEqual({ timed: true, ran: true });
+
+      await pool.query(`update ${table} set cron = '0 6 * * *' where id = $1`, [
+        RUN,
+      ]);
+      const moved = await pool.query<{ next_run: Date | null }>(
+        "select next_run from better_supabase.job_schedules where job_name = $1",
+        [`reminder:${RUN}`],
+      );
+      expect(moved.rows[0]!.next_run).toBeNull();
+      expect(await (await drain()).json()).toMatchObject({ schedules: 0 });
+      const first = await pool.query<{ hour: number; ahead: boolean }>(
+        "select extract(hour from next_run at time zone 'Europe/Amsterdam')::int as hour, next_run > now() as ahead from better_supabase.job_schedules where job_name = $1",
+        [`reminder:${RUN}`],
+      );
+      expect(first.rows[0]).toEqual({ hour: 6, ahead: true });
+    } finally {
+      client.release();
+      await pool.query(`drop table if exists ${table}`);
+      await pool.query(`drop function if exists ${fn}()`);
+      await pool.query(
+        "delete from better_supabase.job_messages where queue = $1",
+        [queue],
+      );
+      await pool.query(
+        "delete from better_supabase.job_schedules where job_name = $1",
+        [`reminder:${RUN}`],
+      );
+      await pool.query(SQL_MODULES["jobs"]!.sql);
+    }
+  });
+
   it("reports queue health and retries dead letters on both backends", async () => {
     const check = async (queue: string) => {
       const jobs = createJobs(postgres.admin, {
