@@ -37,6 +37,16 @@ const body = (modules: ModulesConfig) =>
   moduleBody("organizations", { modules })!;
 
 describe("organizations module", () => {
+  it("transfers ownership in one update and refuses a disabled new owner", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      "if better_supabase.user_disabled(new_owner) then\n    raise exception 'The new owner is disabled'",
+    );
+    expect(sql).toContain(
+      `update "better_supabase"."memberships" m set "role" = case\n      when m."user_id" = new_owner then 'owner'\n      else former_role\n    end`,
+    );
+  });
+
   it("checks the own-role rule and both roles' ceilings in update_member_role", () => {
     const sql = body({});
     expect(sql).toContain(

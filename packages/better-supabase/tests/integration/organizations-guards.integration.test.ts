@@ -177,4 +177,78 @@ describe.skipIf(!live)("organizations member guards", () => {
       await s.close();
     }
   });
+
+  it("transfers ownership in one statement and refuses a disabled new owner", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const schema = await teamSchema(s);
+      // Like PermDock's transferOnly: a statement may not change how many
+      // owners an organization has.
+      await s.client.query(`
+        create table ${schema}.profiles (id uuid primary key, disabled_at timestamptz);
+        create function ${schema}.owner_count() returns trigger language plpgsql as $$
+        begin
+          if (select count(*) from old_rows where role = 'owner') <> (select count(*) from new_rows where role = 'owner') then
+            raise exception 'transfer only' using hint = 'OWNER_COUNT';
+          end if;
+          return null;
+        end;
+        $$;
+        create trigger owner_count after update on ${schema}.team_members
+          referencing old table as old_rows new table as new_rows
+          for each statement execute function ${schema}.owner_count();
+      `);
+      const layout = adopted(schema);
+      await s.install(["organizations"], {
+        ...layout,
+        modules: {
+          ...layout.modules,
+          access: {
+            schema,
+            disabled: { user: `${schema}.profiles.disabled_at` },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const admin = await s.user("admin");
+      const disabled = await s.user("disabled");
+      await s.client.query(
+        `insert into ${schema}.profiles (id, disabled_at) values ($1, null), ($2, null), ($3, now())`,
+        [owner.id, admin.id, disabled.id],
+      );
+      await s.as(owner);
+      const organization = await s.value<string>(
+        `${schema}.create_organization($1)`,
+        [{ name: "Transfer", slug: `transfer-${owner.id.slice(0, 8)}` }],
+      );
+      await s.client.query(
+        `insert into ${schema}.team_members (organization_id, user_id, role) values ($1, $2, 'admin'), ($1, $3, 'member')`,
+        [organization, admin.id, disabled.id],
+      );
+      expect(
+        await s.hint(`${schema}.transfer_ownership($1, $2)`, [
+          organization,
+          disabled.id,
+        ]),
+      ).toBe("ORGANIZATION_FORBIDDEN");
+      expect(
+        await s.value(`${schema}.transfer_ownership($1, $2)`, [
+          organization,
+          admin.id,
+        ]),
+      ).toBe(true);
+      expect(
+        await s.rows(
+          `select user_id::text as user, role from ${schema}.team_members where organization_id = $1 order by role`,
+          [organization],
+        ),
+      ).toEqual([
+        { user: owner.id, role: "admin" },
+        { user: disabled.id, role: "member" },
+        { user: admin.id, role: "owner" },
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
 });

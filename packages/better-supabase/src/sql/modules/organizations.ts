@@ -755,12 +755,18 @@ begin
   if not exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = new_owner) then
     raise exception 'The new owner must be a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
-  update ${n.m} set ${n.role} = ${roleValue(ctx, sqlString(n.ownerRole))}
-  where ${n.tenant} = organization and ${n.user} = new_owner;
-  if me is not null and me <> new_owner then
-    update ${n.m} m set ${n.role} = ${roleValue(ctx, "former_role")}
-    where m.${n.tenant} = organization and m.${n.user} = me and ${isOwner(ctx, n, "m")};
+  if better_supabase.user_disabled(new_owner) then
+    raise exception 'The new owner is disabled' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
+  -- One statement for both rows, so a statement-level guard on the number of
+  -- owners (PermDock's transferOnly) sees the transfer as a whole.
+  update ${n.m} m set ${n.role} = case
+      when m.${n.user} = new_owner then ${roleValue(ctx, sqlString(n.ownerRole))}
+      else ${roleValue(ctx, "former_role")}
+    end
+  where m.${n.tenant} = organization
+    and (m.${n.user} = new_owner
+      or (me is not null and me <> new_owner and m.${n.user} = me and ${isOwner(ctx, n, "m")}));
   ${change("new_owner", "owner")}
   ${ctx.emit({ type: "organization.ownership_transferred", payload: event("organization", "new_owner", `, 'role', ${sqlString(n.ownerRole)}`), subject, tenant: "organization" })}
   return true;
