@@ -28,6 +28,7 @@ const NAMES: ModuleNames = {
     "appendOnly",
     "eventCategory",
     "eventRoles",
+    "trustedRoles",
     "eventSource",
     "exempt",
     "impersonators",
@@ -619,22 +620,9 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
     end if;
   end if;`
     : "";
-  return `-- Records a semantic app event (invoice.sent, member.invited) next to the
--- row changes. A repeated idempotency_key returns the first entry's id.
--- actor_id, actor_kind, actor_label, ip, user_agent, session_id, request_id
--- and scope are honoured for the service role and direct admin connections,
--- which never get the request's own address, user agent or session; everyone
--- else gets auth.uid() and the request's own values. restricted goes to the
--- restricted table, with no row when every restricted value is empty; without
--- that table, passing it fails instead of dropping the details.
-drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid);
-${PREVIOUS_EVENT_ARGS(id)
-  .map(
-    (args) => `drop function if exists better_supabase.audit_event(${args});`,
-  )
-  .join("\n")}
-drop function if exists better_supabase.audit_event(${EVENT_ARGS(id)});
-create or replace function better_supabase.audit_event(
+  // The body names its own function to qualify arguments (audit_event.tenant).
+  const create = (name: string, trusted: boolean): string =>
+    `create or replace function better_supabase.${name}(
   event_type text,
   category text default null,
   outcome text default 'success',
@@ -666,7 +654,10 @@ declare
   existing text;
   entry_id ${log}.${c("id")}%type;${extra.length > 0 ? "\n  entry_row jsonb;\n  entry_columns text;" : ""}
 begin${noRestricted}
-  if not (${SERVICE_CALLER}) then
+  ${
+    trusted
+      ? "actor_id := coalesce(actor_id, auth.uid());"
+      : `if not (${SERVICE_CALLER}) then
     actor_id := auth.uid();
     actor_kind := null;
     actor_label := null;
@@ -677,12 +668,38 @@ begin${noRestricted}
     scope := null;
   elsif actor_id is null then
     actor_id := auth.uid();
-  end if;${idempotent}${eventInsert(ctx, insert, extra)}${eventRestricted(ctx, restricted)}
+  end if;`
+  }${idempotent}${eventInsert(ctx, insert, extra)}${eventRestricted(ctx, restricted)}
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event(${EVENT_ARGS(id)}) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(${EVENT_ARGS(id)}) to ${roles.map(sqlIdent).join(", ")};`;
+`.replaceAll("audit_event.", `${name}.`);
+  return `-- Records a semantic app event (invoice.sent, member.invited) next to the
+-- row changes. A repeated idempotency_key returns the first entry's id.
+-- actor_id, actor_kind, actor_label, ip, user_agent, session_id, request_id
+-- and scope are honoured for the service role and direct admin connections,
+-- which never get the request's own address, user agent or session; everyone
+-- else gets auth.uid() and the request's own values. restricted goes to the
+-- restricted table, with no row when every restricted value is empty; without
+-- that table, passing it fails instead of dropping the details.
+drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid);
+${PREVIOUS_EVENT_ARGS(id)
+  .map(
+    (args) => `drop function if exists better_supabase.audit_event(${args});`,
+  )
+  .join("\n")}
+drop function if exists better_supabase.audit_event(${EVENT_ARGS(id)});
+${create("audit_event", false)}revoke execute on function better_supabase.audit_event(${EVENT_ARGS(id)}) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event(${EVENT_ARGS(id)}) to ${roles.map(sqlIdent).join(", ")};
+
+-- audit_event for the app's own security definer functions: it honours
+-- actor_id, actor_kind, actor_label, scope and the request details from any
+-- caller, so only the owner, the service role and
+-- sql.modules.audit.options.trustedRoles may execute it. A function owned by
+-- postgres calls it on behalf of a client with the real actor context.
+drop function if exists better_supabase.audit_event_trusted(${EVENT_ARGS(id)});
+${create("audit_event_trusted", true)}revoke execute on function better_supabase.audit_event_trusted(${EVENT_ARGS(id)}) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_trusted(${EVENT_ARGS(id)}) to ${["service_role", ...ctx.list("trustedRoles", [])].map(sqlIdent).join(", ")};`;
 }
 
 function appendOnly(ctx: ModuleContext): string {

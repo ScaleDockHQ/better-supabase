@@ -358,6 +358,31 @@ select better_supabase.audit_event(
 );
 ```
 
+An app's own `security definer` function that acts for a client, such as a
+role editor saving permissions, runs as its owner but still carries the
+client's JWT, so `audit_event` would replace its actor context with the
+client's. Such a function calls `better_supabase.audit_event_trusted`
+instead: it takes the same arguments and honours `actor_id`, `actor_kind`,
+`actor_label`, `scope` and the request details from its caller, with
+`actor_id` defaulting to `auth.uid()`. Only its owner, the service role and
+the roles in `trustedRoles` may execute it, so a client can't call it to
+forge an actor, and the module writes no Data API entry point for it:
+
+```sql
+create function public.save_role_permissions(role_id uuid, keys text[])
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  -- write the permissions, then:
+  perform better_supabase.audit_event_trusted(
+    event_type => 'role.permissions_saved',
+    record_id => role_id::text,
+    actor_kind => case when better_supabase.is_platform('roles.manage') then 'support' else 'user' end,
+    scope => 'platform'
+  );
+end;
+$$;
+```
+
 The module options (`sql.modules.audit.options`):
 
 | Option               | Default                  | What it does                                                                                                                                                                                                                                                                                        |
@@ -368,6 +393,7 @@ The module options (`sql.modules.audit.options`):
 | `impersonators`      | `show`                   | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                                                                                                                         |
 | `restricted`         | `false`                  | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023`                                                                                           |
 | `eventRoles`         | `['service_role']`       | the roles that can call `audit_event`                                                                                                                                                                                                                                                               |
+| `trustedRoles`       | `[]`                     | roles besides the owner and `service_role` that can call `audit_event_trusted`, such as the owner role of your definer functions when it isn't the module's owner                                                                                                                                   |
 | `eventCategory`      | `system`                 | the category of an `audit_event` call without one                                                                                                                                                                                                                                                   |
 | `eventSource`        | `app`                    | the source of an `audit_event` call without one                                                                                                                                                                                                                                                     |
 | `exempt`             | `[]`                     | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                                                                                                            |

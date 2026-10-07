@@ -197,6 +197,66 @@ describe.skipIf(!live)("audit block", () => {
     }
   });
 
+  it("takes the actor context from definer functions through audit_event_trusted only", async () => {
+    const s = await BlockSession.open(pool);
+    const fn = `public.bs_save_role_${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await s.install(["audit"], {
+        modules: {
+          audit: {
+            options: { eventRoles: ["service_role", "authenticated"] },
+          },
+        },
+      });
+      await s.client.query(`
+        create function ${fn}() returns text
+        language sql security definer set search_path = '' as $$
+          select better_supabase.audit_event_trusted(
+            event_type => 'role.saved',
+            actor_kind => 'support',
+            actor_label => 'Support desk',
+            scope => 'platform'
+          )
+        $$;
+        grant execute on function ${fn}() to authenticated;`);
+      const staff = await s.user("staff");
+      await s.asRole(staff);
+      const trusted = await s.value<string>(`${fn}()`);
+      const forged = await s.value<string>(
+        `better_supabase.audit_event(event_type => 'role.forged', actor_kind => 'support', actor_label => 'Forged', scope => 'platform', actor_id => gen_random_uuid())`,
+      );
+      expect(
+        await s.hint(
+          `better_supabase.audit_event_trusted(event_type => 'role.direct', actor_kind => 'support')`,
+        ),
+      ).toMatch(/permission denied for function audit_event_trusted/);
+      await s.service();
+      const rows = await s.rows<Record<string, unknown>>(
+        `select event_type, actor_id::text, actor_kind, actor_label, scope
+         from better_supabase.audit_events where id::text = any ($1) order by event_type`,
+        [[trusted, forged]],
+      );
+      expect(rows).toEqual([
+        {
+          event_type: "role.forged",
+          actor_id: staff.id,
+          actor_kind: "user",
+          actor_label: staff.email,
+          scope: "platform",
+        },
+        {
+          event_type: "role.saved",
+          actor_id: staff.id,
+          actor_kind: "support",
+          actor_label: "Support desk",
+          scope: "platform",
+        },
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("fills an adopted log's column derived from the actor through a generated column", async () => {
     const s = await BlockSession.open(pool);
     const log = `public.bs_staff_log_${crypto.randomUUID().slice(0, 8)}`;
