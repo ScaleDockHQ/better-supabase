@@ -1,6 +1,8 @@
 -- Role-based access control, following Supabase's RBAC guide: roles live in a
 -- table, the custom access token hook copies the user's role into a top-level
--- `user_role` claim, and `authorize()` checks a permission for RLS. It is a
+-- `user_role` claim, and `authorize()` checks a permission for RLS. The hook
+-- also writes the per-organization `memberships` and `features` claims the
+-- Next.js example reads. It is a
 -- minimal fixture, not PermDock's model: apps that use PermDock run
 -- `permdock supabase hook generate` for the hook, `role_permissions`,
 -- `authorize()` and the policies, and keep none of this. The permission rows
@@ -42,6 +44,11 @@ begin
   if user_role is not null then
     claims := jsonb_set(claims, '{user_role}', to_jsonb(user_role));
   end if;
+
+  -- Every organization the user belongs to, and each one's plan features
+  -- (supabase/schemas/045_access_contract.sql and the entitlements module).
+  claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims((event ->> 'user_id')::uuid));
+  claims := jsonb_set(claims, '{features}', better_supabase.feature_claims((event ->> 'user_id')::uuid));
 
   return jsonb_set(event, '{claims}', claims);
 end;

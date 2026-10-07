@@ -628,6 +628,122 @@
       },
       "additionalProperties": false
     },
+    "membershipsRow": {
+      "title": "Memberships",
+      "type": "object",
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "admin",
+            "member"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "lastUsedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "organizationId",
+        "userId",
+        "role",
+        "createdAt",
+        "lastUsedAt"
+      ],
+      "additionalProperties": false
+    },
+    "membershipsInsert": {
+      "title": "Memberships insert",
+      "type": "object",
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "admin",
+            "member"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "lastUsedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "organizationId",
+        "userId"
+      ],
+      "additionalProperties": false
+    },
+    "membershipsUpdate": {
+      "title": "Memberships update",
+      "type": "object",
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "admin",
+            "member"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "lastUsedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
     "notesRow": {
       "title": "Notes",
       "type": "object",
@@ -980,6 +1096,250 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "planFeaturesRow": {
+      "title": "Plan features",
+      "type": "object",
+      "properties": {
+        "planKey": {
+          "type": "string"
+        },
+        "featureKey": {
+          "type": "string"
+        },
+        "included": {
+          "type": "boolean"
+        },
+        "value": {}
+      },
+      "required": [
+        "planKey",
+        "featureKey",
+        "included",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "planFeaturesInsert": {
+      "title": "Plan features insert",
+      "type": "object",
+      "properties": {
+        "planKey": {
+          "type": "string"
+        },
+        "featureKey": {
+          "type": "string"
+        },
+        "included": {
+          "type": "boolean"
+        },
+        "value": {}
+      },
+      "required": [
+        "planKey",
+        "featureKey"
+      ],
+      "additionalProperties": false
+    },
+    "planFeaturesUpdate": {
+      "title": "Plan features update",
+      "type": "object",
+      "properties": {
+        "planKey": {
+          "type": "string"
+        },
+        "featureKey": {
+          "type": "string"
+        },
+        "included": {
+          "type": "boolean"
+        },
+        "value": {}
+      },
+      "additionalProperties": false
+    },
+    "plansRow": {
+      "title": "Plans",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "priceCents": {
+          "type": "integer"
+        },
+        "position": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "key",
+        "name",
+        "priceCents",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    "plansInsert": {
+      "title": "Plans insert",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "priceCents": {
+          "type": "integer"
+        },
+        "position": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "key",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "plansUpdate": {
+      "title": "Plans update",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "priceCents": {
+          "type": "integer"
+        },
+        "position": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "subscriptionsRow": {
+      "title": "Subscriptions",
+      "type": "object",
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "planKey": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "trialing",
+            "past_due",
+            "canceled"
+          ]
+        },
+        "currentPeriodEnd": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        }
+      },
+      "required": [
+        "organizationId",
+        "planKey",
+        "status",
+        "currentPeriodEnd",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    },
+    "subscriptionsInsert": {
+      "title": "Subscriptions insert",
+      "type": "object",
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "planKey": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "trialing",
+            "past_due",
+            "canceled"
+          ]
+        },
+        "currentPeriodEnd": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        }
+      },
+      "required": [
+        "organizationId",
+        "planKey"
+      ],
+      "additionalProperties": false
+    },
+    "subscriptionsUpdate": {
+      "title": "Subscriptions update",
+      "type": "object",
+      "properties": {
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "planKey": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "trialing",
+            "past_due",
+            "canceled"
+          ]
+        },
+        "currentPeriodEnd": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
         },
         "updatedAt": {
           "type": "string",

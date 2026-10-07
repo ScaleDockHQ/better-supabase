@@ -356,6 +356,85 @@ grant execute on function "better_supabase"."list_comments"(uuid, text, text, ti
 grant execute on function "better_supabase"."comment_counts"(uuid, text, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."record_activity"(jsonb) to service_role;
 
+-- sql.modules.comments.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+-- Helpers for the module's policies and triggers have no entry point.
+drop function if exists "api"."comment_subject_readable"(text, text, uuid);
+
+create or replace function "api"."create_comment"(tenant uuid, subject_type text, subject_id text, body text, mentions uuid[] default '{}', parent uuid default null, document jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."create_comment"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public;
+grant execute on function "api"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."edit_comment"(id uuid, body text, mentions uuid[] default null, document jsonb default null, clear_document boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."edit_comment"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."edit_comment"(uuid, text, uuid[], jsonb, boolean) from public;
+grant execute on function "api"."edit_comment"(uuid, text, uuid[], jsonb, boolean) to authenticated, service_role;
+
+create or replace function "api"."copy_comments"(tenant uuid, from_type text, from_id text, to_type text, to_id text)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."copy_comments"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."copy_comments"(uuid, text, text, text, text) from public;
+grant execute on function "api"."copy_comments"(uuid, text, text, text, text) to service_role;
+
+create or replace function "api"."list_activity"(tenant uuid, subject_type text default null, subject_id text default null, before timestamptz default null, max_rows integer default 50)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_activity"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer) from public;
+grant execute on function "api"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
+
+create or replace function "api"."delete_comment"(id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_comment"($1) $$;
+revoke execute on function "api"."delete_comment"(uuid) from public;
+grant execute on function "api"."delete_comment"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_comments"(tenant uuid, subject_type text, subject_id text, after timestamptz default null, max_rows integer default 100, skip integer default 0)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_comments"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer) from public;
+grant execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer) to authenticated, service_role;
+
+create or replace function "api"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."comment_counts"($1, $2, $3) $$;
+revoke execute on function "api"."comment_counts"(uuid, text, text[]) from public;
+grant execute on function "api"."comment_counts"(uuid, text, text[]) to authenticated, service_role;
+
+create or replace function "api"."record_activity"(batch jsonb)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_activity"($1) $$;
+revoke execute on function "api"."record_activity"(jsonb) from public;
+grant execute on function "api"."record_activity"(jsonb) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,

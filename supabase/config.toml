@@ -3,7 +3,8 @@ project_id = "better-supabase"
 [api]
 enabled = true
 port = 55421
-schemas = ["public", "graphql_public"]
+# `api` holds the SQL modules' security-invoker entry points (sql.modules.<module>.api).
+schemas = ["public", "graphql_public", "api"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 # New tables get no Data API grants until 090_grants.sql gives them.
@@ -60,7 +61,12 @@ entrypoint = "../apps/examples/mcp/supabase/functions/mcp/index.ts"
 enable_signup = true
 enable_confirmations = false
 
-# Adds the `user_role` claim (supabase/schemas/040_rbac.sql).
+# Two-factor sign-in in the Next.js example (settings, security, and /mfa).
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+# Adds the `user_role`, `memberships` and `features` claims (supabase/schemas/040_rbac.sql).
 [auth.hook.custom_access_token]
 enabled = true
 uri = "pg-functions://postgres/rbac/custom_access_token_hook"
@@ -69,8 +75,9 @@ uri = "pg-functions://postgres/rbac/custom_access_token_hook"
 enabled = false
 port = 55423
 
+# The Next.js example's sign-up, password reset and invitation emails.
 [local_smtp]
-enabled = false
+enabled = true
 port = 55424
 
 [analytics]

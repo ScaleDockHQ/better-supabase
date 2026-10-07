@@ -129,6 +129,28 @@ export const locationsUpdate: v.GenericSchema<UpdateOf<'locations'>> = v.pipe(v.
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 }), v.title("Locations update"));
 
+export const membershipsRow: v.GenericSchema<RowOf<'memberships'>> = v.pipe(v.object({
+  organizationId: v.pipe(v.string(), v.uuid()),
+  userId: v.pipe(v.string(), v.uuid()),
+  role: v.picklist(["owner", "admin", "member"]),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  lastUsedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
+}), v.title("Memberships"));
+export const membershipsInsert: v.GenericSchema<InsertOf<'memberships'>> = v.pipe(v.object({
+  organizationId: v.pipe(v.string(), v.uuid()),
+  userId: v.pipe(v.string(), v.uuid()),
+  role: v.exactOptional(v.picklist(["owner", "admin", "member"])),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  lastUsedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
+}), v.title("Memberships insert"));
+export const membershipsUpdate: v.GenericSchema<UpdateOf<'memberships'>> = v.pipe(v.object({
+  organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  userId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  role: v.exactOptional(v.picklist(["owner", "admin", "member"])),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  lastUsedAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
+}), v.title("Memberships update"));
+
 export const notesRow: v.GenericSchema<RowOf<'notes'>> = v.pipe(v.object({
   id: v.pipe(v.number(), v.integer()),
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -209,6 +231,66 @@ export const organizationsUpdate: v.GenericSchema<UpdateOf<'organizations'>> = v
   updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
 }), v.title("Organizations update"));
 
+export const planFeaturesRow: v.GenericSchema<RowOf<'planFeatures'>> = v.pipe(v.object({
+  planKey: v.string(),
+  featureKey: v.string(),
+  included: v.boolean(),
+  value: v.nullable(json),
+}), v.title("Plan features"));
+export const planFeaturesInsert: v.GenericSchema<InsertOf<'planFeatures'>> = v.pipe(v.object({
+  planKey: v.string(),
+  featureKey: v.string(),
+  included: v.exactOptional(v.boolean()),
+  value: v.exactOptional(v.nullable(json)),
+}), v.title("Plan features insert"));
+export const planFeaturesUpdate: v.GenericSchema<UpdateOf<'planFeatures'>> = v.pipe(v.object({
+  planKey: v.exactOptional(v.string()),
+  featureKey: v.exactOptional(v.string()),
+  included: v.exactOptional(v.boolean()),
+  value: v.exactOptional(v.nullable(json)),
+}), v.title("Plan features update"));
+
+export const plansRow: v.GenericSchema<RowOf<'plans'>> = v.pipe(v.object({
+  key: v.string(),
+  name: v.string(),
+  priceCents: v.pipe(v.number(), v.integer()),
+  position: v.pipe(v.number(), v.integer()),
+}), v.title("Plans"));
+export const plansInsert: v.GenericSchema<InsertOf<'plans'>> = v.pipe(v.object({
+  key: v.string(),
+  name: v.string(),
+  priceCents: v.exactOptional(v.pipe(v.number(), v.integer())),
+  position: v.exactOptional(v.pipe(v.number(), v.integer())),
+}), v.title("Plans insert"));
+export const plansUpdate: v.GenericSchema<UpdateOf<'plans'>> = v.pipe(v.object({
+  key: v.exactOptional(v.string()),
+  name: v.exactOptional(v.string()),
+  priceCents: v.exactOptional(v.pipe(v.number(), v.integer())),
+  position: v.exactOptional(v.pipe(v.number(), v.integer())),
+}), v.title("Plans update"));
+
+export const subscriptionsRow: v.GenericSchema<RowOf<'subscriptions'>> = v.pipe(v.object({
+  organizationId: v.pipe(v.string(), v.uuid()),
+  planKey: v.string(),
+  status: v.picklist(["active", "trialing", "past_due", "canceled"]),
+  currentPeriodEnd: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+}), v.title("Subscriptions"));
+export const subscriptionsInsert: v.GenericSchema<InsertOf<'subscriptions'>> = v.pipe(v.object({
+  organizationId: v.pipe(v.string(), v.uuid()),
+  planKey: v.string(),
+  status: v.exactOptional(v.picklist(["active", "trialing", "past_due", "canceled"])),
+  currentPeriodEnd: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+}), v.title("Subscriptions insert"));
+export const subscriptionsUpdate: v.GenericSchema<UpdateOf<'subscriptions'>> = v.pipe(v.object({
+  organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  planKey: v.exactOptional(v.string()),
+  status: v.exactOptional(v.picklist(["active", "trialing", "past_due", "canceled"])),
+  currentPeriodEnd: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+}), v.title("Subscriptions update"));
+
 export const tagsRow: v.GenericSchema<RowOf<'tags'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -240,17 +322,25 @@ export const validators: {
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
   readonly customers: { readonly insert: typeof customersInsert; readonly update: typeof customersUpdate };
   readonly locations: { readonly insert: typeof locationsInsert; readonly update: typeof locationsUpdate };
+  readonly memberships: { readonly insert: typeof membershipsInsert; readonly update: typeof membershipsUpdate };
   readonly notes: { readonly insert: typeof notesInsert; readonly update: typeof notesUpdate };
   readonly notifications: { readonly insert: typeof notificationsInsert; readonly update: typeof notificationsUpdate };
   readonly organizations: { readonly insert: typeof organizationsInsert; readonly update: typeof organizationsUpdate };
+  readonly planFeatures: { readonly insert: typeof planFeaturesInsert; readonly update: typeof planFeaturesUpdate };
+  readonly plans: { readonly insert: typeof plansInsert; readonly update: typeof plansUpdate };
+  readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
 } = {
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
   customers: { insert: customersInsert, update: customersUpdate },
   locations: { insert: locationsInsert, update: locationsUpdate },
+  memberships: { insert: membershipsInsert, update: membershipsUpdate },
   notes: { insert: notesInsert, update: notesUpdate },
   notifications: { insert: notificationsInsert, update: notificationsUpdate },
   organizations: { insert: organizationsInsert, update: organizationsUpdate },
+  planFeatures: { insert: planFeaturesInsert, update: planFeaturesUpdate },
+  plans: { insert: plansInsert, update: plansUpdate },
+  subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
 };
