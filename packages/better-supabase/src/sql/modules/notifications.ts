@@ -29,6 +29,7 @@ const NAMES: ModuleNames = {
   tables: {
     events: {
       name: "notification_events",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -60,6 +61,7 @@ const NAMES: ModuleNames = {
     },
     recipients: {
       name: "notification_recipients",
+      lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
         event: "event_id",
@@ -75,6 +77,7 @@ const NAMES: ModuleNames = {
     },
     deliveries: {
       name: "notification_deliveries",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         recipient: "recipient_id",
@@ -103,6 +106,7 @@ const NAMES: ModuleNames = {
     },
     subscriptions: {
       name: "notification_subscriptions",
+      lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -118,6 +122,7 @@ const NAMES: ModuleNames = {
     },
     preferences: {
       name: "notification_preferences",
+      lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
         user: "user_id",
@@ -551,4 +556,8 @@ export const NOTIFICATIONS: ModuleDefinition = {
   names: NAMES,
   contract,
   build,
+  topics: (ctx) =>
+    ctx.text("realtime", "broadcast") === "broadcast"
+      ? [ctx.text("topic", "notifications:{userId}")]
+      : [],
 };

@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Client, Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { CloudEvent } from "../../src/events/index.ts";
@@ -15,6 +15,39 @@ const live = await reachable();
 describe.skipIf(!live)("comments", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
   afterAll(() => pool.end());
+
+  it("copies a thread in a PostgREST session, where pg-safeupdate refuses a delete without where", async () => {
+    const url = new URL(dbUrl);
+    url.username = "authenticator";
+    const client = new Client({ connectionString: url.toString() });
+    await client.connect();
+    try {
+      await client.query("begin");
+      await client.query(
+        "create temporary table bs_probe (x int) on commit drop",
+      );
+      await client.query("savepoint probe");
+      await expect(client.query("delete from bs_probe")).rejects.toThrow(
+        /DELETE requires a WHERE clause/,
+      );
+      await client.query("rollback to savepoint probe");
+      await client.query("set local role service_role");
+      await client.query(
+        `select set_config('request.jwt.claims', '{"role":"service_role"}', true)`,
+      );
+      const tenant = crypto.randomUUID();
+      const copy = () =>
+        client.query<{ copied: number }>(
+          "select better_supabase.copy_comments($1, 'quote', 'q1', 'invoice', 'i1') as copied",
+          [tenant],
+        );
+      expect((await copy()).rows).toEqual([{ copied: 0 }]);
+      expect((await copy()).rows).toEqual([{ copied: 0 }]);
+      await client.query("rollback");
+    } finally {
+      await client.end();
+    }
+  });
 
   it("threads comments on readable subjects, notifies mentions and emits events", async () => {
     const s = await BlockSession.open(pool);
@@ -226,6 +259,230 @@ describe.skipIf(!live)("comments", () => {
       expect(
         await s.hint("select better_supabase.record_activity('{}')"),
       ).toMatch(/permission denied/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("checks a subject type's own read, create and moderate permissions", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create table if not exists public.bs_test_deals (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null
+         );
+         alter table public.bs_test_deals enable row level security;
+         grant select on public.bs_test_deals to authenticated;
+         drop policy if exists "read" on public.bs_test_deals;
+         create policy "read" on public.bs_test_deals for select to authenticated
+           using (better_supabase.has_organization_role(organization_id));`,
+      );
+      await s.install(["organizations", "comments"], {
+        modules: {
+          comments: {
+            options: {
+              subjects: {
+                deal: {
+                  table: "bs_test_deals",
+                  permissions: {
+                    read: "deals.read",
+                    create: "deals.comment",
+                    moderate: "deals.manage",
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+      const [deal] = await s.rows<{ id: string }>(
+        "insert into public.bs_test_deals (organization_id) values ($1) returning id",
+        [organization],
+      );
+      const comments = createComments({ transport: sqlTransport(s.sql) });
+      const input = {
+        organizationId: organization,
+        subjectType: "deal",
+        subjectId: deal!.id,
+        body: "Pricing looks right",
+      };
+      await s.asRole(member);
+      expect(await comments.create(input)).toMatchObject({ ok: false });
+      await s.asRole(owner);
+      const created = await comments.create(input).orThrow();
+      await s.asRole(member);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.comments where id = $1)",
+          [created.id],
+        ),
+      ).toBe(0);
+      await s.asRole(owner);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.comments where id = $1)",
+          [created.id],
+        ),
+      ).toBe(1);
+      await comments.create({ ...input, body: "Second" }).orThrow();
+      await comments.create({ ...input, body: "Third" }).orThrow();
+      expect(
+        (
+          await comments
+            .list(organization, "deal", deal!.id, { offset: 1, limit: 1 })
+            .orThrow()
+        ).map((comment) => comment.body),
+      ).toEqual(["Second"]);
+      expect(
+        await comments
+          .counts(organization, "deal", [deal!.id, "missing"])
+          .orThrow(),
+      ).toEqual({ [deal!.id]: 3, missing: 0 });
+      await s.asRole(member);
+      expect(
+        await comments.counts(organization, "deal", [deal!.id]).orThrow(),
+      ).toEqual({ [deal!.id]: 0 });
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("keeps a document, copies a thread, cascades deletes and lists a timeline", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create table public.bs_test_quotes (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null
+         );
+         alter table public.bs_test_quotes enable row level security;
+         grant select, delete on public.bs_test_quotes to authenticated;
+         create policy "read" on public.bs_test_quotes for select to authenticated
+           using (better_supabase.has_organization_role(organization_id));`,
+      );
+      await s.install(["organizations", "comments"], {
+        modules: {
+          comments: {
+            options: {
+              subjects: {
+                quote: { table: "bs_test_quotes", cascade: true },
+              },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+      const [from, to] = await s.rows<{ id: string }>(
+        "insert into public.bs_test_quotes (organization_id) values ($1), ($1) returning id",
+        [organization],
+      );
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        mentionsOf: ({ document }) =>
+          JSON.stringify(document ?? {}).includes(owner.id) ? [owner.id] : [],
+      });
+      const document = {
+        type: "doc",
+        content: [{ type: "mention", id: owner.id }],
+      };
+
+      await s.asRole(member);
+      const root = await comments
+        .create({
+          organizationId: organization,
+          subjectType: "quote",
+          subjectId: from!.id,
+          body: "Check this",
+          document,
+        })
+        .orThrow();
+      expect(root.document).toEqual(document);
+      expect(root.mentions).toEqual([owner.id]);
+      await comments
+        .create({
+          organizationId: organization,
+          subjectType: "quote",
+          subjectId: from!.id,
+          body: "Done",
+          parentId: root.id,
+        })
+        .orThrow();
+      const edited = await comments.edit(root.id, { body: "Plain" }).orThrow();
+      expect(edited.document).toEqual(document);
+      const cleared = await comments
+        .edit(root.id, { body: "Plain", document: null })
+        .orThrow();
+      expect(cleared.document).toBeNull();
+      expect(
+        (
+          await comments.copy(
+            organization,
+            { type: "quote", id: from!.id },
+            { type: "quote", id: to!.id },
+          )
+        ).ok,
+      ).toBe(false);
+
+      await s.service();
+      expect(
+        await comments
+          .copy(
+            organization,
+            { type: "quote", id: from!.id },
+            { type: "quote", id: to!.id },
+          )
+          .orThrow(),
+      ).toBe(2);
+      await s.asRole(member);
+      const copied = await comments
+        .list(organization, "quote", to!.id)
+        .orThrow();
+      expect(copied.map((comment) => comment.body)).toEqual(["Plain", "Done"]);
+      expect(copied[0]!.authorId).toBe(member.id);
+      expect(copied[1]!.parentId).toBe(copied[0]!.id);
+
+      await s.service();
+      await s.rows("delete from public.bs_test_quotes where id = $1", [
+        from!.id,
+      ]);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.comments where subject_id = $1)",
+          [from!.id],
+        ),
+      ).toBe(0);
+
+      await s.rows(
+        `select better_supabase.record_activity(jsonb_build_object('entries', jsonb_build_array(
+           jsonb_build_object('event_id', 'e1', 'organization_id', $1::text, 'type', 'quote.sent',
+             'subject_type', 'quote', 'subject_id', $2::text, 'occurred_at', '2026-10-06T10:00:00Z'),
+           jsonb_build_object('event_id', 'e2', 'organization_id', $1::text, 'type', 'quote.created',
+             'subject_type', 'quote', 'subject_id', $2::text, 'occurred_at', '2026-10-06T09:00:00Z'),
+           jsonb_build_object('event_id', 'e3', 'organization_id', $1::text, 'type', 'task.created',
+             'subject_type', 'task', 'subject_id', 't1', 'occurred_at', '2026-10-06T11:00:00Z'))))`,
+        [organization, to!.id],
+      );
+      await s.asRole(owner);
+      const timeline = await comments
+        .history(organization, { type: "quote", id: to!.id })
+        .orThrow();
+      expect(timeline.map((entry) => entry.type)).toEqual([
+        "quote.sent",
+        "quote.created",
+      ]);
+      const page = await comments
+        .history(organization, undefined, {
+          before: Temporal.Instant.from("2026-10-06T10:30:00Z"),
+          limit: 1,
+        })
+        .orThrow();
+      expect(page.map((entry) => entry.type)).toEqual(["quote.sent"]);
     } finally {
       await s.close();
     }

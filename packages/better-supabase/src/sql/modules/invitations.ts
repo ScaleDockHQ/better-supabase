@@ -11,7 +11,6 @@ import {
 } from "../shared.ts";
 import {
   accessModel,
-  hasPlatformRoles,
   MODULE_PERMISSIONS,
   permdockPlatformRoles,
   roleNames,
@@ -19,23 +18,19 @@ import {
   tenantScope,
 } from "./access-model.ts";
 import { permdockForUser } from "./access.ts";
+import {
+  PLATFORM_COLUMNS,
+  openFilter,
+  optionalCol,
+  platformTable,
+  raise,
+  statusOf,
+  tenantTable,
+  tokenHash,
+  type InviteTable,
+} from "./invitations-tables.ts";
 import { assignableRole, roleValue, TRUSTED_SETTING } from "./organizations.ts";
 import { roleThrough } from "./tenant.ts";
-
-const PLATFORM_COLUMNS = {
-  id: "id",
-  email: "email",
-  role: "role",
-  tokenHash: "token_hash",
-  invitedBy: "invited_by",
-  createdAt: "created_at",
-  updatedAt: "updated_at",
-  expiresAt: "expires_at",
-  acceptedAt: "accepted_at",
-  acceptedBy: "accepted_by",
-  declinedAt: "declined_at",
-  revokedAt: "revoked_at",
-} as const;
 
 const NAMES: ModuleNames = {
   options: [
@@ -51,6 +46,7 @@ const NAMES: ModuleNames = {
   tables: {
     invitations: {
       name: "invitations",
+      lifecycle: { tenant: "tenant" },
       columns: {
         ...PLATFORM_COLUMNS,
         tenant: "organization_id",
@@ -88,143 +84,6 @@ const NAMES: ModuleNames = {
 };
 
 /** Every error the module raises: its hint code and default SQLSTATE. */
-const INVITATION_ERRORS = {
-  INVITATION_FORBIDDEN: "42501",
-  INVITATION_ROLE_FORBIDDEN: "42501",
-  INVITATION_ROLE_UNKNOWN: "23514",
-  INVITATION_ALREADY_MEMBER: "23505",
-  INVITATION_INVALID: "P0002",
-  INVITATION_VALIDITY: "22023",
-  INVITATION_SIGN_IN: "42501",
-  INVITATION_EMAIL_MISMATCH: "42501",
-  INVITATION_EMAIL_UNCONFIRMED: "42501",
-  INVITATION_SELF: "42501",
-  INVITATION_INVITER_REVOKED: "42501",
-  INVITATION_SCOPE_UNSUPPORTED: "0A000",
-} as const;
-
-type InvitationError = keyof typeof INVITATION_ERRORS;
-
-/** `raise exception` for `code`, with its SQLSTATE from `INVITATION_ERRORS`. */
-function raise(
-  code: InvitationError,
-  message: string,
-  ...args: string[]
-): string {
-  return `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${INVITATION_ERRORS[code]}', hint = '${code}';`;
-}
-
-/**
- * How tokens are stored (`sql.modules.invitations.options.tokenStorage`): `sha256`
- * (the default) keeps only the hash; `plain` keeps the token itself, for an
- * adopted table whose open invitations hold plain tokens.
- */
-function tokenHash(ctx: ModuleContext, token: string): string {
-  const storage = ctx.text("tokenStorage", "sha256");
-  if (storage === "plain") return token;
-  if (storage !== "sha256") {
-    throw new TypeError(
-      `sql.modules.invitations.options.tokenStorage must be "sha256" or "plain", got "${storage}"`,
-    );
-  }
-  return `encode(extensions.digest(${token}, 'sha256'), 'hex')`;
-}
-
-/** A table of invitations: the tenant one, or the platform one. */
-interface InviteTable {
-  readonly table: string;
-  col(logical: string): string;
-  has(logical: string): boolean;
-  /** ` and <alias>.<tenant> is [not] null` when both kinds share a table. */
-  only(alias: string): string;
-}
-
-/** Whether platform invitations live in the tenant table, as rows without a tenant. */
-function sharesTable(ctx: ModuleContext): boolean {
-  return (
-    !ctx.manages &&
-    ctx.config.tables["platformInvitations"] != null &&
-    ctx.table("platformInvitations") === ctx.table("invitations")
-  );
-}
-
-function tenantTable(ctx: ModuleContext): InviteTable {
-  const shared = sharesTable(ctx);
-  // Managed tables add prefill only on request (`sql.modules.invitations.options.prefill`).
-  const prefill =
-    ctx.has("invitations", "prefill") &&
-    (!ctx.manages || ctx.flag("prefill", false));
-  return {
-    table: ctx.table("invitations"),
-    col: (logical) => ctx.col("invitations", logical),
-    has: (logical) =>
-      logical === "prefill" ? prefill : ctx.has("invitations", logical),
-    only: (alias) =>
-      shared
-        ? ` and ${alias}.${ctx.col("invitations", "tenant")} is not null`
-        : "",
-  };
-}
-
-/**
- * Platform invitations, with the catalog model's platform roles. Managed:
- * their own table. Adopted: `sql.modules.invitations.tables.platformInvitations`,
- * which may name the tenant table.
- */
-function platformTable(ctx: ModuleContext): InviteTable | undefined {
-  if (!hasPlatformRoles(ctx) || !ctx.hasTable("platformInvitations")) {
-    return undefined;
-  }
-  if (!ctx.manages && ctx.config.tables["platformInvitations"] === undefined) {
-    return undefined;
-  }
-  const logical = sharesTable(ctx) ? "invitations" : "platformInvitations";
-  return {
-    table: ctx.table(logical),
-    col: (column) => ctx.col(logical, column),
-    has: (column) => column in PLATFORM_COLUMNS && ctx.has(logical, column),
-    only: (alias) =>
-      logical === "invitations"
-        ? ` and ${alias}.${ctx.col("invitations", "tenant")} is null`
-        : "",
-  };
-}
-
-/** A column of the invitation row `alias`, or `fallback` when the table lacks it. */
-function optionalCol(
-  t: InviteTable,
-  alias: string,
-  logical: string,
-  fallback: string,
-): string {
-  return t.has(logical) ? `${alias}.${t.col(logical)}` : fallback;
-}
-
-/** `pending`, `accepted`, `declined`, `revoked` or `expired` for row `alias`. */
-function statusOf(t: InviteTable, alias: string): string {
-  const c = (logical: string) => `${alias}.${t.col(logical)}`;
-  const declined = t.has("declinedAt")
-    ? `\n    when ${c("declinedAt")} is not null then 'declined'`
-    : "";
-  const revoked = t.has("revokedAt")
-    ? `\n    when ${c("revokedAt")} is not null then 'revoked'`
-    : "";
-  return `case
-    when ${c("acceptedAt")} is not null then 'accepted'${declined}${revoked}
-    when ${c("expiresAt")} < now() then 'expired'
-    else 'pending'
-  end`;
-}
-
-/** Open invitations: not accepted, declined or revoked (expired ones count). */
-function openFilter(t: InviteTable, alias: string): string {
-  return ["acceptedAt", "declinedAt", "revokedAt"]
-    .filter((logical) => t.has(logical))
-    .map((logical) => `${alias}.${t.col(logical)} is null`)
-    .join(" and ");
-}
-
-/** The catalog role id for a key or id, in `scope`; `expr` itself in other models. */
 function roleIn(
   ctx: ModuleContext,
   expr: string,
@@ -248,6 +107,7 @@ interface PlatformAssignment {
   assign(stored: string): string;
   /** Whether `member` may assign the stored role `stored`; `undefined` for no ceiling. */
   canAssign(member: string, stored: string): string | undefined;
+  inviterCanAssign(member: string, stored: string): string | undefined;
   readonly table: string;
   readonly user: string;
   readonly role: string;
@@ -275,6 +135,14 @@ function platformAssignment(ctx: ModuleContext): PlatformAssignment {
         permdock.canAssign === undefined
           ? undefined
           : `coalesce((${permdock.canAssign.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`,
+      inviterCanAssign: (member, stored) => {
+        const template = permdock.canAssign?.includes("{user}")
+          ? permdock.canAssign
+          : permdock.canAssignFor;
+        return template === undefined
+          ? undefined
+          : `coalesce((${template.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`;
+      },
       table: permdock.table,
       user: permdock.user,
       role: permdock.role,
@@ -286,6 +154,8 @@ function platformAssignment(ctx: ModuleContext): PlatformAssignment {
     value: (expr) => roleIn(ctx, expr, "platform"),
     assign: (stored) => roleValue(ctx, stored),
     canAssign: (member, stored) =>
+      `better_supabase.platform_can_assign(${member}, ${stored}::text)`,
+    inviterCanAssign: (member, stored) =>
       `better_supabase.platform_can_assign(${member}, ${stored}::text)`,
     table: access.table("platformAssignments"),
     user: access.col("platformAssignments", "user"),
@@ -642,6 +512,53 @@ $$;
 }
 
 /** Whether the caller may manage tenant invitation row `alias` (revoke and resend). */
+function mine(ctx: ModuleContext): string {
+  const t = tenantTable(ctx);
+  const p = platformTable(ctx);
+  const confirmed = ctx.flag("requireConfirmedEmail", true)
+    ? " and u.email_confirmed_at is not null"
+    : "";
+  const rows = (table: InviteTable, tenant: string) => {
+    const open = openFilter(table, "i");
+    return `select ${inviteJson(table, "i", "null", tenant)} - 'token' as invitation, i.${table.col("expiresAt")} as expires_at
+    from ${table.table} i
+    where lower(i.${table.col("email")}) = invitee_email
+      and i.${table.col("expiresAt")} >= now()${open ? ` and ${open}` : ""}${table.only("i")}`;
+  };
+  return `
+create or replace function ${ctx.fn("my_invitations")}()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  invitee_email text;
+begin
+  select lower(u.email) into invitee_email
+  from auth.users u
+  where u.id = auth.uid()${confirmed};
+  if invitee_email is null then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(x.invitation order by x.expires_at), '[]'::jsonb)
+    from (
+    ${rows(t, `i.${t.col("tenant")}`)}${
+      p
+        ? `
+    union all
+    ${rows(p, "null")}`
+        : ""
+    }
+    ) x
+  );
+end;
+$$;
+`;
+}
+
 function canManage(ctx: ModuleContext, alias: string): string {
   const tenant = `${alias}.${ctx.col("invitations", "tenant")}`;
   return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${ctx.permission("revoke", MODULE_PERMISSIONS.invitations.revoke)}), false)`;
@@ -668,14 +585,20 @@ function close(ctx: ModuleContext): string {
     return true;
   end if;`
     : "";
-  const platformDecline = p
-    ? `
-  ${end(p, "declinedAt", `${hash(p)} and i.${p.col("expiresAt")} >= now()`)}
+  const platformDecline = (match: (table: InviteTable) => string) =>
+    p
+      ? `
+  ${end(p, "declinedAt", `${match(p)} and i.${p.col("expiresAt")} >= now()`)}
   returning i.${p.col("id")} into declined_id;
   if declined_id is not null then
     ${ctx.emit({ type: "invitation.declined", payload: "jsonb_build_object('invitationId', declined_id, 'organizationId', null)", subject: "'invitations/' || declined_id::text" })}
     return true;
   end if;`
+      : "";
+  const mine = (table: InviteTable) =>
+    `i.${table.col("id")} = invitation_id and lower(i.${table.col("email")}) = invitee_email`;
+  const confirmed = ctx.flag("requireConfirmedEmail", true)
+    ? " and u.email_confirmed_at is not null"
     : "";
   return `
 -- Revokes an open invitation (deletes it when revokedAt is mapped to null).
@@ -716,7 +639,35 @@ begin
   if declined_id is not null then
     ${ctx.emit({ type: "invitation.declined", payload: "jsonb_build_object('invitationId', declined_id, 'organizationId', tenant)", subject: "'invitations/' || declined_id::text", tenant: "tenant" })}
     return true;
-  end if;${platformDecline}
+  end if;${platformDecline(hash)}
+  return false;
+end;
+$$;
+
+create or replace function ${ctx.fn("decline_invitation_by_id")}(invitation_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  declined_id uuid;
+  tenant text;
+  invitee_email text;
+begin
+  select lower(u.email) into invitee_email
+  from auth.users u
+  where u.id = auth.uid()${confirmed};
+  if invitee_email is null then
+    return false;
+  end if;
+  ${end(t, "declinedAt", `${mine(t)} and i.${t.col("expiresAt")} >= now()`)}
+  returning i.${t.col("id")}, i.${t.col("tenant")}::text into declined_id, tenant;
+  if declined_id is not null then
+    ${ctx.emit({ type: "invitation.declined", payload: "jsonb_build_object('invitationId', declined_id, 'organizationId', tenant)", subject: "'invitations/' || declined_id::text", tenant: "tenant" })}
+    return true;
+  end if;${platformDecline(mine)}
   return false;
 end;
 $$;
@@ -798,8 +749,16 @@ $$;
 `;
 }
 
-function accept(ctx: ModuleContext, layout: ModuleLayout): string {
+function accept(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+  by: "token" | "id" = "token",
+): string {
   const t = tenantTable(ctx);
+  const match = (table: InviteTable) =>
+    by === "token"
+      ? `i.${table.col("tokenHash")} = ${tokenHash(ctx, "token")}`
+      : `i.${table.col("id")} = invitation_id`;
   const p = platformTable(ctx);
   const c = (logical: string) => t.col(logical);
   const id = ctx.idType;
@@ -871,7 +830,7 @@ function accept(ctx: ModuleContext, layout: ModuleLayout): string {
   if (p) {
     const pc = (logical: string) => p.col(logical);
     const assignment = platformAssignment(ctx);
-    const inviterCeiling = assignment.canAssign(
+    const inviterCeiling = assignment.inviterCanAssign(
       `pinvite.${pc("invitedBy")}`,
       `pinvite.${pc("role")}`,
     );
@@ -887,7 +846,7 @@ function accept(ctx: ModuleContext, layout: ModuleLayout): string {
     platformAccept = `
   select * into pinvite
   from ${p.table} i
-  where i.${pc("tokenHash")} = ${tokenHash(ctx, "token")}${p.only("i")}
+  where ${match(p)}${p.only("i")}
   for update;
   if pinvite.${pc("id")} is not null then
   ${invitee(p, "pinvite")}${platformInviter}
@@ -905,10 +864,15 @@ function accept(ctx: ModuleContext, layout: ModuleLayout): string {
   return null;
   end if;`;
   }
-  return `
+  return `${
+    by === "token"
+      ? `
 -- Accepts with the token for the signed-in user, whose confirmed email must
 -- match, and returns the tenant (null for a platform invitation).
-create or replace function ${ctx.fn("accept_invitation")}(token text)
+create or replace function ${ctx.fn("accept_invitation")}(token text)`
+      : `
+create or replace function ${ctx.fn("accept_invitation_by_id")}(invitation_id uuid)`
+  }
 returns ${id}
 language plpgsql
 security definer
@@ -924,7 +888,7 @@ begin
   end if;
   select * into invite
   from ${t.table} i
-  where i.${c("tokenHash")} = ${tokenHash(ctx, "token")}${t.only("i")}
+  where ${match(t)}${t.only("i")}
   for update;
   if invite.${c("id")} is null then${platformAccept}
     ${fail("INVITATION_INVALID", "The invitation is invalid or has expired")}
@@ -966,14 +930,17 @@ function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
     `revoke execute on function ${ctx.fn(fn)}(${args}) from ${revokeFrom};
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
   return `${schemaPreamble(ctx)}
-${tenantTableSql(ctx)}${platformTableSql(ctx)}${invite(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}
+${tenantTableSql(ctx)}${platformTableSql(ctx)}${invite(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${mine(ctx)}
 ${grant("invite_member", `${id}, text, text, interval, jsonb`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}
 ${grant("revoke_invitation", "uuid", "authenticated, service_role")}
 ${grant("decline_invitation", "text", "anon, authenticated, service_role", "public")}
 ${grant("invitation_preview", "text", "anon, authenticated, service_role", "public")}
-${grant("accept_invitation", "text", "authenticated")}`;
+${grant("accept_invitation", "text", "authenticated")}
+${grant("accept_invitation_by_id", "uuid", "authenticated")}
+${grant("decline_invitation_by_id", "uuid", "authenticated")}
+${grant("my_invitations", "", "authenticated")}`;
 }
 
 export const INVITATIONS: ModuleDefinition = {
@@ -995,6 +962,9 @@ export const INVITATIONS: ModuleDefinition = {
     { name: "accept_invitation", args: ["text"], returns: "{id}" },
     { name: "invitation_preview", args: ["text"], returns: "jsonb" },
     { name: "decline_invitation", args: ["text"], returns: "boolean" },
+    { name: "accept_invitation_by_id", args: ["uuid"], returns: "{id}" },
+    { name: "decline_invitation_by_id", args: ["uuid"], returns: "boolean" },
+    { name: "my_invitations", args: [], returns: "jsonb" },
     { name: "revoke_invitation", args: ["uuid"], returns: "boolean" },
     { name: "resend_invitation", args: ["uuid", "interval"], returns: "jsonb" },
   ],

@@ -11,7 +11,9 @@ import {
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { listEntries, reveal } from "./audit-api.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
+import { REGISTER } from "./audit-register.ts";
 import { auditTests } from "./audit-tests.ts";
+import { auditWrite, tenantLabel } from "./audit-values.ts";
 
 const NAMES: ModuleNames = {
   options: [
@@ -24,10 +26,14 @@ const NAMES: ModuleNames = {
     "readPolicy",
     "restricted",
     "tenantColumn",
+    "tenantLabel",
+    "tenantLabelKey",
+    "values",
   ],
   tables: {
     log: {
       name: "audit_events",
+      lifecycle: { user: "actor", tenant: "tenant", purge: false },
       columns: {
         id: "id",
         table: "table_name",
@@ -148,29 +154,34 @@ const ACTOR_KIND = `case
 
 const ACTOR_LABEL = `coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', auth.jwt() ->> 'email')`;
 
-/** The tenant's name as it was, from the organizations module's table when installed. */
-function tenantLabel(ctx: ModuleContext, tenant: string): string {
-  if (!ctx.installed("organizations")) return "null";
-  const organizations = ctx.of("organizations");
-  if (!organizations.has("organizations", "name")) return "null";
-  return `(select o.${organizations.col("organizations", "name")}::text from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${tenant})`;
-}
-
 /** The pairs every entry writes for the version 3 columns. */
 function contextPairs(
   ctx: ModuleContext,
   tenant: string,
-  values: { targetLabel: string; summary: string; correlationId: string },
+  values: {
+    targetLabel: string;
+    summary: string;
+    correlationId: string;
+    actorKind?: string;
+    actorLabel?: string;
+  },
 ): (readonly [string, string])[] {
   return [
-    ["actorKind", ACTOR_KIND],
-    ["actorLabel", ACTOR_LABEL],
+    ["actorKind", auditWrite(ctx, "actorKind", values.actorKind ?? ACTOR_KIND)],
+    ["actorLabel", values.actorLabel ?? ACTOR_LABEL],
     ["tenantLabel", tenantLabel(ctx, tenant)],
     ["targetLabel", values.targetLabel],
     ["summary", values.summary],
     ["requestId", requestHeader("x-request-id")],
     ["correlationId", values.correlationId],
-    ["scope", `case when ${tenant} is null then 'platform' else 'tenant' end`],
+    [
+      "scope",
+      auditWrite(
+        ctx,
+        "scope",
+        `case when ${tenant} is null then 'platform' else 'tenant' end`,
+      ),
+    ],
   ];
 }
 
@@ -302,7 +313,15 @@ $$;`;
 function restrictedInsert(
   ctx: ModuleContext,
   restricted: boolean,
-  values: { old: string; new: string; metadata: string; changed?: string },
+  values: {
+    old: string;
+    new: string;
+    metadata: string;
+    changed?: string;
+    ip?: string;
+    userAgent?: string;
+    sessionId?: string;
+  },
 ): string {
   if (!restricted) return "";
   const r = (logical: string) => ctx.col("restricted", logical);
@@ -310,10 +329,10 @@ function restrictedInsert(
     ["entry", "entry_id"],
     ["old", values.old],
     ["new", values.new],
-    ["ip", "better_supabase.request_ip()"],
-    ["userAgent", requestHeader("user-agent")],
+    ["ip", values.ip ?? "better_supabase.request_ip()"],
+    ["userAgent", values.userAgent ?? requestHeader("user-agent")],
     ["metadata", values.metadata],
-    ["sessionId", "auth.jwt() ->> 'session_id'"],
+    ["sessionId", values.sessionId ?? "auth.jwt() ->> 'session_id'"],
     ["changedValues", values.changed ?? "null"],
   ];
   const kept = pairs.filter(
@@ -360,9 +379,12 @@ function triggerFunction(
       "eventType",
       "coalesce(entry.event_prefix, tg_table_name) || '.' || case tg_op when 'INSERT' then 'created' when 'UPDATE' then 'updated' else 'deleted' end",
     ],
-    ["category", "coalesce(entry.category, 'data')"],
-    ["outcome", "'success'"],
-    ["source", "'database'"],
+    [
+      "category",
+      auditWrite(ctx, "category", "coalesce(entry.category, 'data')"),
+    ],
+    ["outcome", auditWrite(ctx, "outcome", "'success'")],
+    ["source", auditWrite(ctx, "source", "'database'")],
     ["targetType", "coalesce(entry.target_type, tg_table_name)"],
     ...contextPairs(ctx, "row_tenant", {
       targetLabel: "row_data ->> entry.label_column",
@@ -382,6 +404,7 @@ set search_path = ''
 as $$
 declare
   entry record;
+  settings jsonb;
   entry_id ${ctx.table("log")}.${ctx.col("log", "id")}%type;
   old_row jsonb := case when tg_op <> 'INSERT' then to_jsonb(old) end;
   new_row jsonb := case when tg_op <> 'DELETE' then to_jsonb(new) end;
@@ -390,12 +413,31 @@ declare
   changed_values jsonb;
   row_tenant ${ctx.idType};
 begin
-  select coalesce(a.ignore, '{}') as ignore, coalesce(a.key_columns, '{id}') as key_columns,
-    coalesce(a.redact, '{}') as redact, a.category, a.event_prefix, a.target_type, a.tenant_column,
-    a.label_column
-  into entry
-  from (select 1) one
-  left join better_supabase.audited_tables a on a.target = tg_relid::regclass;
+  if tg_nargs > 0 then
+    settings := tg_argv[0]::jsonb;
+    select array(select jsonb_array_elements_text(coalesce(settings -> 'ignore', '[]'))) as ignore,
+      coalesce(
+        nullif(array(select jsonb_array_elements_text(coalesce(settings -> 'key_columns', '[]'))), '{}'),
+        (select array_agg(c.attname::text order by k.ord)
+         from pg_catalog.pg_index i
+         cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
+         join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
+         where i.indrelid = tg_relid and i.indisprimary),
+        '{id}'
+      ) as key_columns,
+      array(select jsonb_array_elements_text(coalesce(settings -> 'redact', '[]'))) as redact,
+      settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
+      settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
+      settings ->> 'label_column' as label_column
+    into entry;
+  else
+    select coalesce(a.ignore, '{}') as ignore, coalesce(a.key_columns, '{id}') as key_columns,
+      coalesce(a.redact, '{}') as redact, a.category, a.event_prefix, a.target_type, a.tenant_column,
+      a.label_column
+    into entry
+    from (select 1) one
+    left join better_supabase.audited_tables a on a.target = tg_relid::regclass;
+  end if;
   row_tenant := ${tenantValue};
   old_row := old_row - entry.ignore;
   new_row := new_row - entry.ignore;
@@ -430,6 +472,9 @@ $$;`;
 
 /** `audit_event`'s argument types. */
 const EVENT_ARGS = (id: string): string =>
+  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text`;
+
+const PREVIOUS_EVENT_ARGS = (id: string): string =>
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text`;
 
 function auditEvent(ctx: ModuleContext, restricted: boolean): string {
@@ -455,12 +500,20 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
     ["eventType", "event_type"],
     [
       "category",
-      `coalesce(category, ${sqlString(ctx.text("eventCategory", "system"))})`,
+      auditWrite(
+        ctx,
+        "category",
+        `coalesce(category, ${sqlString(ctx.text("eventCategory", "system"))})`,
+      ),
     ],
-    ["outcome", "coalesce(outcome, 'success')"],
+    ["outcome", auditWrite(ctx, "outcome", "coalesce(outcome, 'success')")],
     [
       "source",
-      `coalesce(source, ${sqlString(ctx.text("eventSource", "app"))})`,
+      auditWrite(
+        ctx,
+        "source",
+        `coalesce(source, ${sqlString(ctx.text("eventSource", "app"))})`,
+      ),
     ],
     ["targetType", "target_type"],
     ["metadata", "coalesce(metadata, '{}')"],
@@ -469,13 +522,15 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
       targetLabel: "target_label",
       summary: "summary",
       correlationId: `coalesce(correlation_id, ${requestHeader("x-correlation-id")})`,
+      actorKind: `coalesce(actor_kind, ${ACTOR_KIND})`,
+      actorLabel: `coalesce(actor_label, ${ACTOR_LABEL})`,
     }),
   ]);
   const roles = ctx.list("eventRoles", ["service_role"]);
   const noRestricted = restricted
     ? ""
     : `
-  if restricted is not null then
+  if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = ${sqlString(
         ctx.manages
@@ -499,10 +554,12 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
     : "";
   return `-- Records a semantic app event (invoice.sent, member.invited) next to the
 -- row changes. A repeated idempotency_key returns the first entry's id.
--- actor_id is honoured for the service role and direct admin connections;
--- everyone else is auth.uid(). restricted goes to the restricted table;
+-- actor_id, actor_kind, actor_label, ip, user_agent and session_id are
+-- honoured for the service role and direct admin connections; everyone else
+-- gets auth.uid() and the request's own values. restricted goes to the restricted table;
 -- without that table, passing it fails instead of dropping the details.
 drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid);
+drop function if exists better_supabase.audit_event(${PREVIOUS_EVENT_ARGS(id)});
 drop function if exists better_supabase.audit_event(${EVENT_ARGS(id)});
 create or replace function better_supabase.audit_event(
   event_type text,
@@ -518,7 +575,12 @@ create or replace function better_supabase.audit_event(
   actor_id uuid default null,
   summary text default null,
   target_label text default null,
-  correlation_id text default null
+  correlation_id text default null,
+  actor_kind text default null,
+  actor_label text default null,
+  ip inet default null,
+  user_agent text default null,
+  session_id text default null
 )
 returns text
 language plpgsql
@@ -529,14 +591,21 @@ declare
   existing text;
   entry_id ${log}.${c("id")}%type;
 begin${noRestricted}
-  if not (${SERVICE_CALLER}) or actor_id is null then
+  if not (${SERVICE_CALLER}) then
+    actor_id := auth.uid();
+    actor_kind := null;
+    actor_label := null;
+    ip := null;
+    user_agent := null;
+    session_id := null;
+  elsif actor_id is null then
     actor_id := auth.uid();
   end if;${idempotent}
   insert into ${log} (${insert.columns})
   values (
     ${insert.values}
   )
-  returning ${c("id")} into entry_id;${restrictedInsert(ctx, restricted, { old: "null", new: "null", metadata: "coalesce(restricted, '{}')" })}
+  returning ${c("id")} into entry_id;${restrictedInsert(ctx, restricted, { old: "null", new: "null", metadata: "coalesce(restricted, '{}')", ip: "coalesce(ip, better_supabase.request_ip())", userAgent: `coalesce(user_agent, ${requestHeader("user-agent")})`, sessionId: "coalesce(session_id, auth.jwt() ->> 'session_id')" })}
   return entry_id::text;
 end;
 $$;
@@ -728,145 +797,6 @@ $$;
 revoke execute on function better_supabase.audit_events_tenants(interval) from public, anon, authenticated;
 grant execute on function better_supabase.audit_events_tenants(interval) to service_role;`;
 }
-
-const REGISTER = `drop function if exists better_supabase.audit(regclass, text[]);
-drop function if exists better_supabase.audit(regclass, text[], boolean);
-drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);
-
--- select better_supabase.audit('public.customers', ignore => '{updated_at}');
--- redact => '{api_key}' masks values but keeps them in changed;
--- event_prefix, category and target_type name the entries (event_prefix.created);
--- tenant_column overrides the module's tenant column for this table, and
--- label_column names the column kept as the entry's target label.
--- replace_trigger => true drops another audit trigger on the table.
-create or replace function better_supabase.audit(
-  target regclass,
-  ignore text[] default '{}',
-  replace_trigger boolean default false,
-  redact text[] default '{}',
-  category text default null,
-  event_prefix text default null,
-  target_type text default null,
-  tenant_column text default null,
-  label_column text default null
-)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-declare
-  keys text[];
-begin
-  perform better_supabase.replace_equivalent_triggers(
-    target, 'bs_audit', 'audit', replace_trigger
-  );
-  select array_agg(c.attname::text order by k.ord) into keys
-  from pg_catalog.pg_index i
-  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)
-  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum
-  where i.indrelid = audit.target and i.indisprimary;
-  insert into better_supabase.audited_tables as a
-    (target, ignore, key_columns, redact, category, event_prefix, target_type, tenant_column, label_column)
-  values (
-    audit.target, audit.ignore, coalesce(keys, '{id}'), audit.redact, audit.category,
-    audit.event_prefix, audit.target_type, audit.tenant_column, audit.label_column
-  )
-  on conflict on constraint audited_tables_pkey do update
-    set ignore = excluded.ignore, key_columns = excluded.key_columns, redact = excluded.redact,
-      category = excluded.category, event_prefix = excluded.event_prefix,
-      target_type = excluded.target_type, tenant_column = excluded.tenant_column,
-      label_column = excluded.label_column;
-  execute format('drop trigger if exists bs_audit on %s', target);
-  execute format(
-    'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change()',
-    target
-  );
-end;
-$$;
-
-create or replace function better_supabase.unaudit(target regclass)
-returns void
-language plpgsql
-set search_path = ''
-as $$
-begin
-  execute format('drop trigger if exists bs_audit on %s', target);
-  delete from better_supabase.audited_tables a where a.target = unaudit.target;
-end;
-$$;
-
--- The audit() calls for every table in schema_name with tenant_column,
--- except tables whose name matches an exempt pattern (like 'audit_%').
--- Paste them into a schema file: static calls keep their place in a
--- pg-delta diff, where a loop over the catalog runs before the tables exist.
---   select better_supabase.audit_schema_calls('public', 'tenant_id', '{audit_%}');
-create or replace function better_supabase.audit_schema_calls(
-  schema_name text,
-  tenant_column text,
-  exempt text[] default '{}'
-)
-returns setof text
-language sql
-stable
-set search_path = ''
-as $$
-  select format('select better_supabase.audit(%L);', format('%I.%I', n.nspname, c.relname))
-  from pg_catalog.pg_class c
-  join pg_catalog.pg_namespace n on n.oid = c.relnamespace
-  where n.nspname = schema_name
-    and c.relkind in ('r', 'p')
-    and not c.relispartition
-    and exists (
-      select 1 from pg_catalog.pg_attribute a
-      where a.attrelid = c.oid and a.attname = tenant_column and a.attnum > 0 and not a.attisdropped
-    )
-    and not exists (select 1 from unnest(exempt) e where c.relname like e)
-  order by c.relname
-$$;
-
--- Registers those tables now, for a migration or a one-off script; tables
--- already registered keep their own settings. Returns how many it added.
-create or replace function better_supabase.audit_schema(
-  schema_name text,
-  tenant_column text,
-  exempt text[] default '{}'
-)
-returns integer
-language plpgsql
-set search_path = ''
-as $$
-declare
-  registered integer := 0;
-  target regclass;
-begin
-  for target in
-    select format('%I.%I', n.nspname, c.relname)::regclass
-    from pg_catalog.pg_class c
-    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = schema_name
-      and c.relkind in ('r', 'p')
-      and not c.relispartition
-      and exists (
-        select 1 from pg_catalog.pg_attribute a
-        where a.attrelid = c.oid and a.attname = audit_schema.tenant_column and a.attnum > 0 and not a.attisdropped
-      )
-      and not exists (select 1 from unnest(exempt) e where c.relname like e)
-      and not exists (
-        select 1 from better_supabase.audited_tables t where t.target = format('%I.%I', n.nspname, c.relname)::regclass
-      )
-    order by c.relname
-  loop
-    perform better_supabase.audit(target);
-    registered := registered + 1;
-  end loop;
-  return registered;
-end;
-$$;
-
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text) from public, anon, authenticated;
-revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
-revoke execute on function better_supabase.audit_schema_calls(text, text, text[]) from public, anon, authenticated;
-revoke execute on function better_supabase.audit_schema(text, text, text[]) from public, anon, authenticated;`;
 
 /** The 0.4 table name and columns, read-only, until the next minor release. */
 function legacyView(ctx: ModuleContext): string {

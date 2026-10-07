@@ -57,4 +57,108 @@ describe("attachments module", () => {
   ])("rejects %j", (options, message) => {
     expect(() => sqlOf(["attachments"], options)).toThrow(message);
   });
+
+  it("lets a subject without a tenant decide its files' access", () => {
+    const sql = sqlOf(["attachments"], {
+      subjects: { note: { table: "notes", tenant: false } },
+    });
+    expect(sql).toContain(
+      `alter table "better_supabase"."attachments" alter column "organization_id" drop not null;`,
+    );
+    expect(sql).toContain(`coalesce("organization_id"::text, '-')`);
+    expect(sql).toContain(
+      `when 'note' then exists (select 1 from "public"."notes" s where s."id"::text = subject_id)`,
+    );
+    expect(sql).toContain(
+      `("organization_id" is null or coalesce(better_supabase.can(`,
+    );
+    expect(sqlOf(["attachments"])).not.toContain("drop not null");
+    expect(() =>
+      renderModules(["comments"], {
+        modules: {
+          comments: {
+            options: { subjects: { note: { table: "notes", tenant: false } } },
+          },
+        },
+      }),
+    ).toThrow(/tenant can't be false/);
+  });
+
+  it("accepts any valid bucket id, short ones included", () => {
+    const sql = sqlOf(["attachments"], {
+      bucket: "ai",
+      scanBuckets: ["x"],
+      subjects: { note: { table: "notes", bucket: "files.v2" } },
+    });
+    expect(sql).toContain("'ai'");
+    expect(sql).toContain("'files.v2'");
+    for (const bucket of ["", "Upper", "-dash", "a/b", "a".repeat(101)]) {
+      expect(() => sqlOf(["attachments"], { bucket })).toThrow(/bucket/);
+    }
+  });
+
+  it("checks the subject on storage reads when files have subjects", () => {
+    const visible = `"better_supabase"."attachment_object_visible"(bucket_id, name)`;
+    expect(
+      sqlOf(["attachments"], { subjects: { receipt: { table: "receipts" } } }),
+    ).toMatch(
+      new RegExp(
+        `for select to authenticated\\n  using \\([^\\n]*'select'\\) and ${visible.replaceAll(/[.()"]/g, "\\$&")}\\);`,
+      ),
+    );
+    expect(sqlOf(["attachments"])).not.toContain(`and ${visible}`);
+  });
+
+  it("gives subjects their own bucket and MIME types, a path template and a scan gate", () => {
+    const sql = sqlOf(["attachments"], {
+      path: "{organization_id}/{subject_type}/{id}",
+      scanBuckets: ["files"],
+      subjects: {
+        receipt: {
+          table: "receipts",
+          bucket: "expenses",
+          allowedMimeTypes: ["image/*"],
+          cascade: true,
+        },
+        note: { table: "notes" },
+      },
+    });
+    expect(sql).toContain(
+      `"organization_id"::text || '/' || coalesce("subject_type", '-') || '/' || "id"::text`,
+    );
+    expect(sql).toContain("when 'receipt' then 'expenses'");
+    expect(sql).toContain(`bucket_id in ('attachments', 'expenses')`);
+    expect(sql).toContain(
+      "values ('attachments', 'attachments', false, 52428800, null),\n  ('expenses', 'expenses', false, 52428800, array['image/*']::text[])",
+    );
+    expect(sql).toContain(
+      `"subject_type" is distinct from 'receipt' or "mime_type" like 'image/%'`,
+    );
+    expect(sql).toContain("create trigger bs_object_scan_pending");
+    expect(sql).toContain("when (new.bucket_id in ('files'))");
+    expect(sql).toContain("bs_attachments_receipt_cascade");
+    expect(sqlOf(["attachments"])).toContain(
+      "drop trigger if exists bs_object_scan_pending on storage.objects;",
+    );
+    for (const [options, message] of [
+      [{ path: "{organization_id}/x" }, /must contain \{id\}/],
+      [
+        { path: "{id}/{organization_id}" },
+        /must start with \{organization_id\}/,
+      ],
+      [
+        { path: "{organization_id}/{nope}/{id}" },
+        /\{nope\} is not a placeholder/,
+      ],
+      [{ path: "{organization_id}/a b/{id}" }, /may hold letters/],
+      [{ scanBuckets: ["Bad Bucket"] }, /is not a bucket id/],
+      [{ subjects: { r: { table: "r", bucket: "B" } } }, /bucket must be/],
+      [
+        { subjects: { r: { table: "r", allowedMimeTypes: "x" } } },
+        /allowedMimeTypes must be/,
+      ],
+    ] as const) {
+      expect(() => sqlOf(["attachments"], options)).toThrow(message);
+    }
+  });
 });

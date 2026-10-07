@@ -1,7 +1,9 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
 import {
+  createFlagAdmin,
   createFlagsProvider,
   type FlagContext,
   sqlTransport,
@@ -33,6 +35,118 @@ describe.skipIf(!live)("flags", () => {
           ]),
         ).toBe(bucket);
       }
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("serves a service-role server through the API schema wrappers", async () => {
+    const s = await BlockSession.open(pool);
+    const api = `bs_api_${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await s.install(["flags", "announcements"], {
+        modules: { flags: { api }, announcements: { api } },
+      });
+      await s.rows(
+        "insert into better_supabase.flags (key, rules) values ('beta', '[]')",
+      );
+      await s.service();
+      await s.client.query("set local role service_role");
+      const sql = sqlTransport(s.sql);
+      const calls: string[] = [];
+      const transport = {
+        call: (
+          _schema: string,
+          fn: string,
+          args: Readonly<Record<string, unknown>>,
+        ) => {
+          calls.push(fn);
+          return sql.call(api, fn, args);
+        },
+      };
+      const provider = createFlagsProvider({ transport });
+      const resolved = await provider.resolveBooleanEvaluation(
+        "beta",
+        true,
+        {},
+      );
+      expect(resolved.errorCode).toBeUndefined();
+      const announcements = createAnnouncements({ transport });
+      expect((await announcements.list()).ok).toBe(true);
+      expect(calls).toEqual(["flag_definitions", "list_announcements"]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("lets platform staff manage flags through the API schema", async () => {
+    const s = await BlockSession.open(pool);
+    const api = `bs_api_${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await s.install(["organizations", "flags"], {
+        modules: { flags: { api } },
+      });
+      const owner = await s.user("owner");
+      const staff = await s.user("staff");
+      const organization = await s.organization(owner);
+      const sql = sqlTransport(s.sql);
+      const admin = createFlagAdmin({
+        transport: {
+          call: (_schema, fn, args) => sql.call(api, fn, args),
+        },
+      });
+      await s.asRole(staff, { platform_permissions: ["flags.manage"] });
+      expect(
+        await admin
+          .save("new_editor", {
+            description: "The new editor",
+            rolloutPercentage: 25,
+          })
+          .orThrow(),
+      ).toMatchObject({
+        key: "new_editor",
+        enabled: true,
+        rolloutPercentage: 25,
+        defaultVariant: "off",
+      });
+      expect(
+        await admin.save("new_editor", { enabled: false }).orThrow(),
+      ).toMatchObject({ enabled: false, rolloutPercentage: 25 });
+      expect(
+        await admin
+          .override("new_editor", { organizationId: organization }, "on")
+          .orThrow(),
+      ).toBe(true);
+      expect(
+        await admin
+          .override("new_editor", { userId: owner.id }, "on")
+          .orThrow(),
+      ).toBe(true);
+      const flag = (await admin.list().orThrow()).find(
+        (entry) => entry.key === "new_editor",
+      );
+      expect(flag!.overrides).toHaveLength(2);
+      expect(
+        await admin
+          .override("new_editor", { userId: owner.id }, null)
+          .orThrow(),
+      ).toBe(true);
+      await s.rows("savepoint override_both");
+      expect(
+        await admin.override(
+          "new_editor",
+          { organizationId: organization, userId: owner.id } as never,
+          "on",
+        ),
+      ).toMatchObject({ error: { hint: "FLAGS_OVERRIDE_TARGET" } });
+      await s.rows("rollback to savepoint override_both");
+      await s.asRole(owner);
+      expect(await admin.list()).toMatchObject({
+        error: { hint: "FLAGS_FORBIDDEN" },
+      });
+      await s.asRole(staff, { platform_permissions: ["flags.manage"] });
+      expect(await admin.remove("new_editor").orThrow()).toBe(true);
+      expect(await admin.remove("new_editor").orThrow()).toBe(false);
     } finally {
       await s.close();
     }

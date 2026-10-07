@@ -23,5 +23,12 @@ export {
   type FlagValue,
   type RequestFlagContext,
 } from "./flags.ts";
+export {
+  createFlagAdmin,
+  type FlagAdmin,
+  type FlagAdminOptions,
+  type FlagInput,
+  type FlagOverrideTarget,
+} from "./admin.ts";
 export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";

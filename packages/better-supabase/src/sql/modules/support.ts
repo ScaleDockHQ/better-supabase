@@ -21,6 +21,7 @@ const NAMES: ModuleNames = {
   tables: {
     sessions: {
       name: "support_sessions",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         admin: "admin_id",

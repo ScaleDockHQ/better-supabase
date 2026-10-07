@@ -60,6 +60,69 @@ export default defineConfig({
 `id` defaults to `id` and `tenant` to `organization_id`. A subject type not in
 the map is refused. `maxBodyLength` (default 10000) caps the body.
 
+`permissions` gives a subject type its own keys per action, in place of the
+module's `comments.read`, `comments.create` and `comments.moderate`, so
+comments on deals follow the deal permissions while other subjects keep the
+defaults:
+
+```ts
+subjects: {
+  deal: {
+    table: "deals",
+    permissions: { read: "deals.read", create: "deals.comment", moderate: "deals.manage" },
+  },
+},
+```
+
+`read` decides who sees the thread, `create` who may comment, and `moderate`
+who may edit or delete other people's comments; authors always edit their
+own.
+
+`cascade: true` on a subject writes an `after delete` trigger on its table
+that deletes the subject's comments, which stands in for a foreign key, since
+`subject_id` is text. The subject table must exist before the module file.
+
+## Rich text
+
+A comment can carry a `document` (any JSON, such as a block editor's
+document) next to `body`, which stays its plain text for search, summaries
+and notifications. `createComments({ mentionsOf })` reads the mentioned user
+ids from the comment when a call passes no `mentions`, for editors that store
+mentions as nodes instead of `@[Name](<user id>)` markup:
+
+```ts
+const comments = createComments({
+  transport,
+  mentionsOf: ({ document }) =>
+    mentionNodes(document).map((node) => node.userId),
+});
+
+await comments.create({
+  organizationId,
+  subjectType,
+  subjectId,
+  body,
+  document,
+});
+await comments.edit(id, { body, document: null }); // null removes the document
+```
+
+An edit without `document` keeps the current one. With the jsonb-schemas
+module, `options.documentSchema` (a JSON Schema object) adds a pg_jsonschema
+check on the column.
+
+## Copying a thread
+
+When the app duplicates a record (a quote into an invoice, say),
+`comments.copy(organizationId, { type, id }, { type, id })` copies the
+thread to the new subject with its authors, times and replies, and returns
+the number of comments copied. `copy_comments` is for the service role only:
+call it from the code that duplicates the record, after that code checked the
+caller may read both. It works over `sqlTransport` and over `rpcTransport`
+with a service-role client; PostgREST sessions on Supabase load
+pg-safeupdate, which refuses a `delete` or `update` without a `where`
+clause, and every statement the SQL modules run has one.
+
 ## Comments
 
 ```ts title="app/projects/[id]/actions.ts"
@@ -87,7 +150,11 @@ const thread = await comments
 `mentionsIn(body)` returns the user ids written as `@[Name](<user id>)`, the
 markup most mention inputs produce. The module drops the author and repeats,
 and notifies only mentioned members who hold `comments.read`. `list` returns
-the thread oldest first; `after` polls for new comments. `edit` returns
+the thread oldest first; `after` polls for new comments, and `offset` with
+`limit` pages by number. `counts(organizationId, subjectType, subjectIds)`
+returns how many comments each subject has that the caller can read
+(`comment_counts`), deleted ones left out and 0 for a subject without any,
+for a counter on each row of a list. `edit` returns
 `not_found` for a comment the caller can't see, and `forbidden` with the hint
 `COMMENT_NOT_AUTHOR` for someone else's comment.
 
@@ -131,7 +198,18 @@ replayed batch writes nothing twice. The actor is the event's `actorId`,
 (or the CloudEvents `subject`). `describe` can set the summary, actor,
 subject and data, or return `null` to skip an event.
 
-Read the feed with `activityListQuery`, a cursor-paged
+`comments.history(organizationId, subject?, { before, limit })` reads the
+feed through `list_activity`, which runs as the caller: the tenant's entries
+newest first, or one subject's timeline when you pass `{ type, id }`. It works
+over `rpcTransport` too, without exposing the module schema.
+
+```ts
+const timeline = await comments
+  .history(organizationId, { type: "quote", id: quoteId }, { limit: 20 })
+  .orThrow();
+```
+
+Or read the feed with `activityListQuery`, a cursor-paged
 [list query](/docs/platform/list) filtered by type, actor and
 subject, newest first. Generate types for the `better_supabase` schema to
 have the table in your models:

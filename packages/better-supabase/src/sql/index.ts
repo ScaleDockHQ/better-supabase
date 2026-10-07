@@ -8,6 +8,8 @@ export {
   MODULE_ID_TYPES,
   modulePermissionKeys,
   moduleBody,
+  moduleSchemaExtensions,
+  moduleTopics,
   moduleVersion,
   renderModules,
   resolveModules,
@@ -18,6 +20,7 @@ export {
 export type {
   InstalledModule,
   ModuleDeprecation,
+  ModuleExtension,
   ModuleAccessPermdock,
   ModuleFile,
   ModuleIdType,
@@ -25,12 +28,19 @@ export type {
   ModulePermdock,
   ModulePermissionKey,
   ModuleTestFile,
+  ModuleTopic,
   ModuleUpgrade,
   ModuleUpgradePlan,
   SqlModule,
 } from "./registry.ts";
 export { auditRegistrations } from "./audit-registrations.ts";
 export type { AuditedTable } from "./audit-registrations.ts";
+export {
+  declaredTables,
+  extensionSchema,
+  policyGrants,
+  type PolicyGrant,
+} from "./schema-scan.ts";
 export { contractSignature } from "./context.ts";
 export type {
   ModuleContext,

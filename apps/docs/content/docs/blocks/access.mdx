@@ -71,6 +71,8 @@ Keys follow one scheme, `<area>.<verb>`, with `read` for viewing. Platform-wide 
 | `support-sessions` | `start`: `support.start`, `view`: `support.read`, `revoke`: `support.revoke`                                                                                                                    |
 | `notifications`    | `send`: `notifications.send`, `read`: `notifications.read`                                                                                                                                      |
 | `webhooks-out`     | `manage`: `webhooks.manage`, `view`: `webhooks.read`                                                                                                                                            |
+| `billing`          | `read`: `billing.read`, `manage`: `billing.manage`, `viewAll` (platform): `billing.read`                                                                                                        |
+| `flags`            | `manage` (platform): `flags.manage`                                                                                                                                                             |
 
 ## Models
 
@@ -221,16 +223,16 @@ calls `permdock_can_assign_for`.
 PermDock already guards memberships and answers permission questions, so
 some module checks change under the permdock model:
 
-| Module          | Check                                        | Under `permdock`                                                                                                   |
-| --------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `organizations` | Role ceiling trigger on memberships          | Kept, or dropped with `assignmentGuard: "external"` when PermDock's assignment rules guard the table               |
-| `organizations` | Owner check (`ownerInvariant`)               | Kept; turn it off when PermDock's `transferOnly` ownership rule already keeps an owner                             |
-| `invitations`   | Inviter still holds the permission at accept | Runs with `permitted_<scope>_ids_for` and `permdock_has_for`; skipped without them                                 |
-| `invitations`   | Inviter may still assign the role at accept  | Runs with `permdock_can_assign_for`; skipped without it                                                            |
-| `invitations`   | Platform invitations                         | Need `invitations.options.platformRoles` (PermDock's `rls.roles` table); the inviter is checked when inviting      |
-| `notifications` | Each recipient may read the notification     | Runs with `permitted_<scope>_ids_for`; without it, the sender and `notification_audience` decide                   |
-| `tenant`        | Role names on memberships                    | Read through the manifest's `through` roles table                                                                  |
-| `access`        | Disabled tenants and users                   | Set `sql.modules.access.disabled` to the same columns as PermDock's suspension rule; the manifest doesn't carry it |
+| Module          | Check                                        | Under `permdock`                                                                                              |
+| --------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `organizations` | Role ceiling trigger on memberships          | Kept, or dropped with `assignmentGuard: "external"` when PermDock's assignment rules guard the table          |
+| `organizations` | Owner check (`ownerInvariant`)               | Kept; turn it off when PermDock's `transferOnly` ownership rule already keeps an owner                        |
+| `invitations`   | Inviter still holds the permission at accept | Runs with `permitted_<scope>_ids_for` and `permdock_has_for`; skipped without them                            |
+| `invitations`   | Inviter may still assign the role at accept  | Runs with `permdock_can_assign_for`; skipped without it                                                       |
+| `invitations`   | Platform invitations                         | Need `invitations.options.platformRoles` (PermDock's `rls.roles` table); the inviter is checked when inviting |
+| `notifications` | Each recipient may read the notification     | Runs with `permitted_<scope>_ids_for`; without it, the sender and `notification_audience` decide              |
+| `tenant`        | Role names on memberships                    | Read through the manifest's `through` roles table                                                             |
+| `access`        | Disabled tenants and users                   | Read from the manifest's `rls.suspension` rows; an explicit `sql.modules.access.disabled` wins per subject    |
 
 ### custom
 
@@ -318,6 +320,37 @@ sql: {
 
 The tenant column is matched against the table's `id`. `userKey` names the
 column matched against the user id; it defaults to `id`.
+
+The checks are `better_supabase.tenant_disabled(id)` and
+`better_supabase.user_disabled(user_id)`. The `access` module's file defines
+them; the `tenant` module's file defines them only when `access` isn't
+installed (or runs in custom mode), so each function lives in one schema file.
+
+Either subject also takes an active row in the shape of PermDock's
+`rls.suspension`: a table, the id column, and a nullable `disabledAt` column,
+a `status` column with its `active` values, or both. Only a row that matches
+counts as active, so a tenant or user without a row is disabled, the same as
+in PermDock's helpers.
+
+```ts
+disabled: {
+  tenant: {
+    table: "public.organizations",
+    id: "id",
+    status: "state",
+    active: ["active", "trial"],
+  },
+  user: { table: "public.profiles", id: "id", disabledAt: "banned_at" },
+},
+```
+
+Under the permdock model, `sql add` and `sql sync` read both from the
+manifest: `rls.suspension.users` for users, and the row of the tenant scope
+in `rls.suspension.scopes` for tenants. A subject set in
+`sql.modules.access.disabled` keeps its own setting. The data-lifecycle
+module disables a tenant awaiting deletion by setting the `disabledAt`
+column, so a tenant row with only a `status` column is not switched off
+during the grace period.
 
 ## The active tenant
 

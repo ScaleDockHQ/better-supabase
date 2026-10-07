@@ -55,6 +55,32 @@ A flag resolves in this order:
 The reason in each result follows OpenFeature: `DISABLED`,
 `TARGETING_MATCH`, `SPLIT` or `DEFAULT`.
 
+### Managing flags from an admin page
+
+`createFlagAdmin` manages flags for platform staff with `flags.manage` (the
+module's `manage` permission, checked with `is_platform()` when the
+[access](/docs/blocks/access) module is installed) or the service role. It
+calls `list_flags`, `save_flag`, `delete_flag` and `set_flag_override`,
+which are granted to `authenticated`, so an app that only reaches the
+database through the Data API manages flags with `sql.modules.flags.api`
+and `rpcTransport`:
+
+```ts
+import { createFlagAdmin, rpcTransport } from "better-supabase/blocks/flags";
+
+const admin = createFlagAdmin({
+  transport: rpcTransport(supabase, { schema: "api" }),
+});
+
+await admin.save("new_editor", { rolloutPercentage: 25, rolloutVariant: "on" });
+await admin.override("new_editor", { organizationId }, "on");
+await admin.override("new_editor", { userId }, null); // removes it
+const flags = await admin.list().orThrow();
+```
+
+`save` creates the flag or updates the fields you pass and keeps the rest.
+Anyone else gets `FLAGS_FORBIDDEN`.
+
 ## In policies
 
 `flag_enabled(key, tenant)` is true when the flag resolves to `true` for the
@@ -105,6 +131,19 @@ const details = await flags.getBooleanDetails(
 );
 ```
 
+The `memberships` claim can have either shape: an object of tenant id to
+role, as the `tenant` module's hook writes, or a list of
+`{ scope, id, roles }` entries, as PermDock's hook writes. For a list,
+`flagContext` reads the entry whose `id` is the tenant and that has no
+`within` (the root scope), or the entry of `membershipScope` when you set it.
+A caller with several roles gets the first as `role` and all of them as
+`roles`, and a rule's `roles` list matches any of them. For a claim of
+another shape, pass `roles: (claims, tenant) => ...`.
+
+```ts
+flagContext({ jwtClaims: ctx.jwtClaims }, { membershipScope: "organization" });
+```
+
 Without the OpenFeature SDK, `createFlagClient({ transport, errorCodes })`
 returns the four `get*Details` methods that `withOpenFeature` calls (see
 [middleware](/docs/auth/middleware#feature-flags)). `evaluateFlag` and
@@ -120,6 +159,7 @@ returns the four `get*Details` methods that `withOpenFeature` calls (see
 | `flagContext(ctx, opts?)`   | The evaluation context from `jwtClaims`; claim names are options                 |
 | `evaluateFlag(flag, ctx)`   | `{ value, variant, reason }`, as `flag_evaluation()` computes it                 |
 | `flagBucket(key, target)`   | The rollout bucket, 0 to 9999                                                    |
+| `createFlagAdmin(opts)`     | `list`, `save`, `remove` and `override` for platform staff or the service role   |
 
 The provider follows the OpenFeature specification pinned in
 `SPEC_PINS.openfeature` (see [standards](/docs/standards)).

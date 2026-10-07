@@ -7,7 +7,7 @@ export interface AuditedTable {
 }
 
 /** `text` with comments blanked out, string and identifier quotes kept. */
-function withoutComments(text: string): string {
+export function withoutComments(text: string): string {
   let out = "";
   let index = 0;
   while (index < text.length) {
@@ -139,9 +139,42 @@ function registration(args: readonly string[]): AuditedTable | undefined {
 
 const CALL = /\bbetter_supabase\s*\.\s*(un)?audit\s*\(/gi;
 
+const IDENT = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
+const TRIGGER = new RegExp(
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?trigger\s+"?bs_audit"?\s+after\s+[\s\S]*?\bon\s+(${IDENT}(?:\s*\.\s*${IDENT})?)\s+for\s+each\s+row\s+execute\s+(?:function|procedure)\s+better_supabase\s*\.\s*audit_row_change\s*\(`,
+  "gi",
+);
+
+const names = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+
+function triggerRegistration(
+  target: string,
+  args: readonly string[],
+): AuditedTable | undefined {
+  const text = args.length === 0 ? "{}" : literal(args[0]!);
+  if (text === undefined) return undefined;
+  let settings: unknown;
+  try {
+    settings = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (typeof settings !== "object" || settings === null) return undefined;
+  return {
+    target: qualifiedName(target.replaceAll(/\s+/g, "")),
+    ignore: "ignore" in settings ? names(settings.ignore) : [],
+    redact: "redact" in settings ? names(settings.redact) : [],
+  };
+}
+
 /**
- * The tables `files` register with `better_supabase.audit(...)`, in file
- * order: a later call for the same table replaces the earlier one, and
+ * The tables `files` register with `better_supabase.audit(...)` or a static
+ * `create trigger bs_audit ... execute function
+ * better_supabase.audit_row_change('{...}')`, in file order: a later
+ * registration for the same table replaces the earlier one, and
  * `unaudit(...)` removes it. Calls with non-literal arguments are skipped.
  */
 export function auditRegistrations(
@@ -150,9 +183,18 @@ export function auditRegistrations(
   const tables = new Map<string, AuditedTable>();
   for (const file of files) {
     const text = withoutComments(file.text);
-    for (const match of text.matchAll(CALL)) {
+    const found = [
+      ...[...text.matchAll(CALL)].map((match) => ({ match, trigger: false })),
+      ...[...text.matchAll(TRIGGER)].map((match) => ({ match, trigger: true })),
+    ].sort((a, b) => a.match.index - b.match.index);
+    for (const { match, trigger } of found) {
       const args = callArgs(text, match.index + match[0].length - 1);
       if (!args) continue;
+      if (trigger) {
+        const entry = triggerRegistration(match[1]!, args);
+        if (entry) tables.set(entry.target, entry);
+        continue;
+      }
       if (match[1] !== undefined) {
         const target = literal(args[0] ?? "");
         if (target !== undefined) tables.delete(qualifiedName(target));

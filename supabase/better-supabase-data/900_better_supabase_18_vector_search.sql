@@ -5,6 +5,8 @@
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
+create extension if not exists "vector" with schema "extensions";
+
 insert into better_supabase.modules (name, version, mode)
 values ('vector-search', 1, 'managed')
 on conflict (name) do update

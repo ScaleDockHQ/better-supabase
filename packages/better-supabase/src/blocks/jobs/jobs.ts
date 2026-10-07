@@ -2,15 +2,27 @@ import type { SqlClient } from "../../postgres/executor.ts";
 import type { DrainResult } from "./queue.ts";
 
 import { dbError } from "../../core/errors.ts";
-import { problemResponse } from "../../core/problem.ts";
+import {
+  type BlockProblemOptions,
+  problemResponse,
+} from "../../core/problem.ts";
 import { type AsyncResult, ok, type Result } from "../../core/result.ts";
-import { errorText, run, seconds, toInstant, workerId } from "../shared.ts";
+import {
+  errorText,
+  run,
+  seconds,
+  toInstant,
+  workerId,
+  type BlockTemporalOptions,
+  applyTemporal,
+} from "../shared.ts";
 import { verifyWebhook } from "../webhooks/verify.ts";
 
 // ---------------------------------------------------------------------------
 // Idempotency keys (SQL module `idempotency`)
 
-export interface IdempotencyOptions {
+export interface IdempotencyOptions
+  extends BlockProblemOptions, BlockTemporalOptions {
   /**
    * Separates keys of different callers, endpoints or tenants. Defaults to a
    * hash of the caller's credentials (the `Authorization` header or the
@@ -92,7 +104,9 @@ export function createIdempotency(
   sql: SqlClient,
   options: IdempotencyOptions = {},
 ): Idempotency {
+  applyTemporal(options);
   const headerName = options.header ?? "idempotency-key";
+  const format = options.problem;
   const ttl = seconds(options.ttl ?? "24 hours");
   const lock = seconds(options.lock ?? "1 minute");
 
@@ -144,7 +158,7 @@ export function createIdempotency(
                   code: "IDEMPOTENCY_KEY_MISSING",
                 },
               ),
-              { instance },
+              { instance, format },
             )
           : handler(request);
       }
@@ -153,7 +167,7 @@ export function createIdempotency(
           dbError("invalid_request", `The ${headerName} header is too long`, {
             code: "IDEMPOTENCY_KEY_INVALID",
           }),
-          { instance },
+          { instance, format },
         );
       }
       const scope =
@@ -165,7 +179,8 @@ export function createIdempotency(
         `${request.method} ${instance}\n${body}`,
       );
       const started = await begin(key, fingerprint, scope);
-      if (!started.ok) return problemResponse(started.error, { instance });
+      if (!started.ok)
+        return problemResponse(started.error, { instance, format });
       const { state } = started.data;
       switch (state) {
         case "replay": {
@@ -191,7 +206,7 @@ export function createIdempotency(
                 code: "IDEMPOTENCY_KEY_IN_USE",
               },
             ),
-            { instance, headers: { "retry-after": "1" } },
+            { instance, format, headers: { "retry-after": "1" } },
           );
         case "mismatch":
           return problemResponse(
@@ -208,7 +223,7 @@ export function createIdempotency(
                 ],
               },
             ),
-            { instance },
+            { instance, format },
           );
         case "started":
           break;
@@ -248,7 +263,14 @@ export interface InboxMessage<T = unknown> {
   readonly type: string | null;
   readonly payload: T;
   readonly headers: Readonly<Record<string, string>>;
+  /** 1 on the first attempt. */
   readonly attempts: number;
+  /**
+   * The source's limit when the message was stored. A handler running with
+   * `attempts === maxAttempts` is on its last attempt: when it fails, the
+   * message is marked dead.
+   */
+  readonly maxAttempts: number;
   readonly receivedAt: Temporal.Instant;
   /** The tenant the message was stored for, or null. */
   readonly tenant: string | null;
@@ -274,10 +296,16 @@ export interface InboxEvent {
   readonly headers?: Readonly<Record<string, string>>;
 }
 
-export interface InboxOptions {
+export interface InboxOptions
+  extends BlockProblemOptions, BlockTemporalOptions {
   /** Name of the sender, e.g. `stripe` or `supabase-auth`. */
   readonly source: string;
-  /** Standard Webhooks secrets; the signature is verified before storing. */
+  /**
+   * Standard Webhooks secrets; the signature is verified before storing.
+   * Leave out `secrets` and `verify` for a source that only `store` fills
+   * (a chat or provider SDK that verifies its own requests); `receive` then
+   * throws.
+   */
   readonly secrets?: string | readonly string[];
   /**
    * Custom verification for senders that don't use Standard Webhooks. It
@@ -296,6 +324,24 @@ export interface InboxOptions {
   /** Headers kept with the message. Defaults to none. */
   readonly keepHeaders?: readonly string[];
   readonly worker?: string;
+  /**
+   * Attempts before a message of this source is marked dead, stored with
+   * each message as it arrives. Defaults to 8.
+   */
+  readonly maxAttempts?: number;
+}
+
+export interface InboxProcessOptions {
+  /** Messages claimed at once. Defaults to 10. */
+  readonly batch?: number;
+  /** How long a claimed message stays with this worker. Defaults to 300 seconds. */
+  readonly lease?: number | string;
+  /**
+   * Stop claiming after this many ms, so a backlog can't outrun a
+   * serverless function's maximum duration; claimed messages still finish.
+   * Defaults to no limit.
+   */
+  readonly budgetMs?: number;
 }
 
 export interface InboxListOptions {
@@ -313,6 +359,7 @@ export interface InboxEntry {
   readonly type: string | null;
   readonly status: "pending" | "processing" | "processed" | "dead";
   readonly attempts: number;
+  readonly maxAttempts: number;
   readonly lastError: string | null;
   readonly tenant: string | null;
   readonly receivedAt: Temporal.Instant;
@@ -328,7 +375,11 @@ export interface InboxPurgeOptions {
 }
 
 export interface Inbox {
-  /** Verifies and stores a webhook; answers 202, or 200 for a duplicate delivery. */
+  /**
+   * Verifies and stores a webhook; answers 202, or 200 for a duplicate
+   * delivery. Throws a `TypeError` when the inbox has neither `secrets` nor
+   * `verify`.
+   */
   receive(request: Request): Promise<Response>;
   /**
    * Stores an event your code already verified (a provider SDK that
@@ -336,10 +387,13 @@ export interface Inbox {
    * before.
    */
   store(event: InboxEvent): AsyncResult<{ id: number; duplicate: boolean }>;
-  /** Processes stored messages until none are ready. */
+  /**
+   * Processes stored messages until none are ready, or until `budgetMs`
+   * is spent.
+   */
   process<T = unknown>(
     handler: (message: InboxMessage<T>) => unknown,
-    options?: { readonly batch?: number; readonly lease?: number | string },
+    options?: InboxProcessOptions,
   ): Promise<DrainResult>;
   /** A tenant's messages of this source, newest first. */
   list(options: InboxListOptions): AsyncResult<InboxEntry[]>;
@@ -355,6 +409,7 @@ interface InboxRow {
   payload: unknown;
   headers: Record<string, string>;
   attempts: number;
+  max_attempts?: number;
   received_at: Date | string;
   tenant?: string | null;
   checkpoint?: Record<string, unknown> | null;
@@ -372,10 +427,13 @@ function defaultType(payload: unknown): string | null {
 
 /** Store-then-process webhooks: acknowledge fast, process with retries, never twice. */
 export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
+  applyTemporal(options);
   const worker = options.worker ?? workerId();
-  if (!options.secrets && !options.verify) {
+  const format = options.problem;
+  const maxAttempts = options.maxAttempts ?? 8;
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
     throw new TypeError(
-      "createInbox needs `secrets` (Standard Webhooks) or `verify`",
+      `createInbox maxAttempts must be a positive integer, not ${String(maxAttempts)}`,
     );
   }
 
@@ -386,7 +444,12 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
   > => {
     if (options.verify)
       return options.verify(request, await request.clone().text());
-    const result = await verifyWebhook(request, options.secrets!);
+    if (!options.secrets) {
+      throw new TypeError(
+        `The inbox for "${options.source}" has no \`secrets\` or \`verify\`, so it only stores events through \`store\``,
+      );
+    }
+    const result = await verifyWebhook(request, options.secrets);
     return result.ok
       ? ok({ id: result.data.id, payload: result.data.payload })
       : result;
@@ -398,7 +461,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
         id: string | number;
         duplicate: boolean;
       }>(
-        "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6)",
+        "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6, $7)",
         [
           options.source,
           event.id,
@@ -410,6 +473,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
           (event.tenant === undefined
             ? options.tenantOf?.(event.payload)
             : event.tenant) ?? null,
+          maxAttempts,
         ],
       );
       return { id: Number(row!.id), duplicate: row!.duplicate };
@@ -434,6 +498,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
           type: row.event_type,
           status: row.status ?? "pending",
           attempts: row.attempts,
+          maxAttempts: row.max_attempts ?? maxAttempts,
           lastError: row.last_error ?? null,
           tenant: row.tenant ?? null,
           receivedAt: toInstant(row.received_at),
@@ -462,7 +527,8 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
         return new Response(null, { status: 405, headers: { allow: "POST" } });
       }
       const message = await verified(request);
-      if (!message.ok) return problemResponse(message.error, { instance });
+      if (!message.ok)
+        return problemResponse(message.error, { instance, format });
       const headers = Object.fromEntries(
         (options.keepHeaders ?? []).flatMap((name) => {
           const value = request.headers.get(name);
@@ -477,7 +543,8 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
           ? {}
           : { tenant: message.data.tenant }),
       });
-      if (!stored.ok) return problemResponse(stored.error, { instance });
+      if (!stored.ok)
+        return problemResponse(stored.error, { instance, format });
       return Response.json(stored.data, {
         status: stored.data.duplicate ? 200 : 202,
       });
@@ -486,7 +553,13 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
     async process(handler, processOptions = {}) {
       let succeeded = 0;
       let failed = 0;
+      const deadline =
+        processOptions.budgetMs === undefined
+          ? undefined
+          : Date.now() + processOptions.budgetMs;
       for (;;) {
+        if (deadline !== undefined && Date.now() >= deadline)
+          return { succeeded, failed };
         const rows = await sql.queryRaw<InboxRow>(
           "select * from better_supabase.claim_webhooks($1, $2, $3, $4::interval)",
           [
@@ -509,6 +582,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
             payload: row.payload as never,
             headers: row.headers,
             attempts: row.attempts,
+            maxAttempts: row.max_attempts ?? maxAttempts,
             receivedAt: toInstant(row.received_at),
             tenant: row.tenant ?? null,
             progress: row.checkpoint ?? {},

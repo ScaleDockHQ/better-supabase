@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  readPermissionCatalogKeys,
   accessPermdockMode,
   entitlementsMode,
   moduleKeyProblems,
@@ -65,6 +66,26 @@ describe("PermDock manifest", () => {
     expect(() =>
       parseManifest({ ...manifest, rls: { ...manifest.rls, mode: "edge" } }),
     ).toThrow(/rls\.mode "edge" is not supported/);
+  });
+
+  it("reads the tenancy scopes of grants and the catalog's scope names", () => {
+    const catalog = parseCatalog({
+      version: 1,
+      permissions: [{ key: "a", scope: "a:read" }],
+      grants: [
+        { permission: "a", role: "admin", scope: "organization" },
+        { permission: "a" },
+        "bad",
+      ],
+      scopes: [{ name: "organization", key: "organization_id" }, { key: "x" }],
+    });
+    expect(catalog.grants).toEqual([
+      { permission: "a", scope: "organization" },
+    ]);
+    expect(catalog.scopes).toEqual(["organization"]);
+    expect(parseCatalog({ version: 1, permissions: [] })).toEqual({
+      permissions: [],
+    });
   });
 
   it("keeps each catalog key's rowConditions flag, and drops one that isn't boolean", () => {
@@ -435,6 +456,51 @@ describe("accessPermdockMode", () => {
     });
   });
 
+  it("passes on the manifest's suspension rows for users and the tenant scope", () => {
+    const users = {
+      table: "public.profiles",
+      id: "id",
+      disabledAt: "banned_at",
+    };
+    const tenant = {
+      table: "public.tenants",
+      id: "id",
+      status: "state",
+      active: ["active"],
+    };
+    const suspended = {
+      ...authz,
+      manifest: parseManifest({
+        ...manifest,
+        rls: {
+          ...manifest.rls,
+          schema: "authz",
+          scopes: [{ name: "tenant", type: "text" }],
+          suspension: {
+            users,
+            scopes: {
+              tenant,
+              team: { table: "public.teams", id: "id" },
+            },
+          },
+        },
+      }),
+    };
+    expect(suspended.manifest.rls?.suspension).toEqual({
+      users,
+      scopes: { tenant },
+    });
+    expect(accessPermdockMode(config(), suspended)).toMatchObject({
+      kind: "permdock",
+      access: { suspension: { users, tenant } },
+    });
+    const none = parseManifest({
+      ...manifest,
+      rls: { ...manifest.rls, suspension: { scopes: { tenant: {} } } },
+    });
+    expect(none.rls?.suspension).toBeUndefined();
+  });
+
   it("lists PermDock's helpers for a named user the manifest advertises", () => {
     const helper = (name: string) => ({
       name,
@@ -670,6 +736,24 @@ describe("readPermdock", () => {
 
   it("is undefined without a PermDock config or manifest", async () => {
     expect(await readPermdock(root, PATHS)).toBeUndefined();
+  });
+
+  it("reads the catalog's keys without a config or manifest", async () => {
+    expect(
+      await readPermissionCatalogKeys(root, PATHS.catalog),
+    ).toBeUndefined();
+    await writeFile(
+      join(root, PATHS.catalog),
+      JSON.stringify({ version: 1, permissions: [{ key: "deals.read" }] }),
+    );
+    expect(await readPermdock(root, PATHS)).toBeUndefined();
+    expect(await readPermissionCatalogKeys(root, PATHS.catalog)).toEqual([
+      "deals.read",
+    ]);
+    await writeFile(join(root, PATHS.catalog), JSON.stringify({ version: 2 }));
+    expect(
+      await readPermissionCatalogKeys(root, PATHS.catalog),
+    ).toBeUndefined();
   });
 
   it("reads the manifest and catalog next to the config", async () => {

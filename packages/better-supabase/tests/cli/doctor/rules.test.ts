@@ -491,6 +491,37 @@ describe("generated and module files (BS303, BS304)", () => {
     );
   });
 
+  it("renders api-keys scopes from PermDock's catalog, and skips without one", async () => {
+    const config: BetterSupabaseConfig = {
+      sql: {
+        modules: { "api-keys": { options: { scopes: "catalog" } } },
+      },
+    };
+    const withCatalog: DoctorContext = {
+      ...rooted(config),
+      permdock: {
+        manifestPath: "permdock.manifest.json",
+        catalogPath: "permissions.catalog.json",
+        catalog: {
+          permissions: [{ key: "deals.read", rowConditions: false }],
+        },
+        problems: [],
+      },
+    };
+    const missing = await run("BS304", withCatalog);
+    expect(missing.map((finding) => finding.target)).toContain(
+      "supabase/schemas/900_better_supabase_28_api_keys.sql",
+    );
+    expect(await run("BS304", rooted(config))).toEqual([]);
+    const catalogOnly = await run("BS304", {
+      ...rooted(config),
+      permissionCatalog: ["deals.read"],
+    });
+    expect(catalogOnly.map((finding) => finding.target)).toContain(
+      "supabase/schemas/900_better_supabase_28_api_keys.sql",
+    );
+  });
+
   it("checks the SQL modules in sql.modules", async () => {
     expect(await run("BS304", rooted())).toEqual([]);
     const ctx = rooted({ sql: { modules: ["updated-at", "audit"] } });
@@ -1147,6 +1178,76 @@ comment on table public.t is 'alter role supabase_admin nologin';`),
   });
 });
 
+describe("tables without the session policy (BS320)", () => {
+  const rlsTables = toCatalog(base)
+    .tables.filter(
+      (entry) =>
+        entry.schema === "public" && entry.kind === "table" && entry.rls,
+    )
+    .map((entry) => `public.${entry.name}`);
+
+  it("lists RLS tables without a restrictive session_active() policy", async () => {
+    const covered = snapshot((tables) => {
+      const customers = table(tables, "customers");
+      customers.policies = [
+        ...customers.policies,
+        {
+          name: "bs_session_active",
+          command: "all",
+          roles: ["authenticated"],
+          permissive: false,
+          using: "( SELECT better_supabase.session_active() AS session_active)",
+          check: "( SELECT better_supabase.session_active() AS session_active)",
+        },
+      ];
+      const notes = table(tables, "notes");
+      notes.policies = [
+        ...notes.policies,
+        {
+          name: "permissive_only",
+          command: "all",
+          roles: ["authenticated"],
+          permissive: true,
+          using: "better_supabase.session_active()",
+          check: null,
+        },
+      ];
+    });
+    const findings = await run(
+      "BS320",
+      context(covered, {}, { sql: { modules: ["sessions"] } }),
+    );
+    expect(findings.map((finding) => finding.target)).toEqual(
+      rlsTables.filter((name) => name !== "public.customers"),
+    );
+    expect(findings[0]).toMatchObject({
+      severity: "warning",
+      object: { kind: "table", schema: "public" },
+    });
+    expect(findings[0]!.message).toContain(
+      "sql.modules.sessions.options.exclude",
+    );
+  });
+
+  it("skips excluded tables and projects without the module", async () => {
+    expect(
+      await run(
+        "BS320",
+        context(
+          base,
+          {},
+          {
+            sql: {
+              modules: { sessions: { options: { exclude: ["public.*"] } } },
+            },
+          },
+        ),
+      ),
+    ).toEqual([]);
+    expect(await run("BS320", context(base))).toEqual([]);
+  });
+});
+
 describe("realtime and auth.users (BS305, BS306, BS406)", () => {
   it("passes tables with a broadcast trigger and keyed replica identity", async () => {
     const snap = snapshot((tables, catalog) => {
@@ -1333,7 +1434,7 @@ describe("session cookie encoding (BS412)", () => {
   });
 });
 
-describe("pg-delta schema files (BS317, BS318)", () => {
+describe("pg-delta schema files (BS317, BS318, BS321)", () => {
   const pgdelta = toml("[experimental.pgdelta]\nenabled = true\n");
   const file = (text: string, path = "supabase/schemas/090_grants.sql") => ({
     path,
@@ -1415,6 +1516,66 @@ describe("pg-delta schema files (BS317, BS318)", () => {
       await run(
         "BS318",
         context(base, { configToml: toml("[db]\n"), sqlFiles: [loop] }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("flags extensions the schema files create that no migration does", async () => {
+    const jobs = file(
+      "-- @bs-module jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;",
+      "supabase/schemas/900_better_supabase_07_jobs.sql",
+    );
+    const own = file(
+      '-- create extension pg_cron;\nCREATE EXTENSION "pg_cron" WITH SCHEMA pg_catalog;\ncreate extension pgmq;',
+      "supabase/schemas/010_extensions.sql",
+    );
+    const migration = file(
+      'create extension if not exists "vector" with schema "extensions";',
+      "supabase/migrations/20260101000000_init.sql",
+    );
+    const findings = await run(
+      "BS321",
+      context(base, {
+        configToml: pgdelta,
+        sqlFiles: [jobs, own, migration],
+      }),
+    );
+    expect(
+      findings.map((finding) => [finding.target, finding.location?.line]),
+    ).toEqual([
+      ["supabase/schemas/900_better_supabase_07_jobs.sql", 2],
+      ["supabase/schemas/010_extensions.sql", 2],
+    ]);
+    expect(findings[0]!.message).toContain("better-supabase sql sync");
+    expect(findings[1]!.message).toContain(
+      "create extension if not exists pg_cron;",
+    );
+    const data = file(
+      '-- @bs-module-data jobs\ncreate extension if not exists "pgmq";\ncreate extension if not exists pg_cron;',
+      "supabase/migrations/20260101000001_better_supabase_module_data.sql",
+    );
+    expect(
+      await run(
+        "BS321",
+        context(base, {
+          configToml: pgdelta,
+          sqlFiles: [jobs, own, migration, data],
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS321",
+        context(base, { configToml: pgdelta, sqlFiles: [jobs] }),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS321",
+        context(base, {
+          configToml: toml("[db]\n"),
+          sqlFiles: [jobs, migration],
+        }),
       ),
     ).toEqual([]);
   });

@@ -24,10 +24,17 @@ import {
   optionalText,
   recordOf,
   textOf,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
-import { lazyStripe, type StripeClient, type StripeSource } from "../stripe.ts";
+import {
+  lazyStripe,
+  type StripeClient,
+  type StripeSource,
+  type StripeTaxId,
+} from "../stripe.ts";
 
-export interface BillingOptions {
+export interface BillingOptions extends BlockTemporalOptions {
   readonly stripe: StripeSource;
   /** A service-role transport: linking customers and reading seats are granted to `service_role` only. */
   readonly transport: BlockTransport;
@@ -57,16 +64,45 @@ export interface CustomerDetails {
 }
 
 export interface CheckoutOptions extends CustomerDetails {
-  readonly price: string;
+  /** A Stripe price id. Pass this or `plan`. */
+  readonly price?: string;
+  /**
+   * A plan key from `sql.modules.billing.options.plans`, resolved to its
+   * Stripe price in the app's plan catalog (with `interval` when plans have
+   * monthly and yearly prices).
+   */
+  readonly plan?: string;
+  readonly interval?: string;
+  /** One of the plan's prices, from the catalog's `variant` column. */
+  readonly variant?: string;
+  /**
+   * More line items, such as add-on packages next to the plan: each a
+   * price, or a plan key with `interval` and `variant`. Quantity defaults to 1.
+   */
+  readonly items?: readonly CheckoutItem[];
   readonly successUrl: string;
   readonly cancelUrl?: string;
   /** A number, or `seats` for the tenant's seat count. Default 1. */
   readonly quantity?: number | "seats";
   /** Default `subscription`. */
   readonly mode?: "subscription" | "payment";
-  /** More Checkout Session parameters, merged over the block's. */
+  /**
+   * More Checkout Session parameters, merged deeply over the block's (nested
+   * objects such as `metadata` merge, arrays replace). The customer,
+   * `client_reference_id` and the tenant's `metadata.organization_id` always
+   * stay.
+   */
   readonly params?: Readonly<Record<string, unknown>>;
   readonly idempotencyKey?: string;
+}
+
+/** An extra Checkout line item. */
+export interface CheckoutItem {
+  readonly price?: string;
+  readonly plan?: string;
+  readonly interval?: string;
+  readonly variant?: string;
+  readonly quantity?: number;
 }
 
 export interface SubscriptionItem {
@@ -106,6 +142,51 @@ export interface StripeEventOutcome {
   readonly invalidated: readonly string[];
 }
 
+/** A plan change: a price id, or a plan key from the catalog. */
+export interface PlanChange {
+  readonly price?: string;
+  readonly plan?: string;
+  readonly interval?: string;
+  readonly variant?: string;
+  /** Stripe `proration_behavior`, default `create_prorations`. */
+  readonly prorationBehavior?: "create_prorations" | "none" | "always_invoice";
+  /** Also clears a scheduled cancellation. Default true. */
+  readonly resume?: boolean;
+  readonly idempotencyKey?: string;
+}
+
+/**
+ * A row of the Stripe Sync Engine's `stripe` schema as stored, such as an
+ * invoice (`id`, `status`, `total`, `currency`, `hosted_invoice_url`) or a
+ * payment method (`id`, `type`, `card`).
+ */
+export type StripeRow = Readonly<Record<string, unknown>>;
+
+/** A Sync Engine row with the tenant and customer it belongs to, from a platform read. */
+export interface TenantStripeRow {
+  readonly organizationId: string;
+  readonly customerId: string;
+  readonly row: StripeRow;
+}
+
+export interface PlatformListOptions {
+  /** Only rows with this Stripe status, such as `active` or `open`. */
+  readonly status?: string;
+  /** Defaults to 100, at most 500. */
+  readonly limit?: number;
+  /** Only rows Stripe created before this (epoch seconds), for the next page. */
+  readonly before?: number;
+}
+
+export interface BillingCustomerUpdate {
+  readonly email?: string;
+  readonly name?: string;
+  readonly phone?: string;
+  readonly address?: Readonly<Record<string, string>>;
+  /** Stripe customer parameters merged over these, such as `invoice_settings`. */
+  readonly params?: Readonly<Record<string, unknown>>;
+}
+
 export interface Billing {
   /** The tenant's Stripe customer, or `undefined` before the first checkout. */
   customer(organizationId: string): AsyncResult<string | undefined>;
@@ -125,6 +206,19 @@ export interface Billing {
   ): AsyncResult<{ readonly url: string }>;
   status(organizationId: string): AsyncResult<BillingStatus>;
   /**
+   * The tenant's newest subscription as the Sync Engine stores it (every
+   * column, with `items`), preferring an active one; `undefined` without
+   * one. For `billing.read` in the tenant, or platform staff.
+   */
+  subscription(organizationId: string): AsyncResult<StripeRow | undefined>;
+  /**
+   * Every tenant's newest subscription, newest first, for platform staff
+   * (`billing.read` in the platform scope) or a service transport.
+   */
+  allSubscriptions(
+    options?: PlatformListOptions,
+  ): AsyncResult<readonly TenantStripeRow[]>;
+  /**
    * Cancels the tenant's active subscription in Stripe now; `undefined`
    * when it has none. The `customer.subscription.deleted` webhook then
    * emits `billing.subscription_deleted`.
@@ -140,6 +234,63 @@ export interface Billing {
    * `organization.role_changed` events: `outbox.relay('billing-seats', billing.seatSink())`.
    */
   seatSink(): EventSink;
+  /**
+   * Moves the tenant's subscription item to another price (an upgrade or
+   * downgrade). Needs a subscription; `not_found` otherwise. Admin consoles
+   * call it with a service transport after their own permission check.
+   */
+  changePlan(
+    organizationId: string,
+    change: PlanChange,
+  ): AsyncResult<SubscriptionItem>;
+  /** Schedules (true) or clears (false) the cancellation at the end of the period. */
+  cancelAtPeriodEnd(
+    organizationId: string,
+    cancel: boolean,
+  ): AsyncResult<string>;
+  /**
+   * Every tenant's invoices, newest first, for platform staff (`billing.read`
+   * in the platform scope) or a service transport.
+   */
+  allInvoices(
+    options?: PlatformListOptions,
+  ): AsyncResult<readonly TenantStripeRow[]>;
+  /** The tenant's invoices from the Sync Engine, newest first (`billing.read`, or platform staff). */
+  invoices(
+    organizationId: string,
+    options?: { readonly limit?: number },
+  ): AsyncResult<readonly StripeRow[]>;
+  /** The tenant's payment methods from the Sync Engine (`billing.read`). */
+  paymentMethods(organizationId: string): AsyncResult<readonly StripeRow[]>;
+  /** Voids an open invoice of the tenant's customer. */
+  voidInvoice(organizationId: string, invoiceId: string): AsyncResult<string>;
+  /** Marks an open invoice of the tenant's customer uncollectible. */
+  markInvoiceUncollectible(
+    organizationId: string,
+    invoiceId: string,
+  ): AsyncResult<string>;
+  /** The billing contact as Stripe holds it, from the Sync Engine's customers table. */
+  customerDetails(organizationId: string): AsyncResult<StripeRow | undefined>;
+  /**
+   * The tenant customer's tax ids from Stripe, `[]` before the tenant has a
+   * customer. Needs `customers.listTaxIds` on the client.
+   */
+  taxIds(organizationId: string): AsyncResult<readonly StripeTaxId[]>;
+  /**
+   * Adds a tax id (`{ type: 'eu_vat', value: 'DE123456789' }`) to the
+   * tenant's customer, creating the customer first when there is none.
+   */
+  addTaxId(
+    organizationId: string,
+    taxId: { readonly type: string; readonly value: string },
+  ): AsyncResult<StripeTaxId>;
+  /** Removes a tax id from the tenant's customer; `not_found` before the tenant has a customer. */
+  removeTaxId(organizationId: string, taxId: string): AsyncResult<string>;
+  /** Updates the billing contact on the Stripe customer, the record for it. */
+  updateCustomer(
+    organizationId: string,
+    update: BillingCustomerUpdate,
+  ): AsyncResult<string>;
   /**
    * Handles `checkout.session.completed` and `customer.subscription.*`:
    * links the customer, emits `billing.*` events and invalidates sessions.
@@ -187,6 +338,42 @@ function isStripeEvent(value: unknown): value is StripeEvent {
   );
 }
 
+/** `extra` merged into `base`: nested objects merge, arrays and other values replace. */
+function deepMerge(
+  base: Readonly<Record<string, unknown>>,
+  extra: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(extra)) {
+    const current = merged[key];
+    merged[key] =
+      isRecord(current) && isRecord(value) ? deepMerge(current, value) : value;
+  }
+  return merged;
+}
+
+/**
+ * The block's Checkout Session parameters with the app's `params` merged in
+ * deeply, then the customer, `client_reference_id` and the tenant metadata
+ * (on the session and, for a subscription, on `subscription_data`) set
+ * again, so `params` adds metadata without dropping the link the webhook needs.
+ */
+function checkoutParams(
+  base: Readonly<Record<string, unknown>>,
+  extra: Readonly<Record<string, unknown>> | undefined,
+  organizationId: string,
+  customerId: string,
+): Record<string, unknown> {
+  const merged = extra === undefined ? { ...base } : deepMerge(base, extra);
+  const tenant = { metadata: { [ORGANIZATION_KEY]: organizationId } };
+  return deepMerge(merged, {
+    customer: customerId,
+    client_reference_id: organizationId,
+    ...tenant,
+    ...(merged["mode"] === "subscription" ? { subscription_data: tenant } : {}),
+  });
+}
+
 /** Stripe calls as results: a thrown Stripe error becomes a `DbError`. */
 function stripeCall<T>(work: () => Promise<T>): AsyncResult<T> {
   return AsyncResult.from(async () => {
@@ -200,6 +387,7 @@ function stripeCall<T>(work: () => Promise<T>): AsyncResult<T> {
 
 /** Stripe customers, checkout, the portal and seat sync over the `billing` module. */
 export function createBilling(options: BillingOptions): Billing {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const stripe = lazyStripe(options.stripe);
   const withStripe = <T>(
@@ -396,45 +584,295 @@ export function createBilling(options: BillingOptions): Billing {
       });
     });
 
+  const priceOf = (choice: {
+    readonly price?: string;
+    readonly plan?: string;
+    readonly interval?: string;
+    readonly variant?: string;
+  }): AsyncResult<string> => {
+    const given = choice.price;
+    if (given !== undefined)
+      return AsyncResult.from<string>(() => Promise.resolve(ok(given)));
+    if (choice.plan === undefined) {
+      return AsyncResult.from<string>(() =>
+        Promise.resolve(
+          err(
+            dbError("invalid_input", "Pass a price or a plan", {
+              hint: "BILLING_PRICE_REQUIRED",
+            }),
+          ),
+        ),
+      );
+    }
+    const plan = choice.plan;
+    return call(
+      "billing_plan_price",
+      { plan, billing_interval: choice.interval, variant: choice.variant },
+      optionalText,
+    ).andThen((price) =>
+      Promise.resolve(
+        price === undefined
+          ? err(
+              dbError("not_found", `No price for plan "${plan}"`, {
+                hint: "BILLING_PLAN_UNKNOWN",
+              }),
+            )
+          : ok(price),
+      ),
+    );
+  };
+
+  const missing = (what: string): Result<never> =>
+    err(
+      dbError("invalid_request", `The Stripe client has no ${what}`, {
+        hint: "BILLING_STRIPE_CLIENT",
+      }),
+    );
+
+  const subscription = (
+    organizationId: string,
+  ): AsyncResult<SubscriptionItem> =>
+    call(
+      "billing_subscription_item",
+      { tenant: organizationId },
+      subscriptionItemOf,
+    ).andThen((found) =>
+      Promise.resolve(
+        found === undefined
+          ? err(
+              dbError("not_found", "This tenant has no active subscription", {
+                hint: "BILLING_NO_SUBSCRIPTION",
+              }),
+            )
+          : ok(found),
+      ),
+    );
+
+  const rows = (value: unknown): readonly StripeRow[] =>
+    Array.isArray(value) ? value.filter(isRecord) : [];
+
+  const tenantRows =
+    (key: string) =>
+    (value: unknown): readonly TenantStripeRow[] =>
+      rows(value).flatMap((entry) => {
+        const row = entry[key];
+        return isRecord(row)
+          ? [
+              {
+                organizationId: textOf(entry["tenant"]),
+                customerId: textOf(entry["customer"]),
+                row,
+              },
+            ]
+          : [];
+      });
+
+  const platformArgs = (list: PlatformListOptions = {}) => ({
+    for_status: list.status,
+    max_rows: list.limit ?? 100,
+    before_created: list.before,
+  });
+
+  const invoices = (
+    organizationId: string,
+    list: { readonly limit?: number } = {},
+  ): AsyncResult<readonly StripeRow[]> =>
+    call(
+      "billing_invoices",
+      { tenant: organizationId, max_rows: list.limit ?? 50 },
+      rows,
+    );
+
+  const ownInvoice = (
+    organizationId: string,
+    invoiceId: string,
+  ): AsyncResult<string> =>
+    invoices(organizationId, { limit: 500 }).andThen((list) =>
+      Promise.resolve(
+        list.some((row) => row["id"] === invoiceId)
+          ? ok(invoiceId)
+          : err(
+              dbError("not_found", "This tenant has no such invoice", {
+                hint: "BILLING_INVOICE_NOT_FOUND",
+              }),
+            ),
+      ),
+    );
+
   return {
     customer,
     ensureCustomer,
-    checkout: (organizationId, checkout) =>
-      ensureCustomer(organizationId, checkout).andThen(async (customerId) => {
-        const quantity =
-          checkout.quantity === "seats"
-            ? await seats(organizationId)
-            : ok(checkout.quantity ?? 1);
-        if (!quantity.ok) return quantity;
-        const mode = checkout.mode ?? "subscription";
-        return withStripe(async (client) => {
-          const session = await client.checkout.sessions.create(
-            {
-              customer: customerId,
-              mode,
-              client_reference_id: organizationId,
-              line_items: [{ price: checkout.price, quantity: quantity.data }],
-              success_url: checkout.successUrl,
-              ...(checkout.cancelUrl === undefined
-                ? {}
-                : { cancel_url: checkout.cancelUrl }),
-              metadata: { [ORGANIZATION_KEY]: organizationId },
-              ...(mode === "subscription"
-                ? {
-                    subscription_data: {
-                      metadata: { [ORGANIZATION_KEY]: organizationId },
-                    },
-                  }
-                : {}),
-              ...checkout.params,
-            },
-            checkout.idempotencyKey === undefined
-              ? undefined
-              : { idempotencyKey: checkout.idempotencyKey },
+    changePlan: (organizationId, change) =>
+      priceOf(change).andThen((price) =>
+        subscription(organizationId).andThen(async (found) => {
+          const updated = await withStripe(async (client) =>
+            client.subscriptions.update?.(
+              found.subscriptionId,
+              {
+                items: [{ id: found.itemId, price }],
+                proration_behavior:
+                  change.prorationBehavior ?? "create_prorations",
+                ...(change.resume === false
+                  ? {}
+                  : { cancel_at_period_end: false }),
+              },
+              change.idempotencyKey === undefined
+                ? undefined
+                : { idempotencyKey: change.idempotencyKey },
+            ),
           );
-          return { id: session.id, url: session.url ?? undefined };
-        });
+          if (!updated.ok) return updated;
+          if (updated.data === undefined)
+            return missing("subscriptions.update");
+          emit("billing.subscription_updated", {
+            organizationId,
+            subscriptionId: found.subscriptionId,
+          });
+          return ok({ ...found, price });
+        }),
+      ),
+    cancelAtPeriodEnd: (organizationId, cancel) =>
+      subscription(organizationId).andThen(async (found) => {
+        const updated = await withStripe(async (client) =>
+          client.subscriptions.update?.(found.subscriptionId, {
+            cancel_at_period_end: cancel,
+          }),
+        );
+        if (!updated.ok) return updated;
+        return updated.data === undefined
+          ? missing("subscriptions.update")
+          : ok(updated.data.id);
       }),
+    invoices,
+    paymentMethods: (organizationId) =>
+      call("billing_payment_methods", { tenant: organizationId }, rows),
+    voidInvoice: (organizationId, invoiceId) =>
+      ownInvoice(organizationId, invoiceId).andThen(async () => {
+        const voided = await withStripe(async (client) =>
+          client.invoices?.voidInvoice(invoiceId),
+        );
+        if (!voided.ok) return voided;
+        return voided.data === undefined
+          ? missing("invoices.voidInvoice")
+          : ok(voided.data.id);
+      }),
+    markInvoiceUncollectible: (organizationId, invoiceId) =>
+      ownInvoice(organizationId, invoiceId).andThen(async () => {
+        const marked = await withStripe(async (client) =>
+          client.invoices?.markUncollectible(invoiceId),
+        );
+        if (!marked.ok) return marked;
+        return marked.data === undefined
+          ? missing("invoices.markUncollectible")
+          : ok(marked.data.id);
+      }),
+    customerDetails: (organizationId) =>
+      call("billing_customer_details", { tenant: organizationId }, (value) =>
+        isRecord(value) ? value : undefined,
+      ),
+    taxIds: (organizationId) =>
+      customer(organizationId).andThen(async (customerId) => {
+        if (customerId === undefined) return ok([]);
+        const listed = await withStripe(async (client) =>
+          client.customers.listTaxIds?.(customerId, { limit: 100 }),
+        );
+        if (!listed.ok) return listed;
+        return listed.data === undefined
+          ? missing("customers.listTaxIds")
+          : ok(listed.data.data);
+      }),
+    addTaxId: (organizationId, taxId) =>
+      ensureCustomer(organizationId).andThen(async (customerId) => {
+        const created = await withStripe(async (client) =>
+          client.customers.createTaxId?.(customerId, {
+            type: taxId.type,
+            value: taxId.value,
+          }),
+        );
+        if (!created.ok) return created;
+        return created.data === undefined
+          ? missing("customers.createTaxId")
+          : ok(created.data);
+      }),
+    removeTaxId: (organizationId, taxId) =>
+      customer(organizationId).andThen(async (customerId) => {
+        if (customerId === undefined) {
+          return err(
+            dbError("not_found", "This tenant has no Stripe customer yet", {
+              hint: "BILLING_NO_CUSTOMER",
+            }),
+          );
+        }
+        const deleted = await withStripe(async (client) =>
+          client.customers.deleteTaxId?.(customerId, taxId),
+        );
+        if (!deleted.ok) return deleted;
+        return deleted.data === undefined
+          ? missing("customers.deleteTaxId")
+          : ok(deleted.data.id);
+      }),
+    updateCustomer: (organizationId, update) =>
+      ensureCustomer(organizationId).andThen(async (customerId) => {
+        const updated = await withStripe(async (client) =>
+          client.customers.update?.(customerId, {
+            ...(update.email === undefined ? {} : { email: update.email }),
+            ...(update.name === undefined ? {} : { name: update.name }),
+            ...(update.phone === undefined ? {} : { phone: update.phone }),
+            ...(update.address === undefined
+              ? {}
+              : { address: update.address }),
+            ...update.params,
+          }),
+        );
+        if (!updated.ok) return updated;
+        return updated.data === undefined
+          ? missing("customers.update")
+          : ok(updated.data.id);
+      }),
+    checkout: (organizationId, checkout) =>
+      priceOf(checkout).andThen((price) =>
+        ensureCustomer(organizationId, checkout).andThen(async (customerId) => {
+          const quantity =
+            checkout.quantity === "seats"
+              ? await seats(organizationId)
+              : ok(checkout.quantity ?? 1);
+          if (!quantity.ok) return quantity;
+          const lineItems = [{ price, quantity: quantity.data }];
+          for (const extra of checkout.items ?? []) {
+            const extraPrice = await priceOf(extra);
+            if (!extraPrice.ok) return extraPrice;
+            lineItems.push({
+              price: extraPrice.data,
+              quantity: extra.quantity ?? 1,
+            });
+          }
+          const mode = checkout.mode ?? "subscription";
+          return withStripe(async (client) => {
+            const params = checkoutParams(
+              {
+                customer: customerId,
+                mode,
+                client_reference_id: organizationId,
+                line_items: lineItems,
+                success_url: checkout.successUrl,
+                ...(checkout.cancelUrl === undefined
+                  ? {}
+                  : { cancel_url: checkout.cancelUrl }),
+              },
+              checkout.params,
+              organizationId,
+              customerId,
+            );
+            const session = await client.checkout.sessions.create(
+              params,
+              checkout.idempotencyKey === undefined
+                ? undefined
+                : { idempotencyKey: checkout.idempotencyKey },
+            );
+            return { id: session.id, url: session.url ?? undefined };
+          });
+        }),
+      ),
     portal: (organizationId, portal) =>
       customer(organizationId).andThen(async (customerId) => {
         if (customerId === undefined) {
@@ -462,6 +900,18 @@ export function createBilling(options: BillingOptions): Billing {
         };
       }),
     syncSeats,
+    subscription: (organizationId) =>
+      call("billing_subscription", { tenant: organizationId }, (value) =>
+        isRecord(value) ? value : undefined,
+      ),
+    allInvoices: (list) =>
+      call("billing_all_invoices", platformArgs(list), tenantRows("invoice")),
+    allSubscriptions: (list) =>
+      call(
+        "billing_all_subscriptions",
+        platformArgs(list),
+        tenantRows("subscription"),
+      ),
     cancelSubscription: (organizationId) =>
       item(organizationId).andThen(async (found) => {
         if (found === undefined) return ok(undefined);

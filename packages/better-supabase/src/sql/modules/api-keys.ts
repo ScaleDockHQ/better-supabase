@@ -3,17 +3,18 @@ import type {
   ModuleContractFunction,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../registry.ts";
+import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
-  options: ["scopes", "touchInterval"],
+  options: ["scopes", "touchInterval", "prefix"],
   tables: {
     keys: {
       name: "api_keys",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -40,23 +41,50 @@ const NAMES: ModuleNames = {
 const fail = (code: string, message: string, errcode = "42501"): string =>
   `raise exception '${message}' using errcode = '${errcode}', hint = '${code}';`;
 
-const SCOPE = /^(\*|[a-z][a-z0-9_.:-]*)$/;
+const SCOPE = /^(\*|[A-Za-z][A-Za-z0-9_.:-]*)$/;
+const PREFIX = /^[a-z][a-z0-9]*$/;
 
-/** `sql.modules.api-keys.options.scopes`: the scopes a key may carry, or every scope. */
-function allowedScopes(ctx: ModuleContext): readonly string[] | undefined {
-  if (ctx.option("scopes") === undefined) return undefined;
+/**
+ * `sql.modules.api-keys.options.scopes`: the scopes a key may carry, every
+ * scope when unset, or `"catalog"` for the keys of PermDock's
+ * `permissions.catalog.json`.
+ */
+function allowedScopes(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+): readonly string[] | undefined {
+  const option = ctx.option("scopes");
+  if (option === undefined) return undefined;
+  if (option === "catalog") {
+    if (!layout.permissionCatalog) {
+      throw new TypeError(
+        'sql.modules.api-keys.options.scopes is "catalog", but there is no PermDock permission catalog to read. Run `permdock catalog`, or list the scopes.',
+      );
+    }
+    return layout.permissionCatalog;
+  }
   const scopes = ctx.list("scopes", []);
   for (const scope of scopes) {
     if (!SCOPE.test(scope)) {
       throw new TypeError(
-        `sql.modules.api-keys.options.scopes: "${scope}" is not a scope. Use lowercase names such as "deals:read"`,
+        `sql.modules.api-keys.options.scopes: "${scope}" is not a scope. Use names such as "deals:read" or "invoice.read"`,
       );
     }
   }
   return scopes;
 }
 
-function build(ctx: ModuleContext): string {
+function prefixOf(ctx: ModuleContext): string {
+  const prefix = ctx.text("prefix", "bs");
+  if (!PREFIX.test(prefix)) {
+    throw new TypeError(
+      `sql.modules.api-keys.options.prefix must be lowercase letters and digits, not "${prefix}"`,
+    );
+  }
+  return prefix;
+}
+
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
   const id = ctx.idType;
   const t = ctx.table("keys");
@@ -65,8 +93,16 @@ function build(ctx: ModuleContext): string {
   const permissions = MODULE_PERMISSIONS["api-keys"];
   const can = (tenant: string, action: "manage" | "own"): string =>
     `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`;
-  const allowed = allowedScopes(ctx);
+  const allowed = allowedScopes(ctx, layout);
+  const prefix = sqlString(prefixOf(ctx));
   const touch = Math.max(0, Math.trunc(ctx.number("touchInterval", 60)));
+  const wildcard =
+    allowed === undefined && accessModel(ctx) === "permdock"
+      ? `
+  if '*' = any (coalesce(scopes, '{}')) then
+    ${fail("API_KEY_SCOPE_WILDCARD", "PermDock checks scopes as exact permission keys, so a key cannot carry *", "22023")}
+  end if;`
+      : "";
   const scopeCheck = allowed
     ? `
   if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s <> all (${sqlString(`{${allowed.join(",")}}`)}::text[])) then
@@ -137,7 +173,7 @@ create or replace function ${fn("create_api_key")}(
   scopes text[] default '{}',
   expires_at timestamptz default null,
   rate_limit integer default null,
-  prefix text default 'bs'
+  prefix text default ${prefix}
 )
 returns jsonb
 language plpgsql
@@ -161,7 +197,7 @@ begin
     if personal and tenant is not null and not ${can("tenant", "own")} then
       ${fail("API_KEY_FORBIDDEN", "Not allowed to create API keys in this tenant")}
     end if;
-  end if;${scopeCheck}
+  end if;${scopeCheck}${wildcard}
   if expires_at is not null and expires_at <= now() then
     ${fail("API_KEY_EXPIRED", "expires_at is in the past", "22023")}
   end if;

@@ -26,6 +26,11 @@ comments. Put these in a hand-written migration instead:
 - Data: `insert` into `rbac.role_permissions` or `storage.buckets`. A data
   statement inside `supabase/schemas` is an error.
 - Role settings (`alter role ... set`) and `notify pgrst`.
+- Extensions in a schema pg-delta doesn't manage (`pgmq`, or `extensions`).
+  `sql sync` writes a module's extensions that no migration creates into a
+  `_better_supabase_extensions.sql` migration stamped before the schema
+  migration you generate next, and `sql data` refuses to run while one is
+  missing. Doctor BS321 warns about an extension no migration creates.
 - Objects in `auth`, `storage` or other Supabase-managed schemas, except
   policies and triggers whose function lives in your own schema.
 - Object kinds pg-delta doesn't track (casts, operators, text search

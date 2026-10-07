@@ -17,16 +17,22 @@ drop function if exists "public"."search_notes"(extensions.vector, integer, json
 drop function if exists "public"."search_notes_scores"(extensions.vector, integer, jsonb, text);
 create or replace function "public"."search_notes"(query extensions.vector, k integer default 10)
 returns setof "public"."notes"
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
-set hnsw.iterative_scan = 'strict_order'
 as $$
-  select t.* from "public"."notes" t
+#variable_conflict use_column
+declare
+  previous_scan text := current_setting('hnsw.iterative_scan', true);
+begin
+  perform set_config('hnsw.iterative_scan', 'strict_order', true);
+  return query select t.* from "public"."notes" t
   where t."embedding" is not null
   order by t."embedding" operator(extensions.<=>) query
-  limit least(greatest(k, 1), 1000)
+  limit least(greatest(k, 1), 1000);
+  perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);
+end;
 $$;
 revoke execute on function "public"."search_notes"(extensions.vector, integer) from public, anon;
 grant execute on function "public"."search_notes"(extensions.vector, integer) to authenticated, service_role;
@@ -34,13 +40,17 @@ grant execute on function "public"."search_notes"(extensions.vector, integer) to
 -- The ids and scores of the same search, best first, for db.$search({ score: true }).
 create or replace function "public"."search_notes_scores"(query extensions.vector, k integer default 10)
 returns table (id jsonb, score double precision)
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
-set hnsw.iterative_scan = 'strict_order'
 as $$
-  select to_jsonb(r.id), r.score from (
+#variable_conflict use_column
+declare
+  previous_scan text := current_setting('hnsw.iterative_scan', true);
+begin
+  perform set_config('hnsw.iterative_scan', 'strict_order', true);
+  return query select to_jsonb(r.id), r.score from (
   with vector_hits as materialized (
     select t."id" as id, t."embedding" operator(extensions.<=>) query as distance
     from "public"."notes" t
@@ -54,11 +64,13 @@ as $$
   fused as (
     select v.id, 1 - v.distance as score from vector_ranked v
   )
-  select f.id, f.score::double precision as score from fused f
-  order by score desc
+  select f.id, f.score::double precision as score, row_number() over (order by f.score::double precision desc) as ord from fused f
+  order by ord
   limit least(greatest(k, 1), 1000)
   ) r
-  order by r.score desc
+  order by r.ord;
+  perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);
+end;
 $$;
 revoke execute on function "public"."search_notes_scores"(extensions.vector, integer) from public, anon;
 grant execute on function "public"."search_notes_scores"(extensions.vector, integer) to authenticated, service_role;

@@ -7,7 +7,10 @@ description: Idempotent SQL modules for the database work every app repeats, wri
 `supabase db schema declarative sync` turns them into a migration. The files are plain SQL that
 you can read and commit, so nothing runs behind your back. Every module can be
 re-run safely, and it keeps everything it creates in the `better_supabase`
-schema.
+schema. `sql add` renders the new modules next to the ones `sql.modules`
+already lists, so a module sees what is installed (billing's foreign key to
+the organizations table, for example), and writes only the named modules and
+the ones they need.
 
 ```bash
 better-supabase sql list
@@ -16,9 +19,22 @@ supabase db schema declarative sync -f better_supabase_block
 better-supabase sql data
 ```
 
+The extensions a module's schema file creates (`pgmq` for `jobs`,
+`pg_jsonschema` for `jsonb-schemas`, `vector` for `vector-search`) have to
+exist before the schema migration applies, because objects in it use them: a
+check constraint on `jsonb_matches_schema`, a pgmq queue. A schema diff can
+leave them out of its migration, so `sql add`, `sql sync` and `sql upgrade`
+write the ones no migration creates yet into
+`supabase/migrations/<stamp>_better_supabase_extensions.sql`, stamped before
+the schema migration you create next. A migration you wrote yourself that
+creates the extension counts too, so the CLI writes nothing for it.
+`sql data` refuses to write the data migration while a module extension is
+missing from every earlier migration; run `sql sync`, then create the schema
+migration again after the extensions migration.
+
 A schema diff only captures objects, so each module's rows and settings (its
-`better_supabase.modules` row, the reserved slugs, the rate-limit role setting) go to a
-second file in `supabase/better-supabase-data/`, outside the schema folder:
+`better_supabase.modules` row, the reserved slugs, the rate-limit role
+setting) go to a second file in `supabase/better-supabase-data/`, outside the schema folder:
 pg-delta loads every file under `supabase/schemas`, nested folders included,
 and refuses a table that has rows afterwards. When `sql.dir` is a folder
 inside the schema folder (`supabase/schemas/block`), the data files still go
@@ -49,48 +65,48 @@ lists the steps to move to pg-delta.
 
 ## Modules
 
-| Module             | What it adds                                                                                                                                                                                                                                                     |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `updated-at`       | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                                                                                                                   |
-| `actor`            | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                                                         |
-| `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                  |
-| `tenant`           | `memberships`, `current_tenant_id()`, `member_organization_ids(roles)` and `has_organization_role(organization, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                                |
-| `access`           | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/blocks/access)                                                                    |
-| `invitations`      | `invite_member(tenant, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email. See [Organizations](/docs/blocks/organizations)                                            |
-| `reserved-slugs`   | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs; `options.slugs` adds the app's own words, such as its route names, to the data file                                                                                        |
-| `jobs`             | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/blocks/jobs`](/docs/blocks/jobs)                                                        |
-| `idempotency`      | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                                                                                                                   |
-| `webhook-inbox`    | Stores verified webhooks once and hands them to a worker                                                                                                                                                                                                         |
-| `realtime-tables`  | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables`                                                                                                                                                |
-| `jsonb-schemas`    | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below)                                                                                                                                                             |
-| `pgtap`            | Test helpers for `supabase test db`. See [Testing](/docs/testing)                                                                                                                                                                                                |
-| `grants`           | Data API grants for the tables in `expose`. See [Data API grants](/docs/guides/data-api-grants)                                                                                                                                                                  |
-| `read-sets`        | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets)                                                                                                                              |
-| `mfa`              | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso)                                                                                                                          |
-| `sessions`         | `session_active()` for restrictive policies that reject tokens whose session was signed out or expired, or whose user was banned or deleted. See [Ended sessions](/docs/auth/account-deletion#ended-sessions)                                                    |
-| `entitlements`     | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/blocks/entitlements)                                                                                              |
-| `vector-search`    | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/blocks/vector-search)                                                                                                                                        |
-| `rate-limit`       | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                                                        |
-| `support-sessions` | Support sessions: `start_support_session(target, reason)` checks `is_platform`, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                                                              |
-| `organizations`    | `create_organization(attrs)`, member roles, ownership transfer, `switch_organization(organization)` and an owner check on commit. See [Organizations](/docs/blocks/organizations)                                                                                |
-| `profiles`         | A profile per user from sign-up metadata, with a unique username, an email mirror, column grants and service-owned columns. See [Profiles](/docs/blocks/profiles)                                                                                                |
-| `outbox`           | `emit_event(type, payload)` in the writing transaction, named consumers with their own cursor, `track_events(table)` and a relay to any `EventSink`. Other modules emit to it once it's installed. See [Outbox](/docs/blocks/outbox)                             |
-| `notifications`    | `notify(jsonb)` as a `security definer` sender, per-recipient read, dismissed and resolved state, subject subscriptions, channel preferences, email and push deliveries, and a private realtime topic. See [Notifications](/docs/blocks/notifications)           |
-| `webhooks-out`     | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/blocks/webhooks-out) |
-| `webhooks-in`      | Per-tenant trigger URLs with hashed tokens, optional Standard Webhooks or HMAC verification, a body limit, receive counters and a rate limit; deliveries go to the webhook inbox. See [Incoming webhooks](/docs/blocks/webhooks-in)                              |
-| `api-keys`         | `api_keys` with only the SHA-256 of each secret, `create_api_key`, `rotate_api_key`, `revoke_api_key`, `verify_api_key(public_id, secret_hash)` for the server and `has_scope(scope)` for policies. See [API keys](/docs/blocks/api-keys)                        |
-| `settings`         | Per-user and per-organization settings with defaults, `get_user_settings()`, `set_organization_setting(tenant, key, value)` and the reset functions. See [Settings](/docs/blocks/settings)                                                                       |
-| `usage`            | Usage counters per tenant, meter and period, `record_usage` with idempotency keys, quotas per tenant or plan, and `within_quota(tenant, meter)` and `consume_quota` for RLS and RPCs. See [Usage and quotas](/docs/blocks/usage)                                 |
-| `billing`          | Stripe customers per tenant, `billing_status(tenant)`, `billing_seat_count(tenant)` and `link_billing_customer`. See [Billing](/docs/blocks/billing)                                                                                                             |
-| `flags`            | Flags with targeting rules, overrides and percentage rollouts, and `flag_enabled(key)` for policies, bucketed the same way as the TypeScript provider. See [Feature flags](/docs/blocks/flags)                                                                   |
-| `comments`         | Threaded comments on any record with mentions, `create_comment`, `list_comments`, and an activity feed built from outbox events. See [Comments and activity](/docs/blocks/comments)                                                                              |
-| `attachments`      | Attachment records linked to Storage objects, tenant-scoped Storage policies, and a scan status that gates downloads. See [Attachments](/docs/blocks/attachments)                                                                                                |
-| `data-lifecycle`   | Data exports per user or organization, `request_organization_deletion(tenant)` with a grace period, `cancel_organization_deletion` and `purge_organization`. See [Data lifecycle](/docs/blocks/data-lifecycle)                                                   |
-| `sso`              | Verified organization domains with auto-join, SAML providers per organization, SSO enforcement in the access token hook and the SCIM user and group functions. See [SSO and SCIM](/docs/blocks/sso)                                                              |
-| `onboarding`       | `onboarding_progress` per user or organization, `complete_onboarding_step(checklist, step, tenant)` and a trigger that completes steps from outbox events. See [Onboarding](/docs/blocks/onboarding)                                                             |
-| `waitlist`         | `join_waitlist(email)`, approvals, hashed invite codes with use limits and an optional organization, and a trigger that redeems the code on sign-up. See [Waitlist and invite codes](/docs/blocks/waitlist)                                                      |
-| `announcements`    | Announcements with audiences, a time window and severity, `active_announcements(tenant)`, `dismiss_announcement(id)` and a broadcast on a Realtime topic. See [Announcements](/docs/blocks/announcements)                                                        |
-| `ensure-rls`       | An event trigger that enables row level security on every new table outside the Supabase-managed schemas. Install it as `postgres`, which supautils lets create event triggers. See [below](#rls-on-every-new-table)                                             |
+| Module             | What it adds                                                                                                                                                                                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updated-at`       | `track_updated_at(table)` keeps an `updated_at` column current                                                                                                                                                                                                                                    |
+| `actor`            | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                                                                                          |
+| `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                                                   |
+| `tenant`           | `memberships`, `current_tenant_id()`, `member_organization_ids(roles)` and `has_organization_role(organization, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                                                                 |
+| `access`           | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/blocks/access)                                                                                                     |
+| `invitations`      | `invite_member(tenant, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email. See [Organizations](/docs/blocks/organizations)                                                                             |
+| `reserved-slugs`   | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs, also for `service_role` writes; `options.minLength` and `options.maxLength` (1 and 63 by default) bound the length, and `options.slugs` adds the app's own words, such as its route names, to the data file |
+| `jobs`             | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/blocks/jobs`](/docs/blocks/jobs)                                                                                         |
+| `idempotency`      | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                                                                                                                                                    |
+| `webhook-inbox`    | Stores verified webhooks once and hands them to a worker                                                                                                                                                                                                                                          |
+| `realtime-tables`  | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `realtime.tables`                                                                                                                                                                                 |
+| `jsonb-schemas`    | pg_jsonschema `check` constraints for jsonb columns with a `schema` in the `json` config (see below)                                                                                                                                                                                              |
+| `pgtap`            | Test helpers for `supabase test db`. See [Testing](/docs/testing)                                                                                                                                                                                                                                 |
+| `grants`           | The complete Data API privileges of the tables and functions in `expose`, for `anon`, `authenticated` and `service_role`, or grants derived from your policies with `options.fromPolicies`. See [Data API grants](/docs/guides/data-api-grants)                                                   |
+| `read-sets`        | One `stable`, `security invoker` function per read set in `readSets`, written by `gen`. See [Read sets](/docs/repository/read-sets)                                                                                                                                                               |
+| `mfa`              | `mfa_satisfied()` for restrictive policies that require `aal2` once a user has a verified factor. See [MFA and SSO](/docs/auth/mfa-sso)                                                                                                                                                           |
+| `sessions`         | `session_active()` for restrictive policies that reject tokens whose session was signed out or expired, or whose user was banned or deleted; `options.policies` writes the policy on every table (`options.exclude` skips some). See [Ended sessions](/docs/auth/account-deletion#ended-sessions) |
+| `entitlements`     | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/blocks/entitlements)                                                                                                                               |
+| `vector-search`    | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/blocks/vector-search)                                                                                                                                                                         |
+| `rate-limit`       | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                                                                                         |
+| `support-sessions` | Support sessions: `start_support_session(target, reason)` checks `is_platform`, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                                                                                               |
+| `organizations`    | `create_organization(attrs)`, member roles, ownership transfer, `switch_organization(organization)` and an owner check on commit. See [Organizations](/docs/blocks/organizations)                                                                                                                 |
+| `profiles`         | A profile per user from sign-up metadata, with a unique username, an email mirror, column grants and service-owned columns. See [Profiles](/docs/blocks/profiles)                                                                                                                                 |
+| `outbox`           | `emit_event(type, payload)` in the writing transaction, named consumers with their own cursor, `track_events(table)` and a relay to any `EventSink`. Other modules emit to it once it's installed. See [Outbox](/docs/blocks/outbox)                                                              |
+| `notifications`    | `notify(jsonb)` as a `security definer` sender, per-recipient read, dismissed and resolved state, subject subscriptions, channel preferences, email and push deliveries, and a private realtime topic. See [Notifications](/docs/blocks/notifications)                                            |
+| `webhooks-out`     | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/blocks/webhooks-out)                                  |
+| `webhooks-in`      | Per-tenant trigger URLs with hashed tokens, optional Standard Webhooks or HMAC verification, a body limit, receive counters and a rate limit; deliveries go to the webhook inbox. See [Incoming webhooks](/docs/blocks/webhooks-in)                                                               |
+| `api-keys`         | `api_keys` with only the SHA-256 of each secret, `create_api_key`, `rotate_api_key`, `revoke_api_key`, `verify_api_key(public_id, secret_hash)` for the server and `has_scope(scope)` for policies. See [API keys](/docs/blocks/api-keys)                                                         |
+| `settings`         | Per-user and per-organization settings with defaults, `get_user_settings()`, `set_organization_setting(tenant, key, value)` and the reset functions. See [Settings](/docs/blocks/settings)                                                                                                        |
+| `usage`            | Usage counters per tenant, meter and period, `record_usage` with idempotency keys, quotas per tenant or plan, and `within_quota(tenant, meter)` and `consume_quota` for RLS and RPCs. See [Usage and quotas](/docs/blocks/usage)                                                                  |
+| `billing`          | Stripe customers per tenant, `billing_status(tenant)`, `billing_seat_count(tenant)` and `link_billing_customer`. See [Billing](/docs/blocks/billing)                                                                                                                                              |
+| `flags`            | Flags with targeting rules, overrides and percentage rollouts, and `flag_enabled(key)` for policies, bucketed the same way as the TypeScript provider. See [Feature flags](/docs/blocks/flags)                                                                                                    |
+| `comments`         | Threaded comments on any record with mentions, `create_comment`, `list_comments`, and an activity feed built from outbox events. See [Comments and activity](/docs/blocks/comments)                                                                                                               |
+| `attachments`      | Attachment records linked to Storage objects, tenant-scoped Storage policies, and a scan status that gates downloads. See [Attachments](/docs/blocks/attachments)                                                                                                                                 |
+| `data-lifecycle`   | Data exports per user or organization, `request_organization_deletion(tenant)` with a grace period, `cancel_organization_deletion` and `purge_organization`. See [Data lifecycle](/docs/blocks/data-lifecycle)                                                                                    |
+| `sso`              | Verified organization domains with auto-join, SAML providers per organization, SSO enforcement in the access token hook and the SCIM user and group functions. See [SSO and SCIM](/docs/blocks/sso)                                                                                               |
+| `onboarding`       | `onboarding_progress` per user or organization, `complete_onboarding_step(checklist, step, tenant)` and a trigger that completes steps from outbox events. See [Onboarding](/docs/blocks/onboarding)                                                                                              |
+| `waitlist`         | `join_waitlist(email)`, approvals, hashed invite codes with use limits and an optional organization, and a trigger that redeems the code on sign-up. See [Waitlist and invite codes](/docs/blocks/waitlist)                                                                                       |
+| `announcements`    | Announcements with audiences, a time window and severity, `active_announcements(tenant)`, `dismiss_announcement(id)` and a broadcast on a Realtime topic. See [Announcements](/docs/blocks/announcements)                                                                                         |
+| `ensure-rls`       | An event trigger that enables row level security on every new table outside the Supabase-managed schemas. Install it as `postgres`, which supautils lets create event triggers. See [below](#rls-on-every-new-table)                                                                              |
 
 `invitations` and `organizations` need `tenant` and `access`, so adding one
 pulls those in as well. They read the active tenant from the source in
@@ -190,6 +206,50 @@ export default defineConfig({
 | `options`     | module options, listed on each module's page                                               |
 | `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)         |
 | `events`      | `false` stops the module writing its events to the outbox                                  |
+| `api`         | a schema for the Data API that gets entry points for the module's functions (see below)    |
+
+### Calling a module over the Data API
+
+The module schema holds tables and helpers that policies call, so it never
+belongs in `[api] schemas` (doctor reports it as
+[BS312](/docs/cli/doctor#bs312)). To call a module from a browser or an
+isolate without a Postgres connection, give it an API schema:
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    settings: { api: "api" },
+    notifications: {
+      api: { schema: "api", functions: ["list_notifications", "notification_counts"] },
+    },
+  },
+},
+```
+
+`sql add` then writes a `security invoker` function in `api` for each module
+function that `anon`, `authenticated` or `service_role` may execute, or only
+those listed in `functions`, with the same name and arguments, granted to the
+same of those roles. The wrapper runs as the caller, so the module's own
+permission checks and RLS still apply, and a service function such as
+`flag_definitions` stays callable by `service_role` only. Add the schema to
+`[api] schemas` in `config.toml` and pass it to the transport:
+
+```ts
+const client = settings.connect({
+  transport: rpcTransport(supabase, { schema: "api" }),
+});
+```
+
+An app server that reaches the database only through PostgREST uses the same
+wrappers with a service-role client, for example for feature flags and
+announcements:
+
+```ts
+const transport = rpcTransport(serviceClient, { schema: "api" });
+const flags = createFlagsProvider({ transport });
+const announcements = createAnnouncements({ transport });
+const outbox = createOutbox(transport, { source: "https://app.example.com" });
+```
 
 An unknown table, column or module, or a mode a module doesn't support, stops
 `sql add` and `sql sync` with the valid names. Each file's header records the
@@ -215,6 +275,27 @@ select better_supabase.audit(
 );
 ```
 
+`audit()` keeps these settings on the table's `bs_audit` trigger, as the
+JSON argument of `audit_row_change`, and writes no rows. So a call in a
+schema file leaves nothing a schema diff refuses (pg-delta rejects a table
+that has rows after loading the schema), and the generated migration carries
+the trigger with its settings; no data migration is needed. You can also
+write the trigger yourself, which pg-delta orders after the table:
+
+```sql title="supabase/schemas/020_customers.sql"
+create trigger bs_audit after insert or update or delete on public.customers
+  for each row execute function better_supabase.audit_row_change(
+    '{"ignore": ["updated_at"], "redact": ["tax_id"], "event_prefix": "customer"}'
+  );
+```
+
+The argument takes `ignore`, `redact`, `key_columns` (the primary key by
+default), `category`, `event_prefix`, `target_type`, `tenant_column` and
+`label_column`. `audit_settings(table)` returns a table's settings. Tables
+registered before this release keep their rows in `audited_tables`, and the
+trigger reads them while it has no argument; calling `audit()` again moves
+them onto the trigger.
+
 `redact` columns are stored as `[redacted]` in the old and new records. The
 event type is `<event_prefix>.created`, `.updated` or `.deleted` (the table
 name without a prefix), and `tenant_column` overrides the tenant column for
@@ -232,22 +313,44 @@ select better_supabase.audit_event(
 );
 ```
 
+A job, a webhook handler or an admin tool that records an event as the
+service role can say who acted and from where: `actor_id`, `actor_kind`
+(such as `job` or `api-key`), `actor_label`, and, with the restricted table,
+`ip`, `user_agent` and `session_id`. The function takes these only from the
+service role and direct admin connections; for any other caller it uses
+`auth.uid()`, the request's JWT and headers, so a user can't record an event
+in someone else's name. Without the restricted table, passing `ip`,
+`user_agent` or `session_id` fails with `22023`, as `restricted` does:
+
+```sql
+select better_supabase.audit_event(
+  event_type => 'export.finished',
+  actor_kind => 'job',
+  actor_label => 'Nightly export',
+  ip => '198.51.100.7',
+  user_agent => 'export-worker/1.0',
+  restricted => '{}'
+);
+```
+
 The module options (`sql.modules.audit.options`):
 
-| Option          | Default             | What it does                                                                                                                                                                                              |
-| --------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tenantColumn`  | `plugins.tenant`    | the tenant column of audited tables                                                                                                                                                                       |
-| `appendOnly`    | `true` when managed | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                      |
-| `readPolicy`    | `false`             | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/access))                                                           |
-| `impersonators` | `show`              | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                               |
-| `restricted`    | `false`             | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023` |
-| `eventRoles`    | `['service_role']`  | the roles that can call `audit_event`                                                                                                                                                                     |
-| `eventCategory` | `system`            | the category of an `audit_event` call without one                                                                                                                                                         |
-| `eventSource`   | `app`               | the source of an `audit_event` call without one                                                                                                                                                           |
-| `exempt`        | `[]`                | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                  |
+| Option          | Default                  | What it does                                                                                                                                                                                              |
+| --------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenantColumn`  | `plugins.tenant`         | the tenant column of audited tables                                                                                                                                                                       |
+| `appendOnly`    | `true` when managed      | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                      |
+| `readPolicy`    | `false`                  | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/access))                                                           |
+| `impersonators` | `show`                   | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                               |
+| `restricted`    | `false`                  | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023` |
+| `eventRoles`    | `['service_role']`       | the roles that can call `audit_event`                                                                                                                                                                     |
+| `eventCategory` | `system`                 | the category of an `audit_event` call without one                                                                                                                                                         |
+| `eventSource`   | `app`                    | the source of an `audit_event` call without one                                                                                                                                                           |
+| `exempt`        | `[]`                     | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                  |
+| `tenantLabel`   | the organizations module | `schema.table.column` that `tenant_label` copies, matched on `tenantLabelKey` (`id` by default), for apps without the `organizations` module                                                              |
+| `values`        | none                     | adopt mode only: the adopted log's values for `scope`, `actorKind`, `outcome`, `source` and `category`, see below                                                                                         |
 
-`sql add` and `sql sync` read the `audit(...)` calls in your schema files and
-migrations, and write a pgTAP file per audited table to `sql.testsDir`
+`sql add` and `sql sync` read the `audit(...)` calls and `bs_audit` triggers in
+your schema files and migrations, and write a pgTAP file per audited table to `sql.testsDir`
 (`supabase/tests/900_better_supabase_audit_public_customers.test.sql`). It
 checks that the table has the `bs_audit` trigger and is registered with the
 same `ignore` and `redact` lists, then runs an insert, an update and a delete
@@ -263,6 +366,49 @@ An app with its own audit table adopts it: map `sql.modules.audit.tables.log` an
 snapshots or `supportSession`, for example). The module then writes into your table and never
 creates it.
 
+When the adopted log uses its own words for the same values, map them with
+`options.values`: the module's value to yours, per column. Writes store your
+values, and `list_audit_events` (and so `createAuditLog`) reads them back as
+the module's, so exports and OCSF mapping keep working. Doctor reports the
+option as migration-only ([BS314](/docs/cli/doctor#bs314)).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: {
+    modules: {
+      audit: {
+        mode: "adopt",
+        tables: { log: "public.activity_log" },
+        columns: {
+          log: {
+            tenant: "workspace_id",
+            actorKind: "actor_type",
+            tenantLabel: "workspace_name",
+          },
+        },
+        options: {
+          values: {
+            scope: { tenant: "workspace", platform: "global" },
+            actorKind: { user: "member", service: "api" },
+            outcome: { success: "ok", failure: "error" },
+            source: { database: "db" },
+            category: { data: "record", system: "platform" },
+          },
+          tenantLabel: "public.workspaces.title",
+          tenantLabelKey: "workspace_id",
+        },
+      },
+    },
+  },
+});
+```
+
+`source` covers row changes (`database`) and `audit_event` calls alike, and
+`category` maps the defaults (`data` for row changes, `eventCategory` for
+events) and any category a registration or an `audit_event` call names.
+Values without a mapping are stored as they are. Two module values can't map
+to the same stored value, because reads couldn't tell them apart.
+
 ### Context columns
 
 Every entry also records what an audit page shows, as it was at the time:
@@ -271,7 +417,7 @@ Every entry also records what an audit page shows, as it was at the time:
 | ---------------- | --------------------------------------------------------------------------------------------------- |
 | `actor_kind`     | `user`, `service`, `support`, `impersonation`, `oauth-client` or `system`, from the claims          |
 | `actor_label`    | the actor's `full_name` metadata or email                                                           |
-| `tenant_label`   | the organization's name, with the `organizations` module                                            |
+| `tenant_label`   | the organization's name, with the `organizations` module or `options.tenantLabel`                   |
 | `target_label`   | the value of the table's `label_column` (`audit(..., label_column => 'title')`), or `audit_event`'s |
 | `summary`        | `audit_event(summary => ...)`                                                                       |
 | `request_id`     | the request's `x-request-id` header                                                                 |
@@ -436,7 +582,9 @@ select better_supabase.set_rate_limit('/customers', null);
   (`/rpc/send_invite`). Every matching rule counts, so `*` and a path rule
   both apply.
 - Only `POST`, `PATCH`, `PUT` and `DELETE` count. GET and HEAD run read-only
-  and may be served by a [read replica](/docs/guides/read-replicas).
+  and may be served by a [read replica](/docs/guides/read-replicas). A `POST`
+  to `/rpc` for a `stable` or `immutable` function also runs in a read-only
+  transaction, so `check_request()` skips it instead of failing the call.
 - Callers without the claim (anonymous) are counted by the right-most
   `x-forwarded-for` hop, the one the API gateway appends; clients can forge
   the hops before it. The service role is never limited.
@@ -451,7 +599,15 @@ captures role settings, so the setting ships in the migration `sql data`
 writes. Doctor warns (BS313) when a live database has no pre-request hook, or
 one that doesn't call `check_request()`. If you already have a pre-request
 function, keep it and call the check from it. Put it in a schema the Data API doesn't expose, so clients
-can't call it through `/rpc`:
+can't call it through `/rpc`. Set `options.preRequest: false` to leave the
+setting to your own function: the data file then removes a setting that
+still points at `check_request()` instead of adding one.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  sql: { modules: { "rate-limit": { options: { preRequest: false } } } },
+});
+```
 
 ```sql
 create schema if not exists private;
@@ -488,6 +644,13 @@ export async function POST(
   // handle the request
 }
 ```
+
+Apps that reach the database over the Data API instead of a direct
+connection pass a service-role `BlockTransport`, like the other blocks:
+`createRateLimit(rpcTransport(adminClient))`. It calls
+`check_rate_limit(scope, key, max_requests, period)`, which returns the same
+decision as JSON; with `sql.modules.rate-limit.api` set, pass the API schema
+as `rpcTransport(adminClient, { schema: "api" })`.
 
 The limit is the scope's rule from `set_rate_limit`, or one given per call
 (`check("chat", threadId, { max: 20, period: "1 minute" })`). A scope with
@@ -614,7 +777,10 @@ written before the line existed, counts as version 1). It then writes the
 forward steps into `<timestamp>_better_supabase_block_upgrade.sql` in the
 `migrations` folder next to your `config.toml` and rewrites the module files. Create the schema migration afterwards, so the
 steps run first. `sql upgrade --check` exits with 1 when a module is behind or
-a file is stale, and `--dry-run` lists the steps without writing.
+a file is stale, and `--dry-run` lists the steps without writing. The pgTAP
+files a module writes for your tables (the audit tests, say) carry no module
+version; `sql sync --check` keeps them current, and `sql upgrade` leaves them
+out.
 
 A renamed function, table or claim keeps working for at least one minor
 version. The module file keeps a wrapper under the old name (a view for a

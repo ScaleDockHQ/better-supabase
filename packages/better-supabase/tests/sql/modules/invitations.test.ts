@@ -187,6 +187,44 @@ describe("platform invitations under the permdock model", () => {
     expect(sql).not.toContain("platform_can_assign");
   });
 
+  it("checks the inviter at accept with canAssignFor when canAssign reads the caller", () => {
+    const forUser = {
+      ...PERMDOCK,
+      access: {
+        model: "permdock" as const,
+        permdock: { schema: "authz", scope: "organization", forUser: true },
+      },
+    };
+    const sql = (platformRoles: Record<string, unknown>) =>
+      body({ ...forUser, invitations: { options: { platformRoles } } });
+    const callerOnly = sql({
+      ...roles,
+      canAssign: "authz.can_grant({role})",
+    });
+    expect(callerOnly).toContain(
+      "coalesce((authz.can_grant(((invitee_role))::text)), false)",
+    );
+    expect(callerOnly).toContain("better_supabase.platform_can(pinvite.");
+    expect(callerOnly).not.toMatch(/can_grant\([^;]*pinvite/);
+    const withFor = sql({
+      ...roles,
+      canAssign: "authz.can_grant({role})",
+      canAssignFor: "authz.can_grant_for({user}, {role})",
+    });
+    expect(withFor).toContain(
+      'and coalesce((authz.can_grant_for(pinvite."invited_by", (pinvite."role")::text)), false)',
+    );
+    expect(() =>
+      sql({ ...roles, canAssignFor: "authz.can_grant({role})" }),
+    ).toThrow(/canAssignFor/);
+    expect(body({ ...forUser })).toContain(
+      'create or replace function "better_supabase"."accept_invitation_by_id"(invitation_id uuid)',
+    );
+    expect(body({ ...forUser })).toContain(
+      'create or replace function "better_supabase"."decline_invitation_by_id"(invitation_id uuid)',
+    );
+  });
+
   it("refuses platform invitations without platformRoles and checks its shape", () => {
     expect(body(PERMDOCK)).toContain("INVITATION_SCOPE_UNSUPPORTED");
     const plain = body({

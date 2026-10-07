@@ -163,9 +163,17 @@ export function createHooks<B extends ClientLike>(): BetterHooks<B> {
 
 export interface BroadcastOptions extends Omit<SubscribeOptions, "onStatus"> {
   /**
+   * A supabase-js client to subscribe with, for apps without
+   * `<BetterSupabaseProvider>`. It resubscribes when the client's user
+   * changes. Defaults to the provider's client.
+   */
+  readonly client?: SupabaseClient;
+  /** The query client `invalidate` refetches with. Defaults to the provider's. */
+  readonly queryClient?: QueryClient;
+  /**
    * Refetch after each message: table keys (every query that read one of
-   * them), or a function returning query keys. Needs `queryClient` on the
-   * provider.
+   * them), or a function returning query keys. Needs a `queryClient`, here
+   * or on the provider.
    */
   readonly invalidate?:
     | readonly string[]
@@ -186,17 +194,27 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   handlers?: TopicHandlers<E>,
   options?: BroadcastOptions,
 ): SubscriptionStatus {
-  const { client, queryClient } = useClientContext();
-  const auth = useAuth();
+  const context = useContext(ClientContext);
+  const supabase = options?.client ?? context?.client.supabase;
+  if (!supabase) {
+    throw new Error(
+      "better-supabase: useBroadcast needs <BetterSupabaseProvider client={bs}> or { client: supabase }",
+    );
+  }
+  const queryClient = options?.queryClient ?? context?.queryClient;
+  const auth = useBroadcastAuth(
+    options?.client === undefined ? context?.client : undefined,
+    supabase,
+  );
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
   const latest = useRef({ handlers, options });
   // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
   latest.current = { handlers, options };
   const name = values ? topic.topic(values) : null;
-  const userId = auth.user?.id ?? null;
+  const userId = auth.userId;
   if (options?.invalidate && !queryClient) {
     throw new Error(
-      "better-supabase: useBroadcast({ invalidate }) needs <BetterSupabaseProvider queryClient={...}>",
+      "better-supabase: useBroadcast({ invalidate }) needs <BetterSupabaseProvider queryClient={...}> or { queryClient }",
     );
   }
 
@@ -227,7 +245,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
         void queryClient.invalidateQueries({ queryKey });
     };
     const subscription = topic.subscribe(
-      client.supabase,
+      supabase,
       matched,
       { "*": forward },
       {
@@ -244,9 +262,45 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
       setStatus("closed");
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
-  }, [client, topic, name, userId, auth.status, queryClient]);
+  }, [supabase, topic, name, userId, auth.status, queryClient]);
 
   return status;
+}
+
+const NO_AUTH = (): (() => void) => () => undefined;
+
+/**
+ * The user `useBroadcast` subscribes as: the provider's auth snapshot, or
+ * for a plain supabase-js client, its auth state.
+ */
+function useBroadcastAuth(
+  client: ClientLike | undefined,
+  supabase: SupabaseClient,
+): { readonly status: AuthSnapshot["status"]; readonly userId: string | null } {
+  const snapshot = useSyncExternalStore(
+    client?.auth.subscribe ?? NO_AUTH,
+    client?.auth.current ?? (() => LOADING),
+    () => LOADING,
+  );
+  const [plain, setPlain] = useState<{
+    readonly status: AuthSnapshot["status"];
+    readonly userId: string | null;
+  }>({ status: "loading", userId: null });
+  useEffect(() => {
+    if (client) return;
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setPlain({
+        status: session ? "signed-in" : "signed-out",
+        userId: session?.user.id ?? null,
+      });
+    });
+    return () => {
+      data.subscription.unsubscribe();
+    };
+  }, [client, supabase]);
+  return client
+    ? { status: snapshot.status, userId: snapshot.user?.id ?? null }
+    : plain;
 }
 
 export interface LiveQueryHookOptions {

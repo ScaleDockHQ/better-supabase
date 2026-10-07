@@ -96,6 +96,21 @@ describe("createIncomingWebhooks", () => {
     );
   });
 
+  it("deduplicates unverified deliveries on webhook-id or svix-id", async () => {
+    const fake = fakeSql([
+      ["incoming_webhook_by_token", [endpoint()]],
+      ["receive_webhook", [{ id: 1, duplicate: false }]],
+    ]);
+    const hooks = createIncomingWebhooks(fake.sql);
+    await hooks.receive(post("{}", { "webhook-id": "msg_std" }), "tok");
+    await hooks.receive(post("{}", { "svix-id": "msg_svix" }), "tok");
+    expect(
+      fake.calls
+        .filter((call) => call.text.includes("receive_webhook"))
+        .map((call) => call.values[1]),
+    ).toEqual(["e1:msg_std", "e1:msg_svix"]);
+  });
+
   it("answers a problem when the database fails", async () => {
     const fake = fakeSql([
       ["incoming_webhook_by_token", { throws: pgError("42501", "denied") }],
@@ -120,6 +135,74 @@ describe("createIncomingWebhooks", () => {
     expect(
       fake.calls.find((call) => call.text.includes("hit_rate_limit"))!.values,
     ).toEqual(["forms:endpoint", "e1", 5, "1 hour"]);
+  });
+
+  it("ties endpoints to a subject and lists them", async () => {
+    const fake = fakeSql([
+      [
+        "create_incoming_webhook",
+        [
+          {
+            value: {
+              id: "e1",
+              tenant: "t",
+              name: "Form",
+              verify: "none",
+              token: "abc",
+              secret: null,
+              signatureHeader: null,
+              subjectType: "workflow",
+              subjectId: "w1",
+            },
+          },
+        ],
+      ],
+      [
+        "list_incoming_webhooks",
+        [
+          {
+            value: [
+              {
+                id: "e1",
+                tenant: "t",
+                name: "Form",
+                verify: "none",
+                signature_header: null,
+                enabled: true,
+                max_body_bytes: 1024,
+                receive_count: 3,
+                last_received_at: null,
+                last_status: 202,
+                metadata: null,
+                subject_type: "workflow",
+                subject_id: "w1",
+                created_by: null,
+                created_at: "2026-10-06T12:00:00Z",
+              },
+            ],
+          },
+        ],
+      ],
+    ]);
+    const hooks = createIncomingWebhooks(fake.sql);
+    const created = await hooks
+      .create({
+        tenant: "t",
+        name: "Form",
+        subject: { type: "workflow", id: "w1" },
+      })
+      .orThrow();
+    expect(created.subject).toEqual({ type: "workflow", id: "w1" });
+    expect(created).not.toHaveProperty("subjectType");
+    expect(fake.calls[0]!.values.slice(5)).toEqual(["workflow", "w1"]);
+    const listed = await hooks.list("t", { type: "workflow" }).orThrow();
+    expect(listed[0]).toMatchObject({
+      subject: { type: "workflow", id: "w1" },
+      receiveCount: 3,
+      lastStatus: 202,
+      metadata: {},
+    });
+    expect(fake.calls[1]!.values).toEqual(["t", "workflow", null]);
   });
 
   it("manages endpoints through the module's functions", async () => {
@@ -155,7 +238,15 @@ describe("createIncomingWebhooks", () => {
     await hooks.rotate("e1").orThrow();
     expect(await hooks.setEnabled("e1", false).orThrow()).toBe(true);
     expect(await hooks.remove("e1").orThrow()).toBe(false);
-    expect(fake.calls[0]!.values).toEqual(["7", "Form", "none", "{}", null]);
+    expect(fake.calls[0]!.values).toEqual([
+      "7",
+      "Form",
+      "none",
+      "{}",
+      null,
+      null,
+      null,
+    ]);
     expect(fake.calls[2]!.values).toEqual(["e1", false]);
     const failing = fakeSql([
       ["create_incoming_webhook", { throws: pgError("42501", "denied") }],

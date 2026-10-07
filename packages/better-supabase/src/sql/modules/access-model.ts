@@ -74,9 +74,17 @@ export const MODULE_PERMISSIONS = {
   "webhooks-out": { manage: "webhooks.manage", view: "webhooks.read" },
   "webhooks-in": { manage: "webhooks.manage", view: "webhooks.read" },
   "api-keys": { manage: "api_keys.manage", own: "api_keys.own" },
-  settings: { read: "settings.read", update: "settings.update" },
+  settings: {
+    read: "settings.read",
+    update: "settings.update",
+    platform: "settings.manage",
+  },
   usage: { read: "usage.read" },
-  billing: { read: "billing.read", manage: "billing.manage" },
+  billing: {
+    read: "billing.read",
+    manage: "billing.manage",
+    viewAll: "billing.read",
+  },
   comments: {
     read: "comments.read",
     create: "comments.create",
@@ -96,6 +104,7 @@ export const MODULE_PERMISSIONS = {
   onboarding: { read: "onboarding.read", complete: "onboarding.complete" },
   announcements: { manage: "announcements.manage" },
   waitlist: { manage: "waitlist.manage", invite: "members.invite" },
+  flags: { manage: "flags.manage" },
 } as const;
 
 /**
@@ -131,9 +140,9 @@ export const MODULE_PERMISSION_SCOPES: {
   "webhooks-out": { manage: "tenant", view: "tenant" },
   "webhooks-in": { manage: "tenant", view: "tenant" },
   "api-keys": { manage: "tenant", own: "tenant" },
-  settings: { read: "tenant", update: "tenant" },
+  settings: { read: "tenant", update: "tenant", platform: "platform" },
   usage: { read: "tenant" },
-  billing: { read: "tenant", manage: "tenant" },
+  billing: { read: "tenant", manage: "tenant", viewAll: "platform" },
   comments: {
     read: "tenant",
     create: "tenant",
@@ -146,6 +155,7 @@ export const MODULE_PERMISSION_SCOPES: {
   onboarding: { read: "tenant", complete: "tenant" },
   announcements: { manage: "platform" },
   waitlist: { manage: "platform", invite: "tenant" },
+  flags: { manage: "platform" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {
@@ -188,6 +198,7 @@ export interface PermdockPlatformRoles {
   };
   /** A SQL template with `{user}` and `{role}` (the role name) deciding who assigns which platform role. */
   readonly canAssign?: string;
+  readonly canAssignFor?: string;
 }
 
 const isPlain = (value: unknown): value is Record<string, unknown> =>
@@ -224,10 +235,14 @@ export function permdockPlatformRoles(
     typeof value["table"] !== "string" ||
     typeof value["user"] !== "string" ||
     typeof value["role"] !== "string" ||
-    (value["canAssign"] !== undefined && typeof value["canAssign"] !== "string")
+    (value["canAssign"] !== undefined &&
+      typeof value["canAssign"] !== "string") ||
+    (value["canAssignFor"] !== undefined &&
+      (typeof value["canAssignFor"] !== "string" ||
+        !value["canAssignFor"].includes("{user}")))
   ) {
     throw new TypeError(
-      `${where} must be { table: "schema.table", user: "<user column>", role: "<role column>", through?: { table, id, column }, canAssign?: "<SQL template>" }`,
+      `${where} must be { table: "schema.table", user: "<user column>", role: "<role column>", through?: { table, id, column }, canAssign?: "<SQL template>", canAssignFor?: "<SQL template with {user}>" }`,
     );
   }
   const user = quotedRef(where, value["table"], value["user"]);
@@ -260,6 +275,9 @@ export function permdockPlatformRoles(
     ...(lookup ? { through: lookup } : {}),
     ...(typeof value["canAssign"] === "string"
       ? { canAssign: value["canAssign"] }
+      : {}),
+    ...(typeof value["canAssignFor"] === "string"
+      ? { canAssignFor: value["canAssignFor"] }
       : {}),
   };
 }

@@ -73,6 +73,10 @@ export default defineConfig({
 });
 ```
 
+With a plan catalog, the module also writes
+`better_supabase.tenant_plans(tenant)`, the tenant's active plan keys, which
+[usage quotas](/docs/blocks/usage) match by plan key.
+
 `source: "custom"` writes everything except
 `better_supabase.tenant_entitlements(tenant)`, which you write yourself and
 which returns the tenant's feature keys as `text[]`, such as plan features
@@ -164,6 +168,29 @@ Every key travels in every request, so keep the list to lookup keys.
 [`doctor --as <user id>`](/docs/cli/doctor#bs405) warns when the hook's
 claims pass 2 KB. The `features` claim is not part of PermDock's 1 KB budget,
 which covers only `memberships` and `attrs`.
+
+`entitlements.claim` controls the claim's size and shape:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  entitlements: {
+    claim: { maxTenants: 20, keys: { exports: "e", sso: "s", audit: "a" } },
+  },
+});
+```
+
+| Setting          | What the claim holds                                                 |
+| ---------------- | -------------------------------------------------------------------- |
+| unset            | every tenant with entitlements, with their keys                      |
+| `false`          | `{}`; check entitlements in SQL with `has_entitlement` only          |
+| `{ maxTenants }` | at most that many tenants, the lowest ids first                      |
+| `{ keys }`       | the short code for each key, and the key itself for keys without one |
+
+`hasEntitlement` reads the short codes when you pass the same map:
+`hasEntitlement(session, tenantId, "exports", { claim: "features", keys })`.
+A tenant left out by `maxTenants` reads as not granted, so pair it with
+`has_entitlement` in RLS and server checks. Run `better-supabase sql sync`
+after changing it.
 
 ## In components
 

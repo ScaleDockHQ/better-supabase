@@ -84,8 +84,10 @@ declarative_schema_path = "./schemas"
     });
 
     it("plans every module and ships the rows in the data migration", async () => {
-      expect((await sql(["sync"])).output).toContain(
-        "run `better-supabase sql data`",
+      const synced = (await sql(["sync"])).output;
+      expect(synced).toContain("run `better-supabase sql data`");
+      expect(synced).toMatch(
+        /^Wrote supabase\/migrations\/\d{14}_better_supabase_extensions\.sql$/m,
       );
       supabase(root, [
         "db",
@@ -104,10 +106,11 @@ declarative_schema_path = "./schemas"
       const migrations = (
         await readdir(join(root, "supabase/migrations"))
       ).toSorted();
-      expect(migrations).toHaveLength(2);
-      expect(migrations[1]).toMatch(/_better_supabase_module_data\.sql$/);
+      expect(migrations).toHaveLength(3);
+      expect(migrations[0]).toMatch(/_better_supabase_extensions\.sql$/);
+      expect(migrations[2]).toMatch(/_better_supabase_module_data\.sql$/);
       const schema = await readFile(
-        join(root, "supabase/migrations", migrations[0]!),
+        join(root, "supabase/migrations", migrations[1]!),
         "utf8",
       );
       expect(schema).not.toMatch(/^insert into/im);

@@ -25,6 +25,23 @@ describe("configIssues", () => {
     ).toEqual([]);
   });
 
+  it("accepts the entitlements claim shape and vector search ordering", () => {
+    expect(
+      configIssues({
+        entitlements: { claim: { maxTenants: 20, keys: { exports: "x" } } },
+        vectorSearch: {
+          chunks: {
+            column: "embedding",
+            predicate: "t.expires_at > now()",
+            boostMode: "add",
+            order: "t.id desc",
+          },
+        },
+      }),
+    ).toEqual([]);
+    expect(configIssues({ entitlements: { claim: false } })).toEqual([]);
+  });
+
   it("names the key path of every problem", () => {
     expect(
       configIssues({

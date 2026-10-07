@@ -54,6 +54,54 @@ bucket keeps its settings. The table checks the same limits. With
 `requireScan: false`, `confirm` marks a file clean right away, and files
 nobody scanned are served too (an `infected` one never is).
 
+### Subjects and buckets
+
+`subjects` maps each subject type to its table, as for
+[comments](/docs/blocks/comments#subjects): uploading and reading a file then
+also need the subject row to be readable through the subject table's own
+policies (and its `permission`), and an unlisted type is refused. A subject
+can keep its files in its own bucket with its own MIME types, so an app with a
+bucket per feature keeps them:
+
+```ts
+options: {
+  bucket: "attachments",
+  path: "{organization_id}/{subject_type}/{subject_id}/{id}",
+  subjects: {
+    chat_message: { table: "chat_messages", bucket: "chat", allowedMimeTypes: ["image/*", "application/pdf"] },
+    expense: { table: "expenses", bucket: "receipts", allowedMimeTypes: ["image/*"], cascade: true },
+  },
+},
+```
+
+The module creates every listed bucket that doesn't exist yet and adds its
+storage policies for each, next to any policies the bucket already has. With
+subjects, reading an object also needs its subject: the storage read policy
+checks that the caller sees the attachment row through its own read policy
+(`attachment_object_visible`), so a member who can't see the subject, or who
+isn't in the tenant, can't download its files, uploader and
+`attachments.manage` included.
+`cascade: true` deletes a subject's attachment rows with the subject row;
+remove the objects with `attachments.remove` or a storage cleanup job.
+
+A subject without a tenant, such as a user's own notes, takes `tenant: false`:
+its files have no `organization_id` (pass `organizationId: null` to `upload`),
+their path starts with `-`, and the subject table's own policies alone decide
+who reads and uploads them, without tenant permissions. Other files still need
+a tenant.
+
+```ts
+subjects: {
+  note: { table: "notes", tenant: false },
+},
+```
+
+`path` sets the object path, from `{organization_id}` (required first),
+`{id}` (required), `{subject_type}` and `{subject_id}` (a file without a
+subject gets `-`). It defaults to `{organization_id}/attachments/{id}`.
+Changing it later rewrites the column on Postgres 17; on older versions,
+recreate the column in a migration.
+
 ## Upload and download
 
 Uploading takes three steps: create the record and a signed upload URL on
@@ -93,14 +141,45 @@ exists, takes its size and type from Storage and writes
 `attachment.uploaded` to the outbox. `confirm` returns
 `not_found` with the hint `ATTACHMENT_NOT_UPLOADED` until the object exists.
 
+`upload` takes `metadata`, a JSON object kept with the record in the
+`metadata` column (a caption, where the file came from, a page count), and
+every attachment returns it as `metadata` (`{}` without any).
+
 `download(id)` returns a signed URL (300 seconds by default, `downloadTtl`
 changes it; `{ as: "plan.pdf" }` sets the download name). Until the scan
 passes it returns `invalid_request` with the hint `ATTACHMENT_NOT_SCANNED`.
 `list(organizationId, { type, id })` lists a record's files oldest first,
 and `remove(id)` deletes the object and then the row.
 
+Files the server makes or fetches (an export, a generated PDF, an import
+from a URL) go through `put(attachment, file)`, which creates the record,
+uploads the bytes with the storage client and confirms it in one call.
+`read(id)` returns the bytes as a `Blob` for server-side processing, behind
+the same scan gate as `download` (`ATTACHMENT_NOT_SCANNED` until the scan
+passes):
+
+```ts
+const report = await attachments
+  .put(
+    {
+      organizationId,
+      subjectType: "project",
+      subjectId,
+      name: "report.pdf",
+      mimeType: "application/pdf",
+      size: pdf.byteLength,
+    },
+    pdf,
+  )
+  .orThrow();
+
+const { file } = await attachments.read(attachmentId).orThrow();
+const text = await extractText(await file.arrayBuffer());
+```
+
 Pass the caller's Supabase client so the table and bucket policies apply;
-`createAttachments` never needs the service role.
+`createAttachments` never needs the service role. A service-role client works
+too, for jobs that act for no user.
 
 ## Scanning
 
@@ -136,12 +215,40 @@ throws, the file is marked `failed` with the error as `scan_detail`, the
 result is an error with the hint `ATTACHMENT_SCAN_FAILED`, and the next
 attempt scans it again.
 
+### Any bucket
+
+The scan gate also works without the attachments table, for a file drive,
+avatars or generated exports. `scanned_objects` holds one row per object,
+`object_clean(bucket, path)` answers in any storage policy, and
+`createObjectScanner` records verdicts with `set_object_scan` (service role):
+
+```sql
+create policy "drive files are clean" on storage.objects for select to authenticated
+  using (bucket_id = 'files' and better_supabase.object_clean(bucket_id, name) and ...);
+```
+
+```ts
+const objects = createObjectScanner({
+  transport: sqlTransport(postgres.admin),
+  storage: supabaseAdmin.storage,
+  scan: (file, { bucket, path }) => scanWithClamav(file),
+});
+await outbox.relay("object-scans", objects.sink());
+```
+
+With `scanBuckets: ["files"]`, a trigger on `storage.objects` gives each new
+or replaced object in those buckets a `pending` row and writes an
+`object.uploaded` event (`{ bucket, path }`), which `objects.sink()` scans;
+`objects.job` takes the same payload from a queue. Scanning an attachment
+also records its object in `scanned_objects`, so both gates agree.
+
 ## Events
 
 With the outbox installed, the module writes these events with the tenant as
 the partition key and `attachments/<id>` as the subject:
 
-| Event                 | When                       | Data                                                                         |
-| --------------------- | -------------------------- | ---------------------------------------------------------------------------- |
-| `attachment.uploaded` | `confirm` saw the object   | `attachmentId`, `subjectType`, `subjectId`, `uploadedBy`, `mimeType`, `size` |
-| `attachment.scanned`  | a scan result was recorded | `attachmentId`, `status`, `uploadedBy`                                       |
+| Event                 | When                                                   | Data                                                                         |
+| --------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `attachment.uploaded` | `confirm` saw the object                               | `attachmentId`, `subjectType`, `subjectId`, `uploadedBy`, `mimeType`, `size` |
+| `attachment.scanned`  | a scan result was recorded                             | `attachmentId`, `status`, `uploadedBy`                                       |
+| `object.uploaded`     | an object landed in a `scanBuckets` bucket (no tenant) | `bucket`, `path`                                                             |

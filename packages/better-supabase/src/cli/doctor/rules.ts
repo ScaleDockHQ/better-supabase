@@ -46,6 +46,7 @@ import {
   catalogOf,
   exposed,
   lineOf,
+  permissionCatalogKeys,
   policyObject,
   qualified,
   tableObject,
@@ -120,6 +121,8 @@ export interface DoctorContext {
   readonly permdock?: PermdockProject;
   /** `supabase/schemas` in the diff engine's order, then migrations newest first (BS214, BS404, BS407). */
   readonly sqlFiles?: readonly TextFile[];
+  /** The keys of PermDock's permission catalog, read even without a PermDock config or manifest. */
+  readonly permissionCatalog?: readonly string[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
 }
@@ -165,16 +168,27 @@ async function moduleFiles(context: DoctorContext): Promise<ModuleFileState[]> {
   if (access.kind === "invalid") return [];
   const readSets = context.readSets;
   const skipped = readSets !== undefined && "skipped" in readSets;
-  const files = renderModules(context.config.sql.moduleNames, {
-    ...moduleLayout(
-      context.config,
-      context.config.sql.testsDir,
-      skipped ? [] : readSets,
-      entitlementsModule(context),
-      access.kind === "permdock" ? access.access : undefined,
-    ),
-    schemasDir: declarativeSchemasDir(context.configToml),
-  }).filter((file) => !(skipped && file.module === "read-sets"));
+  let rendered: ModuleFile[];
+  try {
+    rendered = renderModules(context.config.sql.moduleNames, {
+      ...moduleLayout(
+        context.config,
+        context.config.sql.testsDir,
+        skipped ? [] : readSets,
+        entitlementsModule(context),
+        access.kind === "permdock" ? access.access : undefined,
+        permissionCatalogKeys(context),
+      ),
+      schemasDir: declarativeSchemasDir(context.configToml),
+    });
+  } catch {
+    // A config `sql sync` refuses (such as api-keys scopes "catalog" without
+    // a catalog) has no files to compare; `sql sync` reports why.
+    return [];
+  }
+  const files = rendered.filter(
+    (file) => !(skipped && file.module === "read-sets"),
+  );
   return Promise.all(
     files.map(async (file) => {
       const current = await readFile(
@@ -374,7 +388,7 @@ const OWN_RULES: readonly Rule[] = [
         return (["anon", "authenticated"] as const).flatMap((role) => {
           const have = granted(role);
           const missing = wanted[role].filter(
-            (privilege) => !have.has(privilege),
+            (privilege) => !privilege.includes("(") && !have.has(privilege),
           );
           if (missing.length === 0) return [];
           return [

@@ -1,6 +1,6 @@
 ---
 title: Audit log
-description: List, filter and export a tenant's audit entries as NDJSON or OCSF, and purge them per tenant's retention.
+description: List, reveal and export a tenant's audit entries as NDJSON, CSV or OCSF, and purge them per tenant's retention.
 ---
 
 The `audit` SQL module records row changes and `audit_event()` calls (see
@@ -23,52 +23,97 @@ export default defineConfig({
 
 ## Listing entries
 
-`auditListQuery` is a [list query](/docs/platform/list) over the
-audit table, newest first behind a cursor, with facets for `table`, `record`,
-`op`, `actor`, `event`, `category`, `outcome` and `target` (those the table
-has). Generate types for the `better_supabase` schema so the table is in your
-models, then:
+`createAuditLog` reads the log through the module's own functions, as the
+caller, so the read policy decides what each member sees and an adopted log's
+column mappings are already applied. It needs no generated types and no
+exposed schema: pass `sqlTransport(ctx.postgres)` (direct Postgres as the
+user), or `rpcTransport(supabase, { schema: "api" })` with the module's
+[API schema](/docs/blocks/sql#calling-a-module-over-the-data-api).
 
-```ts title="app/settings/audit/list.ts"
-import { auditListQuery } from "better-supabase/blocks/audit";
+```ts title="app/settings/audit/page.ts"
+import { createAuditLog, sqlTransport } from "better-supabase/blocks/audit";
 
+const audit = createAuditLog({ transport: sqlTransport(ctx.postgres) });
+
+const page = await audit
+  .list({ organizationId, eventType: "invoice.sent", since, limit: 50 })
+  .orThrow();
+// page.entries: id, occurredAt, eventType, actorId, actorLabel, summary, targetLabel, ...
+const older = await audit.list({ organizationId, before: page.next });
+```
+
+`list` calls `list_audit_events` with the tenant, event type, actor, target
+type, record, category, outcome, source, actor kind, correlation id and time
+filters, newest first; pass
+`page.next` as `before` for the next page. Every filter but the times takes
+one value or a list, `search` matches text in the event type, summary,
+target, actor and tenant labels, record and table (case-insensitive),
+`order: "asc"` lists oldest first, and `count: true` adds `page.total`, the
+number of entries the filters match, from `count_audit_events`:
+
+```ts
+const page = await audit
+  .list({
+    organizationId,
+    eventType: ["invoice.sent", "invoice.paid"],
+    outcome: "failure",
+    search: "acme",
+    order: "asc",
+    count: true,
+  })
+  .orThrow();
+// page.total: 12
+```
+
+`export` takes the same filters, `search` and `order`. Restricted details (row snapshots, IP, user agent) are
+never in the list. `audit.reveal(entryId)` returns them for a member with the
+reveal permission in the entry's tenant, or platform staff, and records the
+look as an `audit.revealed` entry; anyone else gets `not_found`
+(`AUDIT_ENTRY_NOT_FOUND`).
+
+`auditListQuery` is the older path: a [list query](/docs/platform/list)
+over the audit table with facets for `table`, `record`, `op`, `actor`,
+`event`, `category`, `outcome` and `target`. It reads the table itself, so it
+needs the table in your generated models and follows the managed column
+names; use it with `ctx.sql` over direct Postgres, since the module schema is
+not exposed to the Data API.
+
+```ts
 export const auditList = auditListQuery(betterSupabase, "auditEvents");
-
-const query = auditList.parse(searchParams);
-if (!query.ok) return badRequest(query.issues);
 const page = await auditList
-  .run(ctx.db, query.value, {
+  .run(ctx.sql, query.value, {
     where: { organizationId, ...auditList.between(from, to) },
   })
   .orThrow();
 ```
 
-`between(from, to)` filters `occurred_at` to `[from, to)`. The read policy
-decides which rows a member sees; restricted columns stay in the
-`audit_events_restricted` table, which members can't read.
-
 ## Exporting
 
-`exportAuditLog` streams one tenant's entries as newline-delimited JSON, one
-keyset query per batch, so memory stays flat however long the log is. Run it
-with a member's claims, so the read policy applies, or as the service role:
+`audit.export()` streams every entry the caller can read as NDJSON, CSV or
+OCSF, one `list_audit_events` page at a time, so memory stays flat however
+long the log is, and it reads an adopted log and the version 3 columns
+(`actorLabel`, `summary`, `requestId` and the rest) like `list` does:
 
 ```ts title="app/api/audit/export/route.ts"
-import { exportAuditLog } from "better-supabase/blocks/audit";
-
 export const GET = bs.handler(async (request, ctx) => {
-  if (ctx.auth.kind !== "user") return new Response(null, { status: 401 });
-  const stream = exportAuditLog(postgres.asUser(ctx.auth.claims), {
-    organizationId,
-    from: Temporal.Instant.from("2026-01-01T00:00:00Z"),
-    format: "ocsf",
-    product: { name: "Acme CRM", vendor_name: "Acme Inc." },
+  const audit = createAuditLog({
+    transport: sqlTransport(postgres.asUser(ctx.auth.claims)),
   });
-  return new Response(stream, {
-    headers: { "content-type": "application/x-ndjson" },
-  });
+  const stream = audit.export({ organizationId, since, format: "csv" });
+  return new Response(stream, { headers: { "content-type": "text/csv" } });
 });
 ```
+
+`format: "csv"` writes a header row and one row per entry, with text that
+starts like a spreadsheet formula prefixed with `'`. For an export that runs
+in the background (a jobs handler that emails a link, say),
+`audit.exportToStorage({ storage, bucket, path, signedUrlTtl, ...filters })`
+writes the file to Storage, such as the data lifecycle `data-exports`
+bucket, and returns its path and a signed download URL.
+
+`exportAuditLog(sql, options)` streams NDJSON or OCSF straight from the
+managed table's columns. Keep it for a managed log; `audit.export()` covers
+adopted logs and CSV.
 
 `format: "ocsf"` maps each entry to an
 [OCSF](https://schema.ocsf.io/1.9.0) event (`SPEC_PINS.ocsf`). Row changes

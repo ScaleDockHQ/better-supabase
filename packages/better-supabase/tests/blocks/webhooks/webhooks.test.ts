@@ -66,6 +66,32 @@ describe("Standard Webhooks", () => {
     });
   });
 
+  it("accepts the svix- header names Svix-based senders use", async () => {
+    const svix = {
+      "Svix-Id": ID,
+      "svix-timestamp": String(TIMESTAMP),
+      "svix-signature": SIGNATURE,
+    };
+    expect(
+      await verifyWebhook({ headers: svix, body: BODY }, SECRET, { now }),
+    ).toMatchObject({ ok: true, data: { id: ID } });
+    expect(
+      await verifyWebhook(
+        { headers: new Headers(svix), body: `${BODY} ` },
+        SECRET,
+        { now },
+      ),
+    ).toMatchObject({ error: { code: "WEBHOOK_INVALID_SIGNATURE" } });
+    const { "webhook-id": _id, ...mixed } = headers();
+    expect(
+      await verifyWebhook(
+        { headers: { ...mixed, "svix-id": ID }, body: BODY },
+        SECRET,
+        { now },
+      ),
+    ).toMatchObject({ error: { code: "WEBHOOK_MISSING_HEADERS" } });
+  });
+
   it("accepts Supabase-style secrets, rotation and multiple signatures", async () => {
     const other = "whsec_" + btoa("another-secret-value");
     expect(

@@ -1,6 +1,7 @@
 export {
   defineSettings,
   type OrganizationSettings,
+  type PlatformSettings,
   type SettingEntries,
   type SettingEntry,
   type SettingInputs,

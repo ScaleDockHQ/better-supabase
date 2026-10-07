@@ -8,6 +8,8 @@ import {
   recordsOf,
   stringsOf,
   textOf,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
 export type FlagType = "boolean" | "string" | "number" | "object";
@@ -59,6 +61,8 @@ export interface FlagContext {
   readonly tenant?: string;
   readonly plans?: readonly string[];
   readonly role?: string;
+  /** Every role the caller holds in the tenant; a `roles` rule matches any of them. */
+  readonly roles?: readonly string[];
   readonly [attribute: string]: unknown;
 }
 
@@ -71,6 +75,7 @@ export type RequestFlagContext = {
   tenant?: string;
   plans?: string[];
   role?: string;
+  roles?: string[];
 };
 
 export type FlagReason =
@@ -132,11 +137,20 @@ const contains = (
 ): boolean =>
   list === undefined || (value !== undefined && list.includes(value));
 
+const anyIn = (
+  list: readonly string[] | undefined,
+  values: readonly string[],
+): boolean =>
+  list === undefined || values.some((value) => list.includes(value));
+
 function ruleMatches(rule: FlagRule, context: FlagContext): boolean {
   return (
     contains(rule.tenants, context.tenant) &&
     contains(rule.users, context.targetingKey) &&
-    contains(rule.roles, context.role) &&
+    anyIn(rule.roles, [
+      ...(context.role === undefined ? [] : [context.role]),
+      ...(context.roles ?? []),
+    ]) &&
     (rule.plans === undefined ||
       rule.plans.some((plan) => context.plans?.includes(plan) === true))
   );
@@ -258,7 +272,9 @@ export function flagDefinitionsOf(value: unknown): readonly FlagDefinition[] {
   }));
 }
 
-export interface FlagsProviderOptions<Code extends string = FlagErrorCode> {
+export interface FlagsProviderOptions<
+  Code extends string = FlagErrorCode,
+> extends BlockTemporalOptions {
   /**
    * A service-role transport: `flag_definitions()` is granted to
    * `service_role` only, as it lists every override.
@@ -327,6 +343,7 @@ const isNumber: Check<number> = (value) => typeof value === "number";
 export function createFlagsProvider<Code extends string = FlagErrorCode>(
   options: FlagsProviderOptions<Code>,
 ): FlagsProvider<Code> {
+  applyTemporal(options);
   const { transport, definitions } = options;
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   const fetchFlags = definitions
@@ -523,12 +540,52 @@ export interface FlagContextOptions {
   readonly featuresClaim?: string;
   /** The claim the memberships hook writes, default `memberships`. */
   readonly membershipsClaim?: string;
+  /**
+   * The scope of tenant memberships when the claim is a list of entries, as
+   * PermDock's hook writes (`{ scope, id, roles }`). Without it, the entry
+   * for the tenant id that has no `within` (a root scope) is read.
+   */
+  readonly membershipScope?: string;
+  /** Reads the caller's roles in `tenant` from claims of another shape. */
+  readonly roles?: (
+    claims: Readonly<Record<string, unknown>>,
+    tenant: string,
+  ) => string | readonly string[] | undefined;
+}
+
+/**
+ * The caller's roles in `tenant` from the memberships claim: an object of
+ * tenant id to role (the `tenant` module's hook), or a list of
+ * `{ scope, id, role | roles }` entries (PermDock's hook).
+ */
+function membershipRoles(
+  memberships: unknown,
+  tenant: string,
+  scope: string | undefined,
+): string[] {
+  if (isRecord(memberships)) {
+    const role = optionalText(memberships[tenant]);
+    return role === undefined ? [] : [role];
+  }
+  if (!Array.isArray(memberships)) return [];
+  const entry = memberships.find(
+    (item): item is Record<string, unknown> =>
+      isRecord(item) &&
+      optionalText(item["id"]) === tenant &&
+      (scope === undefined
+        ? item["within"] === undefined
+        : optionalText(item["scope"]) === scope),
+  );
+  if (!entry) return [];
+  const role = optionalText(entry["role"]);
+  return [...(role === undefined ? [] : [role]), ...stringsOf(entry["roles"])];
 }
 
 /**
  * The evaluation context of a request: the user id as `targetingKey`, the
- * tenant, its plan features (`features` claim) and the caller's role in it
- * (`memberships` claim). Pass it as `context` to `withOpenFeature`.
+ * tenant, its plan features (`features` claim) and the caller's roles in it
+ * (`memberships` claim, in the `tenant` module's or PermDock's shape, or
+ * `options.roles`). Pass it as `context` to `withOpenFeature`.
  */
 export function flagContext(
   source: FlagContextSource,
@@ -552,14 +609,23 @@ export function flagContext(
     Array.isArray(features[tenant])
       ? [...stringsOf(features[tenant])]
       : undefined;
-  const role =
-    tenant !== undefined && isRecord(memberships)
-      ? optionalText(memberships[tenant])
-      : undefined;
+  const resolved =
+    tenant === undefined
+      ? undefined
+      : options.roles
+        ? options.roles(claims, tenant)
+        : membershipRoles(memberships, tenant, options.membershipScope);
+  const roles =
+    resolved === undefined
+      ? []
+      : typeof resolved === "string"
+        ? [resolved]
+        : [...resolved];
   return {
     ...(sub !== undefined && { targetingKey: sub }),
     ...(tenant !== undefined && { tenant }),
     ...(plans !== undefined && { plans }),
-    ...(role !== undefined && { role }),
+    ...(roles.length > 0 && { role: roles[0]! }),
+    ...(roles.length > 1 && { roles }),
   };
 }

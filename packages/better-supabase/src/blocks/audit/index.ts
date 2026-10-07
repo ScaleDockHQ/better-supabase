@@ -1,3 +1,16 @@
+export { createAuditLog } from "./client.ts";
+export type {
+  AuditCursor,
+  AuditDetails,
+  AuditExportBucket,
+  AuditExportOptions,
+  AuditExportToStorageOptions,
+  AuditListOptions,
+  AuditLog,
+  AuditLogOptions,
+  AuditPage,
+  AuditRecord,
+} from "./client.ts";
 export {
   auditListQuery,
   exportAuditLog,
@@ -15,3 +28,5 @@ export type {
   OcsfProduct,
   PurgeAuditLogOptions,
 } from "./audit.ts";
+export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
+export type { BlockTransport } from "../../core/block-transport.ts";

@@ -307,6 +307,52 @@ describe.skipIf(!live)("profiles", () => {
     }
   });
 
+  it("builds usernames from profile columns and keeps their separator", async () => {
+    const client = await pool.connect();
+    const schema = `${SCHEMA}_columns`;
+    try {
+      await client.query("begin");
+      const layout = {
+        modules: {
+          profiles: {
+            schema,
+            options: {
+              usernameFrom: [
+                { columns: ["first_name", "last_name"], separator: "." },
+              ],
+            },
+            hooks: { schema },
+          },
+        },
+      };
+      for (const file of renderModules(["profiles"], layout))
+        await client.query(file.contents);
+      const users = [crypto.randomUUID(), crypto.randomUUID()];
+      for (const [index, id] of users.entries()) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, raw_user_meta_data)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', $3)`,
+          [
+            id,
+            `grace${index}-${id}@example.test`,
+            { full_name: "Grace Hopper" },
+          ],
+        );
+      }
+      const { rows } = await client.query<{ username: string }>(
+        `select username from ${schema}.profiles where id = any ($1) order by username`,
+        [users],
+      );
+      expect(rows.map((row) => row.username)).toEqual([
+        "grace.hopper",
+        "grace.hopper1",
+      ]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("lets organization logos follow the access contract", async () => {
     const client = await pool.connect();
     try {

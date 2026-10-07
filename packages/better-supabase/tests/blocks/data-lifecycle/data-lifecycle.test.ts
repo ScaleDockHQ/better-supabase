@@ -271,6 +271,39 @@ describe("createDataExporter", () => {
     ]);
   });
 
+  it("writes CSV files with a header row when format is csv", async () => {
+    const { transport } = fakeTransport({
+      claim_data_export: claimed,
+      data_export_rows: (args: Record<string, unknown>) =>
+        args["table_name"] === "public.projects"
+          ? {
+              rows: [{ id: 1, name: "a,b" }, { id: 2, tags: ["x"] }, 3],
+              after: null,
+            }
+          : { rows: [], after: null },
+      complete_data_export: (args: Record<string, unknown>) =>
+        exportRow({ files: args["files"] }),
+    });
+    const storage = fakeStorage();
+    const done = await createDataExporter({
+      transport,
+      storage: storage.storage,
+      format: "csv",
+    })
+      .run("x1")
+      .orThrow();
+    expect(done.files).toEqual([
+      "x1/public.projects.csv",
+      "x1/public.empty.csv",
+    ]);
+    const uploads = storage.calls.filter(([method]) => method === "upload");
+    expect(await (uploads[0]![3] as Blob).text()).toBe(
+      'id,name,tags,value\r\n1,"a,b",,\r\n2,,"[""x""]",\r\n,,,3\r\n',
+    );
+    expect((uploads[0]![3] as Blob).type).toBe("text/csv");
+    expect((uploads[1]![3] as Blob).size).toBe(0);
+  });
+
   it("marks the export failed when a page, an upload or the signal fails", async () => {
     const failures = [
       { data_export_rows: Object.assign(new Error("boom"), { code: "XX000" }) },
@@ -456,6 +489,79 @@ describe("createOrganizationPurger", () => {
       1000, 2,
     ]);
     expect(calls).toEqual([["purge_organization", { tenant: "org-1" }]]);
+  });
+
+  it("clears path templates and computed prefixes per bucket", async () => {
+    const listed: string[] = [];
+    const storage = fakeStorage({
+      list: (path) => {
+        listed.push(String(path));
+        return { data: [{ name: "f", id: "1" }], error: null };
+      },
+    });
+    const { transport } = fakeTransport({ purge_organization: purged });
+    const result = await createOrganizationPurger({
+      transport,
+      storage: storage.storage,
+      buckets: [
+        { bucket: "files", path: "orgs/{organizationId}/files/" },
+        {
+          bucket: "media",
+          path: (id) => [`public/${id}`, `private/${id}`],
+        },
+      ],
+    })
+      .purge("org-1")
+      .orThrow();
+    expect(listed).toEqual([
+      "orgs/org-1/files",
+      "public/org-1",
+      "private/org-1",
+    ]);
+    expect(result.removed).toEqual({ files: 1, media: 2 });
+    const unsafe = await createOrganizationPurger({
+      transport,
+      storage: storage.storage,
+      buckets: [{ bucket: "files", path: "shared" }],
+    }).purge("org-1");
+    expect(unsafe).toMatchObject({
+      error: { kind: "invalid_request", message: /other tenants/ },
+    });
+  });
+
+  it("removes expired exports' files, then their rows", async () => {
+    const storage = fakeStorage();
+    const { transport, calls } = fakeTransport({
+      expired_data_exports: [
+        {
+          id: "e1",
+          bucket: "data-exports",
+          files: ["e1/a.ndjson", "e1/b.ndjson", 3],
+        },
+        { id: "e2", bucket: "data-exports", files: [] },
+      ],
+      forget_data_exports: 2,
+    });
+    const purger = createOrganizationPurger({
+      transport,
+      storage: storage.storage,
+    });
+    expect(await purger.purgeExports({ limit: 5 }).orThrow()).toBe(2);
+    expect(storage.calls.filter(([method]) => method === "remove")).toEqual([
+      ["remove", ["e1/a.ndjson", "e1/b.ndjson"]],
+    ]);
+    expect(calls).toEqual([
+      ["expired_data_exports", { max_rows: 5 }],
+      ["forget_data_exports", { ids: ["e1", "e2"] }],
+    ]);
+    const none = createOrganizationPurger({
+      transport: fakeTransport({ expired_data_exports: [] }).transport,
+    });
+    expect(await none.purgeExports().orThrow()).toBe(0);
+    const noStorage = createOrganizationPurger({ transport });
+    expect(await noStorage.purgeExports()).toMatchObject({
+      error: { kind: "invalid_request" },
+    });
   });
 
   it("stops at billing, storage and missing storage errors", async () => {

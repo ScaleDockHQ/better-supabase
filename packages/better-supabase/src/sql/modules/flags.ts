@@ -5,7 +5,8 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
-import { schemaPreamble } from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
   options: [],
@@ -27,6 +28,7 @@ const NAMES: ModuleNames = {
     },
     overrides: {
       name: "flag_overrides",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         flag: "flag_key",
@@ -47,6 +49,12 @@ function build(ctx: ModuleContext): string {
   const f = (logical: string): string => ctx.col("flags", logical);
   const o = (logical: string): string => ctx.col("overrides", logical);
   const fn = (name: string): string => ctx.fn(name);
+  const manage = ctx.installed("access")
+    ? `(${SERVICE_CALLER} or coalesce(better_supabase.is_platform(${ctx.permission("manage", MODULE_PERMISSIONS.flags.manage)}), false))`
+    : SERVICE_CALLER;
+  const denied = `if not ${manage} then
+    raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
+  end if;`;
   const plans = ctx.installed("entitlements")
     ? "better_supabase.tenant_entitlements(tenant)"
     : "'{}'::text[]";
@@ -203,6 +211,109 @@ as $$
   from ${flags} x
 $$;
 
+-- Staff management, for an admin page over the Data API: platform staff with
+-- flags.manage${ctx.installed("access") ? "" : " (with the access module)"} or the service role.
+create or replace function ${fn("list_flags")}()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  ${denied}
+  return ${fn("flag_definitions")}();
+end;
+$$;
+
+-- Creates or updates a flag from definition: type, description, variants,
+-- default_variant, enabled, rules, rollout_percentage and rollout_variant;
+-- missing keys keep their value (or the default for a new flag).
+create or replace function ${fn("save_flag")}(key text, definition jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  d jsonb := coalesce(definition, '{}');
+begin
+  ${denied}
+  insert into ${flags} as x (${f("key")}, ${f("type")}, ${f("description")}, ${f("variants")}, ${f("defaultVariant")}, ${f("enabled")}, ${f("rules")}, ${f("rolloutPercentage")}, ${f("rolloutVariant")})
+  values (
+    save_flag.key,
+    coalesce(d ->> 'type', 'boolean'),
+    d ->> 'description',
+    coalesce(d -> 'variants', '{"on": true, "off": false}'::jsonb),
+    coalesce(d ->> 'default_variant', 'off'),
+    coalesce((d ->> 'enabled')::boolean, true),
+    coalesce(d -> 'rules', '[]'::jsonb),
+    coalesce((d ->> 'rollout_percentage')::numeric, 0),
+    d ->> 'rollout_variant'
+  )
+  on conflict (${f("key")}) do update set
+    ${f("type")} = case when d ? 'type' then excluded.${f("type")} else x.${f("type")} end,
+    ${f("description")} = case when d ? 'description' then excluded.${f("description")} else x.${f("description")} end,
+    ${f("variants")} = case when d ? 'variants' then excluded.${f("variants")} else x.${f("variants")} end,
+    ${f("defaultVariant")} = case when d ? 'default_variant' then excluded.${f("defaultVariant")} else x.${f("defaultVariant")} end,
+    ${f("enabled")} = case when d ? 'enabled' then excluded.${f("enabled")} else x.${f("enabled")} end,
+    ${f("rules")} = case when d ? 'rules' then excluded.${f("rules")} else x.${f("rules")} end,
+    ${f("rolloutPercentage")} = case when d ? 'rollout_percentage' then excluded.${f("rolloutPercentage")} else x.${f("rolloutPercentage")} end,
+    ${f("rolloutVariant")} = case when d ? 'rollout_variant' then excluded.${f("rolloutVariant")} else x.${f("rolloutVariant")} end,
+    ${f("updatedAt")} = now();
+  return (select v from jsonb_array_elements(${fn("flag_definitions")}()) v where v ->> 'key' = save_flag.key);
+end;
+$$;
+
+create or replace function ${fn("delete_flag")}(key text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  ${denied}
+  delete from ${flags} x where x.${f("key")} = delete_flag.key;
+  return found;
+end;
+$$;
+
+-- Sets the variant of flag for one tenant or one user (pass exactly one);
+-- a null variant removes the override. Returns whether a row changed.
+create or replace function ${fn("set_flag_override")}(key text, variant text, tenant ${id} default null, member uuid default null)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  ${denied}
+  if (tenant is null) = (member is null) then
+    raise exception 'Pass a tenant or a member, not both' using errcode = '22023', hint = 'FLAGS_OVERRIDE_TARGET';
+  end if;
+  if variant is null then
+    delete from ${overrides} v
+    where v.${o("flag")} = set_flag_override.key
+      and v.${o("tenant")} is not distinct from set_flag_override.tenant
+      and v.${o("user")} is not distinct from set_flag_override.member;
+    return found;
+  end if;
+  insert into ${overrides} (${o("flag")}, ${o("tenant")}, ${o("user")}, ${o("variant")})
+  values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.variant)
+  on conflict (${o("flag")}, ${o("tenant")}, ${o("user")}) do update set ${o("variant")} = excluded.${o("variant")};
+  return true;
+end;
+$$;
+
+revoke execute on function ${fn("list_flags")}() from public, anon;
+revoke execute on function ${fn("save_flag")}(text, jsonb) from public, anon;
+revoke execute on function ${fn("delete_flag")}(text) from public, anon;
+revoke execute on function ${fn("set_flag_override")}(text, text, ${id}, uuid) from public, anon;
+grant execute on function ${fn("list_flags")}() to authenticated, service_role;
+grant execute on function ${fn("save_flag")}(text, jsonb) to authenticated, service_role;
+grant execute on function ${fn("delete_flag")}(text) to authenticated, service_role;
+grant execute on function ${fn("set_flag_override")}(text, text, ${id}, uuid) to authenticated, service_role;
 revoke execute on function ${fn("flag_evaluation")}(text, ${id}, uuid) from public, anon, authenticated;
 revoke execute on function ${fn("flag_enabled")}(text, ${id}) from public, anon;
 revoke execute on function ${fn("flag_definitions")}() from public, anon, authenticated;
@@ -222,6 +333,14 @@ function contract(): readonly ModuleContractFunction[] {
     },
     { name: "flag_enabled", args: ["text", "{id}"], returns: "boolean" },
     { name: "flag_definitions", args: [], returns: "jsonb" },
+    { name: "list_flags", args: [], returns: "jsonb" },
+    { name: "save_flag", args: ["text", "jsonb"], returns: "jsonb" },
+    { name: "delete_flag", args: ["text"], returns: "boolean" },
+    {
+      name: "set_flag_override",
+      args: ["text", "text", "{id}", "uuid"],
+      returns: "boolean",
+    },
   ];
 }
 

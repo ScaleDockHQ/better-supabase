@@ -14,6 +14,7 @@ const NAMES: ModuleNames = {
   tables: {
     progress: {
       name: "onboarding_progress",
+      lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
         checklist: "checklist",

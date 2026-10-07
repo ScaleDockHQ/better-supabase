@@ -8,6 +8,8 @@ import {
   optionalText,
   recordsOf,
   textOf,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
 export type ChecklistScope = "user" | "organization";
@@ -32,7 +34,7 @@ export interface ChecklistSpec<
   readonly steps: readonly ChecklistStep<Id>[];
 }
 
-export interface ChecklistConnectOptions {
+export interface ChecklistConnectOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema (`sql.modules.onboarding.schema`), default `better_supabase`. */
   readonly schema?: string;
@@ -113,6 +115,7 @@ function connectChecklist<Id extends string, Scope extends ChecklistScope>(
   spec: ChecklistSpec<Id, Scope>,
   options: ChecklistConnectOptions,
 ): ChecklistClient<Id, Scope> {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenantOf = (subject: readonly string[]) => ({
     tenant: subject[0] ?? null,

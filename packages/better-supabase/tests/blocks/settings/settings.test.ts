@@ -123,10 +123,41 @@ describe("defineSettings", () => {
 
   it("works with an empty spec", async () => {
     const empty = defineSettings({});
-    expect(empty.schemas).toEqual({ user: {}, organization: {} });
+    expect(empty.schemas).toEqual({ user: {}, organization: {}, platform: {} });
     const client = empty.connect({
       transport: fakeTransport(() => null).transport,
     });
     expect(await client.user.get().orThrow()).toEqual({});
+  });
+
+  it("reads and writes platform settings through their functions", async () => {
+    const platform = defineSettings({
+      platform: {
+        fee: {
+          schema: v.number(),
+          default: 1,
+          permission: "billing.platform",
+          read: "public",
+        },
+      },
+    });
+    expect(platform.schemas.platform.fee.permission).toBe("billing.platform");
+    const { transport, calls } = fakeTransport((fn) =>
+      fn === "get_platform_settings"
+        ? { fee: 2 }
+        : fn === "reset_platform_setting",
+    );
+    const client = platform.connect({ transport });
+    expect(await client.platform.get("fee").orThrow()).toBe(2);
+    expect(await client.platform.set("fee", 3).orThrow()).toBe(3);
+    expect(await client.platform.reset("fee").orThrow()).toBe(true);
+    expect(calls.map(([, fn, args]) => [fn, args])).toEqual([
+      ["get_platform_settings", {}],
+      ["set_platform_setting", { key: "fee", value: { value: 3 } }],
+      ["reset_platform_setting", { key: "fee" }],
+    ]);
+    expectTypeOf<
+      Parameters<typeof client.platform.set<"fee">>[1]
+    >().toEqualTypeOf<number>();
   });
 });

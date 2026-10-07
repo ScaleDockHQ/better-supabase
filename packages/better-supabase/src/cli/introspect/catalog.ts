@@ -130,6 +130,15 @@ export function toCatalog(snapshot: Snapshot): Catalog {
       relationNames.set(entry.id, `${entry.schema}.${entry.name}`);
   }
 
+  // PostgREST also lists a foreign key once per view over the referenced
+  // table, under the same constraint name. Only the table it references is
+  // the key's target; the view entries would add relations (and rename the
+  // real one to tell them apart) on every table that references it.
+  const viewNames = new Set(
+    [...meta.views, ...meta.materializedViews].map(
+      (view) => `${view.schema}.${view.name}`,
+    ),
+  );
   const foreignKeysOf = (
     schema: string,
     name: string,
@@ -143,7 +152,8 @@ export function toCatalog(snapshot: Snapshot): Catalog {
         (rel) =>
           rel.schema === schema &&
           rel.relation === name &&
-          actions.has(rel.foreign_key_name),
+          actions.has(rel.foreign_key_name) &&
+          !viewNames.has(`${rel.referenced_schema}.${rel.referenced_relation}`),
       )
       .map((rel) => {
         const action = actions.get(rel.foreign_key_name);

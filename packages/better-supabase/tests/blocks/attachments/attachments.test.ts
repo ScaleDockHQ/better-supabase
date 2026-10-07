@@ -10,6 +10,7 @@ import type {
 import {
   createAttachments,
   createAttachmentScanner,
+  createObjectScanner,
 } from "../../../src/blocks/attachments/index.ts";
 
 const row = (overrides: Record<string, unknown> = {}) => ({
@@ -83,6 +84,8 @@ function fakeStorage(replies: Partial<Record<string, Reply | Error>> = {}) {
         ),
       download: (path: string) => reply("download", new Blob(["hello"]), path),
       remove: (paths: string[]) => reply("remove", [], paths),
+      upload: (path: string, _body: unknown, options?: unknown) =>
+        reply("upload", { path }, path, options),
     }),
     // SAFETY: each reply has the shape the structural type names.
   } as AttachmentStorage;
@@ -96,7 +99,11 @@ describe("createAttachments", () => {
 
   it("creates the record, then a signed upload URL for its path", async () => {
     const { transport, calls } = fakeTransport({
-      create_attachment: row({ status: "pending", uploaded_at: null }),
+      create_attachment: row({
+        status: "pending",
+        uploaded_at: null,
+        metadata: { caption: "Floor plan" },
+      }),
     });
     const storage = fakeStorage();
     const attachments = createAttachments({
@@ -109,6 +116,7 @@ describe("createAttachments", () => {
         name: "plan.pdf",
         mimeType: "application/pdf",
         size: 2048,
+        metadata: { caption: "Floor plan" },
       })
       .orThrow();
     expect(calls[0]).toEqual([
@@ -120,8 +128,10 @@ describe("createAttachments", () => {
         size: 2048,
         subject_type: undefined,
         subject_id: undefined,
+        metadata: { caption: "Floor plan" },
       },
     ]);
+    expect(upload.attachment.metadata).toEqual({ caption: "Floor plan" });
     expect(storage.calls[0]).toEqual([
       "createSignedUploadUrl",
       "attachments",
@@ -138,6 +148,70 @@ describe("createAttachments", () => {
       },
     });
     expect(upload.attachment.createdAt.toString()).toBe("2026-10-06T12:00:00Z");
+  });
+
+  it("puts a file from the server and reads its bytes behind the scan gate", async () => {
+    const { transport, calls } = fakeTransport({
+      create_attachment: row({ status: "pending", uploaded_at: null }),
+      confirm_attachment: row({ status: "pending" }),
+      get_attachment: row({ status: "pending" }),
+    });
+    const storage = fakeStorage();
+    const attachments = createAttachments({
+      transport,
+      storage: storage.storage,
+    });
+    expect(
+      await attachments
+        .put(
+          {
+            organizationId: "org-1",
+            name: "plan.pdf",
+            mimeType: "application/pdf",
+            size: 5,
+          },
+          new Uint8Array([1, 2, 3, 4, 5]),
+        )
+        .orThrow(),
+    ).toMatchObject({ id: "a1", status: "pending" });
+    expect(calls.map(([fn]) => fn)).toEqual([
+      "create_attachment",
+      "confirm_attachment",
+    ]);
+    expect(storage.calls.at(-1)).toEqual([
+      "upload",
+      "org-1/attachments/a1",
+      { contentType: "application/pdf", upsert: false },
+    ]);
+    expect(await attachments.read("a1")).toMatchObject({
+      error: { hint: "ATTACHMENT_NOT_SCANNED" },
+    });
+    const clean = createAttachments({
+      transport: fakeTransport({ get_attachment: row() }).transport,
+      storage: storage.storage,
+    });
+    const read = await clean.read("a1").orThrow();
+    expect(await read.file.text()).toBe("hello");
+    const noUpload = createAttachments({
+      transport,
+      storage: {
+        from: (name) => {
+          const full = storage.storage.from(name);
+          return {
+            createSignedUploadUrl: (path) => full.createSignedUploadUrl(path),
+            createSignedUrl: (path, ttl) => full.createSignedUrl(path, ttl),
+            download: (path) => full.download(path),
+            remove: (paths) => full.remove(paths),
+          };
+        },
+      },
+    });
+    expect(
+      await noUpload.put(
+        { organizationId: "org-1", name: "x", mimeType: "text/plain", size: 1 },
+        new Blob(["x"]),
+      ),
+    ).toMatchObject({ error: { hint: "ATTACHMENT_STORAGE_CLIENT" } });
   });
 
   it("maps storage errors and empty replies", async () => {
@@ -440,5 +514,95 @@ describe("createAttachmentScanner", () => {
       "get_attachment",
       "set_attachment_status",
     ]);
+  });
+});
+
+describe("createObjectScanner", () => {
+  const scan = (row: Record<string, unknown> | null, fail = false) => {
+    const transport = fakeTransport({
+      object_scan: row,
+      set_object_scan: {
+        bucket: "files",
+        object_path: "a/b.pdf",
+        status: fail ? "failed" : "clean",
+        scan_detail: fail ? "boom" : null,
+        scanned_at: "2026-10-06T12:00:00Z",
+      },
+    });
+    const storage = fakeStorage();
+    const seen: string[] = [];
+    return {
+      ...transport,
+      storage,
+      seen,
+      scanner: createObjectScanner({
+        transport: transport.transport,
+        storage: storage.storage,
+        scan: (_file, object) => {
+          seen.push(`${object.bucket}/${object.path}`);
+          if (fail) throw new Error("boom");
+          return { status: "clean" };
+        },
+      }),
+    };
+  };
+
+  it("scans an object once and records the verdict", async () => {
+    const fresh = scan(null);
+    expect(
+      await fresh.scanner.scan("files", "a/b.pdf").orThrow(),
+    ).toMatchObject({
+      bucket: "files",
+      path: "a/b.pdf",
+      status: "clean",
+    });
+    expect(fresh.seen).toEqual(["files/a/b.pdf"]);
+    expect(fresh.calls.at(-1)).toEqual([
+      "set_object_scan",
+      { bucket: "files", path: "a/b.pdf", status: "clean", detail: undefined },
+    ]);
+    const done = scan({
+      bucket: "files",
+      object_path: "a/b.pdf",
+      status: "infected",
+    });
+    expect((await done.scanner.scan("files", "a/b.pdf").orThrow()).status).toBe(
+      "infected",
+    );
+    expect(done.seen).toEqual([]);
+  });
+
+  it("records failed scans and scans object.uploaded events", async () => {
+    const failing = scan(
+      { bucket: "files", object_path: "a/b.pdf", status: "pending" },
+      true,
+    );
+    const result = await failing.scanner.scan("files", "a/b.pdf");
+    expect(result.ok ? undefined : result.error.hint).toBe(
+      "ATTACHMENT_SCAN_FAILED",
+    );
+    const fresh = scan(null);
+    await fresh.scanner.sink().send([
+      {
+        id: "1",
+        type: "dev.better-supabase.object.uploaded",
+        source: "s",
+        specversion: "1.0",
+        data: { bucket: "files", path: "a/b.pdf" },
+      },
+      {
+        id: "2",
+        type: "dev.better-supabase.attachment.uploaded",
+        source: "s",
+        specversion: "1.0",
+        data: {},
+      },
+    ]);
+    await fresh.scanner.job(
+      { bucket: "files", path: "c.pdf" },
+      {} as never,
+      new AbortController().signal,
+    );
+    expect(fresh.seen).toEqual(["files/a/b.pdf", "files/c.pdf"]);
   });
 });

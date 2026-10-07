@@ -2,9 +2,18 @@ import type { DbError } from "../../core/errors.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 
 import { dbError, mapDbError } from "../../core/errors.ts";
-import { problemResponse } from "../../core/problem.ts";
+import {
+  type BlockProblemOptions,
+  problemResponse,
+} from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { fromPgError } from "../../postgres/executor.ts";
+import {
+  isRecord,
+  optionalText,
+  type BlockTemporalOptions,
+  applyTemporal,
+} from "../shared.ts";
 import { timingSafeEqual, verifyWebhook } from "./verify.ts";
 
 // ---------------------------------------------------------------------------
@@ -13,7 +22,8 @@ import { timingSafeEqual, verifyWebhook } from "./verify.ts";
 /** How a delivery proves it came from the sender. */
 export type IncomingVerify = "none" | "standard-webhooks" | "hmac-sha256";
 
-export interface IncomingWebhooksOptions {
+export interface IncomingWebhooksOptions
+  extends BlockProblemOptions, BlockTemporalOptions {
   /** The schema of the `webhooks-in` module. Defaults to `better_supabase`. */
   readonly schema?: string;
   /** The webhook inbox source deliveries are stored under. Defaults to `webhook-in`. */
@@ -39,6 +49,26 @@ export interface CreateIncomingWebhookInput {
   readonly metadata?: Readonly<Record<string, unknown>>;
   /** The header that carries the HMAC for `hmac-sha256`. Defaults to `x-signature`. */
   readonly signatureHeader?: string;
+  /** The record the endpoint belongs to, a type from `options.subjects`. */
+  readonly subject?: { readonly type: string; readonly id: string };
+}
+
+/** An endpoint as members see it: everything but the token and secret. */
+export interface IncomingWebhook {
+  readonly id: string;
+  readonly tenant: string;
+  readonly name: string;
+  readonly verify: IncomingVerify;
+  readonly signatureHeader: string | null;
+  readonly enabled: boolean;
+  readonly maxBodyBytes: number;
+  readonly receiveCount: number;
+  readonly lastReceivedAt: string | null;
+  readonly lastStatus: number | null;
+  readonly metadata: Readonly<Record<string, unknown>>;
+  readonly subject: { readonly type: string; readonly id: string } | null;
+  readonly createdBy: string | null;
+  readonly createdAt: string;
 }
 
 /** A new endpoint: its token (for the URL) and secret are shown once. */
@@ -50,6 +80,7 @@ export interface CreatedIncomingWebhook {
   readonly token: string;
   readonly secret: string | null;
   readonly signatureHeader: string | null;
+  readonly subject: { readonly type: string; readonly id: string } | null;
 }
 
 export interface IncomingWebhooks {
@@ -71,6 +102,14 @@ export interface IncomingWebhooks {
   ): AsyncResult<{ readonly token: string; readonly secret: string | null }>;
   setEnabled(id: string, enabled: boolean): AsyncResult<boolean>;
   remove(id: string): AsyncResult<boolean>;
+  /**
+   * A tenant's endpoints, or one subject's, as the caller sees them (the
+   * read policy hides endpoints whose subject they can't read).
+   */
+  list(
+    tenant: string,
+    subject?: { readonly type: string; readonly id?: string },
+  ): AsyncResult<readonly IncomingWebhook[]>;
 }
 
 /** The header that carries an endpoint's id on stored deliveries. */
@@ -127,6 +166,7 @@ export function createIncomingWebhooks(
   sql: SqlClient,
   options: IncomingWebhooksOptions = {},
 ): IncomingWebhooks {
+  applyTemporal(options);
   const schema = options.schema ?? "better_supabase";
   if (!IDENT.test(schema)) {
     throw new TypeError(
@@ -156,7 +196,9 @@ export function createIncomingWebhooks(
                 error.status,
               ])
               .then(() => undefined)
-        ).then(() => problemResponse(error, { instance }));
+        ).then(() =>
+          problemResponse(error, { instance, format: options.problem }),
+        );
       try {
         const [endpoint] = await sql.queryRaw<EndpointRow>(
           `select * from ${fn("incoming_webhook_by_token")}($1)`,
@@ -209,7 +251,9 @@ export function createIncomingWebhooks(
           }
         }
         let messageId =
-          request.headers.get("webhook-id") ?? crypto.randomUUID();
+          request.headers.get("webhook-id") ??
+          request.headers.get("svix-id") ??
+          crypto.randomUUID();
         if (endpoint.verify === "standard-webhooks") {
           const verified = await verifyWebhook(
             { headers: request.headers, body },
@@ -277,7 +321,10 @@ export function createIncomingWebhooks(
           { status },
         );
       } catch (cause) {
-        return problemResponse(asDbError(cause), { instance });
+        return problemResponse(asDbError(cause), {
+          instance,
+          format: options.problem,
+        });
       }
     },
     create: (input) =>
@@ -290,17 +337,58 @@ export function createIncomingWebhooks(
           token: string;
           secret: string | null;
           signatureHeader: string | null;
+          subjectType: string | null;
+          subjectId: string | null;
         }>(
-          `select ${fn("create_incoming_webhook")}($1, $2, $3, $4, $5) as value`,
+          `select ${fn("create_incoming_webhook")}($1, $2, $3, $4, $5, $6, $7) as value`,
           [
             input.tenant,
             input.name,
             input.verify ?? "none",
             JSON.stringify(input.metadata ?? {}),
             input.signatureHeader ?? null,
+            input.subject?.type ?? null,
+            input.subject?.id ?? null,
           ],
         );
-        return { ...created, tenant: String(created.tenant) };
+        const { subjectType, subjectId, ...rest } = created;
+        return {
+          ...rest,
+          tenant: String(created.tenant),
+          subject:
+            subjectType && subjectId
+              ? { type: subjectType, id: subjectId }
+              : null,
+        };
+      }),
+    list: (tenant, subject) =>
+      attempt(async () => {
+        const rows = await value<readonly Record<string, unknown>[]>(
+          `select ${fn("list_incoming_webhooks")}($1, $2, $3) as value`,
+          [tenant, subject?.type ?? null, subject?.id ?? null],
+        );
+        return rows.map((row): IncomingWebhook => ({
+          id: String(row["id"]),
+          tenant: String(row["tenant"]),
+          name: String(row["name"]),
+          // SAFETY: the table's check constraint limits verify to IncomingVerify.
+          verify: row["verify"] as IncomingVerify,
+          signatureHeader: optionalText(row["signature_header"]) ?? null,
+          enabled: row["enabled"] === true,
+          maxBodyBytes: Number(row["max_body_bytes"]),
+          receiveCount: Number(row["receive_count"]),
+          lastReceivedAt: optionalText(row["last_received_at"]) ?? null,
+          lastStatus:
+            row["last_status"] === null ? null : Number(row["last_status"]),
+          metadata: isRecord(row["metadata"]) ? row["metadata"] : {},
+          subject:
+            typeof row["subject_type"] === "string" &&
+            typeof row["subject_id"] === "string"
+              ? { type: row["subject_type"], id: row["subject_id"] }
+              : null,
+          createdBy: optionalText(row["created_by"]) ?? null,
+          createdAt: String(row["created_at"]),
+        }));
       }),
     rotate: (id, rotateOptions = {}) =>
       attempt(async () => {

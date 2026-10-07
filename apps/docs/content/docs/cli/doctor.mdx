@@ -417,8 +417,11 @@ With PermDock's manifest, doctor also reports a policy whose helpers are in
 another schema than the manifest's `rls.schema` (buckets default to
 `permdock`), a scope the manifest's `rls.scopes` doesn't declare (PermDock's
 `tenant` and `team` aliases name its first and second scope, but the helper
-is named after the scope itself), and a permission checked at another scope
-than the one its catalog entry declares.
+is named after the scope itself), and a permission checked at a tenancy
+scope the catalog never grants it at. The tenancy scopes come from the
+catalog's `grants`; the `scope` on a permission entry is its OAuth scope
+(such as `invoice:read`) and is only read as a tenancy scope by catalogs
+without `grants`, when it names one.
 
 ### BS215
 
@@ -605,8 +608,10 @@ files, then create the schema migration. BS304 skips files this check reports.
 sets. Block schemas hold internal tables and helpers that `authenticated` can
 execute so policies can call them; exposing the schema makes them callable over
 REST and RPC as well. Remove the schema from `[api] schemas` and from the
-exposed schemas in the dashboard, and call block functions through wrappers in an
-exposed schema. Doctor reads `[api] schemas` for every exposure check and falls
+exposed schemas in the dashboard, and set `sql.modules.<module>.api` to an
+exposed schema such as `api`: `sql add` writes `security invoker` entry points
+there for the module's client functions, and `rpcTransport(supabase, { schema:
+"api" })` calls them. Doctor reads `[api] schemas` for every exposure check and falls
 back to `schemas` in `better-supabase.config.ts` without a `config.toml`.
 
 ### BS313
@@ -624,8 +629,8 @@ function. Doctor needs a database connection for this check.
 **Warning: migration-only block option.** A module in `sql.modules` sets an option
 that only exists to match a schema you are adopting: `tokenStorage: "plain"`
 for invitations, `secretStorage: "column"` or an `eventIdType` or `runIdType`
-other than `text` for webhooks-out, or a `blockSource` or `defaultSource` for
-the outbox. The config only accepts them with
+other than `text` for webhooks-out, a `blockSource` or `defaultSource` for
+the outbox, or `values` for the audit log. The config only accepts them with
 `mode: "adopt"`. Move the data to the managed default (hash the tokens, move
 the secrets into Vault), then remove the option.
 
@@ -711,6 +716,31 @@ connection and fails on a hosted project. `authenticator`, `authenticated`,
 else. Granting privileges on objects to a reserved role
 (`grant usage on schema auth to supabase_auth_admin`) is not flagged. Create
 your own role for anything else.
+
+### BS320
+
+**Warning: table without the session policy.** The `sessions` module is in
+`sql.modules`, and a table with RLS in `schemas` has no restrictive policy
+that calls `better_supabase.session_active()`, so a token whose session was
+signed out, or whose user was banned or deleted, keeps reaching the table
+until it expires. Set `sql.modules.sessions.options.policies` to `true` and
+run `better-supabase sql sync` to write the policy on every table, or add it
+by hand. Doctor skips the block schemas and the tables SQL modules adopt; list
+other tables in `sql.modules.sessions.options.exclude` as `schema.table`
+globs. See [Ended sessions](/docs/auth/account-deletion#ended-sessions).
+
+### BS321
+
+**Warning: extension missing from the migrations under pg-delta.** A
+`create extension` in `supabase/schemas`, a SQL module's file included, that
+no migration in `supabase/migrations` repeats. pg-delta can leave an
+extension that owns its own schema, such as `pgmq`, out of the generated
+migration, so a database built from the migrations (a branch, CI or
+production) lacks it. For a module that owns such an extension, run
+`better-supabase sql sync`: it writes the extension into a migration that
+runs before the schema migration. For your own schema files, add
+`create extension if not exists <name>;` to a migration that runs before the
+one that uses it. The rule stays quiet until the project has a migration.
 
 ## Auth config
 
@@ -872,7 +902,9 @@ exactly those two helpers for the chosen scope and warns when:
   `better_supabase.feature_claims`, so `hasEntitlement()` would never see the
   plan features. The message names the `supabase.hook.claims` setting, or the
   `claims.features` name to use when the function is registered under another
-  claim;
+  claim, and `entitlements.claim: false` as the alternative. With
+  `entitlements.claim: false` the token carries no features, so doctor skips
+  this check and keeps the helper checks below;
 - the manifest's `rls.memberships`, the tables PermDock's
   `member_<scope>_ids_for` reads, maps no table to the scope, so
   `entitlement_members()` finds no users to sign out after a plan change. A

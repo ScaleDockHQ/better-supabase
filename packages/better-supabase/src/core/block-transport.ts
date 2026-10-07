@@ -48,25 +48,55 @@ interface RpcResponse {
   readonly error: unknown;
 }
 
-/** The part of a supabase-js client `rpcTransport` uses. */
+/**
+ * The part of a supabase-js client `rpcTransport` uses. The parameters are
+ * `never` so a typed `SupabaseClient<Database>` fits too: its `schema` and
+ * `rpc` only take the names its `Database` declares, which never include the
+ * block functions of a schema the types leave out.
+ */
 export interface RpcClient {
+  schema(name: never): {
+    rpc(fn: never, args: never): PromiseLike<RpcResponse>;
+  };
+}
+
+/** How `rpcTransport` calls the client: any schema, function and arguments. */
+interface UntypedRpcClient {
   schema(name: string): {
     rpc(fn: string, args: Record<string, unknown>): PromiseLike<RpcResponse>;
   };
 }
 
+/** Options for `rpcTransport`. */
+export interface RpcTransportOptions {
+  /**
+   * The exposed schema that holds the block's entry points, such as `api`
+   * from `sql.modules.<module>.api`. Every call goes there instead of the
+   * module schema, which stays out of `[api] schemas` (doctor BS312).
+   */
+  readonly schema?: string;
+}
+
 /**
- * Calls the functions over the Data API with the user's session. The block
- * schema must be exposed (`[api] schemas` in `config.toml`), or the modules
- * installed in `public` (`sql.modules.<module>.schema`).
+ * Calls the functions over the Data API with the user's session. Pass
+ * `schema` with the API schema that `sql.modules.<module>.api` writes
+ * wrappers into; without it the calls go to the module schema, which then
+ * has to be exposed.
  */
-export function rpcTransport(client: RpcClient): BlockTransport {
+export function rpcTransport(
+  client: RpcClient,
+  options: RpcTransportOptions = {},
+): BlockTransport {
+  // Method parameters are bivariant, so the never parameters widen back.
+  const untyped: UntypedRpcClient = client;
   return {
     async call(schema, fn, args) {
       const defined = Object.fromEntries(
         Object.entries(args).filter(([, value]) => value !== undefined),
       );
-      const { data, error } = await client.schema(schema).rpc(fn, defined);
+      const { data, error } = await untyped
+        .schema(options.schema ?? schema)
+        .rpc(fn, defined);
       if (error) {
         const message =
           typeof error === "object" && "message" in error

@@ -187,7 +187,7 @@ describe("doctor rules", () => {
         config: resolveConfig(
           {
             expose: {
-              notes: ["select", "insert"],
+              notes: ["select", "insert", "update(title)"],
               "public.organizations": { anon: ["select"] },
             },
             tables: { tags: { exclude: true } },
@@ -202,7 +202,7 @@ describe("doctor rules", () => {
       "public.notes:authenticated",
       "public.organizations:anon",
     ]);
-    expect(exposed[0]!.message).toMatch(/no insert on public\.notes/);
+    expect(exposed[0]!.message).toMatch(/no insert on public\.notes,/);
     expect(exposed[0]!.message).toContain("auto_expose_new_tables = false");
   });
 
@@ -1686,6 +1686,33 @@ uri = "https://example.com/hook"
           ),
         ],
       ]);
+      expect((await messages(withClaims([])))[0]![1]).toContain(
+        "entitlements.claim: false",
+      );
+      const claimOff = (
+        claims: { name: string; source: string }[],
+        snapshotOf = withHelpers,
+      ) =>
+        check(
+          {
+            permdock: withClaims(claims),
+            snapshot: snapshotOf,
+          },
+          {
+            sql: { modules: ["entitlements"] },
+            entitlements: { claim: false },
+          },
+        );
+      expect(await claimOff([])).toEqual([]);
+      expect(
+        await claimOff([{ name: "features", source: "public.feature_claims" }]),
+      ).toEqual([]);
+      expect(
+        (await claimOff([], base)).map((finding) => finding.target),
+      ).toEqual([
+        "public.member_organization_ids",
+        "public.member_organization_ids_for",
+      ]);
     });
 
     it("warns when rls.memberships maps no table to the scope", async () => {
@@ -2022,9 +2049,60 @@ uri = "https://example.com/hook"
           'buckets.docs ("docs.write") calls PermDock\'s helpers in schema permdock',
         ),
         expect.stringContaining(
-          'checks "docs.write" at scope "organization", but permissions.catalog.json declares it at "customer"',
+          'checks "docs.write" at scope "organization", but permissions.catalog.json grants it at "customer"',
         ),
       ]);
+      const current: PermdockProject = {
+        ...project,
+        catalog: {
+          permissions: [
+            { key: "docs.read", rowConditions: false, scope: "docs:read" },
+            { key: "docs.write", rowConditions: false, scope: "docs:write" },
+          ],
+          grants: [
+            { permission: "docs.read", scope: "organization" },
+            { permission: "docs.write", scope: "organization" },
+            { permission: "docs.write", scope: "customer" },
+          ],
+          scopes: ["organization", "customer"],
+        },
+      };
+      const scoped = async (scope: string) =>
+        (
+          await runRules(
+            context(base, {
+              permdock: current,
+              config: bucket({ scope, schema: "public" }),
+            }),
+            only,
+          )
+        ).map((finding) => finding.message);
+      expect(await scoped("organization")).toEqual([]);
+      expect(await scoped("customer")).toEqual([
+        expect.stringContaining(
+          'checks "docs.read" at scope "customer", but permissions.catalog.json grants it at "organization"',
+        ),
+      ]);
+      const oauthOnly: PermdockProject = {
+        ...project,
+        catalog: {
+          permissions: [
+            { key: "docs.read", rowConditions: false, scope: "docs:read" },
+            { key: "docs.write", rowConditions: false, scope: "docs:write" },
+          ],
+        },
+      };
+      expect(
+        (
+          await runRules(
+            context(base, {
+              permdock: oauthOnly,
+              config: bucket({ scope: "organization", schema: "public" }),
+            }),
+            only,
+          )
+        ).map((finding) => finding.message),
+      ).toEqual([]);
       expect(await run(bucket({ scope: "tenant", schema: "public" }))).toEqual([
         expect.stringContaining(
           'uses scope "tenant", which permdock.manifest.json doesn\'t declare, so permitted_tenant_ids doesn\'t exist. Use "organization"',

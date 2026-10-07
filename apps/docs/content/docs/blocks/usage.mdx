@@ -12,11 +12,11 @@ for another.
 better-supabase sql add usage   # adds tenant and access as well
 ```
 
-| Table            | Holds                                                                          |
-| ---------------- | ------------------------------------------------------------------------------ |
-| `usage_counters` | `value` and `reported_value` per `(organization_id, meter, day)`               |
-| `usage_events`   | One row per idempotency key, so a retried increment counts once                |
-| `usage_quotas`   | `limit` and `period` (`day`, `week`, `month` or `year`) per tenant or per plan |
+| Table            | Holds                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| `usage_counters` | `value` and `reported_value` per `(organization_id, meter, day)`                          |
+| `usage_events`   | One row per idempotency key, so a retried increment counts once                           |
+| `usage_quotas`   | `limit` and `period` (`day`, `week`, `month`, `year` or `billing`) per tenant or per plan |
 
 Members with `usage.read` (the default `admin` role) can read the counters
 and the tenant's quotas. Recording usage needs a membership in the tenant or
@@ -27,8 +27,10 @@ the service role. Only the service role writes quotas.
 A quota row names either a tenant or a plan. A tenant row overrides the plan
 rows. The plan `*` applies to every tenant; with the
 [`entitlements`](/docs/blocks/entitlements) module installed, any other plan
-matches tenants with that Stripe entitlement lookup key, and the highest
-limit wins.
+matches tenants with that entitlement key, and the highest limit wins. When
+`entitlements.source` is a plan catalog, a quota's plan also matches the
+tenant's active plan key (`better_supabase.tenant_plans(tenant)`), so
+`('pro', 'api_calls', 50000, 'month')` applies to every tenant on `pro`.
 
 ```sql
 insert into better_supabase.usage_quotas (plan, meter, "limit", period) values
@@ -37,6 +39,109 @@ insert into better_supabase.usage_quotas (plan, meter, "limit", period) values
 insert into better_supabase.usage_quotas (organization_id, meter, "limit", period)
   values ('8d1c...', 'api_calls', 250000, 'month');
 ```
+
+A `null` limit is unlimited. It wins over every other plan row, so an
+`enterprise` plan row with a `null` limit lifts the `*` limit for those
+tenants, and a tenant row with a `null` limit lifts the plan limits for one
+tenant. `consume` and `within_quota` always pass for an unlimited meter, and
+`current` returns `unlimited: true` with no `limit` or `remaining`. Unlike a
+meter with no quota row at all, the unlimited quota still sets the meter's
+`period`.
+
+```sql
+insert into better_supabase.usage_quotas (plan, meter, "limit", period)
+  values ('enterprise', 'api_calls', null, 'month');
+```
+
+### Billing periods
+
+Calendar periods reset at the start of the UTC day, week, month or year.
+Products billed through Stripe usually reset quotas with the invoice instead,
+which starts on the subscription's own day. Give such quotas the period
+`billing` and write a `usage_billing_period(tenant)` function (in the hooks
+schema, `public` by default) that returns the current window:
+
+```sql
+create function public.usage_billing_period(tenant uuid)
+returns table (starts_at timestamptz, ends_at timestamptz)
+language sql stable security definer set search_path = '' as $$
+  select to_timestamp(s.current_period_start), to_timestamp(s.current_period_end)
+  from stripe.subscriptions s
+  join better_supabase.billing_customers c on c.stripe_customer_id = s.customer
+  where c.organization_id = tenant and s.status in ('active', 'trialing')
+  order by s.created desc
+  limit 1
+$$;
+```
+
+Any source works: a column on your subscriptions table, or a fixed anchor
+day. Counters are kept per UTC day, so a window counts the whole days from
+`starts_at` up to the day of `ends_at`. Without the function, or when it
+returns no row, a `billing` quota falls back to the calendar month.
+`usage_status` and `current` return `startsAt` and `resetsAt` for the window,
+and `retryAfter` counts down to its end.
+
+### The meter catalog
+
+`options.meters` lists the meters with a unit, category and label for
+display. With it, `record_usage` and `consume_quota` refuse other meter names
+(`USAGE_METER_UNKNOWN`), `usage_status` returns the meter's fields, and
+`usage.meters()` (`usage_meters()`) reads the catalog for a usage page:
+
+```ts title="better-supabase.config.ts"
+usage: {
+  options: {
+    meters: {
+      "ai.tokens": { unit: "tokens", category: "ai", label: "AI tokens" },
+      "api.requests": { unit: "requests", category: "api" },
+      "storage.bytes": { unit: "bytes", category: "storage" },
+    },
+  },
+},
+```
+
+A catalog that changes without a deploy (meters an admin adds, products
+from a plan table) can live in a table instead. Point `options.meters` at it
+with `table` and the column names; `unit`, `category`, `label` and `active`
+are optional, and only rows where `active` is true are meters:
+
+```ts title="better-supabase.config.ts"
+usage: {
+  options: {
+    meters: {
+      table: "public.meters",
+      key: "slug", // default key
+      unit: "unit",
+      label: "title",
+      active: "is_active",
+    },
+  },
+},
+```
+
+`usage_meters()` then reads the table on every call, so a new row is a
+meter right away.
+
+### Weighted quantities
+
+`record` and `consume` take a `quantity`, so a meter can count something
+other than calls. For credits, record the credits a call costs, such as
+`tokens * creditsPerToken`, on a `credits` meter with a quota in credits;
+the counter, the quota and the Stripe report all work on that number. Keep
+the raw units on their own meter when you also want to show them.
+
+Quantities, counters and limits are `numeric`, so a meter can count
+fractions, such as GB-hours or credits with decimals, against a fractional
+quota:
+
+```ts
+await usage.record(organizationId, "gb_hours", { quantity: 0.25 });
+```
+
+`reportUsageToStripe` sends the change as it is; when your Stripe meter
+expects whole numbers, record in whole units (tokens, cents) instead.
+`within_quota` takes a whole `quantity` (1 by default), as policies check
+rows.
 
 Use `within_quota` in a policy to stop inserts once the quota is used up:
 
@@ -72,6 +177,73 @@ resets. `problemResponse` turns it into Problem Details with a `Retry-After`
 header. In SQL, `consume_quota` raises it with SQLSTATE `BSQ29`, so an RPC
 that calls it fails the same way.
 
+### Every meter of a tenant
+
+A usage page that shows every meter calls `overview` instead of `current`
+once per meter. It returns the status of each meter in the catalog, each
+meter a quota applies to and each meter the tenant has used, sorted by
+meter, in one request (`usage_overview(tenant)` in SQL). It needs the same
+membership as `current`.
+
+```ts
+const meters = await usage.overview(organizationId).orThrow();
+// [{ meter: "api_calls", used: 420, limit: 1000, remaining: 580, unlimited: false, ... }]
+```
+
+### Several meters at once
+
+`recordMany` and `consumeMany` record several meters in one transaction, all
+or none, such as the input and output tokens of one model call.
+`consumeMany` checks each meter's quota first; when one doesn't fit, nothing
+is recorded and the result is `quota_exceeded`. The idempotency key covers
+the batch, and `source`, `metadata` and `actor` apply to every entry:
+
+```ts
+await usage
+  .consumeMany(
+    organizationId,
+    [
+      { meter: "input_tokens", quantity: inputTokens },
+      { meter: "output_tokens", quantity: outputTokens },
+    ],
+    { idempotencyKey: requestId, source: "feature:chat" },
+  )
+  .orThrow();
+// { recorded: true, today: { input_tokens: 1200, output_tokens: 300 } }
+```
+
+In SQL, `record_usage_batch(tenant, entries, idempotency_key, check)` takes
+`entries` as a JSON array of `{ meter, quantity }`.
+
+## Usage history
+
+A usage page shows who and what used a meter. Set
+`sql.modules.usage.options.history` to `true` and every recorded quantity also
+goes to `usage_history`, with the user who used it and the `source` and
+`metadata` you pass:
+
+```ts
+await usage.consume(organizationId, "tokens", {
+  quantity: tokens,
+  source: "feature:summary",
+  metadata: { documentId },
+});
+
+const entries = await usage
+  .history(organizationId, { meter: "tokens", limit: 50 })
+  .orThrow();
+// [{ id, meter, quantity, actor, source, metadata, recordedAt }], newest first
+const byUser = await usage.breakdown(organizationId, "tokens").orThrow();
+// [{ actor, source, quantity }] in the quota's current window, largest first
+```
+
+The actor is the caller's user id. A service transport recording on a user's
+behalf passes `actor`; other callers can't set it. Reading the history and
+the breakdown needs `usage.read`, and `history` pages with `before` (the
+last entry's `id`). `better_supabase.purge_usage_history(older_than, batch)`
+deletes old entries (400 days by default); schedule it like the other
+purges. Without the option, both reads return `[]`.
+
 ## Reporting to Stripe
 
 `reportUsageToStripe` sends the usage not yet reported as
@@ -98,17 +270,45 @@ export async function GET() {
 The event identifier is the tenant, meter, day and new total, so a run that
 fails between sending and marking sends the same event again and Stripe drops
 the duplicate. The Stripe customer comes from `tenant_stripe_customer()` in
-the `entitlements` module unless you pass `customer`. Counters without a
-customer or an event name are skipped and stay unreported. `stripe` is an
+the `entitlements` module unless you pass `customer`, which reads it from
+anywhere, such as your own customers table:
+
+```ts
+customer: async (organizationId) =>
+  (await db.billingCustomers.findFirst({ where: { organizationId } }).orThrow())
+    ?.stripeCustomerId,
+```
+
+When a plan includes an allowance and Stripe bills only what goes over it,
+pass `overage: true`: in each quota window, usage up to the tenant's quota
+is marked reported without an event, and only the units above it are sent.
+A meter without a quota sends everything, and a meter with an unlimited quota
+sends nothing. `unreported_usage` returns each
+counter's `included` quota and `window_before` (the earlier days' usage in
+that window) for the calculation; usage that arrives late on an earlier day
+is counted with that day.
+
+Counters without a
+customer or an event name are skipped and stay unreported. They don't hold up
+the rest: once a run meets a meter without an event name or a tenant without
+a customer, it asks `unreported_usage` again with that meter in `skip_meters`
+or that tenant in `skip_tenants`, so `batch` still fills with counters it can
+send. `stripe` is an
 optional peer; pass a Stripe client instead of `secretKey` to use your own.
 
 ## Functions
 
-| Function                                         | Granted to                      | Returns                                                |
-| ------------------------------------------------ | ------------------------------- | ------------------------------------------------------ |
-| `record_usage(tenant, meter, quantity, key)`     | `authenticated`, `service_role` | `{ recorded, used }`                                   |
-| `consume_quota(tenant, meter, quantity, key)`    | `authenticated`, `service_role` | the same, or raises `BSQ29`                            |
-| `within_quota(tenant, meter, quantity)`          | `authenticated`, `service_role` | whether `quantity` more fits                           |
-| `usage_status(tenant, meter)`                    | `authenticated`, `service_role` | `{ meter, used, limit, remaining, period, resets_at }` |
-| `unreported_usage(max_rows)`                     | `service_role`                  | counters with `value > reported_value`                 |
-| `mark_usage_reported(tenant, meter, day, value)` | `service_role`                  | whether the counter exists                             |
+| Function                                                                   | Granted to                      | Returns                                                                                               |
+| -------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `record_usage(tenant, meter, quantity, key, source, metadata, actor)`      | `authenticated`, `service_role` | `{ recorded, used }`                                                                                  |
+| `consume_quota(tenant, meter, quantity, key, source, metadata, actor)`     | `authenticated`, `service_role` | the same, or raises `BSQ29`                                                                           |
+| `within_quota(tenant, meter, quantity)`                                    | `authenticated`, `service_role` | whether `quantity` more fits                                                                          |
+| `record_usage_batch(tenant, entries, key, check, source, metadata, actor)` | `authenticated`, `service_role` | `{ recorded, used }` with `used` per meter, or raises `BSQ29`                                         |
+| `usage_status(tenant, meter)`                                              | `authenticated`, `service_role` | `{ meter, used, limit, remaining, unlimited, period, starts_at, resets_at }`, plus the catalog fields |
+| `usage_overview(tenant)`                                                   | `authenticated`, `service_role` | `usage_status` of every meter of the tenant, by meter                                                 |
+| `usage_meters()`                                                           | everyone                        | the meter catalog                                                                                     |
+| `usage_history(tenant, meter, max_rows, before_id)`                        | `authenticated`, `service_role` | the history entries, for `usage.read`                                                                 |
+| `usage_breakdown(tenant, meter)`                                           | `authenticated`, `service_role` | `[{ actor, source, quantity }]` in the current window                                                 |
+| `usage_window(tenant, period)`                                             | `service_role`                  | the current window's `starts_at` and `ends_at`                                                        |
+| `unreported_usage(max_rows, skip_meters, skip_tenants)`                    | `service_role`                  | counters with `value > reported_value`                                                                |
+| `mark_usage_reported(tenant, meter, day, value)`                           | `service_role`                  | whether the counter exists                                                                            |

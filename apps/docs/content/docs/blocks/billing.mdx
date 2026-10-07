@@ -15,7 +15,13 @@ better-supabase sql add billing entitlements   # adds tenant and access as well
 pnpm add stripe                                # optional: or pass your own client
 ```
 
-`billing_customers` maps `organization_id` to `stripe_customer_id`. With
+`billing_customers` maps `organization_id` to `stripe_customer_id`, with a
+foreign key to the tenant table (`billing_customers_tenant_fkey`, `on delete
+cascade`), so a deleted tenant takes its row along. The key references the
+[organizations](/docs/blocks/organizations) module's table when it is
+installed; set `options.tenantKey` to `"schema.table.column"` for your own
+tenant table, or to `false` for none. Existing rows without a tenant leave
+the key unvalidated, with a warning. With
 `billing` installed, the `entitlements` module reads it as its customer
 source, so you don't set `entitlements.customer`. Members with `billing.read`
 can read their tenant's row and `billing_status`; the default `admin` role
@@ -39,8 +45,21 @@ export const billing = createBilling({
 ```
 
 `stripe` takes a secret key, which loads the optional `stripe` package with
-its fetch HTTP client so it runs on every runtime, or a Stripe client you
-created. Check the caller's permission (`billing.manage`) in your route before
+its fetch HTTP client so it runs on every runtime, a Stripe client you
+created, or a function that returns a client. The function runs on every
+Stripe call, so it can create the client lazily, read a rotated key, or pick
+a per-request client (a Stripe Connect account); cache inside it when the
+client is the same each time:
+
+```ts
+let client: Stripe | undefined;
+const billing = createBilling({
+  stripe: () => (client ??= new Stripe(env.STRIPE_SECRET_KEY)),
+  transport: sqlTransport(postgres.admin),
+});
+```
+
+The [usage](/docs/blocks/usage) block takes the same `stripe` option. Check the caller's permission (`billing.manage`) in your route before
 you call `checkout`, `portal` or `syncSeats`: they act as the service role.
 
 ## Checkout and the portal
@@ -67,13 +86,199 @@ const portal = await billing.portal(organizationId, {
 link wins and both use that customer. The session carries the tenant in
 `client_reference_id` and in the subscription's metadata, so the webhook can
 link it even if the customer was created elsewhere. `params` merges more
-Checkout Session parameters. `portal` returns `not_found`
+Checkout Session parameters deeply: nested objects such as `metadata` and
+`subscription_data` merge with the block's, and arrays such as `line_items`
+replace them. The customer, `client_reference_id` and
+`metadata.organization_id` (on the session and the subscription) are set
+again afterwards, so your own metadata never drops the tenant link. `portal` returns `not_found`
 (`BILLING_NO_CUSTOMER`) before the tenant has a customer.
 
 `cancelSubscription(organizationId)` cancels the tenant's active subscription
 in Stripe right away and returns its id, or `undefined` when there is none.
 The [data lifecycle](/docs/blocks/data-lifecycle) purge calls it before it
 deletes an organization.
+
+### Plans from your catalog
+
+Most apps keep a plan catalog (plan keys, their prices per interval,
+features). Point `options.plans` at it and checkout takes a plan key instead
+of a price id:
+
+```ts title="better-supabase.config.ts"
+billing: {
+  options: {
+    plans: {
+      table: "public.plan_prices", // or "plan_prices" in public
+      key: "plan_key", // default key
+      price: "stripe_price_id", // default stripe_price_id
+      interval: "interval", // optional: month, year
+      active: "is_active", // optional
+      variant: "pack", // optional: several prices per plan key
+    },
+  },
+},
+```
+
+```ts
+await billing.checkout(organizationId, {
+  plan: "pro",
+  interval: "year",
+  successUrl,
+});
+```
+
+`billing_plan_price(plan, billing_interval, variant)` returns the price (the
+monthly one when no interval is given), and an unknown plan fails with
+`BILLING_PLAN_UNKNOWN`.
+
+A plan key can have several prices besides the interval, such as credit
+packs or seat tiers. Name the column that tells them apart in `variant`:
+the row without a variant is the plan's default, and `variant` picks
+another. `items` adds more line items to the same Checkout Session, each a
+price or a plan key with its own `interval`, `variant` and `quantity`, for
+add-on packages next to the plan:
+
+```ts
+await billing.checkout(organizationId, {
+  plan: "pro",
+  items: [{ plan: "credits", variant: "5000", quantity: 2 }],
+  successUrl,
+});
+```
+
+`changePlan` takes `variant` too.
+
+## Managing a subscription
+
+These calls are for an admin console or the customer's own billing page. The
+Stripe calls run with the block's Stripe client, so guard the route or action
+with your own permission check (such as `billing.manage`).
+
+```ts
+await billing.changePlan(organizationId, { plan: "business" }); // or { price }
+await billing.cancelAtPeriodEnd(organizationId, true); // false resumes it
+const invoices = await billing
+  .invoices(organizationId, { limit: 20 })
+  .orThrow();
+const methods = await billing.paymentMethods(organizationId).orThrow();
+await billing.voidInvoice(organizationId, invoiceId);
+await billing.markInvoiceUncollectible(organizationId, invoiceId);
+```
+
+`changePlan` moves the subscription item to the new price with prorations
+(`prorationBehavior`) and clears a scheduled cancellation unless
+`resume: false`. `invoices` and `paymentMethods` read the Stripe Sync
+Engine's `stripe.invoices` and `stripe.payment_methods` rows as stored
+(`billing_invoices`, `billing_payment_methods`), newest first, for callers
+with `billing.read`; they return `[]` until the Sync Engine has the tables.
+`voidInvoice` and `markInvoiceUncollectible` act only on the tenant's own
+invoices (`BILLING_INVOICE_NOT_FOUND` otherwise).
+
+### Subscriptions in full, and every tenant's billing
+
+`subscription(organizationId)` returns the tenant's newest subscription as
+the Sync Engine stores it, every column with its `items`, preferring an
+active one (`billing_subscription`). Platform staff and back-office jobs read
+every tenant's newest subscription with `allSubscriptions`, newest first:
+
+```ts
+const current = await billing.subscription(organizationId).orThrow();
+
+const page = await billing
+  .allSubscriptions({ status: "past_due", limit: 50 })
+  .orThrow();
+// [{ organizationId, customerId, row }]
+const next = await billing
+  .allSubscriptions({
+    status: "past_due",
+    limit: 50,
+    before: page.at(-1)?.row.created as number,
+  })
+  .orThrow();
+```
+
+`allInvoices({ status, limit, before })` does the same for invoices, across
+tenants, as `{ organizationId, customerId, row }`, and platform staff also
+read one tenant's `invoices` and `paymentMethods`.
+
+These are open to platform staff with `billing.read` in the platform scope
+(the module's `viewAll` permission, checked with `is_platform()`), and
+`allSubscriptions` to the service role. `subscription` also answers members
+with `billing.read` in the tenant.
+
+An admin list that searches by tenant name, sorts by plan, period end or
+amount, or counts rows needs typed columns it can join in SQL rather than
+raw JSON pages. `billing_platform_subscriptions()` returns one row per
+tenant (its newest subscription, preferring an active one) with `tenant`,
+`customer`, `subscription`, `status`, `price`, `plan` (the key from
+`options.plans`, when set), `quantity`, `amount` (the price's unit amount
+times the quantity), `currency`, `current_period_end`,
+`cancel_at_period_end` and `created`. `billing_platform_invoices()` returns
+every invoice with `tenant`, `customer`, `invoice`, `subscription`, `number`,
+`status`, `amount_due`, `amount_paid`, `total`, `currency`, `due_date` and
+`created`. Both read the Sync Engine's tables when they exist, and are open
+to the service role and platform staff with `viewAll`:
+
+```sql
+select o.name, s.plan, s.status, s.current_period_end, s.amount
+from better_supabase.billing_platform_subscriptions() s
+join public.organizations o on o.id = s.tenant
+where o.name ilike '%acme%'
+order by s.current_period_end
+limit 50;
+```
+
+`allSubscriptions` and `allInvoices` stay the paged JSON form of the same
+reads.
+
+### The billing contact
+
+Stripe is the record for the billing contact: email, name, address, phone and
+tax ids live on the Stripe customer, the Sync Engine mirrors them into
+`stripe.customers`, and invoices use them. `customerDetails(organizationId)`
+reads that row (`billing_customer_details`), and
+`updateCustomer(organizationId, { email, name, address, params })` writes the
+customer, creating it first when the tenant has none. There is no second copy
+in the module's tables to keep in sync.
+
+Tax ids (VAT, GST and the other Stripe tax id types) live on the Stripe
+customer too. `taxIds(organizationId)` lists them, `addTaxId(organizationId,
+{ type, value })` adds one (creating the customer when the tenant has none),
+and `removeTaxId(organizationId, taxId)` removes one. Stripe validates the
+value and reports `verification.status` for the types it checks:
+
+```ts
+await billing.addTaxId(organizationId, {
+  type: "eu_vat",
+  value: "DE123456789",
+});
+const taxIds = await billing.taxIds(organizationId).orThrow();
+// [{ id, type, value, country, verification }]
+```
+
+They need `customers.listTaxIds`, `createTaxId` and `deleteTaxId` on the
+Stripe client, which the `stripe` package has. Guard them with your own
+`billing.manage` check, as the other Stripe calls.
+
+### Audit retention by plan
+
+The [audit](/docs/blocks/audit) module calls an `audit_retention(tenant)`
+function when you write one, so retention can follow the plan the Sync
+Engine reports:
+
+```sql
+create function public.audit_retention(tenant uuid)
+returns interval language sql stable security definer set search_path = '' as $$
+  select case p.price_id
+    when 'price_enterprise' then interval '365 days'
+    when 'price_business' then interval '90 days'
+    else interval '7 days'
+  end
+  from (
+    select (better_supabase.billing_subscription_item(tenant) ->> 'price') as price_id
+  ) p
+$$;
+```
 
 ## Seats
 
@@ -159,11 +364,18 @@ plan's entitlements on their next request. `verifyStripeWebhook` checks the
 
 ## Functions
 
-| Function                                   | Granted to                      | Returns                                                   |
-| ------------------------------------------ | ------------------------------- | --------------------------------------------------------- |
-| `billing_customer(tenant)`                 | `authenticated`, `service_role` | the customer id, for callers with `billing.read`          |
-| `billing_status(tenant)`                   | `authenticated`, `service_role` | `{ customer, seats, subscription }`                       |
-| `link_billing_customer(tenant, customer)`  | `service_role`                  | the linked customer                                       |
-| `billing_customer_tenant(customer)`        | `service_role`                  | the tenant id                                             |
-| `billing_seat_count(tenant)`               | `service_role`                  | the seat count                                            |
-| `billing_subscription_item(tenant, price)` | `service_role`                  | `{ subscription, item, price, quantity, status }` or null |
+| Function                                                          | Granted to                      | Returns                                                                                  |
+| ----------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------- |
+| `billing_customer(tenant)`                                        | `authenticated`, `service_role` | the customer id, for callers with `billing.read`                                         |
+| `billing_status(tenant)`                                          | `authenticated`, `service_role` | `{ customer, seats, subscription }`                                                      |
+| `billing_subscription(tenant)`                                    | `authenticated`, `service_role` | the newest `stripe.subscriptions` row with `items`, for `billing.read` or platform staff |
+| `billing_all_subscriptions(for_status, max_rows, before_created)` | `authenticated`, `service_role` | `[{ tenant, customer, subscription }]`, for platform staff                               |
+| `billing_all_invoices(for_status, max_rows, before_created)`      | `authenticated`, `service_role` | `[{ tenant, customer, invoice }]`, for platform staff                                    |
+| `link_billing_customer(tenant, customer)`                         | `service_role`                  | the linked customer                                                                      |
+| `billing_customer_tenant(customer)`                               | `service_role`                  | the tenant id                                                                            |
+| `billing_seat_count(tenant)`                                      | `service_role`                  | the seat count                                                                           |
+| `billing_subscription_item(tenant, price)`                        | `service_role`                  | `{ subscription, item, price, quantity, status }` or null                                |
+| `billing_plan_price(plan, billing_interval, variant)`             | `authenticated`, `service_role` | the plan's Stripe price from `options.plans`, or null                                    |
+| `billing_invoices(tenant, max_rows)`                              | `authenticated`, `service_role` | the customer's `stripe.invoices` rows, for `billing.read`                                |
+| `billing_payment_methods(tenant)`                                 | `authenticated`, `service_role` | the customer's `stripe.payment_methods` rows                                             |
+| `billing_customer_details(tenant)`                                | `authenticated`, `service_role` | the customer's `stripe.customers` row                                                    |

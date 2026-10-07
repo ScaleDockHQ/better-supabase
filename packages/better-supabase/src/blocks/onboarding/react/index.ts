@@ -17,7 +17,7 @@ import { useAuth, useSupabase } from "../../../react/hooks.ts";
 export interface UseOnboardingOptions {
   /** The organization, for an organization checklist. */
   readonly organizationId?: string | null;
-  /** The module schema, default `better_supabase`. */
+  /** The schema the calls go to: the module schema (default `better_supabase`), or the API schema from `sql.modules.<module>.api`. */
   readonly schema?: string;
 }
 

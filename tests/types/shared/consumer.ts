@@ -19,6 +19,8 @@ import {
   toBetterResult,
 } from "better-supabase";
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
+import { createJobs } from "better-supabase/blocks/jobs";
+import { rpcTransport } from "better-supabase/blocks/settings";
 import { verifyWebhook } from "better-supabase/blocks/webhooks";
 import { createClient } from "better-supabase/client";
 import { defineConfig, zod } from "better-supabase/config";
@@ -76,6 +78,10 @@ type Equal<A, B> =
 const assert = <T extends true>(): T => true as T;
 
 declare const client: SupabaseClient;
+declare const typedClient: SupabaseClient<Database>;
+rpcTransport(typedClient, { schema: "api" });
+rpcTransport(client);
+createJobs(typedClient, {});
 
 const logger: Logger = silentLogger;
 const base = defineSupabase(schema, { logger })

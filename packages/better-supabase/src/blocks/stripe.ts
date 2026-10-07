@@ -9,6 +9,26 @@ export interface StripeClient {
       readonly name?: string;
       readonly metadata?: Readonly<Record<string, string>>;
     }): Promise<{ readonly id: string }>;
+    /** Used by `billing.updateCustomer`. */
+    update?(
+      id: string,
+      params: Readonly<Record<string, unknown>>,
+    ): Promise<{ readonly id: string }>;
+    /** Used by `billing.taxIds`. */
+    listTaxIds?(
+      id: string,
+      params?: { readonly limit?: number },
+    ): Promise<{ readonly data: readonly StripeTaxId[] }>;
+    /** Used by `billing.addTaxId`. */
+    createTaxId?(
+      id: string,
+      params: { readonly type: string; readonly value: string },
+    ): Promise<StripeTaxId>;
+    /** Used by `billing.removeTaxId`. */
+    deleteTaxId?(
+      id: string,
+      taxId: string,
+    ): Promise<{ readonly id: string; readonly deleted?: boolean }>;
   };
   readonly checkout: {
     readonly sessions: {
@@ -38,6 +58,21 @@ export interface StripeClient {
   };
   readonly subscriptions: {
     cancel(id: string): Promise<{ readonly id: string }>;
+    /** Used by `billing.changePlan` and `billing.cancelAtPeriodEnd`. */
+    update?(
+      id: string,
+      params: Readonly<Record<string, unknown>>,
+      options?: { readonly idempotencyKey?: string },
+    ): Promise<{ readonly id: string }>;
+  };
+  /** Used by `billing.voidInvoice` and `billing.markInvoiceUncollectible`. */
+  readonly invoices?: {
+    voidInvoice(
+      id: string,
+    ): Promise<{ readonly id: string; readonly status?: string | null }>;
+    markUncollectible(
+      id: string,
+    ): Promise<{ readonly id: string; readonly status?: string | null }>;
   };
   readonly billing: {
     readonly meterEvents: {
@@ -65,10 +100,25 @@ export interface StripeClient {
   };
 }
 
-/** A Stripe client, or the secret key to create one from the `stripe` package. */
+/** A customer tax id as Stripe returns it (`eu_vat`, `DE123456789`). */
+export interface StripeTaxId {
+  readonly id: string;
+  readonly type: string;
+  readonly value: string;
+  readonly country?: string | null;
+  readonly verification?: { readonly status?: string | null } | null;
+}
+
+/**
+ * A Stripe client, the secret key to create one from the `stripe` package,
+ * or a function that returns a client. The function runs on every Stripe
+ * call, so it can create the client lazily, pick a per-request or per-tenant
+ * client (Stripe Connect), or read a rotated key; cache inside it when needed.
+ */
 export type StripeSource =
   | StripeClient
-  | { readonly secretKey: string; readonly apiVersion?: string };
+  | { readonly secretKey: string; readonly apiVersion?: string }
+  | (() => StripeClient | Promise<StripeClient>);
 
 interface StripeModule {
   readonly default: {
@@ -109,6 +159,7 @@ export async function stripeClient(
   source: StripeSource,
   load: () => Promise<unknown> = loadStripeModule,
 ): Promise<StripeClient> {
+  if (typeof source === "function") return source();
   if (!("secretKey" in source)) return source;
   const loaded = await load();
   if (!isModule(loaded)) {
@@ -125,8 +176,9 @@ export async function stripeClient(
   });
 }
 
-/** Resolves the client once, on first use. */
+/** Resolves the client once, on first use; a function source runs on every use. */
 export function lazyStripe(source: StripeSource): () => Promise<StripeClient> {
+  if (typeof source === "function") return async () => source();
   let client: Promise<StripeClient> | undefined;
   return () => (client ??= stripeClient(source));
 }

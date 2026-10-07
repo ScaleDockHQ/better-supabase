@@ -78,10 +78,28 @@ export interface ProblemOptions {
   readonly expose?: boolean;
 }
 
+/**
+ * Rewrites the Problem Details a block answers with into the app's own error
+ * body, such as its `type` URIs and error codes. The status, `Retry-After`
+ * and `WWW-Authenticate` headers stay as they are.
+ */
+export type ProblemFormat = (
+  problem: ProblemDetails,
+  error: DbError,
+) => Readonly<Record<string, unknown>>;
+
+/** The `problem` option of the blocks that answer HTTP requests. */
+export interface BlockProblemOptions {
+  /** The app's error body for the block's error responses. Defaults to RFC 9457 Problem Details. */
+  readonly problem?: ProblemFormat;
+}
+
 export interface ProblemResponseOptions extends ProblemOptions {
   readonly headers?: ConstructorParameters<typeof Headers>[0];
   /** `realm` of the RFC 6750 challenge on 401. */
   readonly realm?: string;
+  /** Rewrites the body; see `ProblemFormat`. */
+  readonly format?: ProblemFormat | undefined;
 }
 
 /** Converts a `DbError` to Problem Details. */
@@ -145,7 +163,9 @@ export function problemResponse(
   }
   if ("retryAfter" in error && !headers.has("retry-after"))
     headers.set("retry-after", String(error.retryAfter));
-  return new Response(JSON.stringify(toProblem(error, options)), {
+  const problem = toProblem(error, options);
+  const body = options.format ? options.format(problem, error) : problem;
+  return new Response(JSON.stringify(body), {
     status: error.status,
     headers,
   });

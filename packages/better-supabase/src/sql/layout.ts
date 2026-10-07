@@ -15,10 +15,12 @@ export function moduleLayout(
   readSets: ModuleLayout["readSets"] = [],
   permdock?: ModulePermdock,
   accessPermdock?: ModuleAccessPermdock,
+  permissionCatalog?: readonly string[],
 ): ModuleLayout {
   return {
     ...(permdock ? { permdock } : {}),
     ...(accessPermdock ? { accessPermdock } : {}),
+    ...(permissionCatalog ? { permissionCatalog } : {}),
     dir: config.sql.dir,
     prefix: config.sql.prefix,
     testsDir,
@@ -37,7 +39,15 @@ export function moduleLayout(
         role: "authenticated" as const,
         privileges: roles.authenticated,
       },
+      {
+        table,
+        role: "service_role" as const,
+        privileges: roles.serviceRole,
+      },
     ]),
+    functionGrants: Object.entries(config.exposeFunctions).map(
+      ([fn, roles]) => ({ function: fn, roles }),
+    ),
     jsonSchemas: Object.entries(config.json).flatMap(([key, entry]) => {
       if (!entry.schema) return [];
       const dot = key.lastIndexOf(".");

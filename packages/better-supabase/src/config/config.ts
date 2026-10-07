@@ -337,6 +337,20 @@ export interface RealtimeConfig {
    * lacks the tenant column and is not listed here fails to install.
    */
   readonly global?: readonly string[];
+  /**
+   * Writes the `realtime.messages` policies of the topics that `from`
+   * exports (`defineTopic`) to `output`, a file in `supabase/schemas`, on
+   * `better-supabase sql sync`; `sql sync --check` fails when it is stale.
+   */
+  readonly policies?: TopicPoliciesConfig;
+}
+
+/** `realtime.policies`: where topic policies come from and go. */
+export interface TopicPoliciesConfig {
+  /** Modules that export `defineTopic` results. Node imports them. */
+  readonly from: readonly string[];
+  /** The SQL file to write, such as `supabase/schemas/905_topics.sql`. */
+  readonly output: string;
 }
 
 export interface EntitlementsConfig {
@@ -367,6 +381,19 @@ export interface EntitlementsConfig {
    * writes the checks and the claim over it.
    */
   readonly source?: "stripe-sync" | "custom" | EntitlementPlansSource;
+  /**
+   * The shape of the features claim `feature_claims` writes, which every
+   * token carries. `false` writes `{}` (check entitlements in SQL with
+   * `has_entitlement` only); `maxTenants` keeps at most that many tenants;
+   * `keys` writes short codes instead of the feature keys. Pass the same
+   * `keys` to `hasEntitlement`.
+   */
+  readonly claim?:
+    | false
+    | {
+        readonly maxTenants?: number;
+        readonly keys?: Readonly<Record<string, string>>;
+      };
 }
 
 /** `entitlements.source.plans`: a plan catalog in your own tables. */
@@ -432,26 +459,51 @@ export type VectorSearchConfig =
       readonly boost?: string;
       /** Columns `db.$search({ filter })` narrows before ranking. */
       readonly prefilter?: readonly string[];
+      /**
+       * A SQL condition over the row `t` every candidate must meet, applied
+       * before ranking: ranges, a parent row, such as
+       * `t.expires_at > now() and exists (select 1 from public.folders f where f.id = t.folder_id and not f.disabled)`.
+       */
+      readonly predicate?: string;
+      /** How `boost` combines with the score: `multiply` (default) or `add`. */
+      readonly boostMode?: "multiply" | "add";
+      /** A SQL `order by` list over the row `t` that breaks score ties, such as `t.created_at desc`. */
+      readonly order?: string;
     };
 
 /** A privilege the Data API roles can be granted on a table or view. */
 export type Privilege = "select" | "insert" | "update" | "delete";
 
+export type ColumnPrivilege = `${"select" | "insert" | "update"}(${string})`;
+
+export type ExposePrivilege = Privilege | ColumnPrivilege;
+
+/** A role the `grants` module writes privileges for. */
+export type ExposeRole = "anon" | "authenticated" | "service_role";
+
 /**
  * Data API grants for one table: privileges for `authenticated`, or per
- * role.
+ * role. `serviceRole` defaults to every privilege. For a function, keyed by
+ * its signature (`search_notes(text, integer)`), `execute` lists the roles
+ * that may call it; `service_role` is added unless `serviceRole` is false.
  */
 export type ExposeConfig =
-  | readonly Privilege[]
+  | readonly ExposePrivilege[]
   | {
-      readonly anon?: readonly Privilege[];
-      readonly authenticated?: readonly Privilege[];
+      readonly anon?: readonly ExposePrivilege[];
+      readonly authenticated?: readonly ExposePrivilege[];
+      readonly serviceRole?: readonly ExposePrivilege[];
+    }
+  | {
+      readonly execute: readonly ("anon" | "authenticated")[];
+      readonly serviceRole?: boolean;
     };
 
 /** Resolved grants for one table. */
 export interface ResolvedExpose {
-  readonly anon: readonly Privilege[];
-  readonly authenticated: readonly Privilege[];
+  readonly anon: readonly ExposePrivilege[];
+  readonly authenticated: readonly ExposePrivilege[];
+  readonly serviceRole: readonly ExposePrivilege[];
 }
 
 export interface RelationsConfig {
@@ -508,11 +560,13 @@ export interface BetterSupabaseConfig {
    */
   readonly functions?: Readonly<Record<string, FunctionConfig>>;
   /**
-   * Data API grants, keyed by `table` or `schema.table`. Supabase no longer
-   * grants new tables to `anon` and `authenticated` automatically; the
-   * `grants` SQL module writes these, and doctor (BS106) checks them.
-   * Tables not listed need `select, insert, update, delete` for
-   * `authenticated` (`select` for views).
+   * Data API grants, keyed by `table` or `schema.table`, and function
+   * `execute` grants, keyed by `name(argument types)` or
+   * `schema.name(argument types)`. Supabase no longer grants new tables to
+   * `anon` and `authenticated` automatically; the `grants` SQL module writes
+   * these as the complete privilege set (it revokes what is not listed), and
+   * doctor (BS106) checks them. Tables not listed need `select, insert,
+   * update, delete` for `authenticated` (`select` for views).
    */
   readonly expose?: Readonly<Record<string, ExposeConfig>>;
   /**
@@ -566,6 +620,7 @@ function entitlementsOf(
           ? {}
           : { scope: config.permdock.scope },
     source: config.source ?? "stripe-sync",
+    ...(config.claim === undefined ? {} : { claim: config.claim }),
   };
 }
 
@@ -586,6 +641,13 @@ function vectorSearchOf(
           ...(entry.prefilter === undefined
             ? {}
             : { prefilter: entry.prefilter }),
+          ...(entry.predicate === undefined
+            ? {}
+            : { predicate: entry.predicate }),
+          ...(entry.boostMode === undefined
+            ? {}
+            : { boostMode: entry.boostMode }),
+          ...(entry.order === undefined ? {} : { order: entry.order }),
         },
   );
 }
@@ -622,7 +684,10 @@ export interface ResolvedConfig {
   readonly sensitive: readonly string[];
   readonly storagePaths: Readonly<Record<string, string>>;
   readonly functions: Readonly<Record<string, FunctionConfig>>;
+  /** The table entries of `expose`. */
   readonly expose: Readonly<Record<string, ResolvedExpose>>;
+  /** The function entries of `expose`: the roles that may execute each one. */
+  readonly exposeFunctions: Readonly<Record<string, readonly ExposeRole[]>>;
   readonly readSets: readonly string[];
   readonly generators: readonly Generator[];
   readonly plugins: {
@@ -640,6 +705,7 @@ export interface ResolvedConfig {
     readonly key: string;
     readonly permdock: false | { readonly scope?: string };
     readonly source: NonNullable<EntitlementsConfig["source"]>;
+    readonly claim?: NonNullable<EntitlementsConfig["claim"]>;
   };
   readonly permdock: Required<PermdockPathsConfig>;
   readonly vectorSearch: readonly ({
@@ -648,7 +714,9 @@ export interface ResolvedConfig {
     readonly distance: VectorDistance;
   } & Omit<Exclude<VectorSearchConfig, string>, "column" | "distance">)[];
   readonly topics: Readonly<Record<string, string>>;
-  readonly realtime: Required<RealtimeConfig>;
+  readonly realtime: Required<Omit<RealtimeConfig, "policies">> & {
+    readonly policies?: TopicPoliciesConfig;
+  };
   readonly sql: ResolvedSqlConfig;
   readonly seed: Required<SeedConfig>;
   readonly openapi: Required<OpenApiConfig>;
@@ -675,11 +743,70 @@ function pick<T extends object>(
   return { ...defaults, ...value };
 }
 
-function resolveExpose(entry: ExposeConfig): ResolvedExpose {
-  if (Array.isArray(entry)) return { anon: [], authenticated: entry };
-  // SAFETY: the Array.isArray check above removed the privilege-list form.
-  const roles = entry as Exclude<ExposeConfig, readonly Privilege[]>;
-  return { anon: roles.anon ?? [], authenticated: roles.authenticated ?? [] };
+const ALL_PRIVILEGES: readonly Privilege[] = [
+  "select",
+  "insert",
+  "update",
+  "delete",
+];
+
+const isFunctionKey = (key: string): boolean => key.endsWith(")");
+
+const EXPOSE_PRIVILEGE =
+  /^(?:select|insert|update|delete|(?:select|insert|update)\s*\(\s*[a-z_][a-z0-9_$]*(?:\s*,\s*[a-z_][a-z0-9_$]*)*\s*\))$/;
+
+function checkedPrivileges(
+  key: string,
+  privileges: readonly ExposePrivilege[],
+): readonly ExposePrivilege[] {
+  for (const privilege of privileges) {
+    const value: unknown = privilege;
+    if (typeof value !== "string" || !EXPOSE_PRIVILEGE.test(value)) {
+      throw new TypeError(
+        `expose.${key}: "${String(value)}" is not a privilege. Use select, insert, update or delete, or name columns such as "update(title, body)"`,
+      );
+    }
+  }
+  return privileges;
+}
+
+function resolveExpose(key: string, entry: ExposeConfig): ResolvedExpose {
+  if (Array.isArray(entry))
+    return {
+      anon: [],
+      authenticated: checkedPrivileges(key, entry),
+      serviceRole: ALL_PRIVILEGES,
+    };
+  if ("execute" in entry) {
+    throw new TypeError(
+      `expose.${key}: \`execute\` is for functions; key it by its signature, such as ${key}(text)`,
+    );
+  }
+  // SAFETY: the checks above removed the privilege-list and function forms.
+  const roles = entry as Exclude<
+    ExposeConfig,
+    readonly ExposePrivilege[] | { readonly execute: unknown }
+  >;
+  return {
+    anon: checkedPrivileges(key, roles.anon ?? []),
+    authenticated: checkedPrivileges(key, roles.authenticated ?? []),
+    serviceRole: checkedPrivileges(key, roles.serviceRole ?? ALL_PRIVILEGES),
+  };
+}
+
+function resolveExposeFunction(
+  key: string,
+  entry: ExposeConfig,
+): readonly ExposeRole[] {
+  if (Array.isArray(entry) || !("execute" in entry)) {
+    throw new TypeError(
+      `expose.${key}: a function takes { execute: ["authenticated"] }, not table privileges`,
+    );
+  }
+  return [
+    ...entry.execute,
+    ...(entry.serviceRole === false ? [] : (["service_role"] as const)),
+  ];
 }
 
 function generatorsOf(
@@ -724,10 +851,14 @@ export function resolveConfig(
     storagePaths: config.storagePaths ?? {},
     functions: config.functions ?? {},
     expose: Object.fromEntries(
-      Object.entries(config.expose ?? {}).map(([table, entry]) => [
-        table,
-        resolveExpose(entry),
-      ]),
+      Object.entries(config.expose ?? {})
+        .filter(([key]) => !isFunctionKey(key))
+        .map(([table, entry]) => [table, resolveExpose(table, entry)]),
+    ),
+    exposeFunctions: Object.fromEntries(
+      Object.entries(config.expose ?? {})
+        .filter(([key]) => isFunctionKey(key))
+        .map(([fn, entry]) => [fn, resolveExposeFunction(fn, entry)]),
     ),
     readSets: config.readSets ?? [],
     generators: generatorsOf(config.generators),
@@ -750,6 +881,9 @@ export function resolveConfig(
     realtime: {
       tables: config.realtime?.tables ?? [],
       global: config.realtime?.global ?? [],
+      ...(config.realtime?.policies === undefined
+        ? {}
+        : { policies: config.realtime.policies }),
     },
     entitlements: entitlementsOf(config.entitlements),
     permdock: {

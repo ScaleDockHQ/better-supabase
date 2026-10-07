@@ -16,7 +16,9 @@ describe("jobs module", () => {
     expect(sql).toContain("return cron.schedule(");
     expect(sql).not.toContain("job_messages");
     expect(sql).not.toContain("job_schedules");
-    expect(sql).toContain("'ensure_job_queue(text)'");
+    expect(sql).toContain(
+      "grant execute on function better_supabase.ensure_job_queue(text) to service_role;",
+    );
     expect(SQL_MODULES["jobs"]!.sql).toBe(sql);
   });
 
@@ -59,7 +61,7 @@ describe("jobs module", () => {
 
   it("drops the old schedule_job signature when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "jobs", version: 1 }]);
-    expect(plan).toMatchObject({ module: "jobs", from: 1, to: 4 });
+    expect(plan).toMatchObject({ module: "jobs", from: 1, to: 5 });
     expect(plan!.steps[0]!.sql).toContain(
       "drop function if exists better_supabase.schedule_job(text, text, text, jsonb);",
     );
@@ -68,6 +70,9 @@ describe("jobs module", () => {
     );
     expect(plan!.steps[2]!.sql).toContain(
       "drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);",
+    );
+    expect(plan!.steps[3]!.sql).toContain(
+      "drop function if exists better_supabase.claim_due_schedules(integer, integer);",
     );
   });
 
@@ -98,7 +103,9 @@ describe("jobs module", () => {
       expect(sql).toContain(
         "function better_supabase.replay_dead_job(queue text, job_id bigint)",
       );
-      expect(sql).toContain("'replay_dead_job(text, bigint)'");
+      expect(sql).toContain(
+        "grant execute on function better_supabase.replay_dead_job(text, bigint) to service_role;",
+      );
     }
     expect(moduleBody("jobs", {})).toContain(
       "perform pgmq.set_vt(queue, job_id, lease);",

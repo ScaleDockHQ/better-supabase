@@ -76,3 +76,13 @@ export function lineOf(text: string, pattern: RegExp): number | undefined {
   const index = linesOf(text).findIndex((line) => pattern.test(line));
   return index === -1 ? undefined : index + 1;
 }
+
+/** The keys of PermDock's permission catalog, for `api-keys` scopes `"catalog"`. */
+export function permissionCatalogKeys(
+  context: Pick<DoctorContext, "permdock" | "permissionCatalog">,
+): readonly string[] | undefined {
+  return (
+    context.permissionCatalog ??
+    context.permdock?.catalog?.permissions.map((entry) => entry.key)
+  );
+}

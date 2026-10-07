@@ -6,6 +6,7 @@ import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
 import { moduleLayout } from "../../src/sql/layout.ts";
 import {
   modulePermissionKeys,
+  moduleTopics,
   renderModules,
   resolveModules,
   sameModuleFile,
@@ -24,6 +25,51 @@ describe("resolveModules", () => {
   it("deduplicates and rejects unknown modules", () => {
     expect(resolveModules(["tenant", "tenant", "invitations"])).toHaveLength(4);
     expect(() => resolveModules(["nope"])).toThrow(/Unknown SQL module "nope"/);
+  });
+});
+
+describe("pg-safeupdate", () => {
+  it("gives every delete in the modules a where clause", () => {
+    const sql = renderModules(
+      Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
+      { modules: { usage: { options: { history: true } } } },
+    )
+      .map((file) => file.contents.replaceAll(/--.*$/gm, ""))
+      .join("\n");
+    const deletes = [...sql.matchAll(/\bdelete\s+from\s+[^;]*;/gi)].map(
+      (match) => match[0],
+    );
+    expect(deletes.length).toBeGreaterThan(10);
+    expect(
+      deletes.filter((statement) => !/\bwhere\b/i.test(statement)),
+    ).toEqual([]);
+  });
+});
+
+describe("moduleTopics", () => {
+  it("lists the topics whose policies the modules write", () => {
+    expect(
+      moduleTopics(["notifications", "announcements", "realtime-tables"]),
+    ).toEqual([
+      { module: "realtime-tables", topic: "bs:t:*" },
+      { module: "notifications", topic: "notifications:{userId}" },
+      { module: "announcements", topic: "announcements" },
+    ]);
+    expect(
+      moduleTopics(["notifications", "announcements"], {
+        modules: {
+          notifications: {
+            options: { realtime: "changes", topic: "inbox:{userId}" },
+          },
+          announcements: { mode: "custom" },
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      moduleTopics(["notifications"], {
+        modules: { notifications: { options: { topic: "inbox:{userId}" } } },
+      }),
+    ).toEqual([{ module: "notifications", topic: "inbox:{userId}" }]);
   });
 });
 
@@ -97,9 +143,64 @@ describe("renderModules", () => {
       }
       for (const file of files.filter((entry) => entry.kind === "data")) {
         expect(file.path).toMatch(/\/better-supabase-data\/[^/]+\.sql$/);
-        expect(file.contents).not.toMatch(/^(create|drop|alter table)\b/im);
+        expect(file.contents).not.toMatch(
+          /^(create(?! extension if not exists "\w+"( with schema "\w+")?;$)|drop|alter table)\b/im,
+        );
       }
     }
+  });
+
+  it("shapes the features claim with entitlements.claim", () => {
+    const entitlements = (claim: unknown) =>
+      renderModules(["entitlements"], {
+        entitlements: {
+          key: "id",
+          source: "custom",
+          ...(claim === undefined ? {} : { claim }),
+        },
+      } as never).find((file) => file.module === "entitlements")!.contents;
+    expect(entitlements(undefined)).toContain(
+      "jsonb_object_agg(r.tenant, to_jsonb(r.keys))",
+    );
+    expect(entitlements(false)).toMatch(
+      /feature_claims\(user_id uuid\)[\s\S]*?as \$\$\n  select '\{\}'::jsonb\n\$\$/,
+    );
+    const compact = entitlements({ maxTenants: 20, keys: { exports: "x" } });
+    expect(compact).toContain(
+      `coalesce('{"exports":"x"}'::jsonb ->> k, k) from unnest(r.keys) as k`,
+    );
+    expect(compact).toContain("order by 1\n    limit 20");
+    expect(() => entitlements({ maxTenants: 0 })).toThrow(/maxTenants/);
+  });
+
+  it("wraps auth calls in policies so Postgres evaluates them once", () => {
+    const names = Object.values(SQL_MODULES)
+      .filter((module) => module.target === "schema")
+      .map((module) => module.name);
+    const unwrapped = renderModules(names).flatMap((file) =>
+      [...file.contents.matchAll(/create policy[\s\S]*?;/g)]
+        .map((match) => match[0])
+        .filter((policy) => /(?<!select )auth\.(uid|jwt|role)\(\)/.test(policy))
+        .map((policy) => `${file.module}: ${policy.slice(0, 80)}`),
+    );
+    expect(unwrapped).toEqual([]);
+  });
+
+  it("creates the extensions a module's schema file creates in its data file", () => {
+    const data = (name: string, layout = {}) =>
+      renderModules([name], layout).find(
+        (file) => file.kind === "data" && file.module === name,
+      )!.contents;
+    expect(data("jobs")).toContain('create extension if not exists "pgmq";');
+    expect(
+      data("jobs", { modules: { jobs: { options: { backend: "table" } } } }),
+    ).not.toContain("create extension");
+    expect(data("jsonb-schemas")).toContain(
+      'create extension if not exists "pg_jsonschema" with schema "extensions";',
+    );
+    expect(data("flags")).toContain(
+      'create extension if not exists "pgcrypto" with schema "extensions";',
+    );
   });
 });
 
@@ -185,12 +286,18 @@ describe("sameModuleFile", () => {
     );
   });
 
-  it("writes Data API grants from the expose config", () => {
+  it("writes the complete Data API grants from the expose config", () => {
     const config = resolveConfig(
       {
         expose: {
           customers: ["select", "insert", "update", "delete"],
-          "billing.invoices": { anon: ["select"], authenticated: ["select"] },
+          "billing.invoices": {
+            anon: ["select"],
+            authenticated: ["select"],
+            serviceRole: ["select", "insert"],
+          },
+          "search_notes(text, integer)": { execute: ["authenticated"] },
+          "billing.reprice(uuid)": { execute: [], serviceRole: false },
         },
       },
       "/project",
@@ -202,13 +309,152 @@ describe("sameModuleFile", () => {
     expect(file!.contents).toContain(
       [
         "-- config.expose",
+        'revoke all on table "public"."customers" from public, anon, authenticated, service_role;',
         'grant select, insert, update, delete on table "public"."customers" to authenticated;',
+        'grant select, insert, update, delete on table "public"."customers" to service_role;',
+        'revoke all on table "billing"."invoices" from public, anon, authenticated, service_role;',
         'grant select on table "billing"."invoices" to anon;',
         'grant select on table "billing"."invoices" to authenticated;',
+        'grant select, insert on table "billing"."invoices" to service_role;',
+        'revoke execute on function "public"."search_notes"(text, integer) from public, anon, authenticated, service_role;',
+        'grant execute on function "public"."search_notes"(text, integer) to authenticated, service_role;',
+        'revoke execute on function "billing"."reprice"(uuid) from public, anon, authenticated, service_role;',
       ].join("\n"),
     );
+    expect(file!.contents).not.toContain('"reprice"(uuid) to');
     expect(renderModules(["grants"])[0]!.contents).not.toContain(
       "config.expose",
+    );
+  });
+
+  it("checks slug lengths and lets service_role read the reserved slugs", () => {
+    const [file] = renderModules(["reserved-slugs"], {
+      modules: {
+        "reserved-slugs": { options: { minLength: 3, maxLength: 40 } },
+      },
+    });
+    expect(file!.contents).toContain(
+      "grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;",
+    );
+    expect(file!.contents).toContain(
+      "when length(slug) < 3 or length(slug) > 40 then 'invalid'",
+    );
+    expect(renderModules(["reserved-slugs"])[0]!.contents).toContain(
+      "when length(slug) < 1 or length(slug) > 63 then 'invalid'",
+    );
+    expect(() =>
+      renderModules(["reserved-slugs"], {
+        modules: {
+          "reserved-slugs": { options: { minLength: 5, maxLength: 4 } },
+        },
+      }),
+    ).toThrow(/minLength and maxLength must be whole numbers/);
+  });
+
+  it("points the pre-request hook at check_request unless preRequest is false", () => {
+    const data = (layout = {}) =>
+      renderModules(["rate-limit"], layout).find(
+        (file) => file.kind === "data",
+      )!.contents;
+    expect(data()).toContain(
+      "alter role authenticator set pgrst.db_pre_request = 'better_supabase.check_request';",
+    );
+    const off = data({
+      modules: { "rate-limit": { options: { preRequest: false } } },
+    });
+    expect(off).not.toContain("authenticator set pgrst.db_pre_request");
+    expect(off).toContain(
+      "alter role authenticator reset pgrst.db_pre_request;",
+    );
+    expect(renderModules(["rate-limit"])[0]!.contents).toContain(
+      "if current_setting('transaction_read_only', true) = 'on' then",
+    );
+  });
+
+  it("writes the session policy on the declared tables except the excluded ones", () => {
+    const layout = {
+      modules: {
+        sessions: { options: { policies: true, exclude: ["public.audit_*"] } },
+      },
+      declaredTables: ["public.invoices", "public.audit_log"],
+    };
+    const [file] = renderModules(["sessions"], layout);
+    expect(file!.contents).toContain(
+      [
+        'drop policy if exists bs_session_active on "public"."invoices";',
+        'create policy bs_session_active on "public"."invoices" as restrictive',
+        "  for all to authenticated",
+        "  using ((select better_supabase.session_active()))",
+        "  with check ((select better_supabase.session_active()));",
+      ].join("\n"),
+    );
+    expect(file!.contents).not.toContain("audit_log");
+    expect(
+      renderModules(["sessions"], { declaredTables: ["public.invoices"] })[0]!
+        .contents,
+    ).not.toContain("bs_session_active");
+  });
+
+  it("derives table grants from policies for tables expose doesn't list", () => {
+    const config = resolveConfig(
+      {
+        expose: { customers: ["select"] },
+        sql: { modules: { grants: { options: { fromPolicies: true } } } },
+      },
+      "/project",
+    );
+    const [file] = renderModules(["grants"], {
+      ...moduleLayout(config),
+      policyGrants: [
+        {
+          table: "public.customers",
+          role: "authenticated",
+          privileges: ["select", "delete"],
+        },
+        {
+          table: "public.notes",
+          role: "authenticated",
+          privileges: ["select", "insert"],
+        },
+      ],
+    });
+    expect(file!.contents).toContain(
+      "-- config.expose and the policies (sql.modules.grants.options.fromPolicies)",
+    );
+    expect(file!.contents).toContain(
+      'grant select on table "public"."customers" to authenticated;',
+    );
+    expect(file!.contents).not.toContain(
+      'grant select, delete on table "public"."customers"',
+    );
+    expect(file!.contents).toContain(
+      [
+        'revoke all on table "public"."notes" from public, anon, authenticated, service_role;',
+        'grant select, insert on table "public"."notes" to authenticated;',
+        'grant select, insert, update, delete on table "public"."notes" to service_role;',
+      ].join("\n"),
+    );
+  });
+
+  it("rejects a function entry without a signature and table privileges on a function", () => {
+    expect(() =>
+      resolveConfig(
+        { expose: { "search_notes(text)": ["select"] } },
+        "/project",
+      ),
+    ).toThrow(/a function takes \{ execute/);
+    expect(() =>
+      resolveConfig(
+        { expose: { notes: { execute: ["authenticated"] } } },
+        "/project",
+      ),
+    ).toThrow(/key it by its signature/);
+    const config = resolveConfig(
+      { expose: { "bad name()x)": { execute: ["anon"] } } },
+      "/project",
+    );
+    expect(() => renderModules(["grants"], moduleLayout(config))).toThrow(
+      /is not a function signature/,
     );
   });
 
@@ -230,12 +476,21 @@ describe("sameModuleFile", () => {
       [
         'create or replace function "public"."search_chunks"(query extensions.vector, k integer default 10)',
         'returns setof "public"."chunks"',
-        "language sql",
+        "language plpgsql",
         "stable",
         "security invoker",
         "set search_path = ''",
-        "set hnsw.iterative_scan = 'strict_order'",
+        "as $$",
+        "#variable_conflict use_column",
+        "declare",
+        "  previous_scan text := current_setting('hnsw.iterative_scan', true);",
+        "begin",
+        "  perform set_config('hnsw.iterative_scan', 'strict_order', true);",
       ].join("\n"),
+    );
+    expect(file!.contents).not.toContain("set hnsw.iterative_scan");
+    expect(file!.contents).toContain(
+      "  perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);",
     );
     expect(file!.contents).toContain(
       'order by t."embedding" operator(extensions.<=>) query',
@@ -249,6 +504,31 @@ describe("sameModuleFile", () => {
     expect(renderModules(["vector-search"])[0]!.contents).not.toContain(
       "config.vectorSearch",
     );
+    const elsewhere = (layout: Record<string, unknown>) =>
+      renderModules(["vector-search"], {
+        ...moduleLayout(config),
+        ...layout,
+      })[0]!.contents;
+    const found = elsewhere({ vectorSchema: "public" });
+    expect(found).toContain(
+      "create extension if not exists vector with schema public;",
+    );
+    expect(found).toContain(
+      '"public"."search_chunks"(query public.vector, k integer default 10)',
+    );
+    expect(found).toContain("operator(public.<=>) query");
+    expect(found).not.toContain("extensions.");
+    expect(
+      elsewhere({
+        vectorSchema: "public",
+        modules: { "vector-search": { options: { schema: "vec" } } },
+      }),
+    ).toContain("query vec.vector");
+    expect(() =>
+      elsewhere({
+        modules: { "vector-search": { options: { schema: "Bad" } } },
+      }),
+    ).toThrow(/options\.schema must be the lowercase name/);
   });
 });
 
@@ -304,6 +584,30 @@ describe("vector search options", () => {
     expect(sql).toContain(
       'drop function if exists "public"."search_chunks"(extensions.halfvec, integer);',
     );
+  });
+
+  it("filters with a predicate, adds the boost, breaks ties and allows text alone", () => {
+    const sql = render({
+      hybrid: { tsvector: "tsv" },
+      boost: "t.bonus",
+      boostMode: "add",
+      predicate: "t.expires_at > now()",
+      order: "t.created_at desc",
+    });
+    expect(sql.match(/and \(t\.expires_at > now\(\)\)/g)).toHaveLength(4);
+    expect(sql).toContain("and query is not null");
+    expect(sql).toContain(
+      "(f.score + coalesce((t.bonus)::double precision, 0))",
+    );
+    expect(sql).toContain(
+      "row_number() over (order by (f.score + coalesce((t.bonus)::double precision, 0))::double precision desc, t.created_at desc) as ord",
+    );
+    expect(sql).toContain("order by r.ord");
+    expect(render({ order: "t.id" })).toContain("text_query text default null");
+    expect(() => render({ predicate: "true; drop table x" })).toThrow(
+      /predicate must be one SQL expression/,
+    );
+    expect(() => render({ boost: "1", boostMode: "max" })).toThrow(/boostMode/);
   });
 
   it("scores each distance and checks the options", () => {

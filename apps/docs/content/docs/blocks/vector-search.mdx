@@ -39,15 +39,39 @@ For `chunks` this writes:
 ```sql
 create or replace function public.search_chunks(query extensions.vector, k integer default 10)
 returns setof public.chunks
-language sql stable security invoker
+language plpgsql stable security invoker
 set search_path = ''
-set hnsw.iterative_scan = 'strict_order'
 as $$
-  select t.* from public.chunks t
+declare
+  previous_scan text := current_setting('hnsw.iterative_scan', true);
+begin
+  perform set_config('hnsw.iterative_scan', 'strict_order', true);
+  return query select t.* from public.chunks t
   where t.embedding is not null
   order by t.embedding operator(extensions.<=>) query
-  limit least(greatest(k, 1), 1000)
+  limit least(greatest(k, 1), 1000);
+  perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);
+end;
 $$;
+```
+
+The function turns on `hnsw.iterative_scan` in its body and restores the
+caller's value afterwards, instead of in a `set` clause. A `set` clause for a
+pgvector setting needs the pgvector library loaded in the session that runs
+`create function`, and a migration session that hasn't used a vector yet
+fails with `permission denied to set parameter "hnsw.iterative_scan"` for
+any role that isn't a superuser, which includes `postgres` on Supabase.
+
+The functions use the schema pgvector is installed in. `sql sync` reads it
+from the `create extension ... vector ... schema` statement in your schema
+files or migrations, and falls back to `extensions`, the Supabase default.
+Set `sql.modules.vector-search.options.schema` when pgvector is installed
+another way:
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: { "vector-search": { options: { schema: "public" } } },
+},
 ```
 
 The function is `security invoker`, so the caller's RLS policies run inside
@@ -98,7 +122,7 @@ const rows = await db
 rows[0].$score; // number
 ```
 
-## Hybrid ranking, boosts and prefilters
+## Hybrid ranking, boosts, filters and order
 
 An entry can take more options:
 
@@ -114,15 +138,18 @@ vectorSearch: {
 },
 ```
 
-| Option      | What it does                                                                                                                           |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`      | `halfvec` for half-precision columns; `vector` by default                                                                              |
-| `hybrid`    | ranks the `tsvector` column against `text` with `websearch_to_tsquery` and fuses both rankings by reciprocal rank (`k`, 60 by default) |
-| `boost`     | an expression over the row `t` the score is multiplied by, such as a priority column                                                   |
-| `prefilter` | columns `filter` narrows before ranking, so filters shape the scan instead of trimming the `k` rows                                    |
-| `key`       | the primary key column the scores function returns; `id` by default                                                                    |
+| Option      | What it does                                                                                                                                                                  |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`      | `halfvec` for half-precision columns; `vector` by default                                                                                                                     |
+| `hybrid`    | ranks the `tsvector` column against `text` with `websearch_to_tsquery` and fuses both rankings by reciprocal rank (`k`, 60 by default)                                        |
+| `boost`     | an expression over the row `t` the score is multiplied by, such as a priority column                                                                                          |
+| `prefilter` | columns `filter` narrows before ranking, so filters shape the scan instead of trimming the `k` rows                                                                           |
+| `key`       | the primary key column the scores function returns; `id` by default                                                                                                           |
+| `predicate` | a SQL condition over the row `t` every candidate meets before ranking: ranges and related rows, such as `t.expires_at > now()` or an `exists` on a parent that isn't disabled |
+| `boostMode` | `multiply` (default) or `add`, how `boost` combines with the score                                                                                                            |
+| `order`     | a SQL `order by` list over `t` that breaks score ties, such as `t.created_at desc`                                                                                            |
 
-With any of `hybrid`, `boost` or `prefilter`, the functions take
+With any of `hybrid`, `boost`, `prefilter`, `predicate` or `order`, the functions take
 `filter jsonb` and `text_query text` as well, and rank four times `k`
 candidates from each side before they keep `k`:
 
@@ -135,6 +162,17 @@ const rows = await db
     filter: { collection_id: ids, organization_id: [orgId, null] },
     score: true,
   })
+  .orThrow();
+```
+
+On a `hybrid` entry, `vector` can be left out (or `null`) with `text`: the
+search then ranks by full-text alone. That keeps search working when the
+embedding call fails or times out:
+
+```ts
+const embedding = await embed(question).catch(() => null);
+const rows = await db
+  .$search("knowledgeChunks", { vector: embedding, text: question, k: 8 })
   .orThrow();
 ```
 

@@ -126,6 +126,32 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
     expect((await slow).status).toBe(200);
   });
 
+  it("answers in the app's error format with the problem option", async () => {
+    const idempotency = createIdempotency(store().sql, {
+      required: true,
+      problem: (problem, error) => ({
+        type: `https://errors.example.com/${error.code ?? "unknown"}`,
+        title: problem.title,
+        status: problem.status,
+        errorCode: error.code,
+      }),
+    });
+    const missing = await idempotency.handle(
+      post(undefined),
+      () => new Response("ok"),
+    );
+    expect(missing.status).toBe(400);
+    expect(missing.headers.get("content-type")).toBe(
+      "application/problem+json",
+    );
+    expect(await missing.json()).toEqual({
+      type: "https://errors.example.com/IDEMPOTENCY_KEY_MISSING",
+      title: "Invalid request",
+      status: 400,
+      errorCode: "IDEMPOTENCY_KEY_MISSING",
+    });
+  });
+
   it("answers 400 when the header is required and missing (section 2.7)", async () => {
     const idempotency = createIdempotency(store().sql, { required: true });
     const missing = await idempotency.handle(

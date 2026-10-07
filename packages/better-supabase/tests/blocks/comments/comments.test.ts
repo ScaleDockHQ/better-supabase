@@ -144,6 +144,99 @@ describe("createComments", () => {
     });
   });
 
+  it("takes mentions from mentionsOf, copies threads and lists a timeline", async () => {
+    const fake = fakeTransport({
+      create_comment: { ...row, document: { type: "doc" } },
+      edit_comment: row,
+      copy_comments: 3,
+      list_activity: [
+        {
+          id: "a1",
+          organization_id: "org-1",
+          type: "quote.sent",
+          actor_id: ADA,
+          subject_type: "quote",
+          subject_id: "q1",
+          summary: "Sent",
+          data: { total: 10 },
+          occurred_at: "2026-10-06T12:00:00Z",
+        },
+        {
+          id: "a2",
+          organization_id: "org-1",
+          type: "quote.created",
+          actor_id: null,
+          subject_type: null,
+          subject_id: null,
+          summary: null,
+          data: null,
+          occurred_at: "2026-10-06T11:00:00Z",
+        },
+      ],
+    });
+    const comments = createComments({
+      transport: fake.transport,
+      mentionsOf: ({ document }) => (document ? [ADA] : []),
+    });
+    const created = await comments
+      .create({
+        organizationId: "org-1",
+        subjectType: "project",
+        subjectId: "p1",
+        body: "Hi",
+        document: { type: "doc" },
+      })
+      .orThrow();
+    expect(created.document).toEqual({ type: "doc" });
+    expect(fake.calls[0]![2]).toMatchObject({
+      mentions: [ADA],
+      document: { type: "doc" },
+    });
+    await comments.edit("c1", { body: "x", document: null }).orThrow();
+    expect(fake.calls[1]![2]).toMatchObject({
+      clear_document: true,
+      mentions: [],
+    });
+    expect(
+      await comments
+        .copy(
+          "org-1",
+          { type: "quote", id: "q1" },
+          { type: "invoice", id: "i1" },
+        )
+        .orThrow(),
+    ).toBe(3);
+    expect(fake.calls[2]![2]).toEqual({
+      tenant: "org-1",
+      from_type: "quote",
+      from_id: "q1",
+      to_type: "invoice",
+      to_id: "i1",
+    });
+    const history = await comments
+      .history(
+        "org-1",
+        { type: "quote", id: "q1" },
+        {
+          before: Temporal.Instant.from("2026-10-07T00:00:00Z"),
+          limit: 2,
+        },
+      )
+      .orThrow();
+    expect(history[0]).toMatchObject({
+      type: "quote.sent",
+      actorId: ADA,
+      subjectId: "q1",
+      data: { total: 10 },
+    });
+    expect(history[1]).toMatchObject({ actorId: undefined, data: {} });
+    expect(fake.calls[3]![2]).toMatchObject({
+      subject_type: "quote",
+      before: "2026-10-07T00:00:00Z",
+      max_rows: 2,
+    });
+  });
+
   it("removes and lists a thread", async () => {
     const fake = fakeTransport({
       delete_comment: true,
@@ -174,6 +267,29 @@ describe("createComments", () => {
         subject_id: "p1",
         after: "2026-10-06T00:00:00Z",
         max_rows: 20,
+        skip: undefined,
+      },
+    ]);
+  });
+
+  it("pages by offset and counts comments per subject", async () => {
+    const fake = fakeTransport({
+      list_comments: [],
+      comment_counts: { p1: 3, p9: "2" },
+    });
+    const comments = createComments({ transport: fake.transport });
+    await comments.list("org-1", "project", "p1", { offset: 40, limit: 20 });
+    expect(fake.calls[0]![2]).toMatchObject({ skip: 40, max_rows: 20 });
+    expect(
+      await comments.counts("org-1", "project", ["p1", "p2", "p9"]).orThrow(),
+    ).toEqual({ p1: 3, p2: 0, p9: 2 });
+    expect(fake.calls[1]).toEqual([
+      "better_supabase",
+      "comment_counts",
+      {
+        tenant: "org-1",
+        subject_type: "project",
+        subject_ids: ["p1", "p2", "p9"],
       },
     ]);
   });

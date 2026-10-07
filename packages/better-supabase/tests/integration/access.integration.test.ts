@@ -235,6 +235,63 @@ describe.skipIf(!live)("access contract against the local database", () => {
     expect(active).toBeNull();
   });
 
+  it("disables tenants and users through PermDock-shaped active rows", async () => {
+    const SUSPENDED = crypto.randomUUID();
+    const MISSING = crypto.randomUUID();
+    const row = await inTransaction(
+      pool,
+      `create table public.bs_active_tenants (id uuid primary key, state text not null);
+       create table public.bs_active_users (id uuid primary key, banned_at timestamptz);
+       insert into public.bs_active_tenants values ('${ORG}', 'active'), ('${SUSPENDED}', 'closed');
+       insert into public.bs_active_users values ('${USER}', null);`,
+      ["access"],
+      {
+        modules: {
+          access: {
+            disabled: {
+              tenant: {
+                table: "public.bs_active_tenants",
+                id: "id",
+                status: "state",
+                active: ["active", "trial"],
+              },
+              user: {
+                table: "public.bs_active_users",
+                id: "id",
+                disabledAt: "banned_at",
+              },
+            },
+          },
+        },
+      },
+      async (client) => {
+        const read = async () =>
+          (
+            await client.query<Record<string, boolean>>(
+              `select better_supabase.tenant_disabled($1) as active_tenant,
+                better_supabase.tenant_disabled($2) as closed_tenant,
+                better_supabase.tenant_disabled($3) as missing_tenant,
+                better_supabase.user_disabled($4) as user`,
+              [ORG, SUSPENDED, MISSING, USER],
+            )
+          ).rows[0]!;
+        const before = await read();
+        await client.query(
+          "update public.bs_active_users set banned_at = now() where id = $1",
+          [USER],
+        );
+        return { before, after: await read() };
+      },
+    );
+    expect(row.before).toEqual({
+      active_tenant: false,
+      closed_tenant: true,
+      missing_tenant: true,
+      user: false,
+    });
+    expect(row.after["user"]).toBe(true);
+  });
+
   it("wraps the app's own functions in the custom model", async () => {
     const row = await inTransaction(
       pool,

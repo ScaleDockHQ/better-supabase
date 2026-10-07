@@ -46,6 +46,31 @@ describe("comments module", () => {
     expect(sql).toMatch(/emit_event\('comment\.created'/);
   });
 
+  it("checks a subject type's own permission per action", () => {
+    const sql = sqlOf(["comments"], {
+      subjects: {
+        deal: { table: "deals", permissions: { create: "deals.comment" } },
+        project: { table: "projects" },
+      },
+    });
+    expect(sql).toContain(
+      `case "subject_type" when 'deal' then 'deals.comment' else 'comments.create' end`,
+    );
+    expect(sql).toContain(
+      `coalesce(better_supabase.can('tenant', "organization_id", 'comments.read'), false) and`,
+    );
+    expect(() =>
+      sqlOf(["comments"], {
+        subjects: { deal: { table: "deals", permissions: { delete: "x" } } },
+      }),
+    ).toThrow(/use read, create and moderate/);
+    expect(() =>
+      sqlOf(["comments"], {
+        subjects: { deal: { table: "deals", permissions: "x" } },
+      }),
+    ).toThrow(/must be \{ read\?/);
+  });
+
   it.each([
     [{ subjects: [] }, /pass an object/],
     [{ subjects: { "Bad-Type": { table: "x" } } }, /lowercase letters/],
@@ -54,5 +79,30 @@ describe("comments module", () => {
     [{ maxBodyLength: 0 }, /whole number above zero/],
   ])("rejects %j", (options, message) => {
     expect(() => sqlOf(["comments"], options)).toThrow(message);
+  });
+
+  it("cascades subject deletes and checks the document with a JSON Schema", () => {
+    const sql = sqlOf(["jsonb-schemas", "comments"], {
+      subjects: {
+        task: { table: "app.tasks", cascade: true },
+        note: { table: "notes" },
+      },
+      documentSchema: { type: "object", required: ["type"] },
+    });
+    expect(sql).toContain('create trigger "bs_comments_task_cascade"');
+    expect(sql).toContain('after delete on "app"."tasks"');
+    expect(sql).not.toContain("bs_comments_note_cascade");
+    expect(sql).toContain("bs_json_document");
+    expect(() =>
+      sqlOf(["comments"], { documentSchema: { type: "object" } }),
+    ).toThrow(/add the jsonb-schemas module/);
+    expect(() =>
+      sqlOf(["comments"], { subjects: { task: { table: "t", bucket: "x" } } }),
+    ).toThrow(/subjects.task.bucket is not an option/);
+    expect(() =>
+      sqlOf(["comments"], {
+        subjects: { task: { table: "t", cascade: "yes" } },
+      }),
+    ).toThrow(/cascade must be true or false/);
   });
 });

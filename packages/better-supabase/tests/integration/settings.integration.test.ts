@@ -34,6 +34,34 @@ describe.skipIf(!live)("settings", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
   afterAll(() => pool.end());
 
+  it("reaches the module through API schema wrappers", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "settings"], {
+        modules: { settings: { api: "bs_settings_api" } },
+      });
+      const member = await s.user("member");
+      const client = settings.connect({
+        transport: sqlTransport(s.sql),
+        schema: "bs_settings_api",
+      });
+      await s.asRole(member);
+      expect(await client.user.set("theme", "dark").orThrow()).toBe("dark");
+      expect(await client.user.get("theme").orThrow()).toBe("dark");
+      expect(
+        await s.value<string>(
+          "(select prosecdef::text from pg_proc where proname = 'set_user_setting' and pronamespace = 'bs_settings_api'::regnamespace)",
+        ),
+      ).toBe("false");
+      await s.asRole("anon");
+      expect(
+        await s.hint("select bs_settings_api.get_user_settings()"),
+      ).toContain("permission denied");
+    } finally {
+      await s.close();
+    }
+  });
+
   it("keeps user settings private and checks organization permissions", async () => {
     const s = await BlockSession.open(pool);
     try {
@@ -104,6 +132,104 @@ describe.skipIf(!live)("settings", () => {
       await s.asRole(member);
       expect(await client.user.reset("theme").orThrow()).toBe(true);
       expect(await client.user.get("theme").orThrow()).toBe("light");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("records who set a setting on its first write, without a column default", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "settings"]);
+      await s.rows(
+        "alter table better_supabase.user_settings alter column updated_by drop default",
+      );
+      const member = await s.user("member");
+      const client = settings.connect({ transport: sqlTransport(s.sql) });
+      await s.asRole(member);
+      await client.user.set("theme", "dark").orThrow();
+      await s.service();
+      expect(
+        await s.value<string>(
+          "(select updated_by::text from better_supabase.user_settings where key = 'theme' and user_id = $1)",
+          [member.id],
+        ),
+      ).toBe(member.id);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("guards platform settings with a permission and a read rule per key", async () => {
+    const platform = defineSettings({
+      platform: {
+        feePercent: {
+          schema: toStandardJsonSchema(v.pipe(v.number(), v.minValue(0))),
+          default: 1,
+          permission: "billing.platform",
+          read: "public",
+        },
+        routing: {
+          schema: toStandardJsonSchema(v.string()),
+          permission: "routing.platform",
+          read: "staff",
+        },
+        banner: { schema: toStandardJsonSchema(v.string()), default: "" },
+      },
+    });
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["jsonb-schemas", "settings"], {
+        modules: { settings: { options: { schemas: platform } } },
+      });
+      const staff = await s.user("staff");
+      const user = await s.user("user");
+      const client = platform.connect({ transport: sqlTransport(s.sql) });
+      const as = (who: typeof user, permissions: string[] = []) =>
+        s.asRole(who, { platform_permissions: permissions });
+
+      await as(staff, ["billing.platform"]);
+      expect(await client.platform.set("feePercent", 2.5).orThrow()).toBe(2.5);
+      expect((await client.platform.set("routing", "eu")).ok).toBe(false);
+      expect((await client.platform.set("banner", "Hi")).ok).toBe(false);
+      await as(staff, ["routing.platform", "settings.manage"]);
+      await client.platform.set("routing", "eu").orThrow();
+      await client.platform.set("banner", "Maintenance at 6").orThrow();
+      expect(await client.platform.get().orThrow()).toEqual({
+        feePercent: 2.5,
+        routing: "eu",
+        banner: "Maintenance at 6",
+      });
+
+      expect(
+        await s.hint(
+          "select better_supabase.set_platform_setting('unlisted', '{\"value\": 1}')",
+        ),
+      ).not.toBe("no error");
+
+      await as(user);
+      expect(await client.platform.get().orThrow()).toEqual({
+        feePercent: 2.5,
+        routing: undefined,
+        banner: "Maintenance at 6",
+      });
+      expect((await client.platform.reset("feePercent")).ok).toBe(true);
+      expect(await client.platform.get("feePercent").orThrow()).toBe(2.5);
+
+      await s.asRole("anon");
+      expect(await client.platform.get().orThrow()).toEqual({
+        feePercent: 2.5,
+        routing: undefined,
+        banner: "",
+      });
+
+      await s.service();
+      expect(
+        await s.hint(
+          `insert into better_supabase.platform_settings (key, value) values ('feePercent', '-1')
+           on conflict (key) do update set value = excluded.value`,
+        ),
+      ).not.toBe("no error");
     } finally {
       await s.close();
     }

@@ -10,7 +10,14 @@ import { columnRef, SERVICE_CALLER, schemaPreamble } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
-  options: ["bucket", "grace", "exportTtl", "tables"],
+  options: [
+    "bucket",
+    "grace",
+    "exportTtl",
+    "tables",
+    "autoTables",
+    "tenantRow",
+  ],
   hooks: ["on_organization_purge"],
   tables: {
     exports: {
@@ -67,7 +74,8 @@ interface Entry {
   readonly purge: boolean;
 }
 
-const BUCKET = /^[a-z0-9][a-z0-9_-]{2,62}$/;
+/** A Storage bucket id: Supabase allows 1 to 100 characters. */
+const BUCKET = /^[a-z0-9][a-z0-9_.-]{0,99}$/;
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
 
 function unquoted(ctx: ModuleContext, logical: string): string {
@@ -78,48 +86,28 @@ function unquoted(ctx: ModuleContext, logical: string): string {
 /** The tables each installed module contributes, then `options.tables`. */
 function entries(ctx: ModuleContext): readonly Entry[] {
   const list: Entry[] = [];
-  const add = (
-    module: string,
-    logical: string,
-    subject: Entry["subject"],
-    column: string,
-    purge = true,
-  ): void => {
-    if (!ctx.installed(module)) return;
-    const of = ctx.of(module);
-    if (!of.hasTable(logical) || !of.has(logical, column)) return;
-    const name = unquoted(of, logical);
-    list.push({
-      subject,
-      name,
-      table: of.table(logical),
-      column: of.col(logical, column).replaceAll('"', ""),
-      purge,
-    });
-  };
-  add("profiles", "profiles", "user", "key");
-  add("tenant", "memberships", "user", "user");
-  add("settings", "user", "user", "user");
-  add("comments", "comments", "user", "author");
-  add("attachments", "attachments", "user", "uploadedBy");
-  add("audit", "log", "user", "actor", false);
-  add("tenant", "memberships", "organization", "tenant");
-  add("settings", "organization", "organization", "tenant");
-  add("comments", "comments", "organization", "tenant");
-  add("comments", "activity", "organization", "tenant");
-  add("attachments", "attachments", "organization", "tenant");
-  add("api-keys", "keys", "organization", "tenant");
-  add("usage", "counters", "organization", "tenant");
-  add("usage", "events", "organization", "tenant");
-  add("usage", "quotas", "organization", "tenant");
-  add("notifications", "recipients", "organization", "tenant");
-  add("notifications", "events", "organization", "tenant");
-  // The audit trail is append-only; its retention purges it.
-  add("audit", "log", "organization", "tenant", false);
+  const modules = ctx.installedModules.map((module) => ctx.of(module));
+  for (const subject of ["user", "organization"] as const) {
+    for (const of of modules) {
+      for (const [logical, spec] of Object.entries(of.names.tables)) {
+        const column =
+          subject === "user" ? spec.lifecycle?.user : spec.lifecycle?.tenant;
+        if (column === undefined) continue;
+        if (!of.hasTable(logical) || !of.has(logical, column)) continue;
+        list.push({
+          subject,
+          name: unquoted(of, logical),
+          table: of.table(logical),
+          column: of.col(logical, column).replaceAll('"', ""),
+          purge: spec.lifecycle?.purge !== false,
+        });
+      }
+    }
+  }
 
   const where = "sql.modules.data-lifecycle.options.tables";
   const option = ctx.option("tables");
-  if (option === undefined) return list;
+  if (option === undefined || option === "auto") return list;
   if (typeof option !== "object" || option === null || Array.isArray(option)) {
     throw new TypeError(
       `${where} must be an object of table names to { user, tenant, purge }`,
@@ -167,14 +155,137 @@ function entries(ctx: ModuleContext): readonly Entry[] {
   return list;
 }
 
+/** `options.autoTables`: every table in `schemas` with the tenant (or user) column. */
+interface AutoTables {
+  readonly schemas: readonly string[];
+  readonly tenant: string | undefined;
+  readonly user: string | undefined;
+  /** `schema.table` names or globs (`public.*_archive`) to leave out. */
+  readonly exclude: readonly string[];
+  readonly purge: boolean;
+}
+
+function autoTablesOf(ctx: ModuleContext): AutoTables | undefined {
+  const where = "sql.modules.data-lifecycle.options.autoTables";
+  const option =
+    ctx.option("tables") === "auto" ? {} : ctx.option("autoTables");
+  if (option === undefined) return undefined;
+  if (typeof option !== "object" || option === null || Array.isArray(option)) {
+    throw new TypeError(
+      `${where} must be an object of { schemas?, tenant?, user?, exclude?, purge? }`,
+    );
+  }
+  // SAFETY: an object, and each field is checked below.
+  const config = option as Record<string, unknown>;
+  const list = (
+    key: string,
+    fallback: readonly string[],
+  ): readonly string[] => {
+    const value = config[key];
+    if (value === undefined) return fallback;
+    if (
+      !Array.isArray(value) ||
+      !value.every((item) => typeof item === "string")
+    )
+      throw new TypeError(`${where}.${key} must be a list of strings`);
+    return value;
+  };
+  const column = (key: string, fallback?: string): string | undefined => {
+    const value = config[key];
+    if (value === undefined) return fallback;
+    if (value === null) return undefined;
+    if (typeof value !== "string" || !IDENT.test(value))
+      throw new TypeError(`${where}.${key} must be a lowercase column name`);
+    return value;
+  };
+  const schemas = list("schemas", ["public"]);
+  for (const schema of schemas) {
+    if (!IDENT.test(schema))
+      throw new TypeError(`${where}.schemas: "${schema}" is not a schema name`);
+  }
+  return {
+    schemas,
+    tenant: column("tenant", "organization_id"),
+    user: column("user"),
+    exclude: list("exclude", []),
+    purge: config["purge"] !== false,
+  };
+}
+
+/** The catalog query that lists `auto` tables, minus the explicit ones. */
+function autoTablesSql(auto: AutoTables, explicit: readonly Entry[]): string {
+  const names = [...new Set(explicit.map((entry) => entry.name))].map(
+    sqlString,
+  );
+  const excluded = auto.exclude.map(
+    (pattern) =>
+      `n.nspname || '.' || c.relname like ${sqlString(pattern.replaceAll("_", "\\_").replaceAll("*", "%"))}`,
+  );
+  const select = (subject: string, column: string): string => `
+  select ${sqlString(subject)}::text, n.nspname || '.' || c.relname, format('%I.%I', n.nspname, c.relname), a.attname::text, ${String(auto.purge)}
+  from pg_catalog.pg_class c
+  join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+  join pg_catalog.pg_attribute a on a.attrelid = c.oid and a.attname = ${sqlString(column)} and not a.attisdropped
+  where c.relkind in ('r', 'p')
+    and n.nspname in (${auto.schemas.map(sqlString).join(", ")})
+    and not c.relispartition${
+      names.length > 0
+        ? `
+    and n.nspname || '.' || c.relname not in (${names.join(", ")})`
+        : ""
+    }${excluded
+      .map(
+        (rule) => `
+    and not (${rule})`,
+      )
+      .join("")}`;
+  return [
+    ...(auto.tenant ? [select("organization", auto.tenant)] : []),
+    ...(auto.user ? [select("user", auto.user)] : []),
+  ].join("\n  union all");
+}
+
 function bucketOf(ctx: ModuleContext): string {
   const bucket = ctx.text("bucket", "data-exports");
   if (!BUCKET.test(bucket)) {
     throw new TypeError(
-      "sql.modules.data-lifecycle.options.bucket must be 3 to 63 lowercase letters, digits, dashes or underscores",
+      "sql.modules.data-lifecycle.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
     );
   }
   return bucket;
+}
+
+/**
+ * The tenant's own row the purge deletes last: `options.tenantRow`
+ * (`schema.table.column`, `false` for none), else the organizations module's
+ * table, else the table the access contract disables tenants in.
+ */
+function tenantRowOf(
+  ctx: ModuleContext,
+): { readonly table: string; readonly key: string } | undefined {
+  const configured = ctx.option("tenantRow");
+  if (configured === false) return undefined;
+  if (configured !== undefined) {
+    if (typeof configured !== "string") {
+      throw new TypeError(
+        'sql.modules.data-lifecycle.options.tenantRow must be "schema.table.column" or false',
+      );
+    }
+    const ref = columnRef(
+      "sql.modules.data-lifecycle.options.tenantRow",
+      configured,
+    );
+    return { table: ref.table, key: ref.column };
+  }
+  if (ctx.installed("organizations")) {
+    const organizations = ctx.of("organizations");
+    return {
+      table: organizations.table("organizations"),
+      key: organizations.col("organizations", "id"),
+    };
+  }
+  const disable = disabling(ctx);
+  return disable ? { table: disable.table, key: disable.key } : undefined;
 }
 
 /** The statement that disables a tenant, from the access contract. */
@@ -182,9 +293,20 @@ function disabling(
   ctx: ModuleContext,
 ): { table: string; key: string; column: string } | undefined {
   const configured = ctx.modules.access?.disabled?.tenant;
-  if (configured) {
+  if (typeof configured === "string") {
     const ref = columnRef("sql.modules.access.disabled.tenant", configured);
     return { table: ref.table, key: '"id"', column: ref.column };
+  }
+  if (configured) {
+    if (configured.disabledAt === undefined) return undefined;
+    return {
+      table: configured.table
+        .split(".")
+        .map((part) => sqlIdent(part))
+        .join("."),
+      key: sqlIdent(configured.id),
+      column: sqlIdent(configured.disabledAt),
+    };
   }
   if (!ctx.installed("organizations")) return undefined;
   const organizations = ctx.of("organizations");
@@ -219,7 +341,6 @@ function build(ctx: ModuleContext): string {
   const m = tenant.table("memberships");
   const mTenant = tenant.col("memberships", "tenant");
   const mUser = tenant.col("memberships", "user");
-  const mRole = tenant.col("memberships", "role");
   const ownerRole = sqlString(
     ctx.installed("organizations")
       ? ctx.of("organizations").text("ownerRole", "owner")
@@ -233,10 +354,15 @@ function build(ctx: ModuleContext): string {
         `(${sqlString(entry.subject)}, ${sqlString(entry.name)}, ${sqlString(entry.table)}, ${sqlString(entry.column)}, ${String(entry.purge)})`,
     )
     .join(",\n    ");
-  const tablesBody =
+  const auto = autoTablesOf(ctx);
+  const explicitBody =
     list.length === 0
       ? "select null::text, null::text, null::text, null::text, null::boolean where false"
       : `select * from (values\n    ${values}\n  ) as t(subject, name, tbl, col, purge)`;
+  const autoBody = auto ? autoTablesSql(auto, list) : "";
+  const tablesBody = autoBody
+    ? `${explicitBody}\n  union all${autoBody}`
+    : explicitBody;
 
   const exportEvent = (type: string, extra = ""): string =>
     ctx.emit({
@@ -244,6 +370,15 @@ function build(ctx: ModuleContext): string {
       payload: `jsonb_build_object('exportId', v_row.${ce("id")}, 'subject', v_row.${ce("subject")}, 'organizationId', v_row.${ce("tenant")}::text, 'userId', v_row.${ce("user")}, 'requestedBy', v_row.${ce("requestedBy")}${extra})`,
       subject: `'data-exports/' || v_row.${ce("id")}::text`,
       tenant: `v_row.${ce("tenant")}`,
+    }) || "null;";
+  // The tenant is gone once the purge ends, so the event carries no tenant
+  // partition; organizationId stays in the payload.
+  const purgedEvent =
+    ctx.emit({
+      type: "organization.purged",
+      payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'userId', null::uuid, 'purgeAfter', v_row.${cd("purgeAfter")})`,
+      subject: `'organizations/' || v_row.${cd("tenant")}::text`,
+      tenant: "null",
     }) || "null;";
   const deletionEvent = (type: string, actor: string): string =>
     ctx.emit({
@@ -262,11 +397,32 @@ function build(ctx: ModuleContext): string {
     update ${disable.table} set ${disable.column} = null where ${disable.key} = cancel_organization_deletion.tenant;
   end if;`
     : "";
-  const organizationRow =
-    ctx.installed("organizations") && ctx.of("organizations").manages
-      ? `delete from ${ctx.of("organizations").table("organizations")} where ${ctx.of("organizations").col("organizations", "id")} = purge_organization.tenant;`
-      : "";
-  const owner = `exists (select 1 from ${m} mm where mm.${mTenant} = cancel_organization_deletion.tenant and mm.${mUser} = auth.uid() and mm.${mRole} = ${ownerRole})`;
+  const tenantRow = tenantRowOf(ctx);
+  // The tenant row goes last, after every table that references it.
+  const organizationRow = tenantRow
+    ? `begin
+    delete from ${tenantRow.table} where ${tenantRow.key} = purge_organization.tenant;
+  exception when foreign_key_violation or restrict_violation then
+    raise exception 'Rows still reference the organization: %', sqlerrm
+      using errcode = '23503', hint = 'ORGANIZATION_PURGE_BLOCKED';
+  end;`
+    : "";
+  const skipTables = [
+    `to_regclass(t.tbl) <> to_regclass(${sqlString(d)})`,
+    ...(tenantRow
+      ? [
+          `to_regclass(t.tbl) is distinct from to_regclass(${sqlString(tenantRow.table)})`,
+        ]
+      : []),
+  ].join(" and ");
+  const platformKey = ctx.permissionKey("deletePlatform", "");
+  const platform =
+    platformKey === ""
+      ? ""
+      : `\n    and not coalesce(better_supabase.is_platform(${sqlString(platformKey)}), false)`;
+  // The tenant module resolves the role name, also when memberships point at
+  // a roles table (sql.modules.tenant.columns.role through a role id).
+  const owner = `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = ${ownerRole}, false)`;
 
   return `${schemaPreamble(ctx)}
 -- Exports of a user's or an organization's data, written by the app's
@@ -317,10 +473,11 @@ grant all on ${d} to service_role;
 
 -- What an export reads and the purge clears: subject, display name,
 -- quoted table, column and whether the purge deletes it.
+drop function if exists ${fn("data_lifecycle_tables")}();
 create or replace function ${fn("data_lifecycle_tables")}()
 returns table (subject text, name text, tbl text, col text, purge boolean)
 language sql
-immutable
+${auto ? "stable" : "immutable"}
 set search_path = ''
 as $$
   ${tablesBody}
@@ -542,7 +699,7 @@ declare
   v_row ${d};
   v_disabled boolean;
 begin
-  if not (${SERVICE_CALLER}) and not ${can("request_organization_deletion.tenant", "delete")} then
+  if not (${SERVICE_CALLER}) and not ${can("request_organization_deletion.tenant", "delete")}${platform} then
     raise exception 'You may not delete this organization' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   if request_organization_deletion.grace < interval '0' then
@@ -584,7 +741,7 @@ begin
   if v_row.${cd("tenant")} is null then
     return null;
   end if;
-  if not (${SERVICE_CALLER} or v_row.${cd("requestedBy")} = auth.uid() or ${owner}) then
+  if not (${SERVICE_CALLER} or v_row.${cd("requestedBy")} = auth.uid() or ${owner})${platform} then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update ${d} x set ${cd("cancelledAt")} = now()
@@ -641,6 +798,10 @@ declare
   v_type text;
   v_count bigint;
   v_deleted jsonb := '{}'::jsonb;
+  v_pending text[];
+  v_left text[];
+  v_name text;
+  v_pass integer;
 begin
   if not (${SERVICE_CALLER}) then
     raise exception 'Only the service role purges organizations' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
@@ -652,27 +813,82 @@ begin
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
   ${ctx.hook("on_organization_purge", [[id, "purge_organization.tenant"]])}
-  for v_table in
-    select t.name, t.tbl, t.col, row_number() over () as position
-    from ${fn("data_lifecycle_tables")}() t
+  -- Tables go in reverse order; a table whose rows another table still
+  -- references (a restricting foreign key) waits for a later pass.
+  v_pending := array(
+    select t.name from ${fn("data_lifecycle_tables")}() t
     where t.subject = 'organization' and t.purge and to_regclass(t.tbl) is not null
-    order by position desc
-  loop
-    select pg_catalog.format_type(a.atttypid, a.atttypmod) into v_type
-    from pg_catalog.pg_attribute a
-    where a.attrelid = to_regclass(v_table.tbl) and a.attname = v_table.col and not a.attisdropped;
-    execute format('delete from %s t where t.%I = $1::%s', v_table.tbl, v_table.col, v_type)
-      using purge_organization.tenant::text;
-    get diagnostics v_count = row_count;
-    v_deleted := v_deleted || jsonb_build_object(v_table.name, v_count);
+      and ${skipTables}
+    order by (row_number() over ()) desc
+  );
+  for v_pass in 1..10 loop
+    exit when cardinality(v_pending) = 0;
+    v_left := '{}';
+    foreach v_name in array v_pending loop
+      select * into v_table from ${fn("data_lifecycle_tables")}() t
+      where t.subject = 'organization' and t.name = v_name;
+      select pg_catalog.format_type(a.atttypid, a.atttypmod) into v_type
+      from pg_catalog.pg_attribute a
+      where a.attrelid = to_regclass(v_table.tbl) and a.attname = v_table.col and not a.attisdropped;
+      begin
+        execute format('delete from %s t where t.%I = $1::%s', v_table.tbl, v_table.col, v_type)
+          using purge_organization.tenant::text;
+        get diagnostics v_count = row_count;
+        v_deleted := v_deleted || jsonb_build_object(v_name, coalesce((v_deleted ->> v_name)::bigint, 0) + v_count);
+      exception when foreign_key_violation or restrict_violation or check_violation then
+        -- Another table's rows still point here (or a set null action breaks
+        -- a check on them): try again after the other tables.
+        v_left := v_left || v_name;
+      end;
+    end loop;
+    if v_left = v_pending then
+      raise exception 'Rows in % still have references the purge does not delete', array_to_string(v_left, ', ')
+        using errcode = '23503', hint = 'ORGANIZATION_PURGE_BLOCKED';
+    end if;
+    v_pending := v_left;
   end loop;
-  ${organizationRow}
   update ${d} x set ${cd("purgedAt")} = now() where x.${cd("tenant")} = v_row.${cd("tenant")} returning * into v_row;
-  ${deletionEvent("organization.purged", "null::uuid")}
+  ${organizationRow}
+  ${purgedEvent}
   return jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'deleted', v_deleted);
 end;
 $$;
 
+-- Exports past expires_at, oldest first, with their files, for the purger to
+-- remove from Storage before forget_data_exports drops the rows.
+create or replace function ${fn("expired_data_exports")}(max_rows integer default 100)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x.${ce("id")}, 'bucket', x.${ce("bucket")}, 'files', to_jsonb(x.${ce("files")})) order by x.${ce("expiresAt")}), '[]'::jsonb)
+  from (
+    select * from ${e} y
+    where y.${ce("expiresAt")} < now()
+    order by y.${ce("expiresAt")}
+    limit greatest(1, least(coalesce(max_rows, 100), 1000))
+  ) x
+$$;
+
+-- Deletes the export rows (their files are already gone); returns how many.
+create or replace function ${fn("forget_data_exports")}(ids uuid[])
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  with removed as (
+    delete from ${e} x where x.${ce("id")} = any (forget_data_exports.ids) and x.${ce("expiresAt")} < now() returning 1
+  )
+  select count(*)::integer from removed
+$$;
+
+revoke execute on function ${fn("expired_data_exports")}(integer) from public, anon, authenticated;
+revoke execute on function ${fn("forget_data_exports")}(uuid[]) from public, anon, authenticated;
+grant execute on function ${fn("expired_data_exports")}(integer) to service_role;
+grant execute on function ${fn("forget_data_exports")}(uuid[]) to service_role;
 revoke execute on function ${fn("data_lifecycle_tables")}() from public, anon, authenticated;
 revoke execute on function ${fn("request_data_export")}(text, ${id}) from public, anon;
 revoke execute on function ${fn("list_data_exports")}(${id}) from public, anon;
@@ -734,6 +950,8 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "cancel_organization_deletion", args: ["{id}"], returns: "jsonb" },
+    { name: "expired_data_exports", args: ["integer"], returns: "jsonb" },
+    { name: "forget_data_exports", args: ["uuid[]"], returns: "integer" },
     { name: "organization_deletion", args: ["{id}"], returns: "jsonb" },
     { name: "due_organization_deletions", args: ["integer"], returns: "jsonb" },
     { name: "purge_organization", args: ["{id}"], returns: "jsonb" },

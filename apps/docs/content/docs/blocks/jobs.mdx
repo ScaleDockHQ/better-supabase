@@ -36,6 +36,12 @@ export default defineConfig({
 });
 ```
 
+On the pgmq backend, the module's data file also runs `create extension if
+not exists pgmq`, so `better-supabase sql data` puts the extension in a
+migration even when the schema diff leaves it out (pg-delta can, because
+pgmq owns its own schema). Doctor warns about an extension no migration
+creates ([BS321](/docs/cli/doctor#bs321)).
+
 Run `better-supabase sql sync` after changing either option. On the table
 backend, completed and dead jobs stay in `job_messages` with `archived_at`
 set. `better_supabase.purge_job_archive(queue, older_than, batch,
@@ -108,6 +114,39 @@ await jobs.work(
 - `drain(queue, handler)` works the queue until it is empty, which suits cron
   and Edge Functions. `claim`, `complete`, `fail` and `extend` are available
   when you want to drive the queue yourself.
+
+### Queue health
+
+An admin page reads each queue's state with `stats`, pages through dead
+letters with `listDead`, and puts them back with `retryDead`:
+
+```ts
+const stats = await jobs.stats().orThrow();
+// { send_email: { ready, inFlight, delayed, dead, oldestAgeSeconds } }
+
+const dead = await jobs.listDead("send_email", { limit: 50 }).orThrow();
+// [{ id, payload, context, attempts, maxAttempts, lastError, enqueuedAt, diedAt }]
+const next = await jobs
+  .listDead("send_email", { limit: 50, before: dead.at(-1)?.id })
+  .orThrow();
+
+await jobs.retryDead("send_email", { ids: [dead[0]!.id] }).orThrow();
+await jobs.retryDead("send_email").orThrow(); // the newest 1000
+```
+
+| Field              | Counts                                                              |
+| ------------------ | ------------------------------------------------------------------- |
+| `ready`            | messages the next claim takes                                       |
+| `inFlight`         | messages a worker holds, or that wait out a retry backoff           |
+| `delayed`          | messages enqueued for later that no worker claimed yet              |
+| `dead`             | dead letters in the archive, until `purge_job_archive` removes them |
+| `oldestAgeSeconds` | the age of the oldest message that isn't done, null when none       |
+
+`stats` takes a list of queue names and defaults to every queue
+`createJobs` declared. `listDead` returns stored payloads without
+validating them, since the schema may have changed since. All three call
+`better_supabase.job_queue_stats`, `list_dead_jobs` and `retry_dead_jobs`,
+so they need a SQL connection.
 
 ### Actor and tenant
 
@@ -218,6 +257,82 @@ await jobs.unscheduleAll({ tenant: organizationId }).orThrow();
 Under pg_cron, `listSchedules` returns pg_cron's jobs with only the name and
 cron, and a schedule with a tenant returns an error.
 
+`ensureSchedules` keeps a whole set in step with a source of truth, such as
+the app's built-in schedules on deploy or a tenant's workflow settings after
+an edit. It writes every definition, removes the schedules under `prefix`
+(and `tenant`, when given) that the set no longer names, and returns both
+lists. Every name must start with the prefix, and every payload and cron is
+checked before anything is written. A definition whose cron and time zone
+didn't change keeps its next run, so a run that is due but not yet drained
+still happens and running it twice changes nothing.
+
+```ts
+const result = await jobs
+  .ensureSchedules(
+    workflows.map((workflow) => ({
+      name: `workflow:${workflow.id}`,
+      cron: workflow.cron,
+      queue: "run_workflow",
+      payload: { definitionId: workflow.id },
+      timeZone: workflow.timeZone,
+    })),
+    { prefix: "workflow:", tenant: organizationId },
+  )
+  .orThrow();
+// { scheduled: ["workflow:..."], removed: ["workflow:..."] }
+```
+
+Definitions take the same `timeZone`, `tenant` and `context` as `schedule`;
+one without a tenant gets the `tenant` option.
+
+#### Schedules from SQL
+
+Under the drain scheduler, a database trigger or function can schedule a job
+itself with `better_supabase.schedule_job`. Leave out `next_run`: the
+schedule is stored without one, and the next drain computes its first run
+in the schedule's time zone, counted from when it was written, so a run
+that falls between the write and the drain still happens. The app needs no
+job that copies rows into schedules: a trigger on the table that holds the
+cron keeps the schedule current, and the drain route runs it.
+
+```sql title="supabase/schemas/040_reminders.sql"
+create function public.schedule_reminder()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.schedule_job(
+    'reminder:' || new.id,
+    new.cron,
+    'send_reminder',
+    jsonb_build_object('id', new.id),
+    new.time_zone,
+    null,
+    new.organization_id::text
+  );
+  return null;
+end;
+$$;
+
+create trigger schedule_reminder
+  after insert or update of cron, time_zone on public.reminders
+  for each row execute function public.schedule_reminder();
+```
+
+Make the trigger function `security definer`, so a signed-in user's insert
+can write the schedule without access to `better_supabase`. Writing a
+schedule again with the same cron and time zone keeps its next run; a new
+cron or time zone clears it, and the next drain computes the first run of
+the new one. Call `better_supabase.unschedule_job('reminder:' || old.id)`
+from a delete trigger to remove it.
+
+`schedule_job` rejects a schedule that isn't five cron fields, a macro or an
+interval. A cron that passes that check but that the drain can't read (a
+field out of range) stays without a next run, and `listSchedules` shows its
+`nextRun` as null.
+
 #### External schedulers
 
 The drain scheduler needs no database extension: any scheduler that calls the
@@ -320,7 +435,8 @@ Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
 - there is no lease check on `complete`;
 - a failed job reappears when its lease ends (`retryIn` is ignored), and
   there's no heartbeat;
-- `dedupeKey` and `schedule` return `invalid_request`.
+- `dedupeKey`, `schedule`, `stats`, `listDead` and `retryDead` return
+  `invalid_request`.
 
 ## Idempotency keys
 
@@ -347,7 +463,9 @@ export const POST = (request: Request) =>
 | Handler throws or returns a 5xx                   | The key is released, so the client can retry           |
 
 The fingerprint is a SHA-256 of the method, path and body. Set
-`required: true` to reject requests that have no key.
+`required: true` to reject requests that have no key. The error responses
+are Problem Details; pass `problem` to answer in your app's error format
+instead (see [Problem Details](/docs/auth/problems#your-own-error-format)).
 
 ## Webhook inbox
 
@@ -374,6 +492,43 @@ await inbox.process(async (message) => {
 `verify` to use a provider's own scheme instead. `receive` answers `202` for
 a new message and `200` for a duplicate. A failed verification gets a
 Problem Details response.
+
+A failed message is retried with exponential backoff until `maxAttempts`
+(8 by default, set per source on `createInbox`), then marked dead. Each
+message stores the limit it arrived with. The handler sees `attempts` (1 on
+the first) and `maxAttempts`, so it can tell its last attempt, for example
+to notify someone before the message is given up:
+
+```ts
+const crm = createInbox(postgres.admin, {
+  source: "crm",
+  secrets,
+  maxAttempts: 3,
+});
+
+await crm.process(async (message) => {
+  const result = await syncContact(message.payload);
+  if (!result.ok && message.attempts === message.maxAttempts) {
+    await alertOwner(message, result.error);
+  }
+  return result;
+});
+```
+
+A message whose worker died during its last attempt is marked dead by the
+next `process` instead of running again.
+
+`process` runs until no message is ready. In a serverless function, pass
+`budgetMs` so a backlog can't outrun the function's maximum duration: it
+stops claiming once the budget is spent, finishes the messages it already
+claimed, and the next call picks up the rest. `batch` (10) and `lease` (300
+seconds) set how many messages one claim takes and how long they stay with
+the worker.
+
+```ts title="app/api/inbox/route.ts"
+export const GET = async () =>
+  Response.json(await inbox.process(handleMessage, { budgetMs: 50_000 }));
+```
 
 A webhook carries no session, so pick the identity in the handler. Look up
 the user and tenant the event belongs to (a Stripe customer id maps to an
@@ -450,4 +605,15 @@ export async function POST(request: Request) {
     ? new Response(null, { status: 202 })
     : new Response(null, { status: 500 });
 }
+```
+
+A source that only `store` fills, such as a chat SDK that verifies its own
+requests, needs neither `secrets` nor `verify`. Its `process`, `list` and
+`purge` work as usual, and `receive` throws a `TypeError`, so an unverified
+request is never stored:
+
+```ts
+const chat = createInbox(postgres.admin, { source: "chat" });
+
+await chat.store({ id: event.id, type: event.type, payload: event });
 ```

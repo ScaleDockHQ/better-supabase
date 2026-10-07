@@ -20,7 +20,9 @@ the same generator behind `supabase gen types typescript`, and writes:
    constants, typed constraint names, and the `schema` object;
 3. the runtime metadata next to it (`generated.meta.js`, with
    `generated.meta.d.ts`): tables, columns, relations with foreign key
-   actions, and functions. It is plain JavaScript typed as `SchemaMeta`, so
+   actions, and functions. Relations follow each foreign key to the table it
+   references; the copies PostgREST lists for views over that table are
+   left out, so adding a view never renames another table's relations. It is plain JavaScript typed as `SchemaMeta`, so
    TypeScript doesn't check a large object literal in every program that
    imports the main module. Each table and function is one line of JSON, which
    keeps the module small to load and a schema change visible per entry in a

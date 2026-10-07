@@ -43,8 +43,8 @@ function fakeClient(
 } {
   const calls: Call[] = [];
   const client: QueueRpcClient = {
-    schema: (schema) => ({
-      rpc: (fn, args) => {
+    schema: (schema: string) => ({
+      rpc: (fn: string, args: Readonly<Record<string, unknown>>) => {
         const call = { schema, fn, args };
         calls.push(call);
         return Promise.resolve({ data: respond(call), error: error(call) });
@@ -823,6 +823,56 @@ describe("schedules with the drain scheduler", () => {
     expect(String(advance!.values[2])).toMatch(/:00:00Z$/);
   });
 
+  it("computes the first run of a schedule written in SQL without one", async () => {
+    const pending = (
+      name: string,
+      schedule: string,
+      firstAfter: string | null,
+    ) => ({
+      job_name: name,
+      schedule,
+      timezone: "UTC",
+      queue: "reports",
+      payload: { day: "mon" },
+      next_run: null,
+      first_after: firstAfter,
+    });
+    const fake = fakeSql([
+      [
+        "claim_due_schedules",
+        [
+          pending("past", "0 * * * *", "2026-01-01T10:30:00Z"),
+          pending("future", "0 0 1 1 *", null),
+          pending("broken", "not a cron", "2026-01-01T10:30:00Z"),
+        ],
+      ],
+      ["enqueue_job", [{ id: 1 }]],
+      ["advance_schedule", [{ advanced: true }]],
+    ]);
+    expect(await createJobs(fake.sql, queues).runSchedules().orThrow()).toBe(1);
+    const calls = fake.calls.map((call) => [
+      /\.(\w+)\(/.exec(call.text)![1],
+      call.values,
+    ]);
+    expect(calls[1]).toEqual([
+      "advance_schedule",
+      ["future", expect.stringMatching(/-01-01T00:00:00Z$/)],
+    ]);
+    expect(fake.calls[1]!.text).toContain("advance_schedule($1, null, $2)");
+    expect(calls[2]![1]).toEqual([
+      "reports",
+      '{"day":"mon"}',
+      0,
+      5,
+      "schedule:past:2026-01-01T11:00:00Z",
+    ]);
+    expect((calls[3]![1] as unknown[]).slice(0, 2)).toEqual([
+      "past",
+      "2026-01-01T11:00:00Z",
+    ]);
+    expect(calls).toHaveLength(4);
+  });
+
   it("counts a schedule another drain advanced as not run", async () => {
     const fake = fakeSql([
       [
@@ -907,6 +957,112 @@ describe("schedules with the drain scheduler", () => {
         .unscheduleAll({ tenant: "t1" })
         .orThrow(),
     ).toBe(0);
+  });
+
+  it("ensures a named set of schedules under a prefix", async () => {
+    const listed = (name: string) => ({
+      job_name: name,
+      schedule: "0 * * * *",
+      timezone: "UTC",
+      queue: "reports",
+      tenant: "t1",
+      next_run: null,
+      last_run: null,
+      locked_until: null,
+      created_at: null,
+    });
+    const fake = fakeSql([
+      ["list_schedules", [listed("wf:keep"), listed("wf:stale")]],
+      ["unschedule_job", [{ done: true }]],
+    ]);
+    const jobs = createJobs(fake.sql, queues);
+    const result = await jobs
+      .ensureSchedules(
+        [
+          {
+            name: "wf:keep",
+            cron: "0 * * * *",
+            queue: "reports",
+            payload: { day: "mon" },
+          },
+          {
+            name: "wf:new",
+            cron: "0 9 * * *",
+            queue: "emails",
+            payload: { to: "a@example.com" },
+            timeZone: "Europe/Amsterdam",
+            tenant: "t2",
+          },
+        ],
+        { prefix: "wf:", tenant: "t1" },
+      )
+      .orThrow();
+    expect(result).toEqual({
+      scheduled: ["wf:keep", "wf:new"],
+      removed: ["wf:stale"],
+    });
+    const calls = fake.calls.map((call) => [
+      /\.(\w+)\(/.exec(call.text)![1],
+      call.values,
+    ]);
+    expect(calls[0]).toEqual(["list_schedules", ["wf:", "t1"]]);
+    expect(calls[1]![0]).toBe("schedule_job");
+    expect(calls[1]![1]).toEqual([
+      "wf:keep",
+      "0 * * * *",
+      "reports",
+      '{"day":"MON"}',
+      "UTC",
+      expect.any(String),
+      "t1",
+    ]);
+    expect((calls[2]![1] as unknown[]).at(-1)).toBe("t2");
+    expect(calls[3]).toEqual(["unschedule_job", ["wf:stale"]]);
+  });
+
+  it("checks the whole set before ensureSchedules writes anything", async () => {
+    const fake = fakeSql([]);
+    const jobs = createJobs(fake.sql, queues);
+    const ensure = (
+      definitions: Parameters<typeof jobs.ensureSchedules>[0],
+      prefix = "wf:",
+    ) => jobs.ensureSchedules(definitions, { prefix });
+    const good = {
+      name: "wf:a",
+      cron: "@daily",
+      queue: "reports",
+      payload: { day: "mon" },
+    } as const;
+    expect(await ensure([good], "")).toMatchObject({
+      error: { kind: "invalid_request", message: /non-empty prefix/ },
+    });
+    expect(await ensure([{ ...good, name: "other" }])).toMatchObject({
+      error: { message: 'Schedule "other" does not start with "wf:"' },
+    });
+    expect(await ensure([good, good])).toMatchObject({
+      error: { message: 'Schedule "wf:a" is defined twice' },
+    });
+    expect(
+      await ensure([good, { ...good, name: "wf:b", cron: "61 * * * *" }]),
+    ).toMatchObject({ error: { kind: "validation" } });
+    expect(
+      await ensure([
+        good,
+        { name: "wf:c", cron: "@daily", queue: "emails", payload: { to: "x" } },
+      ]),
+    ).toMatchObject({ error: { kind: "validation" } });
+    expect(fake.calls).toEqual([]);
+    expect(await ensure([])).toEqual({
+      ok: true,
+      error: null,
+      data: { scheduled: [], removed: [] },
+    });
+    const { client } = fakeClient(() => []);
+    expect(
+      await createJobs(client, queues).ensureSchedules([good], {
+        prefix: "wf:",
+      }),
+    ).toMatchObject({ error: { kind: "invalid_request" } });
   });
 
   it("can't list schedules over pgmq_public", async () => {
@@ -1063,6 +1219,143 @@ describe("drainRoute", () => {
       errors: 0,
     });
     expect(fake.calls).toEqual([]);
+  });
+});
+
+describe("queue health", () => {
+  it("reads stats per queue, lists dead letters and retries them", async () => {
+    const fake = fakeSql([
+      [
+        "job_queue_stats",
+        [
+          {
+            ready: "2",
+            in_flight: 1,
+            delayed: "0",
+            dead: "3",
+            oldest_age_seconds: "12.5",
+          },
+        ],
+      ],
+      [
+        "list_dead_jobs",
+        [
+          {
+            id: "9",
+            attempts: 5,
+            enqueued_at: "2026-01-01T00:00:00Z",
+            died_at: new Date("2026-01-01T01:00:00Z"),
+            message: {
+              payload: {
+                $bs: 1,
+                context: { tenant: "t1" },
+                payload: { to: "a@example.com" },
+              },
+              max_attempts: 5,
+              last_error: "boom",
+            },
+          },
+          {
+            id: 8,
+            attempts: 1,
+            enqueued_at: "2026-01-01T00:00:00Z",
+            died_at: null,
+            message: null,
+          },
+        ],
+      ],
+      ["retry_dead_jobs", [{ retried: 2 }]],
+    ]);
+    const jobs = createJobs(fake.sql, queues);
+    expect(await jobs.stats().orThrow()).toEqual({
+      emails: {
+        ready: 2,
+        inFlight: 1,
+        delayed: 0,
+        dead: 3,
+        oldestAgeSeconds: 12.5,
+      },
+      reports: {
+        ready: 2,
+        inFlight: 1,
+        delayed: 0,
+        dead: 3,
+        oldestAgeSeconds: 12.5,
+      },
+    });
+    expect(Object.keys(await jobs.stats(["emails"]).orThrow())).toEqual([
+      "emails",
+    ]);
+    const dead = await jobs
+      .listDead("emails", { limit: 5, before: 10 })
+      .orThrow();
+    expect(dead[0]).toMatchObject({
+      id: 9,
+      queue: "emails",
+      payload: { to: "a@example.com" },
+      context: { tenant: "t1" },
+      maxAttempts: 5,
+      lastError: "boom",
+    });
+    expect(dead[0]!.diedAt?.toString()).toBe("2026-01-01T01:00:00Z");
+    expect(dead[1]).toMatchObject({
+      id: 8,
+      payload: undefined,
+      maxAttempts: 5,
+      lastError: null,
+      diedAt: null,
+    });
+    await jobs.listDead("emails").orThrow();
+    expect(await jobs.retryDead("emails", { ids: [9, 8] }).orThrow()).toBe(2);
+    await jobs.retryDead("emails").orThrow();
+    const values = fake.calls.map((call) => call.values);
+    expect(values.slice(3)).toEqual([
+      ["emails", 5, 10],
+      ["emails", 100, null],
+      ["emails", [9, 8], 1000],
+      ["emails", null, 1000],
+    ]);
+    expect(await jobs.stats(["nope" as "emails"])).toMatchObject({
+      ok: false,
+    });
+  });
+
+  it("answers zeros for a queue with no row and refuses over pgmq_public", async () => {
+    const fake = fakeSql([
+      [
+        "job_queue_stats",
+        [
+          {
+            ready: 0,
+            in_flight: 0,
+            delayed: 0,
+            dead: 0,
+            oldest_age_seconds: null,
+          },
+        ],
+      ],
+    ]);
+    expect(
+      (await createJobs(fake.sql, queues).stats(["emails"]).orThrow()).emails,
+    ).toEqual({
+      ready: 0,
+      inFlight: 0,
+      delayed: 0,
+      dead: 0,
+      oldestAgeSeconds: null,
+    });
+    expect(
+      await createJobs(fakeSql([]).sql, queues).retryDead("emails").orThrow(),
+    ).toBe(0);
+    const { client } = fakeClient(() => []);
+    const remote = createJobs(client, queues);
+    for (const result of [
+      await remote.stats(),
+      await remote.listDead("emails"),
+      await remote.retryDead("emails"),
+    ]) {
+      expect(result).toMatchObject({ error: { kind: "invalid_request" } });
+    }
   });
 });
 
@@ -1686,10 +1979,20 @@ describe("createInbox", () => {
     });
   }
 
-  it("needs secrets or a verify function", () => {
-    expect(() => createInbox(fakeSql().sql, { source: "stripe" })).toThrow(
-      "createInbox needs `secrets` (Standard Webhooks) or `verify`",
+  it("stores events without secrets or verify, and refuses to receive", async () => {
+    const fake = fakeSql([["receive_webhook", [{ id: 3, duplicate: false }]]]);
+    const inbox = createInbox(fake.sql, { source: "chat" });
+    expect(
+      await inbox.store({ id: "e1", payload: { type: "message" } }).orThrow(),
+    ).toEqual({ id: 3, duplicate: false });
+    await expect(
+      inbox.receive(
+        new Request("https://api.test/hooks", { method: "POST", body: "{}" }),
+      ),
+    ).rejects.toThrow(
+      'The inbox for "chat" has no `secrets` or `verify`, so it only stores events through `store`',
     );
+    expect(fake.calls).toHaveLength(1);
   });
 
   it("answers 405 to anything but POST", async () => {
@@ -1721,7 +2024,7 @@ describe("createInbox", () => {
     expect(await response.json()).toEqual({ id: 5, duplicate: false });
     expect(fake.calls).toEqual([
       {
-        text: "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6)",
+        text: "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6, $7)",
         values: [
           "stripe",
           "msg_1",
@@ -1729,6 +2032,7 @@ describe("createInbox", () => {
           '{"type":"invoice.paid","amount":10}',
           '{"x-request-id":"r1"}',
           null,
+          8,
         ],
       },
     ]);
@@ -1848,6 +2152,7 @@ describe("createInbox", () => {
       '{"account":"t1","kind":"message"}',
       "{}",
       "t1",
+      8,
     ]);
     await inbox
       .store({ id: "d2", payload: {}, type: "message", tenant: "t2" })
@@ -1860,6 +2165,7 @@ describe("createInbox", () => {
     expect(fake.calls[2]!.values).toEqual(["t1", "chat", "dead", 5]);
     expect(listed[0]).toMatchObject({
       id: 9,
+      maxAttempts: 8,
       status: "dead",
       lastError: "boom",
       tenant: "t1",
@@ -1991,6 +2297,7 @@ describe("createInbox", () => {
       payload: { n: 1 },
       headers: { "x-request-id": "r1" },
       attempts: 1,
+      maxAttempts: 8,
       receivedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),
       tenant: null,
       progress: {},
@@ -2007,6 +2314,77 @@ describe("createInbox", () => {
       ["fail_webhook", [4, "w1", "The handler failed"]],
       ["claim_webhooks", ["stripe", "w1", 2, "5 minutes"]],
     ]);
+  });
+
+  it("stores the source's maxAttempts and hands the handler its last attempt", async () => {
+    const fake = fakeSql([
+      ["receive_webhook", [{ id: 1, duplicate: false }]],
+      [
+        "claim_webhooks",
+        sequence([
+          {
+            id: 1,
+            source: "crm",
+            message_id: "m1",
+            event_type: null,
+            payload: {},
+            headers: {},
+            attempts: 3,
+            max_attempts: 3,
+            received_at: "2026-01-01T00:00:00Z",
+          },
+        ]),
+      ],
+    ]);
+    const inbox = createInbox(fake.sql, { source: "crm", maxAttempts: 3 });
+    await inbox.store({ id: "m1", payload: {} }).orThrow();
+    expect(fake.calls[0]!.values[6]).toBe(3);
+    const last: boolean[] = [];
+    await inbox.process((message) => {
+      last.push(message.attempts === message.maxAttempts);
+    });
+    expect(last).toEqual([true]);
+    for (const maxAttempts of [0, 1.5]) {
+      expect(() =>
+        createInbox(fake.sql, { source: "crm", maxAttempts }),
+      ).toThrow(/maxAttempts must be a positive integer/);
+    }
+  });
+
+  it("stops claiming once the budget is spent, finishing claimed messages", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const fake = fakeSql([
+      [
+        "claim_webhooks",
+        [
+          {
+            id: 1,
+            source: "crm",
+            message_id: "m1",
+            event_type: null,
+            payload: {},
+            headers: {},
+            attempts: 1,
+            received_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      ],
+    ]);
+    const inbox = createInbox(fake.sql, { source: "crm" });
+    const result = await inbox.process(
+      () => {
+        vi.setSystemTime(Date.now() + 600);
+      },
+      { budgetMs: 1000 },
+    );
+    expect(result).toEqual({ succeeded: 2, failed: 0 });
+    expect(
+      fake.calls.filter((call) => call.text.includes("claim_webhooks")),
+    ).toHaveLength(2);
+    expect(await inbox.process(() => undefined, { budgetMs: 0 })).toEqual({
+      succeeded: 0,
+      failed: 0,
+    });
   });
 
   it("claims ten messages for 300 seconds with a generated worker id by default", async () => {

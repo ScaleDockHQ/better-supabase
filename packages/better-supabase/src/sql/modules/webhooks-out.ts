@@ -26,6 +26,7 @@ const NAMES: ModuleNames = {
   tables: {
     endpoints: {
       name: "webhook_endpoints",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -65,6 +66,7 @@ const NAMES: ModuleNames = {
     },
     deliveries: {
       name: "webhook_deliveries",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",

@@ -28,9 +28,19 @@ Every signed-in user can export their own data.
 
 ## Tables
 
-The module knows the tables of the other modules: memberships, profiles,
-settings, comments and activity, attachments, API keys, usage, notifications
-and the audit trail. Add your own tables with their user column (for user
+The module reads the tables of every other installed module from the module
+registry: each module declares which of its tables hold a user's rows, which
+hold a tenant's rows, and which the purge keeps. That covers memberships and
+permission overrides, profiles, settings, comments and activity,
+attachments, API keys, usage counters, events, quotas and history,
+notifications with their deliveries, subscriptions and preferences,
+onboarding progress, flag overrides, invitations, billing customers, SSO
+domains, providers and SCIM rows, support sessions, invite codes, webhook
+endpoints and deliveries, announcement dismissals, waitlist entries and the
+audit trail. A module added in a later release joins exports and purges
+when you run `sql sync`, and a table you map to another name in
+`sql.modules.<name>.tables` is read under that name. Webhook secrets and the
+module's own export and deletion records stay out. Add your own tables with their user column (for user
 exports) and tenant column (for organization exports and the purge):
 
 ```ts title="better-supabase.config.ts"
@@ -57,7 +67,33 @@ export default defineConfig({
 retain. The audit trail is never purged; its
 [retention](/docs/blocks/audit) removes old events.
 
+A schema with many tenant tables doesn't need a list. `autoTables` adds every
+table in its schemas that has the tenant column (and, with `user`, the user
+column), read from the catalog when an export or a purge runs, so a new table
+is covered without a config change. `tables` entries still win for the tables
+they name, and `exclude` takes `schema.table` names or `*` globs:
+
+```ts
+options: {
+  autoTables: {
+    schemas: ["public"], // default
+    tenant: "organization_id", // default
+    user: "created_by",
+    exclude: ["public.*_archive", "public.invoices"],
+    purge: true,
+  },
+  tables: { "public.invoices": { tenant: "organization_id", purge: false } },
+},
+```
+
+`tables: "auto"` is short for `autoTables: {}`.
+
 ## Exports
+
+`createDataExporter({ format: "csv" })` writes one CSV file per table instead
+of NDJSON (`{id}/{schema.table}.csv`), with a header row, nested values as
+JSON and text that starts like a formula prefixed with `'`, for customers who
+open exports in a spreadsheet.
 
 ```ts title="app/settings/data/actions.ts"
 "use server";
@@ -107,6 +143,12 @@ done. `lifecycle.download(id)` then returns a signed URL per file. The
 bucket's policy serves the files only to the requester (or members with
 `organization.export` for an organization export) until `expires_at`.
 
+Expired exports stay in Storage until something removes them. Run
+`purger.purgeExports()` from the same cron job as the purge (a
+service-role purger with `storage`): it removes the files of exports past
+`expires_at` (`expired_data_exports`), then their rows
+(`forget_data_exports`), and returns how many it removed.
+
 ## Deleting an organization
 
 ```ts
@@ -123,6 +165,11 @@ organizations module, or the `sql.modules.access.disabled.tenant` column.
 Disabled tenants get no permissions and no membership claims, so members
 lose access at once. `grace` takes an interval or a `Temporal.Duration`
 and defaults to the `grace` option.
+
+With `sql.modules.data-lifecycle.permissions.deletePlatform` set to a
+platform permission (`is_platform`), platform staff can request and cancel a
+deletion for any organization without the service role, such as from an
+admin console.
 
 The requester or an owner can cancel until the purge runs; cancelling
 enables the tenant again, unless it was disabled before the request.
@@ -152,18 +199,41 @@ await purger.purgeDue({ limit: 20 }).orThrow();
 
 For each organization it cancels the Stripe subscription
 (`billing.cancelSubscription`, when you pass `billing`), removes every
-object under `{organizationId}/` in `buckets`, then calls
+object under the organization's prefix in `buckets`, then calls
 `purge_organization`. That function runs your
 `public.on_organization_purge(tenant)` hook when it exists, deletes the
 tenant's rows from each purged table (your tables first), deletes the
-organization and writes `organization.purged`. It returns the deleted row
-count per table. A table with a foreign key to the organization without
-`on delete cascade` stops the purge; the error says which.
+tenant's own row last and writes `organization.purged`. It returns the
+deleted row count per table. A table whose rows another table still
+references through a restricting foreign key, or whose delete makes an
+`on delete set null` break a check on another table, waits for a later pass,
+so the order of the tables doesn't matter and your foreign keys can stay;
+when no pass makes progress, the purge stops with `ORGANIZATION_PURGE_BLOCKED`
+and names the tables.
+
+The tenant row is the organizations module's (managed or adopted), or the
+row of the table `sql.modules.access.disabled.tenant` names, or the one in
+`options.tenantRow` (`"schema.table.column"`, `false` to keep it), so an
+adopted tenant table needs no `on_organization_purge` hook to go.
+
+A bucket name in `buckets` clears `{organizationId}/`. For buckets laid out
+another way, pass `{ bucket, path }` with a template, or a function that
+returns the prefixes. Each prefix must contain the organization id, so a
+purge never clears another tenant's objects:
+
+```ts
+buckets: [
+  "attachments",
+  { bucket: "files", path: "orgs/{organizationId}/files" },
+  { bucket: "media", path: (id) => [`public/${id}`, `private/${id}`] },
+],
+```
 
 ## Events
 
 With the outbox installed, the module writes these events with the tenant as
-the partition key:
+the partition key, except `organization.purged`, which has none because the
+tenant is gone by then (its id stays in `organizationId`):
 
 | Event                             | When                               | Data                                                             |
 | --------------------------------- | ---------------------------------- | ---------------------------------------------------------------- |

@@ -14,6 +14,7 @@ import { rawError } from "../../core/block-transport.ts";
 import { dbError, mapDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { type BlockTemporalOptions, applyTemporal } from "../shared.ts";
 
 /**
  * Organization columns by database name: `name`, `slug` and the columns in
@@ -86,7 +87,7 @@ export interface SwitchResult {
   readonly refresh: boolean;
 }
 
-export interface OrganizationsOptions {
+export interface OrganizationsOptions extends BlockTemporalOptions {
   /** `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /**
@@ -168,6 +169,11 @@ export interface Organizations {
   acceptInvitation(
     token: string,
   ): AsyncResult<{ readonly organizationId: string | null }>;
+  acceptInvitationById(
+    invitationId: string,
+  ): AsyncResult<{ readonly organizationId: string | null }>;
+  declineInvitationById(invitationId: string): AsyncResult<boolean>;
+  myInvitations(): AsyncResult<readonly Invitation[]>;
 }
 
 const DEFAULT_SCHEMA = "better_supabase";
@@ -233,6 +239,7 @@ function recordOf(value: unknown, fn: string): Record<string, unknown> {
 export function createOrganizations(
   options: OrganizationsOptions,
 ): Organizations {
+  applyTemporal(options);
   const { transport } = options;
   const schemaOf = (module: "organizations" | "invitations"): string =>
     typeof options.schema === "string"
@@ -319,6 +326,19 @@ export function createOrganizations(
     });
     await options.onInvite?.(result);
     return result;
+  };
+
+  const accepted = (
+    value: unknown,
+  ): { readonly organizationId: string | null } => {
+    const organizationId = optionalText(value);
+    if (organizationId !== null) {
+      organizationEvent("organization.member_added", {
+        organizationId,
+        ...(options.actorId ? { userId: options.actorId } : {}),
+      });
+    }
+    return { organizationId };
   };
 
   return {
@@ -521,16 +541,30 @@ export function createOrganizations(
       );
     },
     acceptInvitation(token) {
-      return run("invitations", "accept_invitation", { token }, (value) => {
-        const organizationId = optionalText(value);
-        if (organizationId !== null) {
-          organizationEvent("organization.member_added", {
-            organizationId,
-            ...(options.actorId ? { userId: options.actorId } : {}),
-          });
-        }
-        return { organizationId };
-      });
+      return run("invitations", "accept_invitation", { token }, accepted);
+    },
+    acceptInvitationById(invitationId) {
+      return run(
+        "invitations",
+        "accept_invitation_by_id",
+        { invitation_id: invitationId },
+        accepted,
+      );
+    },
+    myInvitations() {
+      return run("invitations", "my_invitations", {}, (value) =>
+        (Array.isArray(value) ? value.filter(isRecord) : []).map(
+          invitationFrom,
+        ),
+      );
+    },
+    declineInvitationById(invitationId) {
+      return run(
+        "invitations",
+        "decline_invitation_by_id",
+        { invitation_id: invitationId },
+        (value) => value === true,
+      );
     },
   };
 }

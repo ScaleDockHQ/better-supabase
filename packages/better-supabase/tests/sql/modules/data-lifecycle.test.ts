@@ -18,6 +18,31 @@ const sqlOf = (
     .join("\n");
 
 describe("data-lifecycle module", () => {
+  it("checks the owner through the tenant module's role lookup", () => {
+    const sql = sqlOf(["organizations", "data-lifecycle"]);
+    expect(sql).toContain(
+      `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = 'owner', false)`,
+    );
+    const through = renderModules(["data-lifecycle"], {
+      modules: {
+        tenant: {
+          mode: "adopt",
+          tables: { memberships: "public.members" },
+          columns: { memberships: { role: "role_id" } },
+          options: {
+            roleThrough: { table: "public.roles", id: "id", column: "name" },
+          },
+        },
+      },
+    })
+      .filter((file) => file.module === "tenant")
+      .map((file) => file.contents)
+      .join("\n");
+    expect(through).toMatch(
+      /organization_member_role[\s\S]*?"public"\."roles"/,
+    );
+  });
+
   it("lists the tables of installed modules and creates the exports bucket", () => {
     const sql = sqlOf(["data-lifecycle"]);
     expect(sql).toContain(
@@ -90,6 +115,35 @@ describe("data-lifecycle module", () => {
     expect(sql).toMatch(/emit_event\('data_export\.ready'/);
   });
 
+  it("reads the tables from each module's lifecycle declarations", () => {
+    const sql = sqlOf([
+      "usage",
+      "sso",
+      "webhooks-out",
+      "notifications",
+      "data-lifecycle",
+    ]);
+    for (const row of [
+      `('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'organization_id', true)`,
+      `('user', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'actor_id', true)`,
+      `('organization', 'better_supabase.organization_sso_providers', '"better_supabase"."organization_sso_providers"', 'organization_id', true)`,
+      `('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true)`,
+      `('user', 'better_supabase.notification_preferences', '"better_supabase"."notification_preferences"', 'user_id', true)`,
+    ]) {
+      expect(sql).toContain(row);
+    }
+    expect(sql).not.toContain("'better_supabase.webhook_endpoint_secrets'");
+    expect(sql).not.toContain("'better_supabase.data_exports'");
+    expect(
+      renderModules(["usage", "data-lifecycle"], {
+        modules: { usage: { tables: { history: "app.usage_log" } } },
+      })
+        .filter((file) => file.module === "data-lifecycle")
+        .map((file) => file.contents)
+        .join("\n"),
+    ).toContain(`'app.usage_log', '"app"."usage_log"', 'organization_id'`);
+  });
+
   it("disables the tenant through access.disabled.tenant when set", () => {
     const sql = sqlOf(["data-lifecycle"], undefined, {
       access: { disabled: { tenant: "public.teams.archived_at" } },
@@ -109,5 +163,59 @@ describe("data-lifecycle module", () => {
     [{ tables: { projects: {} } }, /needs a user or a tenant column/],
   ])("rejects %j", (options, message) => {
     expect(() => sqlOf(["data-lifecycle"], options)).toThrow(message);
+  });
+
+  it("finds tables by column with autoTables, minus the explicit and excluded ones", () => {
+    const sql = sqlOf(["data-lifecycle"], {
+      tables: { "app.notes": { tenant: "team_id" } },
+      autoTables: {
+        schemas: ["public", "app"],
+        user: "owner_id",
+        exclude: ["public.*_log"],
+      },
+    });
+    expect(sql).toContain("n.nspname in ('public', 'app')");
+    expect(sql).toContain("a.attname = 'organization_id'");
+    expect(sql).toContain("a.attname = 'owner_id'");
+    expect(sql).toContain(
+      "not in ('better_supabase.memberships', 'better_supabase.permission_overrides', 'app.notes')",
+    );
+    expect(sql).toContain("like 'public.%\\_log'");
+    expect(sql).toMatch(/returns table \(subject text[^$]*\nstable\n/);
+    expect(sqlOf(["data-lifecycle"])).toMatch(/\nimmutable\n/);
+    expect(sqlOf(["data-lifecycle"], { tables: "auto" })).toContain(
+      "a.attname = 'organization_id'",
+    );
+    expect(() =>
+      sqlOf(["data-lifecycle"], { autoTables: { schemas: ["Bad Schema"] } }),
+    ).toThrow(/is not a schema name/);
+    expect(() =>
+      sqlOf(["data-lifecycle"], { autoTables: { tenant: 1 } }),
+    ).toThrow(/lowercase column name/);
+    expect(() => sqlOf(["data-lifecycle"], { autoTables: [] })).toThrow(
+      /must be an object/,
+    );
+    expect(() =>
+      sqlOf(["data-lifecycle"], { autoTables: { exclude: "x" } }),
+    ).toThrow(/must be a list/);
+  });
+
+  it("purges an adopted organization row and lets platform staff request deletion", () => {
+    const sql = sqlOf(["organizations", "data-lifecycle"], undefined, {
+      organizations: {
+        mode: "adopt",
+        tables: { organizations: "public.teams" },
+      },
+      "data-lifecycle": {
+        permissions: { deletePlatform: "platform.teams.delete" },
+      },
+    });
+    expect(sql).toContain(
+      `delete from "public"."teams" where "id" = purge_organization.tenant;`,
+    );
+    expect(sql).toContain(
+      "not coalesce(better_supabase.is_platform('platform.teams.delete'), false)",
+    );
+    expect(sql).toContain("ORGANIZATION_PURGE_BLOCKED");
   });
 });

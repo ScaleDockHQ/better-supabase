@@ -761,6 +761,150 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
+  it("checks a platform invitation's inviter, not the invitee, and accepts or declines by id", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const schema = `bs_pdbyid_${USERS.owner.slice(0, 8)}`;
+    const support = "00000000-0000-4000-8000-00000000e001";
+    const organization = crypto.randomUUID();
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "admin", "member", "outsider"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      await client.query(`
+        create schema ${schema};
+        create table ${schema}.team_members (
+          organization_id uuid not null,
+          user_id uuid not null,
+          role text not null,
+          created_at timestamptz not null default now(),
+          primary key (organization_id, user_id)
+        );
+        insert into ${schema}.team_members (organization_id, user_id, role) values
+          ('${organization}', '${USERS.owner}', 'owner');
+        create table ${schema}.app_roles (id uuid primary key, key text not null unique);
+        insert into ${schema}.app_roles values ('${support}', 'support');
+        create table ${schema}.user_roles (
+          user_id uuid not null,
+          role_id uuid not null references ${schema}.app_roles (id),
+          primary key (user_id, role_id)
+        );
+        create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+          language sql stable as $$
+            select m.organization_id from ${schema}.team_members m
+            where m.user_id = auth.uid() and m.role = 'owner' $$;
+        create function ${schema}.permitted_organization_ids_for(p_user uuid, p_grant text) returns setof uuid
+          language sql stable as $$
+            select m.organization_id from ${schema}.team_members m
+            where m.user_id = p_user and m.role = 'owner' $$;
+        create function ${schema}.permdock_has(permission text) returns boolean
+          language sql stable as $$ select auth.uid() = '${USERS.owner}' $$;
+        create function ${schema}.permdock_has_for(p_user uuid, p_grant text) returns boolean
+          language sql stable as $$ select p_user = '${USERS.owner}' $$;
+        create function ${schema}.caller_can_assign(role text) returns boolean
+          language sql stable as $$ select auth.uid() = '${USERS.owner}' $$;
+        create function ${schema}.permdock_can_assign(p_role text, p_scope_id text) returns boolean
+          language sql stable as $$ select true $$;
+        create function ${schema}.permdock_can_assign_for(p_user uuid, p_role text, p_scope_id text) returns boolean
+          language sql stable as $$ select p_user = '${USERS.owner}' $$;
+      `);
+      const layout: ModuleLayout = {
+        modules: {
+          access: {
+            model: "permdock",
+            permdock: { schema, scope: "organization", forUser: true },
+          },
+          tenant: {
+            schema,
+            mode: "adopt",
+            tables: { memberships: `${schema}.team_members` },
+            columns: { memberships: { updatedAt: null, lastUsedAt: null } },
+          },
+          invitations: {
+            schema,
+            options: {
+              platformRoles: {
+                table: `${schema}.user_roles`,
+                user: "user_id",
+                role: "role_id",
+                through: {
+                  table: `${schema}.app_roles`,
+                  id: "id",
+                  column: "key",
+                },
+                canAssign: `${schema}.caller_can_assign({role})`,
+              },
+            },
+          },
+        },
+      };
+      for (const file of renderModules(["invitations"], layout))
+        await client.query(file.contents);
+
+      await s.as("owner");
+      const platform = await s.value<{ id: string }>(
+        `${schema}.invite_member(null, $1, 'support')`,
+        [email("member")],
+      );
+      const tenant = await s.value<{ id: string }>(
+        `${schema}.invite_member($1, $2, 'member')`,
+        [organization, email("member")],
+      );
+      const declined = await s.value<{ id: string }>(
+        `${schema}.invite_member($1, $2, 'member')`,
+        [organization, email("admin")],
+      );
+      await s.as("outsider");
+      expect(
+        await s.hint(`${schema}.accept_invitation_by_id($1)`, [platform.id]),
+      ).toBe("INVITATION_EMAIL_MISMATCH");
+      expect(
+        await s.value(`${schema}.decline_invitation_by_id($1)`, [declined.id]),
+      ).toBe(false);
+      expect(await s.value(`${schema}.my_invitations()`)).toEqual([]);
+      await s.as("member");
+      const inbox = await s.value<Record<string, unknown>[]>(
+        `${schema}.my_invitations()`,
+      );
+      expect(new Set(inbox.map((entry) => entry["id"]))).toEqual(
+        new Set([platform.id, tenant.id]),
+      );
+      expect(inbox.every((entry) => !("token" in entry))).toBe(true);
+      expect(inbox.find((entry) => entry["id"] === tenant.id)).toMatchObject({
+        tenant: organization,
+        role: "member",
+        email: email("member"),
+      });
+      expect(
+        await s.value(`${schema}.accept_invitation_by_id($1)`, [platform.id]),
+      ).toBeNull();
+      expect(
+        await s.value(
+          `(select role_id::text from ${schema}.user_roles where user_id = $1)`,
+          [USERS.member],
+        ),
+      ).toBe(support);
+      expect(
+        await s.value(`${schema}.accept_invitation_by_id($1)`, [tenant.id]),
+      ).toBe(organization);
+      await s.as("admin");
+      expect(
+        await s.value(`${schema}.decline_invitation_by_id($1)`, [declined.id]),
+      ).toBe(true);
+      expect(
+        await s.hint(`${schema}.accept_invitation_by_id($1)`, [declined.id]),
+      ).toBe("INVITATION_INVALID");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("checks the inviter again at accept through PermDock's _for helpers", async () => {
     const client = await pool.connect();
     const s = new Session(client);

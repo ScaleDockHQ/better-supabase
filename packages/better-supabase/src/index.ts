@@ -166,7 +166,9 @@ export {
   toProblem,
 } from "./core/problem.ts";
 export type {
+  BlockProblemOptions,
   ProblemDetails,
+  ProblemFormat,
   ProblemOptions,
   ProblemResponseOptions,
 } from "./core/problem.ts";

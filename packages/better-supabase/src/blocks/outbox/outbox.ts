@@ -1,11 +1,22 @@
+import type { BlockTransport } from "../../core/block-transport.ts";
 import type { CloudEvent, EventSink } from "../../events/index.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 
 import { type DbError, dbError } from "../../core/errors.ts";
-import { problemResponse } from "../../core/problem.ts";
+import {
+  type BlockProblemOptions,
+  problemResponse,
+} from "../../core/problem.ts";
 import { type AsyncResult, toDbError } from "../../core/result.ts";
 import { sqlIdent } from "../../core/template.ts";
-import { asDbError, run, toInstant, workerId } from "../shared.ts";
+import {
+  asDbError,
+  run,
+  toInstant,
+  workerId,
+  type BlockTemporalOptions,
+  applyTemporal,
+} from "../shared.ts";
 import { verifySharedSecret } from "../webhooks/verify.ts";
 
 // ---------------------------------------------------------------------------
@@ -35,7 +46,7 @@ export interface EmitOptions {
   readonly source?: string;
 }
 
-export interface OutboxOptions {
+export interface OutboxOptions extends BlockTemporalOptions {
   /** The schema of the `outbox` module. Defaults to `better_supabase`. */
   readonly schema?: string;
   /** CloudEvents `source` of the relayed events, e.g. `https://crm.example.com`. */
@@ -68,11 +79,18 @@ export interface RelayResult {
   readonly error?: DbError;
 }
 
-export interface OutboxRouteOptions extends Omit<RelayOptions, "owner"> {
+/**
+ * Takes a batch of outbox rows, with the actor and tenant that CloudEvents
+ * leave out. Throwing leaves the batch for the next run.
+ */
+export type OutboxHandler = (events: readonly OutboxEvent[]) => unknown;
+
+export interface OutboxRouteOptions
+  extends Omit<RelayOptions, "owner">, BlockProblemOptions {
   /** The bearer secret, such as `process.env.CRON_SECRET`. */
   readonly secret: string | undefined;
-  /** Consumer name to the sink its events go to. */
-  readonly consumers: Readonly<Record<string, EventSink>>;
+  /** Consumer name to the sink its events go to, or a handler that takes the rows. */
+  readonly consumers: Readonly<Record<string, EventSink | OutboxHandler>>;
   readonly onError?: (error: DbError, consumer: string) => void;
 }
 
@@ -108,6 +126,16 @@ export interface Outbox {
   relay(
     consumer: string,
     sink: EventSink,
+    options?: RelayOptions,
+  ): Promise<RelayResult>;
+  /**
+   * Like `relay`, but hands `handler` the outbox rows themselves, with
+   * `actorId`, `tenant` and `key`, for consumers inside the app (search
+   * indexing, notifications) that need the actor.
+   */
+  consume(
+    consumer: string,
+    handler: OutboxHandler,
     options?: RelayOptions,
   ): Promise<RelayResult>;
   /** A `GET`/`POST` handler for a cron that relays every consumer in turn. */
@@ -192,9 +220,46 @@ export function outboxCloudEvent(
   };
 }
 
-export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
-  const schema = sqlIdent(options.schema ?? "better_supabase");
+/** The outbox functions' argument names, for calls through a `BlockTransport`. */
+const PARAMS: Readonly<Record<string, readonly string[]>> = {
+  emit_event: ["event_type", "payload", "subject", "tenant", "key", "source"],
+  outbox_register: ["consumer", "types", "from_start"],
+  outbox_unregister: ["consumer"],
+  outbox_claim: ["consumer", "owner", "max_events", "lease"],
+  outbox_ack: ["consumer", "owner", "upto"],
+  outbox_history: ["subject", "event_type", "after", "max_events"],
+  purge_outbox: ["older_than", "batch"],
+};
+
+const isTransport = (
+  source: SqlClient | BlockTransport,
+): source is BlockTransport => "call" in source;
+
+/**
+ * The outbox over a server connection (`SqlClient`), or over a
+ * `BlockTransport` such as `rpcTransport(serviceClient, { schema: "api" })`
+ * for apps that reach the database only through the Data API. Over a
+ * transport, `emit` writes in its own transaction.
+ */
+export function createOutbox(
+  source: SqlClient | BlockTransport,
+  options: OutboxOptions,
+): Outbox {
+  applyTemporal(options);
+  const name = options.schema ?? "better_supabase";
+  const schema = sqlIdent(name);
+  const transport = isTransport(source) ? source : undefined;
   const call = async (fn: string, args: unknown[]): Promise<unknown> => {
+    if (isTransport(source)) {
+      const names = PARAMS[fn] ?? [];
+      const value = await source.call(
+        name,
+        fn,
+        Object.fromEntries(names.map((param, index) => [param, args[index]])),
+      );
+      return value ?? null;
+    }
+    const sql = source;
     const params = args.map((_, index) => `$${String(index + 1)}`).join(", ");
     const [row] = await sql.queryRaw<{ value: unknown }>(
       `select ${schema}.${sqlIdent(fn)}(${params}) as value`,
@@ -203,9 +268,14 @@ export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
     return row?.value ?? null;
   };
 
+  const toSink =
+    (sink: EventSink): OutboxHandler =>
+    (events) =>
+      sink.send(events.map((event) => outboxCloudEvent(event, options)));
+
   async function relay(
     consumer: string,
-    sink: EventSink,
+    handler: OutboxHandler,
     relayOptions: RelayOptions = {},
     deadline?: number,
   ): Promise<RelayResult> {
@@ -233,9 +303,7 @@ export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
         break;
       }
       try {
-        await sink.send(
-          events.map((event) => outboxCloudEvent(event, options)),
-        );
+        await handler(events);
       } catch (cause) {
         await call("outbox_ack", [consumer, owner, null]).catch(() => null);
         return { delivered, error: toDbError(cause) };
@@ -257,7 +325,7 @@ export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
         String(
           await call("emit_event", [
             type,
-            JSON.stringify(payload),
+            transport ? payload : JSON.stringify(payload),
             emitOptions.subject ?? null,
             emitOptions.tenant ?? null,
             emitOptions.key ?? null,
@@ -278,7 +346,9 @@ export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
     unregister: (consumer) =>
       run(async () => (await call("outbox_unregister", [consumer])) === true),
     relay: (consumer, sink, relayOptions) =>
-      relay(consumer, sink, relayOptions),
+      relay(consumer, toSink(sink), relayOptions),
+    consume: (consumer, handler, relayOptions) =>
+      relay(consumer, handler, relayOptions),
     relayRoute(routeOptions) {
       const secret = routeOptions.secret;
       if (!secret) {
@@ -297,14 +367,19 @@ export function createOutbox(sql: SqlClient, options: OutboxOptions): Outbox {
         if (!verifySharedSecret(request, secret)) {
           return problemResponse(
             dbError("unauthorized", "The relay route needs its bearer secret"),
-            { instance },
+            { instance, format: routeOptions.problem },
           );
         }
         const deadline = Date.now() + (routeOptions.budgetMs ?? 50_000);
         const results: Record<string, RelayResult> = {};
         for (const [consumer, sink] of Object.entries(routeOptions.consumers)) {
           if (Date.now() >= deadline) break;
-          const result = await relay(consumer, sink, routeOptions, deadline);
+          const result = await relay(
+            consumer,
+            typeof sink === "function" ? sink : toSink(sink),
+            routeOptions,
+            deadline,
+          );
           if (result.error) routeOptions.onError?.(result.error, consumer);
           results[consumer] = result;
         }

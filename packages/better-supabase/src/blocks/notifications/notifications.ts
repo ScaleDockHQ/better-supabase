@@ -18,6 +18,7 @@ import { dbError, mapDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { type BlockTemporalOptions, applyTemporal } from "../shared.ts";
 
 /** Notification type to the Standard Schema of its `data`. */
 export type NotificationTypes = Readonly<Record<string, StandardSchemaV1>>;
@@ -127,7 +128,7 @@ export interface Rendered<
 export interface NotificationsOptions<
   K extends NotificationTypes,
   H = undefined,
-> {
+> extends BlockTemporalOptions {
   /** `sqlTransport(postgres.asUser(claims))`, or over `postgres.admin` for the service. */
   readonly transport: BlockTransport;
   /** Each type's `data` schema: `send` validates against it. */
@@ -274,6 +275,7 @@ export function createNotifications<
   const K extends NotificationTypes,
   H = undefined,
 >(options: NotificationsOptions<K, H>): Notifications<K> {
+  applyTemporal(options);
   const { transport } = options;
   const schema = options.schema ?? DEFAULT_SCHEMA;
   const mappers = options.errorMappers ?? [];

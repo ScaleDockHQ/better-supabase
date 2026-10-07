@@ -1,4 +1,12 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -44,6 +52,7 @@ describe("moduleLayout", () => {
       "/p",
     );
     const layout = moduleLayout(config, "tests/sql");
+    const all = ["select", "insert", "update", "delete"];
     expect(layout.grants).toEqual([
       { table: "public.posts", role: "anon", privileges: ["select"] },
       {
@@ -51,9 +60,12 @@ describe("moduleLayout", () => {
         role: "authenticated",
         privileges: ["select", "insert"],
       },
+      { table: "public.posts", role: "service_role", privileges: all },
       { table: "public.notes", role: "anon", privileges: [] },
       { table: "public.notes", role: "authenticated", privileges: ["select"] },
+      { table: "public.notes", role: "service_role", privileges: all },
     ]);
+    expect(layout.functionGrants).toEqual([]);
     expect(layout.jsonSchemas).toEqual([
       { table: "public.posts", column: "meta", schema: { type: "object" } },
     ]);
@@ -107,6 +119,149 @@ describe("runSql", () => {
       error: `Name one module: ${names}`,
     });
     expect((await sql(["print", "nope"])).code).toBe(2);
+  });
+
+  it("adds a module next to the ones sql.modules lists", async () => {
+    const config: BetterSupabaseConfig = {
+      sql: { modules: ["organizations"] },
+    };
+    const added = await sql(["add", "billing"], config);
+    expect(added.output).toContain("(billing)");
+    expect(added.output).not.toContain("(organizations)");
+    const path = /Wrote (supabase\/schemas\/\S+) \(billing\)/.exec(
+      added.output ?? "",
+    )?.[1];
+    const billing = await readFile(join(root, path ?? "missing"), "utf8");
+    expect(billing).toContain("billing_customers_tenant_fkey");
+  });
+
+  it("writes and checks the topic policies of realtime.policies", async () => {
+    const realtime = resolve(
+      import.meta.dirname,
+      "../../../src/realtime/index.ts",
+    );
+    await writeFile(
+      join(root, "topics.ts"),
+      `import { defineTopic } from ${JSON.stringify(realtime)};
+export const rooms = defineTopic("room:{roomId}", { send: true });
+export const boards = defineTopic("board:{boardId}");
+export const notATopic = { template: "x" };
+`,
+    );
+    const config: BetterSupabaseConfig = {
+      realtime: {
+        policies: {
+          from: ["topics.ts"],
+          output: "supabase/schemas/905_topics.sql",
+        },
+      },
+    };
+    expect((await sql(["sync"], config)).output).toBe(
+      "Wrote supabase/schemas/905_topics.sql (topics)",
+    );
+    const written = await readFile(
+      join(root, "supabase/schemas/905_topics.sql"),
+      "utf8",
+    );
+    expect(written.indexOf("topic board:{boardId}")).toBeLessThan(
+      written.indexOf("topic room:{roomId}"),
+    );
+    expect(written).toContain('create policy "bs_topic_room_send"');
+    expect((await sql(["sync", "--check"], config)).code).toBe(0);
+    await writeFile(
+      join(root, "supabase/schemas/905_topics.sql"),
+      "-- edited\n",
+    );
+    const stale = await sql(["sync", "--check"], config);
+    expect(stale.code).toBe(1);
+    expect(stale.error).toContain("supabase/schemas/905_topics.sql");
+    await writeFile(join(root, "empty.ts"), "export const x = 1;\n");
+    await expect(
+      sql(["sync"], {
+        realtime: { policies: { from: ["empty.ts"], output: "out.sql" } },
+      }),
+    ).rejects.toThrow(/exports no topic/);
+  });
+
+  it("skips the topics whose receive policy a module writes", async () => {
+    const realtime = resolve(
+      import.meta.dirname,
+      "../../../src/realtime/index.ts",
+    );
+    await writeFile(
+      join(root, "topics.ts"),
+      `import { defineTopic } from ${JSON.stringify(realtime)};
+export const inbox = defineTopic("notifications:{userId}");
+export const rows = defineTopic("bs:t:public.notes:{organizationId}");
+export const chat = defineTopic("notifications:{user}:chat");
+`,
+    );
+    await writeFile(
+      join(root, "send.ts"),
+      `import { defineTopic } from ${JSON.stringify(realtime)};
+export const typing = defineTopic("bs:t:{room}", { send: true });
+`,
+    );
+    const output = "supabase/schemas/905_topics.sql";
+    const policies = { from: ["topics.ts", "send.ts"], output };
+    await sql(["sync"], { realtime: { policies } });
+    const alone = await readFile(join(root, output), "utf8");
+    expect(alone).toContain("-- better-supabase: topic notifications:{userId}");
+    expect(alone).not.toContain("Skipped");
+
+    const config: BetterSupabaseConfig = {
+      realtime: { policies },
+      sql: { modules: ["notifications", "realtime-tables"] },
+    };
+    await sql(["sync"], config);
+    const written = await readFile(join(root, output), "utf8");
+    expect(written).toContain(
+      "-- Skipped topic bs:t:public.notes:{organizationId}: the realtime-tables module writes its receive policy.\n-- Skipped topic notifications:{userId}: the notifications module writes its receive policy.\n",
+    );
+    expect(written).not.toContain(
+      "-- better-supabase: topic notifications:{userId}",
+    );
+    expect(written).toContain(
+      "-- better-supabase: topic notifications:{user}:chat",
+    );
+    expect(written).toContain("-- better-supabase: topic bs:t:{room}");
+    expect(written).toContain("for insert to authenticated");
+    expect((await sql(["sync", "--check"], config)).code).toBe(0);
+
+    const off: BetterSupabaseConfig = {
+      realtime: { policies },
+      sql: {
+        modules: { notifications: { options: { realtime: "none" } } },
+      },
+    };
+    await sql(["sync"], off);
+    expect(await readFile(join(root, output), "utf8")).toContain(
+      "-- better-supabase: topic notifications:{userId}",
+    );
+  });
+
+  it("writes vector search in the schema the app installed pgvector in", async () => {
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/migrations/20200101000000_init.sql"),
+      "create extension if not exists vector with schema public;\n",
+    );
+    const config: BetterSupabaseConfig = {
+      sql: { modules: ["vector-search"] },
+      vectorSearch: { chunks: "embedding" },
+    };
+    expect((await sql(["sync"], config)).output).not.toContain(
+      "_better_supabase_extensions.sql",
+    );
+    const file = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_18_vector_search.sql"),
+      "utf8",
+    );
+    expect(file).toContain(
+      "create extension if not exists vector with schema public;",
+    );
+    expect(file).toContain("query public.vector, k integer default 10");
+    expect((await sql(["sync"], config)).output).toContain("Unchanged");
   });
 
   it("has nothing to sync for an empty sql.modules", async () => {
@@ -187,6 +342,138 @@ describe("runSql", () => {
     expect(await sql(["sync", "--check"], config)).toMatchObject({ code: 0 });
   });
 
+  it("leaves the generated pgTAP files out of sql upgrade --check", async () => {
+    const config: BetterSupabaseConfig = {
+      sql: { modules: ["audit", "pgtap"] },
+    };
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/010_crm.sql"),
+      "select better_supabase.audit('public.customers');\n",
+    );
+    expect((await sql(["sync"], config)).output).toContain(
+      "supabase/tests/900_better_supabase_audit_public_customers.test.sql (audit)",
+    );
+    expect(await sql(["upgrade", "--check"], config)).toEqual({
+      code: 0,
+      output: "SQL modules are at their current versions.",
+    });
+  });
+
+  it("derives grants from the schema files' policies with fromPolicies", async () => {
+    const config: BetterSupabaseConfig = {
+      expose: { notes: ["select"] },
+      sql: { modules: { grants: { options: { fromPolicies: true } } } },
+    };
+    const schemas = join(root, "supabase/schemas");
+    await mkdir(schemas, { recursive: true });
+    await writeFile(
+      join(schemas, "010_crm.sql"),
+      "create policy notes_all on public.notes for all to authenticated using (true);\ncreate policy tags_read on public.tags for select to anon, authenticated using (true);\n",
+    );
+    await sql(["sync"], config);
+    const file = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      "utf8",
+    );
+    expect(file).toContain(
+      'grant select on table "public"."notes" to authenticated;',
+    );
+    expect(file).toContain(
+      'grant select on table "public"."tags" to anon;\ngrant select on table "public"."tags" to authenticated;',
+    );
+  });
+
+  it("reads policies and tables from the declarative schema, not old migrations", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/config.toml"),
+      "[experimental.pgdelta]\nenabled = true\n",
+    );
+    await writeFile(
+      join(root, "supabase/migrations/20200101000000_init.sql"),
+      "create table public.legacy (id int);\ncreate policy legacy_all on public.legacy for all to authenticated using (true);\n",
+    );
+    await writeFile(
+      join(root, "supabase/schemas/010_notes.sql"),
+      "create table public.notes (id int);\ncreate policy notes_read on public.notes for select to authenticated using (true);\n",
+    );
+    await sql(["sync"], {
+      sql: {
+        modules: {
+          grants: { options: { fromPolicies: true } },
+          sessions: { options: { policies: true } },
+        },
+      },
+    });
+    const grants = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      "utf8",
+    );
+    expect(grants).toContain(
+      'grant select on table "public"."notes" to authenticated;',
+    );
+    expect(grants).not.toContain("legacy");
+    const sessions = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_26_sessions.sql"),
+      "utf8",
+    );
+    expect(sessions).toContain('on "public"."notes"');
+    expect(sessions).not.toContain("legacy");
+  });
+
+  it("grants column privileges from expose", async () => {
+    await sql(["sync"], {
+      expose: {
+        "public.posts": {
+          anon: ["select(id, title)"],
+          authenticated: ["select", "update(title, body)"],
+        },
+      },
+      sql: { modules: ["grants"] },
+    });
+    const file = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      "utf8",
+    );
+    expect(file).toContain(
+      'grant select ("id", "title") on table "public"."posts" to anon;',
+    );
+    expect(file).toContain(
+      'grant select, update ("title", "body") on table "public"."posts" to authenticated;',
+    );
+    expect(() =>
+      resolveConfig({ expose: { posts: ["delete(id)" as "delete"] } }, root),
+    ).toThrow(/is not a privilege/);
+  });
+
+  it("writes the session policy on the tables the schema files create", async () => {
+    const schemas = join(root, "supabase/schemas");
+    await mkdir(schemas, { recursive: true });
+    await writeFile(
+      join(schemas, "010_crm.sql"),
+      "create table public.notes (id int);\ncreate table public.audit_log (id int);\n",
+    );
+    await sql(["sync"], {
+      sql: {
+        modules: {
+          sessions: {
+            options: { policies: true, exclude: ["public.audit_*"] },
+          },
+        },
+      },
+    });
+    const file = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_26_sessions.sql"),
+      "utf8",
+    );
+    expect(file).toContain(
+      'create policy bs_session_active on "public"."notes"',
+    );
+    expect(file).not.toContain("audit_log");
+  });
+
   it("keeps data files out of pg-delta's schema folder when sql.dir is inside it", async () => {
     await mkdir(join(root, "supabase"), { recursive: true });
     await writeFile(
@@ -204,6 +491,62 @@ describe("runSql", () => {
     );
   });
 
+  it("writes the module extensions into a migration before the schema migration", async () => {
+    const config: BetterSupabaseConfig = {
+      sql: { modules: ["jobs", "jsonb-schemas"] },
+    };
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/migrations/20200101000000_init.sql"),
+      "create extension if not exists pgmq;\n",
+    );
+    expect((await sql(["sync", "--dry-run"], config)).output).toMatch(
+      /^Would write supabase\/migrations\/\d{14}_better_supabase_extensions\.sql$/m,
+    );
+    const synced = await sql(["sync"], config);
+    const path =
+      /^Wrote (supabase\/migrations\/\d{14}_better_supabase_extensions\.sql)$/m.exec(
+        synced.output ?? "",
+      )?.[1];
+    expect(path).toBeDefined();
+    expect(synced.output).toContain("create the schema migration after it");
+    expect(await readFile(join(root, path!), "utf8")).toBe(
+      '-- better-supabase sql: the extensions of pg_jsonschema, created before the schema migration that needs them.\n\ncreate extension if not exists "pg_jsonschema" with schema "extensions";\n',
+    );
+    expect((await sql(["sync"], config)).output).not.toContain(
+      "_better_supabase_extensions.sql",
+    );
+    expect((await sql(["data"], config)).output).toMatch(
+      /^Wrote supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
+    );
+  });
+
+  it("refuses a data migration while no earlier migration creates a module extension", async () => {
+    const config: BetterSupabaseConfig = {
+      sql: { modules: ["jsonb-schemas"] },
+    };
+    await sql(["sync"], config);
+    const migrations = join(root, "supabase/migrations");
+    const written = (await readdir(migrations)).find((name) =>
+      name.endsWith("_better_supabase_extensions.sql"),
+    );
+    await rm(join(migrations, written!));
+    await writeFile(
+      join(migrations, "20200101000000_better_supabase_module_data.sql"),
+      'create extension if not exists "pg_jsonschema" with schema "extensions";\n',
+    );
+    expect(await sql(["data"], config)).toEqual({
+      code: 1,
+      error:
+        "No migration before the data migration creates pg_jsonschema, and the schema migration needs it while it applies.\nRun `better-supabase sql sync` to write the extensions migration, then create the schema migration again after it.",
+    });
+    await writeFile(
+      join(migrations, "20200101000001_extensions.sql"),
+      'CREATE EXTENSION "pg_jsonschema" WITH SCHEMA extensions;\n',
+    );
+    expect((await sql(["data"], config)).code).toBe(0);
+  });
+
   it("stamps the data migration after the newest migration", async () => {
     const config: BetterSupabaseConfig = { sql: { modules: ["tenant"] } };
     await sql(["sync"], config);
@@ -214,6 +557,20 @@ describe("runSql", () => {
     );
     expect((await sql(["data"], config)).output).toBe(
       "Wrote supabase/migrations/30000101000000_better_supabase_module_data.sql",
+    );
+  });
+
+  it("never reuses a timestamp another tool's migration took", async () => {
+    const config: BetterSupabaseConfig = { sql: { modules: ["tenant"] } };
+    await sql(["sync"], config);
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/migrations/39991231235959-permdock_seeds.sql"),
+      "",
+    );
+    await writeFile(join(root, "supabase/migrations/40000101000000.sql"), "");
+    expect((await sql(["data"], config)).output).toBe(
+      "Wrote supabase/migrations/40000101000001_better_supabase_module_data.sql",
     );
   });
 

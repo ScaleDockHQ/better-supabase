@@ -1,5 +1,5 @@
 -- better-supabase module: comments (0.5.1)
--- @bs-module comments@1 managed
+-- @bs-module comments@2 managed
 -- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,6 +16,7 @@ create table if not exists "better_supabase"."comments" (
   "subject_id" text not null check (length("subject_id") between 1 and 200),
   "author_id" uuid references auth.users (id) on delete set null default auth.uid(),
   "body" text not null check (length("body") <= 10000),
+  "document" jsonb,
   "mentions" uuid[] not null default '{}',
   "parent_id" uuid references "better_supabase"."comments" ("id") on delete cascade,
   -- clock_timestamp keeps a thread in order within one transaction.
@@ -24,14 +25,15 @@ create table if not exists "better_supabase"."comments" (
   "deleted_at" timestamptz,
   check ("deleted_at" is not null or length(btrim("body")) > 0)
 );
+alter table "better_supabase"."comments" add column if not exists "document" jsonb;
 create index if not exists comments_subject_idx on "better_supabase"."comments" ("organization_id", "subject_type", "subject_id", "created_at");
 create index if not exists comments_author_idx on "better_supabase"."comments" ("author_id");
 create index if not exists comments_parent_idx on "better_supabase"."comments" ("parent_id");
 alter table "better_supabase"."comments" enable row level security;
 revoke all on "better_supabase"."comments" from anon, authenticated;
 grant select on "better_supabase"."comments" to authenticated;
-grant insert ("organization_id", "subject_type", "subject_id", "body", "mentions", "parent_id") on "better_supabase"."comments" to authenticated;
-grant update ("body", "mentions", "deleted_at") on "better_supabase"."comments" to authenticated;
+grant insert ("organization_id", "subject_type", "subject_id", "body", "document", "mentions", "parent_id") on "better_supabase"."comments" to authenticated;
+grant update ("body", "document", "mentions", "deleted_at") on "better_supabase"."comments" to authenticated;
 grant all on "better_supabase"."comments" to service_role;
 
 -- Whether the caller may read a subject: its row is visible to them (the
@@ -75,6 +77,7 @@ begin
   end if;
   if new."deleted_at" is not null then
     new."body" := '';
+    new."document" := null;
     new."mentions" := '{}';
     return new;
   end if;
@@ -90,8 +93,8 @@ begin
   ) then
     raise exception 'A reply must be on its parent''s subject' using errcode = '23514', hint = 'COMMENT_PARENT_MISMATCH';
   end if;
-  if tg_op = 'UPDATE' and (new."body" is distinct from old."body" or new."mentions" is distinct from old."mentions") then
-    if old."author_id" is distinct from auth.uid() and not (coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if tg_op = 'UPDATE' and (new."body" is distinct from old."body" or new."document" is distinct from old."document" or new."mentions" is distinct from old."mentions") then
+    if old."author_id" is distinct from auth.uid() and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
       raise exception 'Only the author edits a comment' using errcode = '42501', hint = 'COMMENT_NOT_AUTHOR';
     end if;
     new."edited_at" := now();
@@ -142,25 +145,29 @@ create trigger "bs_comments_after_write"
   for each row execute function "better_supabase"."comments_after_write"();
 
 -- The functions run as the caller, so the policies above decide.
+drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid);
+drop function if exists "better_supabase"."edit_comment"(uuid, text, uuid[]);
 create or replace function "better_supabase"."create_comment"(
   tenant uuid,
   subject_type text,
   subject_id text,
   body text,
   mentions uuid[] default '{}',
-  parent uuid default null
+  parent uuid default null,
+  document jsonb default null
 )
 returns jsonb
 language sql
 security invoker
 set search_path = ''
 as $$
-  insert into "better_supabase"."comments" as x ("organization_id", "subject_type", "subject_id", "body", "mentions", "parent_id")
-  values (create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body, coalesce(create_comment.mentions, '{}'), create_comment.parent)
+  insert into "better_supabase"."comments" as x ("organization_id", "subject_type", "subject_id", "body", "document", "mentions", "parent_id")
+  values (create_comment.tenant, create_comment.subject_type, create_comment.subject_id, create_comment.body, create_comment.document, coalesce(create_comment.mentions, '{}'), create_comment.parent)
   returning to_jsonb(x.*)
 $$;
 
-create or replace function "better_supabase"."edit_comment"(id uuid, body text, mentions uuid[] default null)
+-- An edit keeps the document unless one is passed or clear_document is true.
+create or replace function "better_supabase"."edit_comment"(id uuid, body text, mentions uuid[] default null, document jsonb default null, clear_document boolean default false)
 returns jsonb
 language sql
 security invoker
@@ -168,9 +175,55 @@ set search_path = ''
 as $$
   update "better_supabase"."comments" x
   set "body" = edit_comment.body,
+      "document" = case
+        when coalesce(edit_comment.clear_document, false) then null
+        else coalesce(edit_comment.document, x."document")
+      end,
       "mentions" = coalesce(edit_comment.mentions, x."mentions")
   where x."id" = edit_comment.id
   returning to_jsonb(x.*)
+$$;
+
+-- Copies a subject's thread to another subject in the same tenant (a quote
+-- duplicated into an invoice, say), keeping authors, times and replies.
+-- Service role only: call it from the code that duplicates the record,
+-- after it checked the caller may read both.
+create or replace function "better_supabase"."copy_comments"(
+  tenant uuid,
+  from_type text,
+  from_id text,
+  to_type text,
+  to_id text
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  copied integer;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role copies comments' using errcode = '42501', hint = 'COMMENT_FORBIDDEN';
+  end if;
+  create temporary table if not exists bs_comment_copy (old_id uuid primary key, new_id uuid not null) on commit drop;
+  delete from bs_comment_copy where old_id is not null;
+  insert into bs_comment_copy (old_id, new_id)
+  select y."id", gen_random_uuid()
+  from "better_supabase"."comments" y
+  where y."organization_id" = copy_comments.tenant
+    and y."subject_type" = copy_comments.from_type
+    and y."subject_id" = copy_comments.from_id;
+  insert into "better_supabase"."comments" ("id", "organization_id", "subject_type", "subject_id", "author_id", "body", "document", "mentions", "parent_id", "created_at", "edited_at", "deleted_at")
+  select m.new_id, y."organization_id", copy_comments.to_type, copy_comments.to_id, y."author_id",
+    y."body", y."document", '{}', p.new_id, y."created_at", y."edited_at", y."deleted_at"
+  from "better_supabase"."comments" y
+  join bs_comment_copy m on m.old_id = y."id"
+  left join bs_comment_copy p on p.old_id = y."parent_id"
+  order by y."created_at", y."id";
+  get diagnostics copied = row_count;
+  return copied;
+end;
 $$;
 
 create or replace function "better_supabase"."delete_comment"(id uuid)
@@ -188,13 +241,15 @@ as $$
 $$;
 
 -- A subject's thread, oldest first; deleted comments stay as placeholders
--- so replies keep their parent.
+-- so replies keep their parent. Page with after (a cursor) or skip (an offset).
+drop function if exists "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer);
 create or replace function "better_supabase"."list_comments"(
   tenant uuid,
   subject_type text,
   subject_id text,
   after timestamptz default null,
-  max_rows integer default 100
+  max_rows integer default 100,
+  skip integer default 0
 )
 returns jsonb
 language sql
@@ -211,6 +266,28 @@ as $$
       and (list_comments.after is null or y."created_at" > list_comments.after)
     order by y."created_at", y."id"
     limit least(greatest(coalesce(list_comments.max_rows, 100), 1), 500)
+    offset greatest(coalesce(list_comments.skip, 0), 0)
+  ) x
+$$;
+
+-- Comments per subject the caller can read, for counters in a list:
+-- { subject_id: count }, deleted comments left out. Runs as the caller.
+create or replace function "better_supabase"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(x.subject_id, x.n), '{}'::jsonb)
+  from (
+    select y."subject_id" as subject_id, count(*) as n
+    from "better_supabase"."comments" y
+    where y."organization_id" = comment_counts.tenant
+      and y."subject_type" = comment_counts.subject_type
+      and y."subject_id" = any (comment_counts.subject_ids)
+      and y."deleted_at" is null
+    group by 1
   ) x
 $$;
 
@@ -252,7 +329,7 @@ as $$
 declare
   inserted integer;
 begin
-  if not (coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records activity' using errcode = '42501', hint = 'ACTIVITY_FORBIDDEN';
   end if;
   insert into "better_supabase"."activity_entries" ("event_id", "organization_id", "type", "actor_id", "subject_type", "subject_id", "summary", "data", "occurred_at")
@@ -266,17 +343,50 @@ begin
 end;
 $$;
 
+-- A tenant's activity, newest first, or one subject's timeline with
+-- subject_type and subject_id; before pages back. Runs as the caller.
+create or replace function "better_supabase"."list_activity"(
+  tenant uuid,
+  subject_type text default null,
+  subject_id text default null,
+  before timestamptz default null,
+  max_rows integer default 50
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."occurred_at" desc, x."id" desc), '[]'::jsonb)
+  from (
+    select * from "better_supabase"."activity_entries" y
+    where y."organization_id" = list_activity.tenant
+      and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
+      and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
+      and (list_activity.before is null or y."occurred_at" < list_activity.before)
+    order by y."occurred_at" desc, y."id" desc
+    limit least(greatest(coalesce(list_activity.max_rows, 50), 1), 500)
+  ) x
+$$;
+
 revoke execute on function "better_supabase"."comment_subject_readable"(text, text, uuid) from public, anon;
-revoke execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid) from public, anon;
-revoke execute on function "better_supabase"."edit_comment"(uuid, text, uuid[]) from public, anon;
+revoke execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) from public, anon;
+revoke execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) from public, anon;
+revoke execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) from public, anon;
 revoke execute on function "better_supabase"."delete_comment"(uuid) from public, anon;
-revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer) from public, anon;
+revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer) from public, anon;
+revoke execute on function "better_supabase"."comment_counts"(uuid, text, text[]) from public, anon;
 revoke execute on function "better_supabase"."record_activity"(jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."comment_subject_readable"(text, text, uuid) to authenticated, service_role;
-grant execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid) to authenticated, service_role;
-grant execute on function "better_supabase"."edit_comment"(uuid, text, uuid[]) to authenticated, service_role;
+grant execute on function "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."edit_comment"(uuid, text, uuid[], jsonb, boolean) to authenticated, service_role;
+grant execute on function "better_supabase"."copy_comments"(uuid, text, text, text, text) to service_role;
+grant execute on function "better_supabase"."list_activity"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_comment"(uuid) to authenticated, service_role;
-grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer) to authenticated, service_role;
+grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer) to authenticated, service_role;
+grant execute on function "better_supabase"."comment_counts"(uuid, text, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."record_activity"(jsonb) to service_role;
 
 create schema if not exists better_supabase;

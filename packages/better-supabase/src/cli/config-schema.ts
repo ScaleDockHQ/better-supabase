@@ -39,7 +39,24 @@ const moduleEntries = {
     }),
   ),
   events: v.optional(v.boolean()),
+  api: v.optional(
+    v.union([
+      v.string(),
+      v.strictObject({
+        schema: v.string(),
+        functions: v.optional(strings),
+      }),
+    ]),
+  ),
 };
+
+const disabledRow = v.strictObject({
+  table: v.string(),
+  id: v.string(),
+  disabledAt: v.optional(v.string()),
+  status: v.optional(v.string()),
+  active: v.optional(strings),
+});
 
 const accessModule = v.strictObject({
   ...moduleEntries,
@@ -58,8 +75,8 @@ const accessModule = v.strictObject({
   platformClaim: v.optional(v.string()),
   disabled: v.optional(
     v.strictObject({
-      tenant: v.optional(v.string()),
-      user: v.optional(v.string()),
+      tenant: v.optional(v.union([v.string(), disabledRow])),
+      user: v.optional(v.union([v.string(), disabledRow])),
       userKey: v.optional(v.string()),
     }),
   ),
@@ -136,6 +153,11 @@ const ConfigSchema = v.strictObject({
         v.strictObject({
           anon: v.optional(privileges),
           authenticated: v.optional(privileges),
+          serviceRole: v.optional(privileges),
+        }),
+        v.strictObject({
+          execute: v.array(v.picklist(["anon", "authenticated"])),
+          serviceRole: v.optional(v.boolean()),
         }),
       ]),
     ),
@@ -167,6 +189,9 @@ const ConfigSchema = v.strictObject({
     v.strictObject({
       tables: v.optional(strings),
       global: v.optional(strings),
+      policies: v.optional(
+        v.strictObject({ from: strings, output: v.string() }),
+      ),
     }),
   ),
   entitlements: v.optional(
@@ -201,6 +226,15 @@ const ConfigSchema = v.strictObject({
           }),
         ]),
       ),
+      claim: v.optional(
+        v.union([
+          v.literal(false),
+          v.strictObject({
+            maxTenants: v.optional(v.number()),
+            keys: v.optional(stringRecord),
+          }),
+        ]),
+      ),
     }),
   ),
   permdock: v.optional(
@@ -228,6 +262,9 @@ const ConfigSchema = v.strictObject({
           ),
           boost: v.optional(v.string()),
           prefilter: v.optional(strings),
+          predicate: v.optional(v.string()),
+          boostMode: v.optional(v.picklist(["multiply", "add"])),
+          order: v.optional(v.string()),
         }),
       ]),
     ),

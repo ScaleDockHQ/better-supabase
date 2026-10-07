@@ -1,10 +1,16 @@
 import type { EntitlementPlansSource } from "../config/config.ts";
-import type { ModuleMode, ModulesConfig } from "../config/modules.ts";
+import type {
+  AccessModuleConfig,
+  DisabledRow,
+  ModuleMode,
+  ModulesConfig,
+} from "../config/modules.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { apiWrappers } from "./api-schema.ts";
 import {
   createModuleContext,
   type ModuleContext,
@@ -42,11 +48,13 @@ import { USAGE } from "./modules/usage.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
+import { tableGlobs } from "./schema-scan.ts";
 import {
   EQUIVALENT_TRIGGERS,
   type JsonSchemaCheck,
   jsonSchemaChecks,
   SCHEMA,
+  serviceOnly,
 } from "./shared.ts";
 
 export {
@@ -131,6 +139,7 @@ export interface SqlModule {
     ctx: ModuleContext,
     layout: ModuleLayout,
   ) => readonly ModuleTestFile[];
+  readonly topics?: (ctx: ModuleContext) => readonly string[];
 }
 
 /** A pgTAP file a module writes for the layout, e.g. one per audited table. */
@@ -332,14 +341,41 @@ grant execute on function better_supabase.mfa_satisfied() to authenticated;
 --   with check ((select better_supabase.mfa_satisfied()));`,
 };
 
-const SESSIONS: SqlModule = {
+/**
+ * `sql.modules.sessions.options.policies`: a restrictive session policy on
+ * every table the schema files create in `schemas`, except `exclude`.
+ */
+function sessionPolicies(ctx: ModuleContext, layout: ModuleLayout): string {
+  if (!ctx.flag("policies", false)) return "";
+  const exclude = tableGlobs(ctx.list("exclude", []));
+  const tables = (layout.declaredTables ?? []).filter(
+    (table) => !exclude.some((pattern) => pattern.test(table)),
+  );
+  if (tables.length === 0) return "";
+  const statements = tables.map((table) => {
+    const target = qualifiedTable(table);
+    return `drop policy if exists bs_session_active on ${target};
+create policy bs_session_active on ${target} as restrictive
+  for all to authenticated
+  using ((select better_supabase.session_active()))
+  with check ((select better_supabase.session_active()));`;
+  });
+  return `
+
+-- sql.modules.sessions.options.policies: every table in the schema files,
+-- except sql.modules.sessions.options.exclude. \`sql sync\` rewrites these.
+${statements.join("\n")}`;
+}
+
+const SESSIONS: ModuleDefinition = {
   name: "sessions",
+  names: { tables: {}, options: ["exclude", "policies"] },
   title: "Session revocation",
   description:
-    "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire.",
+    "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.",
   requires: [],
   target: "schema",
-  sql: `${SCHEMA}
+  build: (ctx, layout) => `${SCHEMA}
 
 -- An access token stays valid until it expires, even after its session is
 -- signed out or its user is deleted. This checks the session behind it.
@@ -384,7 +420,7 @@ grant execute on function better_supabase.session_active() to authenticated;
 -- create policy session_required on public.invoices as restrictive
 --   for all to authenticated
 --   using ((select better_supabase.session_active()))
---   with check ((select better_supabase.session_active()));`,
+--   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}`,
 };
 
 /** The tenant module's memberships table and columns, for the entitlement lookups. */
@@ -405,10 +441,48 @@ function memberships(layout: ModuleLayout): Memberships {
   };
 }
 
+/** `entitlements.claim`: what `feature_claims` puts in the token. */
+export type FeatureClaimOption =
+  | false
+  | {
+      /** At most this many tenants, the lowest ids first. */
+      readonly maxTenants?: number;
+      /** Short codes written instead of the feature keys: `{ exports: "x" }`. */
+      readonly keys?: Readonly<Record<string, string>>;
+    };
+
+/**
+ * The body of `feature_claims` over `rows`, a query of (tenant text, keys
+ * text[]) rows, shaped by `entitlements.claim`.
+ */
+function featureClaimsBody(
+  rows: string,
+  claim: FeatureClaimOption | undefined,
+): string {
+  if (claim === false) return "  select '{}'::jsonb";
+  const max = claim?.maxTenants;
+  if (max !== undefined && (!Number.isInteger(max) || max < 1)) {
+    throw new TypeError(
+      "entitlements.claim.maxTenants must be a positive integer",
+    );
+  }
+  const keys = claim?.keys ?? {};
+  const mapped =
+    Object.keys(keys).length === 0
+      ? "to_jsonb(r.keys)"
+      : `to_jsonb(array(select coalesce(${sqlString(JSON.stringify(keys))}::jsonb ->> k, k) from unnest(r.keys) as k))`;
+  return `  select coalesce(jsonb_object_agg(r.tenant, ${mapped}), '{}'::jsonb)
+  from (
+${rows}
+    order by 1${max === undefined ? "" : `\n    limit ${String(max)}`}
+  ) r`;
+}
+
 /** `has_entitlement` and `feature_claims` on the tenant module's memberships. */
 const tenantEntitlementChecks = (
   claims: ClaimsMeta,
   m: Memberships,
+  claim?: FeatureClaimOption,
 ): string => `
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
 create or replace function better_supabase.has_entitlement(tenant ${m.idType}, key text)
@@ -454,17 +528,21 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(m.${m.tenant}::text, to_jsonb(e.keys)), '{}'::jsonb)
-  from ${m.table} m
-  cross join lateral (select better_supabase.tenant_entitlements(m.${m.tenant}) as keys) e
-  where m.${m.user} = feature_claims.user_id
-    and cardinality(e.keys) > 0
+${featureClaimsBody(
+  `    select m.${m.tenant}::text as tenant, e.keys
+    from ${m.table} m
+    cross join lateral (select better_supabase.tenant_entitlements(m.${m.tenant}) as keys) e
+    where m.${m.user} = feature_claims.user_id
+      and cardinality(e.keys) > 0`,
+  claim,
+)}
 $$;`;
 
 /** `has_entitlement` and `feature_claims` on PermDock's `member_<scope>_ids` helpers. */
 const permdockEntitlementChecks = (
   claims: ClaimsMeta,
   permdock: ModulePermdock,
+  claim?: FeatureClaimOption,
 ): string => {
   const member = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids`)}`;
   const memberFor = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids_for`)}`;
@@ -517,10 +595,13 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_object_agg(t.id::text, to_jsonb(e.keys)), '{}'::jsonb)
-  from ${memberFor}(feature_claims.user_id) as t(id)
-  cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
-  where cardinality(e.keys) > 0
+${featureClaimsBody(
+  `    select t.id::text as tenant, e.keys
+    from ${memberFor}(feature_claims.user_id) as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    where cardinality(e.keys) > 0`,
+  claim,
+)}
 $$;`;
 };
 
@@ -538,7 +619,7 @@ grant usage on schema better_supabase to supabase_auth_admin;
 -- entitlements.source is "custom": your better_supabase.tenant_entitlements(tenant ${id})
 -- returns the tenant's feature keys (text[]); the checks below call it.
 set check_function_bodies = off;
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims, m)}
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;
@@ -548,7 +629,7 @@ reset check_function_bodies;`;
     return `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
 ${planEntitlements(source.plans, id)}
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims, m)}
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
@@ -582,7 +663,7 @@ $$;
 
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock) : tenantEntitlementChecks(claims, m)}
+${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
@@ -627,7 +708,25 @@ as $$
 $$;
 
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
-grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;`;
+grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
+
+-- The tenant's active plan keys, so other modules (usage quotas) can match a
+-- plan by its key as well as by its features.
+create or replace function better_supabase.tenant_plans(tenant ${id})
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(array_agg(distinct s.${sqlIdent(subs.plan)}::text order by s.${sqlIdent(subs.plan)}::text), '{}')
+    from ${qualified(subs.table)} s
+    where s.${sqlIdent(subs.tenant)} = tenant_plans.tenant${status}
+      and s.${sqlIdent(subs.plan)} is not null
+$$;
+
+revoke execute on function better_supabase.tenant_plans(${id}) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_plans(${id}) to service_role;`;
 }
 
 const ENTITLEMENTS: SqlModule = {
@@ -675,11 +774,52 @@ end
 $$;
 notify pgrst, 'reload config';`;
 
+const RATE_LIMIT_NO_HOOK = `-- sql.modules.rate-limit.options.preRequest is false: the app calls
+-- better_supabase.check_request() from its own pre-request function, or not
+-- at all. Removes the setting when it still points at check_request.
+do $$
+begin
+  if exists (
+    select 1
+    from pg_catalog.pg_db_role_setting s
+    join pg_catalog.pg_roles r on r.oid = s.setrole
+    cross join lateral unnest(s.setconfig) setting
+    where r.rolname = 'authenticator' and s.setdatabase = 0
+      and setting = 'pgrst.db_pre_request=better_supabase.check_request'
+  ) then
+    alter role authenticator reset pgrst.db_pre_request;
+  end if;
+end
+$$;
+notify pgrst, 'reload config';`;
+
+const SLUG_PATTERN = "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$";
+
+/** `minLength` and `maxLength` of `sql.modules["reserved-slugs"].options`. */
+function slugLengths(ctx: ModuleContext): {
+  readonly min: number;
+  readonly max: number;
+} {
+  const min = ctx.number("minLength", 1);
+  const max = ctx.number("maxLength", 63);
+  if (
+    !Number.isInteger(min) ||
+    !Number.isInteger(max) ||
+    min < 1 ||
+    max < min
+  ) {
+    throw new TypeError(
+      "sql.modules.reserved-slugs.options.minLength and maxLength must be whole numbers with 1 <= minLength <= maxLength",
+    );
+  }
+  return { min, max };
+}
+
 /** `sql.modules["reserved-slugs"].options.slugs`: the app's own words, such as its route names. */
 function appSlugs(ctx: ModuleContext): string {
   const slugs = ctx.list("slugs", []);
   for (const slug of slugs) {
-    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(slug)) {
+    if (!new RegExp(SLUG_PATTERN).test(slug) || slug.includes("--")) {
       throw new TypeError(
         `sql.modules.reserved-slugs.options.slugs: "${slug}" is not a slug (lowercase letters, digits and inner hyphens)`,
       );
@@ -695,26 +835,31 @@ from unnest(array[${slugs.map(sqlString).join(", ")}]) as value
 on conflict (slug) do nothing;`;
 }
 
-const RESERVED_SLUGS: SqlModule = {
+const RESERVED_SLUGS: ModuleDefinition = {
   name: "reserved-slugs",
-  names: { tables: {}, options: ["slugs"] },
+  names: { tables: {}, options: ["maxLength", "minLength", "slugs"] },
   data: (ctx) => `${RESERVED_SLUGS_SEED}${appSlugs(ctx)}`,
   title: "Reserved slugs",
   description:
-    "A slug format check and a list of reserved words (admin, api, www, ...), enforced by a trigger.",
+    "A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.",
   requires: [],
   target: "schema",
-  sql: `${SCHEMA}
+  build: (ctx) => {
+    const { min, max } = slugLengths(ctx);
+    return `${SCHEMA}
 
 create table if not exists better_supabase.reserved_slugs (
   slug text primary key,
   reason text
 );
 alter table better_supabase.reserved_slugs enable row level security;
-grant select on better_supabase.reserved_slugs to anon, authenticated;
+-- enforce_slug runs as the writer, service_role included, and reads this list.
+grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
 drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
 create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select using (true);
 
+-- 'invalid' for a malformed slug or one outside ${String(min)} to ${String(max)} characters
+-- (sql.modules.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
 create or replace function better_supabase.slug_problem(slug text)
 returns text
 language sql
@@ -723,8 +868,9 @@ set search_path = ''
 as $$
   select case
     when slug is null then null
-    when slug !~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$' then 'invalid'
+    when slug !~ ${sqlString(SLUG_PATTERN)} then 'invalid'
     when slug ~ '--' then 'invalid'
+    when length(slug) < ${String(min)} or length(slug) > ${String(max)} then 'invalid'
     when exists (select 1 from better_supabase.reserved_slugs r where r.slug = slug_problem.slug) then 'reserved'
   end
 $$;
@@ -767,7 +913,8 @@ $$;
 -- enforce_slug runs as the writer, so the check stays callable by authenticated.
 revoke execute on function better_supabase.slug_problem(text) from public, anon;
 grant execute on function better_supabase.slug_problem(text) to authenticated, service_role;
-revoke execute on function better_supabase.track_slug(regclass, text) from public, anon, authenticated;`,
+revoke execute on function better_supabase.track_slug(regclass, text) from public, anon, authenticated;`;
+  },
 };
 
 const IDEMPOTENCY: SqlModule = {
@@ -879,21 +1026,12 @@ as $$
   select count(*)::integer from purged
 $$;
 
-do $$
-declare
-  fn text;
-begin
-  foreach fn in array array[
-    'begin_idempotent(text, text, text, interval, interval)',
-    'complete_idempotent(text, text, integer, jsonb)',
-    'release_idempotent(text, text)',
-    'purge_idempotency_keys()'
-  ] loop
-    execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
-    execute format('grant execute on function better_supabase.%s to service_role', fn);
-  end loop;
-end;
-$$;`,
+${serviceOnly([
+  "begin_idempotent(text, text, text, interval, interval)",
+  "complete_idempotent(text, text, integer, jsonb)",
+  "release_idempotent(text, text)",
+  "purge_idempotency_keys()",
+])}`,
 };
 
 const WEBHOOK_INBOX: SqlModule = {
@@ -903,7 +1041,7 @@ const WEBHOOK_INBOX: SqlModule = {
     "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.",
   requires: [],
   target: "schema",
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -911,6 +1049,13 @@ const WEBHOOK_INBOX: SqlModule = {
         "Messages record a tenant and a checkpoint; receive_webhook and purge_webhooks take a tenant, and checkpoint_webhook and list_webhooks are new.",
       sql: () =>
         "drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);\ndrop function if exists better_supabase.purge_webhooks(interval, boolean, integer);",
+    },
+    {
+      from: 2,
+      description:
+        "receive_webhook takes the source's max_attempts; claims mark a message whose last attempt lost its worker as dead.",
+      sql: () =>
+        "drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);",
     },
   ],
   sql: `${SCHEMA}
@@ -947,18 +1092,21 @@ alter table better_supabase.webhook_inbox enable row level security;
 revoke all on better_supabase.webhook_inbox from anon, authenticated;
 grant all on better_supabase.webhook_inbox to service_role;
 
--- The signatures before messages had a tenant.
+-- The signatures before messages had a tenant, and before a source set its attempts.
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
 drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
+drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
 
 -- duplicate = true when the message id was seen before (the sender retried).
+-- max_attempts is the source's limit, 8 when null.
 create or replace function better_supabase.receive_webhook(
   source text,
   message_id text,
   event_type text,
   payload jsonb,
   headers jsonb default '{}',
-  tenant text default null
+  tenant text default null,
+  max_attempts integer default null
 )
 returns table (id bigint, duplicate boolean)
 language plpgsql
@@ -968,8 +1116,8 @@ as $$
 declare
   inbox_id bigint;
 begin
-  insert into better_supabase.webhook_inbox (source, message_id, event_type, payload, headers, tenant)
-  values (source, message_id, event_type, payload, headers, receive_webhook.tenant)
+  insert into better_supabase.webhook_inbox (source, message_id, event_type, payload, headers, tenant, max_attempts)
+  values (source, message_id, event_type, payload, headers, receive_webhook.tenant, greatest(coalesce(receive_webhook.max_attempts, 8), 1))
   on conflict on constraint webhook_inbox_source_message_id_key do nothing
   returning webhook_inbox.id into inbox_id;
   if inbox_id is not null then
@@ -982,6 +1130,8 @@ begin
 end;
 $$;
 
+-- A message whose lease ran out on its last attempt lost its worker
+-- (fail_webhook marks it dead otherwise), so the claim marks it dead.
 create or replace function better_supabase.claim_webhooks(
   source text,
   worker text,
@@ -992,6 +1142,10 @@ returns setof better_supabase.webhook_inbox
 language sql
 set search_path = ''
 as $$
+  update better_supabase.webhook_inbox d
+  set status = 'dead', last_error = 'The lease ran out on the last attempt', locked_by = null, locked_until = null
+  where d.source = claim_webhooks.source and d.status = 'processing'
+    and d.locked_until < now() and d.attempts >= d.max_attempts;
   with next as materialized (
     select c.id from better_supabase.webhook_inbox c
     where c.source = claim_webhooks.source
@@ -1111,24 +1265,15 @@ as $$
   select count(*)::integer from purged
 $$;
 
-do $$
-declare
-  fn text;
-begin
-  foreach fn in array array[
-    'receive_webhook(text, text, text, jsonb, jsonb, text)',
-    'claim_webhooks(text, text, integer, interval)',
-    'complete_webhook(bigint, text)',
-    'fail_webhook(bigint, text, text, interval)',
-    'checkpoint_webhook(bigint, text, jsonb)',
-    'list_webhooks(text, text, text, integer)',
-    'purge_webhooks(interval, boolean, integer, text)'
-  ] loop
-    execute format('revoke execute on function better_supabase.%s from public, anon, authenticated', fn);
-    execute format('grant execute on function better_supabase.%s to service_role', fn);
-  end loop;
-end;
-$$;`,
+${serviceOnly([
+  "receive_webhook(text, text, text, jsonb, jsonb, text, integer)",
+  "claim_webhooks(text, text, integer, interval)",
+  "complete_webhook(bigint, text)",
+  "fail_webhook(bigint, text, text, interval)",
+  "checkpoint_webhook(bigint, text, jsonb)",
+  "list_webhooks(text, text, text, integer)",
+  "purge_webhooks(interval, boolean, integer, text)",
+])}`,
 };
 
 const realtimeTablesSql = (claims: ClaimsMeta): string => `${SCHEMA}
@@ -1248,6 +1393,7 @@ const REALTIME_TABLES: SqlModule = {
   target: "schema",
   sql: realtimeTablesSql(DEFAULT_CLAIMS),
   render: realtimeTablesSql,
+  topics: () => ["bs:t:*"],
 };
 
 const JSONB_SCHEMAS: SqlModule = {
@@ -1408,12 +1554,14 @@ select * from extensions.finish();`,
 
 const GRANTS: SqlModule = {
   name: "grants",
+  names: { tables: {}, options: ["fromPolicies"] },
   title: "Data API grants",
   description:
-    "Grants the tables in the `expose` config to anon and authenticated. Supabase no longer grants new tables to the Data API roles automatically.",
+    "Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. Supabase no longer grants new tables to the Data API roles automatically.",
   requires: [],
   target: "schema",
-  sql: `-- List tables in \`expose\` (better-supabase.config.ts); \`sql sync\` rewrites the grants below.
+  sql: `-- List tables and functions in \`expose\` (better-supabase.config.ts); \`sql sync\` rewrites the grants below.
+-- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.`,
 };
 
@@ -1430,7 +1578,9 @@ const READ_SETS: SqlModule = {
 
 const RATE_LIMIT: SqlModule = {
   name: "rate-limit",
-  data: () => RATE_LIMIT_HOOK,
+  names: { tables: {}, options: ["preRequest"] },
+  data: (ctx) =>
+    ctx.flag("preRequest", true) ? RATE_LIMIT_HOOK : RATE_LIMIT_NO_HOOK,
   title: "Write rate limits",
   description:
     "Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.",
@@ -1492,7 +1642,9 @@ revoke execute on function better_supabase.set_rate_limit(text, integer, interva
 grant execute on function better_supabase.set_rate_limit(text, integer, interval, text) to service_role;
 
 -- PostgREST's pre-request hook. GET and HEAD run read-only (and may be served
--- by a replica), so only writes count. The service role is never limited.
+-- by a replica), so only writes count. A POST to /rpc for a stable or
+-- immutable function also runs read-only and isn't counted either. The
+-- service role is never limited.
 -- With your own db_pre_request, call it from there: perform better_supabase.check_request();
 create or replace function better_supabase.check_request()
 returns void
@@ -1512,6 +1664,9 @@ declare
   retry integer;
 begin
   if method is null or method not in ('POST', 'PATCH', 'PUT', 'DELETE') then
+    return;
+  end if;
+  if current_setting('transaction_read_only', true) = 'on' then
     return;
   end if;
   if claims ->> 'role' = 'service_role' then
@@ -1599,6 +1754,22 @@ $$;
 revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval) to service_role;
 
+create or replace function better_supabase.check_rate_limit(
+  scope text,
+  key text,
+  max_requests integer default null,
+  period interval default null
+)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period) h
+$$;
+revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.check_rate_limit(text, text, integer, interval) to service_role;
+
 -- Deletes up to batch counters whose window has ended, and counters without
 -- a rule (removed rules, hit_rate_limit with its own limit) after a day.
 -- Every caller keeps a row until then, so schedule it with pg_cron:
@@ -1628,6 +1799,28 @@ revoke execute on function better_supabase.purge_rate_limits(integer) from publi
 grant execute on function better_supabase.purge_rate_limits(integer) to service_role;`,
 };
 
+const vectorSearchSql = (schema: string): string =>
+  `create extension if not exists vector with schema ${schema};
+
+-- Functions for the tables in \`vectorSearch\` (better-supabase.config.ts); \`sql sync\` rewrites them.
+-- They are security invoker, so RLS (a tenant policy, say) filters inside the
+-- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
+-- (pgvector 0.8+) instead of returning fewer.`;
+
+const VECTOR_SCHEMA = /^[a-z_][a-z0-9_]{0,62}$/;
+
+function vectorSchemaOf(layout: ModuleLayout): string {
+  const option = layout.modules?.["vector-search"]?.options?.["schema"];
+  const schema =
+    option === undefined ? (layout.vectorSchema ?? "extensions") : option;
+  if (typeof schema !== "string" || !VECTOR_SCHEMA.test(schema)) {
+    throw new TypeError(
+      "sql.modules.vector-search.options.schema must be the lowercase name of the schema pgvector is installed in",
+    );
+  }
+  return schema;
+}
+
 const VECTOR_SEARCH: SqlModule = {
   name: "vector-search",
   title: "Vector search",
@@ -1635,12 +1828,9 @@ const VECTOR_SEARCH: SqlModule = {
     "search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.",
   requires: [],
   target: "schema",
-  sql: `create extension if not exists vector with schema extensions;
-
--- Functions for the tables in \`vectorSearch\` (better-supabase.config.ts); \`sql sync\` rewrites them.
--- They are security invoker, so RLS (a tenant policy, say) filters inside the
--- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
--- (pgvector 0.8+) instead of returning fewer.`,
+  names: { tables: {}, options: ["schema"] },
+  sql: vectorSearchSql("extensions"),
+  build: (_ctx, layout) => vectorSearchSql(vectorSchemaOf(layout)),
 };
 
 /** Schemas whose tables Supabase or Postgres own; the event trigger leaves them alone. */
@@ -1713,7 +1903,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(AUDIT),
       built(TENANT),
       built(INVITATIONS),
-      RESERVED_SLUGS,
+      built(RESERVED_SLUGS),
       built(JOBS),
       IDEMPOTENCY,
       WEBHOOK_INBOX,
@@ -1733,7 +1923,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(OUTBOX),
       built(NOTIFICATIONS),
       built(WEBHOOKS_OUT),
-      SESSIONS,
+      built(SESSIONS),
       built(WEBHOOKS_IN),
       built(API_KEYS),
       built(SETTINGS),
@@ -1806,6 +1996,16 @@ export interface ModuleLayout {
   readonly jsonSchemas?: readonly JsonSchemaCheck[];
   /** `config.expose`: the grants the `grants` module writes. */
   readonly grants?: readonly TableGrant[];
+  /** `config.expose` functions: the roles that may execute each one. */
+  readonly functionGrants?: readonly FunctionGrant[];
+  /**
+   * Grants the permissive policies in the schema files imply, for
+   * `sql.modules.grants.options.fromPolicies`. Tables in `grants` keep
+   * their listed privileges.
+   */
+  readonly policyGrants?: readonly TableGrant[];
+  /** The tables the schema files create, for `sql.modules.sessions.options.policies`. */
+  readonly declaredTables?: readonly string[];
   /** `config.readSets`, compiled: the functions the `read-sets` module writes. */
   readonly readSets?: readonly {
     readonly name: string;
@@ -1815,6 +2015,7 @@ export interface ModuleLayout {
   readonly entitlements?: EntitlementsSource;
   /** `config.vectorSearch`: the tables the `vector-search` module writes a search function for. */
   readonly vectorSearch?: readonly VectorSearchTable[];
+  readonly vectorSchema?: string;
   /** `config.claims`: claim names the modules read and write. */
   readonly claims?: ClaimsMeta;
   /** PermDock's helpers and membership sources, from its manifest: `entitlements` reads them instead of `tenant`. */
@@ -1823,6 +2024,8 @@ export interface ModuleLayout {
   readonly accessPermdock?: ModuleAccessPermdock;
   /** `config.sql.modules`: modes, names and permission keys per module. */
   readonly modules?: ModulesConfig;
+  /** The keys of PermDock's permission catalog, when the project has one. */
+  readonly permissionCatalog?: readonly string[];
 }
 
 /** One PermDock membership source, from the manifest's `memberships`. */
@@ -1868,6 +2071,14 @@ export interface ModuleAccessPermdock {
    * table (the manifest's `through` roles). An adopted `tenant` module on
    * one of them reads role names the same way.
    */
+  /**
+   * The manifest's `rls.suspension` rows for users and for the tenant scope.
+   * The `access` module's `disabled` setting defaults to them.
+   */
+  readonly suspension?: {
+    readonly users?: DisabledRow;
+    readonly tenant?: DisabledRow;
+  };
   readonly roleSources?: readonly {
     /** `schema.table` of the memberships. */
     readonly table: string;
@@ -1904,6 +2115,12 @@ interface VectorSearchTable {
   readonly boost?: string;
   /** Columns `filter` narrows before ranking, such as `organization_id`. */
   readonly prefilter?: readonly string[];
+  /** A SQL condition over the row `t` every candidate must meet. */
+  readonly predicate?: string;
+  /** How `boost` combines with the score. Defaults to `multiply`. */
+  readonly boostMode?: "multiply" | "add";
+  /** A SQL `order by` list over the row `t` that breaks score ties. */
+  readonly order?: string;
 }
 
 const DISTANCE_OPERATORS: Readonly<
@@ -1924,10 +2141,14 @@ const SIMILARITY: Readonly<Record<VectorSearchTable["distance"], string>> = {
 const REGCONFIG = /^[a-z_][a-z0-9_]*$/;
 
 /** `vectorSearch.<table>.boost`: one expression, no statement separators or comments. */
-function boostExpression(where: string, boost: string): string {
+function boostExpression(
+  where: string,
+  boost: string,
+  example = '"t.priority"',
+): string {
   if (/;|--|\/\*|\$\$/.test(boost)) {
     throw new TypeError(
-      `${where}.boost must be one SQL expression over the row t, such as "t.priority"`,
+      `${where} must be one SQL expression over the row t, such as ${example}`,
     );
   }
   return boost;
@@ -1938,11 +2159,12 @@ function vectorRanking(
   entry: VectorSearchTable,
   target: string,
   advanced: boolean,
+  vector: string,
 ): string {
   const where = `vectorSearch.${entry.table}`;
   const key = `t.${sqlIdent(entry.key ?? "id")}`;
   const column = `t.${sqlIdent(entry.column)}`;
-  const operator = `operator(extensions.${DISTANCE_OPERATORS[entry.distance]})`;
+  const operator = `operator(${vector}.${DISTANCE_OPERATORS[entry.distance]})`;
   const prefilter = (entry.prefilter ?? [])
     .map((name) => {
       const quoted = sqlIdent(name);
@@ -1954,8 +2176,19 @@ function vectorRanking(
       ))`;
     })
     .join("");
+  const predicate =
+    advanced && entry.predicate !== undefined
+      ? `\n      and (${boostExpression(`${where}.predicate`, entry.predicate, '"t.expires_at > now()"')})`
+      : "";
+  const order =
+    advanced && entry.order !== undefined
+      ? boostExpression(`${where}.order`, entry.order, '"t.created_at desc"')
+      : undefined;
   const widened =
-    advanced && (entry.hybrid !== undefined || entry.boost !== undefined);
+    advanced &&
+    (entry.hybrid !== undefined ||
+      entry.boost !== undefined ||
+      entry.predicate !== undefined);
   const candidates = widened
     ? "least(greatest(k, 1) * 4, 1000)"
     : "least(greatest(k, 1), 1000)";
@@ -1978,7 +2211,7 @@ function vectorRanking(
   text_hits as materialized (
     select ${key} as id, ts_rank_cd(${tsv}, q) as text_score
     from ${target} t, websearch_to_tsquery(${sqlString(config)}::regconfig, text_query) q
-    where text_query is not null and ${tsv} @@ q${prefilter}
+    where text_query is not null and ${tsv} @@ q${prefilter}${predicate}
     order by text_score desc
     limit ${candidates}
   ),
@@ -1991,16 +2224,27 @@ function vectorRanking(
   }
   const boost =
     advanced && entry.boost !== undefined
-      ? boostExpression(where, entry.boost)
+      ? boostExpression(`${where}.boost`, entry.boost)
       : undefined;
-  const scored = boost
-    ? `select f.id, (f.score * coalesce((${boost})::double precision, 1))::double precision as score
+  const boostMode = entry.boostMode ?? "multiply";
+  const modes: readonly string[] = ["multiply", "add"];
+  if (!modes.includes(boostMode)) {
+    throw new TypeError(`${where}.boostMode must be "multiply" or "add"`);
+  }
+  const score = boost
+    ? boostMode === "add"
+      ? `(f.score + coalesce((${boost})::double precision, 0))::double precision`
+      : `(f.score * coalesce((${boost})::double precision, 1))::double precision`
+    : "f.score::double precision";
+  const scored =
+    boost || order
+      ? `select f.id, ${score} as score, row_number() over (order by ${score} desc${order ? `, ${order}` : ""}) as ord
   from fused f join ${target} t on ${key} = f.id`
-    : "select f.id, f.score::double precision as score from fused f";
+      : `select f.id, ${score} as score, row_number() over (order by ${score} desc) as ord from fused f`;
   return `with vector_hits as materialized (
     select ${key} as id, ${column} ${operator} query as distance
     from ${target} t
-    where ${column} is not null${advanced ? prefilter : ""}
+    where ${column} is not null${advanced ? `${prefilter}${predicate}\n      and query is not null` : ""}
     order by ${column} ${operator} query
     limit ${candidates}
   ),
@@ -2011,11 +2255,23 @@ function vectorRanking(
     ${fused}
   )
   ${scored}
-  order by score desc
+  order by ord
   limit least(greatest(k, 1), 1000)`;
 }
 
-function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
+const ITERATIVE_SCAN = `#variable_conflict use_column
+declare
+  previous_scan text := current_setting('hnsw.iterative_scan', true);
+begin
+  perform set_config('hnsw.iterative_scan', 'strict_order', true);`;
+
+const RESTORE_SCAN = `  perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);
+end;`;
+
+function vectorSearchFunctions(
+  tables: readonly VectorSearchTable[],
+  vector: string,
+): string {
   if (tables.length === 0) return "";
   const functions = tables.map((entry) => {
     const [schema, table] = entry.table.includes(".")
@@ -2030,53 +2286,60 @@ function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
     const advanced =
       entry.hybrid !== undefined ||
       entry.boost !== undefined ||
+      entry.predicate !== undefined ||
+      entry.order !== undefined ||
       (entry.prefilter?.length ?? 0) > 0;
     const params = advanced
-      ? `query extensions.${type}, k integer default 10, filter jsonb default '{}', text_query text default null`
-      : `query extensions.${type}, k integer default 10`;
+      ? `query ${vector}.${type}, k integer default 10, filter jsonb default '{}', text_query text default null`
+      : `query ${vector}.${type}, k integer default 10`;
     const types = advanced
-      ? `extensions.${type}, integer, jsonb, text`
-      : `extensions.${type}, integer`;
+      ? `${vector}.${type}, integer, jsonb, text`
+      : `${vector}.${type}, integer`;
     const options = [
       entry.distance,
       type === "halfvec" ? "halfvec" : "",
       entry.hybrid ? `hybrid with ${entry.hybrid.tsvector}` : "",
       entry.boost ? `boost ${entry.boost}` : "",
       entry.prefilter?.length ? `prefilter ${entry.prefilter.join(", ")}` : "",
+      entry.predicate ? `predicate ${entry.predicate}` : "",
+      entry.boostMode === "add" ? "additive boost" : "",
+      entry.order ? `ties by ${entry.order}` : "",
     ]
       .filter(Boolean)
       .join(", ");
     const main = advanced
       ? `create or replace function ${fn}(${params})
 returns setof ${target}
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
-set hnsw.iterative_scan = 'strict_order'
 as $$
-  select t.* from (
-  ${vectorRanking(entry, target, true)}
+${ITERATIVE_SCAN}
+  return query select t.* from (
+  ${vectorRanking(entry, target, true, vector)}
   ) r
   join ${target} t on t.${sqlIdent(entry.key ?? "id")} = r.id
-  order by r.score desc
+  order by r.ord;
+${RESTORE_SCAN}
 $$;`
       : `create or replace function ${fn}(${params})
 returns setof ${target}
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
-set hnsw.iterative_scan = 'strict_order'
 as $$
-  select t.* from ${target} t
+${ITERATIVE_SCAN}
+  return query select t.* from ${target} t
   where ${column} is not null
-  order by ${column} operator(extensions.${operator}) query
-  limit least(greatest(k, 1), 1000)
+  order by ${column} operator(${vector}.${operator}) query
+  limit least(greatest(k, 1), 1000);
+${RESTORE_SCAN}
 $$;`;
     const other = advanced
-      ? `extensions.${type}, integer`
-      : `extensions.${type}, integer, jsonb, text`;
+      ? `${vector}.${type}, integer`
+      : `${vector}.${type}, integer, jsonb, text`;
     return `-- ${entry.table}.${entry.column} (${options})
 drop function if exists ${fn}(${other});
 drop function if exists ${scores}(${other});
@@ -2087,16 +2350,17 @@ grant execute on function ${fn}(${types}) to authenticated, service_role;
 -- The ids and scores of the same search, best first, for db.$search({ score: true }).
 create or replace function ${scores}(${params})
 returns table (id jsonb, score double precision)
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
-set hnsw.iterative_scan = 'strict_order'
 as $$
-  select to_jsonb(r.id), r.score from (
-  ${vectorRanking(entry, target, advanced)}
+${ITERATIVE_SCAN}
+  return query select to_jsonb(r.id), r.score from (
+  ${vectorRanking(entry, target, advanced, vector)}
   ) r
-  order by r.score desc
+  order by r.ord;
+${RESTORE_SCAN}
 $$;
 revoke execute on function ${scores}(${types}) from public, anon;
 grant execute on function ${scores}(${types}) to authenticated, service_role;`;
@@ -2114,27 +2378,102 @@ interface EntitlementsSource {
   readonly key: string;
   /** Where entitlements come from; the customer lookups are for `stripe-sync` only. */
   readonly source?: "stripe-sync" | "custom" | EntitlementPlansSource;
+  readonly claim?: FeatureClaimOption;
 }
 
-/** Privileges one Data API role gets on a table or view. */
+/** Privileges one role gets on a table or view. */
 interface TableGrant {
   /** `table` or `schema.table`. */
   readonly table: string;
-  readonly role: "anon" | "authenticated";
-  readonly privileges: readonly ("select" | "insert" | "update" | "delete")[];
+  readonly role: "anon" | "authenticated" | "service_role";
+  readonly privileges: readonly string[];
 }
 
-function tableGrants(grants: readonly TableGrant[]): string {
-  const statements = grants
-    .filter((grant) => grant.privileges.length > 0)
-    .map((grant) => {
-      const [schema, table] = grant.table.includes(".")
-        ? grant.table.split(".", 2)
-        : ["public", grant.table];
-      return `grant ${grant.privileges.join(", ")} on table ${sqlIdent(schema!)}.${sqlIdent(table!)} to ${grant.role};`;
-    });
-  if (statements.length === 0) return "";
-  return `\n-- config.expose\n${statements.join("\n")}\n`;
+const privilegeSql = (privilege: string): string => {
+  const open = privilege.indexOf("(");
+  if (open === -1) return privilege;
+  const columns = privilege
+    .slice(open + 1, privilege.lastIndexOf(")"))
+    .split(",")
+    .map((column) => sqlIdent(column.trim()));
+  return `${privilege.slice(0, open).trim()} (${columns.join(", ")})`;
+};
+
+/** The roles that may execute a function. */
+interface FunctionGrant {
+  /** `name(argument types)` or `schema.name(argument types)`. */
+  readonly function: string;
+  readonly roles: readonly ("anon" | "authenticated" | "service_role")[];
+}
+
+const qualifiedTable = (name: string): string => {
+  const [schema, table] = name.includes(".")
+    ? name.split(".", 2)
+    : ["public", name];
+  return `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
+};
+
+function qualifiedFunction(signature: string): string {
+  const open = signature.indexOf("(");
+  const name = signature.slice(0, open).trim();
+  const args = signature.slice(open);
+  if (open <= 0 || !/^\([\w\s,.[\]"]*\)$/.test(args)) {
+    throw new TypeError(
+      `expose: "${signature}" is not a function signature such as search_notes(text, integer)`,
+    );
+  }
+  return `${qualifiedTable(name)}${args}`;
+}
+
+const keyOf = (name: string): string =>
+  name.includes(".") ? name : `public.${name}`;
+
+/**
+ * Each listed table's complete privilege set: everything is revoked from
+ * the API roles first, then the listed privileges are granted. Policy
+ * grants fill tables `expose` doesn't list, with every privilege for
+ * `service_role`.
+ */
+function tableGrants(layout: ModuleLayout): string {
+  const listed = layout.grants ?? [];
+  const named = new Set(listed.map((grant) => keyOf(grant.table)));
+  const derived = (layout.policyGrants ?? []).filter(
+    (grant) => !named.has(keyOf(grant.table)),
+  );
+  const derivedTables = [...new Set(derived.map((grant) => grant.table))];
+  const grants = [
+    ...listed,
+    ...derived,
+    ...derivedTables.map((table): TableGrant => ({
+      table,
+      role: "service_role",
+      privileges: ["select", "insert", "update", "delete"],
+    })),
+  ];
+  const tables = [...new Set(grants.map((grant) => keyOf(grant.table)))];
+  const statements = tables.flatMap((table) => [
+    `revoke all on table ${qualifiedTable(table)} from public, anon, authenticated, service_role;`,
+    ...grants
+      .filter(
+        (grant) => keyOf(grant.table) === table && grant.privileges.length > 0,
+      )
+      .map(
+        (grant) =>
+          `grant ${grant.privileges.map(privilegeSql).join(", ")} on table ${qualifiedTable(table)} to ${grant.role};`,
+      ),
+  ]);
+  const functions = (layout.functionGrants ?? []).flatMap((grant) => {
+    const target = qualifiedFunction(grant.function);
+    return [
+      `revoke execute on function ${target} from public, anon, authenticated, service_role;`,
+      ...(grant.roles.length > 0
+        ? [`grant execute on function ${target} to ${grant.roles.join(", ")};`]
+        : []),
+    ];
+  });
+  const all = [...statements, ...functions];
+  if (all.length === 0) return "";
+  return `\n-- config.expose${derived.length > 0 ? " and the policies (sql.modules.grants.options.fromPolicies)" : ""}\n${all.join("\n")}\n`;
 }
 
 /** A jsonb column and the JSON Schema its values must match. */
@@ -2167,7 +2506,7 @@ function permdockEntitlementMembers(permdock: ModulePermdock): string {
 function customerSource(
   layout: ModuleLayout,
   installed: readonly string[],
-): Required<Omit<EntitlementsSource, "source">> & {
+): Required<Omit<EntitlementsSource, "source" | "claim">> & {
   readonly deferred: boolean;
 } {
   const configured = layout.entitlements;
@@ -2210,7 +2549,7 @@ function customerSource(
 }
 
 function entitlementsSource(
-  source: Required<Omit<EntitlementsSource, "source">> & {
+  source: Required<Omit<EntitlementsSource, "source" | "claim">> & {
     readonly deferred: boolean;
   },
   layout: ModuleLayout,
@@ -2312,9 +2651,12 @@ function moduleExtras(
     );
   if (module.name === "jsonb-schemas")
     return jsonSchemaChecks(layout.jsonSchemas ?? []);
-  if (module.name === "grants") return tableGrants(layout.grants ?? []);
+  if (module.name === "grants") return tableGrants(layout);
   if (module.name === "vector-search")
-    return vectorSearchFunctions(layout.vectorSearch ?? []);
+    return vectorSearchFunctions(
+      layout.vectorSearch ?? [],
+      vectorSchemaOf(layout),
+    );
   if (module.name === "read-sets") {
     const sets = layout.readSets ?? [];
     if (sets.length === 0) return "";
@@ -2358,7 +2700,42 @@ export function moduleContext(
  * roles table gets the same `roleThrough`, unless the config sets one.
  */
 function withManifestDefaults(layout: ModuleLayout): ModulesConfig | undefined {
+  return withManifestRoles(layout, withManifestSuspension(layout));
+}
+
+/**
+ * `sql.modules.access.disabled` from the manifest's `rls.suspension` under
+ * the `permdock` model, per subject, unless the config sets that subject.
+ */
+function withManifestSuspension(
+  layout: ModuleLayout,
+): ModulesConfig | undefined {
   const modules = layout.modules;
+  const suspension = layout.accessPermdock?.suspension;
+  const access = modules?.access;
+  if (!modules || !suspension || access?.model !== "permdock") return modules;
+  const configured = access.disabled ?? {};
+  const disabled: NonNullable<AccessModuleConfig["disabled"]> = {
+    ...configured,
+    ...(configured.tenant === undefined && suspension.tenant
+      ? { tenant: suspension.tenant }
+      : {}),
+    ...(configured.user === undefined && suspension.users
+      ? { user: suspension.users }
+      : {}),
+  };
+  if (
+    disabled.tenant === configured.tenant &&
+    disabled.user === configured.user
+  )
+    return modules;
+  return { ...modules, access: { ...access, disabled } };
+}
+
+function withManifestRoles(
+  layout: ModuleLayout,
+  modules: ModulesConfig | undefined,
+): ModulesConfig | undefined {
   const sources = layout.accessPermdock?.roleSources;
   const tenant = modules?.["tenant"];
   if (!modules || !sources || tenant?.mode !== "adopt") return modules;
@@ -2518,6 +2895,7 @@ const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     deletePlatform: "platform",
   },
   audit: { reveal: "tenant" },
+  "data-lifecycle": { deletePlatform: "platform" },
 };
 
 const isPermissionModule = (
@@ -2615,6 +2993,52 @@ function moduleDataPath(module: SqlModule, layout: ModuleLayout): string {
 /** The `@bs-module-data` line of a data file. */
 const MODULE_DATA_MARKER: RegExp = /^-- @bs-module-data ([a-z0-9-]+)$/m;
 
+const CREATE_EXTENSION =
+  /^create extension if not exists "?([a-z_][a-z0-9_]*)"?(?: with schema "?([a-z_][a-z0-9_]*)"?)?;/gim;
+
+/**
+ * The extensions a module's schema file creates, again for its data file. A
+ * schema diff can leave an extension out of the migration (pg-delta skips
+ * one in a schema it doesn't manage, such as `extensions` or pgmq's own),
+ * and `sql data` then still puts it in one.
+ */
+function moduleExtensions(body: string): string {
+  return extensionsOf([body])
+    .map((extension) => extension.statement)
+    .join("\n");
+}
+
+export interface ModuleExtension {
+  readonly name: string;
+  readonly statement: string;
+}
+
+function extensionsOf(bodies: readonly string[]): ModuleExtension[] {
+  const seen = new Set<string>();
+  return bodies.flatMap((body) =>
+    [...body.matchAll(CREATE_EXTENSION)].flatMap(
+      ([, name = "", schema]): ModuleExtension[] => {
+        const key = name.toLowerCase();
+        if (seen.has(key)) return [];
+        seen.add(key);
+        return [
+          {
+            name: key,
+            statement: `create extension if not exists ${sqlIdent(name)}${schema === undefined ? "" : ` with schema ${sqlIdent(schema)}`};`,
+          },
+        ];
+      },
+    ),
+  );
+}
+
+export const moduleSchemaExtensions = (
+  files: readonly ModuleFile[],
+): ModuleExtension[] =>
+  extensionsOf(
+    files.filter((file) => file.kind === "schema").map((file) => file.contents),
+  );
+
 /** Whether `contents` is a data file `renderModules` wrote. */
 export const isModuleDataFile = (contents: string): boolean =>
   MODULE_DATA_MARKER.test(contents);
@@ -2649,17 +3073,22 @@ export function renderModules(
     ].join("\n");
     const extra = moduleExtras(module, layout, installed);
     const wrappers = deprecationWrappers(module, ctx);
+    const body = moduleSql(module, ctx, layout).trim();
+    const api = ctx.config.api
+      ? apiWrappers(body, ctx.schemaName, ctx.config.api, module.name)
+      : "";
     if (module.target === "test") {
       return [
         {
           module: module.name,
           kind: "test",
           path: modulePath(module, layout),
-          contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}`,
+          contents: `${header}\n\n${body}\n${extra}${wrappers}`,
         },
       ];
     }
     const data = [
+      moduleExtensions(body),
       module.data?.(ctx, layout).trim() ?? "",
       moduleRow(module, ctx.mode),
     ]
@@ -2684,7 +3113,7 @@ export function renderModules(
         module: module.name,
         kind: "schema",
         path: modulePath(module, layout),
-        contents: `${header}\n\n${moduleSql(module, ctx, layout).trim()}\n${extra}${wrappers}${MODULE_MODULES_TABLE}`,
+        contents: `${header}\n\n${body}\n${extra}${wrappers}${api}${MODULE_MODULES_TABLE}`,
       },
       {
         module: module.name,
@@ -2699,6 +3128,25 @@ export function renderModules(
         contents: `${testHeader}\n\n${test.sql.trim()}\n`,
       })),
     ];
+  });
+}
+
+export interface ModuleTopic {
+  readonly module: string;
+  readonly topic: string;
+}
+
+export function moduleTopics(
+  names: readonly string[],
+  layout: ModuleLayout = {},
+): ModuleTopic[] {
+  const modules = resolveModules(names, layout);
+  const installed = modules.map((module) => module.name);
+  return modules.flatMap((module) => {
+    if (module.topics === undefined) return [];
+    const ctx = moduleContext(module.name, layout, installed);
+    if (ctx.mode === "custom") return [];
+    return module.topics(ctx).map((topic) => ({ module: module.name, topic }));
   });
 }
 

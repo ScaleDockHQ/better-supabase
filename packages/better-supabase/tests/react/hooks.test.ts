@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type * as ReactModule from "react";
 
 import { QueryClient } from "@tanstack/query-core";
@@ -406,6 +407,59 @@ describe("useBroadcast", () => {
     },
   };
   const room = defineTopic("room:{roomId}", { events: { created: title } });
+
+  it("subscribes with a plain supabase-js client without the provider", async () => {
+    const realtime = fakeRealtime();
+    const auth = new Set<(event: string, session: unknown) => void>();
+    const unsubscribed = vi.fn();
+    const supabase = {
+      ...realtime.client,
+      auth: {
+        onAuthStateChange: (
+          callback: (event: string, session: unknown) => void,
+        ) => {
+          auth.add(callback);
+          return { data: { subscription: { unsubscribe: unsubscribed } } };
+        },
+      },
+    } as unknown as SupabaseClient;
+    const signIn = (id: string | null) => {
+      for (const callback of auth)
+        callback("SIGNED_IN", id === null ? null : { user: { id } });
+    };
+    const created = vi.fn();
+    const { queryClient, invalidated } = cachedClient(["bs", "notes"]);
+    const view = renderHook(
+      () =>
+        useBroadcast(
+          room,
+          { roomId: "r1" },
+          { created },
+          { client: supabase, queryClient, invalidate: ["notes"] },
+        ),
+      undefined,
+      null,
+    );
+    expect(realtime.client.channel).not.toHaveBeenCalled();
+    signIn(USER);
+    expect(realtime.client.channel).toHaveBeenCalledTimes(1);
+    await flush();
+    expect(view.result).toBe("subscribed");
+    realtime.emit("room:r1", "created", { title: "Hi" });
+    await flush();
+    expect(created).toHaveBeenCalledTimes(1);
+    expect(invalidated(["bs", "notes"])).toBe(true);
+    signIn(OTHER);
+    expect(realtime.client.channel).toHaveBeenCalledTimes(2);
+    view.unmount();
+    expect(unsubscribed).toHaveBeenCalled();
+    const bare = renderHook(
+      () => useBroadcast(room, { roomId: "r1" }),
+      undefined,
+      null,
+    );
+    expect(bare.error!.message).toMatch(/or \{ client: supabase \}/);
+  });
 
   it("needs a query client to invalidate", () => {
     const { browser } = fakeBrowser(SIGNED_OUT);

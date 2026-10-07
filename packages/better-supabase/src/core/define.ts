@@ -721,13 +721,16 @@ export class BetterSupabase<
               ),
             );
           }
-          const query = vectorLiteral(args.vector);
+          const textOnly =
+            (args.vector === undefined || args.vector === null) &&
+            args.text !== undefined;
+          const query = textOnly ? null : vectorLiteral(args.vector ?? []);
           const k = args.k ?? 10;
           if (query === undefined || !Number.isInteger(k) || k < 1) {
             return err(
               dbError(
                 "invalid_input",
-                "db.$search() needs a vector of finite numbers and a positive integer k",
+                "db.$search() needs a vector of finite numbers (or text alone on a hybrid entry) and a positive integer k",
                 { table: table.key },
               ),
             );

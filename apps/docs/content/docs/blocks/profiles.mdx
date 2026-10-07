@@ -28,8 +28,8 @@ user has no profile yet, it inserts one:
 | `email`      | `auth.users.email`, and again after every change of address                           |
 | `username`   | metadata `user_name`, `preferred_username` or `username`, else the email's local part |
 
-Usernames are lowercased, stripped to `a-z`, `0-9` and `_`, start with a
-letter, and get a number suffix while the name is reserved or another
+Usernames are lowercased, stripped to `a-z`, `0-9` and `_` (plus the `.`
+or `-` of a `usernameFrom` separator), start with a letter, and get a number suffix while the name is reserved or another
 profile has it (`ada`, then `ada1`). `allocate_username(base)` returns a
 free one for a "pick a username" form. On a managed table, a check
 constraint applies the same rules to names users pick themselves: the
@@ -61,6 +61,9 @@ columns only, so select them by name instead of `*`. `email`, the active
 organization and team and `onboarding` stay private: read your own through
 `better_supabase.my_profile()`, which returns your full row.
 
+On a managed table the guard also sets `updated_at`. An adopted table keeps
+its own `updated_at` trigger: the guard neither checks nor writes the column.
+
 Security definer functions, such as `switch_organization` from the
 [organizations](/docs/blocks/organizations) module and the email mirror, write the
 service columns. To disable users through the profile, point the access
@@ -79,22 +82,22 @@ sql: {
 
 `sql.modules.profiles.options`:
 
-| Option              | Default                                               | What it does                                                                                   |
-| ------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `metadata`          | the keys in the table above                           | metadata key to column name; replaces the defaults                                             |
-| `splitName`         | `true`                                                | fills first and last name from a full name                                                     |
-| `username`          | `true`                                                | allocates a username on sign-up                                                                |
-| `usernameFrom`      | `["user_name", "preferred_username", "username"]`     | metadata keys tried before the email, or `{ names, separator }` entries (see below)            |
-| `usernameMinLength` | `3`                                                   | shorter names become `user`                                                                    |
-| `usernameMaxLength` | `32`                                                  | the longest name, suffix included                                                              |
-| `reservedUsernames` | `admin`, `api`, `support`, `www` and more             | names nobody gets; allocation adds a suffix                                                    |
-| `extraColumns`      | none                                                  | column name to SQL type on a managed table, such as `{ locale: "text not null default 'en'" }` |
-| `updatable`         | name, avatar, username, onboarding and `extraColumns` | the columns users can update                                                                   |
-| `columnGrants`      | `true` when managed                                   | revokes `update` and grants it on `updatable` only                                             |
-| `serviceColumns`    | see above                                             | the columns only the service changes; `[]` drops the guard                                     |
-| `readPolicy`        | `self`                                                | `members` also shows profiles of people in the same organizations (needs `tenant`); see below  |
-| `syncTrigger`       | `true`                                                | `false` leaves sign-up to your own trigger, which calls `sync_profile`                         |
-| `mirrorEmail`       | `true`                                                | keeps `email` equal to `auth.users.email`                                                      |
+| Option              | Default                                               | What it does                                                                                                     |
+| ------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `metadata`          | the keys in the table above                           | metadata key to column name; replaces the defaults                                                               |
+| `splitName`         | `true`                                                | fills first and last name from a full name                                                                       |
+| `username`          | `true`                                                | allocates a username on sign-up                                                                                  |
+| `usernameFrom`      | `["user_name", "preferred_username", "username"]`     | metadata keys tried before the email, or `{ names, separator }` and `{ columns, separator }` entries (see below) |
+| `usernameMinLength` | `3`                                                   | shorter names become `user`                                                                                      |
+| `usernameMaxLength` | `32`                                                  | the longest name, suffix included                                                                                |
+| `reservedUsernames` | `admin`, `api`, `support`, `www` and more             | names nobody gets; allocation adds a suffix                                                                      |
+| `extraColumns`      | none                                                  | column name to SQL type on a managed table, such as `{ locale: "text not null default 'en'" }`                   |
+| `updatable`         | name, avatar, username, onboarding and `extraColumns` | the columns users can update                                                                                     |
+| `columnGrants`      | `true` when managed                                   | revokes `update` and grants it on `updatable` only                                                               |
+| `serviceColumns`    | see above                                             | the columns only the service changes; `[]` drops the guard. `updated_at` is never guarded                        |
+| `readPolicy`        | `self`                                                | `members` also shows profiles of people in the same organizations (needs `tenant`); see below                    |
+| `syncTrigger`       | `true`                                                | `false` leaves sign-up to your own trigger, which calls `sync_profile`                                           |
+| `mirrorEmail`       | `true`                                                | keeps `email` equal to `auth.users.email`                                                                        |
 
 An entry of `usernameFrom` can join several metadata keys when all of them
 are set, so a "first_last" convention is a setting:
@@ -112,7 +115,20 @@ profiles: {
 
 Ada Lovelace becomes `ada_lovelace`; a user without a last name falls back to
 `user_name`, then the email. `allocate_username` still lowercases, strips and
-suffixes the result.
+suffixes the result, and keeps a `.` or `-` separator, which the username
+check then also accepts.
+
+`{ columns, separator }` joins the values the profile's own columns get
+instead, after `metadata` and `splitName`. A sign-up that only sends
+`full_name: "Grace Hopper"` becomes `grace.hopper`:
+
+```ts
+profiles: {
+  options: {
+    usernameFrom: [{ columns: ["first_name", "last_name"], separator: "." }],
+  },
+},
+```
 
 `readPolicy` also takes `{ members, platform }`. `platform` is a permission
 key that `is_platform()` checks, so platform staff read every profile, which

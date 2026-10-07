@@ -73,6 +73,50 @@ function catalogLoops(context: DoctorContext): FindingInput[] {
   });
 }
 
+const CREATE_EXTENSION =
+  /\bcreate\s+extension\s+(?:if\s+not\s+exists\s+)?"?([\w-]+)"?/gi;
+
+/**
+ * Extensions a pg-delta schema file creates, SQL module files included, that
+ * no migration creates. pg-delta can leave an extension that owns its own
+ * schema (`pgmq`) out of the generated migration.
+ */
+function missingExtensions(context: DoctorContext): FindingInput[] {
+  const toml = context.configToml;
+  if (toml === undefined || diffEngine(toml) !== "pg-delta") return [];
+  const files = context.sqlFiles ?? [];
+  const migrations = files.filter((file) =>
+    file.path.startsWith(`${toml.dir}/migrations/`),
+  );
+  if (migrations.length === 0) return [];
+  const created = new Set(
+    migrations.flatMap((file) =>
+      [...withoutComments(file.text).matchAll(CREATE_EXTENSION)].map((match) =>
+        match[1]!.toLowerCase(),
+      ),
+    ),
+  );
+  const seen = new Set<string>();
+  return files
+    .filter((file) => file.path.startsWith(`${toml.dir}/schemas/`))
+    .flatMap((file) => {
+      const text = withoutComments(file.text);
+      return [...text.matchAll(CREATE_EXTENSION)].flatMap((match) => {
+        const name = match[1]!.toLowerCase();
+        if (created.has(name) || seen.has(name)) return [];
+        seen.add(name);
+        const module = /^-- @bs-module /m.test(file.text);
+        return [
+          {
+            message: `${file.path} creates the extension ${name}, but no migration creates it. pg-delta can leave an extension that owns its own schema out of the generated migration, and a database built from the migrations then lacks it. ${module ? "Run `better-supabase sql sync`: it writes the extension into a migration that runs before the schema migration." : `Add \`create extension if not exists ${name};\` to a migration that runs before the one that uses it.`}`,
+            target: file.path,
+            location: { file: file.path, line: lineAt(text, match.index) },
+          },
+        ];
+      });
+    });
+}
+
 /** Statements in declarative schema files that pg-delta can't order. */
 export const PGDELTA_RULES: readonly Rule[] = [
   {
@@ -90,5 +134,13 @@ export const PGDELTA_RULES: readonly Rule[] = [
     description:
       "A `do` block in `supabase/schemas` under pg-delta that reads the catalog (`information_schema`, `pg_class`, ...) to create objects. pg-delta runs it before the tables exist, so it creates nothing.",
     check: catalogLoops,
+  },
+  {
+    code: "BS321",
+    severity: "warning",
+    title: "Extension missing from the migrations under pg-delta",
+    description:
+      "A `create extension` in `supabase/schemas` (a SQL module's file included) under pg-delta that no migration repeats. pg-delta can leave an extension that owns its own schema, such as `pgmq`, out of the generated migration.",
+    check: missingExtensions,
   },
 ];

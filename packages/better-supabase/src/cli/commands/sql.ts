@@ -13,6 +13,7 @@ import {
   customContracts,
   type InstalledModule,
   type ModuleAccessPermdock,
+  type ModuleExtension,
   type ModuleFile,
   moduleFileVersion,
   type ModuleLayout,
@@ -21,6 +22,11 @@ import {
   moduleLayout,
   modulePermissionKeys,
   moduleBody,
+  moduleSchemaExtensions,
+  moduleTopics,
+  declaredTables,
+  extensionSchema,
+  policyGrants,
   renderModules,
   resolveModules,
   sameModuleFile,
@@ -36,6 +42,7 @@ import {
   moduleKeyProblems,
   permdockSource,
   readPermdock,
+  readPermissionCatalogKeys,
 } from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter, plain } from "../style.ts";
@@ -45,6 +52,7 @@ import {
   readSupabaseToml,
   schemaPaths,
 } from "../supabase-toml.ts";
+import { topicPolicyFile } from "../topic-policies.ts";
 
 const SQL_ARGS = {
   action: {
@@ -155,6 +163,13 @@ async function accessPermdockFor(
   }
 }
 
+/** The keys of PermDock's permission catalog, for `api-keys` scopes. */
+function permissionCatalogFor(
+  config: ResolvedConfig,
+): Promise<readonly string[] | undefined> {
+  return readPermissionCatalogKeys(config.root, config.permdock.catalog);
+}
+
 async function layout(
   config: ResolvedConfig,
   args: SqlArgs,
@@ -167,16 +182,16 @@ async function layout(
       [],
       await permdockFor(config, names),
       await accessPermdockFor(config, names),
+      await permissionCatalogFor(config),
     ),
     schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
   };
 }
 
-/**
- * The `better_supabase.audit(...)` calls in the declarative schemas, then
- * the migrations oldest first, so a later call or `unaudit` wins.
- */
-async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
+/** The declarative schema files, then the migrations oldest first. */
+async function schemaTexts(
+  config: ResolvedConfig,
+): Promise<{ readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
   const migrations = resolve(config.root, migrationsDir(config));
   const paths = [
@@ -188,13 +203,34 @@ async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
           .map((name) => join(migrations, name))
       : []),
   ];
-  return auditRegistrations(
-    await Promise.all(
-      paths.map(async (path) => ({
-        text: await readFile(resolve(config.root, path), "utf8"),
-      })),
-    ),
+  return Promise.all(
+    paths.map(async (path) => ({
+      text: await readFile(resolve(config.root, path), "utf8"),
+    })),
   );
+}
+
+async function declarativeTexts(
+  config: ResolvedConfig,
+): Promise<{ readonly text: string }[]> {
+  const { files } = await schemaPaths(
+    config.root,
+    await readSupabaseToml(config.root),
+  );
+  if (files.length === 0) return schemaTexts(config);
+  return Promise.all(
+    files.map(async (path) => ({
+      text: await readFile(resolve(config.root, path), "utf8"),
+    })),
+  );
+}
+
+/**
+ * The `better_supabase.audit(...)` calls in the declarative schemas, then
+ * the migrations oldest first, so a later call or `unaudit` wins.
+ */
+async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
+  return auditRegistrations(await schemaTexts(config));
 }
 
 /**
@@ -219,12 +255,41 @@ async function layoutFor(
       resolved.has("read-sets") ? await compiledReadSets(config) : [],
       permdock,
       await accessPermdockFor(config, names),
+      await permissionCatalogFor(config),
     ),
     schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
     ...(resolved.has("audit")
       ? { auditedTables: await auditedTables(config) }
       : {}),
+    ...(resolved.has("vector-search")
+      ? vectorSchemaOf(await schemaTexts(config))
+      : {}),
+    ...(resolved.has("grants") &&
+    config.sql.modules["grants"]?.options?.["fromPolicies"] === true
+      ? {
+          policyGrants: policyGrants(
+            await declarativeTexts(config),
+            config.schemas,
+          ),
+        }
+      : {}),
+    ...(resolved.has("sessions") &&
+    config.sql.modules["sessions"]?.options?.["policies"] === true
+      ? {
+          declaredTables: declaredTables(
+            await declarativeTexts(config),
+            config.schemas,
+          ),
+        }
+      : {}),
   };
+}
+
+function vectorSchemaOf(sources: readonly { readonly text: string }[]): {
+  vectorSchema?: string;
+} {
+  const schema = extensionSchema(sources, "vector");
+  return schema === undefined ? {} : { vectorSchema: schema };
 }
 
 const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;
@@ -290,8 +355,13 @@ const migrationStamp = (now: Date): string =>
  * stamp, and the data has to run after the schema.
  */
 function stampAfter(migrations: readonly string[], now: Date): string {
+  // Every name that starts with 14 digits counts, whatever follows them
+  // (another tool's `<stamp>-seeds.sql` or `<stamp>.sql`), so the data
+  // migration never shares a timestamp with one.
   const newest = migrations
-    .map((name) => /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(name))
+    .map((name) =>
+      /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?!\d)/.exec(name),
+    )
     .filter((match) => match !== null)
     .map((match) =>
       Date.UTC(
@@ -313,12 +383,20 @@ async function write(
   args: SqlArgs,
   names: readonly string[],
   sqlLayout: ModuleLayout,
+  only?: readonly string[],
 ): Promise<string[]> {
   const lines: string[] = [];
   const dryRun = args["dry-run"] === true;
   let data = false;
-  const files = renderModules(names, sqlLayout);
-  for (const path of await staleModuleTests(config, names, sqlLayout, files)) {
+  const files = renderModules(names, sqlLayout).filter(
+    (file) => only === undefined || only.includes(file.module),
+  );
+  for (const path of await staleModuleTests(
+    config,
+    only ?? names,
+    sqlLayout,
+    files,
+  )) {
     const shown = display(config.root, path);
     if (dryRun) {
       lines.push(`Would remove ${shown}`);
@@ -338,8 +416,61 @@ async function write(
     if (wrote && file.kind === "data") data = true;
     lines.push(`${wrote ? "Wrote" : "Unchanged"} ${shown} (${file.module})`);
   }
+  lines.push(...(await writeExtensionsMigration(config, files, dryRun)));
   if (data) lines.push("", DATA_NEXT);
   return lines;
+}
+
+const EXTENSIONS_SUFFIX = "_better_supabase_extensions.sql";
+
+const MIGRATION_EXTENSION =
+  /^\s*create\s+extension\s+(?:if\s+not\s+exists\s+)?"?([a-z_][a-z0-9_]*)"?/gim;
+
+async function unmigratedExtensions(
+  config: ResolvedConfig,
+  files: readonly ModuleFile[],
+): Promise<{
+  dir: string;
+  existing: string[];
+  missing: ModuleExtension[];
+}> {
+  const dir = migrationsDir(config);
+  const existing: string[] = await readdir(resolve(config.root, dir)).catch(
+    () => [],
+  );
+  const created = new Set<string>();
+  for (const name of existing) {
+    if (!name.endsWith(".sql") || name.endsWith(DATA_SUFFIX)) continue;
+    const text = await readFile(resolve(config.root, dir, name), "utf8");
+    for (const match of text.matchAll(MIGRATION_EXTENSION))
+      created.add(match[1]!.toLowerCase());
+  }
+  return {
+    dir,
+    existing,
+    missing: moduleSchemaExtensions(files).filter(
+      (extension) => !created.has(extension.name),
+    ),
+  };
+}
+
+async function writeExtensionsMigration(
+  config: ResolvedConfig,
+  files: readonly ModuleFile[],
+  dryRun: boolean,
+): Promise<string[]> {
+  const { dir, existing, missing } = await unmigratedExtensions(config, files);
+  if (missing.length === 0) return [];
+  const path = `${dir}/${stampAfter(existing, new Date(Date.now() - 1000))}${EXTENSIONS_SUFFIX}`;
+  if (dryRun) return [`Would write ${path}`];
+  await writeIfChanged(
+    resolve(config.root, path),
+    `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`,
+  );
+  return [
+    `Wrote ${path}`,
+    "It creates the extensions the module schemas need, so create the schema migration after it.",
+  ];
 }
 
 const DATA_NEXT =
@@ -358,10 +489,21 @@ async function dataMigration(
   if (config.sql.moduleNames.length === 0) {
     return { code: 0, output: "sql.modules is empty; nothing to write." };
   }
-  const files = renderModules(
+  const rendered = renderModules(
     config.sql.moduleNames,
     await layoutFor(config, args, config.sql.moduleNames),
-  ).filter((file) => file.kind === "data");
+  );
+  const { missing } = await unmigratedExtensions(config, rendered);
+  if (missing.length > 0) {
+    return {
+      code: 1,
+      error: [
+        `No migration before the data migration creates ${missing.map((extension) => extension.name).join(", ")}, and the schema migration needs ${missing.length === 1 ? "it" : "them"} while it applies.`,
+        "Run `better-supabase sql sync` to write the extensions migration, then create the schema migration again after it.",
+      ].join("\n"),
+    };
+  }
+  const files = rendered.filter((file) => file.kind === "data");
   const contents = `-- better-supabase sql data: the rows and settings of ${files.map((file) => file.module).join(", ")}, which a schema diff skips.\n\n${files.map((file) => file.contents.trim()).join("\n\n")}\n`;
   const dir = migrationsDir(config);
   const existing: string[] = await readdir(resolve(config.root, dir)).catch(
@@ -437,6 +579,8 @@ async function upgrade(
   const diffs: string[] = [];
   for (const file of files) {
     if (file.kind === "data") continue;
+    if (file.kind === "test" && SQL_MODULES[file.module]?.target !== "test")
+      continue;
     const current = await readFile(
       resolve(config.root, file.path),
       "utf8",
@@ -578,8 +722,18 @@ export async function runSql(
           ].join("\n"),
         };
       }
-      const sqlLayout = await layoutFor(config, args, names);
-      const lines = await write(config, args, names, sqlLayout);
+      // Render with the modules sql.modules already lists, so the new ones
+      // see them (a foreign key to the organizations table, plan quotas
+      // over entitlements), but write only the named ones and what they need.
+      const listed = [
+        ...config.sql.moduleNames,
+        ...names.filter((name) => !config.sql.moduleNames.includes(name)),
+      ];
+      const sqlLayout = await layoutFor(config, args, listed);
+      const added = resolveModules(names, sqlLayout).map(
+        (module) => module.name,
+      );
+      const lines = await write(config, args, listed, sqlLayout, added);
       const pulledIn = resolveModules(names, sqlLayout)
         .map((module) => module.name)
         .filter((name) => PERMDOCK_OWNED.has(name) && !names.includes(name));
@@ -610,26 +764,54 @@ export async function runSql(
       return { code: 0, output: lines.join("\n") };
     }
     case "sync": {
-      if (config.sql.moduleNames.length === 0) {
+      const topics = await topicPolicyFile(
+        config,
+        config.sql.moduleNames.length === 0
+          ? []
+          : moduleTopics(
+              config.sql.moduleNames,
+              await layoutFor(config, args, config.sql.moduleNames),
+            ),
+      );
+      if (config.sql.moduleNames.length === 0 && topics === undefined) {
         return { code: 0, output: "sql.modules is empty; nothing to sync." };
       }
       if (args.check !== true) {
-        return {
-          code: 0,
-          output: (
-            await write(
-              config,
-              args,
-              config.sql.moduleNames,
-              await layoutFor(config, args, config.sql.moduleNames),
-            )
-          ).join("\n"),
-        };
+        const lines =
+          config.sql.moduleNames.length === 0
+            ? []
+            : await write(
+                config,
+                args,
+                config.sql.moduleNames,
+                await layoutFor(config, args, config.sql.moduleNames),
+              );
+        if (topics !== undefined) {
+          const shown = display(config.root, topics.path);
+          if (args["dry-run"] === true)
+            lines.push(`Would write ${shown} (topics)`);
+          else {
+            const wrote = await writeIfChanged(
+              resolve(config.root, topics.path),
+              topics.contents,
+            );
+            lines.push(`${wrote ? "Wrote" : "Unchanged"} ${shown} (topics)`);
+          }
+        }
+        return { code: 0, output: lines.join("\n") };
       }
       const sqlLayout = await layoutFor(config, args, config.sql.moduleNames);
-      const files = renderModules(config.sql.moduleNames, sqlLayout);
+      const files: { path: string; contents: string; topics?: true }[] = [
+        ...renderModules(config.sql.moduleNames, sqlLayout),
+        ...(topics === undefined ? [] : [{ ...topics, topics: true as const }]),
+      ];
       const stale: string[] = (
-        await staleModuleTests(config, config.sql.moduleNames, sqlLayout, files)
+        await staleModuleTests(
+          config,
+          config.sql.moduleNames,
+          sqlLayout,
+          renderModules(config.sql.moduleNames, sqlLayout),
+        )
       ).map((path) => display(config.root, path));
       const diffs: string[] = stale.map(
         (path) => `${path} is no longer written; \`sql sync\` removes it.`,
@@ -639,7 +821,11 @@ export async function runSql(
           resolve(config.root, file.path),
           "utf8",
         ).catch(() => undefined);
-        if (!sameModuleFile(current, file.contents)) {
+        if (
+          file.topics
+            ? current !== file.contents
+            : !sameModuleFile(current, file.contents)
+        ) {
           const shown = display(config.root, file.path);
           stale.push(shown);
           diffs.push(fileDiff(shown, current, file.contents, paint));

@@ -1,3 +1,4 @@
+import type { DisabledRow } from "../config/modules.ts";
 import type { ModuleContext } from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
@@ -10,7 +11,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;`;
  * connection (no JWT, a privileged session user), which may act for others.
  */
 export const SERVICE_CALLER =
-  "coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
+  "coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
 
 /** Creates the module's schema when it isn't `better_supabase`, then the module schema. */
 export function schemaPreamble(ctx: ModuleContext): string {
@@ -167,20 +168,25 @@ export function organizationMissing(
 export function disabledHelpers(ctx: ModuleContext): string {
   const disabled = ctx.modules.access?.disabled ?? {};
   const id = ctx.idType;
-  const tenant = disabled.tenant
-    ? columnRef("sql.modules.access.disabled.tenant", disabled.tenant)
-    : undefined;
-  const user = disabled.user
-    ? columnRef("sql.modules.access.disabled.user", disabled.user)
-    : undefined;
-  const userKey = sqlIdent(disabled.userKey ?? "id");
   const organizations = managedOrganizations(ctx);
   let tenantCheck = "false";
-  if (tenant) {
-    tenantCheck = `exists (select 1 from ${tenant.table} t where t."id" = tenant_disabled.tenant and t.${tenant.column} is not null)`;
+  if (disabled.tenant !== undefined) {
+    tenantCheck = disabledCheck(
+      "sql.modules.access.disabled.tenant",
+      disabled.tenant,
+      { key: '"id"', alias: "t", value: "tenant_disabled.tenant" },
+    );
   } else if (organizations) {
     tenantCheck = `exists (select 1 from ${organizations.table} t where t.${organizations.id} = tenant_disabled.tenant and (${organizations.flags.map((column) => `t.${column} is not null`).join(" or ")}))`;
   }
+  const userCheck =
+    disabled.user === undefined
+      ? "false"
+      : disabledCheck("sql.modules.access.disabled.user", disabled.user, {
+          key: sqlIdent(disabled.userKey ?? "id"),
+          alias: "u",
+          value: "user_disabled.user_id",
+        });
   return `
 -- Disabled tenants and users get no permissions and no membership claims
 -- (modules.access.disabled; with the managed organizations module, its
@@ -202,7 +208,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${user ? `exists (select 1 from ${user.table} u where u.${userKey} = user_disabled.user_id and u.${user.column} is not null)` : "false"}
+  select ${userCheck}
 $$;
 
 revoke execute on function better_supabase.tenant_disabled(${id}) from public, anon, authenticated;
@@ -215,6 +221,60 @@ grant execute on function better_supabase.user_disabled(uuid) to service_role, s
  * Whether `disabledHelpers` reads the managed organizations table, which a
  * later file creates: the caller turns `check_function_bodies` off around it.
  */
+/**
+ * The condition that `value` is disabled: a set column (`schema.table.column`,
+ * matched on `key`), or no active row (PermDock's suspension row, where a
+ * missing row counts as disabled).
+ */
+function disabledCheck(
+  where: string,
+  config: string | DisabledRow,
+  match: {
+    readonly key: string;
+    readonly alias: string;
+    readonly value: string;
+  },
+): string {
+  const { alias: d, value } = match;
+  if (typeof config === "string") {
+    const ref = columnRef(where, config);
+    return `exists (select 1 from ${ref.table} ${d} where ${d}.${match.key} = ${value} and ${d}.${ref.column} is not null)`;
+  }
+  const parts = config.table.split(".");
+  if (parts.length !== 2 || parts.some((part) => part.length === 0)) {
+    throw new TypeError(
+      `${where}.table must be "schema.table", got "${config.table}"`,
+    );
+  }
+  const active = [`${d}.${sqlIdent(config.id)} = ${value}`];
+  if (config.disabledAt !== undefined)
+    active.push(`${d}.${sqlIdent(config.disabledAt)} is null`);
+  if (config.status !== undefined) {
+    if (!config.active || config.active.length === 0) {
+      throw new TypeError(`${where}.status needs the active values in active`);
+    }
+    active.push(
+      `${d}.${sqlIdent(config.status)}::text in (${config.active.map(sqlString).join(", ")})`,
+    );
+  }
+  if (config.disabledAt === undefined && config.status === undefined) {
+    throw new TypeError(`${where} needs disabledAt, status or both`);
+  }
+  return `not exists (select 1 from ${parts.map((part) => sqlIdent(part)).join(".")} ${d} where ${active.join(" and ")})`;
+}
+
+/**
+ * Whether the `access` module's file defines `tenant_disabled` and
+ * `user_disabled`: it does whenever it is installed (or configured) outside
+ * custom mode, and the `tenant` module's file then leaves them out, so each
+ * function is defined in one file.
+ */
+export function accessDefinesDisabledHelpers(ctx: ModuleContext): boolean {
+  const access = ctx.modules.access;
+  if (!ctx.installed("access") && access === undefined) return false;
+  return (access?.mode ?? "managed") !== "custom";
+}
+
 export function disabledHelpersNeedLaterTables(ctx: ModuleContext): boolean {
   return (
     !ctx.modules.access?.disabled?.tenant &&
@@ -332,4 +392,18 @@ export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
 -- blocks writes only briefly, and validating takes a lock that lets writes
 -- continue. The trigger of the same name reports which part of the schema failed.
 ${statements.join("\n\n")}\n`;
+}
+
+/**
+ * Revokes each function from the API roles and grants it to `service_role`,
+ * one statement per function, so `sql.modules.<module>.api` sees the grants
+ * and writes an entry point for each.
+ */
+export function serviceOnly(signatures: readonly string[]): string {
+  return signatures
+    .flatMap((signature) => [
+      `revoke execute on function better_supabase.${signature} from public, anon, authenticated;`,
+      `grant execute on function better_supabase.${signature} to service_role;`,
+    ])
+    .join("\n");
 }

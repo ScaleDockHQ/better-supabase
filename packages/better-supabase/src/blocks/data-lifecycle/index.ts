@@ -16,6 +16,7 @@ export {
   type OrganizationPurge,
   type OrganizationPurger,
   type OrganizationPurgerOptions,
+  type PurgeBucket,
   type StorageEntry,
 } from "./data-lifecycle.ts";
 export type { LifecycleTable } from "../../sql/modules/data-lifecycle.ts";

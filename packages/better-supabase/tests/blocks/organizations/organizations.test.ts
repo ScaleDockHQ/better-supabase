@@ -428,6 +428,14 @@ describe("rpcTransport", () => {
     expect(rpc).toHaveBeenCalledWith("mark_used", { organization: "o" });
   });
 
+  it("sends every call to the API schema when one is given", async () => {
+    const rpc = vi.fn(() => Promise.resolve({ data: 1, error: null }));
+    const schema = vi.fn(() => ({ rpc }));
+    const transport = rpcTransport({ schema }, { schema: "api" });
+    await transport.call("better_supabase", "mark_used", {});
+    expect(schema).toHaveBeenCalledWith("api");
+  });
+
   it("throws the PostgREST error as an Error with its fields", async () => {
     const transport = rpcTransport({
       schema: () => ({
@@ -451,5 +459,30 @@ describe("rpcTransport", () => {
         hint: "ORGANIZATION_FORBIDDEN",
       },
     });
+  });
+});
+
+describe("invitations by id", () => {
+  it("lists the caller's invitations and answers them by id", async () => {
+    const { transport, calls } = fake({
+      my_invitations: [invitationRow, "not a row"],
+      accept_invitation_by_id: "org-1",
+      decline_invitation_by_id: true,
+    });
+    const organizations = createOrganizations({ transport });
+    const mine = await organizations.myInvitations().orThrow();
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ id: "inv-1", organizationId: "org-1" });
+    expect(await organizations.acceptInvitationById("inv-1").orThrow()).toEqual(
+      { organizationId: "org-1" },
+    );
+    expect(await organizations.declineInvitationById("inv-2").orThrow()).toBe(
+      true,
+    );
+    expect(calls.map((call) => [call.fn, call.args])).toEqual([
+      ["my_invitations", {}],
+      ["accept_invitation_by_id", { invitation_id: "inv-1" }],
+      ["decline_invitation_by_id", { invitation_id: "inv-2" }],
+    ]);
   });
 });

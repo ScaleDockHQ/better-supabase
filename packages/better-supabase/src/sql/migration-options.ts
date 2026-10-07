@@ -27,14 +27,31 @@ const MIGRATION_OPTIONS: readonly MigrationOption[] = [
   {
     module: "webhooks-out",
     option: "eventIdType",
-    departs: (value) => value !== "text",
-    effect: "types event ids for an existing column; managed tables use text",
+    departs: (value) => value !== "text" && value !== "uuid",
+    effect:
+      "types event ids for an existing column; managed tables use text or uuid",
   },
   {
     module: "webhooks-out",
     option: "runIdType",
-    departs: (value) => value !== "text",
-    effect: "types run ids for an existing column; managed tables use text",
+    departs: (value) => value !== "text" && value !== "uuid",
+    effect:
+      "types run ids for an existing column; managed tables use text or uuid",
+  },
+  {
+    module: "audit",
+    option: "values",
+    departs: (value) =>
+      typeof value === "object" &&
+      value !== null &&
+      Object.values(value).some(
+        (entries: unknown) =>
+          typeof entries === "object" &&
+          entries !== null &&
+          Object.keys(entries).length > 0,
+      ),
+    effect:
+      "writes the adopted log's scope, actor kind, outcome or source values instead of the module's",
   },
   {
     module: "outbox",

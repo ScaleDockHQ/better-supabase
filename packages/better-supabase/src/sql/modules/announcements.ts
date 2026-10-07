@@ -32,6 +32,7 @@ const NAMES: ModuleNames = {
     },
     dismissals: {
       name: "announcement_dismissals",
+      lifecycle: { user: "user" },
       columns: {
         announcement: "announcement_id",
         user: "user_id",
@@ -345,4 +346,5 @@ export const ANNOUNCEMENTS: ModuleDefinition = {
   names: NAMES,
   contract,
   build,
+  topics: (ctx) => [ctx.text("topic", "announcements")],
 };

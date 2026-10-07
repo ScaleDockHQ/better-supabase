@@ -11,9 +11,13 @@ import type { AllowUrl } from "./url-policy.ts";
 import { emitBlockEvent } from "../../core/block-events.ts";
 import { rawError } from "../../core/block-transport.ts";
 import { dbError, mapDbError } from "../../core/errors.ts";
-import { problemResponse } from "../../core/problem.ts";
+import {
+  type BlockProblemOptions,
+  problemResponse,
+} from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { type BlockTemporalOptions, applyTemporal } from "../shared.ts";
 import { fetchTransport, WebhookPolicyError } from "./http.ts";
 import { sqlSecretStore } from "./secrets.ts";
 import { standardWebhooks } from "./signers.ts";
@@ -48,7 +52,7 @@ export interface RetryPolicy {
   readonly retryable?: (status: number) => boolean;
 }
 
-export interface WebhooksOptions {
+export interface WebhooksOptions extends BlockTemporalOptions {
   /** `sqlTransport(postgres.admin)` for the worker, or the user's connection to manage. */
   readonly transport: BlockTransport;
   /** `sql.modules.webhooks-out.schema`. Defaults to `better_supabase`. */
@@ -124,7 +128,8 @@ export interface DeliverWebhooksResult {
   readonly disabled: number;
 }
 
-export interface WebhooksRouteOptions extends DeliverWebhooksOptions {
+export interface WebhooksRouteOptions
+  extends DeliverWebhooksOptions, BlockProblemOptions {
   readonly secret: string | undefined;
   readonly onError?: (error: unknown) => void;
 }
@@ -205,6 +210,7 @@ const errorText = (cause: unknown): string =>
 type Outcome = "succeeded" | "retrying" | "dead" | "canceled";
 
 export function createWebhooks(options: WebhooksOptions): Webhooks {
+  applyTemporal(options);
   const { transport } = options;
   const schema = options.schema ?? DEFAULT_SCHEMA;
   const mappers = options.errorMappers ?? [];
@@ -507,7 +513,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
               "unauthorized",
               "The deliver route needs its bearer secret",
             ),
-            { instance },
+            { instance, format: routeOptions.problem },
           );
         try {
           return Response.json(
@@ -515,7 +521,10 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
           );
         } catch (cause) {
           routeOptions.onError?.(cause);
-          return problemResponse(toDbError(cause), { instance });
+          return problemResponse(toDbError(cause), {
+            instance,
+            format: routeOptions.problem,
+          });
         }
       };
     },

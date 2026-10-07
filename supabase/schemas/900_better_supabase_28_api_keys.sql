@@ -66,7 +66,7 @@ begin
   if not personal and tenant is null then
     raise exception 'A tenant API key needs a tenant' using errcode = '22023', hint = 'API_KEY_TENANT_REQUIRED';
   end if;
-  if not (coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     if not personal and not coalesce(better_supabase.can('tenant', tenant, 'api_keys.manage'), false) then
       raise exception 'Not allowed to manage API keys in this tenant' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
     end if;
@@ -126,7 +126,7 @@ as $$
   from "better_supabase"."api_keys" k
   where case
     when list_api_keys.tenant is null then k."user_id" = auth.uid()
-    when coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_api_keys.tenant, 'api_keys.manage'), false) then k."organization_id" = list_api_keys.tenant
+    when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_api_keys.tenant, 'api_keys.manage'), false) then k."organization_id" = list_api_keys.tenant
     else k."organization_id" = list_api_keys.tenant and k."user_id" = auth.uid()
   end
 $$;
@@ -141,7 +141,7 @@ declare
   found "better_supabase"."api_keys";
 begin
   select * into found from "better_supabase"."api_keys" k where k."id" = revoke_api_key.key;
-  if found."id" is null or not ((found."organization_id" is not null and coalesce(better_supabase.can('tenant', found."organization_id", 'api_keys.manage'), false)) or coalesce(found."user_id" = auth.uid(), false) or coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if found."id" is null or not ((found."organization_id" is not null and coalesce(better_supabase.can('tenant', found."organization_id", 'api_keys.manage'), false)) or coalesce(found."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
   update "better_supabase"."api_keys" k set "revoked_at" = now()
@@ -168,7 +168,7 @@ declare
   created "better_supabase"."api_keys";
 begin
   select * into old from "better_supabase"."api_keys" k where k."id" = rotate_api_key.key for update;
-  if old."id" is null or not ((old."organization_id" is not null and coalesce(better_supabase.can('tenant', old."organization_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif(auth.jwt() ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if old."id" is null or not ((old."organization_id" is not null and coalesce(better_supabase.can('tenant', old."organization_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
   if old."revoked_at" is not null and old."revoked_at" <= now() then

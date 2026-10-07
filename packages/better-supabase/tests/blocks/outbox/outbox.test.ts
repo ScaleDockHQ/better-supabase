@@ -6,6 +6,7 @@ import type { SqlClient } from "../../../src/postgres/executor.ts";
 import {
   createOutbox,
   outboxCloudEvent,
+  type OutboxEvent,
 } from "../../../src/blocks/outbox/outbox.ts";
 
 interface Call {
@@ -72,6 +73,52 @@ describe("createOutbox", () => {
     });
   });
 
+  it("calls the functions with named arguments over a transport", async () => {
+    const calls: { schema: string; fn: string; args: unknown }[] = [];
+    const replies: Record<string, unknown[]> = {
+      emit_event: ["e1"],
+      outbox_claim: [[row(1)]],
+      outbox_ack: [true],
+    };
+    const outbox = createOutbox(
+      {
+        call: async (schema, fn, args) => {
+          calls.push({ schema, fn, args });
+          return replies[fn]?.shift() ?? null;
+        },
+      },
+      { ...OPTIONS, schema: "events" },
+    );
+    expect((await outbox.emit("invoice.paid", { id: 1 })).data).toBe("e1");
+    expect(calls[0]).toEqual({
+      schema: "events",
+      fn: "emit_event",
+      args: {
+        event_type: "invoice.paid",
+        payload: { id: 1 },
+        subject: null,
+        tenant: null,
+        key: null,
+        source: null,
+      },
+    });
+    const seen: string[] = [];
+    expect(
+      await outbox.consume(
+        "search",
+        (events) => {
+          seen.push(...events.map((event) => event.type));
+        },
+        { owner: "w1" },
+      ),
+    ).toEqual({ delivered: 1 });
+    expect(seen).toEqual(["organization.created"]);
+    expect(calls.slice(1).map((call) => call.args)).toEqual([
+      { consumer: "search", owner: "w1", max_events: 100, lease: "1 minute" },
+      { consumer: "search", owner: "w1", upto: 1 },
+    ]);
+  });
+
   it("registers a consumer and maps database errors", async () => {
     const failure = Object.assign(new Error("Unknown"), {
       code: "P0002",
@@ -126,6 +173,42 @@ describe("createOutbox", () => {
       ["crm", "w1", 2],
       ["crm", "w1", 3],
     ]);
+  });
+
+  it("hands consume handlers the rows with the actor", async () => {
+    const { sql, calls } = fakeSql({
+      outbox_claim: [[row(1)], [row(2)]],
+      outbox_ack: [true, true, true],
+    });
+    const seen: OutboxEvent[] = [];
+    const outbox = createOutbox(sql, OPTIONS);
+    const result = await outbox.consume(
+      "search",
+      async (events) => {
+        seen.push(...events);
+      },
+      { owner: "w1" },
+    );
+    expect(result).toEqual({ delivered: 1 });
+    expect(seen[0]).toMatchObject({
+      position: 1,
+      type: "organization.created",
+      actorId: "u1",
+      tenant: "t1",
+    });
+    expect(calls.find((call) => call.fn === "outbox_ack")!.args).toEqual([
+      "search",
+      "w1",
+      1,
+    ]);
+    const failed = await outbox.consume(
+      "search",
+      () => {
+        throw new Error("index down");
+      },
+      { owner: "w1" },
+    );
+    expect(failed.error?.message).toContain("index down");
   });
 
   it("releases the lease without moving the cursor when the sink throws", async () => {
@@ -249,14 +332,18 @@ describe("relayRoute", () => {
 
   it("relays each consumer and reports sink errors", async () => {
     const { sql } = fakeSql({
-      outbox_claim: [[row(1)], [row(2)]],
-      outbox_ack: [true, true],
+      outbox_claim: [[row(1)], [row(3)], [row(2)]],
+      outbox_ack: [true, true, true],
     });
     const errors: string[] = [];
+    const actors: (string | null)[] = [];
     const route = createOutbox(sql, OPTIONS).relayRoute({
       secret: "s",
       consumers: {
         good: { send: () => undefined },
+        rows: (events) => {
+          actors.push(...events.map((event) => event.actorId));
+        },
         bad: {
           send: () => {
             throw new Error("down");
@@ -268,9 +355,14 @@ describe("relayRoute", () => {
     const response = await route(request("POST"));
     const body = await response.json();
     expect(body).toMatchObject({
-      consumers: { good: { delivered: 1 }, bad: { delivered: 0 } },
+      consumers: {
+        good: { delivered: 1 },
+        rows: { delivered: 1 },
+        bad: { delivered: 0 },
+      },
       budgetExhausted: false,
     });
     expect(errors).toEqual(["bad"]);
+    expect(actors).toEqual(["u1"]);
   });
 });

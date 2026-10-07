@@ -15,8 +15,16 @@ update and remove members through SCIM 2.0.
 better-supabase sql add sso   # adds tenant and access as well
 ```
 
-The module needs the `roles` or `catalog` access model, since it assigns
-roles by name.
+The module assigns roles by name. Under the `roles` and `catalog` access
+models it takes them from the config. Under the `permdock` and `custom`
+models the roles live elsewhere, so list the roles SCIM and auto-join may
+assign in `sql.modules.sso.options.roleOrder`, highest first; `sql add` stops
+without it. A memberships table that stores role ids reads them through
+`sql.modules.tenant.options.roleThrough`, which PermDock's manifest fills in.
+Setting a domain's `auto_join_role` also needs `can_assign(tenant, role)` for
+the caller, which is `permdock_can_assign_any` under the permdock model
+(`sql.modules.access.functions.canAssign`), so a manager can't make a domain
+hand out a role they couldn't grant themselves (`SSO_ROLE_FORBIDDEN`).
 
 | Table                        | Holds                                                                                    |
 | ---------------------------- | ---------------------------------------------------------------------------------------- |

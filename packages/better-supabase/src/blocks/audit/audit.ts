@@ -12,6 +12,7 @@ import type {
 import { type AsyncResult } from "../../core/result.ts";
 import { SPEC_PINS } from "../../core/spec-pins.ts";
 import { sqlIdent } from "../../core/template.ts";
+import { temporal } from "../../core/temporal-required.ts";
 import { defineListQuery } from "../../list/list-query.ts";
 import {
   instantArg,
@@ -21,9 +22,11 @@ import {
   seconds,
   stringsOf,
   textOf,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
-export interface PurgeAuditLogOptions {
+export interface PurgeAuditLogOptions extends BlockTemporalOptions {
   /** How long entries are kept when `retention` has no answer. Defaults to `1 year`. */
   readonly olderThan?: number | string;
   /** The most entries deleted per tenant in one call. Defaults to 10000. */
@@ -49,6 +52,7 @@ export function purgeAuditLog(
   sql: SqlClient,
   options: PurgeAuditLogOptions = {},
 ): AsyncResult<number> {
+  applyTemporal(options);
   const olderThan = seconds(options.olderThan ?? "1 year");
   const batch = options.batch ?? 10_000;
   const purge = async (params: unknown[], call: string) => {
@@ -156,7 +160,7 @@ function entryOf(row: Readonly<Record<string, unknown>>): AuditEntry {
     id: textOf(row["id"]),
     occurredAt:
       optionalInstant(row["occurred_at"]) ??
-      Temporal.Instant.fromEpochMilliseconds(0),
+      temporal().Instant.fromEpochMilliseconds(0),
     op: textOf(row["op"]),
     ...pick("table", text("table_name")),
     ...pick("record", text("record_id")),
@@ -306,7 +310,7 @@ export function toOcsf(
   };
 }
 
-export interface ExportAuditLogOptions {
+export interface ExportAuditLogOptions extends BlockTemporalOptions {
   /** Only this tenant's entries. */
   readonly organizationId: string;
   readonly from?: Temporal.Instant;
@@ -325,12 +329,15 @@ export interface ExportAuditLogOptions {
 /**
  * Streams one tenant's audit entries as newline-delimited JSON, in id
  * order, one keyset query per batch. Run it with a member's claims (the
- * `readPolicy` filters) or as the service role.
+ * `readPolicy` filters) or as the service role. It reads the managed
+ * module's column names; for an adopted log, the version 3 columns or CSV,
+ * use `createAuditLog().export()`, which reads `list_audit_events`.
  */
 export function exportAuditLog(
   sql: SqlClient,
   options: ExportAuditLogOptions,
 ): ReadableStream<Uint8Array> {
+  applyTemporal(options);
   const format = options.format ?? "ndjson";
   if (format === "ocsf" && !options.product) {
     throw new TypeError("exportAuditLog: the ocsf format needs product");
@@ -410,8 +417,11 @@ export type AuditListDefinition<
 };
 
 /**
- * A cursor-paged list over the audit table (generate types for the
- * `better_supabase` schema to get it in your models), filtered by actor,
+ * A cursor-paged list over the audit table through the Data API or
+ * `ctx.sql` (generate types for the module's schema to get it in your
+ * models; facets follow the managed column names). `createAuditLog().list()`
+ * reads `list_audit_events` instead, with an adopted log's columns mapped.
+ * Filtered by actor,
  * table, record, event type, category, outcome and target, newest first.
  * The `readPolicy` and the `restricted` table decide what a member sees.
  */

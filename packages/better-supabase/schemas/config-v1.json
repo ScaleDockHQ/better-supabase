@@ -537,6 +537,23 @@
               }
             }
           ]
+        },
+        "claim": {
+          "description": "The shape of the features claim feature_claims writes: false for {}, or maxTenants (at most that many tenants) and keys (short codes for feature keys).",
+          "oneOf": [
+            { "const": false },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxTenants": { "type": "integer", "minimum": 1 },
+                "keys": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" }
+                }
+              }
+            }
+          ]
         }
       }
     },
@@ -603,6 +620,18 @@
                 "type": "array",
                 "items": { "type": "string" },
                 "description": "Columns db.$search({ filter }) narrows before ranking."
+              },
+              "predicate": {
+                "type": "string",
+                "description": "A SQL condition over the row t every candidate must meet, applied before ranking."
+              },
+              "boostMode": {
+                "enum": ["multiply", "add"],
+                "description": "How boost combines with the score. Defaults to multiply."
+              },
+              "order": {
+                "type": "string",
+                "description": "A SQL order by list over the row t that breaks score ties."
               }
             }
           }
@@ -626,6 +655,16 @@
           "type": "array",
           "items": {
             "type": "string"
+          }
+        },
+        "policies": {
+          "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `sql sync`; `sql sync --check` fails when the file is stale.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from", "output"],
+          "properties": {
+            "from": { "type": "array", "items": { "type": "string" } },
+            "output": { "type": "string" }
           }
         }
       }
@@ -772,6 +811,29 @@
       },
       "options": {
         "type": "object"
+      },
+      "api": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["schema"],
+            "properties": {
+              "schema": {
+                "type": "string"
+              },
+              "functions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "moduleConfig": {
@@ -801,6 +863,9 @@
         },
         "options": {
           "$ref": "#/$defs/moduleConfigProperties/options"
+        },
+        "api": {
+          "$ref": "#/$defs/moduleConfigProperties/api"
         }
       }
     },
@@ -831,6 +896,9 @@
         },
         "options": {
           "$ref": "#/$defs/moduleConfigProperties/options"
+        },
+        "api": {
+          "$ref": "#/$defs/moduleConfigProperties/api"
         },
         "model": {
           "enum": ["roles", "catalog", "permdock", "custom"],
@@ -878,13 +946,71 @@
           "additionalProperties": false,
           "properties": {
             "tenant": {
-              "type": "string"
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["table", "id"],
+                  "properties": {
+                    "table": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "disabledAt": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              ]
             },
             "tenantKey": {
               "type": "string"
             },
             "user": {
-              "type": "string"
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["table", "id"],
+                  "properties": {
+                    "table": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "disabledAt": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              ]
             },
             "userKey": {
               "type": "string"
@@ -935,7 +1061,16 @@
     "privileges": {
       "type": "array",
       "items": {
-        "enum": ["select", "insert", "update", "delete"]
+        "anyOf": [
+          {
+            "enum": ["select", "insert", "update", "delete"]
+          },
+          {
+            "description": "A column privilege, such as `update(title, body)`.",
+            "type": "string",
+            "pattern": "^(select|insert|update)\\s*\\(\\s*[a-z_][a-z0-9_$]*(\\s*,\\s*[a-z_][a-z0-9_$]*)*\\s*\\)$"
+          }
+        ]
       }
     }
   }

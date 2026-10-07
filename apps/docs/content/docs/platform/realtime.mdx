@@ -100,6 +100,39 @@ defineTopic("organization:{organizationId}:board", {
 in your SQL files that names such a key, and `permdock doctor` reports PD037
 for any topic policy that calls a helper for one.
 
+### Writing the policies to a file
+
+`realtime.policies` keeps the generated policies in a schema file:
+`better-supabase sql sync` imports the modules in `from`, collects every
+topic they export, and writes their `sql()` to `output`, and
+`sql sync --check` fails when the file no longer matches, for example in CI:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  realtime: {
+    policies: {
+      from: ["src/realtime/topics.ts"],
+      output: "supabase/schemas/905_topics.sql",
+    },
+  },
+});
+```
+
+Node imports the modules, so their relative imports need the `.ts`
+extension. Create a migration from the file as from any other schema file.
+
+Some SQL modules write the receive policy of their own topics: `notifications`
+(its `topic` option, `notifications:{userId}` by default, while `realtime` is
+`broadcast`), `announcements` (its `topic` option, `announcements` by
+default) and `realtime-tables` (every topic that starts with `bs:t:`). When a
+module in `sql.modules` covers a topic you export, for example to subscribe
+to it with the typed client, `sql sync` leaves that topic out of `output` and
+names the module in a comment at the top of the file, so the database doesn't
+get two equivalent policies. Templates match by their literal parts, so
+`notifications:{user}` matches `notifications:{userId}`. A topic that also
+sends or uses presence keeps its policies, because the module only writes a
+receive policy for broadcasts.
+
 ## Before production
 
 - **Turn off public access.** The policies only apply to private channels. In
@@ -152,7 +185,11 @@ await sub.ready; // rejects when the join is refused
 
 `using` removes the channel at the end of the scope. `await using` waits for
 the removal, and you can also call `sub.unsubscribe()`. For private topics,
-`subscribe` calls `realtime.setAuth()` first. Payloads that fail their schema
+`subscribe` calls `realtime.setAuth()` first, so Realtime gets the
+session's current token. A token you set yourself with
+`supabase.realtime.setAuth(token)`, such as one minted for an agent or a
+service, is kept: `subscribe`, `send`, `useLiveCount` and `useTopic` only
+refresh a token that came from the session. Payloads that fail their schema
 skip the handler and go to `onInvalid`.
 
 ## Send
@@ -185,3 +222,16 @@ signed-in user changes. `invalidate` refetches the table's
 [TanStack queries](/docs/frontend/query) after each message. It needs
 `queryClient` on `BetterSupabaseProvider`. The hook returns `joining`,
 `subscribed`, `closed` or `error`.
+
+An app that uses supabase-js without the better-supabase client passes its
+client (and a `queryClient` for `invalidate`) instead of the provider. The
+hook then follows that client's auth state to resubscribe for a new user:
+
+```tsx
+const status = useBroadcast(
+  customersTopic,
+  { organizationId },
+  { updated: (payload) => refresh(payload.id) },
+  { client: supabase, queryClient },
+);
+```

@@ -9,6 +9,8 @@ import type { QuerySpec } from "../core/spec.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 import type { RealtimeClient, SubscriptionStatus } from "./index.ts";
 
+import { refreshRealtimeAuth } from "./auth.ts";
+
 /** What `liveQuery` needs from `betterSupabase`: metadata and the tables a spec reads. */
 export interface LiveSource {
   readonly meta: SchemaMeta;
@@ -89,7 +91,7 @@ function join(
     });
     let joined = false;
     const ready = (async () => {
-      await client.realtime.setAuth();
+      await refreshRealtimeAuth(client);
       await new Promise<void>((resolve, reject) => {
         channel.subscribe((status, error) => {
           switch (status) {

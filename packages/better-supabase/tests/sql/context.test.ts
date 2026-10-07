@@ -276,7 +276,7 @@ describe("module modes", () => {
       checkModules({ outbox: { options: { blockSource: "domain" } } });
     }).toThrow(/outbox\.options\.blockSource/);
     expect(() => {
-      checkModules({ "webhooks-out": { options: { eventIdType: "uuid" } } });
+      checkModules({ "webhooks-out": { options: { eventIdType: "bigint" } } });
     }).toThrow(/eventIdType/);
     checkModules({
       invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
@@ -294,6 +294,9 @@ describe("module modes", () => {
       "webhooks-out": {
         options: { secretStorage: "vault", eventIdType: "text" },
       },
+    });
+    checkModules({
+      "webhooks-out": { options: { eventIdType: "uuid", runIdType: "uuid" } },
     });
   });
 
@@ -439,8 +442,37 @@ describe("module modes", () => {
     ).toThrow(/schema.table.column/);
   });
 
+  it("defines the disabled helpers in one module file", () => {
+    const disabled = {
+      tenant: "public.organizations.disabled_at",
+    } as const;
+    const files = renderModules(["access"], {
+      modules: { access: { disabled } },
+    }).filter((file) => file.kind === "schema");
+    expect(files.map((file) => file.module)).toEqual([
+      "updated-at",
+      "tenant",
+      "access",
+    ]);
+    const defining = files.filter((file) =>
+      file.contents.includes(
+        "create or replace function better_supabase.tenant_disabled(",
+      ),
+    );
+    expect(defining.map((file) => file.module)).toEqual(["access"]);
+    const tenant = files.find((file) => file.module === "tenant")!.contents;
+    expect(tenant).toContain("set check_function_bodies = off;");
+    expect(tenant).toContain("not better_supabase.tenant_disabled(");
+    expect(moduleBody("tenant")).toContain(
+      "create or replace function better_supabase.tenant_disabled(",
+    );
+    expect(
+      moduleBody("tenant", { modules: { access: { mode: "custom" } } }),
+    ).toContain("create or replace function better_supabase.tenant_disabled(");
+  });
+
   it("honours disabled tenants and users", () => {
-    const sql = moduleBody("tenant", {
+    const sql = moduleBody("access", {
       modules: {
         access: {
           disabled: {

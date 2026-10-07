@@ -73,6 +73,40 @@ describe("toCatalog", () => {
     });
   });
 
+  it("ignores the copies of a foreign key that point at a view", () => {
+    const fk = snapshot.generator.relationships.find(
+      (rel) => rel.foreign_key_name === "customers_organization_id_fkey",
+    )!;
+    const withView = {
+      ...snapshot,
+      generator: {
+        ...snapshot.generator,
+        views: [
+          ...snapshot.generator.views,
+          {
+            id: 999_001,
+            schema: "public",
+            name: "organizations_overview",
+            is_updatable: false,
+            comment: null,
+          },
+        ],
+        relationships: [
+          ...snapshot.generator.relationships,
+          { ...fk, referenced_relation: "organizations_overview" },
+        ],
+      },
+    } as typeof snapshot;
+    const keys = toCatalog(withView)
+      .tables.find(
+        (table) => table.schema === "public" && table.name === "customers",
+      )!
+      .foreignKeys.filter(
+        (key) => key.name === "customers_organization_id_fkey",
+      );
+    expect(keys.map((key) => key.refTable)).toEqual(["organizations"]);
+  });
+
   it("normalizes columns", () => {
     const id = customers.columns.find((column) => column.name === "id")!;
     expect(id).toMatchObject({ udt: "uuid", isArray: false, hasDefault: true });

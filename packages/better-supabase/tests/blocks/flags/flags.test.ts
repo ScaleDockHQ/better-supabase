@@ -99,6 +99,14 @@ describe("evaluateFlag", () => {
         role: "member",
       }),
     ).toMatchObject({ variant: "off", reason: "TARGETING_MATCH" });
+    expect(
+      await evaluateFlag(definition, {
+        targetingKey: "x",
+        plans: ["pro"],
+        role: "member",
+        roles: ["member", "admin"],
+      }),
+    ).toMatchObject({ variant: "on", reason: "TARGETING_MATCH" });
     expect(await evaluateFlag(definition, { targetingKey: "x" })).toMatchObject(
       {
         variant: "off",
@@ -398,5 +406,45 @@ describe("flagContext", () => {
       tenant: "org-3",
     });
     expect(flagContext({})).toEqual({});
+  });
+
+  it("reads roles from PermDock's memberships entries", () => {
+    const jwtClaims = {
+      sub: USER,
+      tenant_id: "org-1",
+      memberships: [
+        {
+          scope: "team",
+          id: "org-1",
+          within: { org: "org-9" },
+          roles: ["lead"],
+        },
+        { scope: "org", id: "org-1", roles: ["admin", "billing"] },
+      ],
+    };
+    expect(flagContext({ jwtClaims })).toEqual({
+      targetingKey: USER,
+      tenant: "org-1",
+      role: "admin",
+      roles: ["admin", "billing"],
+    });
+    expect(flagContext({ jwtClaims }, { membershipScope: "team" })).toEqual({
+      targetingKey: USER,
+      tenant: "org-1",
+      role: "lead",
+    });
+    expect(
+      flagContext(
+        { jwtClaims },
+        {
+          roles: (claims, tenant) => (claims["sub"] ? `${tenant}:viewer` : []),
+        },
+      ),
+    ).toMatchObject({ role: "org-1:viewer" });
+    expect(
+      flagContext({
+        jwtClaims: { tenant_id: "org-2", memberships: jwtClaims.memberships },
+      }),
+    ).toEqual({ tenant: "org-2" });
   });
 });

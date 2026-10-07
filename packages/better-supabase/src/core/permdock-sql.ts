@@ -14,9 +14,19 @@ export interface PermdockCatalog {
   readonly permissions: readonly {
     readonly key: string;
     readonly rowConditions?: boolean;
-    /** The scope PermDock declares the permission at. */
+    /**
+     * The entry's `scope`. In current catalogs it is the OAuth scope
+     * (`invoice:read`); the tenancy scopes are on `grants`.
+     */
     readonly scope?: string;
   }[];
+  /** The tenancy scopes each permission is granted at, from `grants[].scope`. */
+  readonly grants?: readonly {
+    readonly permission: string;
+    readonly scope: string;
+  }[];
+  /** The catalog's tenancy scope names, from `scopes[].name`. */
+  readonly scopes?: readonly string[];
 }
 
 /**

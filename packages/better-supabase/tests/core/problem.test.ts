@@ -121,3 +121,21 @@ describe("max_affected", () => {
     expect(withMaxAffected(other, 3)).toBe(other);
   });
 });
+
+describe("problemResponse format", () => {
+  it("rewrites the body and keeps the status and headers", async () => {
+    const response = problemResponse(
+      dbError("rate_limited", "Slow down", { retryAfter: 3 }),
+      {
+        instance: "/api/x",
+        format: (problem) => ({ error: problem.kind, at: problem.instance }),
+      },
+    );
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("3");
+    expect(await response.json()).toEqual({
+      error: "rate_limited",
+      at: "/api/x",
+    });
+  });
+});

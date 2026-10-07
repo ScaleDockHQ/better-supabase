@@ -6,6 +6,7 @@ import type { JobHandler } from "../jobs/queue.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
+import { toCsv } from "../csv.ts";
 import {
   blockCall,
   errorText,
@@ -17,6 +18,8 @@ import {
   stringsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
 interface StorageReply<T> {
@@ -63,7 +66,7 @@ export interface DataExport {
   readonly organizationId: string | undefined;
   readonly status: DataExportStatus;
   readonly bucket: string;
-  /** Object paths, one NDJSON file per table: `{id}/{schema.table}.ndjson`. */
+  /** Object paths, one file per table: `{id}/{schema.table}.ndjson` (or `.csv`). */
   readonly files: readonly string[];
   readonly error: string | undefined;
   readonly requestedBy: string | undefined;
@@ -88,7 +91,7 @@ export interface DataExportDownload {
   readonly files: readonly { readonly table: string; readonly url: string }[];
 }
 
-export interface DataLifecycleOptions {
+export interface DataLifecycleOptions extends BlockTemporalOptions {
   /** The caller's transport (`rpcTransport(supabase)`). */
   readonly transport: BlockTransport;
   /** The caller's `supabase.storage`, for `download`. */
@@ -195,12 +198,13 @@ function stored<T>(
 
 /** The table a file holds: `{id}/public.projects.ndjson` gives `public.projects`. */
 const tableOf = (path: string): string =>
-  path.slice(path.lastIndexOf("/") + 1).replace(/\.ndjson$/, "");
+  path.slice(path.lastIndexOf("/") + 1).replace(/\.(ndjson|csv)$/, "");
 
 /** Exports and organization deletion as the caller. */
 export function createDataLifecycle(
   options: DataLifecycleOptions,
 ): DataLifecycle {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const ttl = options.downloadTtl ?? 300;
   return {
@@ -279,7 +283,7 @@ export function createDataLifecycle(
   };
 }
 
-export interface DataExporterOptions {
+export interface DataExporterOptions extends BlockTemporalOptions {
   /** A service-role transport: the export functions are granted to `service_role` only. */
   readonly transport: BlockTransport;
   /** A service-role `supabase.storage`, to write the files. */
@@ -289,6 +293,12 @@ export interface DataExporterOptions {
   readonly pageSize?: number;
   /** The outbox `typePrefix`. Default `dev.better-supabase`. */
   readonly typePrefix?: string;
+  /**
+   * `ndjson` (default) writes one JSON object per line; `csv` writes RFC
+   * 4180 CSV with a header row, nested values as JSON and formula-looking
+   * text prefixed with `'`, for people who open exports in a spreadsheet.
+   */
+  readonly format?: "ndjson" | "csv";
 }
 
 /** The payload `job` expects. */
@@ -310,6 +320,7 @@ export interface DataExporter {
 
 /** Runs requested exports with a service-role client. */
 export function createDataExporter(options: DataExporterOptions): DataExporter {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
   const pageSize = options.pageSize ?? 1000;
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
@@ -320,9 +331,11 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
     signal: AbortSignal | undefined,
   ): Promise<Result<readonly string[]>> => {
     const bucket = options.storage.from(claimed.bucket);
+    const csv = options.format === "csv";
     const files: string[] = [];
     for (const table of tables) {
       const lines: string[] = [];
+      const records: Record<string, unknown>[] = [];
       let after: string | undefined;
       do {
         signal?.throwIfAborted();
@@ -333,21 +346,26 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
         );
         if (!page.ok) return page;
         const rows = Array.isArray(page.data["rows"]) ? page.data["rows"] : [];
-        for (const row of rows) lines.push(JSON.stringify(row));
+        for (const row of rows) {
+          if (csv) records.push(isRecord(row) ? row : { value: row });
+          else lines.push(JSON.stringify(row));
+        }
         after = optionalText(page.data["after"]);
       } while (after !== undefined);
-      const path = `${claimed.id}/${table}.ndjson`;
+      const path = `${claimed.id}/${table}.${csv ? "csv" : "ndjson"}`;
+      const contentType = csv ? "text/csv" : "application/x-ndjson";
       const body = new Blob(
-        lines.length === 0 ? [] : [`${lines.join("\n")}\n`],
-        {
-          type: "application/x-ndjson",
-        },
+        csv
+          ? records.length === 0
+            ? []
+            : [toCsv(records)]
+          : lines.length === 0
+            ? []
+            : [`${lines.join("\n")}\n`],
+        { type: contentType },
       );
       const uploaded = await stored(
-        bucket.upload(path, body, {
-          contentType: "application/x-ndjson",
-          upsert: true,
-        }),
+        bucket.upload(path, body, { contentType, upsert: true }),
       );
       if (!uploaded.ok) return uploaded;
       files.push(path);
@@ -417,18 +435,61 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
   };
 }
 
-export interface OrganizationPurgerOptions {
+export interface OrganizationPurgerOptions extends BlockTemporalOptions {
   /** A service-role transport: `purge_organization()` is granted to `service_role` only. */
   readonly transport: BlockTransport;
-  /** A service-role `supabase.storage`, to remove each bucket's `{organizationId}/` prefix. */
+  /** A service-role `supabase.storage`, to remove each bucket's organization prefix. */
   readonly storage?: LifecycleStorage;
-  /** Buckets whose paths start with the organization id, such as `attachments`. */
-  readonly buckets?: readonly string[];
+  /**
+   * Buckets to clear: a name, for a bucket whose paths start with the
+   * organization id (`attachments`), or `{ bucket, path }` with a path
+   * template such as `orgs/{organizationId}/files`, or a function that
+   * returns the prefixes, for buckets laid out another way.
+   */
+  readonly buckets?: readonly PurgeBucket[];
   /** `createBilling(...)`, to cancel the subscription first. */
   readonly billing?: {
     cancelSubscription(organizationId: string): AsyncResult<unknown>;
   };
   readonly schema?: string;
+}
+
+/** A bucket the purger clears, and where the organization's objects are. */
+export type PurgeBucket =
+  | string
+  | {
+      readonly bucket: string;
+      /** A prefix template with `{organizationId}`, or the prefixes for an id. */
+      readonly path:
+        | string
+        | ((organizationId: string) => string | readonly string[]);
+    };
+
+/** The prefixes an entry of `buckets` clears for an organization. */
+function bucketPrefixes(
+  entry: PurgeBucket,
+  organizationId: string,
+): Result<{ readonly bucket: string; readonly prefixes: readonly string[] }> {
+  if (typeof entry === "string") {
+    return ok({ bucket: entry, prefixes: [organizationId] });
+  }
+  const paths =
+    typeof entry.path === "function"
+      ? entry.path(organizationId)
+      : entry.path.replaceAll("{organizationId}", organizationId);
+  const prefixes = (typeof paths === "string" ? [paths] : [...paths]).map(
+    (path) => path.replace(/\/+$/, ""),
+  );
+  const unsafe = prefixes.find((prefix) => !prefix.includes(organizationId));
+  if (unsafe !== undefined) {
+    return err(
+      dbError(
+        "invalid_request",
+        `buckets.${entry.bucket}: the prefix "${unsafe}" doesn't contain the organization id, so it could clear other tenants' objects`,
+      ),
+    );
+  }
+  return ok({ bucket: entry.bucket, prefixes });
 }
 
 export interface OrganizationPurge {
@@ -448,6 +509,11 @@ export interface OrganizationPurger {
   }): AsyncResult<readonly OrganizationPurge[]>;
   /** A jobs handler for a cron queue: purges what is due. */
   readonly job: JobHandler<{ readonly limit?: number }>;
+  /**
+   * Removes the files of exports past their `expiresAt` from Storage, then
+   * their rows; returns how many exports it removed. Needs `storage`.
+   */
+  purgeExports(options?: { readonly limit?: number }): AsyncResult<number>;
 }
 
 const REMOVE_BATCH = 1000;
@@ -486,6 +552,7 @@ async function removePrefix(
 export function createOrganizationPurger(
   options: OrganizationPurgerOptions,
 ): OrganizationPurger {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
   const purge = (organizationId: string): AsyncResult<OrganizationPurge> =>
     AsyncResult.from(async (): Promise<Result<OrganizationPurge>> => {
@@ -495,18 +562,23 @@ export function createOrganizationPurger(
         if (!cancelled.ok) return cancelled;
       }
       const removed: Record<string, number> = {};
-      for (const id of options.buckets ?? []) {
+      for (const entry of options.buckets ?? []) {
         if (!options.storage) {
           return err(
             dbError("invalid_request", "Pass storage to clear buckets"),
           );
         }
-        const count = await removePrefix(
-          options.storage.from(id),
-          organizationId,
-        );
-        if (!count.ok) return count;
-        removed[id] = count.data;
+        const target = bucketPrefixes(entry, organizationId);
+        if (!target.ok) return target;
+        const { bucket, prefixes } = target.data;
+        for (const prefix of prefixes) {
+          const count = await removePrefix(
+            options.storage.from(bucket),
+            prefix,
+          );
+          if (!count.ok) return count;
+          removed[bucket] = (removed[bucket] ?? 0) + count.data;
+        }
       }
       return call("purge_organization", { tenant: organizationId }, (value) => {
         const row = recordOf(value, "purge_organization");
@@ -537,7 +609,43 @@ export function createOrganizationPurger(
       }
       return ok(purged);
     });
+  const purgeExports = (
+    expired: { readonly limit?: number } = {},
+  ): AsyncResult<number> =>
+    call("expired_data_exports", { max_rows: expired.limit ?? 100 }, (value) =>
+      recordsOf(value, "expired_data_exports").map((row) => ({
+        id: textOf(row["id"]),
+        bucket: textOf(row["bucket"]),
+        files: Array.isArray(row["files"])
+          ? row["files"].filter((file) => typeof file === "string")
+          : [],
+      })),
+    ).andThen(async (exports) => {
+      if (exports.length === 0) return ok(0);
+      const storage = options.storage;
+      if (!storage) {
+        return err(
+          dbError("invalid_request", "Pass storage to remove export files"),
+        );
+      }
+      for (const entry of exports) {
+        for (let start = 0; start < entry.files.length; start += REMOVE_BATCH) {
+          const removed = await stored(
+            storage
+              .from(entry.bucket)
+              .remove(entry.files.slice(start, start + REMOVE_BATCH)),
+          );
+          if (!removed.ok) return removed;
+        }
+      }
+      return call(
+        "forget_data_exports",
+        { ids: exports.map((entry) => entry.id) },
+        (value) => Number(value ?? 0),
+      );
+    });
   return {
+    purgeExports,
     purge,
     purgeDue,
     job: async (payload) => {

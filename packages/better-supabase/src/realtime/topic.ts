@@ -30,6 +30,7 @@ import {
   type TemplateValues,
 } from "../core/template.ts";
 import { toApp } from "../plugins/shared.ts";
+import { refreshRealtimeAuth } from "./auth.ts";
 
 export type EventSchemas = Readonly<Record<string, StandardSchemaV1>>;
 
@@ -465,8 +466,8 @@ export function defineTopic<
       let closed = false;
       subscribeOptions.onStatus?.("joining");
       const ready = (async () => {
-        if (isPrivate) await client.realtime.setAuth();
-        // oxlint-disable-next-line typescript/no-unnecessary-condition -- `close()` can run while `setAuth` is awaited.
+        if (isPrivate) await refreshRealtimeAuth(client);
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- `close()` can run while the auth refresh is awaited.
         if (closed) return;
         await new Promise<void>((resolve, reject) => {
           channel.subscribe((status, error) => {
@@ -526,7 +527,7 @@ export function defineTopic<
         const open = client
           .getChannels()
           .some((existing) => existing.topic === `realtime:${topic}`);
-        if (isPrivate && !open) await client.realtime.setAuth();
+        if (isPrivate && !open) await refreshRealtimeAuth(client);
         const channel = client.channel(topic, {
           config: { private: isPrivate },
         });

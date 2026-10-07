@@ -25,13 +25,24 @@ import {
   stringsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
+  applyTemporal,
 } from "../shared.ts";
 
-export interface CommentsOptions {
+export interface CommentsOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** The module schema (`sql.modules.comments.schema`), default `better_supabase`. */
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /**
+   * The user ids a comment mentions when the call passes no `mentions`,
+   * such as the mention nodes of a rich-text `document`. Default
+   * `mentionsIn(body)`.
+   */
+  readonly mentionsOf?: (comment: {
+    readonly body: string;
+    readonly document: unknown;
+  }) => readonly string[];
 }
 
 export interface Comment {
@@ -43,6 +54,8 @@ export interface Comment {
   readonly authorId: string | undefined;
   /** Empty for a deleted comment. */
   readonly body: string;
+  /** The rich-text document an editor wrote, next to `body` as its plain text. */
+  readonly document: unknown;
   readonly mentions: readonly string[];
   readonly parentId: string | undefined;
   readonly createdAt: Temporal.Instant;
@@ -55,7 +68,9 @@ export interface NewComment {
   readonly subjectType: string;
   readonly subjectId: string;
   readonly body: string;
-  /** User ids; default the ids `mentionsIn(body)` finds. */
+  /** A rich-text document (any JSON); keep `body` as its plain text. */
+  readonly document?: unknown;
+  /** User ids; default `mentionsOf`, or the ids `mentionsIn(body)` finds. */
   readonly mentions?: readonly string[];
   /** A reply: the parent must be on the same subject. */
   readonly parentId?: string;
@@ -63,8 +78,29 @@ export interface NewComment {
 
 export interface CommentEdit {
   readonly body: string;
-  /** Default the ids `mentionsIn(body)` finds. */
+  /** A new document; `null` removes it, and leaving it out keeps the current one. */
+  readonly document?: unknown;
+  /** Default `mentionsOf`, or the ids `mentionsIn(body)` finds. */
   readonly mentions?: readonly string[];
+}
+
+export interface ActivityEntry {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly type: string;
+  readonly actorId: string | undefined;
+  readonly subjectType: string | undefined;
+  readonly subjectId: string | undefined;
+  readonly summary: string | undefined;
+  readonly data: Readonly<Record<string, unknown>>;
+  readonly occurredAt: Temporal.Instant;
+}
+
+export interface ActivityHistoryOptions {
+  /** Entries before this instant, for paging back. */
+  readonly before?: Temporal.Instant;
+  /** Default 50, at most 500. */
+  readonly limit?: number;
 }
 
 export interface ListCommentsOptions {
@@ -72,6 +108,8 @@ export interface ListCommentsOptions {
   readonly after?: Temporal.Instant;
   /** Default 100, at most 500. */
   readonly limit?: number;
+  /** Comments to skip, for page-number paging. */
+  readonly offset?: number;
 }
 
 export interface Comments {
@@ -87,6 +125,35 @@ export interface Comments {
     subjectId: string,
     options?: ListCommentsOptions,
   ): AsyncResult<readonly Comment[]>;
+  /**
+   * How many comments each subject has that the caller can read, deleted
+   * ones left out, such as for a counter on each row of a list. Subjects
+   * without comments are 0.
+   */
+  counts(
+    organizationId: string,
+    subjectType: string,
+    subjectIds: readonly string[],
+  ): AsyncResult<Readonly<Record<string, number>>>;
+  /**
+   * Copies a subject's thread to another subject in the tenant, keeping
+   * authors, times and replies; returns how many comments it copied. Needs a
+   * service-role transport.
+   */
+  copy(
+    organizationId: string,
+    from: { readonly type: string; readonly id: string },
+    to: { readonly type: string; readonly id: string },
+  ): AsyncResult<number>;
+  /**
+   * The activity feed of a tenant, newest first, or one subject's timeline
+   * with `subject`. Members with `activity.read` see it.
+   */
+  history(
+    organizationId: string,
+    subject?: { readonly type: string; readonly id: string },
+    options?: ActivityHistoryOptions,
+  ): AsyncResult<readonly ActivityEntry[]>;
 }
 
 const MENTION =
@@ -115,6 +182,7 @@ function commentOf(value: unknown): Comment {
     subjectId: textOf(row["subject_id"]),
     authorId: optionalText(row["author_id"]),
     body: textOf(row["body"] ?? ""),
+    document: row["document"] ?? null,
     mentions: stringsOf(row["mentions"]),
     parentId: optionalText(row["parent_id"]),
     createdAt: toInstant(textOf(row["created_at"])),
@@ -123,9 +191,29 @@ function commentOf(value: unknown): Comment {
   };
 }
 
+function activityOf(value: unknown): ActivityEntry {
+  const row = recordOf(value, "activity_entries");
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organization_id"]),
+    type: textOf(row["type"]),
+    actorId: optionalText(row["actor_id"]),
+    subjectType: optionalText(row["subject_type"]),
+    subjectId: optionalText(row["subject_id"]),
+    summary: optionalText(row["summary"]),
+    data: isRecord(row["data"]) ? row["data"] : {},
+    occurredAt: toInstant(textOf(row["occurred_at"])),
+  };
+}
+
 /** Comments over the `comments` module's functions, as the caller. */
 export function createComments(options: CommentsOptions): Comments {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+  const mentionsOf = (body: string, document: unknown): readonly string[] =>
+    options.mentionsOf
+      ? options.mentionsOf({ body, document })
+      : mentionsIn(body);
   return {
     create: (comment) =>
       call(
@@ -135,8 +223,10 @@ export function createComments(options: CommentsOptions): Comments {
           subject_type: comment.subjectType,
           subject_id: comment.subjectId,
           body: comment.body,
-          mentions: comment.mentions ?? mentionsIn(comment.body),
+          mentions:
+            comment.mentions ?? mentionsOf(comment.body, comment.document),
           parent: comment.parentId,
+          document: comment.document,
         },
         commentOf,
       ),
@@ -146,7 +236,9 @@ export function createComments(options: CommentsOptions): Comments {
         {
           id,
           body: edit.body,
-          mentions: edit.mentions ?? mentionsIn(edit.body),
+          mentions: edit.mentions ?? mentionsOf(edit.body, edit.document),
+          document: edit.document ?? undefined,
+          ...(edit.document === null ? { clear_document: true } : {}),
         },
         (value) => value,
       ).andThen((value) =>
@@ -170,8 +262,48 @@ export function createComments(options: CommentsOptions): Comments {
           subject_id: subjectId,
           after: instantArg(list.after),
           max_rows: list.limit,
+          skip: list.offset,
         },
         (value) => recordsOf(value, "list_comments").map(commentOf),
+      ),
+    counts: (organizationId, subjectType, subjectIds) =>
+      call(
+        "comment_counts",
+        {
+          tenant: organizationId,
+          subject_type: subjectType,
+          subject_ids: [...subjectIds],
+        },
+        (value) => {
+          const found = isRecord(value) ? value : {};
+          return Object.fromEntries(
+            subjectIds.map((id) => [id, Number(found[id] ?? 0)]),
+          );
+        },
+      ),
+    copy: (organizationId, from, to) =>
+      call(
+        "copy_comments",
+        {
+          tenant: organizationId,
+          from_type: from.type,
+          from_id: from.id,
+          to_type: to.type,
+          to_id: to.id,
+        },
+        (value) => Number(value ?? 0),
+      ),
+    history: (organizationId, subject, history = {}) =>
+      call(
+        "list_activity",
+        {
+          tenant: organizationId,
+          subject_type: subject?.type,
+          subject_id: subject?.id,
+          before: instantArg(history.before),
+          max_rows: history.limit,
+        },
+        (value) => recordsOf(value, "list_activity").map(activityOf),
       ),
   };
 }
