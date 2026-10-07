@@ -125,6 +125,28 @@ export const locationsUpdate: z.ZodType<UpdateOf<'locations'>> = z.object({
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
 }).meta({ title: "Locations update" });
 
+export const membershipsRow: z.ZodType<RowOf<'memberships'>> = z.object({
+  organizationId: z.guid(),
+  userId: z.guid(),
+  role: z.enum(["owner", "admin", "member"]),
+  createdAt: z.iso.datetime({ offset: true }),
+  lastUsedAt: z.iso.datetime({ offset: true }).nullable(),
+}).meta({ title: "Memberships" });
+export const membershipsInsert: z.ZodType<InsertOf<'memberships'>> = z.object({
+  organizationId: z.guid(),
+  userId: z.guid(),
+  role: z.enum(["owner", "admin", "member"]).exactOptional(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+  lastUsedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
+}).meta({ title: "Memberships insert" });
+export const membershipsUpdate: z.ZodType<UpdateOf<'memberships'>> = z.object({
+  organizationId: z.guid().exactOptional(),
+  userId: z.guid().exactOptional(),
+  role: z.enum(["owner", "admin", "member"]).exactOptional(),
+  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
+  lastUsedAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
+}).meta({ title: "Memberships update" });
+
 export const notesRow: z.ZodType<RowOf<'notes'>> = z.object({
   id: z.int(),
   organizationId: z.guid(),
@@ -205,6 +227,66 @@ export const organizationsUpdate: z.ZodType<UpdateOf<'organizations'>> = z.objec
   updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
 }).meta({ title: "Organizations update" });
 
+export const planFeaturesRow: z.ZodType<RowOf<'planFeatures'>> = z.object({
+  planKey: z.string(),
+  featureKey: z.string(),
+  included: z.boolean(),
+  value: z.json().nullable(),
+}).meta({ title: "Plan features" });
+export const planFeaturesInsert: z.ZodType<InsertOf<'planFeatures'>> = z.object({
+  planKey: z.string(),
+  featureKey: z.string(),
+  included: z.boolean().exactOptional(),
+  value: z.json().nullable().exactOptional(),
+}).meta({ title: "Plan features insert" });
+export const planFeaturesUpdate: z.ZodType<UpdateOf<'planFeatures'>> = z.object({
+  planKey: z.string().exactOptional(),
+  featureKey: z.string().exactOptional(),
+  included: z.boolean().exactOptional(),
+  value: z.json().nullable().exactOptional(),
+}).meta({ title: "Plan features update" });
+
+export const plansRow: z.ZodType<RowOf<'plans'>> = z.object({
+  key: z.string(),
+  name: z.string(),
+  priceCents: z.int(),
+  position: z.int(),
+}).meta({ title: "Plans" });
+export const plansInsert: z.ZodType<InsertOf<'plans'>> = z.object({
+  key: z.string(),
+  name: z.string(),
+  priceCents: z.int().exactOptional(),
+  position: z.int().exactOptional(),
+}).meta({ title: "Plans insert" });
+export const plansUpdate: z.ZodType<UpdateOf<'plans'>> = z.object({
+  key: z.string().exactOptional(),
+  name: z.string().exactOptional(),
+  priceCents: z.int().exactOptional(),
+  position: z.int().exactOptional(),
+}).meta({ title: "Plans update" });
+
+export const subscriptionsRow: z.ZodType<RowOf<'subscriptions'>> = z.object({
+  organizationId: z.guid(),
+  planKey: z.string(),
+  status: z.enum(["active", "trialing", "past_due", "canceled"]),
+  currentPeriodEnd: z.iso.datetime({ offset: true }).nullable(),
+  updatedAt: z.iso.datetime({ offset: true }),
+}).meta({ title: "Subscriptions" });
+export const subscriptionsInsert: z.ZodType<InsertOf<'subscriptions'>> = z.object({
+  organizationId: z.guid(),
+  planKey: z.string(),
+  status: z.enum(["active", "trialing", "past_due", "canceled"]).exactOptional(),
+  currentPeriodEnd: z.iso.datetime({ offset: true }).nullable().exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+}).meta({ title: "Subscriptions insert" });
+export const subscriptionsUpdate: z.ZodType<UpdateOf<'subscriptions'>> = z.object({
+  organizationId: z.guid().exactOptional(),
+  planKey: z.string().exactOptional(),
+  status: z.enum(["active", "trialing", "past_due", "canceled"]).exactOptional(),
+  currentPeriodEnd: z.iso.datetime({ offset: true }).nullable().exactOptional(),
+  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
+}).meta({ title: "Subscriptions update" });
+
 export const tagsRow: z.ZodType<RowOf<'tags'>> = z.object({
   id: z.guid(),
   organizationId: z.guid(),
@@ -236,17 +318,25 @@ export const validators: {
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
   readonly customers: { readonly insert: typeof customersInsert; readonly update: typeof customersUpdate };
   readonly locations: { readonly insert: typeof locationsInsert; readonly update: typeof locationsUpdate };
+  readonly memberships: { readonly insert: typeof membershipsInsert; readonly update: typeof membershipsUpdate };
   readonly notes: { readonly insert: typeof notesInsert; readonly update: typeof notesUpdate };
   readonly notifications: { readonly insert: typeof notificationsInsert; readonly update: typeof notificationsUpdate };
   readonly organizations: { readonly insert: typeof organizationsInsert; readonly update: typeof organizationsUpdate };
+  readonly planFeatures: { readonly insert: typeof planFeaturesInsert; readonly update: typeof planFeaturesUpdate };
+  readonly plans: { readonly insert: typeof plansInsert; readonly update: typeof plansUpdate };
+  readonly subscriptions: { readonly insert: typeof subscriptionsInsert; readonly update: typeof subscriptionsUpdate };
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
 } = {
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
   customers: { insert: customersInsert, update: customersUpdate },
   locations: { insert: locationsInsert, update: locationsUpdate },
+  memberships: { insert: membershipsInsert, update: membershipsUpdate },
   notes: { insert: notesInsert, update: notesUpdate },
   notifications: { insert: notificationsInsert, update: notificationsUpdate },
   organizations: { insert: organizationsInsert, update: organizationsUpdate },
+  planFeatures: { insert: planFeaturesInsert, update: planFeaturesUpdate },
+  plans: { insert: plansInsert, update: plansUpdate },
+  subscriptions: { insert: subscriptionsInsert, update: subscriptionsUpdate },
   tags: { insert: tagsInsert, update: tagsUpdate },
 };

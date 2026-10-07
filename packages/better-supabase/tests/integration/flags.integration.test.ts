@@ -156,6 +156,7 @@ describe.skipIf(!live)("flags", () => {
     const s = await BlockSession.open(pool);
     try {
       await s.install(["organizations", "flags"]);
+      await s.clear(["better_supabase.flags"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
       const outsider = await s.user("outsider");

@@ -20,6 +20,7 @@ describe.skipIf(!live)("usage", () => {
     const s = await BlockSession.open(pool);
     try {
       await s.install(["organizations", "usage"]);
+      await s.clear(["better_supabase.usage_counters"]);
       const owner = await s.user("owner");
       const outsider = await s.user("outsider");
       const organization = await s.organization(owner);
@@ -223,6 +224,7 @@ describe.skipIf(!live)("usage", () => {
     const s = await BlockSession.open(pool);
     try {
       await s.install(["organizations", "usage"]);
+      await s.clear(["better_supabase.usage_counters"]);
       const owner = await s.user("owner");
       const billed = await s.organization(owner);
       const unbilled = await s.organization(owner);

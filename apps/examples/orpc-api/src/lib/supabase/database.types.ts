@@ -207,6 +207,39 @@ export type Database = {
           },
         ]
       }
+      memberships: {
+        Row: {
+          created_at: string
+          last_used_at: string | null
+          organization_id: string
+          role: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          last_used_at?: string | null
+          organization_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          last_used_at?: string | null
+          organization_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memberships_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notes: {
         Row: {
           attachments: Json | null
@@ -323,6 +356,98 @@ export type Database = {
         }
         Relationships: []
       }
+      plan_features: {
+        Row: {
+          feature_key: string
+          included: boolean
+          plan_key: string
+          value: Json | null
+        }
+        ComputedFields: never
+        Insert: {
+          feature_key: string
+          included?: boolean
+          plan_key: string
+          value?: Json | null
+        }
+        Update: {
+          feature_key?: string
+          included?: boolean
+          plan_key?: string
+          value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_features_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      plans: {
+        Row: {
+          key: string
+          name: string
+          position: number
+          price_cents: number
+        }
+        ComputedFields: never
+        Insert: {
+          key: string
+          name: string
+          position?: number
+          price_cents?: number
+        }
+        Update: {
+          key?: string
+          name?: string
+          position?: number
+          price_cents?: number
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          current_period_end: string | null
+          organization_id: string
+          plan_key: string
+          status: string
+          updated_at: string
+        }
+        ComputedFields: never
+        Insert: {
+          current_period_end?: string | null
+          organization_id: string
+          plan_key: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          current_period_end?: string | null
+          organization_id?: string
+          plan_key?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       tags: {
         Row: {
           color: string
@@ -396,6 +521,48 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      my_organizations: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          last_used_at: string
+          name: string
+          plan: string
+          role: string
+          slug: string
+        }[]
+      }
+      my_profile: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          username: string
+        }[]
+      }
+      organization_invitations: {
+        Args: { organization: string }
+        Returns: {
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          role: string
+        }[]
+      }
+      organization_members: {
+        Args: { organization: string }
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          joined_at: string
+          role: string
+          user_id: string
+        }[]
+      }
       rs_workspace_summary: { Args: { p: Json }; Returns: Json }
       search_notes: {
         Args: { k?: number; query: string }
@@ -424,6 +591,7 @@ export type Database = {
           score: number
         }[]
       }
+      update_my_profile: { Args: { full_name: string }; Returns: undefined }
     }
     Enums: {
       note_kind: "call" | "meeting" | "email"

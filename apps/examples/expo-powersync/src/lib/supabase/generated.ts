@@ -16,6 +16,12 @@ export type Database = EnrichDatabase<
       customers: {
         status: "lead" | "active" | "archived";
       };
+      memberships: {
+        role: "owner" | "admin" | "member";
+      };
+      subscriptions: {
+        status: "active" | "trialing" | "past_due" | "canceled";
+      };
       tags: {
         color: "gray" | "red" | "green" | "blue";
       };
@@ -27,6 +33,10 @@ export const noteKindValues = ["call", "meeting", "email"] as const;
 export type NoteKind = (typeof noteKindValues)[number];
 export const customersStatusValues = ["lead", "active", "archived"] as const;
 export type CustomersStatus = (typeof customersStatusValues)[number];
+export const membershipsRoleValues = ["owner", "admin", "member"] as const;
+export type MembershipsRole = (typeof membershipsRoleValues)[number];
+export const subscriptionsStatusValues = ["active", "trialing", "past_due", "canceled"] as const;
+export type SubscriptionsStatus = (typeof subscriptionsStatusValues)[number];
 export const tagsColorValues = ["gray", "red", "green", "blue"] as const;
 export type TagsColor = (typeof tagsColorValues)[number];
 
@@ -201,6 +211,37 @@ export type Models = {
     ForeignKeys: "locations_customer_id_fkey" | "locations_organization_id_fkey";
     Flags: Record<never, never>;
   };
+  memberships: {
+    Row: {
+      organization_id: string;
+      user_id: string;
+      role: "owner" | "admin" | "member";
+      created_at: string;
+      last_used_at: string | null;
+    };
+    Insert: {
+      organization_id: string;
+      user_id: string;
+      role?: "owner" | "admin" | "member";
+      created_at?: string;
+      last_used_at?: string | null;
+    };
+    Update: {
+      organization_id?: string;
+      user_id?: string;
+      role?: "owner" | "admin" | "member";
+      created_at?: string;
+      last_used_at?: string | null;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "organization_id" | "user_id";
+    UniqueKeys: Record<never, never>;
+    Checks: "memberships_role_check";
+    ForeignKeys: "memberships_organization_id_fkey" | "memberships_user_id_fkey";
+    Flags: Record<never, never>;
+  };
   notes: {
     Row: {
       id: number;
@@ -309,8 +350,10 @@ export type Models = {
       customer_tags: { table: "customer_tags"; kind: "many"; nullable: true };
       customers: { table: "customers"; kind: "many"; nullable: true };
       locations: { table: "locations"; kind: "many"; nullable: true };
+      memberships: { table: "memberships"; kind: "many"; nullable: true };
       notes: { table: "notes"; kind: "many"; nullable: true };
       notifications: { table: "notifications"; kind: "many"; nullable: true };
+      subscription: { table: "subscriptions"; kind: "one"; nullable: true };
       tags: { table: "tags"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -319,6 +362,95 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: never;
+    Flags: Record<never, never>;
+  };
+  plan_features: {
+    Row: {
+      plan_key: string;
+      feature_key: string;
+      included: boolean;
+      value: Json | null;
+    };
+    Insert: {
+      plan_key: string;
+      feature_key: string;
+      included?: boolean;
+      value?: Json | null;
+    };
+    Update: {
+      plan_key?: string;
+      feature_key?: string;
+      included?: boolean;
+      value?: Json | null;
+    };
+    Relations: {
+      plan: { table: "plans"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "plan_key" | "feature_key";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "plan_features_plan_key_fkey";
+    Flags: Record<never, never>;
+  };
+  plans: {
+    Row: {
+      key: string;
+      name: string;
+      price_cents: number;
+      position: number;
+    };
+    Insert: {
+      key: string;
+      name: string;
+      price_cents?: number;
+      position?: number;
+    };
+    Update: {
+      key?: string;
+      name?: string;
+      price_cents?: number;
+      position?: number;
+    };
+    Relations: {
+      plan_features: { table: "plan_features"; kind: "many"; nullable: true };
+      subscriptions: { table: "subscriptions"; kind: "many"; nullable: true };
+    };
+    PrimaryKey: "key";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: never;
+    Flags: Record<never, never>;
+  };
+  subscriptions: {
+    Row: {
+      organization_id: string;
+      plan_key: string;
+      status: "active" | "trialing" | "past_due" | "canceled";
+      current_period_end: string | null;
+      updated_at: string;
+    };
+    Insert: {
+      organization_id: string;
+      plan_key: string;
+      status?: "active" | "trialing" | "past_due" | "canceled";
+      current_period_end?: string | null;
+      updated_at?: string;
+    };
+    Update: {
+      organization_id?: string;
+      plan_key?: string;
+      status?: "active" | "trialing" | "past_due" | "canceled";
+      current_period_end?: string | null;
+      updated_at?: string;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+      plan: { table: "plans"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "organization_id";
+    UniqueKeys: Record<never, never>;
+    Checks: "subscriptions_status_check";
+    ForeignKeys: "subscriptions_organization_id_fkey" | "subscriptions_plan_key_fkey";
     Flags: Record<never, never>;
   };
   tags: {
@@ -375,6 +507,26 @@ export type Functions = {
     };
     Returns: (Models["customers"]['Row'])[];
   };
+  my_organizations: {
+    Args: Record<never, never>;
+    Returns: { "id": string | null; "last_used_at": string | null; "name": string | null; "plan": string | null; "role": string | null; "slug": string | null }[];
+  };
+  my_profile: {
+    Args: Record<never, never>;
+    Returns: { "avatar_url": string | null; "email": string | null; "full_name": string | null; "username": string | null }[];
+  };
+  organization_invitations: {
+    Args: {
+      organization: string | null;
+    };
+    Returns: { "created_at": string | null; "email": string | null; "expires_at": string | null; "id": string | null; "invited_by": string | null; "role": string | null }[];
+  };
+  organization_members: {
+    Args: {
+      organization: string | null;
+    };
+    Returns: { "avatar_url": string | null; "email": string | null; "full_name": string | null; "joined_at": string | null; "role": string | null; "user_id": string | null }[];
+  };
   rs_workspace_summary: {
     Args: {
       p: Json | null;
@@ -394,6 +546,12 @@ export type Functions = {
       query: string | null;
     };
     Returns: { "id": Json; "score": number | null }[];
+  };
+  update_my_profile: {
+    Args: {
+      full_name: string | null;
+    };
+    Returns: undefined;
   };
 };
 

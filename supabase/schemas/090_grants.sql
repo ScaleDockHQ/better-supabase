@@ -1,4 +1,14 @@
-grant usage on schema better_supabase to anon, authenticated, service_role;
+grant usage on schema better_supabase to anon, authenticated, service_role, supabase_auth_admin;
+grant select on public.memberships to authenticated;
+grant all on public.memberships to service_role;
+revoke execute on function better_supabase.clear_tenant_claim() from public, anon, authenticated;
+
+revoke all on
+  public.plans,
+  public.plan_features,
+  public.subscriptions
+from anon, authenticated;
+grant select on public.plans, public.plan_features, public.subscriptions to authenticated;
 
 revoke all on
   public.organizations,
