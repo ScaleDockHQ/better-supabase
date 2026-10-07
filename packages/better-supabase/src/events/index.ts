@@ -4,6 +4,7 @@ import type { EventHub } from "../core/events.ts";
 import type { MutationIntent } from "../core/plugin.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 
+import { jsonReplacer } from "../core/json.ts";
 import { nowInstant } from "../core/temporal.ts";
 
 /** A CloudEvents 1.0 event. Extension attributes are lowercase alphanumerics. */
@@ -228,12 +229,15 @@ export function toHttp(
   switch (mode) {
     case "batch":
       return [
-        { headers: { "content-type": BATCH }, body: JSON.stringify(list) },
+        {
+          headers: { "content-type": BATCH },
+          body: JSON.stringify(list, jsonReplacer),
+        },
       ];
     case "structured":
       return list.map((event) => ({
         headers: { "content-type": STRUCTURED },
-        body: JSON.stringify(event),
+        body: JSON.stringify(event, jsonReplacer),
       }));
     case "binary":
       return list.map((event) => {
@@ -253,7 +257,10 @@ export function toHttp(
         headers["content-type"] = event.datacontenttype ?? "application/json";
         return {
           headers,
-          body: event.data === undefined ? "" : JSON.stringify(event.data),
+          body:
+            event.data === undefined
+              ? ""
+              : JSON.stringify(event.data, jsonReplacer),
         };
       });
     default: {

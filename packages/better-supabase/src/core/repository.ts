@@ -1,5 +1,4 @@
 import type { SchemaMeta, TableMeta } from "../schema/types.ts";
-import type { EventHub } from "./events.ts";
 import type { ExecuteContext, ExecuteResult, Executor } from "./executor.ts";
 
 import { type IrBuilder, invalidRequest } from "../ir/build.ts";
@@ -12,6 +11,7 @@ import {
   type MutationOp,
   type Operation,
   type OrderTerm,
+  type SelectColumn,
   type SelectOp,
   type Selection,
   type UpdateOp,
@@ -20,13 +20,14 @@ import {
 import { encodeValue } from "../ir/wire.ts";
 import { lookupOf } from "../schema/lookup.ts";
 import { cloneValue } from "./clone.ts";
-import { decodeCursor, encodeCursor } from "./cursor.ts";
+import { decodeBoundCursor, encodeBoundCursor, sortKey } from "./cursor.ts";
 import {
   type DbError,
   DbException,
   type ErrorMapper,
   dbError,
 } from "./errors.ts";
+import { errorEvent, type EventHub } from "./events.ts";
 import { keysetCondition } from "./keyset.ts";
 import {
   type AnyPlugin,
@@ -37,6 +38,7 @@ import {
   type RequestContext,
 } from "./plugin.ts";
 import { AsyncResult, err, ok, type Result, toDbError } from "./result.ts";
+import { byKey, keysOf } from "./row-keys.ts";
 import {
   deadline,
   invalidTuning,
@@ -149,58 +151,6 @@ function cloneRows(rows: readonly Row[]): Row[] {
   return rows.map((row) => cloneValue(row) as Row);
 }
 
-/** App-cased primary keys of `rows`, or of a `where` that pins the primary key. */
-function keysOf(
-  op: MutationOp,
-  rows: readonly Row[],
-): readonly Row[] | undefined {
-  const { primaryKey } = op.table;
-  if (primaryKey.length === 0) return undefined;
-  const fromRows = rows.flatMap((row) =>
-    primaryKey.every((name) => row[name] !== undefined && row[name] !== null)
-      ? [Object.fromEntries(primaryKey.map((name) => [name, row[name]]))]
-      : [],
-  );
-  if (fromRows.length > 0) return fromRows;
-  if (op.kind === "insert") return undefined;
-  return keysFromWhere(op.table, op.where);
-}
-
-function keysFromWhere(
-  table: TableMeta,
-  where: Condition | undefined,
-): readonly Row[] | undefined {
-  if (!where) return undefined;
-  const { byDb } = lookupOf(table);
-  const pinned = new Map<string, readonly unknown[]>();
-  const items: Condition[] = [];
-  const flatten = (condition: Condition): void => {
-    if (condition.kind === "and") condition.items.forEach(flatten);
-    else items.push(condition);
-  };
-  flatten(where);
-  for (const item of items) {
-    if (item.kind !== "column" || item.path) continue;
-    const app = byDb.get(item.column)?.[0];
-    if (app === undefined || !table.primaryKey.includes(app)) continue;
-    if (item.op === "eq") pinned.set(app, [item.value]);
-    else if (item.op === "in" && Array.isArray(item.value))
-      pinned.set(app, item.value);
-  }
-  if (pinned.size !== table.primaryKey.length) return undefined;
-  const [first, ...rest] = table.primaryKey;
-  if (first === undefined) return undefined;
-  if (rest.length === 0)
-    return (pinned.get(first) ?? []).map((value) => ({ [first]: value }));
-  if ([...pinned.values()].some((values) => values.length !== 1))
-    return undefined;
-  return [
-    Object.fromEntries(
-      table.primaryKey.map((name) => [name, pinned.get(name)?.[0]]),
-    ),
-  ];
-}
-
 function mutationKind(op: MutationOp): MutationKind {
   if (op.kind === "insert") return op.onConflict ? "upsert" : "insert";
   return op.kind;
@@ -285,23 +235,7 @@ export class OperationRunner {
 
     const timed = runtime.events.has("query");
     const started = timed ? performance.now() : 0;
-    const limit = deadline(signal, timeout);
-    const context: ExecuteContext = {
-      errorMappers: runtime.errorMappers,
-      ...(limit.signal ? { signal: limit.signal } : {}),
-      ...(retry === undefined ? {} : { retry }),
-    };
-    let executed: Result<ExecuteResult>;
-    try {
-      executed = await runtime.executor.execute(current, context);
-    } finally {
-      limit.clear();
-    }
-    if (!executed.ok && limit.timedOut()) {
-      executed = err(
-        dbError("timeout", `The request timed out after ${timeout} ms`),
-      );
-    }
+    const executed = await this.#execute(current, signal, timeout, retry);
     const selection =
       current.kind === "select" ? current.selection : current.returning;
     let result: Result<ExecuteResult> = executed;
@@ -348,6 +282,51 @@ export class OperationRunner {
       await this.afterMutation(current, result.data);
     }
     return result;
+  }
+
+  /**
+   * Runs `op` without plugins or decoding, with the connection's timeout and
+   * retry, and fails on `table`: for reads the library makes itself, such
+   * as the scores of `db.$search({ score: true })`.
+   */
+  async runInternal(
+    op: Operation,
+    table: TableMeta,
+    signal: AbortSignal | undefined,
+  ): Promise<Result<ExecuteResult>> {
+    const { timeout, retry } = this.runtime.tuning ?? NO_TUNING;
+    const invalid = invalidTuning({ timeout, retry });
+    if (invalid) return this.fail(table, dbError("invalid_request", invalid));
+    const executed = await this.#execute(op, signal, timeout, retry);
+    return executed.ok
+      ? executed
+      : this.fail(table, { ...executed.error, table: table.key });
+  }
+
+  async #execute(
+    op: Operation,
+    signal: AbortSignal | undefined,
+    timeout: number | undefined,
+    retry: RequestTuning["retry"],
+  ): Promise<Result<ExecuteResult>> {
+    const limit = deadline(signal, timeout);
+    const context: ExecuteContext = {
+      errorMappers: this.runtime.errorMappers,
+      ...(limit.signal ? { signal: limit.signal } : {}),
+      ...(retry === undefined ? {} : { retry }),
+    };
+    let executed: Result<ExecuteResult>;
+    try {
+      executed = await this.runtime.executor.execute(op, context);
+    } finally {
+      limit.clear();
+    }
+    if (!executed.ok && limit.timedOut()) {
+      return err(
+        dbError("timeout", `The request timed out after ${timeout} ms`),
+      );
+    }
+    return executed;
   }
 
   private async afterMutation(
@@ -398,13 +377,14 @@ export class OperationRunner {
   fail<T>(table: TableMeta, error: DbError): Result<T> {
     const withTable = error.table ? error : { ...error, table: table.key };
     if (this.runtime.events.has("error"))
-      this.runtime.events.emit("error", { table: table.key, error: withTable });
+      this.runtime.events.emit("error", errorEvent(withTable, table.key));
     return err(withTable);
   }
 }
 
 const sensitiveByTable = new WeakMap<TableMeta, ReadonlySet<string>>();
 const primaryOrders = new WeakMap<TableMeta, readonly OrderTerm[]>();
+const existsSelections = new WeakMap<TableMeta, Selection>();
 
 /** Database names of the table's `config.sensitive` columns. */
 function sensitiveColumnsOf(table: TableMeta): ReadonlySet<string> {
@@ -492,6 +472,7 @@ export function createRepository(
       order = table.primaryKey.map((name): OrderTerm => ({
         column: builder.column(table, name),
         direction: "asc",
+        implicit: true,
       }));
       primaryOrders.set(table, order);
     }
@@ -501,12 +482,22 @@ export function createRepository(
   const notFound = <T>(): Result<T> =>
     runner.fail(table, dbError("not_found", `No ${table.key} row matched`));
 
+  /** Arguments the builder rejects fail like any other error: with the table and an `error` event. */
+  const guarded = <T>(work: () => Promise<Result<T>>): AsyncResult<T> =>
+    AsyncResult.from(async () => {
+      try {
+        return await work();
+      } catch (cause) {
+        return runner.fail<T>(table, toDbError(cause));
+      }
+    });
+
   const base = {
     $tableName: table.key,
     $meta: table,
 
     findMany(args?: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const op = selectOp(args);
         const ordered =
           op.orderBy.length > 0 || table.primaryKey.length === 0
@@ -518,14 +509,14 @@ export function createRepository(
     },
 
     findFirst(args?: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const result = await run(selectOp(args, { limit: 1 }), args);
         return result.ok ? ok(result.data.rows[0] ?? null) : result;
       });
     },
 
     findOnly(args: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const result = await run(
           selectOp(args, { limit: 2, unpaged: true }),
           args,
@@ -544,7 +535,7 @@ export function createRepository(
     },
 
     findUnique(args: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const op = selectOp(args, {
           where: builder.uniqueKey(table, args["where"]),
           limit: 1,
@@ -555,7 +546,7 @@ export function createRepository(
     },
 
     findById(id: unknown, args?: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const op = selectOp(args, {
           where: builder.primaryKey(table, id),
           limit: 1,
@@ -568,7 +559,7 @@ export function createRepository(
     },
 
     count(args?: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const mode = args?.["mode"];
         const op = selectOp(
           { where: args?.["where"] },
@@ -584,7 +575,7 @@ export function createRepository(
     },
 
     aggregate(args: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const aggregation = builder.aggregation(table, args);
         const orderBy = builder.orderBy(table, args["orderBy"]);
         const grouped = new Set(aggregation.columns.map((c) => c.column));
@@ -619,14 +610,11 @@ export function createRepository(
     },
 
     exists(args?: Args) {
-      return AsyncResult.from(async () => {
-        const columns = table.primaryKey
-          .slice(0, 1)
-          .map((alias) => builder.selectColumn(table, alias));
+      return guarded(async () => {
         const op = selectOp(
           { where: args?.["where"] },
           {
-            selection: { columns, includes: [] },
+            selection: existsSelection(),
             limit: 1,
           },
         );
@@ -636,13 +624,13 @@ export function createRepository(
     },
 
     paginate(args: Args) {
-      return AsyncResult.from(async () =>
+      return guarded(async () =>
         "after" in args ? cursorPage(args) : offsetPage(args),
       );
     },
 
     create(data: unknown, args?: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const op = insertOp([data], args, undefined);
         const result = await run(op, args);
         if (!result.ok) return result;
@@ -653,7 +641,7 @@ export function createRepository(
     },
 
     createMany(rows: readonly unknown[], args?: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         if (rows.length === 0)
           return ok(args?.["returning"] === false ? { count: 0 } : []);
         const result = await run(insertOp(rows, args, undefined), args);
@@ -667,7 +655,7 @@ export function createRepository(
     },
 
     update(id: unknown, patch: unknown, args?: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const key = and(
           builder.primaryKey(table, id),
           builder.where(table, args?.["where"]),
@@ -714,7 +702,7 @@ export function createRepository(
     },
 
     updateMany(args: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const where = builder.where(table, args["where"]);
         if (simplify(where) === true && args["allowAll"] !== true) {
           return runner.fail(
@@ -745,7 +733,7 @@ export function createRepository(
     },
 
     upsert(data: unknown, args?: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const op = insertOp(
           [data],
           args,
@@ -760,7 +748,7 @@ export function createRepository(
     },
 
     upsertMany(rows: readonly unknown[], args?: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         if (rows.length === 0)
           return ok(args?.["returning"] === false ? { count: 0 } : []);
         const op = insertOp(rows, args, conflictColumns(args?.["onConflict"]));
@@ -775,7 +763,7 @@ export function createRepository(
     },
 
     delete(id: unknown, args?: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const op: DeleteOp = {
           kind: "delete",
           table,
@@ -791,7 +779,7 @@ export function createRepository(
     },
 
     deleteMany(args: Args) {
-      return AsyncResult.from(async () => {
+      return guarded(async () => {
         const where = builder.where(table, args["where"]);
         if (!where || simplify(where) === true) {
           return runner.fail(
@@ -847,6 +835,25 @@ export function createRepository(
       defaultToNull: args?.["defaultToNull"] === true,
       ...countOf(args),
     };
+  }
+
+  /** One column is enough to see a row: the primary key, or the first non-sensitive column. */
+  function existsSelection(): Selection {
+    let found = existsSelections.get(table);
+    if (!found) {
+      const names = Object.keys(table.columns);
+      const alias =
+        table.primaryKey[0] ??
+        names.find((name) => !table.columns[name]?.sensitive) ??
+        names[0];
+      const columns: SelectColumn[] =
+        alias === undefined
+          ? []
+          : [{ alias, column: builder.column(table, alias) }];
+      found = { columns, includes: [] };
+      existsSelections.set(table, found);
+    }
+    return found;
   }
 
   function conflictColumns(target: unknown): readonly string[] {
@@ -957,9 +964,22 @@ export function createRepository(
     const base = selection(args);
     const { selection: withSort, added } = ensureColumns(base, orderBy);
 
+    const sort = sortKey(
+      `${table.key}|${orderBy.map((term) => `${term.column}.${term.direction}.${term.nulls ?? ""}`).join(",")}`,
+    );
     let after: Condition | undefined;
     if (typeof args["after"] === "string") {
-      const values = decodeCursor(args["after"]);
+      const decoded = decodeBoundCursor(args["after"], sort);
+      if ("invalid" in decoded && decoded.invalid === "sort") {
+        return runner.fail(
+          table,
+          dbError(
+            "invalid_request",
+            "The cursor continues another orderBy; pass after: null to start the new order",
+          ),
+        );
+      }
+      const values = "values" in decoded ? decoded.values : undefined;
       if (!values || values.length !== orderBy.length) {
         return runner.fail(table, dbError("invalid_request", "Invalid cursor"));
       }
@@ -990,10 +1010,11 @@ export function createRepository(
     );
     const nextCursor =
       hasMore && last
-        ? encodeCursor(
+        ? encodeBoundCursor(
             orderBy.map((term) =>
               encodeValue(last[aliases.get(term.column) ?? term.column]),
             ),
+            sort,
           )
         : null;
     return ok({
@@ -1024,10 +1045,14 @@ export function createRepository(
     const added: string[] = [];
     for (const term of orderBy) {
       if (selected.has(term.column)) continue;
-      const alias = byDb.get(term.column)?.[0] ?? term.column;
-      columns.push({ alias, column: term.column });
+      const alias = byDb.get(term.column)?.[0];
+      columns.push(
+        alias === undefined
+          ? { alias: term.column, column: term.column }
+          : builder.selectColumn(table, alias),
+      );
       selected.add(term.column);
-      added.push(alias);
+      added.push(alias ?? term.column);
     }
     return { selection: { columns, includes: base.includes }, added };
   }
@@ -1041,44 +1066,4 @@ function strip(row: Row, keys: readonly string[]): Row {
     if (!keys.includes(key) && Object.hasOwn(row, key)) copy[key] = row[key];
   }
   return copy;
-}
-
-/**
- * Rows in conflict-key order, so concurrent upserts lock the same rows in
- * the same order instead of deadlocking.
- */
-function byKey(
-  rows: readonly Readonly<Record<string, unknown>>[],
-  columns: readonly string[],
-): Readonly<Record<string, unknown>>[] {
-  const compare = (left: unknown, right: unknown): number => {
-    if (left === right) return 0;
-    if (left === null || left === undefined) return 1;
-    if (right === null || right === undefined) return -1;
-    if (typeof left === "number" && typeof right === "number")
-      return left - right;
-    if (typeof left === "bigint" && typeof right === "bigint")
-      return left < right ? -1 : 1;
-    const a = String(left);
-    const b = String(right);
-    return a < b ? -1 : a > b ? 1 : 0;
-  };
-  // Keys are read once per row, not once per comparison.
-  const keyed = rows.map((row) => ({
-    row,
-    key: columns.map((column) => {
-      const value = row[column];
-      return typeof value === "object" && value !== null
-        ? String(value)
-        : value;
-    }),
-  }));
-  keyed.sort((left, right) => {
-    for (let index = 0; index < columns.length; index++) {
-      const order = compare(left.key[index], right.key[index]);
-      if (order !== 0) return order;
-    }
-    return 0;
-  });
-  return keyed.map((entry) => entry.row);
 }

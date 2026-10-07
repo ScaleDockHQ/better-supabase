@@ -69,7 +69,9 @@ comparison, `(name, id) > ($1, $2)`, when every column sorts the same way and
 none is nullable.
 
 A cursor is an opaque base64url string. Pass it back with the same `orderBy`
-and `where`.
+and `where`. The cursor records the table and the sort it continues, so a
+cursor passed with another `orderBy` fails with an `invalid_request` error
+instead of returning the wrong page; start the new order with `after: null`.
 
 Lists and REST resources page by cursor with `pagination: 'cursor'` (see
 [list queries](/docs/platform/list#cursor-pagination)); their `size` stays capped

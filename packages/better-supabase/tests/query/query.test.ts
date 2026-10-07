@@ -1,4 +1,4 @@
-import { QueryClient, skipToken } from "@tanstack/query-core";
+import { hashKey, QueryClient, skipToken } from "@tanstack/query-core";
 import { describe, expect, it } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
@@ -79,6 +79,34 @@ describe("createQueries", () => {
       "findMany",
       "$skip",
     ]);
+  });
+
+  it("hashes keys whose arguments hold bigint values", async () => {
+    const { client, last } = capturingClient(() => ({ body: [] }));
+    const q = createQueries(betterSupabase, betterSupabase.connect(client));
+    const where = { id: { in: [9007199254740993n] } };
+    const options = [
+      q.notes.findMany({ where } as never),
+      q.notes.infinite({ where, size: 5 } as never),
+      q.notes.infinitePages({ where, size: 5 } as never),
+      q.$rpc("lookup" as never, { id: 9007199254740993n } as never),
+    ];
+    for (const option of options)
+      expect(() => hashKey(option.queryKey)).not.toThrow();
+    expect(options[0]?.queryKey).toEqual([
+      "bs",
+      "notes",
+      "findMany",
+      { where: { id: { in: [{ $bigint: "9007199254740993" }] } } },
+    ]);
+    expect(hashKey(options[0]!.queryKey)).not.toBe(
+      hashKey(
+        q.notes.findMany({ where: { id: { in: [9007199254740992] } } })
+          .queryKey,
+      ),
+    );
+    await new QueryClient().query(options[0] as never);
+    expect(last().params.get("id")).toBe("in.(9007199254740993)");
   });
 
   it("applies the configured staleTime", () => {

@@ -12,12 +12,19 @@ import type {
   Operation,
   SelectOp,
 } from "../../src/ir/types.ts";
+import type { SchemaMeta } from "../../src/schema/types.ts";
 
-import { encodeCursor } from "../../src/core/cursor.ts";
+import {
+  decodeCursor,
+  encodeBoundCursor,
+  encodeCursor,
+  sortKey,
+} from "../../src/core/cursor.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok, type Result } from "../../src/core/result.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 type Answer = (op: Operation, index: number) => Result<ExecuteResult>;
@@ -62,6 +69,10 @@ const col = (
   op: Extract<Condition, { kind: "column" }>["op"],
   value: unknown,
 ): Condition => ({ kind: "column", column, op, value });
+
+/** A `paginate()` cursor for `customers` sorted by `order` (`column.direction.nulls` terms). */
+const cursor = (values: readonly unknown[], order: string) =>
+  encodeBoundCursor(values, sortKey(`customers|${order}`));
 
 const timeout = dbError("timeout", "slow", { code: "57014" });
 const failing: Answer = () => err(timeout);
@@ -233,6 +244,36 @@ describe("count, exists and aggregate", () => {
     await db.customerTags.exists();
     expect(select().selection.columns).toEqual([
       { alias: "customerId", column: "customer_id" },
+    ]);
+  });
+
+  it("exists reads one non-sensitive column of a table without a primary key", async () => {
+    const tags = schema.meta.tables["tags"];
+    if (!tags) throw new Error("No tags table");
+    const [first, ...rest] = Object.entries(tags.columns);
+    if (!first) throw new Error("No tags columns");
+    const keyless: typeof schema = {
+      meta: {
+        ...schema.meta,
+        tables: {
+          ...schema.meta.tables,
+          tags: {
+            ...tags,
+            primaryKey: [],
+            columns: Object.fromEntries([
+              [first[0], { ...first[1], sensitive: true }],
+              ...rest,
+            ]),
+          },
+        },
+      },
+    };
+    const fake = scripted(() => rowsOf([{}]));
+    const db = defineSupabase(keyless).connect(fake.executor);
+    expect(await db.tags.exists()).toEqual(ok(true));
+    const [second] = rest;
+    expect(fake.select().selection.columns).toEqual([
+      { alias: second?.[0], column: second?.[1].db },
     ]);
   });
 
@@ -905,7 +946,7 @@ describe("cursor pagination", () => {
     ],
     [
       "a cursor of the wrong length",
-      { size: 2, after: encodeCursor(["a", "b", "c"]) },
+      { size: 2, after: cursor(["a", "b", "c"], "id.asc.") },
       "Invalid cursor",
     ],
   ])("rejects %s", async (_name, args, message) => {
@@ -934,7 +975,7 @@ describe("cursor pagination", () => {
     expect(result).toEqual(
       ok({
         items: [{ name: "C" }, { name: "B" }],
-        nextCursor: encodeCursor(["2026-02-01", "c2"]),
+        nextCursor: cursor(["2026-02-01", "c2"], "created_at.desc.,id.desc."),
         hasMore: true,
       }),
     );
@@ -965,7 +1006,7 @@ describe("cursor pagination", () => {
       orderBy: { createdAt: "desc" },
       where: { status: "lead" },
       size: 2,
-      after: encodeCursor(["2026-02-01", "c2"]),
+      after: cursor(["2026-02-01", "c2"], "created_at.desc.,id.desc."),
     });
     expect(result).toEqual(
       ok({
@@ -1008,7 +1049,7 @@ describe("cursor pagination", () => {
         select: ["id"],
         orderBy: { archivedAt: direction },
         size: 2,
-        after: encodeCursor(after),
+        after: cursor(after, `archived_at.${direction}.,id.${direction}.`),
       });
       return select().where;
     };
@@ -1047,11 +1088,11 @@ describe("cursor pagination", () => {
     const result = await db.customers.paginate({
       select: ["id"],
       size: 1,
-      after: encodeCursor(["0"]),
+      after: cursor(["0"], "id.asc."),
     });
     expect(result.data).toEqual({
       items: [{ id: "a" }],
-      nextCursor: encodeCursor(["a"]),
+      nextCursor: cursor(["a"], "id.asc."),
       hasMore: true,
     });
     expect(select().where).toEqual(col("id", "gt", "0"));
@@ -1062,6 +1103,118 @@ describe("cursor pagination", () => {
     expect(await db.customers.paginate({ size: 2, after: null })).toEqual(
       timeoutResult,
     );
+  });
+
+  it("rejects a cursor that is not bound to a sort", async () => {
+    const { db, ops } = connect();
+    expect(
+      (await db.customers.paginate({ size: 2, after: encodeCursor(["c2"]) }))
+        .error,
+    ).toMatchObject({ kind: "invalid_request", message: "Invalid cursor" });
+    expect(ops).toHaveLength(0);
+  });
+
+  it("rejects a cursor made for another orderBy", async () => {
+    const { db, ops } = connect(() =>
+      rowsOf([
+        { id: "c1", name: "A" },
+        { id: "c2", name: "B" },
+      ]),
+    );
+    const first = await db.customers
+      .paginate({
+        select: ["id", "name"],
+        orderBy: { name: "asc" },
+        size: 1,
+        after: null,
+      })
+      .orThrow();
+    if (!("nextCursor" in first)) throw new Error("Expected a cursor page");
+    expect(first.nextCursor).not.toBeNull();
+    const again = await db.customers.paginate({
+      select: ["id", "name"],
+      orderBy: { name: "asc" },
+      size: 1,
+      after: first.nextCursor,
+    });
+    expect(again.ok).toBe(true);
+    const other = await db.customers.paginate({
+      select: ["id", "name"],
+      orderBy: { name: "desc" },
+      size: 1,
+      after: first.nextCursor,
+    });
+    expect(other.error).toMatchObject({
+      kind: "invalid_request",
+      message: expect.stringContaining("another orderBy"),
+      table: "customers",
+    });
+    expect(ops).toHaveLength(2);
+  });
+
+  it("reads an int8 sort column it adds as exact text", async () => {
+    const meta: SchemaMeta = {
+      version: 1,
+      casing: "camel",
+      enums: {},
+      functions: {},
+      tables: {
+        ledger: {
+          key: "ledger",
+          name: "ledger",
+          schema: "public",
+          kind: "table",
+          columns: {
+            id: {
+              db: "id",
+              type: "int8",
+              nullable: false,
+              hasDefault: true,
+              codec: "bigint",
+            },
+            memo: {
+              db: "memo",
+              type: "text",
+              nullable: false,
+              hasDefault: false,
+            },
+          },
+          primaryKey: ["id"],
+          uniqueKeys: {},
+          relations: {},
+          flags: {},
+        },
+      },
+    };
+    const fake = scripted(() =>
+      rowsOf([
+        { memo: "a", id: "9007199254740993" },
+        { memo: "b", id: "9007199254740995" },
+      ]),
+    );
+    const db = defineSupabase(defineSchema(meta)).connect(
+      fake.executor,
+    ) as never as {
+      ledger: {
+        paginate(args: object): {
+          orThrow(): Promise<{
+            items: unknown[];
+            nextCursor: string | null;
+          }>;
+        };
+      };
+    };
+    const page = await db.ledger
+      .paginate({ select: ["memo"], size: 1, after: null })
+      .orThrow();
+    expect(fake.select().selection.columns).toContainEqual({
+      alias: "id",
+      column: "id",
+      cast: "text",
+      codec: "bigint",
+    });
+    expect(page.items).toEqual([{ memo: "a" }]);
+    expect(decodeCursor(page.nextCursor!)).toEqual(["9007199254740993"]);
   });
 });
 

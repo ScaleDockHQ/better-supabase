@@ -64,14 +64,17 @@ const SORTABLE = new Set([
   "bool",
 ]);
 const TIME = new Set(["date", "timestamp", "timestamptz"]);
-const NUMERIC = new Set([
-  "int2",
-  "int4",
-  "int8",
-  "float4",
-  "float8",
-  "numeric",
-]);
+const NUMERIC = new Set(["int2", "int4", "float4", "float8", "numeric"]);
+
+type SortKind = "number" | "bigint" | "time" | "text";
+
+const INTEGER = /^-?\d+$/;
+
+function sortKind(type: string): SortKind {
+  if (type === "int8") return "bigint";
+  if (NUMERIC.has(type)) return "number";
+  return TIME.has(type) ? "time" : "text";
+}
 
 /** The `invalid_request` for a request whose URL is over the limit. */
 export function tooLong(
@@ -169,16 +172,25 @@ export function chunkRead(
 
   // Order columns the read doesn't select are selected under a hidden alias
   // for the in-memory sort, then removed from the rows.
+  // int8 columns come back as text, so values past 2^53 keep their order.
+  const { byDb } = lookupOf(op.table);
   const hidden: SelectColumn[] = [];
   const aliases = new Map(op.selection.columns.map((c) => [c.column, c.alias]));
   for (const term of op.orderBy) {
     if (term.relation || aliases.has(term.column)) continue;
     const alias = `_bs_order${hidden.length}`;
-    hidden.push({ alias, column: term.column });
+    const exact = byDb.get(term.column)?.[1].type === "int8";
+    hidden.push({
+      alias,
+      column: term.column,
+      ...(exact ? { cast: "text" as const } : {}),
+    });
     aliases.set(term.column, alias);
   }
+  const hiddenText = (column: SelectColumn): string =>
+    `${column.alias}:${column.column}${column.cast ? `::${column.cast}` : ""}`;
   const extra = hidden.reduce(
-    (sum, column) => sum + encoded(`,${column.alias}:${column.column}`),
+    (sum, column) => sum + encoded(`,${hiddenText(column)}`),
     0,
   );
   const budget = max - (length - listLength) - extra - encoded("()");
@@ -193,17 +205,22 @@ export function chunkRead(
 
   let sort: ChunkedRead["sort"];
   if (op.orderBy.length > 0) {
-    const { byDb } = lookupOf(op.table);
     const keys: {
       alias: string;
       desc: boolean;
       nullsFirst: boolean;
-      kind: "number" | "time" | "text";
+      kind: SortKind;
     }[] = [];
     for (const term of op.orderBy) {
       const type = byDb.get(term.column)?.[1].type ?? "";
       const alias = aliases.get(term.column);
-      if (term.relation || alias === undefined || !SORTABLE.has(type)) {
+      // The caller never asked for an implicit order, so sorting it by code
+      // point instead of the database's collation is good enough.
+      if (
+        term.relation ||
+        alias === undefined ||
+        (!SORTABLE.has(type) && !term.implicit)
+      ) {
         return tooLong(
           op,
           length,
@@ -216,7 +233,7 @@ export function chunkRead(
         alias,
         desc,
         nullsFirst: (term.nulls ?? (desc ? "first" : "last")) === "first",
-        kind: NUMERIC.has(type) ? "number" : TIME.has(type) ? "time" : "text",
+        kind: sortKind(type),
       });
     }
     sort = (rows) => {
@@ -275,7 +292,7 @@ export function chunkRead(
   const select =
     plan.select === undefined || hidden.length === 0
       ? plan.select
-      : `${plan.select},${hidden.map((column) => `${column.alias}:${column.column}`).join(",")}`;
+      : `${plan.select},${hidden.map(hiddenText).join(",")}`;
   const plans =
     at === -1
       ? undefined
@@ -314,10 +331,17 @@ export function chunkRead(
  */
 function sortValue(
   value: unknown,
-  kind: "number" | "time" | "text",
-): number | string | undefined {
+  kind: SortKind,
+): number | bigint | string | undefined {
   if (value === null || value === undefined) return undefined;
   if (kind === "number") return Number(value);
+  if (kind === "bigint") {
+    if (typeof value === "bigint") return value;
+    if (typeof value === "number" && Number.isInteger(value))
+      return BigInt(value);
+    if (typeof value === "string" && INTEGER.test(value)) return BigInt(value);
+    return Number(value);
+  }
   const text = String(value);
   if (kind === "text") return text;
   const instant = Date.parse(text);

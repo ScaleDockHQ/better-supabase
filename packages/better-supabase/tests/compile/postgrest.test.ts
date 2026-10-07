@@ -310,6 +310,17 @@ describe("compilePostgrest filters", () => {
       },
       'and(status.in.(lead),kvk.is.null),name.not.like."x%",not.and(id.eq."1",id.eq."2"),metadata.cs."{\\"a\\":1}",tags.ov.{"t"}',
     ],
+    [
+      "an or with array elements that hold braces",
+      {
+        kind: "or",
+        items: [
+          col("tags", "contains", ["a}", "b"]),
+          col("tags", "overlaps", ["{c"]),
+        ],
+      },
+      'tags.cs."{\\"a}\\",\\"b\\"}",tags.ov."{\\"{c\\"}"',
+    ],
   ])("renders %s as a logic tree", (_name, where, expression) => {
     expect(plan(select({ where })).filters).toEqual([orFilter(expression)]);
   });

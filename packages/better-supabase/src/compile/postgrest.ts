@@ -120,6 +120,8 @@ export function listItem(value: unknown): string {
   return BARE.test(text) && text.toLowerCase() !== "null" ? text : quote(text);
 }
 
+const BRACES = /[{}]/;
+
 function list(values: readonly unknown[], open: string, close: string): string {
   return `${open}${values.map(quote).join(",")}${close}`;
 }
@@ -198,7 +200,10 @@ function operatorAndValue(
       const operator =
         op === "contains" ? "cs" : op === "containedBy" ? "cd" : "ov";
       if (Array.isArray(value) && !condition.json) {
-        return { operator, value: list(value, "{", "}") };
+        // A logic tree reads `{...}` up to the next brace, even a quoted one.
+        const literal = list(value, "{", "}");
+        const braced = inLogic && BRACES.test(literal.slice(1, -1));
+        return { operator, value: braced ? quote(literal) : literal };
       }
       const json = JSON.stringify(value);
       return { operator, value: inLogic ? quote(json) : json };

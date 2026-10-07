@@ -664,6 +664,46 @@ describe("events", () => {
     expect(result.ok).toBe(true);
     expect(seen).toEqual(["query:insert", "tags:insert"]);
   });
+
+  it("gives error handlers a copy they can't change the result through", async () => {
+    const { client } = capturingClient(() => ({
+      status: 409,
+      body: { code: "23505", message: "duplicate key", details: null },
+    }));
+    const logger = { debug() {}, info() {}, warn() {}, error: vi.fn() };
+    const betterSupabase = defineSupabase(camel, { logger });
+    betterSupabase.on("error", (event) => {
+      (event.error as { message: string }).message = "changed";
+    });
+    const result = await betterSupabase
+      .connect(client)
+      .tags.create({ organizationId: "o", name: "n" });
+    expect(result.error).toMatchObject({
+      kind: "conflict",
+      message: expect.not.stringContaining("changed"),
+      table: "tags",
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      '"error" handler threw',
+      expect.anything(),
+    );
+  });
+
+  it("reports arguments the builder rejects as error events with the table", async () => {
+    const { client, requests } = capturingClient();
+    const betterSupabase = defineSupabase(camel);
+    const errors: unknown[] = [];
+    betterSupabase.on("error", (event) => errors.push(event));
+    const result = await betterSupabase
+      .connect(client)
+      .customers.findMany({ limit: -1 });
+    expect(requests).toHaveLength(0);
+    expect(result.error).toMatchObject({
+      kind: "invalid_request",
+      table: "customers",
+    });
+    expect(errors).toEqual([{ table: "customers", error: result.error }]);
+  });
 });
 
 describe("row caps and default order", () => {
