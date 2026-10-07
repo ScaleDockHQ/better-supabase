@@ -700,6 +700,45 @@ describe("createBilling", () => {
     }
   });
 
+  it("reads synced tax ids through billing_tax_ids", async () => {
+    const t = setup((fn) =>
+      fn === "billing_tax_ids"
+        ? [
+            {
+              id: "txi_1",
+              type: "eu_vat",
+              value: "DE123456789",
+              country: "DE",
+              verification: { status: "verified" },
+              created: 1,
+            },
+            { id: "txi_2", type: "gb_vat", value: "GB1", country: null },
+            "junk",
+          ]
+        : null,
+    );
+    const billing = createBilling(t);
+    expect(await billing.taxIds("org", { from: "sync" }).orThrow()).toEqual([
+      {
+        id: "txi_1",
+        type: "eu_vat",
+        value: "DE123456789",
+        country: "DE",
+        verification: { status: "verified" },
+      },
+      {
+        id: "txi_2",
+        type: "gb_vat",
+        value: "GB1",
+        country: null,
+        verification: null,
+      },
+    ]);
+    expect(t.calls).toEqual([["billing_tax_ids", { tenant: "org" }]]);
+    const empty = createBilling(setup(() => null));
+    expect(await empty.taxIds("org", { from: "sync" }).orThrow()).toEqual([]);
+  });
+
   it("reads invoices and payment methods and voids only the tenant's invoices", async () => {
     const t = setup(
       (fn) => {

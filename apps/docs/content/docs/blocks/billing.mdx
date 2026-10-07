@@ -277,6 +277,21 @@ They need `customers.listTaxIds`, `createTaxId` and `deleteTaxId` on the
 Stripe client, which the `stripe` package has. Guard them with your own
 `billing.manage` check, as the other Stripe calls.
 
+`taxIds(organizationId, { from: "sync" })` reads the Sync Engine's
+`stripe.tax_ids` instead, without a Stripe call, through
+`billing_tax_ids(tenant)`. That function checks `billing.read` (or platform
+staff) itself and returns the same shape, newest first, so SQL can use it
+too, for example in an admin list:
+
+```sql
+select t ->> 'type' as type, t ->> 'value' as value,
+  t ->> 'country' as country, t -> 'verification' ->> 'status' as verification
+from jsonb_array_elements(better_supabase.billing_tax_ids(tenant)) t;
+```
+
+It returns `[]` before the tenant has a customer or the Sync Engine has the
+`tax_ids` table.
+
 ### Audit retention by plan
 
 The [audit](/docs/blocks/audit) module calls an `audit_retention(tenant)`
@@ -381,18 +396,19 @@ plan's entitlements on their next request. `verifyStripeWebhook` checks the
 
 ## Functions
 
-| Function                                                          | Granted to                      | Returns                                                                                  |
-| ----------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------- |
-| `billing_customer(tenant)`                                        | `authenticated`, `service_role` | the customer id, for callers with `billing.read`                                         |
-| `billing_status(tenant)`                                          | `authenticated`, `service_role` | `{ customer, seats, subscription }`                                                      |
-| `billing_subscription(tenant)`                                    | `authenticated`, `service_role` | the newest `stripe.subscriptions` row with `items`, for `billing.read` or platform staff |
-| `billing_all_subscriptions(for_status, max_rows, before_created)` | `authenticated`, `service_role` | `[{ tenant, customer, subscription }]`, for platform staff                               |
-| `billing_all_invoices(for_status, max_rows, before_created)`      | `authenticated`, `service_role` | `[{ tenant, customer, invoice }]`, for platform staff                                    |
-| `link_billing_customer(tenant, customer)`                         | `service_role`                  | the linked customer                                                                      |
-| `billing_customer_tenant(customer)`                               | `service_role`                  | the tenant id                                                                            |
-| `billing_seat_count(tenant)`                                      | `service_role`                  | the seat count                                                                           |
-| `billing_subscription_item(tenant, price)`                        | `service_role`                  | `{ subscription, item, price, quantity, status }` or null                                |
-| `billing_plan_price(plan, billing_interval, variant)`             | `authenticated`, `service_role` | the plan's Stripe price from `options.plans`, or null                                    |
-| `billing_invoices(tenant, max_rows)`                              | `authenticated`, `service_role` | the customer's `stripe.invoices` rows, for `billing.read`                                |
-| `billing_payment_methods(tenant)`                                 | `authenticated`, `service_role` | the customer's `stripe.payment_methods` rows                                             |
-| `billing_customer_details(tenant)`                                | `authenticated`, `service_role` | the customer's `stripe.customers` row                                                    |
+| Function                                                          | Granted to                      | Returns                                                                                    |
+| ----------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------ |
+| `billing_customer(tenant)`                                        | `authenticated`, `service_role` | the customer id, for callers with `billing.read`                                           |
+| `billing_status(tenant)`                                          | `authenticated`, `service_role` | `{ customer, seats, subscription }`                                                        |
+| `billing_subscription(tenant)`                                    | `authenticated`, `service_role` | the newest `stripe.subscriptions` row with `items`, for `billing.read` or platform staff   |
+| `billing_all_subscriptions(for_status, max_rows, before_created)` | `authenticated`, `service_role` | `[{ tenant, customer, subscription }]`, for platform staff                                 |
+| `billing_all_invoices(for_status, max_rows, before_created)`      | `authenticated`, `service_role` | `[{ tenant, customer, invoice }]`, for platform staff                                      |
+| `link_billing_customer(tenant, customer)`                         | `service_role`                  | the linked customer                                                                        |
+| `billing_customer_tenant(customer)`                               | `service_role`                  | the tenant id                                                                              |
+| `billing_seat_count(tenant)`                                      | `service_role`                  | the seat count                                                                             |
+| `billing_subscription_item(tenant, price)`                        | `service_role`                  | `{ subscription, item, price, quantity, status }` or null                                  |
+| `billing_plan_price(plan, billing_interval, variant)`             | `authenticated`, `service_role` | the plan's Stripe price from `options.plans`, or null                                      |
+| `billing_invoices(tenant, max_rows)`                              | `authenticated`, `service_role` | the customer's `stripe.invoices` rows, for `billing.read`                                  |
+| `billing_payment_methods(tenant)`                                 | `authenticated`, `service_role` | the customer's `stripe.payment_methods` rows                                               |
+| `billing_customer_details(tenant)`                                | `authenticated`, `service_role` | the customer's `stripe.customers` row                                                      |
+| `billing_tax_ids(tenant)`                                         | `authenticated`, `service_role` | the customer's `stripe.tax_ids` as `[{ id, type, value, country, verification, created }]` |

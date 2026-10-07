@@ -73,7 +73,13 @@ describe("billing module", () => {
   it("reads invoices, payment methods and the customer from the Sync Engine", () => {
     const sql = billing();
     expect(sql).toContain(
-      "'invoices', 'payment_methods', 'subscriptions', 'customers'",
+      "'invoices', 'payment_methods', 'subscriptions', 'customers', 'tax_ids'",
+    );
+    expect(sql).toContain(
+      `"billing_stripe_rows"(billing_tax_ids.tenant, 'tax_ids', 100)`,
+    );
+    expect(sql).toContain(
+      `grant execute on function "better_supabase"."billing_tax_ids"(uuid) to authenticated, service_role;`,
     );
     expect(sql).toContain(
       `"billing_stripe_rows"(billing_invoices.tenant, 'invoices'`,

@@ -294,6 +294,38 @@ describe.skipIf(!live)("billing", () => {
       ).toContain("in_bs_1");
 
       await s.service();
+      await s.rows(`create table if not exists stripe.tax_ids (
+          id text primary key, customer text, type text, value text, country text,
+          verification jsonb, created bigint);
+        insert into stripe.tax_ids (id, customer, type, value, country, verification, created) values
+          ('txi_bs_1', 'cus_bs_plans', 'eu_vat', 'DE123456789', 'DE', '{"status": "verified"}', 1),
+          ('txi_bs_2', 'cus_bs_plans', 'gb_vat', 'GB123456789', 'GB', null, 2),
+          ('txi_bs_x', 'cus_someone_else', 'eu_vat', 'NL1', 'NL', null, 3)`);
+      await s.asRole(owner);
+      expect(
+        await billing.taxIds(organization, { from: "sync" }).orThrow(),
+      ).toEqual([
+        {
+          id: "txi_bs_2",
+          type: "gb_vat",
+          value: "GB123456789",
+          country: "GB",
+          verification: null,
+        },
+        {
+          id: "txi_bs_1",
+          type: "eu_vat",
+          value: "DE123456789",
+          country: "DE",
+          verification: { status: "verified" },
+        },
+      ]);
+      await s.asRole(member);
+      expect(
+        await billing.taxIds(organization, { from: "sync" }),
+      ).toMatchObject({ error: { hint: "BILLING_FORBIDDEN" } });
+
+      await s.service();
       for (const [table, columns] of [
         [
           "subscriptions",
