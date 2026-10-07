@@ -395,8 +395,9 @@ export const bs = createExpo(betterSupabase);
         {
           path: native,
           contents: `import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { createNativeClient, secureStorage } from 'better-supabase/client/native';
+import { autoRefreshOnForeground, createNativeClient, secureStorage } from 'better-supabase/client/native';
 import * as SecureStore from 'expo-secure-store';
+import { AppState } from 'react-native';
 
 import { betterSupabase } from '${importLib(context, native)}';
 
@@ -408,6 +409,8 @@ const supabase = createSupabaseClient(${env.url}, ${env.key}, {
     detectSessionInUrl: false,
   },
 });
+
+autoRefreshOnForeground(supabase, AppState);
 
 export const bs = createNativeClient(betterSupabase, supabase);
 `,

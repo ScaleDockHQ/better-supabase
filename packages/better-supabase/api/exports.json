@@ -325,13 +325,16 @@
   },
   "./client/native": {
     "values": [
+      "autoRefreshOnForeground",
       "createNativeClient",
       "secureStorage"
     ],
     "types": [
+      "AppStateLike",
       "AuthSnapshot",
       "AuthStorage",
       "AuthUser",
+      "AutoRefreshClient",
       "BetterClient",
       "ClientAuth",
       "SecureStorageOptions",

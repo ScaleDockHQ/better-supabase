@@ -5,6 +5,8 @@ export type {
   BetterClient,
   ClientAuth,
 } from "../bind.ts";
+export { autoRefreshOnForeground } from "./auto-refresh.ts";
+export type { AppStateLike, AutoRefreshClient } from "./auto-refresh.ts";
 export { secureStorage } from "./storage.ts";
 export type {
   AuthStorage,

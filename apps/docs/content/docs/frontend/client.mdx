@@ -44,8 +44,9 @@ out of the cookie, and `auth.userStorage` sets where auth-js keeps it instead
 For React Native and Expo, use
 [`better-supabase/client/native`](/docs/frontend/react-native) with your own
 supabase-js client. It has the same `bs.db`, `bs.queries` and `bs.auth`, never
-imports `@supabase/ssr`, and stores the session in the device keychain with
-`secureStorage`.
+imports `@supabase/ssr`, stores the session in the device keychain with
+`secureStorage`, and refreshes it only in the foreground with
+`autoRefreshOnForeground`.
 
 The publishable key and URL are validated like on the server: a secret key
 or a legacy JWT key is rejected before any request is made.
