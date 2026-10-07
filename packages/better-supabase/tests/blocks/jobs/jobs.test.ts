@@ -2319,6 +2319,7 @@ describe("createInbox", () => {
         ]),
       ],
       ["checkpoint_webhook", [{ saved: true }]],
+      ["extend_webhook", [{ lease: 300 }]],
     ]);
     const inbox = createInbox(fake.sql, {
       source: "chat",
@@ -2338,7 +2339,7 @@ describe("createInbox", () => {
     const saved = fake.calls.find((call) =>
       call.text.includes("checkpoint_webhook"),
     )!;
-    expect(saved.values.slice(2)).toEqual(['{"cursor":"b"}']);
+    expect(saved.values.slice(2)).toEqual(['{"cursor":"b"}', 2]);
   });
 
   it("answers with a problem when storing fails", async () => {
@@ -2374,6 +2375,7 @@ describe("createInbox", () => {
           [row(3, { n: 3 }), row(4, { n: 4 })],
         ),
       ],
+      ["extend_webhook", [{ lease: 300 }]],
     ]);
     const seen: unknown[] = [];
     const inbox = createInbox(fake.sql, {
@@ -2416,13 +2418,87 @@ describe("createInbox", () => {
       fake.calls.map((call) => [/\.(\w+)\(/.exec(call.text)![1], call.values]),
     ).toEqual([
       ["claim_webhooks", ["stripe", "w1", 2, "5 minutes"]],
-      ["complete_webhook", [1, "w1"]],
-      ["fail_webhook", [2, "w1", "handler crashed"]],
+      ["extend_webhook", [1, "w1", 1, "5 minutes"]],
+      ["complete_webhook", [1, "w1", 1]],
+      ["extend_webhook", [2, "w1", 1, "5 minutes"]],
+      ["fail_webhook", [2, "w1", "handler crashed", 1]],
       ["claim_webhooks", ["stripe", "w1", 2, "5 minutes"]],
-      ["fail_webhook", [3, "w1", "already handled"]],
-      ["fail_webhook", [4, "w1", "The handler failed"]],
+      ["extend_webhook", [3, "w1", 1, "5 minutes"]],
+      ["fail_webhook", [3, "w1", "already handled", 1]],
+      ["extend_webhook", [4, "w1", 1, "5 minutes"]],
+      ["fail_webhook", [4, "w1", "The handler failed", 1]],
       ["claim_webhooks", ["stripe", "w1", 2, "5 minutes"]],
     ]);
+  });
+
+  it("skips a message whose lease another claim took and doesn't count a lost completion", async () => {
+    const row = (id: number) => ({
+      id,
+      source: "stripe",
+      message_id: `msg_${id}`,
+      event_type: null,
+      payload: {},
+      headers: {},
+      attempts: 1,
+      received_at: "2026-09-24T10:00:00Z",
+    });
+    const fake = fakeSql([
+      ["claim_webhooks", sequence([row(1), row(2)])],
+      [
+        (call) => call.text.includes("extend_webhook") && call.values[0] === 2,
+        [],
+      ],
+      ["extend_webhook", [{ lease: 300 }]],
+      ["complete_webhook", [{ done: false }]],
+    ]);
+    const handled: number[] = [];
+    const result = await createInbox(fake.sql, {
+      source: "stripe",
+      worker: "w1",
+    }).process((message) => {
+      handled.push(message.id);
+    });
+    expect(handled).toEqual([1]);
+    expect(result).toEqual({ succeeded: 0, failed: 0 });
+  });
+
+  it("renews the lease while a slow handler runs", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const fake = fakeSql([
+        [
+          "claim_webhooks",
+          sequence([
+            {
+              id: 1,
+              source: "crm",
+              message_id: "m1",
+              event_type: null,
+              payload: {},
+              headers: {},
+              attempts: 1,
+              received_at: "2026-01-01T00:00:00Z",
+            },
+          ]),
+        ],
+        ["extend_webhook", [{ lease: 4 }]],
+      ]);
+      const renewals = () =>
+        fake.calls.filter((call) => call.text.includes("extend_webhook"))
+          .length;
+      await createInbox(fake.sql, { source: "crm" }).process(
+        async () => {
+          expect(renewals()).toBe(1);
+          await vi.advanceTimersByTimeAsync(4500);
+          expect(renewals()).toBe(3);
+        },
+        { lease: 4 },
+      );
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(renewals()).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("stores the source's maxAttempts and hands the handler its last attempt", async () => {
@@ -2444,6 +2520,7 @@ describe("createInbox", () => {
           },
         ]),
       ],
+      ["extend_webhook", [{ lease: 300 }]],
     ]);
     const inbox = createInbox(fake.sql, { source: "crm", maxAttempts: 3 });
     await inbox.store({ id: "m1", payload: {} }).orThrow();
@@ -2478,6 +2555,7 @@ describe("createInbox", () => {
           },
         ],
       ],
+      ["extend_webhook", [{ lease: 300 }]],
     ]);
     const inbox = createInbox(fake.sql, { source: "crm" });
     const result = await inbox.process(

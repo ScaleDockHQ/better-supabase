@@ -2542,6 +2542,63 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("keeps an overlapping process() call on one worker from completing a message it lost", async () => {
+    const source = `overlap-${RUN}`;
+    const inbox = createInbox(postgres.admin, { source, worker: "same" });
+    const status = async () =>
+      (
+        await pool.query<{ status: string; attempts: number }>(
+          "select status, attempts from better_supabase.webhook_inbox where source = $1",
+          [source],
+        )
+      ).rows[0];
+    try {
+      await inbox.store({ id: "m1", payload: {} }).orThrow();
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let claimed!: () => void;
+      const started = new Promise<void>((resolve) => {
+        claimed = resolve;
+      });
+      const first = inbox.process(async () => {
+        claimed();
+        await gate;
+      });
+      await started;
+      await pool.query(
+        "update better_supabase.webhook_inbox set locked_until = now() - interval '1 second' where source = $1",
+        [source],
+      );
+      let releaseSecond!: () => void;
+      const secondGate = new Promise<void>((resolve) => {
+        releaseSecond = resolve;
+      });
+      let secondClaimed!: () => void;
+      const secondStarted = new Promise<void>((resolve) => {
+        secondClaimed = resolve;
+      });
+      const second = inbox.process(async (message) => {
+        expect(message.attempts).toBe(2);
+        secondClaimed();
+        await secondGate;
+      });
+      await secondStarted;
+      release();
+      expect(await first).toEqual({ succeeded: 0, failed: 0 });
+      expect(await status()).toEqual({ status: "processing", attempts: 2 });
+      releaseSecond();
+      expect(await second).toEqual({ succeeded: 1, failed: 0 });
+      expect(await status()).toEqual({ status: "processed", attempts: 2 });
+    } finally {
+      await pool.query(
+        "delete from better_supabase.webhook_inbox where source = $1",
+        [source],
+      );
+    }
+  });
+
   it("purges old audit entries, processed webhooks and job archives", async () => {
     const old = "now() - interval '11 years'";
     const count = async (text: string, params: unknown[] = []) =>
