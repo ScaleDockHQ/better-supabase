@@ -4,6 +4,7 @@ import type { AuthResolution } from "../../auth/resolve.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 
 import {
+  AUTH_CACHE_HEADERS,
   clearSessionAtScopes,
   type CookieScope,
   parseCookies,
@@ -42,7 +43,7 @@ export interface SessionEntryConfig {
   readonly cookieScopes?: readonly CookieScope[];
 }
 
-/** Appends `Max-Age=0` writes for the session cookie at the old scopes. */
+/** Appends `Max-Age=0` writes for the session cookie at the old scopes, and the no-store headers. */
 function clearOldScopes(
   response: Response,
   request: Request,
@@ -58,6 +59,8 @@ function clearOldScopes(
   const headers = new Headers(response.headers);
   for (const write of writes)
     headers.append("set-cookie", serializeCookie(write));
+  for (const [key, value] of Object.entries(AUTH_CACHE_HEADERS))
+    headers.set(key, value);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

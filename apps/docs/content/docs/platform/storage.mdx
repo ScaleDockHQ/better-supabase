@@ -378,8 +378,9 @@ const storage = logos.connect(supabase, { cacheSignedUrls: true });
 
 The connection then signs each path, `ttl`, `transform` and `download`
 combination once and reuses the URL until a tenth of its `ttl` (at most a
-minute) remains. The cache lives on that connection only, so connect once
-per request and URLs signed for one user never reach another.
+minute) remains. It keeps at most 500 URLs and drops the oldest first. The
+cache lives on that connection only, so connect once per request and URLs
+signed for one user never reach another.
 
 ### Tenant scope
 
@@ -642,26 +643,31 @@ analytics buckets answers `unsupported`.
 Each `supabase.storage.from(bucket)` call has a method on the connected
 bucket that takes a template target or a path and returns a `Result`:
 
-| supabase-js                             | Connected bucket                        |
-| --------------------------------------- | --------------------------------------- |
-| `.upload(path, file, { upsert })`       | `upload(target, file, { upsert })`      |
-| `.download(path)`                       | `download(target)`                      |
-| `.remove([path])`                       | `remove([target])`                      |
-| `.copy(from, to)` and `.move(from, to)` | `copy(from, to)` and `move(from, to)`   |
-| `.list(folder)`                         | `list(within)`, recursive and paginated |
-| `.createSignedUrl(path, ttl)`           | `signedUrl(target, { ttl })`            |
-| `.createSignedUrls(paths, ttl)`         | `signedUrls(targets, { ttl })`          |
-| `.getPublicUrl(path)`                   | `publicUrl(target)`, a `Result`         |
-| `.getPublicUrl(path, { transform })`    | `renderUrl(target, transform)`          |
-| `.createSignedUploadUrl(path)`          | `reserve(target)`                       |
-| `.uploadToSignedUrl(path, token, file)` | `uploadReserved(reservation, file)`     |
-| `.download(path, { versionId })`        | `download(target, { versionId })`       |
-| `.listV2({ noncurrentVersions })`       | `versions(target)`                      |
-| `.remove([{ path, versionId }])`        | `removeVersions(target, [versionId])`   |
-| `.purgeCache(path)`                     | `purgeCache(target)`                    |
-| `storage.updateBucket`, lifecycle calls | `bucket.apply(client)`                  |
-| `storage.vectors`                       | `defineVectorBucket`                    |
-| `storage.analytics`                     | `defineAnalyticsBucket`                 |
+| supabase-js                             | Connected bucket                             |
+| --------------------------------------- | -------------------------------------------- |
+| `.upload(path, file, { upsert })`       | `upload(target, file, { upsert })`           |
+| `.download(path)`                       | `download(target)`                           |
+| `.remove([path])`                       | `remove([target])`                           |
+| `.copy(from, to)` and `.move(from, to)` | `copy(from, to)` and `move(from, to)`        |
+| `.exists(path)`                         | `exists(target)`, an error unless 400 or 404 |
+| `.list(folder)`                         | `list(within)`, recursive and paginated      |
+| `.createSignedUrl(path, ttl)`           | `signedUrl(target, { ttl })`                 |
+| `.createSignedUrls(paths, ttl)`         | `signedUrls(targets, { ttl })`               |
+| `.getPublicUrl(path)`                   | `publicUrl(target)`, a `Result`              |
+| `.getPublicUrl(path, { transform })`    | `renderUrl(target, transform)`               |
+| `.createSignedUploadUrl(path)`          | `reserve(target)`                            |
+| `.uploadToSignedUrl(path, token, file)` | `uploadReserved(reservation, file)`          |
+| `.download(path, { versionId })`        | `download(target, { versionId })`            |
+| `.listV2({ noncurrentVersions })`       | `versions(target)`                           |
+| `.remove([{ path, versionId }])`        | `removeVersions(target, [versionId])`        |
+| `.purgeCache(path)`                     | `purgeCache(target)`                         |
+| `storage.updateBucket`, lifecycle calls | `bucket.apply(client)`                       |
+| `storage.vectors`                       | `defineVectorBucket`                         |
+| `storage.analytics`                     | `defineAnalyticsBucket`                      |
+
+`exists` is `false` only when Storage answers 400 or 404; a denied or failed
+check is an error, not a missing file. `list` walks sibling folders four at
+a time and returns objects in name order.
 
 Store the path a call returns (`StoragePath`) in a `*_path` column and
 resolve URLs when you read the row, so a URL never goes stale in the

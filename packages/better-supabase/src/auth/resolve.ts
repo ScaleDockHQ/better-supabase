@@ -690,8 +690,19 @@ export async function resolveAuth(
     durationMs: performance.now() - started,
   });
   if (!outcome.ok) {
-    if (outcome.reason === "network")
+    if (outcome.reason === "network") {
+      // A token refreshed early, in its leeway, is still good until it expires.
+      if (!fresh && expiry !== undefined && expiry > now) {
+        const state = await verify(
+          { token: session.access_token, apikey: null },
+          ["user"],
+          options,
+          "cookie",
+        );
+        if (state.kind !== "invalid") return resolution(state, cookies);
+      }
       return resolution({ kind: "anon", reason: "refresh_failed" }, cookies);
+    }
     return resolution(
       { kind: "anon", reason: "signed_out" },
       cookies,

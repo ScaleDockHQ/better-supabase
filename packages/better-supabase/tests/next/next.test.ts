@@ -705,6 +705,7 @@ describe("createNext", () => {
       execute: () =>
         Promise.resolve(ok({ rows: [{ id: "c1", name: "Acme" }], count: 1 })),
     };
+    mocks.updateTag.mockReset();
     mocks.updateTag.mockImplementation(() => {
       throw new Error("updateTag can only be called from a Server Action");
     });
@@ -712,6 +713,7 @@ describe("createNext", () => {
       .connect(executor)
       .customers.update("c1", { name: "Acme" })
       .orThrow();
+    expect(mocks.updateTag).toHaveBeenCalledTimes(1);
     expect(mocks.revalidateTag.mock.calls).toEqual([
       [tagFor("customers"), "max"],
       ["bs:customers@*", "max"],

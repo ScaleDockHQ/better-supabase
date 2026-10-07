@@ -344,15 +344,23 @@ function tableTags(table: string, options: TagOptions): string[] {
       ];
 }
 
-function invalidate(tag: string): void {
+/**
+ * Invalidates tags with `updateTag` (Server Actions), else `revalidateTag`
+ * (Route Handlers), else not at all (jobs, scripts). The first tag decides
+ * for the rest, so a mutation outside an action throws once, not per tag.
+ */
+function invalidateAll(tags: readonly string[]): void {
+  let index = 0;
   try {
-    updateTag(tag);
+    for (; index < tags.length; index++) updateTag(tags[index]!);
+    return;
   } catch {
-    try {
-      revalidateTag(tag, "max");
-    } catch {
-      // Outside a Next.js request (jobs, scripts): nothing to invalidate.
-    }
+    // Not in a Server Action: revalidate from the tag that failed.
+  }
+  try {
+    for (; index < tags.length; index++) revalidateTag(tags[index]!, "max");
+  } catch {
+    // Outside a Next.js request (jobs, scripts): nothing to invalidate.
   }
 }
 
@@ -367,11 +375,11 @@ export function nextCache(): CacheAdapter {
     name: "next",
     invalidate: (target) => {
       const tenant = { tenant: target.tenant ?? "*" };
-      for (const table of target.tables) {
-        invalidate(tagFor(table));
-        invalidate(tagFor(table, undefined, tenant));
-      }
-      for (const id of target.ids) invalidate(tagFor(target.table, id));
+      const tags: string[] = [];
+      for (const table of target.tables)
+        tags.push(tagFor(table), tagFor(table, undefined, tenant));
+      for (const id of target.ids) tags.push(tagFor(target.table, id));
+      invalidateAll(tags);
     },
   };
 }
@@ -593,7 +601,7 @@ export function createNext<
     context,
     deleteAccount: ((userId, deleteOptions) =>
       base.deleteAccount(userId, deleteOptions).map((result) => {
-        invalidate(sessionTag(userId));
+        invalidateAll([sessionTag(userId)]);
         return result;
       })) satisfies BetterServer<M, F, E, C, P>["deleteAccount"],
   });
@@ -623,8 +631,7 @@ export function createNext<
     },
 
     invalidateSession(userId, invalidateOptions = {}) {
-      invalidate(sessionTag(userId));
-      for (const tag of invalidateOptions.tags ?? []) invalidate(tag);
+      invalidateAll([sessionTag(userId), ...(invalidateOptions.tags ?? [])]);
     },
 
     async liveCount(spec, db) {
@@ -805,7 +812,7 @@ export function createNext<
         maxAge: supportCookieMaxAge(support),
       });
       if (resolution.auth.kind === "user") {
-        invalidate(sessionTag(resolution.auth.user.id));
+        invalidateAll([sessionTag(resolution.auth.user.id)]);
       }
       return {
         ok: true,
@@ -827,10 +834,12 @@ export function createNext<
       if (!id) return { ok: true, data: { ended: false }, error: null };
       const stopped = await base.support.stop(resolution.auth, id);
       flushAfter();
-      invalidate(supportTag(id));
-      if (resolution.auth.kind === "user") {
-        invalidate(sessionTag(resolution.auth.user.id));
-      }
+      invalidateAll([
+        supportTag(id),
+        ...(resolution.auth.kind === "user"
+          ? [sessionTag(resolution.auth.user.id)]
+          : []),
+      ]);
       return stopped.ok
         ? { ok: true, data: { ended: stopped.data.ended }, error: null }
         : { ok: false, data: null, error: stopped.error };

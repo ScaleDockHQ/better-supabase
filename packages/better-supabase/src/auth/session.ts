@@ -88,11 +88,21 @@ export function serializeCookie(write: CookieWrite): string {
   return serializeCookieHeader(write.name, write.value, write.options);
 }
 
+/** Cookie values by name, per parsed cookie list: one request reads its session more than once. */
+const cookieMaps = new WeakMap<
+  readonly CookieRecord[],
+  ReadonlyMap<string, string>
+>();
+
 function combine(
   cookies: readonly CookieRecord[],
   name: string,
 ): string | undefined {
-  const byName = new Map(cookies.map((cookie) => [cookie.name, cookie.value]));
+  let byName = cookieMaps.get(cookies);
+  if (!byName) {
+    byName = new Map(cookies.map((cookie) => [cookie.name, cookie.value]));
+    cookieMaps.set(cookies, byName);
+  }
   const whole = byName.get(name);
   if (whole) return whole;
   const parts: string[] = [];

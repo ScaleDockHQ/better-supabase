@@ -495,30 +495,53 @@ export function createServer<
     headers: Readonly<Record<string, string>> = {},
   ): SupabaseClient => supabaseAt(env().url, auth, headers);
 
+  const restUrls = new Map<string, string>();
+  const restUrl = (url: string): string => {
+    let rest = restUrls.get(url);
+    if (rest === undefined) {
+      rest = new URL("rest/v1", url.endsWith("/") ? url : `${url}/`).href;
+      restUrls.set(url, rest);
+    }
+    return rest;
+  };
+
   /**
-   * The client queries run on. A user's requests need only PostgREST, so they
-   * skip building Realtime, Storage and Auth clients per request; the shared
-   * service and anon clients are built once anyway.
+   * The client queries run on. Requests need only PostgREST, so they skip
+   * building Realtime, Storage and Auth clients per request; the shared
+   * service and anon clients for the primary are built once anyway.
    */
   const restAt = (
     url: string,
     auth: AuthState,
     headers: Readonly<Record<string, string>> = {},
   ): PostgrestClientLike => {
-    if (auth.kind !== "user") return supabaseAt(url, auth, headers);
-    const key = env().publishableKey;
-    return new PostgrestClient(
-      new URL("rest/v1", url.endsWith("/") ? url : `${url}/`).href,
-      {
-        headers: {
-          ...headers,
-          apikey: key,
-          Authorization: `Bearer ${auth.token}`,
-        },
-        ...customFetch,
-        ...restOptions,
-      },
-    );
+    let key: string;
+    let bearer: string;
+    switch (auth.kind) {
+      case "user":
+        key = env().publishableKey;
+        bearer = auth.token;
+        break;
+      case "service":
+      case "anon":
+      case "invalid":
+        if (Object.keys(headers).length === 0 && url === env().url)
+          return supabaseAt(url, auth, headers);
+        key = auth.kind === "service" ? secretKey() : env().publishableKey;
+        bearer = key;
+        break;
+      case "apiKey":
+        return apiKeyClient();
+      default: {
+        const exhaustive: never = auth;
+        return exhaustive;
+      }
+    }
+    return new PostgrestClient(restUrl(url), {
+      headers: { ...headers, apikey: key, Authorization: `Bearer ${bearer}` },
+      ...customFetch,
+      ...restOptions,
+    });
   };
 
   /** `$client` stays the full Supabase client, built when first read. */
@@ -905,6 +928,11 @@ export function createServer<
     return resolution;
   };
 
+  /** One context per request and `refresh`/`cookies` pair: Server Components ask repeatedly. */
+  const contextMemo = new WeakMap<
+    Request,
+    Map<string, Promise<ServerContext<M, F, E, C, P>>>
+  >();
   const server: BetterServer<M, F, E, C, P> = {
     get env() {
       return env();
@@ -928,11 +956,33 @@ export function createServer<
         contextOptions.tenant,
         contextOptions.support,
       ),
-    async context(request, contextOptions = {}) {
-      const call: CallState = { options: contextOptions };
-      await fold(request, { ...seedContext(), [CALL]: call });
-      // SAFETY: the fold's terminal stored this call's ServerContext.
-      return call.context as ServerContext<M, F, E, C, P>;
+    context(request, contextOptions = {}) {
+      const { refresh, cookies, ...rest } = contextOptions;
+      const key =
+        Object.keys(rest).length === 0
+          ? `${String(refresh ?? false)}:${String(cookies ?? true)}`
+          : undefined;
+      let byOptions = key ? contextMemo.get(request) : undefined;
+      const known = key ? byOptions?.get(key) : undefined;
+      if (known) return known;
+      const resolving = (async () => {
+        const call: CallState = { options: contextOptions };
+        await fold(request, { ...seedContext(), [CALL]: call });
+        // SAFETY: the fold's terminal stored this call's ServerContext.
+        return call.context as ServerContext<M, F, E, C, P>;
+      })();
+      if (key) {
+        if (!byOptions) {
+          byOptions = new Map();
+          contextMemo.set(request, byOptions);
+        }
+        const memo = byOptions;
+        memo.set(key, resolving);
+        resolving.catch(() => {
+          if (memo.get(key) === resolving) memo.delete(key);
+        });
+      }
+      return resolving;
     },
     contextFromResolution: (resolution, request, contextOptions = {}) =>
       fromResolution(

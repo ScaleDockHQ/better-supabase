@@ -265,7 +265,9 @@ gets `undefined`.
   the server's `scopes`, so the client can ask the user for more access.
 - `visible(ctx, tool)` filters `tools/list`. A hidden tool is called like an
   unknown one. Lists carry `cacheScope: "private"`, so a client caches them
-  per token.
+  per token, and the server reuses a user's list for the same `ttlMs` (five
+  minutes). `tools/call` runs `visible` on every call, so hiding a tool takes
+  effect at once for calls.
 
 Both hooks can be async. An exception in either one fails the call, and the
 error message is hidden unless `exposeErrors`. For PermDock permissions, see

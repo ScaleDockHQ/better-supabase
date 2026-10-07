@@ -14,8 +14,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { defineSupabase } from "../../src/core/define.ts";
+import { dbError } from "../../src/core/errors.ts";
 import { EventHub } from "../../src/core/events.ts";
-import { ok } from "../../src/core/result.ts";
+import { err, ok } from "../../src/core/result.ts";
 import {
   otel,
   traceAuth,
@@ -177,6 +178,34 @@ describe("otel", () => {
     expect(records[0]?.attributes).toMatchObject({
       "server.address": "abc.supabase.co",
       "server.port": 443,
+    });
+  });
+
+  it("records database function calls", async () => {
+    const { tracer, spans } = memoryTracer();
+    const { meter, records } = memoryMeter();
+    const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+    const db = betterSupabase.connect({
+      name: "postgres",
+      execute: async () => ok({ rows: [], count: null }),
+      rpc: async () => err(dbError("forbidden", "denied", { code: "42501" })),
+    });
+    await db.$rpc("rs_workspace_summary", { p: null });
+    expect(spans[0]).toMatchObject({
+      name: "EXECUTE rs_workspace_summary",
+      attributes: {
+        "db.namespace": "postgres|public",
+        "db.operation.name": "EXECUTE",
+        "db.stored_procedure.name": "rs_workspace_summary",
+        "error.type": "forbidden",
+        "db.response.status_code": "42501",
+      },
+      status: { code: SpanStatusCode.ERROR },
+      ended: true,
+    });
+    expect(records[0]?.attributes).toMatchObject({
+      "db.operation.name": "EXECUTE",
+      "error.type": "forbidden",
     });
   });
 

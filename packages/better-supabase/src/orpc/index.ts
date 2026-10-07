@@ -150,7 +150,10 @@ export function createOrpc<
 ): BetterOrpc<M, F, E, C, P> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
-  const contexts = new WeakMap<Request, ServerContext<M, F, E, C, P>>();
+  const contexts = new WeakMap<
+    Request,
+    { ctx: ServerContext<M, F, E, C, P>; refresh: boolean }
+  >();
 
   const toOrpcError = (error: DbError): ORPCError<string, ProblemDetails> => {
     const problem = toProblem(error, { expose });
@@ -167,8 +170,17 @@ export function createOrpc<
       return os
         .$context<OrpcRequestContext>()
         .middleware(async ({ context, next }) => {
-          const ctx = await server.context(context.request, {
-            refresh: middlewareOptions.refresh ?? false,
+          // Nested middleware resolves the request once; the context is kept
+          // before the guard so a denied call still returns rotated cookies.
+          const refresh = middlewareOptions.refresh ?? false;
+          const known = contexts.get(context.request);
+          const ctx =
+            known && (known.refresh || !refresh)
+              ? known.ctx
+              : await server.context(context.request, { refresh });
+          contexts.set(context.request, {
+            ctx,
+            refresh: refresh || (known?.refresh ?? false),
           });
           const denied = guard(
             ctx.auth,
@@ -177,7 +189,6 @@ export function createOrpc<
             middlewareOptions.scopes,
           );
           if (denied) throw toOrpcError(denied);
-          contexts.set(context.request, ctx);
           try {
             return await next({
               context: { bs: ctx, db: ctx.db, auth: ctx.auth },
@@ -196,7 +207,7 @@ export function createOrpc<
           ...(fetchOptions.prefix ? { prefix: fetchOptions.prefix } : {}),
           context: { request },
         });
-        const ctx = contexts.get(request);
+        const ctx = contexts.get(request)?.ctx;
         const answer = response ?? new Response("Not found", { status: 404 });
         flushEvents(server, options.waitUntil);
         return ctx ? ctx.apply(answer) : answer;

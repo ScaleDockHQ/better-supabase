@@ -125,6 +125,10 @@ export interface SupportApi {
   clearCookie(): string;
 }
 
+/** How long a support target's claims are reused; a role change applies within it. */
+const CLAIMS_TTL_MS = 60_000;
+const CLAIMS_CACHE_SIZE = 1000;
+
 const denied = (message: string, code: string): DbError =>
   dbError("forbidden", message, { code });
 
@@ -187,6 +191,33 @@ function createSupport(
     if (options.claims) return options.claims(targetUserId);
     if (store.claims) return store.claims(targetUserId);
     return { role: "authenticated" };
+  };
+
+  /** Target claims per support session; the session itself is loaded every time, so revoking stays immediate. */
+  const claimsCache = new Map<
+    string,
+    {
+      readonly claims: Readonly<Record<string, unknown>>;
+      readonly until: number;
+    }
+  >();
+  const cachedTargetClaims = async (
+    session: SupportSession,
+  ): Promise<Readonly<Record<string, unknown>>> => {
+    const now = Date.now();
+    const cached = claimsCache.get(session.id);
+    if (cached && cached.until > now) return cached.claims;
+    const claims = await targetClaims(options.store, session.targetUserId);
+    claimsCache.delete(session.id);
+    if (claimsCache.size >= CLAIMS_CACHE_SIZE) {
+      const oldest = claimsCache.keys().next();
+      if (!oldest.done) claimsCache.delete(oldest.value);
+    }
+    claimsCache.set(session.id, {
+      claims,
+      until: Math.min(session.expiresAt.epochMilliseconds, now + CLAIMS_TTL_MS),
+    });
+    return claims;
   };
 
   const checkPolicy = (
@@ -360,10 +391,7 @@ function createSupport(
         if (policy.readOnly !== "default" && !session.readOnly) {
           session = { ...session, readOnly: true };
         }
-        claims = supportClaims(
-          session,
-          await targetClaims(options.store, session.targetUserId),
-        );
+        claims = supportClaims(session, await cachedTargetClaims(session));
       } catch (cause) {
         // The admin keeps their own view; a store outage never widens access.
         events.logger.warn("Could not load the support session", { cause });

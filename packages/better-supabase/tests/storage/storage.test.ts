@@ -704,6 +704,10 @@ describe("BucketClient upload and download", () => {
       ok: false,
       error: { kind: "forbidden", table: "docs" },
     });
+    const missing = fakeStorage({
+      fail: { exists: storageError("Object not found", { statusCode: "400" }) },
+    });
+    expect(await docs.connect(missing.client).exists(A)).toEqual(ok(false));
   });
 });
 
@@ -763,6 +767,42 @@ describe("BucketClient remove and list", () => {
     const result = await bucket.copy(A, "not/a/valid/path/at/all.txt");
     expect(result.ok).toBe(false);
     expect(calls).toEqual([]);
+  });
+
+  it("lists sibling folders four at a time, in order", async () => {
+    const files: Record<string, string> = {};
+    for (const org of ["o1", "o2", "o3", "o4", "o5", "o6"])
+      files[`docs/${org}/u1/a.txt`] = "a";
+    const { client } = fakeStorage({ files });
+    let active = 0;
+    let peak = 0;
+    const from = client.storage.from.bind(client.storage);
+    const slow = {
+      storage: {
+        from: (id: string) => {
+          const api = from(id);
+          const list = async (...args: Parameters<typeof api.list>) => {
+            active++;
+            peak = Math.max(peak, active);
+            await new Promise((resolve) => {
+              setTimeout(resolve, 5);
+            });
+            active--;
+            return api.list(...args);
+          };
+          return Object.assign(Object.create(api) as typeof api, { list });
+        },
+      },
+    };
+    const paths = await docs
+      .connect(slow as never)
+      .list()
+      .map((objects) => objects.map((object) => object.path))
+      .orThrow();
+    expect(paths).toEqual(
+      ["o1", "o2", "o3", "o4", "o5", "o6"].map((org) => `${org}/u1/a.txt`),
+    );
+    expect(peak).toBe(4);
   });
 
   it("lists objects in nested folders with their metadata", async () => {
@@ -899,6 +939,18 @@ describe("BucketClient URLs", () => {
       ok: false,
       error: { kind: "not_found" },
     });
+  });
+
+  it("keeps at most 500 signed URLs per connection", async () => {
+    const { client, calls } = fakeStorage();
+    const cached = docs.connect(client, { cacheSignedUrls: true });
+    for (let index = 0; index <= 500; index++)
+      await cached.signedUrl({ ...A, file: `f${String(index)}.txt` });
+    expect(calls).toHaveLength(501);
+    await cached.signedUrl({ ...A, file: "f500.txt" });
+    expect(calls).toHaveLength(501);
+    await cached.signedUrl({ ...A, file: "f0.txt" });
+    expect(calls).toHaveLength(502);
   });
 
   it("reuses a signed URL per connection when asked, until it nears expiry", async () => {

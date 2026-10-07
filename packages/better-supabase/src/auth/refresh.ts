@@ -41,6 +41,8 @@ export type RefreshOutcome =
 const REUSE_MS = 10_000;
 
 const DEFAULT_TIMEOUT_MS = 5000;
+/** Finished refreshes kept for reuse; a burst of sign-ins can't grow it past this. */
+const RECENT_MAX = 1000;
 
 const inflight = new Map<string, Promise<RefreshOutcome>>();
 const recent = new Map<
@@ -144,11 +146,14 @@ export function refreshSession(
   refreshToken: string,
   options: RefreshOptions,
 ): Promise<RefreshOutcome> {
-  const now = (options.now ?? Date.now)();
+  const clock = options.now ?? Date.now;
+  const now = clock();
   prune(now);
-  const cached = recent.get(refreshToken);
+  // Two projects can't share a refresh token, but one process can serve both.
+  const key = `${options.url}\n${refreshToken}`;
+  const cached = recent.get(key);
   if (cached) return Promise.resolve(shared(cached.outcome));
-  const pending = inflight.get(refreshToken);
+  const pending = inflight.get(key);
   if (pending) return pending.then(shared);
 
   // A rejection is reused too, so parallel requests with a dead token don't
@@ -156,14 +161,19 @@ export function refreshSession(
   const promise = request(refreshToken, options, now)
     .then((outcome) => {
       if (outcome.ok || outcome.reason === "rejected") {
-        recent.delete(refreshToken);
-        recent.set(refreshToken, { outcome, until: now + REUSE_MS });
+        recent.delete(key);
+        // From completion: a slow refresh still gets the whole window.
+        recent.set(key, { outcome, until: clock() + REUSE_MS });
+        if (recent.size > RECENT_MAX) {
+          const oldest = recent.keys().next();
+          if (!oldest.done) recent.delete(oldest.value);
+        }
       }
       return outcome;
     })
     .finally(() => {
-      inflight.delete(refreshToken);
+      inflight.delete(key);
     });
-  inflight.set(refreshToken, promise);
+  inflight.set(key, promise);
   return promise;
 }

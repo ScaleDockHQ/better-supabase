@@ -699,6 +699,48 @@ describe("createMcp table tool meta", () => {
       ["tags_delete", undefined],
     ]);
   });
+
+  it("reuses a token's visible list but checks visible on every call", async () => {
+    const betterSupabase = defineSupabase(schema);
+    let checks = 0;
+    const mcp = createMcp(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      resources: { tags: { operations: ["list"] } },
+      visible: () => {
+        checks++;
+        return checks === 1;
+      },
+    });
+    const token = await signer.sign({ sub: USER });
+    const send = (method: string, params?: unknown) =>
+      mcp.fetch(
+        new Request(ENDPOINT, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+        }),
+      );
+    const names = async () => {
+      const { result } = (await (await send("tools/list")).json()) as {
+        result: { tools: { name: string }[] };
+      };
+      return result.tools.map((tool) => tool.name);
+    };
+    expect(await names()).toEqual(["tags_list"]);
+    expect(await names()).toEqual(["tags_list"]);
+    expect(checks).toBe(1);
+    const called = (await (
+      await send("tools/call", { name: "tags_list", arguments: {} })
+    ).json()) as { error?: { message: string } };
+    expect(called.error?.message).toBe('Unknown tool "tags_list"');
+    expect(checks).toBe(2);
+  });
 });
 
 describe("createMcp cursor lists", () => {

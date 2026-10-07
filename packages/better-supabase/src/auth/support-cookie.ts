@@ -65,7 +65,12 @@ export function supportCookieValue(
   for (const part of cookieHeader.split(";")) {
     const index = part.indexOf("=");
     if (index === -1 || part.slice(0, index).trim() !== name) continue;
-    const value = decodeURIComponent(part.slice(index + 1).trim());
+    let value: string;
+    try {
+      value = decodeURIComponent(part.slice(index + 1).trim());
+    } catch {
+      return undefined;
+    }
     return value === "" ? undefined : value;
   }
   return undefined;

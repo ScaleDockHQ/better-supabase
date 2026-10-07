@@ -492,6 +492,8 @@ const META_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities";
 const META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
 /** How long clients may cache `tools/list` and `server/discover` (per token). */
 const LIST_TTL_MS = 300_000;
+/** Callers whose visible tool lists are kept; the oldest goes first. */
+const VISIBLE_LISTS_MAX = 1000;
 
 function rpcError(
   id: JsonRpcRequest["id"],
@@ -678,17 +680,38 @@ export function createMcp<
 
   const listTools = (): ToolInfo[] =>
     (allTools ??= [...registry.values()].map((entry) => entry.info));
+  /**
+   * A user's visible list per token, for as long as clients may cache it
+   * (`ttlMs`). `tools/call` still checks `visible` on every call.
+   */
+  const visibleLists = new Map<
+    string,
+    { readonly tools: ToolInfo[]; readonly until: number }
+  >();
   /** Without a `visible` hook every caller sees the same list, built once. */
   const visibleTools = async (
     context: () => ToolContext<M, F, E, C, P>,
   ): Promise<ToolInfo[]> => {
     if (!options.visible) return listTools();
     const ctx = context();
+    const token = ctx.auth.kind === "user" ? ctx.auth.token : undefined;
+    const now = Date.now();
+    const cached = token === undefined ? undefined : visibleLists.get(token);
+    if (cached && cached.until > now) return cached.tools;
     const entries = [...registry.values()];
     const shown = await Promise.all(
       entries.map((entry) => isVisible(entry, ctx)),
     );
-    return entries.filter((_, index) => shown[index]).map((e) => e.info);
+    const tools = entries.filter((_, index) => shown[index]).map((e) => e.info);
+    if (token !== undefined) {
+      visibleLists.delete(token);
+      if (visibleLists.size >= VISIBLE_LISTS_MAX) {
+        const oldest = visibleLists.keys().next();
+        if (!oldest.done) visibleLists.delete(oldest.value);
+      }
+      visibleLists.set(token, { tools, until: now + LIST_TTL_MS });
+    }
+    return tools;
   };
   const urls = discovery(options, () => server.env.url);
   const { metadataUrl } = urls;

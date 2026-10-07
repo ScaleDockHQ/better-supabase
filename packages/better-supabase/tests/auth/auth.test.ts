@@ -242,7 +242,7 @@ describe("resolveAuth", async () => {
   });
 
   it("times out a hung refresh as a network failure and retries the next request", async () => {
-    const stale = await signer.sign({ sub: USER, expiresIn: 30 });
+    const stale = await signer.sign({ sub: USER, expiresIn: -5 });
     const hung = vi.fn<typeof fetch>(
       (_url, init) =>
         new Promise((_resolve, reject) => {
@@ -338,7 +338,7 @@ describe("resolveAuth", async () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("clears the session when the refresh token is rejected, keeps it on network errors", async () => {
+  it("clears the session when the refresh token is rejected, keeps the token on network errors", async () => {
     const stale = await signer.sign({ sub: USER, expiresIn: 30 });
     const rejected = await resolveAuth(
       cookieRequest(sessionFor(stale, "refresh-dead")),
@@ -362,8 +362,20 @@ describe("resolveAuth", async () => {
         fetch: () => Promise.reject(new TypeError("fetch failed")),
       },
     );
-    expect(offline.auth).toEqual({ kind: "anon", reason: "refresh_failed" });
+    expect(offline.auth).toMatchObject({ kind: "user", source: "cookie" });
     expect(offline.cookies).toEqual([]);
+
+    const expired = await signer.sign({ sub: USER, expiresIn: -5 });
+    const lapsed = await resolveAuth(
+      cookieRequest(sessionFor(expired, "refresh-offline-expired")),
+      {
+        ...options,
+        refresh: true,
+        fetch: () => Promise.reject(new TypeError("fetch failed")),
+      },
+    );
+    expect(lapsed.auth).toEqual({ kind: "anon", reason: "refresh_failed" });
+    expect(lapsed.cookies).toEqual([]);
   });
 
   it("forwards the client IP on refresh only with a secret key", async () => {

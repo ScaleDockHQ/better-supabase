@@ -35,6 +35,11 @@ a bare PostgREST client that carries the user's token, so a request that only
 queries data never builds the Realtime, Storage and Auth clients. Reading
 `ctx.supabase` or `ctx.db.$client` builds the full supabase-js client.
 
+`context(request)` resolves a request once: later calls with the same
+`refresh` and `cookies` options return the same context, so nested
+middleware and several Server Components share it. Calls that pass
+`tenant`, `stats`, `pinnedUntil` or `support` build a new one.
+
 By default `context()` never refreshes; run the proxy for that. For routes
 that browsers call with cookies outside a proxy, `context(request, { refresh: true })`
 refreshes an expiring session; send the new cookies with
