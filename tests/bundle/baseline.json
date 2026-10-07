@@ -39,7 +39,7 @@
   "./blocks/api-keys": 35687,
   "./blocks/settings": 30015,
   "./blocks/usage": 31762,
-  "./blocks/billing": 40856,
+  "./blocks/billing": 40932,
   "./blocks/flags": 32001,
   "./blocks/comments": 35443,
   "./blocks/attachments": 31853,
@@ -59,7 +59,7 @@
   "./plugins/tenant": 9177,
   "./plugins/actor": 6375,
   "./plugins/validation": 11337,
-  "./sql": 244331,
+  "./sql": 244539,
   "./testing": 99248,
   "better-supabase CLI (startup)": 12908
 }
