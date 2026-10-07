@@ -61,7 +61,9 @@ revoke execute on function better_supabase.set_rate_limit(text, integer, interva
 grant execute on function better_supabase.set_rate_limit(text, integer, interval, text) to service_role;
 
 -- PostgREST's pre-request hook. GET and HEAD run read-only (and may be served
--- by a replica), so only writes count. The service role is never limited.
+-- by a replica), so only writes count. A POST to /rpc for a stable or
+-- immutable function also runs read-only and isn't counted either. The
+-- service role is never limited.
 -- With your own db_pre_request, call it from there: perform better_supabase.check_request();
 create or replace function better_supabase.check_request()
 returns void
@@ -81,6 +83,9 @@ declare
   retry integer;
 begin
   if method is null or method not in ('POST', 'PATCH', 'PUT', 'DELETE') then
+    return;
+  end if;
+  if current_setting('transaction_read_only', true) = 'on' then
     return;
   end if;
   if claims ->> 'role' = 'service_role' then
@@ -167,6 +172,22 @@ end
 $$;
 revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval) to service_role;
+
+create or replace function better_supabase.check_rate_limit(
+  scope text,
+  key text,
+  max_requests integer default null,
+  period interval default null
+)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period) h
+$$;
+revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.check_rate_limit(text, text, integer, interval) to service_role;
 
 -- Deletes up to batch counters whose window has ended, and counters without
 -- a rule (removed rules, hit_rate_limit with its own limit) after a day.

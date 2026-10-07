@@ -1,6 +1,6 @@
 -- better-supabase module: settings (0.5.1)
 -- @bs-module settings@1 managed
--- Per-user and per-organization settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
+-- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -53,6 +53,38 @@ drop policy if exists "organization_settings_delete" on "better_supabase"."organ
 create policy "organization_settings_delete" on "better_supabase"."organization_settings" for delete to authenticated
   using (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false));
 
+-- Platform settings: one row per key for the whole product, such as fee
+-- rates or feature switches an admin console edits. Each key's permission
+-- (is_platform) guards writes, and its read rule decides who sees it.
+create table if not exists "better_supabase"."platform_settings" (
+  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "value" jsonb not null,
+  "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists platform_settings_updated_by_idx on "better_supabase"."platform_settings" ("updated_by");
+alter table "better_supabase"."platform_settings" enable row level security;
+revoke all on "better_supabase"."platform_settings" from anon, authenticated;
+grant select on "better_supabase"."platform_settings" to anon;
+grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
+grant all on "better_supabase"."platform_settings" to service_role;
+drop policy if exists "platform_settings_read" on "better_supabase"."platform_settings";
+create policy "platform_settings_read" on "better_supabase"."platform_settings" for select to authenticated
+  using (true);
+drop policy if exists "platform_settings_read_public" on "better_supabase"."platform_settings";
+create policy "platform_settings_read_public" on "better_supabase"."platform_settings" for select to anon
+  using (false);
+drop policy if exists "platform_settings_insert" on "better_supabase"."platform_settings";
+create policy "platform_settings_insert" on "better_supabase"."platform_settings" for insert to authenticated
+  with check (coalesce(better_supabase.is_platform('settings.manage'), false));
+drop policy if exists "platform_settings_update" on "better_supabase"."platform_settings";
+create policy "platform_settings_update" on "better_supabase"."platform_settings" for update to authenticated
+  using (coalesce(better_supabase.is_platform('settings.manage'), false))
+  with check (coalesce(better_supabase.is_platform('settings.manage'), false));
+drop policy if exists "platform_settings_delete" on "better_supabase"."platform_settings";
+create policy "platform_settings_delete" on "better_supabase"."platform_settings" for delete to authenticated
+  using (coalesce(better_supabase.is_platform('settings.manage'), false));
+
 -- The functions run as the caller, so the policies above decide. set_*
 -- takes the value inside an envelope, { "value": ... }, so strings and
 -- numbers reach jsonb the same way over Postgres and the Data API.
@@ -74,8 +106,8 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into "better_supabase"."user_settings" ("user_id", "key", "value")
-  values (auth.uid(), set_user_setting.key, coalesce(set_user_setting.value -> 'value', 'null'::jsonb))
+  insert into "better_supabase"."user_settings" ("user_id", "key", "value", "updated_by", "updated_at")
+  values (auth.uid(), set_user_setting.key, coalesce(set_user_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
   on conflict ("user_id", "key") do update
     set "value" = excluded."value", "updated_by" = auth.uid(), "updated_at" = now()
   returning "value"
@@ -112,8 +144,8 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into "better_supabase"."organization_settings" ("organization_id", "key", "value")
-  values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb))
+  insert into "better_supabase"."organization_settings" ("organization_id", "key", "value", "updated_by", "updated_at")
+  values (set_organization_setting.tenant, set_organization_setting.key, coalesce(set_organization_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
   on conflict ("organization_id", "key") do update
     set "value" = excluded."value", "updated_by" = auth.uid(), "updated_at" = now()
   returning "value"
@@ -133,6 +165,49 @@ as $$
   select exists (select 1 from removed)
 $$;
 
+create or replace function "better_supabase"."get_platform_settings"()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s."key", s."value"), '{}'::jsonb)
+  from "better_supabase"."platform_settings" s
+$$;
+
+create or replace function "better_supabase"."set_platform_setting"(key text, value jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$
+  insert into "better_supabase"."platform_settings" ("key", "value", "updated_by", "updated_at")
+  values (set_platform_setting.key, coalesce(set_platform_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
+  on conflict ("key") do update
+    set "value" = excluded."value", "updated_by" = auth.uid(), "updated_at" = now()
+  returning "value"
+$$;
+
+create or replace function "better_supabase"."reset_platform_setting"(key text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$
+  with removed as (
+    delete from "better_supabase"."platform_settings" s where s."key" = reset_platform_setting.key
+    returning 1
+  )
+  select exists (select 1 from removed)
+$$;
+
+revoke execute on function "better_supabase"."get_platform_settings"() from public;
+revoke execute on function "better_supabase"."set_platform_setting"(text, jsonb) from public, anon;
+revoke execute on function "better_supabase"."reset_platform_setting"(text) from public, anon;
+grant execute on function "better_supabase"."get_platform_settings"() to anon, authenticated, service_role;
+grant execute on function "better_supabase"."set_platform_setting"(text, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."reset_platform_setting"(text) to authenticated, service_role;
 revoke execute on function "better_supabase"."get_user_settings"() from public, anon;
 revoke execute on function "better_supabase"."set_user_setting"(text, jsonb) from public, anon;
 revoke execute on function "better_supabase"."reset_user_setting"(text) from public, anon;
