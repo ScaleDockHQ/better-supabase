@@ -21,8 +21,9 @@ Operators depend on the column type:
 | Arrays               | `has`, `hasSome`, `hasEvery`, `containedBy`                                        |
 | jsonb                | `contains` (`@>`), `path` with the operators below                                 |
 
-`contains`, `startsWith` and `endsWith` are case-insensitive and escape `%`
-and `_` in your input. Use `like` or `ilike` when you want wildcards, and
+`contains`, `startsWith` and `endsWith` are case-insensitive and escape `%`,
+`_` and `*` in your input. Use `like` or `ilike` when you want wildcards (`%`
+and `_`; a `*` in the pattern is a literal character, as in Postgres), and
 `match` (`~`) or `imatch` (`~*`, case-insensitive) for a POSIX regular
 expression. SQLite (PowerSync) returns `unsupported` for `match` and `imatch`.
 
@@ -53,6 +54,11 @@ their text, so `gt` and `lt` order strings; `isNull: true` matches a missing
 key and a JSON `null`. Combine several paths on one column with `AND` or `OR`.
 SQLite (PowerSync) returns `unsupported` for path filters.
 
+A `null` in an `in` list matches rows where the column is null, and a `null`
+in a `notIn` list leaves them out, so the list behaves like the values it
+holds rather than like SQL's `in (..., null)`. A `Date` is sent as ISO 8601
+text.
+
 Enum and CHECK columns only accept their allowed values:
 
 ```ts
@@ -75,10 +81,12 @@ await db.employees.findMany({ where: { id: { in: managerIds } } });
 ```
 
 Splitting needs a read without `limit`, `offset`, `count` or a page, since
-the parts can't share those, and an `orderBy` on selected number, uuid, date
-or time columns, which are sorted again after the merge. Other reads that are
-too long return `invalid_request`: page through a shorter list, or pass the
-list to a function. Set the limit with `defineSupabase(schema, { urlLengthLimit })`;
+the parts can't share those, and an `orderBy` on number, uuid, date or time
+columns, which are sorted again after the merge (an order column you don't
+select is fetched for the sort and left out of the rows). Other reads that are
+too long return `invalid_request`, and so do `updateMany`, `deleteMany` and
+the other writes, which can't be split: page through a shorter list, or pass
+the list to a function. Set the limit with `defineSupabase(schema, { urlLengthLimit })`;
 `maxUrlLength` is its old name and still works.
 
 ## Building a filter step by step

@@ -183,8 +183,11 @@ using sub = notifications.subscribe(
 await sub.ready; // rejects when the join is refused
 ```
 
-`using` removes the channel at the end of the scope. `await using` waits for
-the removal, and you can also call `sub.unsubscribe()`. For private topics,
+`using` ends the subscription at the end of the scope. `await using` waits for
+it, and you can also call `sub.unsubscribe()`. Subscriptions to the same topic
+on one client share a channel, which is removed when the last one ends; they
+must agree on `self`. A channel whose first join is refused or times out is
+dropped, so the next `subscribe` joins again. For private topics,
 `subscribe` calls `realtime.setAuth()` first, so Realtime gets the
 session's current token. A token you set yourself with
 `supabase.realtime.setAuth(token)`, such as one minted for an agent or a

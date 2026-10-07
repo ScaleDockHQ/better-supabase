@@ -105,6 +105,11 @@ function join(
       for (const notify of listeners) notify();
     });
     let joined = false;
+    const evict = (): void => {
+      if (byTopic.get(topic) !== entry) return;
+      byTopic.delete(topic);
+      void client.removeChannel(channel);
+    };
     const ready = (async () => {
       await refreshRealtimeAuth(client);
       await new Promise<void>((resolve, reject) => {
@@ -121,6 +126,9 @@ function join(
               return;
             case REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR:
             case REALTIME_SUBSCRIBE_STATES.TIMED_OUT:
+              // A joined channel rejoins on its own; one that never joined is
+              // dropped so the next join opens a fresh channel.
+              if (!joined) evict();
               reject(
                 error ??
                   new Error(`Realtime ${status.toLowerCase()} on ${topic}`),
@@ -135,8 +143,9 @@ function join(
       });
     })();
     ready.catch(() => undefined);
-    shared = { channel, listeners, ready };
-    byTopic.set(topic, shared);
+    const entry: SharedChannel = { channel, listeners, ready };
+    shared = entry;
+    byTopic.set(topic, entry);
   }
   const current = shared;
   current.listeners.add(listener);

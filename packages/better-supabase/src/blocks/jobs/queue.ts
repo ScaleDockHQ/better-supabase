@@ -312,6 +312,15 @@ export interface WorkOptions extends ClaimOptions {
   readonly allTenants?: boolean;
 }
 
+/** Transient claim errors in a row a lane retries, with backoff, before the loop throws. */
+const CLAIM_RETRIES = 3;
+const TRANSIENT: ReadonlySet<DbError["kind"]> = new Set([
+  "network",
+  "timeout",
+  "serialization",
+  "rate_limited",
+]);
+
 export interface DrainResult {
   readonly succeeded: number;
   readonly failed: number;
@@ -608,19 +617,37 @@ export function createJobs<const Q extends QueueSchemas>(
     const maxWait = Math.max(firstWait, workOptions.maxPollInterval ?? 30_000);
     let succeeded = 0;
     let failed = 0;
+    // One lane's fatal claim error stops the others before the loop throws.
+    const stop = new AbortController();
+    const signal = workOptions.signal
+      ? AbortSignal.any([workOptions.signal, stop.signal])
+      : stop.signal;
     const lanes = Array.from({ length: concurrency }, async () => {
       let wait = firstWait;
-      while (!workOptions.signal?.aborted) {
+      let misses = 0;
+      while (!signal.aborted) {
         if (deadline !== undefined && Date.now() >= deadline) return;
         const claimed = await claim(queue, {
           ...workOptions,
           batch: workOptions.batch ?? 1,
         });
-        if (!claimed.ok)
-          throw new TypeError(claimed.error.message, { cause: claimed.error });
+        if (!claimed.ok) {
+          misses += 1;
+          if (misses > CLAIM_RETRIES || !TRANSIENT.has(claimed.error.kind)) {
+            stop.abort();
+            throw new TypeError(claimed.error.message, {
+              cause: claimed.error,
+            });
+          }
+          const left =
+            deadline === undefined ? Infinity : deadline - Date.now();
+          await sleep(Math.min(firstWait * 2 ** (misses - 1), left), signal);
+          continue;
+        }
+        misses = 0;
         if (claimed.data.length === 0) {
           if (!forever) return;
-          await sleep(wait, workOptions.signal);
+          await sleep(wait, signal);
           wait = Math.min(maxWait, wait * 2);
           continue;
         }
@@ -638,7 +665,10 @@ export function createJobs<const Q extends QueueSchemas>(
         }
       }
     });
-    await Promise.all(lanes);
+    const settled = await Promise.allSettled(lanes);
+    for (const lane of settled) {
+      if (lane.status === "rejected") throw lane.reason;
+    }
     return { succeeded, failed };
   };
 

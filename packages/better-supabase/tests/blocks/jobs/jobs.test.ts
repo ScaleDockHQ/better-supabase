@@ -1565,6 +1565,46 @@ describe("drain and work", () => {
     expect((failure as Error).cause).toMatchObject({ kind: "forbidden" });
   });
 
+  it("retries a transient claim error with backoff", async () => {
+    const fake = fakeSql([
+      [
+        "claim_jobs",
+        sequence(
+          { throws: pgError("57014", "canceling statement due to timeout") },
+          [messageRow(1, { to: "a@example.com" })],
+        ),
+      ],
+    ]);
+    const stop = new AbortController();
+    const result = await createJobs(fake.sql, queues).work(
+      "emails",
+      () => {
+        stop.abort();
+      },
+      { pollInterval: 1, signal: stop.signal },
+    );
+    expect(result).toEqual({ succeeded: 1, failed: 0 });
+  });
+
+  it("gives up after repeated transient claim errors and stops every lane", async () => {
+    let claims = 0;
+    const fake = fakeSql([
+      [
+        "claim_jobs",
+        () => {
+          claims += 1;
+          return { throws: pgError("40001", "could not serialize access") };
+        },
+      ],
+    ]);
+    const failure = await createJobs(fake.sql, queues)
+      .work("emails", () => undefined, { pollInterval: 1, concurrency: 2 })
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(TypeError);
+    expect((failure as Error).cause).toMatchObject({ kind: "serialization" });
+    expect(claims).toBeLessThanOrEqual(8);
+  });
+
   it("runs `concurrency` lanes at once, each claiming `batch` jobs", async () => {
     const fake = fakeSql([
       [

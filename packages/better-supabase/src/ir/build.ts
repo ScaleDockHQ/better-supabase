@@ -98,6 +98,31 @@ function text(value: unknown): unknown {
     : value;
 }
 
+/**
+ * `in` over a list: `null` never equals anything in SQL, so a list with
+ * `null` also matches the rows where the column is null.
+ */
+function inList(
+  values: readonly unknown[],
+  make: (op: "in" | "is", value: unknown) => Condition,
+): Condition {
+  const present = values.filter((value) => value !== null);
+  if (present.length === values.length) return make("in", values);
+  const isNull = make("is", null);
+  return present.length === 0 ? isNull : or(make("in", present), isNull);
+}
+
+/** A primary key value; `null` and `undefined` match no row, so they are a caller error. */
+function keyValue(table: TableMeta, name: string, value: unknown): unknown {
+  if (value === null || value === undefined) {
+    invalidRequest(
+      `"${name}" of a ${table.key} key is ${String(value)}; pass the row's key`,
+      table.key,
+    );
+  }
+  return value;
+}
+
 /** Escapes LIKE wildcards so user input matches literally. */
 export function escapeLike(value: string): string {
   return value.replaceAll(/[\\%_]/g, (char) => `\\${char}`);
@@ -319,7 +344,7 @@ export class IrBuilder {
           if (!Array.isArray(operand)) {
             invalidRequest(`"${op}" on "${name}" needs an array`, table.key);
           }
-          const condition = at("in", operand.map(text));
+          const condition = inList(operand.map(text), at);
           items.push(op === "in" ? condition : not(condition));
           break;
         }
@@ -391,7 +416,7 @@ export class IrBuilder {
         if (!Array.isArray(operand)) {
           invalidRequest(`"${op}" on "${name}" needs an array`, table.key);
         }
-        const condition = col("in", operand);
+        const condition = inList(operand, col);
         return op === "in" ? condition : not(condition);
       }
       case "isNull":
@@ -821,7 +846,7 @@ export class IrBuilder {
         kind: "column",
         column: this.column(table, name),
         op: "eq",
-        value: encodeValue(value),
+        value: encodeValue(keyValue(table, name, value)),
       };
     }
     if (!isPlainObject(id)) {
@@ -836,7 +861,7 @@ export class IrBuilder {
         kind: "column" as const,
         column: this.column(table, name),
         op: "eq" as const,
-        value: encodeValue(id[name]),
+        value: encodeValue(keyValue(table, name, id[name])),
       })),
     };
   }

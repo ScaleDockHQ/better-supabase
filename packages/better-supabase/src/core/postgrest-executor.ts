@@ -14,7 +14,7 @@ import {
   type RawDbError,
   withMaxAffected,
 } from "./errors.ts";
-import { chunkRead, queryLength } from "./in-chunks.ts";
+import { chunkRead, queryLength, tooLong } from "./in-chunks.ts";
 import { err, ok, type Result, toDbError } from "./result.ts";
 import { deadline, isTimeout } from "./timeout.ts";
 
@@ -367,7 +367,18 @@ export function postgrestExecutor(
     }
     if (plan.never) return ok({ rows: [], count: 0 });
     if (context.signal?.aborted) return err(aborted());
-    if (op.kind === "select" && queryLength(plan) > urlLengthLimit) {
+    const length = queryLength(plan);
+    if (op.kind !== "select" && length > urlLengthLimit) {
+      return err(
+        tooLong(
+          op,
+          length,
+          urlLengthLimit,
+          "a write can't be split into several requests",
+        ),
+      );
+    }
+    if (op.kind === "select" && length > urlLengthLimit) {
       const chunked = chunkRead(op, plan, urlLengthLimit);
       if (!("ops" in chunked)) return err(chunked);
       const results = await Promise.all(

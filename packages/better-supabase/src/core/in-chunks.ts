@@ -1,4 +1,9 @@
-import type { Condition, SelectOp } from "../ir/types.ts";
+import type {
+  Condition,
+  Operation,
+  SelectColumn,
+  SelectOp,
+} from "../ir/types.ts";
 
 import { listItem, type PostgrestPlan } from "../compile/postgrest.ts";
 import { lookupOf } from "../schema/lookup.ts";
@@ -67,8 +72,9 @@ const NUMERIC = new Set([
   "numeric",
 ]);
 
-function tooLong(
-  op: SelectOp,
+/** The `invalid_request` for a request whose URL is over the limit. */
+export function tooLong(
+  op: Operation,
   length: number,
   max: number,
   why: string,
@@ -132,7 +138,22 @@ export function chunkRead(
   if (!longest)
     return tooLong(op, length, max, "it has no top-level in list to split");
   const listLength = longest.sizes.reduce((sum, size) => sum + size, 0);
-  const budget = max - (length - listLength);
+
+  // Order columns the read doesn't select are selected under a hidden alias
+  // for the in-memory sort, then removed from the rows.
+  const hidden: SelectColumn[] = [];
+  const aliases = new Map(op.selection.columns.map((c) => [c.column, c.alias]));
+  for (const term of op.orderBy) {
+    if (term.relation || aliases.has(term.column)) continue;
+    const alias = `_bs_order${hidden.length}`;
+    hidden.push({ alias, column: term.column });
+    aliases.set(term.column, alias);
+  }
+  const extra = hidden.reduce(
+    (sum, column) => sum + encoded(`,${column.alias}:${column.column}`),
+    0,
+  );
+  const budget = max - (length - listLength) - extra;
   if (budget < Math.max(...longest.sizes)) {
     return tooLong(
       op,
@@ -145,9 +166,6 @@ export function chunkRead(
   let sort: ChunkedRead["sort"];
   if (op.orderBy.length > 0) {
     const { byDb } = lookupOf(op.table);
-    const aliases = new Map(
-      op.selection.columns.map((c) => [c.column, c.alias]),
-    );
     const keys: {
       alias: string;
       desc: boolean;
@@ -162,7 +180,7 @@ export function chunkRead(
           op,
           length,
           max,
-          `its order on "${term.column}" can't be re-applied after splitting it; order by selected number, uuid, date or time columns`,
+          `its order on "${term.column}" can't be re-applied after splitting it; order by number, uuid, date or time columns`,
         );
       }
       const desc = term.direction === "desc";
@@ -173,25 +191,32 @@ export function chunkRead(
         numeric: NUMERIC.has(type),
       });
     }
-    sort = (rows) =>
-      rows.sort((left, right) => {
-        for (const key of keys) {
-          const a = left[key.alias];
-          const b = right[key.alias];
-          if (a === b) continue;
-          if (a === null || a === undefined) return key.nullsFirst ? -1 : 1;
-          if (b === null || b === undefined) return key.nullsFirst ? 1 : -1;
-          const order = key.numeric
-            ? Number(a) - Number(b)
-            : String(a) < String(b)
-              ? -1
-              : String(a) > String(b)
-                ? 1
-                : 0;
-          if (order !== 0) return key.desc ? -order : order;
-        }
-        return 0;
-      });
+    const compare = (left: Row, right: Row): number => {
+      for (const key of keys) {
+        const a = left[key.alias];
+        const b = right[key.alias];
+        if (a === b) continue;
+        if (a === null || a === undefined) return key.nullsFirst ? -1 : 1;
+        if (b === null || b === undefined) return key.nullsFirst ? 1 : -1;
+        const order = key.numeric
+          ? Number(a) - Number(b)
+          : String(a) < String(b)
+            ? -1
+            : String(a) > String(b)
+              ? 1
+              : 0;
+        if (order !== 0) return key.desc ? -order : order;
+      }
+      return 0;
+    };
+    sort = (rows) => {
+      rows.sort(compare);
+      if (hidden.length > 0) {
+        for (const row of rows)
+          for (const column of hidden) delete row[column.alias];
+      }
+      return rows;
+    };
   }
 
   const chunks: unknown[][] = [];
@@ -217,6 +242,12 @@ export function chunkRead(
     );
     return {
       ...op,
+      ...(hidden.length > 0 && {
+        selection: {
+          ...op.selection,
+          columns: [...op.selection.columns, ...hidden],
+        },
+      }),
       where: where.length === 1 ? where[0] : { kind: "and", items: where },
     };
   });

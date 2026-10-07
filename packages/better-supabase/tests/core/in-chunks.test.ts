@@ -39,6 +39,43 @@ describe("oversized in lists", () => {
     expect(rows.map((row) => row.id)).toEqual([...ids].reverse());
   });
 
+  it("selects an unselected order column for the sort and removes it", async () => {
+    const { client, requests } = capturingClient((request) => ({
+      body: listOf(request.params.get("id")).map((id, index) => ({
+        id,
+        _bs_order0: `2026-01-01T00:00:${String(59 - (index % 60)).padStart(2, "0")}+00:00`,
+      })),
+    }));
+    const rows = await betterSupabase
+      .connect(client)
+      .customers.findMany({
+        select: ["id"],
+        where: { id: { in: ids } },
+        orderBy: { createdAt: "asc" },
+      })
+      .orThrow();
+    expect(requests.length).toBeGreaterThan(1);
+    for (const request of requests) {
+      expect(request.params.get("select")).toBe("id,_bs_order0:created_at");
+      expect(request.params.toString().length).toBeLessThanOrEqual(4000);
+    }
+    expect(rows).toHaveLength(ids.length);
+    expect(rows.every((row) => Object.keys(row).join() === "id")).toBe(true);
+  });
+
+  it("orders by the primary key without selecting it", async () => {
+    const { client } = capturingClient((request) => ({
+      body: listOf(request.params.get("id"))
+        .map((id) => ({ name: id, _bs_order0: id }))
+        .reverse(),
+    }));
+    const rows = await betterSupabase
+      .connect(client)
+      .customers.findMany({ select: ["name"], where: { id: { in: ids } } })
+      .orThrow();
+    expect(rows.map((row) => row.name)).toEqual(ids);
+  });
+
   it("keeps a read that fits in one request", async () => {
     const { client, requests } = capturingClient();
     await betterSupabase
@@ -91,15 +128,6 @@ describe("oversized in lists", () => {
       'order on "name"',
     ],
     [
-      "an order on an unselected column",
-      {
-        where: { id: { in: ids } },
-        orderBy: { createdAt: "asc" },
-        select: ["id"],
-      },
-      'order on "created_at"',
-    ],
-    [
       "a long list inside OR",
       { where: { OR: [{ id: { in: ids } }, { kvk: "1" }] } },
       "no top-level in list",
@@ -140,6 +168,26 @@ describe("oversized in lists", () => {
       });
     expect(result.error?.message).toContain("leaves no room");
   });
+
+  it.each([
+    ["updateMany", { where: { id: { in: ids } }, data: { status: "active" } }],
+    ["deleteMany", { where: { id: { in: ids } } }],
+  ] as const)(
+    "returns invalid_request for a %s whose URL is too long",
+    async (method, args) => {
+      const { client, requests } = capturingClient();
+      const { customers } = betterSupabase.connect(client);
+      const result = await (method === "updateMany"
+        ? customers.updateMany(args as never)
+        : customers.deleteMany(args as never));
+      expect(result.error).toMatchObject({
+        kind: "invalid_request",
+        table: "customers",
+        message: expect.stringContaining("a write can't be split"),
+      });
+      expect(requests).toHaveLength(0);
+    },
+  );
 
   it("passes the first error through", async () => {
     let call = 0;

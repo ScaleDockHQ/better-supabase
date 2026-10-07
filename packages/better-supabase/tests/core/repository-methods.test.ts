@@ -142,6 +142,34 @@ describe("single-row reads", () => {
     expect((await db.customers.findMany()).error?.table).toBe("notes");
   });
 
+  it.each([
+    ["limit", -1],
+    ["limit", 1.5],
+    ["offset", Number.NaN],
+    ["offset", "10"],
+  ] as const)("refuses %s %s", async (name, value) => {
+    const { db, ops } = connect();
+    expect(
+      await db.customers.findMany({ [name]: value } as never),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        kind: "invalid_request",
+        table: "customers",
+        message: expect.stringContaining(
+          `"${name}" must be a non-negative integer`,
+        ),
+      },
+    });
+    expect(ops).toHaveLength(0);
+  });
+
+  it("accepts a limit and offset of zero", async () => {
+    const { db, select } = connect();
+    await db.customers.findMany({ limit: 0, offset: 0 }).orThrow();
+    expect(select()).toMatchObject({ limit: 0, offset: 0 });
+  });
+
   it("skips the default order for a table without a primary key", async () => {
     const tags = schema.meta.tables["tags"];
     if (!tags) throw new Error("No tags table");
@@ -463,8 +491,58 @@ describe("update and updateMany", () => {
   it("passes updateMany errors through", async () => {
     const { db } = connect(failing);
     expect(
-      await db.customers.updateMany({ where: {}, data: { name: "B" } }),
+      await db.customers.updateMany({
+        where: {},
+        data: { name: "B" },
+        allowAll: true,
+      }),
     ).toEqual(timeoutResult);
+  });
+
+  it.each([{}, { name: undefined }, { name: { eq: undefined } }])(
+    "updateMany refuses a where that filters nothing (%j)",
+    async (where) => {
+      const { db, ops } = connect();
+      expect(
+        await db.customers.updateMany({
+          where: where as never,
+          data: { name: "B" },
+        }),
+      ).toMatchObject({
+        error: {
+          kind: "invalid_request",
+          message:
+            'updateMany needs a "where" that filters rows; pass allowAll: true to update every row',
+        },
+      });
+      expect(ops).toHaveLength(0);
+    },
+  );
+});
+
+describe("empty updates", () => {
+  it("refuses an update that sets no columns", async () => {
+    const { db, ops } = connect();
+    expect(await db.customers.update("c1", {})).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request", table: "customers" },
+    });
+    expect(
+      await db.customers.updateMany({ where: { id: "c1" }, data: {} }),
+    ).toMatchObject({ ok: false, error: { kind: "invalid_request" } });
+    expect(ops).toHaveLength(0);
+  });
+
+  it("runs an empty patch a plugin fills", async () => {
+    const touch: AnyPlugin = {
+      name: "touch",
+      apiVersion: 1,
+      beforeMutation: (op) =>
+        op.kind === "update" ? { ...op, set: { updated_at: "now" } } : op,
+    };
+    const { db, ops } = connect(() => rowsOf([{ id: "c1" }]), [touch]);
+    expect((await db.customers.update("c1", {})).ok).toBe(true);
+    expect(ops).toHaveLength(1);
   });
 });
 
@@ -637,28 +715,45 @@ describe("delete and deleteMany", () => {
     });
   });
 
+  it("refuses a null or undefined key without a request", async () => {
+    const { db, ops } = connect();
+    expect(await db.customers.delete(null as never)).toMatchObject({
+      error: {
+        kind: "invalid_request",
+        message: '"id" of a customers key is null; pass the row\'s key',
+      },
+    });
+    expect(await db.customers.findById(undefined as never)).toMatchObject({
+      error: { kind: "invalid_request" },
+    });
+    expect(ops).toHaveLength(0);
+  });
+
   it("passes delete errors through", async () => {
     const { db } = connect(failing);
     expect(await db.customers.delete("c1")).toEqual(timeoutResult);
   });
 
-  it.each([{}, { where: {} }, { where: { name: undefined } }])(
-    "deleteMany refuses an empty where (%j)",
-    async (args) => {
-      const { db, ops } = connect();
-      expect(await db.customers.deleteMany(args as never)).toEqual({
-        ok: false,
-        data: null,
-        error: {
-          kind: "invalid_request",
-          status: 400,
-          message: 'deleteMany needs a non-empty "where"',
-          table: "customers",
-        },
-      });
-      expect(ops).toHaveLength(0);
-    },
-  );
+  it.each([
+    {},
+    { where: {} },
+    { where: { name: undefined } },
+    { where: { name: { eq: undefined, in: undefined } } },
+    { where: { AND: [{ name: { eq: undefined } }] } },
+  ])("deleteMany refuses a where that filters nothing (%j)", async (args) => {
+    const { db, ops } = connect();
+    expect(await db.customers.deleteMany(args as never)).toEqual({
+      ok: false,
+      data: null,
+      error: {
+        kind: "invalid_request",
+        status: 400,
+        message: 'deleteMany needs a "where" that filters rows',
+        table: "customers",
+      },
+    });
+    expect(ops).toHaveLength(0);
+  });
 
   it.each([
     [2, 2],

@@ -149,6 +149,8 @@ export interface SelectOp {
   readonly single: "one" | "maybe" | undefined;
   /** `limit` includes one row past the page, which `paginate()` reads to set `hasMore`. */
   readonly lookAhead?: boolean;
+  /** `limit` bounds a check, not a page: `findOnly` reads two rows to detect a second match. */
+  readonly unpaged?: boolean;
   /**
    * Read from this set-returning function instead of the table (`db.$search`).
    * Only executors with `functionSources` honor it.

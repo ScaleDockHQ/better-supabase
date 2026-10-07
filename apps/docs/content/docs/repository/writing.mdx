@@ -48,6 +48,14 @@ const sent = await db.invoices
   .orThrow();
 ```
 
+`updateMany` and `deleteMany` need a `where` that filters rows: an empty or
+missing `where`, or one whose conditions are all `undefined`, returns
+`invalid_request` instead of writing every row. Pass `allowAll: true` to
+`updateMany` when you mean the whole table; for `deleteMany`, filter on a
+column that every row matches. An `update` or `updateMany` whose `data` sets
+no columns also returns `invalid_request`, unless a plugin such as
+[`timestamps()`](/docs/plugins/timestamps) fills one in.
+
 On a table with [`softDelete()`](/docs/plugins/soft-delete), `deleteMany`
 with `returning: true` keeps `RETURNING` on the update it becomes, so it needs
 a `SELECT` policy that still shows the soft-deleted row.

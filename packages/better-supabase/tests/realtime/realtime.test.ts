@@ -263,7 +263,64 @@ describe("defineTopic", () => {
       { id: 1 },
       expect.objectContaining({ event: "deleted" }),
     );
+    await flush();
     expect(removed).toHaveLength(1);
+  });
+
+  it("shares one channel per topic and removes it after the last subscription", async () => {
+    const { client, raw, channel, emit, removed } = fakeClient();
+    const values = { organizationId: "o1", userId: "u1" };
+    const first = vi.fn();
+    const second = vi.fn();
+    const statuses: string[] = [];
+    const a = notifications.subscribe(client, values, { "*": first });
+    await a.ready;
+    const b = notifications.subscribe(
+      client,
+      values,
+      { "*": second },
+      { onStatus: (status) => statuses.push(status) },
+    );
+    await b.ready;
+    expect(raw.channel).toHaveBeenCalledTimes(1);
+    expect(channel.subscribe).toHaveBeenCalledTimes(1);
+    expect(statuses).toEqual(["joining", "subscribed"]);
+    emit("deleted", { id: 1 });
+    await flush();
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    await a.unsubscribe();
+    expect(removed).toHaveLength(0);
+    emit("deleted", { id: 2 });
+    await flush();
+    expect(second).toHaveBeenCalledTimes(2);
+    expect(first).toHaveBeenCalledTimes(1);
+    await b.unsubscribe();
+    expect(removed).toHaveLength(1);
+    expect(() =>
+      notifications.subscribe(client, values, {}, { self: true }),
+    ).not.toThrow();
+  });
+
+  it("refuses a second subscription with a different self", async () => {
+    const { client } = fakeClient();
+    const values = { organizationId: "o1", userId: "u1" };
+    using first = notifications.subscribe(client, values, {});
+    expect(first.topic).toBe("organization:o1:notifications:u1");
+    expect(() =>
+      notifications.subscribe(client, values, {}, { self: true }),
+    ).toThrow(/same `self`/);
+  });
+
+  it("drops a channel that never joined so the next subscribe starts over", async () => {
+    const { client, raw, removed } = fakeClient("TIMED_OUT");
+    const values = { organizationId: "o1", userId: "u1" };
+    const failed = notifications.subscribe(client, values, {});
+    await expect(failed.ready).rejects.toThrow("Unauthorized");
+    expect(removed).toHaveLength(1);
+    const again = notifications.subscribe(client, values, {});
+    await expect(again.ready).rejects.toThrow("Unauthorized");
+    expect(raw.channel).toHaveBeenCalledTimes(2);
   });
 
   it("rejects ready when the join is refused", async () => {

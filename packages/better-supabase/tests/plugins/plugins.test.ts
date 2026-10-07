@@ -538,6 +538,30 @@ describe("validation", () => {
     expect(last().body).toMatchObject({ created_at: NOW.toString() });
   });
 
+  it("keeps columns other plugins filled when the schema strips unknown keys", async () => {
+    const strip: StandardSchemaV1 = {
+      "~standard": {
+        version: 1,
+        vendor: "test",
+        validate: (value) => {
+          const { name } = value as { name: string };
+          return { value: { name: name.trim() } };
+        },
+      },
+    };
+    const { client, last } = capturingClient(() => ({
+      status: 201,
+      body: [],
+    }));
+    const result = await base
+      .use(validation({ schemas: { customers: { insert: strip } } }))
+      .use(tenant())
+      .connect(client, { tenant: ORG })
+      .customers.create({ name: " A " } as never, { returning: false });
+    expect(result.error).toBeNull();
+    expect(last().body).toEqual({ name: "A", organization_id: ORG });
+  });
+
   it("runs after other plugins and prefixes bulk issues with the row index", async () => {
     const { client, requests } = capturingClient(() => ({
       status: 201,

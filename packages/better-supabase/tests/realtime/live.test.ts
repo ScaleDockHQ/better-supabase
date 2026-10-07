@@ -138,6 +138,28 @@ describe("liveQuery join states", () => {
     await customers.unsubscribe();
   });
 
+  it("drops a channel that never joined so the next live query starts over", async () => {
+    let attempt = 0;
+    const { client, raw } = fakeClient(() =>
+      attempt++ === 0 ? ["TIMED_OUT"] : ["SUBSCRIBED"],
+    );
+    const failed = liveQuery(betterSupabase, client, ["notes"], {
+      onChange: vi.fn(),
+    });
+    await expect(failed.ready).rejects.toThrow(
+      "Realtime timed_out on bs:t:public.notes",
+    );
+    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+    const retried = liveQuery(betterSupabase, client, ["notes"], {
+      onChange: vi.fn(),
+    });
+    await retried.ready;
+    expect(raw.channel).toHaveBeenCalledTimes(2);
+    await failed.unsubscribe();
+    await retried.unsubscribe();
+    expect(raw.removeChannel).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects an unknown status and wraps non-Error causes", async () => {
     const { client } = fakeClient(() => ["WEIRD"]);
     const errors: (Error | undefined)[] = [];

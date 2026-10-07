@@ -31,7 +31,8 @@ gets both, where `findFirst` would return one of them. It returns `null`
 when nothing matches, like supabase-js `maybeSingle()`.
 
 Every read takes `select`, `where`, `include`, `orderBy`, `limit`, `offset`
-and `signal`. The result type follows `select` and `include`:
+and `signal`. `limit` and `offset` must be non-negative integers; anything
+else returns `invalid_request` before a request is sent. The result type follows `select` and `include`:
 
 ```ts
 const row = await db.customers

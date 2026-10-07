@@ -280,9 +280,15 @@ export interface Repository<
     patch: Update<M, T>,
     args?: A,
   ): AsyncResult<Returned<M, T, A>>;
+  /**
+   * Fails with `invalid_request` when `where` filters no rows (it is empty or
+   * every value is `undefined`), unless `allowAll` is `true`.
+   */
   updateMany<
     const A extends ManyReturningArgs<M, T> & {
       readonly data: Update<M, T>;
+      /** Update every visible row when `where` filters nothing. */
+      readonly allowAll?: boolean;
     } & FindExt<E, M, T>,
   >(
     args: A,

@@ -27,6 +27,8 @@ import type {
   TableMeta,
 } from "../schema/types.ts";
 
+import { ok } from "../core/result.ts";
+
 /** Facet value meaning "not set": filters with `is null`. */
 export const UNSET = "__unset__";
 
@@ -50,8 +52,8 @@ export interface ListQueryConfig<
   P extends ListPagination = ListPagination,
 > {
   /**
-   * Also count rows per facet value, with one grouped aggregate that runs
-   * next to the page: 2 calls, 1 wave. Needs PostgREST aggregates.
+   * Also count rows per facet value, with one grouped aggregate per facet
+   * that runs next to the page: one wave. Needs PostgREST aggregates.
    */
   readonly facetCounts?: C;
   /** How the page total is counted. Defaults to `'exact'`. */
@@ -77,6 +79,11 @@ export interface ListQueryConfig<
   readonly maxPageSize?: number;
   /** Defaults to 200 characters. */
   readonly maxSearchLength?: number;
+  /**
+   * Most values counted per facet; a facet with more lists its key in
+   * `facetCountsTruncated`. Defaults to 100.
+   */
+  readonly facetLimit?: number;
 }
 
 export interface ListQuery<S extends string, F extends string> {
@@ -153,10 +160,17 @@ export type ListPage<
   P extends ListPagination = "offset",
 > = ([P] extends ["cursor"] ? CursorPage<R> : OffsetPage<R>) &
   ([C] extends [true]
-    ? { readonly facetCounts: FacetCounts<F> }
+    ? FacetCountFields<F>
     : [C] extends [false]
       ? unknown
-      : { readonly facetCounts?: FacetCounts<F> });
+      : Partial<FacetCountFields<F>>);
+
+/** The facet fields of a page with `facetCounts: true`. */
+export interface FacetCountFields<F extends string> {
+  readonly facetCounts: FacetCounts<F>;
+  /** Facets with more values than `facetLimit`, whose counts are cut. */
+  readonly facetCountsTruncated: readonly F[];
+}
 
 export interface ListDefinition<
   M extends AnyModels,
@@ -192,7 +206,7 @@ export interface ListDefinition<
   ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageArgs<M, T>;
   /**
    * Runs the list against a table, merging your `select`, `include`, `where`
-   * and `count`. One request, plus one for `facetCounts`, always one wave.
+   * and `count`. One request, plus one per facet for `facetCounts`, always one wave.
    */
   run<const A extends ListExtra<M, T> & FindExt<E, M, T>>(
     db: { readonly [K in T]: RepositoryOf<M, K, E> },
@@ -299,6 +313,7 @@ export function defineListQuery<
   const pageSize = config.pageSize ?? 50;
   const maxPageSize = config.maxPageSize ?? 200;
   const maxSearch = config.maxSearchLength ?? 200;
+  const facetLimit = config.facetLimit ?? 100;
   const cursor = config.pagination === "cursor";
   // SAFETY: config.sorts is keyed by S, and Object.keys widens the keys to string.
   const sortKeys = Object.keys(config.sorts) as S[];
@@ -560,46 +575,19 @@ export function defineListQuery<
     } as never;
   }
 
-  /** Whether a group's value passes the facet's selected values. */
-  function selects(
-    value: unknown,
-    selected: readonly string[] | undefined,
-  ): boolean {
-    if (!selected || selected.length === 0) return true;
-    return value === null || value === undefined
-      ? selected.includes(UNSET)
-      : selected.includes(String(value));
-  }
-
-  /**
-   * Per facet, rows per value under every other facet's selection: the
-   * usual faceted-search counts, where picking a value doesn't zero the
-   * other values of the same facet.
-   */
-  function marginals(
+  /** Rows per value of one facet, from its grouped aggregate. */
+  function countsOf(
+    facet: FacetInfo,
     groups: readonly Record<string, unknown>[],
-    query: ListQuery<S, F>,
-  ): FacetCounts<F> {
-    const out: Record<string, Record<string, number>> = {};
-    for (const facet of facets) {
-      const counts: Record<string, number> = {};
-      for (const value of facet.values ?? []) counts[value] = 0;
-      for (const group of groups) {
-        // SAFETY: facets are built from config.facets, which is keyed by F.
-        const others = facets.every(
-          (other) =>
-            other === facet ||
-            selects(group[other.column], query.facets[other.key as F]),
-        );
-        if (!others) continue;
-        const raw = group[facet.column];
-        const key = raw === null || raw === undefined ? UNSET : String(raw);
-        counts[key] = (counts[key] ?? 0) + Number(group["_count"] ?? 0);
-      }
-      out[facet.key] = counts;
+  ): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const value of facet.values ?? []) counts[value] = 0;
+    for (const group of groups) {
+      const raw = group[facet.column];
+      const key = raw === null || raw === undefined ? UNSET : String(raw);
+      counts[key] = (counts[key] ?? 0) + Number(group["_count"] ?? 0);
     }
-    // SAFETY: the loop above wrote counts for every facet key in F.
-    return out as FacetCounts<F>;
+    return counts;
   }
 
   const listParser: ParserSpec<readonly string[]> = {
@@ -836,23 +824,53 @@ export function defineListQuery<
         return page.map((data) => ({
           ...(data as object),
           facetCounts: {},
+          facetCountsTruncated: [],
         })) as AsyncResult<never>;
       }
-      const facetFilter = and([extraWhere, searchWhere(query)]);
-      const groups = repository.aggregate({
-        ...options,
-        ...(facetFilter ? { where: facetFilter } : {}),
-        groupBy: [...new Set(facets.map((facet) => facet.column))],
-        _count: true,
+      // Per facet, rows per value under every other facet's selection, so
+      // picking a value doesn't zero the other values of the same facet.
+      const search = searchWhere(query);
+      const counted = facets.map((facet) => {
+        const filter = and([
+          extraWhere,
+          search,
+          // SAFETY: facets are built from config.facets, which is keyed by F.
+          ...facets.map((other) =>
+            other === facet
+              ? undefined
+              : facetWhere(other, query.facets[other.key as F]),
+          ),
+        ]);
+        return repository.aggregate({
+          ...options,
+          ...(filter ? { where: filter } : {}),
+          groupBy: [facet.column],
+          _count: true,
+          orderBy: { [facet.column]: "asc" },
+          limit: facetLimit + 1,
+        });
       });
       // SAFETY: paginate returns a page object, and aggregate with groupBy
       // returns one row per group.
-      return page.andThen((data) =>
-        groups.map((rows) => ({
+      return page.andThen(async (data) => {
+        const results = await Promise.all(counted);
+        const facetCounts: Record<string, Record<string, number>> = {};
+        const truncated: string[] = [];
+        for (const [index, facet] of facets.entries()) {
+          const result = results[index]!;
+          if (!result.ok) return result;
+          // SAFETY: aggregate with groupBy returns one row per group.
+          const rows = result.data as Record<string, unknown>[];
+          if (rows.length > facetLimit) truncated.push(facet.key);
+          facetCounts[facet.key] = countsOf(facet, rows.slice(0, facetLimit));
+        }
+        // SAFETY: paginate returns a page object.
+        return ok({
           ...(data as object),
-          facetCounts: marginals(rows as Record<string, unknown>[], query),
-        })),
-      ) as AsyncResult<never>;
+          facetCounts,
+          facetCountsTruncated: truncated,
+        });
+      }) as AsyncResult<never>;
     },
     openapi,
     jsonSchema,
