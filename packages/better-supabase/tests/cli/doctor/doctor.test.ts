@@ -102,8 +102,11 @@ const codes = async (ctx: DoctorContext, only?: string): Promise<string[]> =>
       RULES.filter(
         (rule) =>
           rule.code !== "BS303" &&
-          // BS211 reports the role timeouts of every snapshot that has them.
-          (only ? rule.code === only : rule.code !== "BS211"),
+          // BS211 reports the role timeouts of every snapshot that has them,
+          // and BS222 the fixture's int8 identity ids.
+          (only
+            ? rule.code === only
+            : rule.code !== "BS211" && rule.code !== "BS222"),
       ),
     )
   ).map((finding) => finding.code);
