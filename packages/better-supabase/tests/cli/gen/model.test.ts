@@ -202,6 +202,128 @@ describe("buildModel functions", () => {
       ),
     );
   });
+
+  /** `public.area(side int4)`, `area(label text, scale int4 default)` and `area()`, shuffled. */
+  const addOverloads: Edit = (generator) => {
+    const template = generator.functions[0]!;
+    const typeId = (name: string) =>
+      generator.types.find(
+        (type) => type.schema === "pg_catalog" && type.name === name,
+      )!.id;
+    const overload = (
+      offset: number,
+      signature: string,
+      args: { name: string; type: string; has_default: boolean }[],
+      returns: string,
+    ) => ({
+      ...template,
+      id: template.id + 910_000 + offset,
+      schema: "public",
+      name: "area",
+      args: args.map((arg) => ({
+        mode: "in" as const,
+        name: arg.name,
+        type_id: typeId(arg.type),
+        has_default: arg.has_default,
+      })),
+      argument_types: signature,
+      identity_argument_types: signature,
+      return_type: returns,
+      return_type_id: typeId(returns),
+      return_type_relation_id: null,
+      is_set_returning_function: false,
+    });
+    return {
+      functions: [
+        ...generator.functions,
+        overload(
+          1,
+          "label text, scale integer",
+          [
+            { name: "label", type: "text", has_default: false },
+            { name: "scale", type: "int4", has_default: true },
+          ],
+          "text",
+        ),
+        overload(2, "", [], "bool"),
+        overload(
+          3,
+          "side integer",
+          [{ name: "side", type: "int4", has_default: false }],
+          "int4",
+        ),
+      ],
+    };
+  };
+
+  it("keeps every overload, in signature order", async () => {
+    const built = await model(addOverloads);
+    expect(
+      built.functions
+        .filter((fn) => fn.key === "area")
+        .map((fn) => fn.args.map((arg) => arg.name)),
+    ).toEqual([[], ["label", "scale"], ["side"]]);
+    expect(built.meta.functions["area"]).toEqual({
+      name: "area",
+      schema: "public",
+      args: [],
+      returns: "bool",
+      returnsSet: false,
+      volatility: built.meta.functions["area"]?.volatility,
+      overloads: [
+        expect.objectContaining({ args: [], returns: "bool" }),
+        expect.objectContaining({
+          args: [
+            { name: "label", type: "text" },
+            { name: "scale", type: "int4", optional: true },
+          ],
+          returns: "text",
+        }),
+        expect.objectContaining({
+          args: [{ name: "side", type: "int4" }],
+          returns: "int4",
+        }),
+      ],
+    });
+  });
+
+  it("emits a union of Args and Returns for an overloaded function", async () => {
+    const built = await model(addOverloads);
+    const reversed = await model((generator) => {
+      const edited = addOverloads(generator);
+      return { functions: [...(edited.functions ?? [])].reverse() };
+    });
+    const emit = (input: typeof built) =>
+      emitModule(input, { importPathFor: (from) => from });
+    const source = emit(built);
+    expect(emit(reversed)).toBe(source);
+    const area = source.slice(
+      source.indexOf("area:"),
+      source.indexOf("};", source.lastIndexOf("Returns: number | null;")) + 2,
+    );
+    expect(area).toBe(
+      [
+        "area:",
+        "  | {",
+        "    Args: Record<PropertyKey, never>;",
+        "    Returns: boolean | null;",
+        "  }",
+        "  | {",
+        "    Args: {",
+        "      label: string | null;",
+        "      scale?: number | null;",
+        "    };",
+        "    Returns: string | null;",
+        "  }",
+        "  | {",
+        "    Args: {",
+        "      side: number | null;",
+        "    };",
+        "    Returns: number | null;",
+        "  };",
+      ].join("\n  "),
+    );
+  });
 });
 
 describe("buildModel enums", () => {

@@ -60,7 +60,7 @@ import {
   type ThrowMapper,
   withErrorMapper,
 } from "./result.ts";
-import { decodeRpcResult } from "./rpc-result.ts";
+import { decodeRpcResult, rpcFunction } from "./rpc-result.ts";
 import { type SearchInput, vectorLiteral } from "./search.ts";
 import {
   createSpecs,
@@ -1161,13 +1161,13 @@ function rpc(
     if (invalid) return err(dbError("invalid_request", invalid));
     const limit = deadline(options?.signal, tuning.timeout);
     const schema = options?.schema ?? "public";
-    const fn = meta.functions[name];
+    const fn = rpcFunction(meta, name, schema, args ?? {});
     const context = {
       schema,
       errorMappers,
       ...(limit.signal ? { signal: limit.signal } : {}),
       ...(tuning.retry === undefined ? {} : { retry: tuning.retry }),
-      ...(fn?.schema === schema ? { function: fn } : {}),
+      ...(fn ? { function: fn } : {}),
     };
     let result: Result<unknown>;
     try {
@@ -1183,7 +1183,7 @@ function rpc(
     let data = result.data;
     if (options?.raw !== true) {
       try {
-        data = decodeRpcResult(meta, name, context.schema, data);
+        data = decodeRpcResult(meta, fn, data);
       } catch (cause) {
         if (cause instanceof DbException) return err(cause.error);
         throw cause;

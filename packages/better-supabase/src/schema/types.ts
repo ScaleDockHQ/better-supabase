@@ -93,10 +93,24 @@ export interface TableMeta {
   readonly flags: TableFlags;
 }
 
-export interface FunctionMeta {
+export interface FunctionMeta extends FunctionSignature {
   readonly name: string;
   readonly schema: string;
-  readonly args: readonly { readonly name: string; readonly type: string }[];
+  /**
+   * Every signature of an overloaded function, in signature order. The
+   * fields above describe the first one; `$rpc` picks the signature whose
+   * argument names match the call.
+   */
+  readonly overloads?: readonly FunctionSignature[];
+}
+
+export interface FunctionSignature {
+  readonly args: readonly {
+    readonly name: string;
+    readonly type: string;
+    /** The argument has a default; set in `overloads` only. */
+    readonly optional?: boolean;
+  }[];
   readonly returns: string;
   readonly returnsSet: boolean;
   readonly volatility: "immutable" | "stable" | "volatile";

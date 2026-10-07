@@ -6,6 +6,7 @@ import type {
   ColumnMeta,
   FunctionMeta,
   FunctionResult,
+  FunctionSignature,
   RealtimeTableMeta,
   RelationMeta,
   SchemaMeta,
@@ -101,6 +102,29 @@ export interface FunctionModel {
   readonly meta: FunctionMeta;
   readonly args: readonly { name: string; tsType: string; optional: boolean }[];
   readonly returns: string;
+}
+
+/** The overloads of each function name, in model order. */
+export function functionGroups(
+  functions: readonly FunctionModel[],
+): Map<string, FunctionModel[]> {
+  const groups = new Map<string, FunctionModel[]>();
+  for (const fn of functions) {
+    const group = groups.get(fn.key);
+    if (group) group.push(fn);
+    else groups.set(fn.key, [fn]);
+  }
+  return groups;
+}
+
+function signatureOf(fn: FunctionModel): FunctionSignature {
+  const { name: _name, schema: _schema, ...signature } = fn.meta;
+  return {
+    ...signature,
+    args: signature.args.map((arg, index) =>
+      fn.args[index]?.optional ? { ...arg, optional: true } : arg,
+    ),
+  };
 }
 
 interface JsonImport {
@@ -632,7 +656,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     ]),
   );
   // `$rpc` calls a function by its name, so one schema owns each name: the
-  // first configured schema, and the first signature among overloads.
+  // first configured schema. Overloads in that schema stay, in signature order.
   const callable = catalog.functions
     .filter((fn) => config.schemas.includes(fn.schema))
     .filter((fn) => fn.returns !== "trigger" && fn.returns !== "event_trigger")
@@ -645,16 +669,11 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     }
   }
   const shadowed = new Set<string>();
-  const seen = new Set<string>();
   const functions: FunctionModel[] = callable
     .filter((fn) => {
-      if (ownerSchema.get(fn.name) !== fn.schema) {
-        shadowed.add(`${fn.schema}.${fn.name}`);
-        return false;
-      }
-      if (seen.has(fn.name)) return false;
-      seen.add(fn.name);
-      return true;
+      if (ownerSchema.get(fn.name) === fn.schema) return true;
+      shadowed.add(`${fn.schema}.${fn.name}`);
+      return false;
     })
     .map((fn) => {
       const typeOf = (format: string, typeSchema?: string): string => {
@@ -775,7 +794,14 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   const enumsMeta: Record<string, readonly string[]> = {};
   for (const entry of enums) enumsMeta[entry.key] = entry.values;
   const functionsMeta: Record<string, FunctionMeta> = {};
-  for (const fn of functions) functionsMeta[fn.key] = fn.meta;
+  for (const [key, group] of functionGroups(functions)) {
+    const [first] = group;
+    if (!first) continue;
+    functionsMeta[key] =
+      group.length === 1
+        ? first.meta
+        : { ...first.meta, overloads: group.map(signatureOf) };
+  }
 
   const claimOverrides: Partial<Record<keyof ClaimsMeta, string>> = {};
   // SAFETY: DEFAULT_CLAIMS has one entry per ClaimsMeta key, and Object.keys

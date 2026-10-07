@@ -351,6 +351,92 @@ type RpcArgs<F extends AnyFunctions, N extends keyof F> =
     ? [args?: F[N]["Args"]]
     : [args: F[N]["Args"]];
 
+type IsUnion<T, U = T> = T extends unknown
+  ? [U] extends [T]
+    ? false
+    : true
+  : never;
+
+/** Names generated as a union of `{ Args; Returns }`, one per overload. */
+type OverloadedName<F extends AnyFunctions> = {
+  [K in keyof F]: true extends IsUnion<F[K]> ? K : never;
+}[keyof F] &
+  string;
+
+type PlainName<F extends AnyFunctions> = Exclude<
+  Extract<keyof F, string>,
+  OverloadedName<F>
+>;
+
+/** Overloaded names with an overload that a call without arguments matches. */
+type NoArgName<F extends AnyFunctions> = {
+  [K in OverloadedName<F>]: Record<never, never> extends F[K]["Args"]
+    ? K
+    : never;
+}[OverloadedName<F>];
+
+/** Property names without index signatures (`Record<PropertyKey, never>` has none). */
+type KnownKeys<T> = keyof {
+  [
+    K in keyof T as string extends K
+      ? never
+      : number extends K
+        ? never
+        : symbol extends K
+          ? never
+          : K
+  ]: 0;
+};
+
+type RequiredKeys<T> = {
+  [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? never : K;
+}[keyof T];
+
+/**
+ * The overloads PostgREST can pick for arguments `A`: every name in `A` is an
+ * argument, and every argument without a default is in `A`. Overloads with
+ * the same names stay a union, since the call can't tell them apart.
+ */
+type MatchingOverload<O, A> = A extends unknown
+  ? O extends { readonly Args: infer OA }
+    ? [Exclude<keyof A, KnownKeys<OA>>] extends [never]
+      ? [Exclude<RequiredKeys<OA>, keyof A>] extends [never]
+        ? O
+        : never
+      : never
+    : never
+  : never;
+
+type OverloadReturns<O, A> = [MatchingOverload<O, A>] extends [never]
+  ? O extends { readonly Returns: infer R }
+    ? R
+    : never
+  : MatchingOverload<O, A> extends { readonly Returns: infer R }
+    ? R
+    : never;
+
+/**
+ * `A` when its names pick an overload, with a name that no overload takes
+ * typed `never`, and `never` when the names mix overloads.
+ */
+type OverloadArgs<O extends { readonly Args: unknown }, A> = A &
+  NoInfer<
+    [MatchingOverload<O, A>] extends [never]
+      ? never
+      : {
+          readonly [
+            K in Exclude<
+              keyof A,
+              O extends { readonly Args: infer OA } ? KnownKeys<OA> : never
+            >
+          ]: never;
+        }
+  >;
+
+type RawRpcOptions = Omit<RpcOptions<unknown>, "returns" | "raw"> & {
+  readonly raw: true;
+};
+
 export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
   /** The underlying client (supabase-js), for anything the repository lacks. */
   readonly $client: C;
@@ -361,19 +447,35 @@ export interface DbHelpers<M extends AnyModels, F extends AnyFunctions, E, C> {
    * `returns table (...)` record come back in the configured casing, with
    * codecs applied; `raw: true` returns them as PostgREST sent them.
    */
-  $rpc<N extends Extract<keyof F, string>>(
+  $rpc<N extends PlainName<F>>(
     name: N,
-    ...rest: [
-      ...RpcArgs<F, N>,
-      options: Omit<RpcOptions<unknown>, "returns" | "raw"> & {
-        readonly raw: true;
-      },
-    ]
+    ...rest: [...RpcArgs<F, N>, options: RawRpcOptions]
   ): AsyncResult<unknown>;
-  $rpc<N extends Extract<keyof F, string>, R = F[N]["Returns"]>(
+  $rpc<N extends PlainName<F>, R = F[N]["Returns"]>(
     name: N,
     ...rest: [...RpcArgs<F, N>, options?: RpcOptions<R>]
   ): AsyncResult<R>;
+  /**
+   * An overloaded function: the arguments match one overload, and the
+   * result is the return type of the overloads with those argument names.
+   */
+  $rpc<N extends OverloadedName<F>, const A extends F[N]["Args"]>(
+    name: N,
+    args: OverloadArgs<F[N], A>,
+    options: RawRpcOptions,
+  ): AsyncResult<unknown>;
+  $rpc<
+    N extends OverloadedName<F>,
+    const A extends F[N]["Args"],
+    R = OverloadReturns<F[N], A>,
+  >(
+    name: N,
+    args: OverloadArgs<F[N], A>,
+    options?: RpcOptions<R>,
+  ): AsyncResult<R>;
+  $rpc<N extends NoArgName<F>>(
+    name: N,
+  ): AsyncResult<OverloadReturns<F[N], Record<never, never>>>;
   /** Same connection with more context (for example a tenant). */
   $with(context: RequestContext): Db<M, F, E, C>;
   /**
