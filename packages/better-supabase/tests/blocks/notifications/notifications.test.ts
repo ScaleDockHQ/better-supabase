@@ -106,6 +106,22 @@ describe("createNotifications().send", () => {
     });
   });
 
+  it("passes watchers and exclude to notify", async () => {
+    const { transport, calls } = fakeTransport({ notify: () => "e2" });
+    await createNotifications({ transport, types })
+      .send("task.assigned", {
+        recipients: ["u1"],
+        subject: { type: "task", id: "42" },
+        data: { title: "Ship it" },
+        watchers: false,
+        exclude: ["u2"],
+      })
+      .orThrow();
+    expect(calls[0]).toMatchObject({
+      args: { notification: { watchers: false, exclude: ["u2"] } },
+    });
+  });
+
   it("rejects unknown types and invalid data without calling the database", async () => {
     const { transport, calls } = fakeTransport();
     const notifications = createNotifications({ transport, types });

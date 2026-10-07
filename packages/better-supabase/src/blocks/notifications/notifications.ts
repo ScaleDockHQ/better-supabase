@@ -51,6 +51,14 @@ export interface SendInput<D = unknown> {
   readonly resolved?: boolean;
   /** The actor, when the service sends on a user's behalf. */
   readonly actorId?: string;
+  /**
+   * Add the watchers of `subject`. Defaults to `true`; `false` reaches only
+   * `recipients` and the audience hook (members ignoring the subject stay
+   * out either way).
+   */
+  readonly watchers?: boolean;
+  /** Users left out after the watchers and the audience hook are added. */
+  readonly exclude?: readonly string[];
 }
 
 export interface ListOptions<K extends string = string> {
@@ -444,6 +452,8 @@ export function createNotifications<
           activity: input.activity,
           resolved: input.resolved,
           actor: input.actorId,
+          watchers: input.watchers,
+          exclude: input.exclude,
         };
         const sent = await run("notify", { notification }, (value) =>
           value === null ? null : String(value),

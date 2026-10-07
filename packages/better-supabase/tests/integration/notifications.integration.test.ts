@@ -217,6 +217,31 @@ describe.skipIf(!live)("notifications", () => {
         [organization],
       );
       await s.as("owner");
+      await client.query("savepoint composers");
+      const named = await s.notify({
+        ...task,
+        type: "task.mentioned",
+        recipients: [USERS.member],
+        watchers: false,
+      });
+      expect(await s.recipients(named!)).toEqual([USERS.member]);
+      const skipping = await s.notify({
+        ...task,
+        type: "task.noted",
+        recipients: [USERS.member],
+        exclude: [USERS.member],
+      });
+      expect(await s.recipients(skipping!)).toEqual([USERS.watcher]);
+      expect(
+        await s.notify({
+          ...task,
+          type: "task.noted",
+          recipients: [USERS.member],
+          exclude: [USERS.member],
+          watchers: false,
+        }),
+      ).toBeNull();
+      await client.query("rollback to savepoint composers");
       const third = await s.notify({
         ...task,
         type: "approval.requested",

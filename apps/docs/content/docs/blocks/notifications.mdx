@@ -71,16 +71,18 @@ With a `key`, sending again in the same organization returns the first id,
 so a retried request never notifies twice. `rpcTransport(supabase)` calls the
 same functions over the Data API instead, when the block schema is exposed.
 
-| Input          | Meaning                                                                                        |
-| -------------- | ---------------------------------------------------------------------------------------------- |
-| `recipients`   | User ids. Subject watchers and the `notification_audience` hook add more                       |
-| `subject`      | What it is about, `{ type, id, label? }`. Watchers of the subject get it too                   |
-| `activity`     | `participating` (default) reaches every watcher; `all` reaches only watchers at level `all`    |
-| `priority`     | One of `options.priorities` (`low`, `normal`, `high`, `urgent`). Defaults to `normal`          |
-| `channels`     | The channels to deliver on. Defaults to `options.channels`                                     |
-| `includeActor` | Also notify the user who caused it                                                             |
-| `resolved`     | Store it already resolved, for a record of something that needs no action                      |
-| `actorId`      | The actor when the service sends for a user. A signed-in sender is always the actor themselves |
+| Input          | Meaning                                                                                                                                   |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `recipients`   | User ids. Subject watchers and the `notification_audience` hook add more                                                                  |
+| `subject`      | What it is about, `{ type, id, label? }`. Watchers of the subject get it too                                                              |
+| `activity`     | `participating` (default) reaches every watcher; `all` reaches only watchers at level `all`                                               |
+| `priority`     | One of `options.priorities` (`low`, `normal`, `high`, `urgent`). Defaults to `normal`                                                     |
+| `channels`     | The channels to deliver on. Defaults to `options.channels`                                                                                |
+| `includeActor` | Also notify the user who caused it                                                                                                        |
+| `watchers`     | `false` leaves the subject's watchers out, for a composer that reaches named people only (a mention, an assignment); `ignore` still holds |
+| `exclude`      | User ids left out after the watchers and the hook are added, such as the members a separate mention already reached                       |
+| `resolved`     | Store it already resolved, for a record of something that needs no action                                                                 |
+| `actorId`      | The actor when the service sends for a user. A signed-in sender is always the actor themselves                                            |
 
 ## Reading
 

@@ -241,4 +241,14 @@ describe("notification actors", () => {
     );
     expect(file(["notifications"])).not.toContain("notification_actors");
   });
+
+  it("adds watchers unless watchers is false and drops excluded users", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      "if coalesce((notification ->> 'watchers')::boolean, true) then",
+    );
+    expect(sql).toContain(
+      "where not x = any (array(select e::uuid from jsonb_array_elements_text(notification -> 'exclude') e))",
+    );
+  });
 });

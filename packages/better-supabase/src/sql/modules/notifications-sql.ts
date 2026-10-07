@@ -215,11 +215,14 @@ function notify(ctx: ModuleContext, n: NotifyNames): string {
   const watchers = subs
     ? `
   if v_subject_type is not null and v_subject_id is not null then
-    v_recipients := v_recipients || array(
-      select s.${s("user")} from ${n.table("subscriptions")} s
-      where s.${s("subjectType")} = v_subject_type and s.${s("subjectId")} = v_subject_id${subTenant}
-        and (s.${s("level")} = 'all' or (v_activity = 'participating' and s.${s("level")} = 'participating'))
-    );
+    -- watchers: false sends to the named recipients only; ignore still holds.
+    if coalesce((notification ->> 'watchers')::boolean, true) then
+      v_recipients := v_recipients || array(
+        select s.${s("user")} from ${n.table("subscriptions")} s
+        where s.${s("subjectType")} = v_subject_type and s.${s("subjectId")} = v_subject_id${subTenant}
+          and (s.${s("level")} = 'all' or (v_activity = 'participating' and s.${s("level")} = 'participating'))
+      );
+    end if;
     v_recipients := array(
       select x from unnest(v_recipients) x
       where not exists (
@@ -345,6 +348,13 @@ begin
     execute format('select %s($1)', to_regprocedure(${sqlString(`${audience}(jsonb)`)})::oid::regproc) into v_extra using notification;
     v_recipients := v_recipients || coalesce(v_extra, '{}');
   end if;${watchers}
+  -- exclude: users the composer already reached (the mentioned ones, say).
+  if jsonb_typeof(notification -> 'exclude') = 'array' then
+    v_recipients := array(
+      select x from unnest(v_recipients) x
+      where not x = any (array(select e::uuid from jsonb_array_elements_text(notification -> 'exclude') e))
+    );
+  end if;
   if v_actor is not null and not coalesce((notification ->> 'include_actor')::boolean, false) then
     v_recipients := array_remove(v_recipients, v_actor);
   end if;${members}
