@@ -28,6 +28,24 @@ describe("resolveModules", () => {
   });
 });
 
+describe("pg-safeupdate", () => {
+  it("gives every delete in the modules a where clause", () => {
+    const sql = renderModules(
+      Object.keys(SQL_MODULES).filter((name) => name !== "pgtap"),
+      { modules: { usage: { options: { history: true } } } },
+    )
+      .map((file) => file.contents.replaceAll(/--.*$/gm, ""))
+      .join("\n");
+    const deletes = [...sql.matchAll(/\bdelete\s+from\s+[^;]*;/gi)].map(
+      (match) => match[0],
+    );
+    expect(deletes.length).toBeGreaterThan(10);
+    expect(
+      deletes.filter((statement) => !/\bwhere\b/i.test(statement)),
+    ).toEqual([]);
+  });
+});
+
 describe("moduleTopics", () => {
   it("lists the topics whose policies the modules write", () => {
     expect(

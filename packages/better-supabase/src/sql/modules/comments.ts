@@ -408,7 +408,7 @@ begin
     raise exception 'Only the service role copies comments' using errcode = '42501', hint = 'COMMENT_FORBIDDEN';
   end if;
   create temporary table if not exists bs_comment_copy (old_id uuid primary key, new_id uuid not null) on commit drop;
-  delete from bs_comment_copy;
+  delete from bs_comment_copy where old_id is not null;
   insert into bs_comment_copy (old_id, new_id)
   select y.${c("id")}, gen_random_uuid()
   from ${comments} y

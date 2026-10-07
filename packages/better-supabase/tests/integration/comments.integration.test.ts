@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Client, Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { CloudEvent } from "../../src/events/index.ts";
@@ -15,6 +15,39 @@ const live = await reachable();
 describe.skipIf(!live)("comments", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
   afterAll(() => pool.end());
+
+  it("copies a thread in a PostgREST session, where pg-safeupdate refuses a delete without where", async () => {
+    const url = new URL(dbUrl);
+    url.username = "authenticator";
+    const client = new Client({ connectionString: url.toString() });
+    await client.connect();
+    try {
+      await client.query("begin");
+      await client.query(
+        "create temporary table bs_probe (x int) on commit drop",
+      );
+      await client.query("savepoint probe");
+      await expect(client.query("delete from bs_probe")).rejects.toThrow(
+        /DELETE requires a WHERE clause/,
+      );
+      await client.query("rollback to savepoint probe");
+      await client.query("set local role service_role");
+      await client.query(
+        `select set_config('request.jwt.claims', '{"role":"service_role"}', true)`,
+      );
+      const tenant = crypto.randomUUID();
+      const copy = () =>
+        client.query<{ copied: number }>(
+          "select better_supabase.copy_comments($1, 'quote', 'q1', 'invoice', 'i1') as copied",
+          [tenant],
+        );
+      expect((await copy()).rows).toEqual([{ copied: 0 }]);
+      expect((await copy()).rows).toEqual([{ copied: 0 }]);
+      await client.query("rollback");
+    } finally {
+      await client.end();
+    }
+  });
 
   it("threads comments on readable subjects, notifies mentions and emits events", async () => {
     const s = await BlockSession.open(pool);

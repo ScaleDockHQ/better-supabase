@@ -118,7 +118,10 @@ When the app duplicates a record (a quote into an invoice, say),
 thread to the new subject with its authors, times and replies, and returns
 the number of comments copied. `copy_comments` is for the service role only:
 call it from the code that duplicates the record, after that code checked the
-caller may read both.
+caller may read both. It works over `sqlTransport` and over `rpcTransport`
+with a service-role client; PostgREST sessions on Supabase load
+pg-safeupdate, which refuses a `delete` or `update` without a `where`
+clause, and every statement the SQL modules run has one.
 
 ## Comments
 
