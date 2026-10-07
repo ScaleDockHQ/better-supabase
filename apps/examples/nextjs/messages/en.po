@@ -1,0 +1,1658 @@
+msgid ""
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: next-intl\n"
+"X-Message-Key: msgctxt\n"
+
+#: src/app/[locale]/(app)/beta/page.tsx
+msgctxt "beta.riw_yc"
+msgid "Beta"
+msgstr "Beta"
+
+#: src/app/[locale]/(app)/beta/page.tsx
+msgctxt "beta.IlDsVX"
+msgid "Features still behind a flag."
+msgstr "Features still behind a flag."
+
+#: src/app/[locale]/(app)/customers/[id]/page.tsx
+msgctxt "customers.ljxw1z"
+msgid "All customers"
+msgstr "All customers"
+
+#: src/app/[locale]/(app)/customers/page.tsx
+msgctxt "customers.TkYZBT"
+msgid "Customers"
+msgstr "Customers"
+
+#: src/app/[locale]/(app)/customers/page.tsx
+msgctxt "customers.BOCaFq"
+msgid "Everyone your organization works with."
+msgstr "Everyone your organization works with."
+
+#: src/app/[locale]/(app)/inbox/page.tsx
+msgctxt "inbox.VCMKbt"
+msgid "Inbox"
+msgstr "Inbox"
+
+#: src/app/[locale]/(app)/inbox/page.tsx
+msgctxt "inbox.bT5l3i"
+msgid "Every signed-in user has one. The count stays live over Realtime."
+msgstr "Every signed-in user has one. The count stays live over Realtime."
+
+#: src/app/[locale]/(app)/layout.tsx
+#: src/features/navigation/components/app-header.tsx
+msgctxt "navigation.6D4Ghb"
+msgid "Toggle sidebar"
+msgstr "Toggle sidebar"
+
+#: src/app/[locale]/(app)/page.tsx
+msgctxt "dashboard.hzSNj4"
+msgid "Dashboard"
+msgstr "Dashboard"
+
+#: src/app/[locale]/(app)/page.tsx
+msgctxt "dashboard.6_sorY"
+msgid "Your organization at a glance."
+msgstr "Your organization at a glance."
+
+#: src/app/[locale]/(app)/settings/layout.tsx
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.D3idYv"
+msgid "Settings"
+msgstr "Settings"
+
+#: src/app/[locale]/(app)/settings/layout.tsx
+msgctxt "settings.59uu8y"
+msgid "Your account and your organization."
+msgstr "Your account and your organization."
+
+#: src/app/[locale]/layout.tsx
+msgctxt "app.pZg_tf"
+msgid "A multi-tenant SaaS example built on better-supabase."
+msgstr "A multi-tenant SaaS example built on better-supabase."
+
+#: src/app/[locale]/not-found.tsx
+msgctxt "app.QRccCM"
+msgid "Page not found"
+msgstr "Page not found"
+
+#: src/app/[locale]/not-found.tsx
+msgctxt "app.HetEY5"
+msgid "It moved, or it isn't available to your organization."
+msgstr "It moved, or it isn't available to your organization."
+
+#: src/app/[locale]/not-found.tsx
+msgctxt "app.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Back to the dashboard"
+
+#: src/features/announcements/components/announcement-banner.tsx
+msgctxt "announcements.TDaF6J"
+msgid "Dismiss"
+msgstr "Dismiss"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.5bo-CW"
+msgid "No API keys yet"
+msgstr "No API keys yet"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.JQDXHx"
+msgid "Create one to call the API from a script."
+msgstr "Create one to call the API from a script."
+
+#: src/features/api-keys/components/api-key-table.tsx
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.EcglP9"
+msgid "Key"
+msgstr "Key"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.ORGv1Q"
+msgid "Created"
+msgstr "Created"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.iQhFxR"
+msgid "Last used"
+msgstr "Last used"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.NDx-B0"
+msgid "Personal"
+msgstr "Personal"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.f0W26f"
+msgid "Revoked"
+msgstr "Revoked"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.5CT3F9"
+msgid "Key revoked"
+msgstr "Key revoked"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.tnRDuU"
+msgid "Revoke"
+msgstr "Revoke"
+
+#: src/features/api-keys/components/api-keys-section.tsx
+msgctxt "apiKeys.yOFPA6"
+msgid "API keys"
+msgstr "API keys"
+
+#: src/features/api-keys/components/api-keys-section.tsx
+msgctxt "apiKeys.gyS_6w"
+msgid "Organization keys act for the organization. Verified by the api-keys module."
+msgstr "Organization keys act for the organization. Verified by the api-keys module."
+
+#: src/features/api-keys/components/api-keys-section.tsx
+msgctxt "apiKeys.uJFbFt"
+msgid "Personal keys act as you, with your role."
+msgstr "Personal keys act as you, with your role."
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.wEebuR"
+msgid "Create key"
+msgstr "Create key"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.mEdvqW"
+msgid "Copy your key"
+msgstr "Copy your key"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.24DkQi"
+msgid "This is the only time it is shown. Only its hash is stored."
+msgstr "This is the only time it is shown. Only its hash is stored."
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.KTNoOq"
+msgid "API key"
+msgstr "API key"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.E_3uwL"
+msgid "Copy key"
+msgstr "Copy key"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.JsSMof"
+msgid "Key copied"
+msgstr "Key copied"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.Jx-Dpp"
+msgid "Your service checks it with apiKeys.verify. Revoke it here when you're done."
+msgstr "Your service checks it with apiKeys.verify. Revoke it here when you're done."
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.FcPByA"
+msgid "Create an API key"
+msgstr "Create an API key"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.eFFkuT"
+msgid "Name it after the script or service that uses it."
+msgstr "Name it after the script or service that uses it."
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/api-keys/components/create-api-key-dialog.tsx
+msgctxt "apiKeys.VzzYJk"
+msgid "Create"
+msgstr "Create"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.hE7RvK"
+msgid "The audit log is on the Pro plan"
+msgstr "The audit log is on the Pro plan"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.lkNql3"
+msgid "Upgrade to see who changed what, and to export it."
+msgstr "Upgrade to see who changed what, and to export it."
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.vbFKkT"
+msgid "See plans"
+msgstr "See plans"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.ED9RG5"
+msgid "Audit log"
+msgstr "Audit log"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.vXaH2b"
+msgid "Database changes and app events, recorded by the audit module."
+msgstr "Database changes and app events, recorded by the audit module."
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.TE51b7"
+msgid "Export CSV"
+msgstr "Export CSV"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.N0gXcw"
+msgid "Nothing recorded yet."
+msgstr "Nothing recorded yet."
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.McnLsx"
+msgid "When"
+msgstr "When"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.m1czzY"
+msgid "Event"
+msgstr "Event"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.CHXoWz"
+msgid "Actor"
+msgstr "Actor"
+
+#: src/features/audit/components/audit-log.tsx
+msgctxt "audit.rzbYbE"
+msgid "Target"
+msgstr "Target"
+
+#: src/features/auth/components/forgot-password-form.tsx
+msgctxt "auth.p-kmJg"
+msgid "Reset your password"
+msgstr "Reset your password"
+
+#: src/features/auth/components/forgot-password-form.tsx
+msgctxt "auth.U_sxzo"
+msgid "If that address has an account, a reset link is on its way."
+msgstr "If that address has an account, a reset link is on its way."
+
+#: src/features/auth/components/forgot-password-form.tsx
+msgctxt "auth.udESX3"
+msgid "We'll email you a link to choose a new one."
+msgstr "We'll email you a link to choose a new one."
+
+#: src/features/auth/components/forgot-password-form.tsx
+#: src/features/auth/components/login-form.tsx
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.sy-pv5"
+msgid "Email"
+msgstr "Email"
+
+#: src/features/auth/components/forgot-password-form.tsx
+msgctxt "auth.DkQ5Q8"
+msgid "Send reset link"
+msgstr "Send reset link"
+
+#: src/features/auth/components/forgot-password-form.tsx
+msgctxt "auth.odTkf5"
+msgid "Back to sign in"
+msgstr "Back to sign in"
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.YHxk2E"
+msgid "That email and password don't match."
+msgstr "That email and password don't match."
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.UKxoV8"
+msgid "Welcome back"
+msgstr "Welcome back"
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.ULi4Ks"
+msgid "Sign in to your organization."
+msgstr "Sign in to your organization."
+
+#: src/features/auth/components/login-form.tsx
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.5sg7KC"
+msgid "Password"
+msgstr "Password"
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.cyRU1N"
+msgid "Forgot your password?"
+msgstr "Forgot your password?"
+
+#: src/features/auth/components/login-form.tsx
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.SQJto2"
+msgid "Sign in"
+msgstr "Sign in"
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.8rjc1j"
+msgid "No account yet?"
+msgstr "No account yet?"
+
+#: src/features/auth/components/login-form.tsx
+msgctxt "auth.8HJxXG"
+msgid "Sign up"
+msgstr "Sign up"
+
+#: src/features/auth/components/mfa-challenge-form.tsx
+msgctxt "auth.3vAb4l"
+msgid "That code didn't work. Try the next one."
+msgstr "That code didn't work. Try the next one."
+
+#: src/features/auth/components/mfa-challenge-form.tsx
+msgctxt "auth.Zmrie7"
+msgid "Two-factor authentication"
+msgstr "Two-factor authentication"
+
+#: src/features/auth/components/mfa-challenge-form.tsx
+msgctxt "auth.PsYaj1"
+msgid "Enter the code from your authenticator app."
+msgstr "Enter the code from your authenticator app."
+
+#: src/features/auth/components/mfa-challenge-form.tsx
+msgctxt "auth.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/auth/components/mfa-challenge-form.tsx
+msgctxt "auth.q5Xl0M"
+msgid "Verify"
+msgstr "Verify"
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.weOT3A"
+msgid "The passwords don't match."
+msgstr "The passwords don't match."
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.BYGVQF"
+msgid "This link has expired. Ask for a new one."
+msgstr "This link has expired. Ask for a new one."
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.h9aBq7"
+msgid "Password changed"
+msgstr "Password changed"
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.h_HeZb"
+msgid "Choose a new password"
+msgstr "Choose a new password"
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.l-GezH"
+msgid "You stay signed in afterwards."
+msgstr "You stay signed in afterwards."
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.fTHhSB"
+msgid "New password"
+msgstr "New password"
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.9o3oCD"
+msgid "Repeat it"
+msgstr "Repeat it"
+
+#: src/features/auth/components/reset-password-form.tsx
+msgctxt "auth.L4nXIc"
+msgid "Change password"
+msgstr "Change password"
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.zx7CKB"
+msgid "Check your email"
+msgstr "Check your email"
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.buMrVn"
+msgid "We sent a confirmation link to {email}."
+msgstr "We sent a confirmation link to {email}."
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.SeO7GZ"
+msgid "Create your account"
+msgstr "Create your account"
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.GQ7dZI"
+msgid "Then create an organization or accept an invitation."
+msgstr "Then create an organization or accept an invitation."
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.yk4PT9"
+msgid "Full name"
+msgstr "Full name"
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.1DX5CO"
+msgid "At least 8 characters."
+msgstr "At least 8 characters."
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.huqKGl"
+msgid "Create account"
+msgstr "Create account"
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "auth.uCk8r-"
+msgid "Already have an account?"
+msgstr "Already have an account?"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.tf1lIh"
+msgid "Free"
+msgstr "Free"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.MdFvGX"
+msgid "{price} per month"
+msgstr "{price} per month"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.kW-_4r"
+msgid "{seats} seats"
+msgstr "{seats} seats"
+
+#: src/features/billing/components/billing-overview.tsx
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.ICR82m"
+msgid "CSV exports"
+msgstr "CSV exports"
+
+#: src/features/billing/components/billing-overview.tsx
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.ED9RG5"
+msgid "Audit log"
+msgstr "Audit log"
+
+#: src/features/billing/components/billing-overview.tsx
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.YQJkxw"
+msgid "Single sign-on"
+msgstr "Single sign-on"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.ZBALng"
+msgid "Current plan"
+msgstr "Current plan"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.wL4Olp"
+msgid "Renews {date}"
+msgstr "Renews {date}"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.lyN_DP"
+msgid "No renewal date"
+msgstr "No renewal date"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.n1Whvj"
+msgid "Switch"
+msgstr "Switch"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.1Z5h3H"
+msgid "Plan changes go through Stripe Checkout with the billing SQL module, which this example doesn't install."
+msgstr "Plan changes go through Stripe Checkout with the billing SQL module, which this example doesn't install."
+
+#: src/features/billing/components/mark-plan-reviewed-button.tsx
+msgctxt "billing.TNms_8"
+msgid "Onboarding step done"
+msgstr "Onboarding step done"
+
+#: src/features/billing/components/mark-plan-reviewed-button.tsx
+msgctxt "billing.5u9EI1"
+msgid "Mark as reviewed"
+msgstr "Mark as reviewed"
+
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.0LfhAK"
+msgid "Plan features"
+msgstr "Plan features"
+
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.REsckX"
+msgid "included"
+msgstr "included"
+
+#: src/features/billing/components/plan-features.tsx
+msgctxt "billing.Im0KqV"
+msgid "not in your plan"
+msgstr "not in your plan"
+
+#: src/features/customers/components/comment-form.tsx
+msgctxt "customers.LgbKvU"
+msgid "Comment"
+msgstr "Comment"
+
+#: src/features/customers/components/comment-form.tsx
+msgctxt "customers.Y8zV4A"
+msgid "Write a comment"
+msgstr "Write a comment"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.7vI2x3"
+msgid "Too many new customers. Try again in {seconds, number} seconds."
+msgstr "Too many new customers. Try again in {seconds, number} seconds."
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.ckQ_gN"
+msgid "{name} added"
+msgstr "{name} added"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.e7e8yl"
+msgid "Add customer"
+msgstr "Add customer"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.yD9TdY"
+msgid "New customers start as leads and count toward your plan's quota."
+msgstr "New customers start as leads and count toward your plan's quota."
+
+#: src/features/customers/components/create-customer-form.tsx
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.k0So_A"
+msgid "New customer"
+msgstr "New customer"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.2_2yg-"
+msgid "Add"
+msgstr "Add"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.QITeYE"
+msgid "Customer since {date}"
+msgstr "Customer since {date}"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.wCgTu5"
+msgid "Comments"
+msgstr "Comments"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.p38jo8"
+msgid "Visible to everyone in the organization."
+msgstr "Visible to everyone in the organization."
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.ZTbdfB"
+msgid "No comments yet."
+msgstr "No comments yet."
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.XDWEZM"
+msgid "Someone"
+msgstr "Someone"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.QwtMmD"
+msgid "Recent notes"
+msgstr "Recent notes"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.7PEOXA"
+msgid "No notes yet."
+msgstr "No notes yet."
+
+#: src/features/customers/components/customer-list.tsx
+msgctxt "customers.Zl6bWT"
+msgid "Only admins can add customers."
+msgstr "Only admins can add customers."
+
+#: src/features/customers/components/customer-logo-form.tsx
+msgctxt "customers.f6R09m"
+msgid "Logo updated"
+msgstr "Logo updated"
+
+#: src/features/customers/components/customer-logo-form.tsx
+msgctxt "customers.k81S1y"
+msgid "Logo"
+msgstr "Logo"
+
+#: src/features/customers/components/customer-logo-form.tsx
+msgctxt "customers.RAjOeN"
+msgid "PNG, JPEG or WebP. Stored in the public logos bucket."
+msgstr "PNG, JPEG or WebP. Stored in the public logos bucket."
+
+#: src/features/customers/components/customer-logo-form.tsx
+msgctxt "customers.zfs6a2"
+msgid "Upload logo"
+msgstr "Upload logo"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.bVjFta"
+msgid "Search customers"
+msgstr "Search customers"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.zQvVDJ"
+msgid "All"
+msgstr "All"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.FpIcp9"
+msgid "No customers found"
+msgstr "No customers found"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.S2OMpP"
+msgid "Add a customer, or change the filters."
+msgstr "Add a customer, or change the filters."
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.gzp6xc"
+msgid "Change the filters to see more."
+msgstr "Change the filters to see more."
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.7-Domh"
+msgid "Notes"
+msgstr "Notes"
+
+#: src/features/customers/components/customer-table.tsx
+msgctxt "customers.dyyiUt"
+msgid "Last note"
+msgstr "Last note"
+
+#: src/features/customers/use-status-label.ts
+msgctxt "customers.bhfSJZ"
+msgid "Lead"
+msgstr "Lead"
+
+#: src/features/customers/use-status-label.ts
+msgctxt "customers.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/customers/use-status-label.ts
+msgctxt "customers.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.rBq8VO"
+msgid "Add your first customer"
+msgstr "Add your first customer"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.919U2i"
+msgid "Invite a teammate"
+msgstr "Invite a teammate"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.FcPByA"
+msgid "Create an API key"
+msgstr "Create an API key"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.o0pfvI"
+msgid "Review your plan"
+msgstr "Review your plan"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard._aBLH2"
+msgid "Get started"
+msgstr "Get started"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.Own5i4"
+msgid "{completed, number} of {total, number} steps done"
+msgstr "{completed, number} of {total, number} steps done"
+
+#: src/features/dashboard/components/onboarding-card.tsx
+msgctxt "dashboard.mOFG3K"
+msgid "Start"
+msgstr "Start"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.0SeTPP"
+msgid "API calls"
+msgstr "API calls"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.KvtrM7"
+msgid "Customers added"
+msgstr "Customers added"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.ZXdvOl"
+msgid "Usage this period"
+msgstr "Usage this period"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.nxnBVV"
+msgid "Counted by the usage module, limited by your plan."
+msgstr "Counted by the usage module, limited by your plan."
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.t1jLkm"
+msgid "{used} used, no limit"
+msgstr "{used} used, no limit"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.12Ss7G"
+msgid "{used} of {limit}"
+msgstr "{used} of {limit}"
+
+#: src/features/dashboard/components/usage-card.tsx
+msgctxt "dashboard.lyXkXc"
+msgid "Resets {date}"
+msgstr "Resets {date}"
+
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.TkYZBT"
+msgid "Customers"
+msgstr "Customers"
+
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.nnI4gk"
+msgid "Added by you"
+msgstr "Added by you"
+
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.cZ-k_2"
+msgid "Latest note"
+msgstr "Latest note"
+
+#: src/features/dashboard/components/workspace-summary.tsx
+msgctxt "dashboard.YIjtSu"
+msgid "None yet"
+msgstr "None yet"
+
+#: src/features/flags/components/beta-content.tsx
+msgctxt "beta.hKwqKr"
+msgid "You're in the beta"
+msgstr "You're in the beta"
+
+#: src/features/flags/components/beta-content.tsx
+msgctxt "beta.EALeEv"
+msgid "The beta-page flag is on for your organization, through an override in the flags module."
+msgstr "The beta-page flag is on for your organization, through an override in the flags module."
+
+#: src/features/flags/components/beta-content.tsx
+msgctxt "beta.2jXw4s"
+msgid "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh."
+msgstr "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh."
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.aFRo3k"
+msgid "Hello from the inbox"
+msgstr "Hello from the inbox"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.OCmHfl"
+msgid "Notification sent"
+msgstr "Notification sent"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.ipGe-B"
+msgid "Notify me"
+msgstr "Notify me"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.wMC6M8"
+msgid "All caught up"
+msgstr "All caught up"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.ShdEie"
+msgid "Mark all read"
+msgstr "Mark all read"
+
+#: src/features/inbox/components/notification-list.tsx
+msgctxt "inbox.KjR3ZD"
+msgid "Nothing here yet"
+msgstr "Nothing here yet"
+
+#: src/features/inbox/components/notification-list.tsx
+msgctxt "inbox.5L9NEw"
+msgid "Send yourself a notification to see it arrive."
+msgstr "Send yourself a notification to see it arrive."
+
+#: src/features/inbox/components/notification-list.tsx
+msgctxt "inbox.bW7B87"
+msgid "New"
+msgstr "New"
+
+#: src/features/inbox/components/unread-badge.tsx
+msgctxt "inbox.Z6J1K8"
+msgid "Inbox, {count, number} unread"
+msgstr "Inbox, {count, number} unread"
+
+#: src/features/inbox/components/unread-badge.tsx
+msgctxt "inbox.jrdovp"
+msgid "Counting…"
+msgstr "Counting…"
+
+#: src/features/inbox/components/unread-badge.tsx
+msgctxt "inbox.94cCzv"
+msgid "{count, number} unread"
+msgstr "{count, number} unread"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.hzSNj4"
+msgid "Dashboard"
+msgstr "Dashboard"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.TkYZBT"
+msgid "Customers"
+msgstr "Customers"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.VCMKbt"
+msgid "Inbox"
+msgstr "Inbox"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.riw_yc"
+msgid "Beta"
+msgstr "Beta"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.-a-2ug"
+msgid "Members"
+msgstr "Members"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Tbo377"
+msgid "Billing"
+msgstr "Billing"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.yOFPA6"
+msgid "API keys"
+msgstr "API keys"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.ED9RG5"
+msgid "Audit log"
+msgstr "Audit log"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.D3idYv"
+msgid "Settings"
+msgstr "Settings"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.rOZptg"
+msgid "Workspace"
+msgstr "Workspace"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.K56Dim"
+msgid "Organization"
+msgstr "Organization"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.EFTSMc"
+msgid "Main"
+msgstr "Main"
+
+#: src/features/notes/components/similar-notes.tsx
+msgctxt "notes.dRm0tn"
+msgid "Similar notes"
+msgstr "Similar notes"
+
+#: src/features/notes/components/similar-notes.tsx
+msgctxt "notes.XMSvnd"
+msgid "Nearest to “{body}”, found by the vector-search module."
+msgstr "Nearest to “{body}”, found by the vector-search module."
+
+#: src/features/organization/components/create-organization-dialog.tsx
+msgctxt "organization.lehIHr"
+msgid "Organization created"
+msgstr "Organization created"
+
+#: src/features/organization/components/create-organization-dialog.tsx
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.BUx5CV"
+msgid "Create organization"
+msgstr "Create organization"
+
+#: src/features/organization/components/create-organization-dialog.tsx
+msgctxt "organization.TfSH2p"
+msgid "You become its owner. Invite your team from the members page."
+msgstr "You become its owner. Invite your team from the members page."
+
+#: src/features/organization/components/create-organization-dialog.tsx
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/organization/components/create-organization-dialog.tsx
+#: src/features/organization/components/invite-member-dialog.tsx
+#: src/features/organization/components/leave-organization-button.tsx
+msgctxt "organization.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/organization/components/create-organization-dialog.tsx
+msgctxt "organization.VzzYJk"
+msgid "Create"
+msgstr "Create"
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.3iBnPs"
+msgid "This invitation can't be used"
+msgstr "This invitation can't be used"
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.N4Fbfe"
+msgid "It expired. Ask for a new one."
+msgstr "It expired. Ask for a new one."
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.4x_p5I"
+msgid "It was already used, revoked or never existed."
+msgstr "It was already used, revoked or never existed."
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.eVQ7El"
+msgid "Go to the dashboard"
+msgstr "Go to the dashboard"
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.BR9G0H"
+msgid "Join {organization}"
+msgstr "Join {organization}"
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.41-s-i"
+msgid "Invitation for {email}, valid until {date}."
+msgstr "Invitation for {email}, valid until {date}."
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.beer0U"
+msgid "You're signed in as {email}. The invitation only works for its own address."
+msgstr "You're signed in as {email}. The invitation only works for its own address."
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.0vL5u1"
+msgid "Create an account"
+msgstr "Create an account"
+
+#: src/features/organization/components/invitation-card.tsx
+msgctxt "invitation.65cFZc"
+msgid "I already have one"
+msgstr "I already have one"
+
+#: src/features/organization/components/invitation-list.tsx
+msgctxt "organization.HAhXzK"
+msgid "No open invitations."
+msgstr "No open invitations."
+
+#: src/features/organization/components/invitation-list.tsx
+msgctxt "organization._VQpyO"
+msgid "Expires {date}"
+msgstr "Expires {date}"
+
+#: src/features/organization/components/invitation-list.tsx
+msgctxt "organization.Hvn8PP"
+msgid "Revoke invitation for {email}"
+msgstr "Revoke invitation for {email}"
+
+#: src/features/organization/components/invitation-list.tsx
+msgctxt "organization.SpBqjJ"
+msgid "Invitation revoked"
+msgstr "Invitation revoked"
+
+#: src/features/organization/components/invitation-response.tsx
+msgctxt "invitation.pvtgR2"
+msgid "Decline"
+msgstr "Decline"
+
+#: src/features/organization/components/invitation-response.tsx
+msgctxt "invitation.RbaSnf"
+msgid "Welcome aboard"
+msgstr "Welcome aboard"
+
+#: src/features/organization/components/invitation-response.tsx
+msgctxt "invitation.j2QN5I"
+msgid "Accept invitation"
+msgstr "Accept invitation"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.LzKmIB"
+msgid "That person is already a member or invited."
+msgstr "That person is already a member or invited."
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.hYOE-U"
+msgid "Invite"
+msgstr "Invite"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.VUOqRw"
+msgid "Invitation created"
+msgstr "Invitation created"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.JbO9sG"
+msgid "Send this link. It works once and expires in seven days."
+msgstr "Send this link. It works once and expires in seven days."
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.G8P44K"
+msgid "Invitation link"
+msgstr "Invitation link"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.lbr3Lq"
+msgid "Copy link"
+msgstr "Copy link"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.zU_q1N"
+msgid "Link copied"
+msgstr "Link copied"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.919U2i"
+msgid "Invite a teammate"
+msgstr "Invite a teammate"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.30Bj4o"
+msgid "They join with the role you pick. You can't give a role above your own."
+msgstr "They join with the role you pick. You can't give a role above your own."
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.sy-pv5"
+msgid "Email"
+msgstr "Email"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.1ZgrhW"
+msgid "Role"
+msgstr "Role"
+
+#: src/features/organization/components/invite-member-dialog.tsx
+msgctxt "organization.83nTSd"
+msgid "Send invitation"
+msgstr "Send invitation"
+
+#: src/features/organization/components/leave-organization-button.tsx
+#: src/features/organization/components/organization-general.tsx
+msgctxt "organization.0Xqin6"
+msgid "Leave organization"
+msgstr "Leave organization"
+
+#: src/features/organization/components/leave-organization-button.tsx
+msgctxt "organization.hQ_iFM"
+msgid "Leave {name}?"
+msgstr "Leave {name}?"
+
+#: src/features/organization/components/leave-organization-button.tsx
+msgctxt "organization.el7IHQ"
+msgid "You lose access to its customers until someone invites you again."
+msgstr "You lose access to its customers until someone invites you again."
+
+#: src/features/organization/components/leave-organization-button.tsx
+msgctxt "organization.fnihsY"
+msgid "Leave"
+msgstr "Leave"
+
+#: src/features/organization/components/member-table.tsx
+#: src/features/organization/use-role-label.ts
+msgctxt "organization.7L86Z5"
+msgid "Member"
+msgstr "Member"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.l8wanU"
+msgid "Joined"
+msgstr "Joined"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.Jjrc4P"
+msgid "you"
+msgstr "you"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.U_vZbF"
+msgid "Role updated"
+msgstr "Role updated"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.T0e6Lh"
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.6tBv0v"
+msgid "Member removed"
+msgstr "Member removed"
+
+#: src/features/organization/components/members-section.tsx
+msgctxt "organization.-a-2ug"
+msgid "Members"
+msgstr "Members"
+
+#: src/features/organization/components/members-section.tsx
+msgctxt "organization.hzby55"
+msgid "{count, number} people in this organization"
+msgstr "{count, number} people in this organization"
+
+#: src/features/organization/components/members-section.tsx
+msgctxt "organization.ESlZHv"
+msgid "Pending invitations"
+msgstr "Pending invitations"
+
+#: src/features/organization/components/members-section.tsx
+msgctxt "organization.z7B1G5"
+msgid "There is no mailer in this example: copy the link and send it yourself."
+msgstr "There is no mailer in this example: copy the link and send it yourself."
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.-_Neko"
+msgid "That URL is taken. Pick another one."
+msgstr "That URL is taken. Pick another one."
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.ABbHiq"
+msgid "Organization saved"
+msgstr "Organization saved"
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.bWjdfa"
+msgid "URL"
+msgstr "URL"
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.oReql8"
+msgid "Lowercase letters, numbers and dashes."
+msgstr "Lowercase letters, numbers and dashes."
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.jvo0vs"
+msgid "Save"
+msgstr "Save"
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.FvheCd"
+msgid "Only owners and admins can change the organization."
+msgstr "Only owners and admins can change the organization."
+
+#: src/features/organization/components/organization-general.tsx
+msgctxt "organization.1iEPTM"
+msgid "General"
+msgstr "General"
+
+#: src/features/organization/components/organization-general.tsx
+msgctxt "organization.vfSw6X"
+msgid "Managed by the organizations module."
+msgstr "Managed by the organizations module."
+
+#: src/features/organization/components/organization-general.tsx
+msgctxt "organization.x6K-Ry"
+msgid "Defaults"
+msgstr "Defaults"
+
+#: src/features/organization/components/organization-general.tsx
+msgctxt "organization._aWPNo"
+msgid "Owners transfer ownership before they can leave."
+msgstr "Owners transfer ownership before they can leave."
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.2G6Qs7"
+msgid "Settings saved"
+msgstr "Settings saved"
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.azMsfM"
+msgid "Monday"
+msgstr "Monday"
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.mJR06P"
+msgid "Sunday"
+msgstr "Sunday"
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.iEdIXH"
+msgid "Default role for invitations"
+msgstr "Default role for invitations"
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.ytO0XE"
+msgid "Week starts on"
+msgstr "Week starts on"
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.eRCBo1"
+msgid "Stored per organization by the settings module."
+msgstr "Stored per organization by the settings module."
+
+#: src/features/organization/components/organization-settings-form.tsx
+msgctxt "organization.muqizb"
+msgid "Save settings"
+msgstr "Save settings"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.qQ6ahH"
+msgid "Switched to {name}"
+msgstr "Switched to {name}"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.0lmKIf"
+msgid "Switch organization"
+msgstr "Switch organization"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.5VHXqC"
+msgid "No organization"
+msgstr "No organization"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.9ocI0I"
+msgid "Create one to start"
+msgstr "Create one to start"
+
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.JD2pwH"
+msgid "Organizations"
+msgstr "Organizations"
+
+#: src/features/organization/use-role-label.ts
+msgctxt "organization.zINlao"
+msgid "Owner"
+msgstr "Owner"
+
+#: src/features/organization/use-role-label.ts
+msgctxt "organization.iHN12u"
+msgid "Admin"
+msgstr "Admin"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.itPgxd"
+msgid "Profile"
+msgstr "Profile"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Py189G"
+msgid "Security"
+msgstr "Security"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.K56Dim"
+msgid "Organization"
+msgstr "Organization"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.-a-2ug"
+msgid "Members"
+msgstr "Members"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Tbo377"
+msgid "Billing"
+msgstr "Billing"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.yOFPA6"
+msgid "API keys"
+msgstr "API keys"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.ED9RG5"
+msgid "Audit log"
+msgstr "Audit log"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.wyxJrL"
+msgid "Delete account"
+msgstr "Delete account"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security._cYV6z"
+msgid "Removes your user and your notifications. Organizations you own stay."
+msgstr "Removes your user and your notifications. Organizations you own stay."
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.TcCxtt"
+msgid "Delete your account?"
+msgstr "Delete your account?"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.4Y9r1i"
+msgid "This can't be undone. You need a verified second factor in this session."
+msgstr "This can't be undone. You need a verified second factor in this session."
+
+#: src/features/user/components/delete-account-button.tsx
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.HmKCAW"
+msgid "Verify a second factor first, then try again."
+msgstr "Verify a second factor first, then try again."
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.K3r6DQ"
+msgid "Delete"
+msgstr "Delete"
+
+#: src/features/user/components/impersonation-banner.tsx
+msgctxt "user.GXJkeD"
+msgid "Support session"
+msgstr "Support session"
+
+#: src/features/user/components/impersonation-banner.tsx
+msgctxt "user.VAZP5L"
+msgid "Signed in by support ({id}): {reason}"
+msgstr "Signed in by support ({id}): {reason}"
+
+#: src/features/user/components/impersonation-banner.tsx
+msgctxt "user.7cuPOb"
+msgid "Signed in by support ({id})."
+msgstr "Signed in by support ({id})."
+
+#: src/features/user/components/permission-gate.tsx
+msgctxt "user.yO2v_w"
+msgid "You don't have access"
+msgstr "You don't have access"
+
+#: src/features/user/components/permission-gate.tsx
+msgctxt "user.53bplh"
+msgid "This needs the {permission} permission in this organization."
+msgstr "This needs the {permission} permission in this organization."
+
+#: src/features/user/components/profile-details.tsx
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.itPgxd"
+msgid "Profile"
+msgstr "Profile"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.Y0jjJp"
+msgid "How your teammates see you."
+msgstr "How your teammates see you."
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.PCSt5T"
+msgid "Preferences"
+msgstr "Preferences"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.qxg3uo"
+msgid "Access"
+msgstr "Access"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.JfBQtj"
+msgid "From the memberships claim in your access token, for the active organization."
+msgstr "From the memberships claim in your access token, for the active organization."
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.1ZgrhW"
+msgid "Role"
+msgstr "Role"
+
+#: src/features/user/components/profile-details.tsx
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.VQB58n"
+msgid "No role"
+msgstr "No role"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.SFuk1v"
+msgid "Permissions"
+msgstr "Permissions"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.A6OIRq"
+msgid "Token expires"
+msgstr "Token expires"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.5jeq8P"
+msgid "Unknown"
+msgstr "Unknown"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.CKdAvh"
+msgid "Profile saved"
+msgstr "Profile saved"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.yk4PT9"
+msgid "Full name"
+msgstr "Full name"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.sy-pv5"
+msgid "Email"
+msgstr "Email"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.-N-UI2"
+msgid "Your sign-in address. It comes from Supabase Auth."
+msgstr "Your sign-in address. It comes from Supabase Auth."
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.jvo0vs"
+msgid "Save"
+msgstr "Save"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.3vAb4l"
+msgid "That code didn't work. Try the next one."
+msgstr "That code didn't work. Try the next one."
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.OIYSz8"
+msgid "Two-factor authentication is on"
+msgstr "Two-factor authentication is on"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.vhpOyb"
+msgid "Two-factor authentication is off"
+msgstr "Two-factor authentication is off"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.Zmrie7"
+msgid "Two-factor authentication"
+msgstr "Two-factor authentication"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.P9ictx"
+msgid "An authenticator app code at sign-in. Needed to delete your account."
+msgstr "An authenticator app code at sign-in. Needed to delete your account."
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.Zh-5A6"
+msgid "On"
+msgstr "On"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.OvzONl"
+msgid "Off"
+msgstr "Off"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.MBwRvF"
+msgid "QR code for your authenticator app"
+msgstr "QR code for your authenticator app"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.a2WJGp"
+msgid "Code from the app"
+msgstr "Code from the app"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.Avaq8g"
+msgid "Or enter this key by hand: {secret}"
+msgstr "Or enter this key by hand: {secret}"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.q5Xl0M"
+msgid "Verify"
+msgstr "Verify"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.XZ-Fx6"
+msgid "Turn off"
+msgstr "Turn off"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.rrGMSx"
+msgid "Set up"
+msgstr "Set up"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.yuQ593"
+msgid "Account menu"
+msgstr "Account menu"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.Py189G"
+msgid "Security"
+msgstr "Security"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.Pe0ogR"
+msgid "Theme"
+msgstr "Theme"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.3cc4Ct"
+msgid "Light"
+msgstr "Light"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.tOdNiY"
+msgid "Dark"
+msgstr "Dark"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.-CwN9C"
+msgid "System"
+msgstr "System"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.y1Z3or"
+msgid "Language"
+msgstr "Language"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.xXbJso"
+msgid "Sign out"
+msgstr "Sign out"
+
+#: src/features/user/components/weekly-digest-switch.tsx
+msgctxt "user.kaIjsz"
+msgid "Weekly digest"
+msgstr "Weekly digest"
+
+#: src/features/user/components/weekly-digest-switch.tsx
+msgctxt "user.pY7RRr"
+msgid "A Monday summary of your customers. Saved by the settings module."
+msgstr "A Monday summary of your customers. Saved by the settings module."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.p0Vi70"
+msgid "Sign in again to continue."
+msgstr "Sign in again to continue."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.7GZhCN"
+msgid "You don't have permission to do that."
+msgstr "You don't have permission to do that."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.ZT3lBq"
+msgid "That item no longer exists."
+msgstr "That item no longer exists."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.JI3eca"
+msgid "That already exists."
+msgstr "That already exists."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.GhZx8v"
+msgid "Too many requests. Wait a moment and try again."
+msgstr "Too many requests. Wait a moment and try again."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.L-85Jk"
+msgid "Your plan's limit is reached. Upgrade to continue."
+msgstr "Your plan's limit is reached. Upgrade to continue."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.U8S-VX"
+msgid "Check the highlighted fields and try again."
+msgstr "Check the highlighted fields and try again."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.l4YmKm"
+msgid "Someone else changed this. Reload and try again."
+msgstr "Someone else changed this. Reload and try again."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.0Wy2tt"
+msgid "The server didn't answer. Try again."
+msgstr "The server didn't answer. Try again."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.3kJE8G"
+msgid "Something went wrong. Try again."
+msgstr "Something went wrong. Try again."

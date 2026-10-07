@@ -18,3 +18,22 @@ export async function getSession(): Promise<AuthSession<Claims, Profile>> {
   cacheLife({ stale: sessionStale(session) });
   return session;
 }
+
+export interface MyProfile {
+  readonly fullName: string | null;
+  readonly email: string | null;
+  readonly username: string | null;
+  readonly avatarUrl: string | null;
+}
+
+/**
+ * The caller's row in the profiles SQL module. `bs.invalidateSession` after
+ * a profile update drops this entry with the rest of the user's cache.
+ */
+export async function getMyProfile(): Promise<MyProfile | null> {
+  "use cache: private";
+  const { db, session } = await bs.cached();
+  if (session.kind !== "user") return null;
+  const rows = await db.$rpc("my_profile").orThrow();
+  return rows[0] ?? null;
+}

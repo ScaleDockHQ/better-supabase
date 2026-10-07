@@ -1,17 +1,22 @@
-import { SessionProvider } from "better-supabase/react";
-
+import { getEnabledFlags } from "@/features/flags/flag-queries";
+import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
+import { navItems } from "../nav-items";
 import { SideNav } from "./side-nav";
 
 /**
- * Render inside `<Suspense>`: the session promise is created here, behind
- * the boundary, and resolved by `useSession()` in the client menu.
+ * Render inside `<Suspense>`: picks the entries the session's permissions
+ * and the organization's flags allow, then hands plain ids to the client menu.
  */
-export function AppNav() {
-  return (
-    <SessionProvider sessionPromise={getSession()}>
-      <SideNav />
-    </SessionProvider>
-  );
+export async function AppNav() {
+  const [session, flags] = await Promise.all([getSession(), getEnabledFlags()]);
+  const visible = navItems
+    .filter(
+      (item) =>
+        (!item.requires || can(session, item.requires)) &&
+        (!item.flag || flags.some((flag) => flag === item.flag)),
+    )
+    .map((item) => item.id);
+  return <SideNav visible={visible} />;
 }

@@ -1,50 +1,50 @@
-import Image from "next/image";
+import { getExtracted } from "next-intl/server";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 import { getCustomers } from "../customer-queries";
-import { CreateCustomerForm } from "./create-customer-form";
-import { CustomerLogoForm } from "./customer-logo-form";
+import { CustomerTable } from "./customer-table";
 
+/** Render inside `<Suspense>`; the fallback is `CustomerListSkeleton`. */
 export async function CustomerList() {
-  const [session, page] = await Promise.all([getSession(), getCustomers()]);
+  const [session, page, t] = await Promise.all([
+    getSession(),
+    getCustomers(),
+    getExtracted("customers"),
+  ]);
   const writer = can(session, "customers.write");
   return (
-    <>
-      <p data-testid="status-facets">
-        {Object.entries(page.facetCounts.status)
-          .map(([status, count]) => `${count} ${status}`)
-          .join(" · ")}
-      </p>
-      <ul>
-        {page.items.map((customer) => (
-          <li key={customer.id}>
-            {customer.logoUrl ? (
-              <Image src={customer.logoUrl} width={24} height={24} alt="" />
-            ) : null}{" "}
-            {customer.name} <small>{customer.status}</small>{" "}
-            <small>
-              {customer._count.notes} notes
-              {customer._max.notes.createdAt
-                ? `, last ${customer._max.notes.createdAt.slice(0, 10)}`
-                : ""}
-            </small>
-            {writer ? <CustomerLogoForm customerId={customer.id} /> : null}
-          </li>
-        ))}
-      </ul>
-      {writer ? <CreateCustomerForm /> : <p>Only admins can add customers.</p>}
-    </>
+    <div className="space-y-4">
+      <CustomerTable
+        customers={page.items.map((customer) => ({
+          id: customer.id,
+          name: customer.name,
+          status: customer.status,
+          logoUrl: customer.logoUrl,
+          notes: customer._count.notes,
+          lastNoteAt: customer._max.notes.createdAt,
+        }))}
+        statusCounts={page.facetCounts.status}
+        canWrite={writer}
+      />
+      {writer ? null : (
+        <p className="text-muted-foreground text-sm">
+          {t("Only admins can add customers.")}
+        </p>
+      )}
+    </div>
   );
 }
 
 export function CustomerListSkeleton() {
   return (
-    <ul aria-busy="true">
-      {Array.from({ length: 3 }, (_, index) => (
-        <li key={index} className="skeleton" />
+    <div className="space-y-3" aria-busy="true">
+      <Skeleton className="h-9 w-full max-w-sm" />
+      {Array.from({ length: 5 }, (_, index) => (
+        <Skeleton key={index} className="h-12 w-full" />
       ))}
-    </ul>
+    </div>
   );
 }

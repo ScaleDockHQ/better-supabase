@@ -33,9 +33,37 @@ contracts.
 - Build `packages/better-supabase` first in a fresh worktree; the example
   imports its `dist`.
 - Before trusting a GREEN, show that the spec can go RED: remove the cache
-  scope the contract depends on (`'use cache: private'` in `getCustomers`)
-  and watch the rows disappear under the lock. No retries and no timeouts in
+  scope the contract depends on (replace `"use cache: private"` and
+  `bs.cached()` in `getCustomers` with `bs.context()`; `bs.cached()` alone
+  outside a cache scope throws) and watch the rows disappear under the lock. No retries and no timeouts in
   `instant()` specs.
+- Routes you left stay mounted in a hidden `<Activity>`, and a streamed
+  Suspense boundary sits in a hidden `<div>` for a moment, so the same test
+  id, label or text can match twice. Use the visible-only helpers in
+  `e2e/nav.ts`, and `useId()` for form ids instead of fixed strings.
+- Content that reads `params` can't be in the route's shared App Shell. A
+  link to such a page needs `prefetch` to resolve its cached reads before
+  the click (the customer rows in `customer-table.tsx`).
+- A database budget (`maxCalls`, `maxWaves`) fails on a navigation served
+  entirely from the client cache, because no response carries
+  `x-bs-request-id`. Budget only navigations that reach the server.
+
+## The example app
+
+- `protect` in `src/proxy.ts` runs on GET and HEAD only. Server Actions post
+  to the current URL, and a guest-only redirect on that POST breaks sign-in.
+- `refresh()` from a Server Action doesn't evict prefetched private App
+  Shells. After the session changes (sign-in, organization switch), call
+  `router.refresh()` on the client after `router.push`
+  (`use-refresh-session.ts`), and don't link to a page whose signed-out
+  prefetch is a redirect (the brand in the auth layout).
+- next-intl reads `.po` catalogs keyed by `msgctxt` only with the header
+  `X-Message-Key: msgctxt`; without it the keys are dropped and every message
+  is missing.
+- A shadcn `Button` with `render={<Link />}` gives the link `role="button"`.
+  Style the link with `buttonVariants()` instead.
+- `Math.random()` during render fails the prerender, including skeleton
+  widths; use a fixed list.
 
 ## Routes and env
 

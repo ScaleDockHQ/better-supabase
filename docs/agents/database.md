@@ -67,6 +67,18 @@ Read every generated grant. pg-delta writes the full privilege state, so a new
 table can come with grants to `anon` you didn't intend; `090_grants.sql` is
 where the fixture's grants live.
 
+When `pnpm supabase:sync` writes the same migration after every reset, look
+for an expression Postgres rewrites. `x between a and b` inside an `and`
+chain comes back from the catalog as `x >= a and x <= b`, so the diff never
+converges; write the comparisons out (`usernameCheck` in
+`src/sql/modules/profiles.ts`).
+
+The access contract in `045_access_contract.sql` must answer `can_user` for
+the configured `sql.modules.access.options.scope` (`organization` by
+default) as well as `tenant`. The invitations module rechecks the inviter
+with that scope, and a contract that answers only `tenant` rejects every
+acceptance as `INVITATION_INVITER_REVOKED`.
+
 ## Checking that nothing changed
 
 A pg-delta export compares grants, comments and triggers as well as tables:
