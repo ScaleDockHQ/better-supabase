@@ -495,6 +495,25 @@ export const bs = createServer(betterSupabase, {
 });
 ```
 
+Under `createNext`, `bs.context()`, `bs.session()` and `bs.cached()` take
+no request: they read the incoming headers, and the resolver gets a request
+whose URL is always `http://next.local/`. Read a header there instead,
+for example one your proxy sets from the path:
+
+```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createNext } from "better-supabase/next";
+
+import { betterSupabase } from "./index";
+
+export const bs = createNext(betterSupabase, {
+  tenant: (request) => request.headers.get("x-organization-slug") ?? undefined,
+});
+```
+
+`bs.route()` and `bs.context(request)` pass the real request, so the URL
+works there.
+
 A route that already knows the tenant passes it directly:
 `bs.context(request, { tenant })`. `contextFromResolution` runs only
 synchronous resolvers; pass `{ tenant }` to it when yours is async.
