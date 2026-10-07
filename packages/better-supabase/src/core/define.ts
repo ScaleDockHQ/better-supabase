@@ -26,7 +26,12 @@ import {
   type ErrorMapper,
   dbError,
 } from "./errors.ts";
-import { type EventHandler, EventHub, type EventName } from "./events.ts";
+import {
+  errorEvent,
+  type EventHandler,
+  EventHub,
+  type EventName,
+} from "./events.ts";
 import {
   type AnyPlugin,
   type ExtensionOf,
@@ -590,7 +595,7 @@ export class BetterSupabase<
         relations: {},
         flags: {},
       };
-      const scored = await executor.execute(
+      const scored = await runner.runInternal(
         {
           kind: "select",
           table: scoresTable,
@@ -608,9 +613,10 @@ export class BetterSupabase<
             args: fnArgs,
           },
         },
-        { errorMappers, ...(args.signal ? { signal: args.signal } : {}) },
+        table,
+        args.signal,
       );
-      if (!scored.ok) return err(hint({ ...scored.error, table: table.key }));
+      if (!scored.ok) return err(hint(scored.error));
       const ranked = scored.data.rows.flatMap((row) =>
         row["score"] === undefined || row["score"] === null
           ? []
@@ -656,8 +662,8 @@ export class BetterSupabase<
       $executor: executor,
       $context: context,
       $rpc: (name: string, ...rest: unknown[]) =>
-        rpc(this.schema.meta, executor, errorMappers, tuning, name, rest).map(
-          (data) => {
+        rpc(this.schema.meta, executor, errorMappers, tuning, name, rest)
+          .map((data) => {
             const registered = this.options.rpc?.[name];
             if (registered) {
               this.events.emit("rpc", {
@@ -667,8 +673,11 @@ export class BetterSupabase<
               });
             }
             return data;
-          },
-        ),
+          })
+          .mapError((error) => {
+            if (events.has("error")) events.emit("error", errorEvent(error));
+            return error;
+          }),
       $with: (extra: RequestContext) =>
         this.#db(
           client,

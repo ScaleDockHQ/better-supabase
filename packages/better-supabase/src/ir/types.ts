@@ -72,6 +72,11 @@ export interface OrderTerm {
   readonly column: string;
   readonly direction: "asc" | "desc";
   readonly nulls?: "first" | "last";
+  /**
+   * Added by the repository (the primary key order of `findMany`), not asked
+   * for by the caller, so a split read may sort it approximately.
+   */
+  readonly implicit?: true;
   /** Sort by `column` of this to-one relation's row (only on the root table). */
   readonly relation?: {
     readonly name: string;
