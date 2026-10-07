@@ -1,5 +1,5 @@
 -- better-supabase module: comments (0.5.1)
--- @bs-module comments@2 managed
+-- @bs-module comments@3 managed
 -- Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -50,18 +50,17 @@ $$;
 
 drop policy if exists "comments_read" on "better_supabase"."comments";
 create policy "comments_read" on "better_supabase"."comments" for select to authenticated
-  using (coalesce(better_supabase.can('tenant', "organization_id", 'comments.read'), false) and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id"));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('comments.read')));
 drop policy if exists "comments_insert" on "better_supabase"."comments";
 create policy "comments_insert" on "better_supabase"."comments" for insert to authenticated
   with check (
     "author_id" = (select auth.uid())
     and coalesce(better_supabase.can('tenant', "organization_id", 'comments.create'), false)
-    and "better_supabase"."comment_subject_readable"("subject_type", "subject_id", "organization_id")
   );
 drop policy if exists "comments_update" on "better_supabase"."comments";
 create policy "comments_update" on "better_supabase"."comments" for update to authenticated
-  using ("author_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', "organization_id", 'comments.moderate'), false))
-  with check ("author_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', "organization_id", 'comments.moderate'), false));
+  using ("author_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('comments.moderate')))
+  with check ("author_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('comments.moderate')));
 
 -- Keeps mentions to distinct members other than the author, a reply on its
 -- parent's subject, and edited_at; a deleted comment keeps no body.
@@ -107,42 +106,9 @@ create trigger "bs_comments_before_write"
   before insert or update on "better_supabase"."comments"
   for each row execute function "better_supabase"."comments_before_write"();
 
--- Notifies newly mentioned members who can read comments in the tenant,
--- and writes comment.created, comment.mentioned and comment.deleted to the
--- outbox when it is installed.
-create or replace function "better_supabase"."comments_after_write"()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_new uuid[];
-  v_claims text;
-begin
-  if tg_op = 'UPDATE' and new."deleted_at" is not null then
-    null;
-    return null;
-  end if;
-  v_new := array(
-    select x from unnest(new."mentions") x
-    where (tg_op = 'INSERT' or not x = any(old."mentions"))
-      and coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'comments.read'), false)
-  );
-  if tg_op = 'INSERT' then
-    null;
-  end if;
-  if cardinality(v_new) > 0 then
-    null;
-  end if;
-  return null;
-end;
-$$;
-revoke execute on function "better_supabase"."comments_after_write"() from public, anon, authenticated;
+-- Without notifications or the outbox there is nothing to send after a write.
 drop trigger if exists "bs_comments_after_write" on "better_supabase"."comments";
-create trigger "bs_comments_after_write"
-  after insert or update of "mentions", "deleted_at" on "better_supabase"."comments"
-  for each row execute function "better_supabase"."comments_after_write"();
+drop function if exists "better_supabase"."comments_after_write"();
 
 -- The functions run as the caller, so the policies above decide.
 drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid);
@@ -314,7 +280,7 @@ grant select on "better_supabase"."activity_entries" to authenticated;
 grant all on "better_supabase"."activity_entries" to service_role;
 drop policy if exists "activity_entries_read" on "better_supabase"."activity_entries";
 create policy "activity_entries_read" on "better_supabase"."activity_entries" for select to authenticated
-  using (coalesce(better_supabase.can('tenant', "organization_id", 'activity.read'), false));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read')));
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen

@@ -1,5 +1,5 @@
 -- better-supabase module: api-keys (0.5.1)
--- @bs-module api-keys@1 managed
+-- @bs-module api-keys@2 managed
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,6 +29,9 @@ create table if not exists "better_supabase"."api_keys" (
   "created_at" timestamptz not null default now(),
   check ("organization_id" is not null or "user_id" is not null)
 );
+-- verify_api_key updates the counters on every request; free space on each
+-- page keeps those updates HOT (no index writes).
+alter table "better_supabase"."api_keys" set (fillfactor = 80);
 create index if not exists api_keys_tenant_idx on "better_supabase"."api_keys" ("organization_id");
 create index if not exists api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
 create index if not exists api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
@@ -102,12 +105,15 @@ $$;
 -- A tenant's keys for its managers, or the caller's own keys.
 create or replace function "better_supabase"."list_api_keys"(tenant uuid default null)
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
+begin
+  -- One plain filter per branch, so each reads through the tenant or user index.
+  if list_api_keys.tenant is null then
+    return (select coalesce(jsonb_agg(jsonb_build_object(
     'id', k."id",
     'organization_id', k."organization_id",
     'user_id', k."user_id",
@@ -123,12 +129,45 @@ as $$
     'created_by', k."created_by",
     'created_at', k."created_at"
   ) order by k."created_at" desc), '[]'::jsonb)
-  from "better_supabase"."api_keys" k
-  where case
-    when list_api_keys.tenant is null then k."user_id" = auth.uid()
-    when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_api_keys.tenant, 'api_keys.manage'), false) then k."organization_id" = list_api_keys.tenant
-    else k."organization_id" = list_api_keys.tenant and k."user_id" = auth.uid()
-  end
+      from "better_supabase"."api_keys" k where k."user_id" = auth.uid());
+  end if;
+  if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_api_keys.tenant, 'api_keys.manage'), false) then
+    return (select coalesce(jsonb_agg(jsonb_build_object(
+    'id', k."id",
+    'organization_id', k."organization_id",
+    'user_id', k."user_id",
+    'name', k."name",
+    'prefix', k."prefix",
+    'public_id', k."public_id",
+    'scopes', to_jsonb(k."scopes"),
+    'rate_limit', k."rate_limit",
+    'expires_at', k."expires_at",
+    'last_used_at', k."last_used_at",
+    'revoked_at', k."revoked_at",
+    'rotated_from', k."rotated_from",
+    'created_by', k."created_by",
+    'created_at', k."created_at"
+  ) order by k."created_at" desc), '[]'::jsonb)
+      from "better_supabase"."api_keys" k where k."organization_id" = list_api_keys.tenant);
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object(
+    'id', k."id",
+    'organization_id', k."organization_id",
+    'user_id', k."user_id",
+    'name', k."name",
+    'prefix', k."prefix",
+    'public_id', k."public_id",
+    'scopes', to_jsonb(k."scopes"),
+    'rate_limit', k."rate_limit",
+    'expires_at', k."expires_at",
+    'last_used_at', k."last_used_at",
+    'revoked_at', k."revoked_at",
+    'rotated_from', k."rotated_from",
+    'created_by', k."created_by",
+    'created_at', k."created_at"
+  ) order by k."created_at" desc), '[]'::jsonb)
+    from "better_supabase"."api_keys" k where k."organization_id" = list_api_keys.tenant and k."user_id" = auth.uid());
+end;
 $$;
 
 create or replace function "better_supabase"."revoke_api_key"(key uuid)
@@ -173,6 +212,9 @@ begin
   end if;
   if old."revoked_at" is not null and old."revoked_at" <= now() then
     raise exception 'A revoked API key cannot be rotated' using errcode = '22023', hint = 'API_KEY_REVOKED';
+  end if;
+  if old."expires_at" is not null and old."expires_at" <= now() then
+    raise exception 'An expired API key cannot be rotated' using errcode = '22023', hint = 'API_KEY_EXPIRED';
   end if;
   if grace is null or grace < interval '0' then
     raise exception 'grace must be zero or more' using errcode = '22023', hint = 'API_KEY_GRACE';
@@ -227,9 +269,11 @@ begin
     return jsonb_build_object('status', 'invalid');
   end if;
   if found."rate_limit" is not null then
+    -- One update counts the hit and, for an allowed request, touches last_used_at.
     update "better_supabase"."api_keys" k set
-      "window_start" = case when k."window_start" is null or k."window_start" + interval '1 minute' <= now() then now() else k."window_start" end,
-      "window_hits" = case when k."window_start" is null or k."window_start" + interval '1 minute' <= now() then 1 else k."window_hits" + 1 end
+      "window_start" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then now() else k."window_start" end,
+      "window_hits" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
+      "last_used_at" = case when case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end <= k."rate_limit" and (k."last_used_at" is null or k."last_used_at" + interval '60 seconds' <= now()) then now() else k."last_used_at" end
     where k."id" = found."id"
     returning k."window_start", k."window_hits" into started, hits;
     if hits > found."rate_limit" then
@@ -238,8 +282,7 @@ begin
         'retry_after', greatest(1, ceil(extract(epoch from started + interval '1 minute' - now()))::integer)
       );
     end if;
-  end if;
-  if found."last_used_at" is null or found."last_used_at" + interval '60 seconds' <= now() then
+  elsif (found."last_used_at" is null or found."last_used_at" + interval '60 seconds' <= now()) then
     update "better_supabase"."api_keys" k set "last_used_at" = now() where k."id" = found."id";
   end if;
   return jsonb_build_object('status', 'ok', 'key', jsonb_build_object(
@@ -262,8 +305,9 @@ end;
 $$;
 
 -- For policies: whether the request's API key carries scope. Requests
--- without an API key (a signed-in user) are not limited by scopes.
---   using (organization_id = better_supabase.api_key_tenant() and better_supabase.has_scope('deals:read'))
+-- without an API key (a signed-in user) are not limited by scopes. Wrap the
+-- calls in (select ...) so they run once per statement, not once per row:
+--   using (organization_id = (select better_supabase.api_key_tenant()) and (select better_supabase.has_scope('deals:read')))
 create or replace function "better_supabase"."has_scope"(scope text)
 returns boolean
 language sql

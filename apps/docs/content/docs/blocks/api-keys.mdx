@@ -150,8 +150,9 @@ export default {
 
 A personal key runs as its user, so existing policies apply. Add
 `has_scope()` where a policy should also respect the key's scopes; it is
-`true` for requests without a key. A tenant key has no user, so give it its
-own policy:
+`true` for requests without a key. Wrap both functions in `(select ...)`, as
+below, so Postgres calls them once per statement instead of once per row. A
+tenant key has no user, so give it its own policy:
 
 ```sql
 create policy deals_read_with_key on public.deals for select to authenticated

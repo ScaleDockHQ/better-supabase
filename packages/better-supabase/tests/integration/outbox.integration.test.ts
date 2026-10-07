@@ -169,6 +169,7 @@ describe.skipIf(!live)("outbox", () => {
       `insert into ${SCHEMA}.widgets values (1, 'acme', 'Bolt')`,
     );
     await pool.query(`update ${SCHEMA}.widgets set name = 'Nut' where id = 1`);
+    await pool.query(`update ${SCHEMA}.widgets set name = 'Nut' where id = 1`);
     const history = await outbox.history({ subject: "widgets/1" });
     expect(history.data?.map((event) => event.type)).toEqual([
       "widget.created",

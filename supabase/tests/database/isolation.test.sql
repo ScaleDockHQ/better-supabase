@@ -5,7 +5,8 @@
 begin;
 select plan(22);
 
--- The insert broadcasts on the tenant's topic through the realtime-tables trigger.
+-- The insert broadcasts on the recipient's topic through the realtime-tables
+-- trigger (realtime.users maps notifications to user_id).
 insert into public.notifications (organization_id, user_id, title)
 values ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', 'For the member');
 insert into storage.objects (bucket_id, name)
@@ -18,12 +19,12 @@ select set_config(
   true
 );
 set local role authenticated;
-set local realtime.topic = 'bs:t:public.notifications:00000000-0000-4000-8000-000000000001';
+set local realtime.topic = 'bs:t:public.notifications:u:00000000-0000-4000-8000-0000000000a2';
 
 select is(
-  (select count(*)::int from realtime.messages where topic = 'bs:t:public.notifications:00000000-0000-4000-8000-000000000001'),
+  (select count(*)::int from realtime.messages where topic = 'bs:t:public.notifications:u:00000000-0000-4000-8000-0000000000a2'),
   1,
-  'a member receives their tenant''s topic'
+  'a member receives their own notification topic'
 );
 select is(
   (select count(*)::int from storage.objects where bucket_id = 'customer-logos'),
@@ -46,9 +47,9 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (select count(*)::int from realtime.messages where topic = 'bs:t:public.notifications:00000000-0000-4000-8000-000000000001'),
+  (select count(*)::int from realtime.messages where topic = 'bs:t:public.notifications:u:00000000-0000-4000-8000-0000000000a2'),
   0,
-  'another tenant''s member does not receive the topic'
+  'another user does not receive the member''s topic'
 );
 
 select is_empty(

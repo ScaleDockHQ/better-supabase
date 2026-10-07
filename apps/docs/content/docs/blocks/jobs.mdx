@@ -490,8 +490,9 @@ await inbox.process(async (message) => {
 
 `secrets` verifies [Standard Webhooks](/docs/standards) signatures. Pass
 `verify` to use a provider's own scheme instead. `receive` answers `202` for
-a new message and `200` for a duplicate. A failed verification gets a
-Problem Details response.
+a new message and `200` for a duplicate. A message id is unique per source
+and tenant, so two tenants of one provider can send the same id. A failed
+verification gets a Problem Details response.
 
 A failed message is retried with exponential backoff until `maxAttempts`
 (8 by default, set per source on `createInbox`), then marked dead. Each
