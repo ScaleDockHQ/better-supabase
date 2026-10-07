@@ -81,6 +81,9 @@ Any source works: a column on your subscriptions table, or a fixed anchor
 day. Counters are kept per UTC day, so a window counts the whole days from
 `starts_at` up to the day of `ends_at`. Without the function, or when it
 returns no row, a `billing` quota falls back to the calendar month.
+The function only returns the current window, so a day reported after its
+period ended (an overage report that ran late, say) counts in the period that
+held it, taking earlier periods to be as long as the current one.
 `usage_status` and `current` return `startsAt` and `resetsAt` for the window,
 and `retryAfter` counts down to its end.
 

@@ -494,6 +494,61 @@ describe.skipIf(!live)("usage", () => {
     }
   });
 
+  it("counts a day of the previous billing period within that period's window", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.rows(
+        `create or replace function public.usage_billing_period(tenant uuid)
+         returns table (starts_at timestamptz, ends_at timestamptz)
+         language sql stable as $$
+           select (((now() at time zone 'utc')::date - 2)::timestamp at time zone 'utc'),
+             (((now() at time zone 'utc')::date - 2)::timestamp at time zone 'utc') + interval '1 month'
+         $$;`,
+      );
+      await s.install(["organizations", "usage"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.usage_quotas (plan, meter, "limit", period)
+         values ('*', 'seats.hours', 1000, 'billing')`,
+      );
+      await s.rows(
+        `insert into better_supabase.usage_counters (organization_id, meter, day, value)
+         values ($1, 'seats.hours', (now() at time zone 'utc')::date - 40, 900),
+                ($1, 'seats.hours', (now() at time zone 'utc')::date - 10, 700),
+                ($1, 'seats.hours', (now() at time zone 'utc')::date - 3, 400),
+                ($1, 'seats.hours', (now() at time zone 'utc')::date - 2, 100),
+                ($1, 'seats.hours', (now() at time zone 'utc')::date - 1, 50)`,
+        [organization],
+      );
+      const rows = await s.value<Record<string, unknown>[]>(
+        "better_supabase.unreported_usage(1000)",
+      );
+      const before = Object.fromEntries(
+        rows
+          .filter(
+            (row) =>
+              row["organization_id"] === organization &&
+              row["meter"] === "seats.hours",
+          )
+          .map((row) => [Number(row["value"]), Number(row["window_before"])]),
+      );
+      expect(before).toEqual({
+        // The previous period started a month before the current one.
+        400: 700,
+        700: 0,
+        // The current period started two days ago.
+        100: 0,
+        50: 100,
+        // The period before the previous one.
+        900: 0,
+      });
+    } finally {
+      await s.close();
+    }
+  });
+
   it("resets billing quotas with the app's period and refuses meters outside the catalog", async () => {
     const s = await BlockSession.open(pool);
     try {
