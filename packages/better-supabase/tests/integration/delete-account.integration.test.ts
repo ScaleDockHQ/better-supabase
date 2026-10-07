@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { MutationNotice } from "../../src/core/events.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
+import { createPostgres } from "../../src/postgres/pool.ts";
 import { createServer } from "../../src/server/server.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -127,6 +128,55 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
     expect(!result.ok && result.error.hint).toContain("BS406");
     const { data } = await service.auth.admin.getUserById(userId);
     expect(data.user?.id).toBe(userId);
+  });
+
+  it("keeps the objects and returns the database's hint when a check refuses the delete", async () => {
+    const guard = `bs_del_guard_${RUN}`;
+    const postgres = createPostgres({ connectionString: dbUrl, max: 1 });
+    const withPostgres = createServer(betterSupabase, {
+      env: {
+        url,
+        publishableKey,
+        secretKey,
+        jwksUrl: new URL("/auth/v1/.well-known/jwks.json", url),
+      },
+      postgres,
+    });
+    try {
+      await pool.query(`
+        create table public.${guard} (user_id uuid references auth.users (id) on delete cascade);
+        insert into public.${guard} values ('${userId}');
+        create function public.${guard}() returns trigger language plpgsql as $$
+        begin
+          raise exception 'An organization needs an owner' using errcode = '23514', hint = 'ORGANIZATION_OWNER_REQUIRED';
+        end;
+        $$;
+        create constraint trigger ${guard} after delete on public.${guard}
+          deferrable initially deferred for each row execute function public.${guard}();
+        alter table public.${table} drop constraint ${table}_user_id_fkey,
+          add foreign key (user_id) references auth.users (id) on delete cascade;
+      `);
+      const result = await withPostgres.deleteAccount(userId, {
+        buckets: [documents],
+      });
+      expect(result).toMatchObject({
+        ok: false,
+        error: { hint: "ORGANIZATION_OWNER_REQUIRED", table: "auth.users" },
+      });
+      expect(
+        await documents.connect(service).list({ userId }).orThrow(),
+      ).toHaveLength(2);
+      const { data } = await service.auth.admin.getUserById(userId);
+      expect(data.user?.id).toBe(userId);
+    } finally {
+      await pool.query(`
+        drop table if exists public.${guard};
+        drop function if exists public.${guard}();
+        alter table public.${table} drop constraint if exists ${table}_user_id_fkey,
+          add foreign key (user_id) references auth.users (id);
+      `);
+      await postgres.end();
+    }
   });
 
   it("removes the user’s objects, the user and their cascaded rows", async () => {

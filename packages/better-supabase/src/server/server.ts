@@ -272,9 +272,10 @@ export interface BetterServer<
   /** Service-role repositories. Bypasses RLS; the actor is `service`. */
   admin(context?: RequestContext): Db<M, F, E, SupabaseClient>;
   /**
-   * Deletes a user: their objects in `buckets`, then the Auth user, then a
-   * `mutation` notice for `auth.users`. Needs the secret key. Access tokens
-   * already issued stay valid until they expire.
+   * Deletes a user: the Auth user, then their objects in `buckets`, then a
+   * `mutation` notice for `auth.users`. Needs the secret key. With
+   * `postgres`, a delete the database refuses returns its own error and
+   * hint. Access tokens already issued stay valid until they expire.
    */
   deleteAccount(
     userId: string,
@@ -956,7 +957,10 @@ export function createServer<
     },
     support,
     deleteAccount: (userId, deleteOptions) =>
-      deleteAccount(betterSupabase, serviceClient, userId, deleteOptions),
+      deleteAccount(betterSupabase, serviceClient, userId, {
+        ...(options.postgres ? { sql: options.postgres.admin } : {}),
+        ...deleteOptions,
+      }),
     actingAs: (userId, claims = {}, impersonation) => {
       const full: SqlClaims = {
         role: "authenticated",
