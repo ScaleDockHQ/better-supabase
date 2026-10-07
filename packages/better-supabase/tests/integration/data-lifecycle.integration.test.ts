@@ -195,6 +195,82 @@ describe.skipIf(!live)("data lifecycle", () => {
     }
   });
 
+  it("exports incoming webhooks without secrets and purges them with the tenant", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "webhooks-in", "data-lifecycle"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      await s.as(owner);
+      const created = await s.value<{
+        id: string;
+        secret: string;
+        token: string;
+      }>(
+        "better_supabase.create_incoming_webhook($1, 'Form', 'standard-webhooks')",
+        [organization],
+      );
+      await s.value(
+        "better_supabase.rotate_incoming_webhook_secret($1, interval '1 hour')",
+        [created.id],
+      );
+      const vaultCount = () =>
+        s.value<number>(
+          "(select count(*)::int from vault.secrets where name like 'webhook-in:' || $1 || ':%')",
+          [created.id],
+        );
+      expect(await vaultCount()).toBe(2);
+      const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
+      const requested = await lifecycle
+        .requestExport({ organizationId: organization })
+        .orThrow();
+
+      await s.service();
+      const memory = memoryStorage();
+      const ready = await createDataExporter({
+        transport: sqlTransport(s.sql),
+        storage: memory.storage,
+      })
+        .run(requested.id)
+        .orThrow();
+      const path = `${requested.id}/better_supabase.incoming_webhooks.ndjson`;
+      expect(ready.files).toContain(path);
+      const [row] = memory.files
+        .get(path)!
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+      expect(row).toMatchObject({
+        id: created.id,
+        name: "Form",
+        tenant: organization,
+      });
+      for (const column of [
+        "token_hash",
+        "secret",
+        "secret_id",
+        "previous_secret",
+        "previous_secret_id",
+      ]) {
+        expect(row).not.toHaveProperty(column);
+      }
+      expect(memory.files.get(path)).not.toContain(created.secret);
+
+      await s.rows(
+        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        [organization],
+      );
+      const purged = await s.value<{ deleted: Record<string, number> }>(
+        "better_supabase.purge_organization($1)",
+        [organization],
+      );
+      expect(purged.deleted["better_supabase.incoming_webhooks"]).toBe(1);
+      expect(await vaultCount()).toBe(0);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("purges expired exports' files and rows", async () => {
     const s = await BlockSession.open(pool);
     try {

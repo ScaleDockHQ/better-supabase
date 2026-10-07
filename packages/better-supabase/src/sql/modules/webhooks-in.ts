@@ -50,6 +50,12 @@ const newSecret = (mode: string): string => `case ${mode}
   end`;
 
 function webhooksInSql(ctx: ModuleContext): string {
+  const renamed = Object.keys(ctx.config.columns["endpoints"] ?? {});
+  if (renamed.length > 0) {
+    throw new TypeError(
+      `sql.modules.webhooks-in.columns.endpoints: the module owns its table, so ${renamed.join(", ")} can't be renamed`,
+    );
+  }
   const id = ctx.idType;
   const t = ctx.table("endpoints");
   const p = MODULE_PERMISSIONS["webhooks-in"];
@@ -495,7 +501,27 @@ export const WEBHOOKS_IN: ModuleDefinition = {
   target: "schema",
   names: {
     tables: {
-      endpoints: { name: "incoming_webhooks", columns: {} },
+      endpoints: {
+        name: "incoming_webhooks",
+        columns: {
+          tenant: "tenant",
+          tokenHash: "token_hash",
+          secret: "secret",
+          secretId: "secret_id",
+          previousSecret: "previous_secret",
+          previousSecretId: "previous_secret_id",
+        },
+        lifecycle: {
+          tenant: "tenant",
+          omit: [
+            "tokenHash",
+            "secret",
+            "secretId",
+            "previousSecret",
+            "previousSecretId",
+          ],
+        },
+      },
     },
     options: ["maxBodyBytes", "secretStorage", "subjects"],
   },

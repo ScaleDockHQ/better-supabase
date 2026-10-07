@@ -46,7 +46,7 @@ describe("data-lifecycle module", () => {
   it("lists the tables of installed modules and creates the exports bucket", () => {
     const sql = sqlOf(["data-lifecycle"]);
     expect(sql).toContain(
-      `('user', 'better_supabase.memberships', '"better_supabase"."memberships"', 'user_id', true)`,
+      `('user', 'better_supabase.memberships', '"better_supabase"."memberships"', 'user_id', true, '{}'::text[])`,
     );
     expect(sql).not.toContain("better_supabase.profiles");
     expect(sql).toContain("values ('data-exports', 'data-exports', false)");
@@ -93,16 +93,16 @@ describe("data-lifecycle module", () => {
       expect(sql).toContain(`'${table}'`);
     }
     expect(sql).toMatch(
-      /\('organization', '[a-z_]+\.audit_events', .*, false\)/,
+      /\('organization', '[a-z_]+\.audit_events', .*, false, '\{\}'::text\[\]\)/,
     );
     expect(sql).toContain(
-      `('organization', 'public.projects', '"public"."projects"', 'organization_id', true)`,
+      `('organization', 'public.projects', '"public"."projects"', 'organization_id', true, '{}'::text[])`,
     );
     expect(sql).toContain(
-      `('user', 'public.projects', '"public"."projects"', 'owner_id', true)`,
+      `('user', 'public.projects', '"public"."projects"', 'owner_id', true, '{}'::text[])`,
     );
     expect(sql).toContain(
-      `('user', 'app.notes', '"app"."notes"', 'author_id', false)`,
+      `('user', 'app.notes', '"app"."notes"', 'author_id', false, '{}'::text[])`,
     );
     expect(sql).toContain("values ('exports', 'exports', false)");
     expect(sql).toContain("'14 days'::interval");
@@ -124,11 +124,11 @@ describe("data-lifecycle module", () => {
       "data-lifecycle",
     ]);
     for (const row of [
-      `('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'organization_id', true)`,
-      `('user', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'actor_id', true)`,
-      `('organization', 'better_supabase.organization_sso_providers', '"better_supabase"."organization_sso_providers"', 'organization_id', true)`,
-      `('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true)`,
-      `('user', 'better_supabase.notification_preferences', '"better_supabase"."notification_preferences"', 'user_id', true)`,
+      `('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'organization_id', true, '{}'::text[])`,
+      `('user', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'actor_id', true, '{}'::text[])`,
+      `('organization', 'better_supabase.organization_sso_providers', '"better_supabase"."organization_sso_providers"', 'organization_id', true, '{}'::text[])`,
+      `('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true, '{}'::text[])`,
+      `('user', 'better_supabase.notification_preferences', '"better_supabase"."notification_preferences"', 'user_id', true, '{}'::text[])`,
     ]) {
       expect(sql).toContain(row);
     }
@@ -285,5 +285,33 @@ describe("data-lifecycle module", () => {
     expect(fails([{ ...rule, set: { email: Number.NaN } }])).toThrow(
       /set\.email/,
     );
+  });
+
+  it("exports and purges incoming webhooks without their secrets", () => {
+    const sql = sqlOf(["data-lifecycle", "webhooks-in"], {
+      tables: { "app.keys": { tenant: "organization_id", omit: ["hash"] } },
+    });
+    expect(sql).toContain(
+      `('organization', 'better_supabase.incoming_webhooks', '"better_supabase"."incoming_webhooks"', 'tenant', true, array['token_hash', 'secret', 'secret_id', 'previous_secret', 'previous_secret_id']::text[])`,
+    );
+    expect(sql).toContain(
+      `('organization', 'app.keys', '"app"."keys"', 'organization_id', true, array['hash']::text[])`,
+    );
+    expect(sql).toContain(
+      "jsonb_agg((to_jsonb(p.*) - ''_ctid'') - $4::text[] order by p._ctid)",
+    );
+    expect(sql).toContain("coalesce(v_table.omit, '{}')");
+    expect(() =>
+      sqlOf(["data-lifecycle"], {
+        tables: { "app.keys": { tenant: "organization_id", omit: ["Bad"] } },
+      }),
+    ).toThrow(/omit must be a list/);
+    expect(() =>
+      renderModules(["webhooks-in"], {
+        modules: {
+          "webhooks-in": { columns: { endpoints: { tenant: "org_id" } } },
+        },
+      }),
+    ).toThrow(/can't be renamed/);
   });
 });

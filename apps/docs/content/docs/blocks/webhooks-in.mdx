@@ -194,6 +194,14 @@ or, on an `hmac-sha256` endpoint, one with a signature seen before. The id
 header isn't signed there, so a replayed body is stored once whatever id it
 carries. Every answer after the lookup is counted on the endpoint.
 
+### Tenant exports and purges
+
+With the [`data-lifecycle` module](/docs/blocks/data-lifecycle) installed,
+a tenant's endpoints are in its organization export, without `token_hash`,
+the secrets and their Vault ids, and the purge deletes them together with
+their Vault secrets. The endpoint table's columns can't be renamed in
+`sql.modules.webhooks-in.columns`.
+
 ### Upgrading from version 1
 
 Version 2 of the module moves signing secrets to Vault. `better-supabase sql
