@@ -28,6 +28,7 @@ export function platformLists(
     raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;`;
   return `
+drop function if exists ${fn("billing_platform_subscriptions")}();
 create or replace function ${fn("billing_platform_subscriptions")}()
 returns table (
   tenant ${id},
@@ -39,6 +40,8 @@ returns table (
   quantity bigint,
   amount bigint,
   currency text,
+  recurring_interval text,
+  current_period_start timestamptz,
   current_period_end timestamptz,
   cancel_at_period_end boolean,
   created timestamptz
@@ -62,7 +65,8 @@ begin
   end if;
   return query execute format($q$
     select r.tenant, r.customer, r.subscription, r.status, r.price, ${plan}, r.quantity,
-      r.unit_amount * coalesce(r.quantity, 1), r.currency, r.current_period_end, r.cancel_at_period_end, r.created
+      r.unit_amount * coalesce(r.quantity, 1), r.currency, r.recurring_interval, r.current_period_start,
+      r.current_period_end, r.cancel_at_period_end, r.created
     from (
       select distinct on (b.${c("tenant")}) b.${c("tenant")} as tenant, b.${c("customer")}::text as customer,
         s.id::text as subscription, x.row ->> 'status' as status,
@@ -70,6 +74,8 @@ begin
         (it.item ->> 'quantity')::bigint as quantity,
         coalesce((pr.price_row ->> 'unit_amount')::bigint, (it.item -> 'price' ->> 'unit_amount')::bigint) as unit_amount,
         coalesce(pr.price_row ->> 'currency', it.item -> 'price' ->> 'currency', x.row ->> 'currency') as currency,
+        coalesce(pr.price_row -> 'recurring' ->> 'interval', it.item -> 'price' -> 'recurring' ->> 'interval') as recurring_interval,
+        coalesce(${instant("x.row -> 'current_period_start'")}, ${instant("it.item -> 'current_period_start'")}) as current_period_start,
         coalesce(${instant("x.row -> 'current_period_end'")}, ${instant("it.item -> 'current_period_end'")}) as current_period_end,
         coalesce((x.row ->> 'cancel_at_period_end')::boolean, false) as cancel_at_period_end,
         ${instant("x.row -> 'created'")} as created
@@ -84,6 +90,7 @@ begin
 end;
 $$;
 
+drop function if exists ${fn("billing_platform_invoices")}();
 create or replace function ${fn("billing_platform_invoices")}()
 returns table (
   tenant ${id},
@@ -94,9 +101,14 @@ returns table (
   status text,
   amount_due bigint,
   amount_paid bigint,
+  amount_remaining bigint,
   total bigint,
   currency text,
   due_date timestamptz,
+  paid_at timestamptz,
+  hosted_invoice_url text,
+  invoice_pdf text,
+  customer_email text,
   created timestamptz
 )
 language plpgsql
@@ -113,9 +125,12 @@ begin
     select b.${c("tenant")}, b.${c("customer")}::text, v.id::text,
       coalesce(x.row -> 'subscription' ->> 'id', x.row ->> 'subscription'),
       x.row ->> 'number', x.row ->> 'status',
-      (x.row ->> 'amount_due')::bigint, (x.row ->> 'amount_paid')::bigint, (x.row ->> 'total')::bigint,
+      (x.row ->> 'amount_due')::bigint, (x.row ->> 'amount_paid')::bigint,
+      (x.row ->> 'amount_remaining')::bigint, (x.row ->> 'total')::bigint,
       x.row ->> 'currency',
       ${instant("x.row -> 'due_date'")},
+      ${instant("x.row -> 'status_transitions' -> 'paid_at'")},
+      x.row ->> 'hosted_invoice_url', x.row ->> 'invoice_pdf', x.row ->> 'customer_email',
       ${instant("x.row -> 'created'")}
     from ${t} b
     join stripe.invoices v on v.customer = b.${c("customer")}

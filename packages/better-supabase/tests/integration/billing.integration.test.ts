@@ -317,10 +317,23 @@ describe.skipIf(!live)("billing", () => {
         insert into stripe.subscription_items (id, subscription, price, quantity, created) values
           ('si_bs_new', 'sub_bs_new', 'price_pro_y', 3, 5);
         insert into stripe.prices (id, unit_amount, currency) values ('price_pro_y', 1200, 'eur')`);
+      await s.rows(`alter table stripe.subscriptions add column if not exists current_period_start bigint;
+        alter table stripe.prices add column if not exists recurring jsonb;
+        alter table stripe.invoices add column if not exists amount_remaining bigint;
+        alter table stripe.invoices add column if not exists hosted_invoice_url text;
+        alter table stripe.invoices add column if not exists invoice_pdf text;
+        alter table stripe.invoices add column if not exists customer_email text;
+        alter table stripe.invoices add column if not exists status_transitions jsonb;
+        update stripe.subscriptions set current_period_start = 4 where id = 'sub_bs_new';
+        update stripe.prices set recurring = '{"interval": "year", "interval_count": 1}' where id = 'price_pro_y';
+        update stripe.invoices set amount_remaining = 0, hosted_invoice_url = 'https://invoice.stripe.com/i/in_bs_1',
+          invoice_pdf = 'https://pay.stripe.com/invoice/in_bs_1/pdf', customer_email = 'billing@example.com',
+          status_transitions = '{"paid_at": 7}' where id = 'in_bs_1'`);
       await s.asRole(staff, { platform_permissions: ["billing.read"] });
       expect(
         await s.rows(
           `select s.subscription, s.status, s.price, s.plan, s.quantity, s.amount, s.currency,
+             s.recurring_interval, s.current_period_start = to_timestamp(4) as period_start,
              s.created = to_timestamp(5) as created, s.cancel_at_period_end
            from better_supabase.billing_platform_subscriptions() s
            where s.tenant = $1`,
@@ -335,6 +348,8 @@ describe.skipIf(!live)("billing", () => {
           quantity: "3",
           amount: "3600",
           currency: "eur",
+          recurring_interval: "year",
+          period_start: true,
           created: true,
           cancel_at_period_end: false,
         },
@@ -348,6 +363,32 @@ describe.skipIf(!live)("billing", () => {
           [organization],
         ),
       ).toEqual([{ name: expect.any(String), plan: "pro" }]);
+      expect(
+        await s.rows(
+          `select i.invoice, i.amount_remaining, i.paid_at = to_timestamp(7) as paid, i.hosted_invoice_url,
+             i.invoice_pdf, i.customer_email
+           from better_supabase.billing_platform_invoices() i
+           where i.tenant = $1 order by i.invoice`,
+          [organization],
+        ),
+      ).toEqual([
+        {
+          invoice: "in_bs_1",
+          amount_remaining: "0",
+          paid: true,
+          hosted_invoice_url: "https://invoice.stripe.com/i/in_bs_1",
+          invoice_pdf: "https://pay.stripe.com/invoice/in_bs_1/pdf",
+          customer_email: "billing@example.com",
+        },
+        {
+          invoice: "in_bs_2",
+          amount_remaining: null,
+          paid: null,
+          hosted_invoice_url: null,
+          invoice_pdf: null,
+          customer_email: null,
+        },
+      ]);
       expect(
         await s.rows(
           `select i.status, count(*)::int as n, sum(i.total)::int as total
