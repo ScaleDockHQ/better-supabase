@@ -210,6 +210,21 @@ async function schemaTexts(
   );
 }
 
+async function declarativeTexts(
+  config: ResolvedConfig,
+): Promise<{ readonly text: string }[]> {
+  const { files } = await schemaPaths(
+    config.root,
+    await readSupabaseToml(config.root),
+  );
+  if (files.length === 0) return schemaTexts(config);
+  return Promise.all(
+    files.map(async (path) => ({
+      text: await readFile(resolve(config.root, path), "utf8"),
+    })),
+  );
+}
+
 /**
  * The `better_supabase.audit(...)` calls in the declarative schemas, then
  * the migrations oldest first, so a later call or `unaudit` wins.
@@ -252,14 +267,17 @@ async function layoutFor(
     ...(resolved.has("grants") &&
     config.sql.modules["grants"]?.options?.["fromPolicies"] === true
       ? {
-          policyGrants: policyGrants(await schemaTexts(config), config.schemas),
+          policyGrants: policyGrants(
+            await declarativeTexts(config),
+            config.schemas,
+          ),
         }
       : {}),
     ...(resolved.has("sessions") &&
     config.sql.modules["sessions"]?.options?.["policies"] === true
       ? {
           declaredTables: declaredTables(
-            await schemaTexts(config),
+            await declarativeTexts(config),
             config.schemas,
           ),
         }

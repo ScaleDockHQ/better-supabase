@@ -474,6 +474,10 @@ export type VectorSearchConfig =
 /** A privilege the Data API roles can be granted on a table or view. */
 export type Privilege = "select" | "insert" | "update" | "delete";
 
+export type ColumnPrivilege = `${"select" | "insert" | "update"}(${string})`;
+
+export type ExposePrivilege = Privilege | ColumnPrivilege;
+
 /** A role the `grants` module writes privileges for. */
 export type ExposeRole = "anon" | "authenticated" | "service_role";
 
@@ -484,11 +488,11 @@ export type ExposeRole = "anon" | "authenticated" | "service_role";
  * that may call it; `service_role` is added unless `serviceRole` is false.
  */
 export type ExposeConfig =
-  | readonly Privilege[]
+  | readonly ExposePrivilege[]
   | {
-      readonly anon?: readonly Privilege[];
-      readonly authenticated?: readonly Privilege[];
-      readonly serviceRole?: readonly Privilege[];
+      readonly anon?: readonly ExposePrivilege[];
+      readonly authenticated?: readonly ExposePrivilege[];
+      readonly serviceRole?: readonly ExposePrivilege[];
     }
   | {
       readonly execute: readonly ("anon" | "authenticated")[];
@@ -497,9 +501,9 @@ export type ExposeConfig =
 
 /** Resolved grants for one table. */
 export interface ResolvedExpose {
-  readonly anon: readonly Privilege[];
-  readonly authenticated: readonly Privilege[];
-  readonly serviceRole: readonly Privilege[];
+  readonly anon: readonly ExposePrivilege[];
+  readonly authenticated: readonly ExposePrivilege[];
+  readonly serviceRole: readonly ExposePrivilege[];
 }
 
 export interface RelationsConfig {
@@ -748,9 +752,31 @@ const ALL_PRIVILEGES: readonly Privilege[] = [
 
 const isFunctionKey = (key: string): boolean => key.endsWith(")");
 
+const EXPOSE_PRIVILEGE =
+  /^(?:select|insert|update|delete|(?:select|insert|update)\s*\(\s*[a-z_][a-z0-9_$]*(?:\s*,\s*[a-z_][a-z0-9_$]*)*\s*\))$/;
+
+function checkedPrivileges(
+  key: string,
+  privileges: readonly ExposePrivilege[],
+): readonly ExposePrivilege[] {
+  for (const privilege of privileges) {
+    const value: unknown = privilege;
+    if (typeof value !== "string" || !EXPOSE_PRIVILEGE.test(value)) {
+      throw new TypeError(
+        `expose.${key}: "${String(value)}" is not a privilege. Use select, insert, update or delete, or name columns such as "update(title, body)"`,
+      );
+    }
+  }
+  return privileges;
+}
+
 function resolveExpose(key: string, entry: ExposeConfig): ResolvedExpose {
   if (Array.isArray(entry))
-    return { anon: [], authenticated: entry, serviceRole: ALL_PRIVILEGES };
+    return {
+      anon: [],
+      authenticated: checkedPrivileges(key, entry),
+      serviceRole: ALL_PRIVILEGES,
+    };
   if ("execute" in entry) {
     throw new TypeError(
       `expose.${key}: \`execute\` is for functions; key it by its signature, such as ${key}(text)`,
@@ -759,12 +785,12 @@ function resolveExpose(key: string, entry: ExposeConfig): ResolvedExpose {
   // SAFETY: the checks above removed the privilege-list and function forms.
   const roles = entry as Exclude<
     ExposeConfig,
-    readonly Privilege[] | { readonly execute: unknown }
+    readonly ExposePrivilege[] | { readonly execute: unknown }
   >;
   return {
-    anon: roles.anon ?? [],
-    authenticated: roles.authenticated ?? [],
-    serviceRole: roles.serviceRole ?? ALL_PRIVILEGES,
+    anon: checkedPrivileges(key, roles.anon ?? []),
+    authenticated: checkedPrivileges(key, roles.authenticated ?? []),
+    serviceRole: checkedPrivileges(key, roles.serviceRole ?? ALL_PRIVILEGES),
   };
 }
 

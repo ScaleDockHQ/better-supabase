@@ -91,7 +91,8 @@ Tokens without a `session_id` claim (signed by your app) and support tokens
 (with an `act` claim, which the support block ends) pass.
 
 To put that policy on every table, set `options.policies`. `sql sync` reads
-the `create table` statements in your schema files and migrations and writes
+the `create table` and `drop table` statements in your declarative schema
+files (your migrations only when the project has none) and writes
 one `bs_session_active` policy per table in `schemas`, except the
 `exclude` globs. Run it again after adding a table:
 

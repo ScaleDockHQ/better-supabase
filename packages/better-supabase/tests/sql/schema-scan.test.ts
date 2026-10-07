@@ -95,3 +95,27 @@ describe("extensionSchema", () => {
     ).toBeUndefined();
   });
 });
+
+describe("dropped tables and policies", () => {
+  it("forgets tables and policies a later statement drops", () => {
+    const files = [
+      {
+        text: `create table public.old_notes (id int);
+create policy old_read on public.old_notes for select to authenticated using (true);
+create table public.notes (id int);
+create policy notes_read on public.notes for select to authenticated using (true);
+create policy notes_write on public.notes for insert to authenticated with check (true);`,
+      },
+      {
+        text: `drop table if exists public.old_notes, public.gone;
+drop policy if exists notes_write on public.notes;
+create policy notes_write on public.notes for update to authenticated using (true);
+drop policy "notes_read" on notes;`,
+      },
+    ];
+    expect(declaredTables(files, ["public"])).toEqual(["public.notes"]);
+    expect(policyGrants(files, ["public"])).toEqual([
+      { table: "public.notes", role: "authenticated", privileges: ["update"] },
+    ]);
+  });
+});

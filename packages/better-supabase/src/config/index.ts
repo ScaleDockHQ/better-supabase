@@ -27,6 +27,8 @@ export type {
   OpenApiConfig,
   PermdockPathsConfig,
   PluginFlagsConfig,
+  ColumnPrivilege,
+  ExposePrivilege,
   Privilege,
   RealtimeConfig,
   RelationsConfig,

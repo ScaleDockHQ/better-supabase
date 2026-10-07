@@ -384,6 +384,70 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     );
   });
 
+  it("reads policies and tables from the declarative schema, not old migrations", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/config.toml"),
+      "[experimental.pgdelta]\nenabled = true\n",
+    );
+    await writeFile(
+      join(root, "supabase/migrations/20200101000000_init.sql"),
+      "create table public.legacy (id int);\ncreate policy legacy_all on public.legacy for all to authenticated using (true);\n",
+    );
+    await writeFile(
+      join(root, "supabase/schemas/010_notes.sql"),
+      "create table public.notes (id int);\ncreate policy notes_read on public.notes for select to authenticated using (true);\n",
+    );
+    await sql(["sync"], {
+      sql: {
+        modules: {
+          grants: { options: { fromPolicies: true } },
+          sessions: { options: { policies: true } },
+        },
+      },
+    });
+    const grants = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      "utf8",
+    );
+    expect(grants).toContain(
+      'grant select on table "public"."notes" to authenticated;',
+    );
+    expect(grants).not.toContain("legacy");
+    const sessions = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_26_sessions.sql"),
+      "utf8",
+    );
+    expect(sessions).toContain('on "public"."notes"');
+    expect(sessions).not.toContain("legacy");
+  });
+
+  it("grants column privileges from expose", async () => {
+    await sql(["sync"], {
+      expose: {
+        "public.posts": {
+          anon: ["select(id, title)"],
+          authenticated: ["select", "update(title, body)"],
+        },
+      },
+      sql: { modules: ["grants"] },
+    });
+    const file = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      "utf8",
+    );
+    expect(file).toContain(
+      'grant select ("id", "title") on table "public"."posts" to anon;',
+    );
+    expect(file).toContain(
+      'grant select, update ("title", "body") on table "public"."posts" to authenticated;',
+    );
+    expect(() =>
+      resolveConfig({ expose: { posts: ["delete(id)" as "delete"] } }, root),
+    ).toThrow(/is not a privilege/);
+  });
+
   it("writes the session policy on the tables the schema files create", async () => {
     const schemas = join(root, "supabase/schemas");
     await mkdir(schemas, { recursive: true });

@@ -1061,7 +1061,16 @@
     "privileges": {
       "type": "array",
       "items": {
-        "enum": ["select", "insert", "update", "delete"]
+        "anyOf": [
+          {
+            "enum": ["select", "insert", "update", "delete"]
+          },
+          {
+            "description": "A column privilege, such as `update(title, body)`.",
+            "type": "string",
+            "pattern": "^(select|insert|update)\\s*\\(\\s*[a-z_][a-z0-9_$]*(\\s*,\\s*[a-z_][a-z0-9_$]*)*\\s*\\)$"
+          }
+        ]
       }
     }
   }

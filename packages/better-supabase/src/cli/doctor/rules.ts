@@ -388,7 +388,7 @@ const OWN_RULES: readonly Rule[] = [
         return (["anon", "authenticated"] as const).flatMap((role) => {
           const have = granted(role);
           const missing = wanted[role].filter(
-            (privilege) => !have.has(privilege),
+            (privilege) => !privilege.includes("(") && !have.has(privilege),
           );
           if (missing.length === 0) return [];
           return [

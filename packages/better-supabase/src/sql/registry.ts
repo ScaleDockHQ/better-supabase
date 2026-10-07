@@ -2370,8 +2370,18 @@ interface TableGrant {
   /** `table` or `schema.table`. */
   readonly table: string;
   readonly role: "anon" | "authenticated" | "service_role";
-  readonly privileges: readonly ("select" | "insert" | "update" | "delete")[];
+  readonly privileges: readonly string[];
 }
+
+const privilegeSql = (privilege: string): string => {
+  const open = privilege.indexOf("(");
+  if (open === -1) return privilege;
+  const columns = privilege
+    .slice(open + 1, privilege.lastIndexOf(")"))
+    .split(",")
+    .map((column) => sqlIdent(column.trim()));
+  return `${privilege.slice(0, open).trim()} (${columns.join(", ")})`;
+};
 
 /** The roles that may execute a function. */
 interface FunctionGrant {
@@ -2433,7 +2443,7 @@ function tableGrants(layout: ModuleLayout): string {
       )
       .map(
         (grant) =>
-          `grant ${grant.privileges.join(", ")} on table ${qualifiedTable(table)} to ${grant.role};`,
+          `grant ${grant.privileges.map(privilegeSql).join(", ")} on table ${qualifiedTable(table)} to ${grant.role};`,
       ),
   ]);
   const functions = (layout.functionGrants ?? []).flatMap((grant) => {

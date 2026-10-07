@@ -187,7 +187,7 @@ describe("doctor rules", () => {
         config: resolveConfig(
           {
             expose: {
-              notes: ["select", "insert"],
+              notes: ["select", "insert", "update(title)"],
               "public.organizations": { anon: ["select"] },
             },
             tables: { tags: { exclude: true } },
@@ -202,7 +202,7 @@ describe("doctor rules", () => {
       "public.notes:authenticated",
       "public.organizations:anon",
     ]);
-    expect(exposed[0]!.message).toMatch(/no insert on public\.notes/);
+    expect(exposed[0]!.message).toMatch(/no insert on public\.notes,/);
     expect(exposed[0]!.message).toContain("auto_expose_new_tables = false");
   });
 

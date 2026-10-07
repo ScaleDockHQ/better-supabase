@@ -40,6 +40,23 @@ better-supabase sql add grants
 supabase db schema declarative sync -f data_api_grants
 ```
 
+A privilege can name columns, such as `"update(title, body)"` or
+`"select(id, name)"`, for `select`, `insert` and `update`. The module writes
+it as a column grant (`grant update (title, body) on table ...`), so the role
+can change only those columns:
+
+```ts title="better-supabase.config.ts"
+expose: {
+  "public.posts": {
+    anon: ["select(id, title, published_at)"],
+    authenticated: ["select", "insert", "update(title, body)"],
+  },
+},
+```
+
+Doctor (BS106) checks the table-level privileges only, since column grants
+don't show in a table's privileges.
+
 Each entry is the complete privilege set of that table or function. The
 `grants` module first revokes everything from `public`, `anon`,
 `authenticated` and `service_role`, then grants what the entry lists, so a
@@ -51,8 +68,10 @@ which rows a role sees.
 ### Grants from your policies
 
 With `fromPolicies`, the module also derives grants for the tables that
-`expose` doesn't list from the permissive policies in your schema files and
-migrations: a role named in a policy's `to` clause gets the policy's command
+`expose` doesn't list from the permissive policies in your declarative
+schema files (your migrations only when the project has none, so a table or
+policy an old migration created and a later one dropped doesn't come back),
+following `drop policy` and `drop table` statements: a role named in a policy's `to` clause gets the policy's command
 (`for all` gives all four), and `service_role` gets every privilege.
 Restrictive policies grant nothing. A policy without `to` (or `to public`)
 counts for `authenticated` only, so `anon` needs a policy that names it.
