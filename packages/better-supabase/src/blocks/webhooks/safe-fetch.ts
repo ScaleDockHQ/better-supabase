@@ -24,6 +24,10 @@ export class UnsafeUrlError extends Error {
   override readonly name = "UnsafeUrlError";
 }
 
+export class UrlCheckError extends Error {
+  override readonly name = "UrlCheckError";
+}
+
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
 /**
@@ -44,7 +48,8 @@ const CREDENTIALS = ["authorization", "cookie", "proxy-authorization"];
  * avatars by URL, callback URLs): it refuses private, loopback and
  * link-local addresses, non-HTTPS URLs and credentials in the URL, checks
  * every redirect against the same policy before following it, and stops
- * after `timeoutMs`. It throws `UnsafeUrlError` for a refused URL. A redirect
+ * after `timeoutMs`. It throws `UnsafeUrlError` for a refused URL and
+ * `UrlCheckError` when the check itself failed (a DNS lookup error). A redirect
  * to another origin drops the credential headers and `sensitiveHeaders`.
  *
  * DNS can change between the check and the connection; route the requests
@@ -57,11 +62,13 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
   const timeoutMs = options.timeoutMs ?? 10_000;
   const sensitive = [...CREDENTIALS, ...(options.sensitiveHeaders ?? [])];
   const check = async (url: URL): Promise<void> => {
-    let ok = false;
+    let ok: boolean;
     try {
       ok = await allowUrl(url);
-    } catch {
-      ok = false;
+    } catch (error) {
+      throw new UrlCheckError(`Could not check URL: ${url.host}`, {
+        cause: error,
+      });
     }
     if (!ok) throw new UnsafeUrlError(`URL is not allowed: ${url.host}`);
   };

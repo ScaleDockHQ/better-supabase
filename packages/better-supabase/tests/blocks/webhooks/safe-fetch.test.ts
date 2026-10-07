@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createSafeFetch,
   UnsafeUrlError,
+  UrlCheckError,
 } from "../../../src/blocks/webhooks/index.ts";
 
 type Hop = { url: string; method: string; headers: Headers; body: string };
@@ -135,12 +136,34 @@ describe("createSafeFetch", () => {
     await expect(
       createSafeFetch({ fetch: bare.fetch, resolve })("https://example.com/"),
     ).rejects.toThrow(/without a location/);
+  });
+
+  it("reports a failed DNS lookup as UrlCheckError, not as a refused URL", async () => {
+    const { fetch, hops } = fakeFetch(() => new Response("ok"));
+    const lookup = Object.assign(new Error("getaddrinfo EAI_AGAIN"), {
+      code: "EAI_AGAIN",
+    });
+    const safe = createSafeFetch({
+      fetch,
+      resolve: () => Promise.reject(lookup),
+    });
+    const error = await safe("https://example.com/").catch(
+      (thrown: unknown) => thrown,
+    );
+    expect(error).toBeInstanceOf(UrlCheckError);
+    expect(error).not.toBeInstanceOf(UnsafeUrlError);
+    expect(error).toMatchObject({
+      name: "UrlCheckError",
+      message: "Could not check URL: example.com",
+      cause: lookup,
+    });
     const rejecting = createSafeFetch({
       fetch,
-      allowUrl: () => Promise.reject(new Error("dns down")),
+      allowUrl: () => Promise.reject(new Error("policy down")),
     });
     await expect(rejecting("https://example.com/")).rejects.toBeInstanceOf(
-      UnsafeUrlError,
+      UrlCheckError,
     );
+    expect(hops).toHaveLength(0);
   });
 });

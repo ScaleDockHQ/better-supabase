@@ -199,6 +199,23 @@ another origin drops them too. Redirects within the same origin keep them.
 const safeFetch = createSafeFetch({ sensitiveHeaders: ["x-api-key"] });
 ```
 
+When the check itself fails, usually because the DNS lookup for the host
+failed, `safeFetch` throws `UrlCheckError` instead, with the lookup error as
+`cause`. The URL was not refused, so treat it as a transient failure you may
+retry, and treat `UnsafeUrlError` as final:
+
+```ts
+import { UnsafeUrlError, UrlCheckError } from "better-supabase/blocks/webhooks";
+
+try {
+  await safeFetch(userSuppliedUrl);
+} catch (error) {
+  if (error instanceof UnsafeUrlError) return { status: "refused" };
+  if (error instanceof UrlCheckError) return { status: "retry" };
+  throw error;
+}
+```
+
 The DNS caveat above applies here too.
 
 ## Extending it

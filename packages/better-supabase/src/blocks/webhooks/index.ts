@@ -63,7 +63,11 @@ export type {
 export { sqlSecretStore } from "./secrets.ts";
 export type { RotateSecretOptions, WebhookSecretStore } from "./secrets.ts";
 export { isPublicAddress, publicUrl } from "./url-policy.ts";
-export { createSafeFetch, UnsafeUrlError } from "./safe-fetch.ts";
+export {
+  createSafeFetch,
+  UnsafeUrlError,
+  UrlCheckError,
+} from "./safe-fetch.ts";
 export type { SafeFetchOptions } from "./safe-fetch.ts";
 export type { AllowUrl, PublicUrlOptions, ResolveHost } from "./url-policy.ts";
 export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
