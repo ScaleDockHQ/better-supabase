@@ -161,7 +161,32 @@ for a counter on each row of a list. `edit` returns
 
 With the notifications module installed, each new mention sends a
 `comment.mentioned` notification with the subject, the first 140 characters
-of the body as its `summary` and the commenter as the actor.
+of the body as its `summary` and the commenter as the actor. Three more keys
+of `options.subjects.<type>` shape it, each SQL on the subject's row
+`{row}`:
+
+```ts
+subjects: {
+  task: {
+    table: "public.tasks",
+    idType: "uuid",
+    label: "{row}.title",
+    path: "'/tasks/' || {row}.id",
+    readableBy: "not {row}.private or {row}.owner_id = {user}",
+  },
+},
+```
+
+`label` fills the notification's `subject_label` and `path` its
+`action_path`, which an adopted events table may require. A mentioned member
+is notified only when they hold the subject type's read key
+(`permissions.read`, else `comments.read`) and its `permission` in the
+tenant, and `readableBy` holds for them (`{user}` is their id). The others
+stay in the comment's `mentions` but get nothing.
+
+`options.notify: false` sends no notification at all, for an app that sends
+its own mention notifications (resolving team mentions, say). The outbox
+still gets `comment.mentioned`, so that app can send from the event.
 
 ## Events
 
