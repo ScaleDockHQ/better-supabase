@@ -486,6 +486,63 @@ describe.skipIf(!live)("notifications", () => {
     }
   });
 
+  it("derives UUIDv8 event ids from the key without a key column", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "member"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      for (const file of renderModules(["organizations", "notifications"], {
+        modules: {
+          notifications: { columns: { events: { key: null } } },
+        },
+      }))
+        await client.query(file.contents);
+      await s.as("owner");
+      const organization = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Acme", slug: `acme-v8-${USERS.owner.slice(0, 8)}` }],
+      );
+      await client.query(
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
+        [organization, USERS.member],
+      );
+      const keyed = {
+        type: "task.assigned",
+        tenant: organization,
+        recipients: [USERS.member],
+        key: "task-1",
+      };
+      const first = await s.notify(keyed);
+      expect(first).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      expect(await s.notify(keyed)).toBe(first);
+
+      const legacy = await s.value<string>(
+        "md5(coalesce($1::text, '') || ':' || 'task-2')::uuid",
+        [organization],
+      );
+      await s.as("service");
+      await client.query(
+        "insert into better_supabase.notification_events (id, organization_id, type) values ($1, $2, 'task.assigned')",
+        [legacy, organization],
+      );
+      await s.as("owner");
+      expect(await s.notify({ ...keyed, key: "task-2" })).toBe(legacy);
+      expect(await s.recipients(legacy)).toEqual([USERS.member]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("works end to end through createNotifications and sqlTransport", async () => {
     const client = await pool.connect();
     const s = new Session(client);

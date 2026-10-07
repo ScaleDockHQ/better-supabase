@@ -86,6 +86,11 @@ describe("notifications module", () => {
     expect(sql).not.toContain('"idempotency_key"');
     expect(sql).not.toContain("realtime.send(");
     expect(sql).toContain("drop trigger if exists");
+    expect(sql).toContain(
+      `overlay(overlay(v_hash placing '8' from 13 for 1) placing to_hex(8 | (('x' || substr(v_hash, 17, 1))::bit(4)::integer & 3)) from 17 for 1)::uuid`,
+    );
+    expect(sql).toContain(`where ev."id" = v_hash::uuid;`);
+    expect(sql).not.toMatch(/md5\([^;]*\)::uuid/);
   });
 
   it("adds the recipients table to the publication in changes mode", () => {

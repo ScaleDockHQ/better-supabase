@@ -204,7 +204,13 @@ function notify(ctx: ModuleContext, n: NotifyNames): string {
   end if;`
     : `
   -- Without a key column, a keyed event gets an id derived from the key.
-  v_event := case when v_key is null then gen_random_uuid() else md5(coalesce(v_tenant::text, '') || ':' || v_key)::uuid end;
+  if v_key is null then
+    v_event := gen_random_uuid();
+  else
+    v_hash := md5(coalesce(v_tenant::text, '') || ':' || v_key);
+    select ev.${e("id")} into v_event from ${n.table("events")} ev where ev.${e("id")} = v_hash::uuid;
+    v_event := coalesce(v_event, overlay(overlay(v_hash placing '8' from 13 for 1) placing to_hex(8 | (('x' || substr(v_hash, 17, 1))::bit(4)::integer & 3)) from 17 for 1)::uuid);
+  end if;
   insert into ${n.table("events")} (${[e("id"), ...columns.map(([column]) => column)].join(", ")})
   values (${["v_event", ...columns.map(([, value]) => value)].join(", ")})
   on conflict do nothing;`;
@@ -333,7 +339,7 @@ declare
     select x::uuid from jsonb_array_elements_text(coalesce(notification -> 'recipients', '[]')) x
   );
   v_extra uuid[];
-  v_event uuid;
+  v_event uuid;${n.has("events", "key") ? "" : "\n  v_hash text;"}
   v_want_members uuid[];
   v_want_channels text[];
 begin

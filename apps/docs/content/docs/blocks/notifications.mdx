@@ -366,7 +366,10 @@ export default defineConfig({
 ```
 
 Without a key column, keyed sends derive the event id from the organization
-and key instead. A recipient with in-app off for a type still gets a row,
+and key instead: a UUIDv8 (RFC 9562) built from the MD5 of both, so the id
+stays deterministic and passes strict validators such as `z.uuid()`. Events
+stored by an earlier version under the plain MD5 id keep that id, and a
+keyed send that matches one still returns it instead of notifying twice. A recipient with in-app off for a type still gets a row,
 stored as dismissed, so other channels can deliver it.
 
 ## Error codes
