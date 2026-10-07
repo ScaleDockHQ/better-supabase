@@ -43,8 +43,28 @@ const older = await audit.list({ organizationId, before: page.next });
 ```
 
 `list` calls `list_audit_events` with the tenant, event type, actor, target
-type, record and time filters, newest first; pass `page.next` as `before`
-for the next page. Restricted details (row snapshots, IP, user agent) are
+type, record, category, outcome and time filters, newest first; pass
+`page.next` as `before` for the next page. Every filter but the times takes
+one value or a list, `search` matches text in the event type, summary,
+target, actor and tenant labels, record and table (case-insensitive),
+`order: "asc"` lists oldest first, and `count: true` adds `page.total`, the
+number of entries the filters match, from `count_audit_events`:
+
+```ts
+const page = await audit
+  .list({
+    organizationId,
+    eventType: ["invoice.sent", "invoice.paid"],
+    outcome: "failure",
+    search: "acme",
+    order: "asc",
+    count: true,
+  })
+  .orThrow();
+// page.total: 12
+```
+
+`export` takes the same filters, `search` and `order`. Restricted details (row snapshots, IP, user agent) are
 never in the list. `audit.reveal(entryId)` returns them for a member with the
 reveal permission in the entry's tenant, or platform staff, and records the
 look as an `audit.revealed` entry; anyone else gets `not_found`

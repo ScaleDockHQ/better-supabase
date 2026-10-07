@@ -2865,8 +2865,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         });
       claims = { sub: admin, role: "authenticated" };
       const entries = await list({
-        for_tenant: ACME,
-        for_target_type: name,
+        for_tenants: [ACME],
+        for_target_types: [name, "nothing"],
         max_items: 5,
       });
       expect(entries.map((item) => item["eventType"])).toEqual([
@@ -2879,18 +2879,41 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       });
       expect(entries[0]).not.toHaveProperty("old");
       const older = await list({
-        for_tenant: ACME,
-        for_target_type: name,
-        before_at: entries[0]!["occurredAt"],
-        before_id: entries[0]!.id,
+        for_tenants: [ACME],
+        for_target_types: [name],
+        cursor_at: entries[0]!["occurredAt"],
+        cursor_id: entries[0]!.id,
       });
       expect(older.map((item) => item.id)).toEqual([entries[1]!.id]);
+      expect(
+        (
+          await list({
+            for_target_types: [name],
+            ascending: true,
+          })
+        ).map((item) => item.id),
+      ).toEqual([entries[1]!.id, entries[0]!.id]);
+      expect(
+        (await list({ for_target_types: [name], search: "fin" })).map(
+          (item) => item.id,
+        ),
+      ).toEqual([entries[0]!.id]);
+      expect(await list({ for_target_types: [name], search: "fi%al" })).toEqual(
+        [],
+      );
+      expect(
+        await transport.call("better_supabase", "count_audit_events", {
+          for_tenants: [ACME],
+          for_target_types: [name],
+          for_event_types: [`${name}.updated`, `${name}.created`],
+        }),
+      ).toBe("2");
       expect(await reveal(entries[0]!.id)).toMatchObject({
         changes: { title: { old: "Draft", new: "Final" } },
       });
       claims = { role: "service_role" };
       const revealed = await list({
-        for_event_type: "audit.revealed",
+        for_event_types: ["audit.revealed"],
         max_items: 1,
       });
       expect(revealed[0]).toMatchObject({
@@ -2898,9 +2921,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         record: String(entries[0]!.id),
       });
       claims = { sub: outsider, role: "authenticated" };
-      expect(await list({ for_tenant: ACME, for_target_type: name })).toEqual(
-        [],
-      );
+      expect(
+        await list({ for_tenants: [ACME], for_target_types: [name] }),
+      ).toEqual([]);
       await expect(reveal(entries[0]!.id)).rejects.toMatchObject({
         hint: "AUDIT_ENTRY_NOT_FOUND",
       });

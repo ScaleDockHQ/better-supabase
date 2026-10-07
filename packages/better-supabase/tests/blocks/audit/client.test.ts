@@ -27,6 +27,7 @@ function fake(pages: unknown[][], fail = false) {
           changes: { a: { old: 1, new: 2 } },
           metadata: "not an object",
         };
+      if (fn === "count_audit_events") return "3";
       return pages.shift() ?? [];
     },
   };
@@ -64,11 +65,46 @@ describe("createAuditLog", () => {
     });
     const last = await audit.list({ before: page.next, limit: 2 }).orThrow();
     expect(last.next).toBeUndefined();
+    expect(calls[0]![1]).toMatchObject({
+      for_tenants: ["org"],
+      ascending: false,
+    });
     expect(calls[1]![1]).toMatchObject({
-      before_at: "2026-10-06T12:00:01Z",
-      before_id: "1",
+      cursor_at: "2026-10-06T12:00:01Z",
+      cursor_id: "1",
       max_items: 2,
     });
+  });
+
+  it("filters on several values, searches, sorts and counts", async () => {
+    const { transport, calls } = fake([[entry("1")]]);
+    const audit = createAuditLog({ transport });
+    const counted = await audit
+      .list({
+        organizationId: ["a", "b"],
+        eventType: "invoice.sent",
+        category: ["billing"],
+        outcome: "failure",
+        search: "acme",
+        order: "asc",
+        count: true,
+      })
+      .orThrow();
+    expect(calls.map(([fn]) => fn)).toEqual([
+      "list_audit_events",
+      "count_audit_events",
+    ]);
+    expect(calls[0]![1]).toMatchObject({
+      for_tenants: ["a", "b"],
+      for_event_types: ["invoice.sent"],
+      for_categories: ["billing"],
+      for_outcomes: ["failure"],
+      search: "acme",
+      ascending: true,
+    });
+    expect(calls[1]![1]).not.toHaveProperty("ascending");
+    expect(calls[1]![1]).toMatchObject({ for_tenants: ["a", "b"] });
+    expect(counted.total).toBe(3);
   });
 
   it("reveals details and maps errors", async () => {

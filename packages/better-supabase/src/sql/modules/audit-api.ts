@@ -65,26 +65,59 @@ export function listEntries(ctx: ModuleContext, restricted: boolean): string {
     chunks.push(
       `jsonb_build_object(${pairs.slice(index, index + 20).join(", ")})`,
     );
-  const filter = (logical: string, param: string) =>
-    hasColumn(ctx, "log", logical)
-      ? `
-    and (${param} is null or l.${c(logical)} = ${param})`
-      : "";
-  return `-- A page of the entries the caller can read, newest first: the read policy
--- decides (security invoker). Page with the last entry's occurred_at and id
--- as before_at and before_id.
+  const filter = (logical: string, param: string) => {
+    if (!hasColumn(ctx, "log", logical)) return "";
+    const value = `l.${c(logical)}`;
+    const read = isAuditValueColumn(logical)
+      ? auditRead(ctx, logical, value)
+      : value;
+    return `
+      and (${param} is null or cardinality(${param}) = 0 or ${read} = any (${param}))`;
+  };
+  const searchable = (
+    [
+      "eventType",
+      "summary",
+      "targetLabel",
+      "actorLabel",
+      "tenantLabel",
+      "record",
+      "table",
+    ] as const
+  )
+    .filter((logical) => hasColumn(ctx, "log", logical))
+    .map((logical) => `l.${c(logical)}`);
+  const search =
+    searchable.length === 0
+      ? ""
+      : `
+      and (search is null or search = '' or concat_ws(' ', ${searchable.join(", ")}) ilike '%' || replace(replace(replace(search, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%')`;
+  const where = `(for_tenants is null or cardinality(for_tenants) = 0 or l.${c("tenant")} = any (for_tenants))${filter("eventType", "for_event_types")}${filter("actor", "for_actors")}${filter("targetType", "for_target_types")}${filter("record", "for_records")}${filter("category", "for_categories")}${filter("outcome", "for_outcomes")}${search}
+      and (since is null or l.${c("occurredAt")} >= since)
+      and (until is null or l.${c("occurredAt")} < until)`;
+  const filters = `for_tenants ${id}[] default null,
+  for_event_types text[] default null,
+  for_actors uuid[] default null,
+  for_target_types text[] default null,
+  for_records text[] default null,
+  for_categories text[] default null,
+  for_outcomes text[] default null,
+  search text default null,
+  since timestamptz default null,
+  until timestamptz default null`;
+  const filterTypes = `${id}[], text[], uuid[], text[], text[], text[], text[], text, timestamptz, timestamptz`;
+  const listTypes = `${filterTypes}, timestamptz, text, integer, boolean`;
+  return `-- A page of the entries the caller can read, newest first unless ascending:
+-- the read policy decides (security invoker). Each filter takes several
+-- values; search matches the event type, summary, labels, record and table.
+-- Page with the last entry's occurred_at and id as cursor_at and cursor_id.
 drop function if exists ${ctx.fn("list_audit_events")}(${id}, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
 create or replace function ${ctx.fn("list_audit_events")}(
-  for_tenant ${id} default null,
-  for_event_type text default null,
-  for_actor uuid default null,
-  for_target_type text default null,
-  for_record text default null,
-  since timestamptz default null,
-  until timestamptz default null,
-  before_at timestamptz default null,
-  before_id text default null,
-  max_items integer default 50
+  ${filters},
+  cursor_at timestamptz default null,
+  cursor_id text default null,
+  max_items integer default 50,
+  ascending boolean default false
 )
 returns jsonb
 language sql
@@ -92,20 +125,41 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(x.entry order by x.occurred_at desc, x.id desc), '[]')
+  select coalesce(jsonb_agg(x.entry order by
+    case when ascending then x.occurred_at end, case when ascending then x.id end,
+    x.occurred_at desc, x.id desc), '[]')
   from (
     select ${chunks.join(" || ")} as entry, l.${c("occurredAt")} as occurred_at, l.${c("id")}::text as id
     from ${log} l
-    where (for_tenant is null or l.${c("tenant")} = for_tenant)${filter("eventType", "for_event_type")}${filter("actor", "for_actor")}${filter("targetType", "for_target_type")}${filter("record", "for_record")}
-      and (since is null or l.${c("occurredAt")} >= since)
-      and (until is null or l.${c("occurredAt")} < until)
-      and (before_at is null or (l.${c("occurredAt")}, l.${c("id")}::text) < (before_at, coalesce(before_id, '')))
-    order by l.${c("occurredAt")} desc, l.${c("id")}::text desc
+    where ${where}
+      and (cursor_at is null or (
+        case when ascending
+          then (l.${c("occurredAt")}, l.${c("id")}::text) > (cursor_at, coalesce(cursor_id, ''))
+          else (l.${c("occurredAt")}, l.${c("id")}::text) < (cursor_at, coalesce(cursor_id, ''))
+        end))
+    order by
+      case when ascending then l.${c("occurredAt")} end, case when ascending then l.${c("id")}::text end,
+      l.${c("occurredAt")} desc, l.${c("id")}::text desc
     limit least(greatest(coalesce(max_items, 50), 1), 1000)
   ) x
 $$;
-revoke execute on function ${ctx.fn("list_audit_events")}(${id}, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer) from public, anon;
-grant execute on function ${ctx.fn("list_audit_events")}(${id}, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer) to authenticated, service_role;`;
+revoke execute on function ${ctx.fn("list_audit_events")}(${listTypes}) from public, anon;
+grant execute on function ${ctx.fn("list_audit_events")}(${listTypes}) to authenticated, service_role;
+
+create or replace function ${ctx.fn("count_audit_events")}(
+  ${filters}
+)
+returns bigint
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select count(*) from ${log} l
+  where ${where}
+$$;
+revoke execute on function ${ctx.fn("count_audit_events")}(${filterTypes}) from public, anon;
+grant execute on function ${ctx.fn("count_audit_events")}(${filterTypes}) to authenticated, service_role;`;
 }
 
 /**

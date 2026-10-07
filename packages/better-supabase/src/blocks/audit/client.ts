@@ -61,12 +61,19 @@ export interface AuditCursor {
   readonly id: string;
 }
 
+type OneOrMany = string | readonly string[];
+
 export interface AuditListOptions {
-  readonly organizationId?: string;
-  readonly eventType?: string;
-  readonly actorId?: string;
-  readonly targetType?: string;
-  readonly record?: string;
+  readonly organizationId?: OneOrMany;
+  readonly eventType?: OneOrMany;
+  readonly actorId?: OneOrMany;
+  readonly targetType?: OneOrMany;
+  readonly record?: OneOrMany;
+  readonly category?: OneOrMany;
+  readonly outcome?: OneOrMany;
+  readonly search?: string;
+  readonly order?: "desc" | "asc";
+  readonly count?: boolean;
   /** Entries at or after this instant. */
   readonly since?: Temporal.Instant;
   /** Entries before this instant. */
@@ -81,6 +88,7 @@ export interface AuditPage {
   readonly entries: readonly AuditRecord[];
   /** The cursor of the next page, or `undefined` on the last one. */
   readonly next: AuditCursor | undefined;
+  readonly total?: number;
 }
 
 /** The restricted details `reveal` returns, when the entry has them. */
@@ -97,7 +105,7 @@ export interface AuditDetails {
 
 export interface AuditExportOptions extends Omit<
   AuditListOptions,
-  "before" | "limit"
+  "before" | "limit" | "count"
 > {
   /**
    * `ndjson` (default) writes the records as they are, `csv` a spreadsheet
@@ -268,6 +276,9 @@ const CSV_COLUMNS = [
   "metadata",
 ];
 
+const many = (value: OneOrMany | undefined): readonly string[] | undefined =>
+  value === undefined ? undefined : typeof value === "string" ? [value] : value;
+
 const csvRow = (record: AuditRecord): Record<string, unknown> => ({
   ...record,
   occurredAt: record.occurredAt.toString(),
@@ -285,21 +296,28 @@ export function createAuditLog(options: AuditLogOptions): AuditLog {
 
   const list = (list: AuditListOptions = {}): AsyncResult<AuditPage> => {
     const limit = list.limit ?? 50;
-    return call(
+    const filters = {
+      for_tenants: many(list.organizationId),
+      for_event_types: many(list.eventType),
+      for_actors: many(list.actorId),
+      for_target_types: many(list.targetType),
+      for_records: many(list.record),
+      for_categories: many(list.category),
+      for_outcomes: many(list.outcome),
+      search: list.search,
+      since: instantArg(list.since),
+      until: instantArg(list.until),
+    };
+    const page = call(
       "list_audit_events",
       {
-        for_tenant: list.organizationId,
-        for_event_type: list.eventType,
-        for_actor: list.actorId,
-        for_target_type: list.targetType,
-        for_record: list.record,
-        since: instantArg(list.since),
-        until: instantArg(list.until),
-        before_at: instantArg(list.before?.occurredAt),
-        before_id: list.before?.id,
+        ...filters,
+        cursor_at: instantArg(list.before?.occurredAt),
+        cursor_id: list.before?.id,
         max_items: limit,
+        ascending: list.order === "asc",
       },
-      (value) => {
+      (value): AuditPage => {
         const entries = (Array.isArray(value) ? value : []).map(recordOfEntry);
         const last = entries.at(-1);
         return {
@@ -310,6 +328,13 @@ export function createAuditLog(options: AuditLogOptions): AuditLog {
               : { occurredAt: last.occurredAt, id: last.id },
         };
       },
+    );
+    if (list.count !== true) return page;
+    return page.andThen((data) =>
+      call("count_audit_events", filters, (value) => ({
+        ...data,
+        total: Number(value),
+      })),
     );
   };
 
