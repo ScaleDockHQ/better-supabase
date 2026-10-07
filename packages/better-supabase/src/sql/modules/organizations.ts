@@ -93,21 +93,60 @@ function namesOf(ctx: ModuleContext): OrganizationNames {
 }
 
 /**
+ * The tenant column of a roles table with tenant custom roles: the
+ * `roleThrough` table's `tenant`, or the catalog's mapped `roles.tenant`.
+ */
+function rolesTenantColumn(ctx: ModuleContext): string | undefined {
+  const through = roleThrough(ctx.of("tenant"));
+  if (through) return through.tenant;
+  if (accessModel(ctx) !== "catalog") return undefined;
+  const access = ctx.of("access");
+  return !access.manages &&
+    typeof access.config.columns["roles"]?.["tenant"] === "string"
+    ? access.col("roles", "tenant")
+    : undefined;
+}
+
+/**
+ * Limits roles row `r` to `tenant`'s custom roles and the shared ones (no
+ * tenant), its own first, so a key that several tenants use resolves to the
+ * tenant's role. Nothing without a tenant or a tenant column.
+ */
+export function tenantRoleScope(
+  ctx: ModuleContext,
+  tenant: string | undefined,
+): { readonly where: string; readonly order: string } {
+  const column = rolesTenantColumn(ctx);
+  if (column === undefined || tenant === undefined)
+    return { where: "", order: "" };
+  return {
+    where: ` and (r.${column} = ${tenant} or r.${column} is null)`,
+    order: `, (r.${column} is not null) desc`,
+  };
+}
+
+/**
  * A role argument as the membership role column stores it: the name for the
  * roles model, the catalog role id (looked up by id or key) for `catalog`.
+ * With `tenant`, a key resolves among that tenant's roles.
  */
-export function roleValue(ctx: ModuleContext, expr: string): string {
+export function roleValue(
+  ctx: ModuleContext,
+  expr: string,
+  tenant?: string,
+): string {
+  const scope = tenantRoleScope(ctx, tenant);
   const through = roleThrough(ctx.of("tenant"));
   if (through) {
     const text = `(${expr})::text`;
-    return `(select r.${through.id} from ${through.table} r where r.${through.id}::text = ${text} or r.${through.column}::text = ${text} order by (r.${through.id}::text = ${text}) desc limit 1)`;
+    return `(select r.${through.id} from ${through.table} r where (r.${through.id}::text = ${text} or r.${through.column}::text = ${text})${scope.where} order by (r.${through.id}::text = ${text}) desc${scope.order} limit 1)`;
   }
   if (accessModel(ctx) !== "catalog") return expr;
   const access = ctx.of("access");
   const rid = access.col("roles", "id");
   const key = access.col("roles", "key");
   const text = `(${expr})::text`;
-  return `(select r.${rid} from ${access.table("roles")} r where r.${rid}::text = ${text} or r.${key} = ${text} order by (r.${rid}::text = ${text}) desc limit 1)`;
+  return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text})${scope.where} order by (r.${rid}::text = ${text}) desc${scope.order} limit 1)`;
 }
 
 /**
@@ -120,14 +159,14 @@ export function assignableRole(ctx: ModuleContext, stored: string): string {
 }
 
 /** Raises `ORGANIZATION_ROLE_UNKNOWN` for a role the access model doesn't know. */
-function checkRole(ctx: ModuleContext, expr: string): string {
+function checkRole(ctx: ModuleContext, expr: string, tenant: string): string {
   const model = accessModel(ctx);
   const through = roleThrough(ctx.of("tenant")) !== undefined;
   if (!through && (model === "permdock" || model === "custom")) return "";
   const known =
     model === "roles" && !through
       ? `${expr} = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[])`
-      : `${roleValue(ctx, expr)} is not null`;
+      : `${roleValue(ctx, expr, tenant)} is not null`;
   return `
   if not (${known}) then
     raise exception 'Unknown role %', ${expr} using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';
@@ -369,7 +408,7 @@ begin
   ])}
   ${insert}
   insert into ${n.m} (${n.tenant}, ${n.user}, ${n.role})
-  values (organization, owner, ${roleValue(ctx, sqlString(n.ownerRole))});
+  values (organization, owner, ${roleValue(ctx, sqlString(n.ownerRole), "organization")});
   ${ctx.hook("after_organization_create", [
     [id, "organization"],
     ["uuid", "owner"],
@@ -720,7 +759,7 @@ declare
 begin
   if not ${can("updateRole")}${platformOverride(ctx, "updateRolePlatform")} then
     raise exception 'Not allowed to change roles' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
-  end if;${active}${checkRole(ctx, "role")}
+  end if;${active}${checkRole(ctx, "role", "organization")}
   select ${roleNameOf(ctx.of("tenant"), "m")}, ${assignableRole(ctx, `m.${n.role}`)} into previous, previous_assignable
   from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
   if not found then
@@ -732,10 +771,10 @@ begin
     raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
   end if;
   if not better_supabase.can_assign(organization, previous_assignable)
-    or not better_supabase.can_assign(organization, ${assignableRole(ctx, `(${roleValue(ctx, "role")})`)}) then
+    or not better_supabase.can_assign(organization, ${assignableRole(ctx, `(${roleValue(ctx, "role", "organization")})`)}) then
     raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
   end if;
-  update ${n.m} set ${n.role} = ${roleValue(ctx, "role")}
+  update ${n.m} set ${n.role} = ${roleValue(ctx, "role", "organization")}
   where ${n.tenant} = organization and ${n.user} = member;
   ${change("member", "role")}
   ${ctx.emit({ type: "organization.role_changed", payload: event("organization", "member", ", 'role', role, 'previousRole', previous"), subject, tenant: "organization" })}
@@ -814,7 +853,7 @@ begin
     select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = me and ${isOwner(ctx, n, "m")}
   ) then
     raise exception 'Only an owner can transfer ownership' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
-  end if;${active}${checkRole(ctx, "former_role")}
+  end if;${active}${checkRole(ctx, "former_role", "organization")}
   if not exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = new_owner) then
     raise exception 'The new owner must be a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
@@ -824,8 +863,8 @@ begin
   -- One statement for both rows, so a statement-level guard on the number of
   -- owners (PermDock's transferOnly) sees the transfer as a whole.
   update ${n.m} m set ${n.role} = case
-      when m.${n.user} = new_owner then ${roleValue(ctx, sqlString(n.ownerRole))}
-      else ${roleValue(ctx, "former_role")}
+      when m.${n.user} = new_owner then ${roleValue(ctx, sqlString(n.ownerRole), "organization")}
+      else ${roleValue(ctx, "former_role", "organization")}
     end
   where m.${n.tenant} = organization
     and (m.${n.user} = new_owner

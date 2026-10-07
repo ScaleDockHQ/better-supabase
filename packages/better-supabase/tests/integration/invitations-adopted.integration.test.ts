@@ -228,6 +228,82 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
       await s.close();
     }
   });
+
+  it("resolves a role key among the tenant's own custom roles", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const owner = await s.user("owner");
+      const staff = await s.user("staff");
+      const member = await s.user("member");
+      const schema = await sharedSchema(s, crypto.randomUUID(), owner, staff);
+      const layout = sharedLayout(schema);
+      const tenant = layout.modules!["tenant"]!;
+      await s.install(["organizations", "invitations"], {
+        ...layout,
+        modules: {
+          ...layout.modules,
+          tenant: {
+            ...tenant,
+            options: {
+              roleThrough: {
+                table: `${schema}.roles`,
+                id: "id",
+                column: "key",
+                tenant: "organization_id",
+              },
+            },
+          },
+          organizations: { schema },
+        },
+      });
+      await s.as(owner);
+      const organization = await s.value<string>(
+        `${schema}.create_organization($1)`,
+        [{ name: "Custom", slug: `custom-${owner.id.slice(0, 8)}` }],
+      );
+      const [elsewhereRow] = await s.rows<{ id: string }>(
+        `insert into ${schema}.roles (key, organization_id) values ('auditor', gen_random_uuid()) returning id::text`,
+      );
+      const [ownRow] = await s.rows<{ id: string }>(
+        `insert into ${schema}.roles (key, organization_id) values ('auditor', $1) returning id::text`,
+        [organization],
+      );
+      const own = ownRow!.id;
+      const elsewhere = elsewhereRow!.id;
+      const invite = await s.value<{ token: string; role: string }>(
+        `${schema}.invite_member($1, $2, 'auditor')`,
+        [organization, member.email],
+      );
+      expect(invite.role).toBe(own);
+      expect(
+        await s.hint(`${schema}.invite_member($1, $2, $3)`, [
+          organization,
+          `x-${member.email}`,
+          elsewhere,
+        ]),
+      ).toBe("INVITATION_ROLE_UNKNOWN");
+      await s.as(member);
+      await s.value(`${schema}.accept_invitation($1)`, [invite.token]);
+      const stored = () =>
+        s.value<string>(
+          `(select role_id::text from ${schema}.team_members where organization_id = $1 and user_id = $2)`,
+          [organization, member.id],
+        );
+      expect(await stored()).toBe(own);
+      await s.as(owner);
+      await s.value(`${schema}.update_member_role($1, $2, 'member')`, [
+        organization,
+        member.id,
+      ]);
+      await s.value(`${schema}.update_member_role($1, $2, 'auditor')`, [
+        organization,
+        member.id,
+      ]);
+      expect(await stored()).toBe(own);
+    } finally {
+      await s.close();
+    }
+  });
 });
 
 /**

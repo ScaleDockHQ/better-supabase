@@ -415,7 +415,7 @@ begin
   if v_code.${ck("tenant")} is not null then
     v_role := coalesce(v_code.${ck("role")}, ${sqlString(defaultRole)});
     insert into ${m} (${mt}, ${mu}, ${mr})
-    values (v_code.${ck("tenant")}, redeem_for.member, ${roleValue(ctx, "v_role")})
+    values (v_code.${ck("tenant")}, redeem_for.member, ${roleValue(ctx, "v_role", `v_code.${ck("tenant")}`)})
     on conflict do nothing;
     v_added := found;
     if v_added then

@@ -885,8 +885,8 @@ export const ACCESS: ModuleDefinition = {
     tables: {
       roles: {
         name: "roles",
-        columns: { id: "id", key: "key", scope: "scope" },
-        optional: ["scope"],
+        columns: { id: "id", key: "key", scope: "scope", tenant: "tenant_id" },
+        optional: ["scope", "tenant"],
       },
       permissions: { name: "permissions", columns: { id: "id", key: "key" } },
       rolePermissions: {

@@ -312,6 +312,13 @@ the id, and refuse a role the table doesn't have (`ORGANIZATION_ROLE_UNKNOWN`,
 `INVITATION_ROLE_UNKNOWN`). A managed memberships table stores names, so the
 option is for `mode: "adopt"` only.
 
+When the roles table also holds tenant custom roles, whose keys can repeat
+across tenants, add its tenant column as `tenant` (`roleThrough: { table,
+id, column, tenant: "organization_id" }`); under the catalog model, map
+`sql.modules.access.columns.roles.tenant` instead. A key then resolves among
+the tenant's own roles and the shared ones (no tenant), the tenant's first,
+and an id of another tenant's role is unknown in this one.
+
 Under the permdock model, `sql add` reads the setting from the manifest: when
 a membership source of the tenant scope is the adopted memberships table and
 its role column reads `through` a roles table, the tenant module uses the same

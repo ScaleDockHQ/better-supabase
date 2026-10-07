@@ -29,7 +29,7 @@ import {
   tokenHash,
   type InviteTable,
 } from "./invitations-tables.ts";
-import { assignableRole, roleValue } from "./organizations.ts";
+import { assignableRole, roleValue, tenantRoleScope } from "./organizations.ts";
 import { roleThrough } from "./tenant.ts";
 
 const NAMES: ModuleNames = {
@@ -83,20 +83,25 @@ const NAMES: ModuleNames = {
   ],
 };
 
-/** Every error the module raises: its hint code and default SQLSTATE. */
+/**
+ * The catalog role id for a key or id, in `scope`, among `tenant`'s roles
+ * when given; `roleValue` in other models.
+ */
 function roleIn(
   ctx: ModuleContext,
   expr: string,
   scope: "tenant" | "platform",
+  tenant?: string,
 ): string {
-  if (accessModel(ctx) !== "catalog") return roleValue(ctx, expr);
+  if (accessModel(ctx) !== "catalog") return roleValue(ctx, expr, tenant);
   const scoped = roleScopeIs(ctx, "r", scope);
-  if (!scoped) return roleValue(ctx, expr);
+  if (!scoped) return roleValue(ctx, expr, tenant);
   const access = ctx.of("access");
   const rid = access.col("roles", "id");
   const key = access.col("roles", "key");
   const text = `(${expr})::text`;
-  return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text}) and ${scoped} order by (r.${rid}::text = ${text}) desc limit 1)`;
+  const own = tenantRoleScope(ctx, tenant);
+  return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text}) and ${scoped}${own.where} order by (r.${rid}::text = ${text}) desc${own.order} limit 1)`;
 }
 
 /** Where an accepted platform invitation assigns its role, and the checks around it. */
@@ -372,7 +377,7 @@ function invite(ctx: ModuleContext): string {
   const bytes = ctx.number("tokenBytes", 24);
   const validFor = sqlString(ctx.text("validFor", "7 days"));
   const model = accessModel(ctx);
-  const stored = roleIn(ctx, "invitee_role", "tenant");
+  const stored = roleIn(ctx, "invitee_role", "tenant", "tenant");
   const through = roleThrough(ctx.of("tenant")) !== undefined;
   const unknownRole =
     model === "catalog" || through
@@ -774,7 +779,8 @@ function accept(
     "invite",
     MODULE_PERMISSIONS.invitations.invite,
   );
-  const roleOf = (expr: string) => roleValue(ctx, expr);
+  const roleOf = (expr: string) =>
+    roleValue(ctx, expr, `invite.${t.col("tenant")}`);
   /** Checks shared by both kinds of invitation in row `row`. */
   const invitee = (table: InviteTable, row: string) => {
     const col = (logical: string) => `${row}.${table.col(logical)}`;

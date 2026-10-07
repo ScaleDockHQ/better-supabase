@@ -41,6 +41,23 @@ const body = (modules: ModulesConfig) =>
   moduleBody("organizations", { modules })!;
 
 describe("organizations module", () => {
+  it("resolves role keys among the tenant's own roles with a mapped roles.tenant", () => {
+    const sql = body({
+      access: {
+        model: "catalog",
+        mode: "adopt",
+        tables: { roles: "public.roles" },
+        columns: { roles: { tenant: "organization_id", scope: null } },
+      },
+    });
+    expect(sql).toContain(
+      `(select r."id" from "public"."roles" r where (r."id"::text = (role)::text or r."key" = (role)::text) and (r."organization_id" = organization or r."organization_id" is null) order by (r."id"::text = (role)::text) desc, (r."organization_id" is not null) desc limit 1)`,
+    );
+    expect(body({ access: { model: "catalog" } })).not.toContain(
+      "is not null) desc limit 1",
+    );
+  });
+
   it("lets platform keys change roles and remove members", () => {
     const sql = body({
       organizations: {
@@ -157,7 +174,7 @@ describe("organizations module", () => {
       "from unnest(array['website', 'default_currency']) c\n  where attrs ? c;",
     );
     expect(sql).toContain(
-      'select r."id" from "better_supabase"."roles" r where r."id"::text = (\'owner\')::text',
+      'select r."id" from "better_supabase"."roles" r where (r."id"::text = (\'owner\')::text',
     );
     expect(sql).toContain(
       `to_regprocedure('"public"."seed_organization"(uuid, uuid)')`,
@@ -283,7 +300,7 @@ describe("roles through a lookup table", () => {
       `can_assign(target_tenant, (select r."key"::text from "public"."team_roles" r where r."id"::text = (target_role)::text))`,
     );
     expect(sql).toContain(
-      `set "role_id" = (select r."id" from "public"."team_roles" r where r."id"::text = (role)::text or r."key"::text = (role)::text`,
+      `set "role_id" = (select r."id" from "public"."team_roles" r where (r."id"::text = (role)::text or r."key"::text = (role)::text)`,
     );
     expect(sql).toContain("hint = 'ORGANIZATION_ROLE_UNKNOWN'");
     const tenant = moduleBody("tenant", { modules: THROUGH })!;
@@ -294,10 +311,10 @@ describe("roles through a lookup table", () => {
       modules: { ...THROUGH, invitations: { mode: "adopt" } },
     })!;
     expect(invitations).toContain(
-      `if (select r."id" from "public"."team_roles" r where r."id"::text = (invitee_role)::text`,
+      `if (select r."id" from "public"."team_roles" r where (r."id"::text = (invitee_role)::text`,
     );
     expect(invitations).toContain(
-      `can_assign(tenant, (select r."key"::text from "public"."team_roles" r where r."id"::text = (((select r."id" from "public"."team_roles" r`,
+      `can_assign(tenant, (select r."key"::text from "public"."team_roles" r where r."id"::text = (((select r."id" from "public"."team_roles" r where (`,
     );
   });
 
