@@ -147,11 +147,13 @@ type ActionInput<S> = S extends StandardSchemaV1
 type ActionParsed<S> = S extends StandardSchemaV1
   ? StandardSchemaV1.InferOutput<S>
   : unknown;
-type Unwrapped<T> = T extends
-  | { readonly ok: true; readonly data: infer D }
-  | { readonly ok: false }
+// Distributes over a `Result` union: the `Err` member adds nothing, so an
+// action that returns `err(...)` on one path keeps the data type of the others.
+type Unwrapped<T> = T extends { readonly ok: true; readonly data: infer D }
   ? D
-  : T;
+  : T extends { readonly ok: false }
+    ? never
+    : T;
 
 export interface BetterNext<
   M extends AnyModels,

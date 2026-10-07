@@ -4,10 +4,12 @@ import * as v from "valibot";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
-import type { AuthSession } from "../../src/next/index.ts";
+import type { ActionResult, AuthSession } from "../../src/next/index.ts";
 
 import { createClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
+import { dbError } from "../../src/core/errors.ts";
+import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { createNext } from "../../src/next/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { createHooks, useSession } from "../../src/react/index.ts";
@@ -145,5 +147,29 @@ describe("betterSupabase.userMetadata(schema)", () => {
     if (session.kind === "user") {
       expectTypeOf(session.profile).toEqualTypeOf<unknown>();
     }
+  });
+});
+
+describe("next.action", () => {
+  it("keeps the data type when one path returns err()", () => {
+    const action = bs.action({}, async () => {
+      if (Math.random() > 0.5) return err(dbError("forbidden", "no"));
+      return ok({ token: "t" });
+    });
+    expectTypeOf(action).returns.resolves.toEqualTypeOf<
+      ActionResult<{ token: string }>
+    >();
+  });
+
+  it("unwraps an AsyncResult and passes plain values through", () => {
+    const fromResult = bs.action(
+      {},
+      () => new AsyncResult(Promise.resolve(ok(1))),
+    );
+    expectTypeOf(fromResult).returns.resolves.toEqualTypeOf<
+      ActionResult<number>
+    >();
+    const plain = bs.action({}, () => "done" as const);
+    expectTypeOf(plain).returns.resolves.toEqualTypeOf<ActionResult<"done">>();
   });
 });
