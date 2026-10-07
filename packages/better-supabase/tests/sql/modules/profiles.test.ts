@@ -57,6 +57,12 @@ describe("profiles module", () => {
     expect(sql).toContain("meta ->> 'full_name', meta ->> 'name'");
     expect(sql).toContain('"better_supabase"."allocate_username"(');
     expect(sql).toContain("add constraint profiles_username_check check (");
+    // `between` inside the `and` chain nests differently once stored, so a
+    // pg-delta sync would drop and re-add the check on every run.
+    expect(sql).toContain(
+      'length("username") >= 3\n    and length("username") <= 32',
+    );
+    expect(sql).not.toMatch(/length\("username"\) between/);
     expect(sql).toContain("lower(\"username\") <> all (array['admin'");
     expect(sql).toContain("while candidate = any(array['admin'");
     expect(sql).toMatch(
