@@ -344,6 +344,9 @@ export function resolveUrlLengthLimit(
     : Math.min(fromClient, DEFAULT_URL_LENGTH_LIMIT);
 }
 
+/** Chunks of a split read in flight at once. */
+const CHUNK_CONCURRENCY = 4;
+
 /** Executes IR operations through a supabase-js client. */
 export function postgrestExecutor(
   client: PostgrestClientLike,
@@ -381,13 +384,30 @@ export function postgrestExecutor(
     if (op.kind === "select" && length > urlLengthLimit) {
       const chunked = chunkRead(op, plan, urlLengthLimit);
       if (!("ops" in chunked)) return err(chunked);
-      const results = await Promise.all(
-        chunked.ops.map((chunk) => send(chunk, context)),
+      const results: Result<ExecuteResult>[] = [];
+      let next = 0;
+      const lane = async (): Promise<void> => {
+        while (next < chunked.ops.length) {
+          const index = next++;
+          const chunk = chunked.ops[index]!;
+          const chunkPlan = chunked.plans?.[index];
+          const result = await (chunkPlan
+            ? run(chunk, chunkPlan, context)
+            : send(chunk, context));
+          results[index] = result;
+          if (!result.ok) next = chunked.ops.length;
+        }
+      };
+      await Promise.all(
+        Array.from(
+          { length: Math.min(CHUNK_CONCURRENCY, chunked.ops.length) },
+          lane,
+        ),
       );
       const rows: Record<string, unknown>[] = [];
       for (const result of results) {
         if (!result.ok) return result;
-        rows.push(...result.data.rows);
+        for (const row of result.data.rows) rows.push(row);
       }
       return ok({
         rows: chunked.sort ? chunked.sort(rows) : rows,

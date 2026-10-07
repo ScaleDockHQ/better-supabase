@@ -138,7 +138,7 @@ export interface Outbox {
     handler: OutboxHandler,
     options?: RelayOptions,
   ): Promise<RelayResult>;
-  /** A `GET`/`POST` handler for a cron that relays every consumer in turn. */
+  /** A `GET`/`POST` handler for a cron that relays every consumer at once, within one budget. */
   relayRoute(
     options: OutboxRouteOptions,
   ): (request: Request) => Promise<Response>;
@@ -371,18 +371,25 @@ export function createOutbox(
           );
         }
         const deadline = Date.now() + (routeOptions.budgetMs ?? 50_000);
+        // Each consumer has its own cursor and lease, so they relay side by
+        // side within the one budget.
+        const entries = Object.entries(routeOptions.consumers);
+        const relayed = await Promise.all(
+          entries.map(async ([consumer, sink]) => {
+            const result = await relay(
+              consumer,
+              typeof sink === "function" ? sink : toSink(sink),
+              routeOptions,
+              deadline,
+            );
+            if (result.error) routeOptions.onError?.(result.error, consumer);
+            return result;
+          }),
+        );
         const results: Record<string, RelayResult> = {};
-        for (const [consumer, sink] of Object.entries(routeOptions.consumers)) {
-          if (Date.now() >= deadline) break;
-          const result = await relay(
-            consumer,
-            typeof sink === "function" ? sink : toSink(sink),
-            routeOptions,
-            deadline,
-          );
-          if (result.error) routeOptions.onError?.(result.error, consumer);
-          results[consumer] = result;
-        }
+        entries.forEach(([consumer], index) => {
+          results[consumer] = relayed[index]!;
+        });
         const result: OutboxRouteResult = {
           consumers: results,
           budgetExhausted: Date.now() >= deadline,

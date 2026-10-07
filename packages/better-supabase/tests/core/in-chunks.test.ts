@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
@@ -74,6 +75,96 @@ describe("oversized in lists", () => {
       .customers.findMany({ select: ["name"], where: { id: { in: ids } } })
       .orThrow();
     expect(rows.map((row) => row.name)).toEqual(ids);
+  });
+
+  it("sends each value once when the list repeats values", async () => {
+    const { client, requests } = capturingClient((request) => ({
+      body: listOf(request.params.get("id")).map((id) => ({ id })),
+    }));
+    const rows = await betterSupabase
+      .connect(client)
+      .customers.findMany({
+        select: ["id"],
+        where: { id: { in: [...ids, ...ids] } },
+      })
+      .orThrow();
+    const sent = requests.flatMap((request) =>
+      listOf(request.params.get("id")),
+    );
+    expect(sent).toEqual(ids);
+    expect(rows).toHaveLength(ids.length);
+  });
+
+  it("orders times by instant across offsets", async () => {
+    const times = [
+      "2026-01-01T02:00:00+02:00",
+      "2026-01-01T00:30:00+00:00",
+      "2026-01-01T00:00:00.000001+00:00",
+      "2026-01-01T00:00:00+00:00",
+    ];
+    const { client } = capturingClient((request) => ({
+      body: listOf(request.params.get("id")).map((id, index) => ({
+        id,
+        createdAt: times[index % times.length],
+      })),
+    }));
+    const rows = await betterSupabase
+      .connect(client)
+      .customers.findMany({
+        select: ["id", "createdAt"],
+        where: { id: { in: ids } },
+        orderBy: { createdAt: "asc" },
+      })
+      .orThrow();
+    const order = [...new Set(rows.map((row) => row.createdAt))];
+    expect(order.slice(2)).toEqual([
+      "2026-01-01T00:00:00.000001+00:00",
+      "2026-01-01T00:30:00+00:00",
+    ]);
+    expect(order.slice(0, 2).sort()).toEqual([
+      "2026-01-01T00:00:00+00:00",
+      "2026-01-01T02:00:00+02:00",
+    ]);
+  });
+
+  it("runs at most four chunks at once", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    let calls = 0;
+    const client = createClient(
+      "http://localhost:54321",
+      "sb_publishable_test",
+      {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: {
+          fetch: async (input) => {
+            calls += 1;
+            inFlight += 1;
+            peak = Math.max(peak, inFlight);
+            await new Promise((resolve) => {
+              setTimeout(resolve, 2);
+            });
+            inFlight -= 1;
+            const url = new URL(String(input));
+            return Response.json(
+              listOf(url.searchParams.get("id")).map((id) => ({ id })),
+            );
+          },
+        },
+      },
+    );
+    const many = Array.from(
+      { length: 1500 },
+      (_, index) =>
+        `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    );
+    const rows = await defineSupabase(schema, { urlLengthLimit: 2000 })
+      .connect(client)
+      .customers.findMany({ select: ["id"], where: { id: { in: many } } })
+      .orThrow();
+    expect(rows).toHaveLength(many.length);
+    expect(calls).toBeGreaterThan(4);
+    expect(peak).toBe(4);
   });
 
   it("keeps a read that fits in one request", async () => {

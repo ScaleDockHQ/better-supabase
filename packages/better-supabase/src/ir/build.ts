@@ -129,6 +129,8 @@ export function escapeLike(value: string): string {
 }
 
 const builders = new WeakMap<SchemaMeta, IrBuilder>();
+/** Column lists remembered per table; reads with generated lists stay bounded. */
+const SELECTION_CACHE_SIZE = 256;
 
 /** The shared builder for a schema; a builder holds no per-call state. */
 export function builderFor(meta: SchemaMeta): IrBuilder {
@@ -144,6 +146,7 @@ export class IrBuilder {
   readonly meta: SchemaMeta;
   /** Every column of a table, the selection of reads without `select`. */
   readonly #allColumns = new WeakMap<TableMeta, readonly SelectColumn[]>();
+  readonly #selections = new WeakMap<TableMeta, Map<string, Selection>>();
 
   constructor(meta: SchemaMeta) {
     this.meta = meta;
@@ -480,27 +483,53 @@ export class IrBuilder {
     select: readonly string[] | undefined,
     include: unknown,
   ): Selection {
+    if (include === undefined) return this.#columnsOnly(table, select);
     const columns =
       select?.map((alias) => this.selectColumn(table, alias)) ??
       this.allColumns(table);
     const includes: Include[] = [];
-    if (include !== undefined) {
-      if (!isPlainObject(include)) {
-        invalidRequest(
-          `"include" on "${table.key}" must be an object`,
-          table.key,
-        );
-      }
-      for (const [name, value] of Object.entries(include)) {
-        if (value === undefined || value === false) continue;
-        const fn = AGGREGATE_KEYS[name];
-        if (name === "_count") includes.push(...this.counts(table, value));
-        else if (fn)
-          includes.push(...this.relationAggregates(table, fn, value));
-        else includes.push(this.include(table, name, value));
-      }
+    if (!isPlainObject(include)) {
+      invalidRequest(
+        `"include" on "${table.key}" must be an object`,
+        table.key,
+      );
+    }
+    for (const [name, value] of Object.entries(include)) {
+      if (value === undefined || value === false) continue;
+      const fn = AGGREGATE_KEYS[name];
+      if (name === "_count") includes.push(...this.counts(table, value));
+      else if (fn) includes.push(...this.relationAggregates(table, fn, value));
+      else includes.push(this.include(table, name, value));
     }
     return { columns, includes };
+  }
+
+  /**
+   * A selection without includes, shared per table and column list so the
+   * caches keyed on a selection (decoding, rules) hit across calls.
+   */
+  #columnsOnly(
+    table: TableMeta,
+    select: readonly string[] | undefined,
+  ): Selection {
+    let byList = this.#selections.get(table);
+    if (!byList) {
+      byList = new Map();
+      this.#selections.set(table, byList);
+    }
+    const key = select === undefined ? "*" : `:${select.join(",")}`;
+    let selection = byList.get(key);
+    if (!selection) {
+      selection = {
+        columns:
+          select?.map((alias) => this.selectColumn(table, alias)) ??
+          this.allColumns(table),
+        includes: [],
+      };
+      if (byList.size >= SELECTION_CACHE_SIZE) byList.clear();
+      byList.set(key, selection);
+    }
+    return selection;
   }
 
   /**

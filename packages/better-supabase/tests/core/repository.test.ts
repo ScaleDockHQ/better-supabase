@@ -274,6 +274,7 @@ describe("reads", () => {
     });
     expect(query(last())).toEqual([
       "select=id,name",
+      "name=gte.Beta",
       'or=(name.gt."Beta",and(name.eq."Beta",id.gt."b"))',
       "order=name.asc,id.asc",
       "limit=3",

@@ -104,9 +104,8 @@ payload when receivers need it.
 
 A claim leases the consumer to one worker for `lease` (one minute by
 default), so two cron runs never send the same batch at the same time.
-`relayRoute` checks the bearer secret and relays each consumer in turn
-within its budget, the same way the [jobs drain route](/docs/blocks/jobs)
-does.
+`relayRoute` checks the bearer secret and relays every consumer at the same
+time within one budget, since each has its own cursor and lease.
 
 ### Consumers inside the app
 

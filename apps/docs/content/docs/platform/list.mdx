@@ -51,9 +51,12 @@ such as tenant scoping and soft delete still apply. `include` takes the same
 relation map as `findMany`. If you only want the arguments, use
 `customerList.args(query)`.
 
-The total uses `count: 'exact'` by default. On large tables, set
-`count: 'planned'` or `'estimated'` in the config, or pass `count` to one
-`run`; see [Pagination](/docs/repository/pagination) for what each mode costs.
+The total uses `count: 'planned'` by default: the planner's row estimate,
+which costs nothing extra but can be off after bulk changes until the table is
+analyzed. Set `count: 'exact'` in the config when the UI needs the precise
+total (a "page 3 of 7" footer on a small table), `'estimated'` for exact
+counts below PostgREST's `db-max-rows` and the estimate above, or pass `count`
+to one `run`; see [Pagination](/docs/repository/pagination) for what each mode costs.
 
 ## Cursor pagination
 

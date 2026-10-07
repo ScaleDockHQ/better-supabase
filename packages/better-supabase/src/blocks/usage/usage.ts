@@ -5,6 +5,7 @@ import type { AsyncResult } from "../../core/result.ts";
 import {
   blockCall,
   DEFAULT_BLOCK_SCHEMA,
+  eachLimit,
   isRecord,
   optionalText,
   recordOf,
@@ -379,6 +380,20 @@ export interface ReportUsageOptions {
   readonly overage?: boolean;
 }
 
+/** Customer lookups, and meter events with their marks, in flight at once. */
+const REPORT_CONCURRENCY = 8;
+
+interface PendingReport {
+  readonly organizationId: string;
+  readonly meter: string;
+  readonly day: string;
+  readonly value: number;
+  readonly delta: number;
+  readonly eventName: string;
+  readonly customer: string;
+  readonly identifier: string;
+}
+
 export interface ReportUsageResult {
   /** Meter events sent; usage inside the quota with `overage` is marked without one. */
   readonly reported: number;
@@ -413,6 +428,33 @@ export async function reportUsageToStripe(
   const limit = options.batch ?? 500;
   const skipMeters = new Set<string>();
   const skipTenants = new Set<string>();
+  /** Sends the meter event when there is a delta, then marks the total; `true` when it sent one. */
+  const send = async (pending: PendingReport): Promise<boolean> => {
+    const { organizationId, meter, day, value, delta, identifier } = pending;
+    if (delta > 0) {
+      await stripe.billing.meterEvents.create(
+        {
+          event_name: pending.eventName,
+          payload: {
+            stripe_customer_id: pending.customer,
+            value: String(delta),
+          },
+          identifier,
+          timestamp: Math.floor(
+            Math.min(Date.now(), Date.parse(`${day}T23:59:59Z`)) / 1000,
+          ),
+        },
+        { idempotencyKey: identifier },
+      );
+    }
+    await transport.call(schema, "mark_usage_reported", {
+      tenant: organizationId,
+      meter,
+      day,
+      value,
+    });
+    return delta > 0;
+  };
   let reported = 0;
   let skipped = 0;
   let handled = 0;
@@ -426,6 +468,26 @@ export async function reportUsageToStripe(
       "unreported_usage",
     );
     let passedOver = false;
+    const eventNameOf = (meter: string): string | undefined =>
+      options.eventName ? options.eventName(meter) : meter;
+    const lookups = new Set<string>();
+    for (const row of rows) {
+      const organizationId = textOf(row["organization_id"]);
+      if (
+        !customers.has(organizationId) &&
+        !skipTenants.has(organizationId) &&
+        eventNameOf(textOf(row["meter"])) !== undefined
+      )
+        lookups.add(organizationId);
+    }
+    await eachLimit(
+      [...lookups],
+      REPORT_CONCURRENCY,
+      async (organizationId) => {
+        customers.set(organizationId, await customerOf(organizationId));
+      },
+    );
+    const sends: PendingReport[] = [];
     for (const row of rows) {
       const organizationId = textOf(row["organization_id"]);
       const meter = textOf(row["meter"]);
@@ -433,15 +495,12 @@ export async function reportUsageToStripe(
         skipped += 1;
         continue;
       }
-      const eventName = options.eventName ? options.eventName(meter) : meter;
+      const eventName = eventNameOf(meter);
       if (eventName === undefined) {
         skipMeters.add(meter);
         skipped += 1;
         passedOver = true;
         continue;
-      }
-      if (!customers.has(organizationId)) {
-        customers.set(organizationId, await customerOf(organizationId));
       }
       const customer = customers.get(organizationId);
       if (customer === undefined) {
@@ -464,27 +523,22 @@ export async function reportUsageToStripe(
               Math.max(0, before + previous - included)
             : value - previous;
       const identifier = `${organizationId}:${meter}:${day}:${String(value)}`;
-      if (delta > 0) {
-        await stripe.billing.meterEvents.create(
-          {
-            event_name: eventName,
-            payload: { stripe_customer_id: customer, value: String(delta) },
-            identifier,
-            timestamp: Math.floor(
-              Math.min(Date.now(), Date.parse(`${day}T23:59:59Z`)) / 1000,
-            ),
-          },
-          { idempotencyKey: identifier },
-        );
-        reported += 1;
-      }
-      await transport.call(schema, "mark_usage_reported", {
-        tenant: organizationId,
+      sends.push({
+        organizationId,
         meter,
         day,
         value,
+        delta,
+        eventName,
+        customer,
+        identifier,
       });
     }
+    const sent: boolean[] = [];
+    await eachLimit(sends, REPORT_CONCURRENCY, async (pending, index) => {
+      sent[index] = await send(pending);
+    });
+    reported += sent.filter(Boolean).length;
     if (!passedOver || handled >= limit || rows.length === 0) break;
   }
   return { reported, skipped };

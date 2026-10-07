@@ -56,7 +56,7 @@ export interface ListQueryConfig<
    * that runs next to the page: one wave. Needs PostgREST aggregates.
    */
   readonly facetCounts?: C;
-  /** How the page total is counted. Defaults to `'exact'`. */
+  /** How the page total is counted. Defaults to `'planned'`, the planner's estimate. */
   readonly count?: CountMode;
   /** Text columns matched case-insensitively (OR), or a full-text column. */
   readonly search?:
@@ -564,7 +564,7 @@ export function defineListQuery<
     const filter = where(query);
     const paging = cursor
       ? { after: query.after ?? null }
-      : { page: query.page, count: config.count ?? "exact" };
+      : { page: query.page, count: config.count ?? "planned" };
     // SAFETY: orderBy comes from config.sorts for table T, the filter is
     // built from its columns, and `paging` matches the pagination P.
     return {

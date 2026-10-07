@@ -48,7 +48,23 @@ export function keysetCondition(
     return [and(...equal, step) ?? step];
   });
   // A null in the last nulls-last term leaves nothing after the cursor.
-  return branches.length > 0
-    ? or(...branches)
-    : columnIs(orderBy[0]?.column ?? "", "in", []);
+  if (branches.length === 0)
+    return columnIs(orderBy[0]?.column ?? "", "in", []);
+  const after = or(...branches);
+  // A plain range on the first column next to the OR lets Postgres use its
+  // index to start at the cursor; the OR alone can make it scan from the top.
+  const [first] = orderBy;
+  if (
+    orderBy.length < 2 ||
+    !first ||
+    values[0] === null ||
+    nullable(first.column)
+  )
+    return after;
+  const bound = columnIs(
+    first.column,
+    first.direction === "asc" ? "gte" : "lte",
+    values[0],
+  );
+  return and(bound, after) ?? after;
 }

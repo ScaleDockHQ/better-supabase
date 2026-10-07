@@ -374,15 +374,15 @@ class PostgrestCompiler {
 
   // Filter embeds created from a logic tree hang off the current embed list;
   // their path is resolved by the caller that owns the list.
-  readonly #paths = new WeakMap<EmbedNode[], string | undefined>();
+  #paths: WeakMap<EmbedNode[], string | undefined> | undefined;
 
   withPath(embeds: EmbedNode[], path: string | undefined): EmbedNode[] {
-    this.#paths.set(embeds, path);
+    (this.#paths ??= new WeakMap()).set(embeds, path);
     return embeds;
   }
 
   private pathOf(alias: string, embeds: EmbedNode[]): string {
-    const parent = this.#paths.get(embeds);
+    const parent = this.#paths?.get(embeds);
     return parent ? `${parent}.${alias}` : alias;
   }
 

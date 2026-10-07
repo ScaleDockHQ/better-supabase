@@ -979,14 +979,20 @@ describe("cursor pagination", () => {
       items: [
         col("status", "eq", "lead"),
         {
-          kind: "or",
+          kind: "and",
           items: [
-            col("created_at", "lt", "2026-02-01"),
+            col("created_at", "lte", "2026-02-01"),
             {
-              kind: "and",
+              kind: "or",
               items: [
-                col("created_at", "eq", "2026-02-01"),
-                col("id", "lt", "c2"),
+                col("created_at", "lt", "2026-02-01"),
+                {
+                  kind: "and",
+                  items: [
+                    col("created_at", "eq", "2026-02-01"),
+                    col("id", "lt", "c2"),
+                  ],
+                },
               ],
             },
           ],

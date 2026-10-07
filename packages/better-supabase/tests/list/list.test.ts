@@ -362,7 +362,7 @@ describe("defineListQuery", () => {
     });
     expect(fts.args(fts.parse({ q: "road" }).value!)).toMatchObject({
       where: { name: { search: { query: "road", config: "dutch" } } },
-      count: "exact",
+      count: "planned",
       page: 1,
       size: 50,
     });

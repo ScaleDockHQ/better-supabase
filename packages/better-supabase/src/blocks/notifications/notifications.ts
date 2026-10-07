@@ -584,23 +584,29 @@ export function createNotifications<
           : Date.now() + deliverOptions.budgetMs;
       const batch = deliverOptions.batch ?? 50;
       const counts = { sent: 0, skipped: 0, failed: 0 };
-      for (const channel of channels) {
-        while (Date.now() < deadline) {
-          const claimed = await call("claim_notification_deliveries", {
-            channel: channel.name,
-            max_items: batch,
-            lease: deliverOptions.lease ?? "5 minutes",
-            max_attempts: deliverOptions.maxAttempts ?? 5,
-          });
-          const rows = (Array.isArray(claimed) ? claimed : []).filter(isRecord);
-          for (const row of rows) {
-            counts[
-              await deliverOne(channel, row, deliverOptions.maxAttempts ?? 5)
-            ] += 1;
+      // Channels are independent, so a slow provider doesn't hold up the
+      // others; each channel's deliveries go out in order.
+      await Promise.all(
+        channels.map(async (channel) => {
+          while (Date.now() < deadline) {
+            const claimed = await call("claim_notification_deliveries", {
+              channel: channel.name,
+              max_items: batch,
+              lease: deliverOptions.lease ?? "5 minutes",
+              max_attempts: deliverOptions.maxAttempts ?? 5,
+            });
+            const rows = (Array.isArray(claimed) ? claimed : []).filter(
+              isRecord,
+            );
+            for (const row of rows) {
+              counts[
+                await deliverOne(channel, row, deliverOptions.maxAttempts ?? 5)
+              ] += 1;
+            }
+            if (rows.length < batch) break;
           }
-          if (rows.length < batch) break;
-        }
-      }
+        }),
+      );
       return counts;
     },
     purge(olderThan, batch) {

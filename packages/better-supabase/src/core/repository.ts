@@ -404,6 +404,7 @@ export class OperationRunner {
 }
 
 const sensitiveByTable = new WeakMap<TableMeta, ReadonlySet<string>>();
+const primaryOrders = new WeakMap<TableMeta, readonly OrderTerm[]>();
 
 /** Database names of the table's `config.sensitive` columns. */
 function sensitiveColumnsOf(table: TableMeta): ReadonlySet<string> {
@@ -484,13 +485,18 @@ export function createRepository(
   ): Promise<Result<ExecuteResult>> =>
     runner.run(op, optionsOf(args), signalOf(args), tuningOf(args));
 
-  let primaryOrder: readonly OrderTerm[] | undefined;
   /** `primaryKey` holds app names; order terms take database names. */
-  const defaultOrder = (): readonly OrderTerm[] =>
-    (primaryOrder ??= table.primaryKey.map((name): OrderTerm => ({
-      column: builder.column(table, name),
-      direction: "asc",
-    })));
+  const defaultOrder = (): readonly OrderTerm[] => {
+    let order = primaryOrders.get(table);
+    if (!order) {
+      order = table.primaryKey.map((name): OrderTerm => ({
+        column: builder.column(table, name),
+        direction: "asc",
+      }));
+      primaryOrders.set(table, order);
+    }
+    return order;
+  };
 
   const notFound = <T>(): Result<T> =>
     runner.fail(table, dbError("not_found", `No ${table.key} row matched`));

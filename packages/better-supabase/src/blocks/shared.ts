@@ -145,6 +145,34 @@ export function workerId(): string {
   return `worker-${crypto.randomUUID().slice(0, 8)}`;
 }
 
+/**
+ * Runs `fn` over `items` with at most `limit` calls in flight. After the
+ * first rejection no new item starts; the ones running finish, then it
+ * rethrows.
+ */
+export async function eachLimit<T>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  let failure: { cause: unknown } | undefined;
+  const lane = async (): Promise<void> => {
+    while (failure === undefined && next < items.length) {
+      const index = next++;
+      try {
+        await fn(items[index]!, index);
+      } catch (cause) {
+        failure ??= { cause };
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(Math.max(1, limit), items.length) }, lane),
+  );
+  if (failure) throw failure.cause;
+}
+
 export const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve) => {
     if (signal?.aborted) {
