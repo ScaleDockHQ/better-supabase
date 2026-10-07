@@ -470,6 +470,19 @@ function claimSql(claim: string | readonly string[]): string {
     : `coalesce(${expressions.join(", ")})`;
 }
 
+/**
+ * Path segment `index` equals `value`. A first segment also bounds `name` to
+ * the `value/` prefix in the "C" collation, the storage name indexes', so
+ * Postgres range-scans one tenant's objects instead of the whole bucket;
+ * `like` can't, because its pattern only exists at run time.
+ */
+function segmentCheck(index: number, value: string): string {
+  const equal = `split_part(name, '/', ${String(index)}) = ${value}`;
+  return index === 1
+    ? `name collate "C" >= (${value} || '/') and name collate "C" < (${value} || '0') and ${equal}`
+    : equal;
+}
+
 function mimeAllowed(allowed: readonly string[], type: string): boolean {
   const base = type.split(";")[0]!.trim().toLowerCase();
   return allowed.some((entry) => {
@@ -550,11 +563,11 @@ export function defineBucket<
         const expression =
           config.tenant?.sql ??
           claimSql(config.tenant?.claim ?? tenantClaimPaths());
-        return `split_part(name, '/', ${String(index)}) = (${expression})`;
+        return segmentCheck(index, `(${expression})`);
       }
       case "owner": {
         const index = segmentFor(config.owner?.param ?? "userId", "owner");
-        return `split_part(name, '/', ${String(index)}) = (select auth.uid())::text`;
+        return segmentCheck(index, "(select auth.uid())::text");
       }
       case "public":
       case "none":

@@ -135,7 +135,13 @@ describe("fromCatalog", () => {
 describe("stabilizeMetadata", () => {
   it("derives ids from names, so oids do not leak into snapshots", () => {
     const shifted = structuredClone(snapshot.generator);
-    for (const table of shifted.tables) table.id += 500;
+    for (const table of [
+      ...shifted.tables,
+      ...shifted.views,
+      ...shifted.materializedViews,
+      ...shifted.foreignTables,
+    ])
+      table.id += 500;
     for (const column of shifted.columns) column.table_id += 500;
     for (const key of shifted.primaryKeys) key.table_id += 500;
     expect(stabilizeMetadata(shifted).metadata).toEqual(

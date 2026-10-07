@@ -81,6 +81,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
           status,
           metadata,
           createdAt,
+          archivedAt: status === "archived" ? createdAt : null,
         })),
         { returning: false },
       )

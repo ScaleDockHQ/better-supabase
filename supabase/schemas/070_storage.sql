@@ -1,14 +1,14 @@
 -- Customer logos. The bucket row is data, so the baseline migration inserts it;
 -- the bucket is public for reads and writes stay within the tenant.
 create policy "bs_customer_logos_select" on storage.objects for select to authenticated
-  using (bucket_id = 'customer-logos' and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')));
+  using (bucket_id = 'customer-logos' and name collate "C" >= ((coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) || '/') and name collate "C" < ((coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) || '0') and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')));
 
 create policy "bs_customer_logos_insert" on storage.objects for insert to authenticated
-  with check (bucket_id = 'customer-logos' and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) and name ~ '^[^/]+/[^/]+/logo/[^/]+\.webp$');
+  with check (bucket_id = 'customer-logos' and name collate "C" >= ((coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) || '/') and name collate "C" < ((coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) || '0') and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) and name ~ '^[^/]+/[^/]+/logo/[^/]+\.webp$');
 
 create policy "bs_customer_logos_update" on storage.objects for update to authenticated
-  using (bucket_id = 'customer-logos' and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')))
-  with check (bucket_id = 'customer-logos' and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) and name ~ '^[^/]+/[^/]+/logo/[^/]+\.webp$');
+  using (bucket_id = 'customer-logos' and name collate "C" >= ((coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) || '/') and name collate "C" < ((coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) || '0') and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')))
+  with check (bucket_id = 'customer-logos' and name collate "C" >= ((coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) || '/') and name collate "C" < ((coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) || '0') and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) and name ~ '^[^/]+/[^/]+/logo/[^/]+\.webp$');
 
 create policy "bs_customer_logos_delete" on storage.objects for delete to authenticated
-  using (bucket_id = 'customer-logos' and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')));
+  using (bucket_id = 'customer-logos' and name collate "C" >= ((coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) || '/') and name collate "C" < ((coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')) || '0') and split_part(name, '/', 1) = (coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id')));

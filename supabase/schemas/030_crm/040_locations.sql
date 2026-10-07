@@ -12,7 +12,8 @@ create table public.locations (
 );
 
 create index locations_customer_id_idx on public.locations (customer_id, organization_id);
-create index locations_organization_id_idx on public.locations (organization_id);
+create index locations_organization_id_created_at_idx on public.locations (organization_id, created_at desc);
+create unique index locations_one_primary_idx on public.locations (customer_id) where is_primary;
 
 create trigger locations_set_updated_at before update on public.locations
   for each row execute function better_supabase.set_updated_at();

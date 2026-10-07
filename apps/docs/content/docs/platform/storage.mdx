@@ -178,6 +178,11 @@ Writes are also checked against the template's shape
 outside the paths your code builds. Use `tenant: { param, claim }` or
 `tenant: { sql }` to change which JWT claim or SQL expression is compared.
 
+When the `tenant` or `owner` segment comes first in the template, the
+policies also bound `name` to that segment's prefix in the `"C"` collation,
+so Postgres reads one tenant's objects through the storage name index instead
+of scanning the bucket. Put the tenant first in new templates to get this.
+
 ### Access contract permissions
 
 With the [access contract](/docs/blocks/access) installed, a bucket can check
