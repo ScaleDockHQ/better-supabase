@@ -450,8 +450,7 @@ export function createQueries<
   const runtime: Runtime = {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `BetterQueries<M, E, F>` restores them.
     betterSupabase: betterSupabase as unknown as Runtime["betterSupabase"],
-    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `BetterQueries<M, E, F>` restores them.
-    db: (typeof db === "function" ? db : () => db) as unknown as () => AnyDb,
+    db: typeof db === "function" ? db : () => db,
     staleTime: options.staleTime,
   };
   const stale =

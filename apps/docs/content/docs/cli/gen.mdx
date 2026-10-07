@@ -183,6 +183,16 @@ extra round trips:
   default are optional. Functions that return rows of a table or a
   `returns table (...)` record get a `result` entry, so `db.$rpc` returns them
   in your [casing](/docs/concepts/casing#function-results).
+- **Overloaded functions.** A function with several signatures gets a union
+  of `{ Args; Returns }` in `Functions`, one member per overload in
+  signature order, as in `database.types.ts`. PostgREST picks an overload by
+  the argument names, so `db.$rpc` does too: a call type-checks against any
+  overload, returns the type of the overload whose names it passes, and
+  decodes the result with that overload's `result`. Overloads with the same
+  argument names (`pick(value integer)` and `pick(value text)`) return the
+  union of their types, and PostgREST can't choose between them at runtime
+  either. An overload without arguments is typed `Record<PropertyKey, never>`,
+  so it never matches a call that passes one.
 - **Nullable function results.** Postgres can't promise that a function
   returns a value: a `strict` function returns `null` for a `null`
   argument, a SQL function returns `null` when its query finds no row, and

@@ -1,4 +1,9 @@
-import type { Codec, FunctionMeta, SchemaMeta } from "../schema/types.ts";
+import type {
+  Codec,
+  FunctionMeta,
+  FunctionSignature,
+  SchemaMeta,
+} from "../schema/types.ts";
 
 import { decodeValue } from "../ir/wire.ts";
 import { lookupOf } from "../schema/lookup.ts";
@@ -50,19 +55,52 @@ function decodeRow(columns: Columns, row: unknown): unknown {
   return out;
 }
 
+const overloadMeta = new WeakMap<FunctionSignature, FunctionMeta>();
+
 /**
- * The `$rpc` result in app form: rows of a table or a `returns table (...)`
- * record get the configured casing and codecs, like repository reads.
- * Scalars, json and functions in another schema come back unchanged.
+ * The signature `$rpc` calls: PostgREST picks an overload by the argument
+ * names, so a call matches the overload that has every name it passes and
+ * every argument without a default. Undefined when the function is in
+ * another schema or when no overload, or more than one, matches.
  */
-export function decodeRpcResult(
+export function rpcFunction(
   meta: SchemaMeta,
   name: string,
   schema: string,
+  args: Readonly<Record<string, unknown>>,
+): FunctionMeta | undefined {
+  const fn = meta.functions[name];
+  if (!fn || fn.schema !== schema) return undefined;
+  if (!fn.overloads) return fn;
+  const keys = Object.keys(args).filter((key) => args[key] !== undefined);
+  const matches = fn.overloads.filter(
+    (overload) =>
+      keys.every((key) => overload.args.some((arg) => arg.name === key)) &&
+      overload.args.every(
+        (arg) => arg.optional === true || keys.includes(arg.name),
+      ),
+  );
+  const [match] = matches;
+  if (!match || matches.length > 1) return undefined;
+  let resolved = overloadMeta.get(match);
+  if (!resolved) {
+    resolved = { ...match, name: fn.name, schema: fn.schema };
+    overloadMeta.set(match, resolved);
+  }
+  return resolved;
+}
+
+/**
+ * The `$rpc` result in app form: rows of a table or a `returns table (...)`
+ * record get the configured casing and codecs, like repository reads.
+ * Scalars, json and calls without a known signature come back unchanged.
+ */
+export function decodeRpcResult(
+  meta: SchemaMeta,
+  fn: FunctionMeta | undefined,
   data: unknown,
 ): unknown {
-  const fn = meta.functions[name];
-  if (!fn || fn.schema !== schema) return data;
+  if (!fn) return data;
   const columns = columnsOf(meta, fn);
   if (!columns || columns.size === 0) return data;
   return Array.isArray(data)

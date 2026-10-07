@@ -1,6 +1,7 @@
 import type { ColumnModel, FunctionModel, Model } from "./model.ts";
 
 import { byCodePoint } from "../compare.ts";
+import { functionGroups } from "./model.ts";
 import {
   block,
   identifier,
@@ -126,11 +127,31 @@ function modelsType(model: Model): string[] {
 function functionsType(model: Model): string[] {
   if (model.functions.length === 0)
     return ["export type Functions = Record<never, never>;"];
-  const entries = model.functions.flatMap((fn) =>
-    block(prop(fn.key), [
-      ...block("Args", argEntries(fn), "Record<never, never>"),
-      `Returns: ${fn.returns};`,
-    ]),
+  const entries = [...functionGroups(model.functions)].flatMap(
+    ([key, group]) => {
+      const [first] = group;
+      if (group.length === 1 && first)
+        return block(prop(key), [
+          ...block("Args", argEntries(first), "Record<never, never>"),
+          `Returns: ${first.returns};`,
+        ]);
+      // An overload without arguments rejects every key, so it never
+      // matches a call that names one.
+      return [
+        `${prop(key)}:`,
+        ...indent(
+          group.flatMap((fn, index) => {
+            const lines = [
+              ...block("Args", argEntries(fn), "Record<PropertyKey, never>"),
+              `Returns: ${fn.returns};`,
+            ];
+            const end = index === group.length - 1 ? "};" : "}";
+            return ["| {", ...indent(lines, 1), end];
+          }),
+          1,
+        ),
+      ];
+    },
   );
   return ["export type Functions = {", ...indent(entries, 1), "};"];
 }
