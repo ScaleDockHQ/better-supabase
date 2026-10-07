@@ -68,6 +68,7 @@ export { defineReadSet, isReadSet, readSetTables } from "./core/read-set.ts";
 export type {
   InferReadSetParams,
   ReadSet,
+  ReadSetAuth,
   ReadSetOptions,
   ReadSetParams,
   ReadSetParamType,

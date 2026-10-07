@@ -1,5 +1,5 @@
 {
-  ".": 58427,
+  ".": 58923,
   "./config": 12293,
   "./cli": 243907,
   "./client": 14849,
@@ -10,7 +10,7 @@
   "./powersync": 24797,
   "./postgres": 24512,
   "./ssr": 14819,
-  "./next": 82932,
+  "./next": 83258,
   "./next/image": 906,
   "./hono": 71574,
   "./tanstack-start": 1939,
@@ -59,7 +59,7 @@
   "./plugins/tenant": 9177,
   "./plugins/actor": 6375,
   "./plugins/validation": 11337,
-  "./sql": 239980,
-  "./testing": 96897,
+  "./sql": 240458,
+  "./testing": 97393,
   "better-supabase CLI (startup)": 12910
 }

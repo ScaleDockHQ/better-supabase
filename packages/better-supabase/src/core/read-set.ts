@@ -3,6 +3,7 @@ import type { BetterSupabase } from "./define.ts";
 import type { AnyPlugin } from "./plugin.ts";
 import type { InferResult, QuerySpec, Specs } from "./spec.ts";
 
+import { type DbError, dbError } from "./errors.ts";
 import { isQuerySpec, specTables } from "./spec.ts";
 
 type ScalarParamType =
@@ -52,6 +53,16 @@ export type ReadSetParams<P extends ReadSetParamTypes> = {
   readonly [K in keyof P]: ReadSetParamValue<P[K]>;
 };
 
+/**
+ * Placeholders for the caller's identity, the third argument of a read
+ * set's builder. The function reads them in the database, so callers can't
+ * pass someone else's.
+ */
+export interface ReadSetAuth {
+  /** The caller's user id: `auth.uid()` in the function, the JWT `sub` claim otherwise. */
+  readonly uid: string;
+}
+
 type ReadSetRole = "anon" | "authenticated";
 
 /**
@@ -99,13 +110,28 @@ const PARAM = /^[a-z_][a-z0-9_]*$/i;
 const TYPE = /^(?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*(?:\[\])?$/;
 /** `jsonb_build_object` takes at most 100 arguments. */
 const MAX_ENTRIES = 50;
-/** Placeholders are `NUL bs:<name> NUL`: no real parameter value holds a NUL. */
+/**
+ * Placeholders are `NUL bs:<name> NUL`: no real parameter value holds a NUL.
+ * Auth placeholders start with `@`, which no parameter name can.
+ */
 const NUL = "\u0000";
-const SENTINEL = new RegExp(`${NUL}bs:([a-z_][a-z0-9_]*)${NUL}`, "gi");
-const EXACT = new RegExp(`^${NUL}bs:([a-z_][a-z0-9_]*)${NUL}$`, "i");
+const SENTINEL = new RegExp(`${NUL}bs:(@?[a-z_][a-z0-9_]*)${NUL}`, "gi");
+const EXACT = new RegExp(`^${NUL}bs:(@?[a-z_][a-z0-9_]*)${NUL}$`, "i");
 
 function sentinel(name: string): string {
   return `${NUL}bs:${name}${NUL}`;
+}
+
+const AUTH: ReadSetAuth = { uid: sentinel("@uid") };
+
+/** What a placeholder stands for: a caller parameter or the caller's identity. */
+export type Placeholder =
+  | { readonly kind: "param"; readonly name: string; readonly array: boolean }
+  | { readonly kind: "auth"; readonly name: "uid"; readonly array: boolean };
+
+function tagged(name: string, array: boolean): Placeholder | undefined {
+  if (!name.startsWith("@")) return { kind: "param", name, array };
+  return name === "@uid" ? { kind: "auth", name: "uid", array } : undefined;
 }
 
 /**
@@ -138,7 +164,7 @@ export function defineReadSet<
   betterSupabase: BetterSupabase<M, D, F, E>,
   name: N,
   options: ReadSetOptions<P>,
-  build: (specs: Specs<M, E>, params: ReadSetParams<P>) => S,
+  build: (specs: Specs<M, E>, params: ReadSetParams<P>, auth: ReadSetAuth) => S,
 ): ReadSet<N, P, S> {
   if (!NAME.test(name)) {
     throw new TypeError(
@@ -162,7 +188,11 @@ export function defineReadSet<
     placeholders[key] = type.endsWith("[]") ? [sentinel(key)] : sentinel(key);
   }
   // SAFETY: the loop above filled a placeholder for every parameter in P.
-  const specs = build(betterSupabase.spec, placeholders as ReadSetParams<P>);
+  const specs = build(
+    betterSupabase.spec,
+    placeholders as ReadSetParams<P>,
+    AUTH,
+  );
   const entries = Object.entries(specs);
   if (entries.length === 0 || entries.length > MAX_ENTRIES) {
     throw new TypeError(
@@ -239,17 +269,15 @@ export function isReadSet(value: unknown): value is ReadSet {
   );
 }
 
-/** A parameter a string or array carries, if it is exactly a placeholder. */
-export function placeholderOf(
-  value: unknown,
-): { readonly name: string; readonly array: boolean } | undefined {
+/** The placeholder a string or array carries, if it is exactly one. */
+export function placeholderOf(value: unknown): Placeholder | undefined {
   if (typeof value === "string") {
     const match = EXACT.exec(value);
-    return match ? { name: match[1]!, array: false } : undefined;
+    return match ? tagged(match[1]!, false) : undefined;
   }
   if (Array.isArray(value) && value.length === 1) {
     const inner = placeholderOf(value[0]);
-    return inner && !inner.array ? { name: inner.name, array: true } : inner;
+    return inner && !inner.array ? { ...inner, array: true } : inner;
   }
   return undefined;
 }
@@ -257,13 +285,14 @@ export function placeholderOf(
 /** Splits a string around the placeholders inside it. */
 export function splitPlaceholders(
   value: string,
-): readonly ({ readonly text: string } | { readonly param: string })[] {
-  const parts: ({ text: string } | { param: string })[] = [];
+): readonly ({ readonly text: string } | Placeholder)[] {
+  const parts: ({ text: string } | Placeholder)[] = [];
   let last = 0;
   for (const match of value.matchAll(SENTINEL)) {
     if (match.index > last)
       parts.push({ text: value.slice(last, match.index) });
-    parts.push({ param: match[1]! });
+    const placeholder = tagged(match[1]!, false);
+    parts.push(placeholder ?? { text: match[0] });
     last = match.index + match[0].length;
   }
   if (last < value.length) parts.push({ text: value.slice(last) });
@@ -280,6 +309,24 @@ export function containsPlaceholder(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(containsPlaceholder);
   if (typeof value === "object" && value !== null) {
     return Object.values(value).some(containsPlaceholder);
+  }
+  return false;
+}
+
+/** Whether the set's specs read the caller's identity. */
+function readSetUsesAuth(set: ReadSet): boolean {
+  return Object.values(set.specs).some((spec) => usesAuth(spec.args));
+}
+
+function usesAuth(value: unknown): boolean {
+  if (typeof value === "string") {
+    return [...value.matchAll(SENTINEL)].some((match) =>
+      match[1]!.startsWith("@"),
+    );
+  }
+  if (Array.isArray(value)) return value.some(usesAuth);
+  if (typeof value === "object" && value !== null) {
+    return Object.values(value).some(usesAuth);
   }
   return false;
 }
@@ -303,19 +350,35 @@ export function checkParams(
   return problems;
 }
 
-/** The specs with every placeholder replaced by its value. */
+/**
+ * The specs with every placeholder replaced by its value; `auth.uid` takes
+ * the `sub` claim, which must be verified. `noCaller` is set when the set
+ * reads `auth.uid` and there is no `sub`: the specs then match no user, and
+ * only the function, which reads `auth.uid()` itself, can run the set.
+ */
 export function bindParams(
   set: ReadSet,
-  values: Readonly<Record<string, unknown>>,
-): Readonly<Record<string, QuerySpec>> {
+  values: Readonly<Record<string, unknown>> | undefined,
+  context: { readonly claims?: Readonly<Record<string, unknown>> },
+): {
+  readonly specs: Readonly<Record<string, QuerySpec>>;
+  readonly noCaller: DbError | undefined;
+} {
+  const sub = context.claims?.["sub"];
+  const uid = typeof sub === "string" && sub !== "" ? sub : null;
+  const valueOf = (placeholder: Placeholder): unknown =>
+    placeholder.kind === "auth" ? uid : values?.[placeholder.name];
   const bind = (value: unknown): unknown => {
     const placeholder = placeholderOf(value);
-    if (placeholder) return values[placeholder.name];
+    if (placeholder) {
+      const bound = valueOf(placeholder);
+      return placeholder.kind === "auth" && placeholder.array ? [bound] : bound;
+    }
     if (typeof value === "string") {
       if (!hasPlaceholder(value)) return value;
       return splitPlaceholders(value)
         .map((part) =>
-          "text" in part ? part.text : String(values[part.param] ?? ""),
+          "text" in part ? part.text : String(valueOf(part) ?? ""),
         )
         .join("");
     }
@@ -328,12 +391,20 @@ export function bindParams(
     }
     return value;
   };
-  return Object.fromEntries(
+  const specs = Object.fromEntries(
     Object.entries(set.specs).map(([key, spec]) => [
       key,
       { ...spec, args: spec.args.map(bind) },
     ]),
   );
+  const noCaller =
+    uid === null && readSetUsesAuth(set)
+      ? dbError(
+          "invalid_request",
+          `db.$many(${set.name}): the read set reads auth.uid, but this connection has no user claims. Connect with the user's verified claims ({ claims: { sub } }), or call it over PostgREST, where the function reads auth.uid().`,
+        )
+      : undefined;
+  return { specs, noCaller };
 }
 
 /** App keys of every table the set reads. */

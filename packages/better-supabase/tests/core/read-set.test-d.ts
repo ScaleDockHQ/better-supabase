@@ -31,6 +31,11 @@ const chrome = defineReadSet(
   },
 );
 
+const mine = defineReadSet(betterSupabase, "mine", {}, (s, _p, auth) => {
+  expectTypeOf(auth.uid).toEqualTypeOf<string>();
+  return { mine: s.customers.count({ where: { createdBy: auth.uid } }) };
+});
+
 describe("db.$many", () => {
   it("types a read set result by key", () => {
     expectTypeOf(
@@ -48,6 +53,12 @@ describe("db.$many", () => {
     void db.$many(chrome, { organizationId: "o", limit: 5 });
     // @ts-expect-error limit is a number
     void db.$many(chrome, { organizationId: "o", kinds: [], limit: "5" });
+  });
+
+  it("runs a set that reads auth.uid with no parameters", () => {
+    expectTypeOf(db.$many(mine, {})).toEqualTypeOf<
+      AsyncResult<{ readonly mine: number }>
+    >();
   });
 
   it("returns a tuple for ad-hoc specs", () => {
