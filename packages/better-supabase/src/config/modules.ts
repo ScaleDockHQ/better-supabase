@@ -144,6 +144,16 @@ export interface AccessModuleConfig extends ModuleConfig {
      * other rule, and doctor BS411 warns.
      */
     readonly canAssign?: string;
+    /**
+     * `{user}`, `{tenant}` and `{role}`: whether that user may assign the
+     * role, for SQL that acts later for a stored user (an invitation accept
+     * checking the inviter again), as `can_assign_as`. Under the `permdock`
+     * model it defaults to PermDock's
+     * `permdock_can_assign_any_for({user}, {role}, {tenant}, '<scope>', {tenant}::text)`
+     * when the manifest lists that helper, which covers custom roles, else
+     * to `permdock_can_assign_for`.
+     */
+    readonly canAssignFor?: string;
     /** `{user}`: the permission claim for the access token hook. */
     readonly permissionClaims?: string;
   };

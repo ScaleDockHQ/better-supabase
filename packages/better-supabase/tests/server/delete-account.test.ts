@@ -163,8 +163,8 @@ describe("deleteAccount", () => {
     expect(notices).toEqual([]);
   });
 
-  it("stops before deleting the user when removing fails", async () => {
-    const { betterSupabase, deleteUser, service } = setup({
+  it("deletes the user before removing objects, and reports a failed removal", async () => {
+    const { betterSupabase, deleteUser, storage, service } = setup({
       files: { [`documents/${USER}/a.txt`]: "a" },
       fail: { remove: storageError("boom", { statusCode: "500" }) },
     });
@@ -172,7 +172,111 @@ describe("deleteAccount", () => {
       buckets: [documents],
     });
     expect(result).toMatchObject({ ok: false, error: { kind: "network" } });
-    expect(deleteUser).not.toHaveBeenCalled();
+    expect(deleteUser).toHaveBeenCalledOnce();
+    expect(storage.calls.map((call) => call.method)).toEqual([
+      "list",
+      "remove",
+    ]);
+  });
+
+  it("keeps the objects and returns the database's own error when it refuses the delete", async () => {
+    const id = "00000000-0000-4000-8000-000000000042";
+    const refused = {
+      status: 500,
+      code: "unexpected_failure",
+      message: "Database error deleting user",
+    };
+    const queries: string[] = [];
+    const probe = (error: unknown) => ({
+      async queryRaw<T>(text: string): Promise<T[]> {
+        queries.push(text);
+        throw error;
+      },
+    });
+    const { betterSupabase, storage, service } = setup({
+      files: { [`documents/${id}/a.txt`]: "a" },
+      deleteUser: async () => ({ error: refused }),
+    });
+    const result = await deleteAccount(betterSupabase, service, id, {
+      buckets: [documents],
+      sql: probe(
+        Object.assign(new Error("An organization needs an owner"), {
+          code: "23514",
+          hint: "ORGANIZATION_OWNER_REQUIRED",
+        }),
+      ),
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        hint: "ORGANIZATION_OWNER_REQUIRED",
+        message: "An organization needs an owner",
+        table: "auth.users",
+      },
+    });
+    expect(queries[0]).toContain(
+      `delete from auth.users where id = '${id}';\n  set constraints all immediate;`,
+    );
+    expect(storage.files.has(`documents/${id}/a.txt`)).toBe(true);
+    expect(storage.calls.map((call) => call.method)).toEqual(["list"]);
+
+    const passes = await deleteAccount(betterSupabase, service, id, {
+      sql: probe(
+        Object.assign(new Error("better_supabase.delete_account_probe"), {
+          code: "P0001",
+        }),
+      ),
+    });
+    expect(!passes.ok && passes.error.hint).toContain("BS406");
+    queries.length = 0;
+    const notUuid = await deleteAccount(betterSupabase, service, USER, {
+      sql: probe(new Error("unused")),
+    });
+    expect(!notUuid.ok && notUuid.error.kind).toBe("conflict");
+    expect(queries).toEqual([]);
+    const opaque = await deleteAccount(betterSupabase, service, id, {
+      sql: probe("not a pg error"),
+    });
+    expect(!opaque.ok && opaque.error.hint).toContain("BS406");
+    const generic = setup({
+      deleteUser: async () => ({
+        error: {
+          status: 500,
+          code: "unexpected_failure",
+          message: "Unexpected failure, please check server logs",
+        },
+      }),
+    });
+    expect(
+      await deleteAccount(generic.betterSupabase, generic.service, id, {
+        sql: probe(
+          Object.assign(new Error("needs an owner"), {
+            code: "23514",
+            hint: "OWNER_REQUIRED",
+          }),
+        ),
+      }),
+    ).toMatchObject({ ok: false, error: { hint: "OWNER_REQUIRED" } });
+    queries.length = 0;
+    const missing = setup({
+      deleteUser: async () => ({
+        error: { code: "user_not_found", message: "User not found" },
+      }),
+    });
+    expect(
+      await deleteAccount(missing.betterSupabase, missing.service, id, {
+        sql: probe(new Error("unused")),
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "not_found" } });
+    expect(queries).toEqual([]);
+    const mapped = await deleteAccount(betterSupabase, service, id, {
+      sql: probe(dbError("check", "blocked", { hint: "OWNER_REQUIRED" })),
+    });
+    expect(!mapped.ok && mapped.error).toMatchObject({
+      kind: "check",
+      hint: "OWNER_REQUIRED",
+      table: "auth.users",
+    });
   });
 
   it("passes the signal to listing and aborts before work", async () => {

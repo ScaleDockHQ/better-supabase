@@ -365,10 +365,10 @@ begin
     limit 1
   ), ${sqlString(roles.fallback)}) into v_role;
   if v_current is null then
-    insert into ${m} (${mt}, ${mu}, ${mr}) values (v_tenant, v_user, ${roleValue(ctx, "v_role")});
+    insert into ${m} (${mt}, ${mu}, ${mr}) values (v_tenant, v_user, ${roleValue(ctx, "v_role", "v_tenant")});
     ${memberEvent("organization.member_added", ", 'role', v_role")}
   elsif v_current is distinct from v_role then
-    update ${m} mm set ${mr} = ${roleValue(ctx, "v_role")} where mm.${mt} = v_tenant and mm.${mu} = v_user;
+    update ${m} mm set ${mr} = ${roleValue(ctx, "v_role", "v_tenant")} where mm.${mt} = v_tenant and mm.${mu} = v_user;
     ${memberEvent("organization.role_changed", ", 'role', v_role, 'previousRole', v_current")}
   end if;
 end;
@@ -729,7 +729,7 @@ begin
         and not exists (select 1 from ${m} mm where mm.${mt} = x.${cd("tenant")} and mm.${mu} = new.id)
     loop
       v_tenant := v_join.tenant;
-      insert into ${m} (${mt}, ${mu}, ${mr}) values (v_tenant, v_user, ${roleValue(ctx, "v_join.role")});
+      insert into ${m} (${mt}, ${mu}, ${mr}) values (v_tenant, v_user, ${roleValue(ctx, "v_join.role", "v_tenant")});
       ${memberEvent("organization.member_added", ", 'role', v_join.role")}
     end loop;
   exception when others then

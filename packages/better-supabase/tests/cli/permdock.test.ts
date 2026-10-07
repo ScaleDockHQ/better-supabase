@@ -526,8 +526,31 @@ describe("accessPermdockMode", () => {
     };
     expect(accessPermdockMode(config(), withFor)).toMatchObject({
       access: {
-        forUser: { has: true, permitted: true, canAssign: false },
+        forUser: {
+          has: true,
+          permitted: true,
+          canAssign: false,
+          canAssignAny: false,
+        },
       },
+    });
+    const withAny = {
+      ...authz,
+      manifest: parseManifest({
+        ...manifest,
+        rls: {
+          ...manifest.rls,
+          schema: "authz",
+          scopes: [{ name: "tenant", type: "text" }],
+          helpers: [
+            ...manifest.rls.helpers,
+            helper("permdock_can_assign_any_for"),
+          ],
+        },
+      }),
+    };
+    expect(accessPermdockMode(config(), withAny)).toMatchObject({
+      access: { forUser: { canAssign: false, canAssignAny: true } },
     });
     expect(accessPermdockMode(config(), authz)).not.toHaveProperty(
       "access.forUser",

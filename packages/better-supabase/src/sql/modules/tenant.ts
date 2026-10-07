@@ -26,6 +26,8 @@ export interface RoleThrough {
   readonly table: string;
   readonly id: string;
   readonly column: string;
+  /** The tenant column of tenant custom roles (null for shared roles), quoted. */
+  readonly tenant?: string;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -40,10 +42,11 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
     !isRecord(value) ||
     typeof value["table"] !== "string" ||
     typeof value["id"] !== "string" ||
-    typeof value["column"] !== "string"
+    typeof value["column"] !== "string" ||
+    (value["tenant"] !== undefined && typeof value["tenant"] !== "string")
   ) {
     throw new TypeError(
-      `${where} must be { table: "schema.table", id: "<key column>", column: "<role name column>" }`,
+      `${where} must be { table: "schema.table", id: "<key column>", column: "<role name column>", tenant?: "<tenant column>" }`,
     );
   }
   if (tenant.manages) {
@@ -56,6 +59,12 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
     table: ref.table,
     id: ref.column,
     column: columnRef(where, `${value["table"]}.${value["column"]}`).column,
+    ...(typeof value["tenant"] === "string"
+      ? {
+          tenant: columnRef(where, `${value["table"]}.${value["tenant"]}`)
+            .column,
+        }
+      : {}),
   };
 }
 

@@ -8,7 +8,7 @@ import type { ModuleDefinition } from "../registry.ts";
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
-import { roleValue, TRUSTED_SETTING } from "./organizations.ts";
+import { roleValue } from "./organizations.ts";
 
 const NAMES: ModuleNames = {
   options: ["defaultRole", "codeField", "roles"],
@@ -414,12 +414,10 @@ begin
   update ${k} x set ${ck("uses")} = x.${ck("uses")} + 1 where x.${ck("id")} = v_code.${ck("id")};
   if v_code.${ck("tenant")} is not null then
     v_role := coalesce(v_code.${ck("role")}, ${sqlString(defaultRole)});
-    perform set_config('${TRUSTED_SETTING}', 'on', true);
     insert into ${m} (${mt}, ${mu}, ${mr})
-    values (v_code.${ck("tenant")}, redeem_for.member, ${roleValue(ctx, "v_role")})
+    values (v_code.${ck("tenant")}, redeem_for.member, ${roleValue(ctx, "v_role", `v_code.${ck("tenant")}`)})
     on conflict do nothing;
     v_added := found;
-    perform set_config('${TRUSTED_SETTING}', '', true);
     if v_added then
       ${memberAdded}
     else

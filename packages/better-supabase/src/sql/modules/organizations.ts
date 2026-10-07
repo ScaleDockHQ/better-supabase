@@ -21,6 +21,7 @@ const NAMES: ModuleNames = {
   options: [
     "assignmentGuard",
     "attributes",
+    "auditCategory",
     "deleteMode",
     "formerOwnerRole",
     "ownerInvariant",
@@ -61,12 +62,8 @@ const NAMES: ModuleNames = {
   ],
 };
 
-/** The transaction-local setting that lets the module's own writes past the guard. */
-export const TRUSTED_SETTING = "better_supabase.trusted";
-
-const TRUSTED = `coalesce(current_setting('${TRUSTED_SETTING}', true), '') = 'on'`;
-const trust = (on: boolean): string =>
-  `perform set_config('${TRUSTED_SETTING}', '${on ? "on" : ""}', true);`;
+/** The roles client writes run as; the guard checks only their writes. */
+const CLIENT_WRITE = "current_user in ('anon', 'authenticated')";
 
 const DEFAULT_SLUG_PATTERN = "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$";
 
@@ -96,21 +93,60 @@ function namesOf(ctx: ModuleContext): OrganizationNames {
 }
 
 /**
+ * The tenant column of a roles table with tenant custom roles: the
+ * `roleThrough` table's `tenant`, or the catalog's mapped `roles.tenant`.
+ */
+function rolesTenantColumn(ctx: ModuleContext): string | undefined {
+  const through = roleThrough(ctx.of("tenant"));
+  if (through) return through.tenant;
+  if (accessModel(ctx) !== "catalog") return undefined;
+  const access = ctx.of("access");
+  return !access.manages &&
+    typeof access.config.columns["roles"]?.["tenant"] === "string"
+    ? access.col("roles", "tenant")
+    : undefined;
+}
+
+/**
+ * Limits roles row `r` to `tenant`'s custom roles and the shared ones (no
+ * tenant), its own first, so a key that several tenants use resolves to the
+ * tenant's role. Nothing without a tenant or a tenant column.
+ */
+export function tenantRoleScope(
+  ctx: ModuleContext,
+  tenant: string | undefined,
+): { readonly where: string; readonly order: string } {
+  const column = rolesTenantColumn(ctx);
+  if (column === undefined || tenant === undefined)
+    return { where: "", order: "" };
+  return {
+    where: ` and (r.${column} = ${tenant} or r.${column} is null)`,
+    order: `, (r.${column} is not null) desc`,
+  };
+}
+
+/**
  * A role argument as the membership role column stores it: the name for the
  * roles model, the catalog role id (looked up by id or key) for `catalog`.
+ * With `tenant`, a key resolves among that tenant's roles.
  */
-export function roleValue(ctx: ModuleContext, expr: string): string {
+export function roleValue(
+  ctx: ModuleContext,
+  expr: string,
+  tenant?: string,
+): string {
+  const scope = tenantRoleScope(ctx, tenant);
   const through = roleThrough(ctx.of("tenant"));
   if (through) {
     const text = `(${expr})::text`;
-    return `(select r.${through.id} from ${through.table} r where r.${through.id}::text = ${text} or r.${through.column}::text = ${text} order by (r.${through.id}::text = ${text}) desc limit 1)`;
+    return `(select r.${through.id} from ${through.table} r where (r.${through.id}::text = ${text} or r.${through.column}::text = ${text})${scope.where} order by (r.${through.id}::text = ${text}) desc${scope.order} limit 1)`;
   }
   if (accessModel(ctx) !== "catalog") return expr;
   const access = ctx.of("access");
   const rid = access.col("roles", "id");
   const key = access.col("roles", "key");
   const text = `(${expr})::text`;
-  return `(select r.${rid} from ${access.table("roles")} r where r.${rid}::text = ${text} or r.${key} = ${text} order by (r.${rid}::text = ${text}) desc limit 1)`;
+  return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text})${scope.where} order by (r.${rid}::text = ${text}) desc${scope.order} limit 1)`;
 }
 
 /**
@@ -123,14 +159,14 @@ export function assignableRole(ctx: ModuleContext, stored: string): string {
 }
 
 /** Raises `ORGANIZATION_ROLE_UNKNOWN` for a role the access model doesn't know. */
-function checkRole(ctx: ModuleContext, expr: string): string {
+function checkRole(ctx: ModuleContext, expr: string, tenant: string): string {
   const model = accessModel(ctx);
   const through = roleThrough(ctx.of("tenant")) !== undefined;
   if (!through && (model === "permdock" || model === "custom")) return "";
   const known =
     model === "roles" && !through
       ? `${expr} = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[])`
-      : `${roleValue(ctx, expr)} is not null`;
+      : `${roleValue(ctx, expr, tenant)} is not null`;
   return `
   if not (${known}) then
     raise exception 'Unknown role %', ${expr} using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';
@@ -371,10 +407,8 @@ begin
     ["uuid", "owner"],
   ])}
   ${insert}
-  ${trust(true)}
   insert into ${n.m} (${n.tenant}, ${n.user}, ${n.role})
-  values (organization, owner, ${roleValue(ctx, sqlString(n.ownerRole))});
-  ${trust(false)}
+  values (organization, owner, ${roleValue(ctx, sqlString(n.ownerRole), "organization")});
   ${ctx.hook("after_organization_create", [
     [id, "organization"],
     ["uuid", "owner"],
@@ -411,13 +445,18 @@ $$;
 }
 
 /**
- * `permissions.updatePlatform` and `permissions.deletePlatform`: a platform
- * key (`is_platform`) that lets platform staff edit or delete any tenant
- * without the service role. Nothing when unset.
+ * `permissions.updatePlatform`, `deletePlatform`, `updateRolePlatform` and
+ * `removeMemberPlatform`: a platform key (`is_platform`) that lets platform
+ * staff edit or delete any tenant, or manage its members, without the
+ * service role. Nothing when unset.
  */
 function platformOverride(
   ctx: ModuleContext,
-  action: "updatePlatform" | "deletePlatform",
+  action:
+    | "updatePlatform"
+    | "deletePlatform"
+    | "updateRolePlatform"
+    | "removeMemberPlatform",
 ): string {
   const key = ctx.permissionKey(action, "");
   return key === ""
@@ -425,19 +464,76 @@ function platformOverride(
     : `\n    and not coalesce(better_supabase.is_platform(${sqlString(key)}), false)`;
 }
 
+type DeleteMode = "hard" | "soft" | "lifecycle" | "none";
+
+/** `sql.modules.organizations.options.deleteMode`. */
+function deleteMode(ctx: ModuleContext): DeleteMode {
+  const mode = ctx.text("deleteMode", "hard");
+  if (
+    mode !== "hard" &&
+    mode !== "soft" &&
+    mode !== "lifecycle" &&
+    mode !== "none"
+  ) {
+    throw new TypeError(
+      `sql.modules.organizations.options.deleteMode must be "hard", "soft", "lifecycle" or "none", not "${mode}"`,
+    );
+  }
+  if (mode === "lifecycle" && !ctx.installed("data-lifecycle")) {
+    throw new TypeError(
+      'sql.modules.organizations.options.deleteMode "lifecycle" schedules the deletion with request_organization_deletion, so it needs the data-lifecycle module in sql.modules',
+    );
+  }
+  return mode;
+}
+
+/** `delete_organization(organization)`: requests the purge through data-lifecycle. */
+function requestDeletion(ctx: ModuleContext): string {
+  return `
+-- Deletes an organization through data-lifecycle (modules.organizations.options.deleteMode
+-- "lifecycle"): schedules the purge after the grace period and disables it.
+create or replace function ${ctx.fn("delete_organization")}(organization ${ctx.idType})
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", MODULE_PERMISSIONS.organizations.delete)}), false)${platformOverride(ctx, "deletePlatform")} then
+    raise exception 'Not allowed to delete the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  perform ${ctx.of("data-lifecycle").fn("request_organization_deletion")}(organization);
+  return true;
+end;
+$$;
+`;
+}
+
 function remove(ctx: ModuleContext, n: OrganizationNames): string {
   const id = ctx.idType;
-  const soft = ctx.text("deleteMode", "hard") === "soft";
+  const mode = deleteMode(ctx);
+  if (mode === "none") {
+    return `
+-- modules.organizations.options.deleteMode is "none": no delete function.
+drop function if exists ${ctx.fn("delete_organization")}(${id});
+`;
+  }
+  if (mode === "lifecycle") return requestDeletion(ctx);
+  const soft = mode === "soft";
   if (soft && !ctx.has("organizations", "deletedAt")) {
     throw new TypeError(
       "sql.modules.organizations.options.deleteMode 'soft' needs the deletedAt column",
     );
   }
+  // audit_event maps the category through sql.modules.audit.options.values,
+  // so an adopted log with its own vocabulary maps "organization" there, or
+  // names its value in auditCategory.
   const audit = ctx.installed("audit")
     ? `
   perform better_supabase.audit_event(
     event_type => 'organization.deleted',
-    category => 'organization',
+    category => ${sqlString(ctx.text("auditCategory", "organization"))},
     tenant => organization,
     metadata => jsonb_build_object('mode', ${sqlString(soft ? "soft" : "hard")})
   );`
@@ -562,35 +658,58 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
 -- sql.modules.organizations.options.assignmentGuard is "external": another
 -- trigger on ${n.m} (such as PermDock's assignment rules) checks role
 -- changes, so the module's guard is removed. Its functions still check
--- can_assign before they write.
+-- can_assign and the own-role rule before they write.
 drop trigger if exists ${ctx.trigger("organization_role_guard")} on ${n.m};
 drop function if exists ${ctx.fn("guard_membership")}();
+drop function if exists ${ctx.fn("guard_membership_role")}(${ctx.idType}, uuid, text, ${ctx.idType}, text);
 `;
   }
   const ceiling = `
--- No one grants a role above their own permissions (can_assign), demotes
--- someone above them, or changes their own role. The service role, direct
--- admin connections and the module's own writes (${TRUSTED_SETTING}) pass.
-create or replace function ${ctx.fn("guard_membership")}()
-returns trigger
+-- No client grants a role above their own permissions (can_assign), demotes
+-- someone above them, or changes their own role. Only writes made as anon or
+-- authenticated are checked, like PermDock's assignment triggers: the
+-- service role, direct admin connections and security definer functions
+-- (the module's own and the app's, which check their own ceilings) pass.
+-- The checks, as the module's owner, so the client needs no rights on the
+-- roles tables. It only raises, so a direct call reveals nothing.
+create or replace function ${ctx.fn("guard_membership_role")}(target_tenant ${ctx.idType}, target_member uuid, target_role text, previous_tenant ${ctx.idType}, previous_role text)
+returns void
 language plpgsql
+stable
 security definer
 set search_path = ''
 as $$
 begin
-  if ${TRUSTED} or ${SERVICE_CALLER} then
+  if target_member = auth.uid() then
+    raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
+  end if;
+  if not better_supabase.can_assign(target_tenant, ${assignableRole(ctx, "target_role")})
+    or (previous_tenant is not null and not better_supabase.can_assign(previous_tenant, ${assignableRole(ctx, "previous_role")})) then
+    raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
+  end if;
+end;
+$$;
+revoke execute on function ${ctx.fn("guard_membership_role")}(${ctx.idType}, uuid, text, ${ctx.idType}, text) from public, anon;
+grant execute on function ${ctx.fn("guard_membership_role")}(${ctx.idType}, uuid, text, ${ctx.idType}, text) to authenticated, service_role;
+
+-- Security invoker, so current_user is the role that wrote the row.
+create or replace function ${ctx.fn("guard_membership")}()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if not (${CLIENT_WRITE}) then
     return new;
   end if;
   if tg_op = 'UPDATE' and new.${n.role} is not distinct from old.${n.role} then
     return new;
   end if;
-  if new.${n.user} = auth.uid() then
-    raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
-  end if;
-  if not better_supabase.can_assign(new.${n.tenant}, ${assignableRole(ctx, `new.${n.role}`)})
-    or (tg_op = 'UPDATE' and not better_supabase.can_assign(old.${n.tenant}, ${assignableRole(ctx, `old.${n.role}`)})) then
-    raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
-  end if;
+  perform ${ctx.fn("guard_membership_role")}(
+    new.${n.tenant}, new.${n.user}, new.${n.role}::text,
+    case when tg_op = 'UPDATE' then old.${n.tenant} end,
+    case when tg_op = 'UPDATE' then old.${n.role}::text end
+  );
   return new;
 end;
 $$;
@@ -636,15 +755,26 @@ as $$
 #variable_conflict use_variable
 declare
   previous text;
+  previous_assignable text;
 begin
-  if not ${can("updateRole")} then
+  if not ${can("updateRole")}${platformOverride(ctx, "updateRolePlatform")} then
     raise exception 'Not allowed to change roles' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
-  end if;${active}${checkRole(ctx, "role")}
-  select ${roleNameOf(ctx.of("tenant"), "m")} into previous from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
+  end if;${active}${checkRole(ctx, "role", "organization")}
+  select ${roleNameOf(ctx.of("tenant"), "m")}, ${assignableRole(ctx, `m.${n.role}`)} into previous, previous_assignable
+  from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
   if not found then
     raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
-  update ${n.m} set ${n.role} = ${roleValue(ctx, "role")}
+  -- Checked here whatever sql.modules.organizations.options.assignmentGuard
+  -- says: a guard that checks only client writes never sees this function's.
+  if not (${SERVICE_CALLER}) and member = auth.uid() then
+    raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
+  end if;
+  if not better_supabase.can_assign(organization, previous_assignable)
+    or not better_supabase.can_assign(organization, ${assignableRole(ctx, `(${roleValue(ctx, "role", "organization")})`)}) then
+    raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
+  end if;
+  update ${n.m} set ${n.role} = ${roleValue(ctx, "role", "organization")}
   where ${n.tenant} = organization and ${n.user} = member;
   ${change("member", "role")}
   ${ctx.emit({ type: "organization.role_changed", payload: event("organization", "member", ", 'role', role, 'previousRole', previous"), subject, tenant: "organization" })}
@@ -665,7 +795,7 @@ begin
   if member = auth.uid() then
     raise exception 'Leave the organization instead' using errcode = '22023', hint = 'ORGANIZATION_SELF';
   end if;
-  if not ${can("removeMember")} then
+  if not ${can("removeMember")}${platformOverride(ctx, "removeMemberPlatform")} then
     raise exception 'Not allowed to remove members' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   select ${assignableRole(ctx, `m.${n.role}`)} into current_role_value from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
@@ -723,18 +853,22 @@ begin
     select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = me and ${isOwner(ctx, n, "m")}
   ) then
     raise exception 'Only an owner can transfer ownership' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
-  end if;${active}${checkRole(ctx, "former_role")}
+  end if;${active}${checkRole(ctx, "former_role", "organization")}
   if not exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = new_owner) then
     raise exception 'The new owner must be a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
-  ${trust(true)}
-  update ${n.m} set ${n.role} = ${roleValue(ctx, sqlString(n.ownerRole))}
-  where ${n.tenant} = organization and ${n.user} = new_owner;
-  if me is not null and me <> new_owner then
-    update ${n.m} m set ${n.role} = ${roleValue(ctx, "former_role")}
-    where m.${n.tenant} = organization and m.${n.user} = me and ${isOwner(ctx, n, "m")};
+  if better_supabase.user_disabled(new_owner) then
+    raise exception 'The new owner is disabled' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
-  ${trust(false)}
+  -- One statement for both rows, so a statement-level guard on the number of
+  -- owners (PermDock's transferOnly) sees the transfer as a whole.
+  update ${n.m} m set ${n.role} = case
+      when m.${n.user} = new_owner then ${roleValue(ctx, sqlString(n.ownerRole), "organization")}
+      else ${roleValue(ctx, "former_role", "organization")}
+    end
+  where m.${n.tenant} = organization
+    and (m.${n.user} = new_owner
+      or (me is not null and me <> new_owner and m.${n.user} = me and ${isOwner(ctx, n, "m")}));
   ${change("new_owner", "owner")}
   ${ctx.emit({ type: "organization.ownership_transferred", payload: event("organization", "new_owner", `, 'role', ${sqlString(n.ownerRole)}`), subject, tenant: "organization" })}
   return true;
@@ -823,9 +957,18 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["switch_organization", id],
 ];
 
+/** The module's functions, without delete_organization under deleteMode "none". */
+const functionsOf = (
+  ctx: ModuleContext,
+  id: string,
+): readonly (readonly [string, string])[] =>
+  FUNCTIONS(id).filter(
+    ([name]) => name !== "delete_organization" || deleteMode(ctx) !== "none",
+  );
+
 function organizationsSql(ctx: ModuleContext): string {
   const n = namesOf(ctx);
-  const grants = FUNCTIONS(ctx.idType)
+  const grants = functionsOf(ctx, ctx.idType)
     .map(
       ([
         name,
@@ -848,8 +991,8 @@ export const ORGANIZATIONS: ModuleDefinition = {
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   names: NAMES,
-  contract: () =>
-    FUNCTIONS("{id}").map(([name, args]) => ({
+  contract: (ctx) =>
+    functionsOf(ctx, "{id}").map(([name, args]) => ({
       name,
       args: args.split(", "),
       returns:

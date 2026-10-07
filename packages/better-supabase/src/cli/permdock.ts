@@ -728,6 +728,7 @@ export function accessPermdockMode(
     has: helpers.has("permdock_has_for"),
     permitted: helpers.has(`permitted_${chosen.scope}_ids_for`),
     canAssign: helpers.has("permdock_can_assign_for"),
+    canAssignAny: helpers.has("permdock_can_assign_any_for"),
   };
   const users = chosen.rls.suspension?.users;
   const tenant = chosen.rls.suspension?.scopes?.[chosen.scope];
@@ -746,7 +747,10 @@ export function accessPermdockMode(
           }
         : {}),
       ...(roleSources.length > 0 ? { roleSources } : {}),
-      ...(forUser.has || forUser.permitted || forUser.canAssign
+      ...(forUser.has ||
+      forUser.permitted ||
+      forUser.canAssign ||
+      forUser.canAssignAny
         ? { forUser }
         : {}),
     },

@@ -205,6 +205,55 @@ describe("access module", () => {
     ).toThrow(/must be "schema.table"/);
   });
 
+  it("checks a stored user's assignments with canAssignFor or permdock_can_assign_any_for", () => {
+    const any = moduleBody("access", {
+      modules: { access: { model: "permdock" } },
+      accessPermdock: {
+        schema: "authz",
+        scope: "organization",
+        idType: "uuid",
+        forUser: {
+          has: false,
+          permitted: false,
+          canAssign: true,
+          canAssignAny: true,
+        },
+      },
+    })!;
+    expect(any).toContain(
+      `"authz".permdock_can_assign_any_for(can_assign_as.member, can_assign_as.role, can_assign_as.tenant, 'organization', can_assign_as.tenant::text)`,
+    );
+    const template = access({
+      model: "permdock",
+      permdock: { schema: "authz", scope: "organization" },
+      functions: {
+        canAssignFor: "app.can_assign_for({user}, {tenant}, {role})",
+      },
+    });
+    expect(template).toContain(
+      "coalesce((app.can_assign_for(can_assign_as.member, can_assign_as.tenant, can_assign_as.role)), false)",
+    );
+    const custom = access({
+      model: "custom",
+      functions: {
+        can: "app.can({scope}, {id}, {permission})",
+        tenantIdsWith: "app.tenants({permission})",
+        isPlatform: "app.platform({permission})",
+        canAssign: "app.can_assign({tenant}, {role})",
+        canAssignFor: "app.can_assign_for({user}, {tenant}, {role})",
+      },
+    });
+    expect(custom).toContain(
+      "create or replace function better_supabase.can_assign_as(member uuid, tenant uuid, role text)",
+    );
+    expect(
+      access({
+        model: "permdock",
+        permdock: { schema: "authz", scope: "organization" },
+      }),
+    ).not.toContain("can_assign_as(");
+  });
+
   it("answers for another user through PermDock's _for helpers", () => {
     const callerOnly = access({
       model: "permdock",
@@ -221,7 +270,7 @@ describe("access module", () => {
     );
     expect(sql).toContain('"authz".permdock_has_for(member, permission)');
     expect(sql).toContain(
-      '"authz".permdock_can_assign_for(member, role, tenant::text)',
+      '"authz".permdock_can_assign_for(can_assign_as.member, can_assign_as.role, can_assign_as.tenant::text)',
     );
     expect(sql).not.toContain("hint = 'ACCESS_CALLER_ONLY'");
     const partial = moduleBody("access", {

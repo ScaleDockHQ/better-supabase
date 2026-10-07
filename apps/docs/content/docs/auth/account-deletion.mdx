@@ -5,8 +5,9 @@ description: Delete a user with their Storage objects and cached sessions, and k
 
 Deleting an account touches three systems: Storage objects the user
 uploaded, the Auth user, and every row that points at `auth.users`.
-`deleteAccount` does them in that order and returns a `Result`, like every
-repository call.
+`deleteAccount` deletes the Auth user first, which applies the foreign keys,
+then removes the objects, and returns a `Result`, like every repository
+call.
 
 ```ts title="src/features/user/user-actions.ts"
 "use server";
@@ -114,9 +115,9 @@ Doctor reports every RLS table in `schemas` without a restrictive
 
 ## What it does
 
-1. **Storage.** For each bucket in `buckets` with an owner placeholder, it
-   lists the objects that placeholder fills with the user id and removes them
-   in batches of 1,000. The owner placeholder is `owner.param` for `owner`
+1. **Storage, listed.** For each bucket in `buckets` with an owner
+   placeholder, it lists the objects that placeholder fills with the user
+   id. The owner placeholder is `owner.param` for `owner`
    buckets and `{userId}` for any other template that has one. Buckets
    without one (tenant logos, say) are skipped. Put `{userId}` first in the
    path when you can: a template like `{organizationId}/{userId}/{file}` has to list the
@@ -124,25 +125,35 @@ Doctor reports every RLS table in `schemas` without a restrictive
 2. **Auth.** `auth.admin.deleteUser(userId)`. Postgres then applies the
    foreign keys to `auth.users`: `on delete cascade` rows go, `set null`
    columns clear.
-3. **Events.** A `mutation` notice for `auth.users` (`kind: 'delete'`, the
+3. **Storage, removed.** Once the user is gone, the listed objects are
+   removed in batches of 1,000.
+4. **Events.** A `mutation` notice for `auth.users` (`kind: 'delete'`, the
    user id as the row), then a table-wide delete notice for each table in
    `cascades`, so [cache adapters](/docs/concepts/caching) drop the reads the database
    changed behind their back. Sinks and audit forwarders see the delete too.
-4. **Sessions.** `bs.deleteAccount` also calls
+5. **Sessions.** `bs.deleteAccount` also calls
    `bs.invalidateSession(userId)`, so `bs.cached()` entries for the user
    are gone.
 
-Objects are removed before the user. If Storage fails, the user still exists
-and the call can be retried; objects already removed stay removed.
+A delete the database refuses (an organization's only owner under the
+organizations module's `ownerInvariant`, say) leaves the objects in place.
+Auth reports such a refusal only as a generic failure, so with
+`sql: postgres.admin` (which `bs.deleteAccount` passes when the server has
+`postgres`) the delete is replayed in a statement that is rolled back, and
+the database's own error comes back instead, with its SQLSTATE and hint
+(`ORGANIZATION_OWNER_REQUIRED`). If removing objects fails after the user is
+deleted, the error names the bucket; remove the rest with the bucket's
+`remove`.
 
 ## Errors
 
-| kind          | When                                                                     |
-| ------------- | ------------------------------------------------------------------------ |
-| `conflict`    | A foreign key to `auth.users` blocks the delete (`hint` points at BS406) |
-| `not_found`   | No user with that id                                                     |
-| `network`     | Auth or Storage is unreachable                                           |
-| Storage kinds | A list or remove failed, with `table` set to the bucket id               |
+| kind           | When                                                                              |
+| -------------- | --------------------------------------------------------------------------------- |
+| `conflict`     | A foreign key to `auth.users` blocks the delete (`hint` points at BS406)          |
+| database kinds | With `sql`, the database's own refusal, with its `hint` and `table: "auth.users"` |
+| `not_found`    | No user with that id                                                              |
+| `network`      | Auth or Storage is unreachable                                                    |
+| Storage kinds  | A list or remove failed, with `table` set to the bucket id                        |
 
 ## Foreign keys
 

@@ -2060,12 +2060,13 @@ export interface ModuleAccessPermdock {
   /**
    * PermDock's helpers for a named user (`database` mode) the manifest's
    * `rls.helpers` lists: `permdock_has_for`, `permitted_<scope>_ids_for` and
-   * `permdock_can_assign_for`.
+   * `permdock_can_assign_for` and `permdock_can_assign_any_for`.
    */
   readonly forUser?: {
     readonly has: boolean;
     readonly permitted: boolean;
     readonly canAssign: boolean;
+    readonly canAssignAny?: boolean;
   };
   /**
    * Membership tables of the scope whose role column points into a roles
@@ -2894,6 +2895,8 @@ const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     create: "platform",
     updatePlatform: "platform",
     deletePlatform: "platform",
+    updateRolePlatform: "platform",
+    removeMemberPlatform: "platform",
   },
   audit: { reveal: "tenant" },
   "data-lifecycle": { deletePlatform: "platform" },

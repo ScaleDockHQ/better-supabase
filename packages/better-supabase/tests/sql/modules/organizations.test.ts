@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
-import { moduleBody, resolveModules } from "../../../src/sql/registry.ts";
+import {
+  moduleBody,
+  renderModules,
+  resolveModules,
+} from "../../../src/sql/registry.ts";
 
 const CENTRAKIT: ModulesConfig = {
   access: { model: "catalog", platformClaim: "system_permissions" },
@@ -37,6 +41,97 @@ const body = (modules: ModulesConfig) =>
   moduleBody("organizations", { modules })!;
 
 describe("organizations module", () => {
+  it("resolves role keys among the tenant's own roles with a mapped roles.tenant", () => {
+    const sql = body({
+      access: {
+        model: "catalog",
+        mode: "adopt",
+        tables: { roles: "public.roles" },
+        columns: { roles: { tenant: "organization_id", scope: null } },
+      },
+    });
+    expect(sql).toContain(
+      `(select r."id" from "public"."roles" r where (r."id"::text = (role)::text or r."key" = (role)::text) and (r."organization_id" = organization or r."organization_id" is null) order by (r."id"::text = (role)::text) desc, (r."organization_id" is not null) desc limit 1)`,
+    );
+    expect(body({ access: { model: "catalog" } })).not.toContain(
+      "is not null) desc limit 1",
+    );
+  });
+
+  it("lets platform keys change roles and remove members", () => {
+    const sql = body({
+      organizations: {
+        permissions: {
+          updateRolePlatform: "platform.members.update_role",
+          removeMemberPlatform: "platform.members.remove",
+        },
+      },
+    });
+    expect(sql).toContain(
+      "and not coalesce(better_supabase.is_platform('platform.members.update_role'), false) then\n    raise exception 'Not allowed to change roles'",
+    );
+    expect(sql).toContain(
+      "and not coalesce(better_supabase.is_platform('platform.members.remove'), false) then\n    raise exception 'Not allowed to remove members'",
+    );
+  });
+
+  it("names the deletion's audit category with auditCategory", () => {
+    const audited = (options: Record<string, unknown>) =>
+      renderModules(["organizations", "audit"], {
+        modules: { organizations: { options } },
+      }).find(
+        (file) => file.module === "organizations" && file.kind === "schema",
+      )!.contents;
+    expect(audited({})).toContain("category => 'organization',");
+    expect(audited({ auditCategory: "tenancy" })).toContain(
+      "category => 'tenancy',",
+    );
+  });
+
+  it("deletes through data-lifecycle or not at all with deleteMode", () => {
+    const lifecycle = renderModules(["organizations", "data-lifecycle"], {
+      modules: { organizations: { options: { deleteMode: "lifecycle" } } },
+    }).find(
+      (file) => file.module === "organizations" && file.kind === "schema",
+    )!.contents;
+    expect(lifecycle).toContain(
+      'perform "better_supabase"."request_organization_deletion"(organization);',
+    );
+    const none = body({ organizations: { options: { deleteMode: "none" } } });
+    expect(none).toContain(
+      'drop function if exists "better_supabase"."delete_organization"(uuid);',
+    );
+    expect(none).not.toContain(
+      'create or replace function "better_supabase"."delete_organization"',
+    );
+    expect(() =>
+      body({ organizations: { options: { deleteMode: "lifecycle" } } }),
+    ).toThrow(/needs the data-lifecycle module/);
+    expect(() =>
+      body({ organizations: { options: { deleteMode: "archive" } } }),
+    ).toThrow(/must be "hard", "soft", "lifecycle" or "none"/);
+  });
+
+  it("transfers ownership in one update and refuses a disabled new owner", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      "if better_supabase.user_disabled(new_owner) then\n    raise exception 'The new owner is disabled'",
+    );
+    expect(sql).toContain(
+      `update "better_supabase"."memberships" m set "role" = case\n      when m."user_id" = new_owner then 'owner'\n      else former_role\n    end`,
+    );
+  });
+
+  it("checks the own-role rule and both roles' ceilings in update_member_role", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      "if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and member = auth.uid() then",
+    );
+    expect(sql).toContain(
+      "if not better_supabase.can_assign(organization, previous_assignable)\n    or not better_supabase.can_assign(organization, (role)::text) then",
+    );
+  });
+
   it("owns its table and makes the creator the owner", () => {
     const sql = body({});
     expect(sql).toContain(
@@ -57,8 +152,12 @@ describe("organizations module", () => {
     expect(sql).toContain("on delete cascade not valid;");
     expect(sql).toContain("deferrable initially deferred");
     expect(sql).toContain("hint = 'ORGANIZATION_ROLE_CEILING'");
+    expect(sql).not.toContain("better_supabase.trusted");
     expect(sql).toContain(
-      "perform set_config('better_supabase.trusted', 'on', true);",
+      "  if not (current_user in ('anon', 'authenticated')) then\n    return new;",
+    );
+    expect(sql).toMatch(
+      /create or replace function "better_supabase"\."guard_membership"\(\)\nreturns trigger\nlanguage plpgsql\nset search_path/,
     );
     expect(sql).toContain(
       'delete from "better_supabase"."organizations" where "id" = organization;',
@@ -75,7 +174,7 @@ describe("organizations module", () => {
       "from unnest(array['website', 'default_currency']) c\n  where attrs ? c;",
     );
     expect(sql).toContain(
-      'select r."id" from "better_supabase"."roles" r where r."id"::text = (\'owner\')::text',
+      'select r."id" from "better_supabase"."roles" r where (r."id"::text = (\'owner\')::text',
     );
     expect(sql).toContain(
       `to_regprocedure('"public"."seed_organization"(uuid, uuid)')`,
@@ -198,10 +297,10 @@ describe("roles through a lookup table", () => {
   it("stores role ids and checks and assigns by role name", () => {
     const sql = body(THROUGH);
     expect(sql).toContain(
-      `can_assign(new."team_id", (select r."key"::text from "public"."team_roles" r where r."id"::text = (new."role_id")::text))`,
+      `can_assign(target_tenant, (select r."key"::text from "public"."team_roles" r where r."id"::text = (target_role)::text))`,
     );
     expect(sql).toContain(
-      `set "role_id" = (select r."id" from "public"."team_roles" r where r."id"::text = (role)::text or r."key"::text = (role)::text`,
+      `set "role_id" = (select r."id" from "public"."team_roles" r where (r."id"::text = (role)::text or r."key"::text = (role)::text)`,
     );
     expect(sql).toContain("hint = 'ORGANIZATION_ROLE_UNKNOWN'");
     const tenant = moduleBody("tenant", { modules: THROUGH })!;
@@ -212,10 +311,10 @@ describe("roles through a lookup table", () => {
       modules: { ...THROUGH, invitations: { mode: "adopt" } },
     })!;
     expect(invitations).toContain(
-      `if (select r."id" from "public"."team_roles" r where r."id"::text = (invitee_role)::text`,
+      `if (select r."id" from "public"."team_roles" r where (r."id"::text = (invitee_role)::text`,
     );
     expect(invitations).toContain(
-      `can_assign(tenant, (select r."key"::text from "public"."team_roles" r where r."id"::text = (((select r."id" from "public"."team_roles" r`,
+      `can_assign(tenant, (select r."key"::text from "public"."team_roles" r where r."id"::text = (((select r."id" from "public"."team_roles" r where (`,
     );
   });
 

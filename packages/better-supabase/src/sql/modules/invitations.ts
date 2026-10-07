@@ -17,7 +17,7 @@ import {
   roleScopeIs,
   tenantScope,
 } from "./access-model.ts";
-import { permdockForUser } from "./access.ts";
+import { hasCanAssignAs, permdockForUser } from "./access.ts";
 import {
   PLATFORM_COLUMNS,
   openFilter,
@@ -29,7 +29,7 @@ import {
   tokenHash,
   type InviteTable,
 } from "./invitations-tables.ts";
-import { assignableRole, roleValue, TRUSTED_SETTING } from "./organizations.ts";
+import { assignableRole, roleValue, tenantRoleScope } from "./organizations.ts";
 import { roleThrough } from "./tenant.ts";
 
 const NAMES: ModuleNames = {
@@ -83,20 +83,25 @@ const NAMES: ModuleNames = {
   ],
 };
 
-/** Every error the module raises: its hint code and default SQLSTATE. */
+/**
+ * The catalog role id for a key or id, in `scope`, among `tenant`'s roles
+ * when given; `roleValue` in other models.
+ */
 function roleIn(
   ctx: ModuleContext,
   expr: string,
   scope: "tenant" | "platform",
+  tenant?: string,
 ): string {
-  if (accessModel(ctx) !== "catalog") return roleValue(ctx, expr);
+  if (accessModel(ctx) !== "catalog") return roleValue(ctx, expr, tenant);
   const scoped = roleScopeIs(ctx, "r", scope);
-  if (!scoped) return roleValue(ctx, expr);
+  if (!scoped) return roleValue(ctx, expr, tenant);
   const access = ctx.of("access");
   const rid = access.col("roles", "id");
   const key = access.col("roles", "key");
   const text = `(${expr})::text`;
-  return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text}) and ${scoped} order by (r.${rid}::text = ${text}) desc limit 1)`;
+  const own = tenantRoleScope(ctx, tenant);
+  return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text}) and ${scoped}${own.where} order by (r.${rid}::text = ${text}) desc${own.order} limit 1)`;
 }
 
 /** Where an accepted platform invitation assigns its role, and the checks around it. */
@@ -324,10 +329,11 @@ function platformInvite(
   const ceiling = assignment.canAssign("auth.uid()", `(${role})`);
   const columns: (readonly [string, string])[] = [
     ["email", "lower(btrim(invitee_email))"],
-    ["role", `(${role})::text`],
+    ["role", role],
     ["tokenHash", tokenHash(ctx, "token")],
     ["invitedBy", "auth.uid()"],
     ["expiresAt", "now() + valid_for"],
+    ["prefill", "coalesce(prefill, '{}')"],
   ];
   const present = columns.filter(([logical]) => p.has(logical));
   const open = openFilter(p, "i");
@@ -371,7 +377,7 @@ function invite(ctx: ModuleContext): string {
   const bytes = ctx.number("tokenBytes", 24);
   const validFor = sqlString(ctx.text("validFor", "7 days"));
   const model = accessModel(ctx);
-  const stored = roleIn(ctx, "invitee_role", "tenant");
+  const stored = roleIn(ctx, "invitee_role", "tenant", "tenant");
   const through = roleThrough(ctx.of("tenant")) !== undefined;
   const unknownRole =
     model === "catalog" || through
@@ -773,7 +779,8 @@ function accept(
     "invite",
     MODULE_PERMISSIONS.invitations.invite,
   );
-  const roleOf = (expr: string) => roleValue(ctx, expr);
+  const roleOf = (expr: string) =>
+    roleValue(ctx, expr, `invite.${t.col("tenant")}`);
   /** Checks shared by both kinds of invitation in row `row`. */
   const invitee = (table: InviteTable, row: string) => {
     const col = (logical: string) => `${row}.${table.col(logical)}`;
@@ -806,19 +813,18 @@ function accept(
   const inviter = t.has("invitedBy") ? `invite.${c("invitedBy")}` : undefined;
   const forUser =
     model === "permdock" ? permdockForUser(ctx, layout) : undefined;
-  const assignAs =
-    model === "roles" || model === "catalog" || forUser?.canAssign
-      ? `
+  const assignAs = hasCanAssignAs(ctx, layout)
+    ? `
     if ${inviter} is not null
       and not better_supabase.can_assign_as(${inviter}, invite.${c("tenant")}, ${assignableRole(ctx, `invite.${c("role")}`)}) then
       ${fail("INVITATION_INVITER_REVOKED", "The person who invited you can no longer assign that role")}
     end if;`
-      : "";
+    : "";
   const recheck =
     inviter && model === "permdock" && !(forUser?.permitted && forUser.has)
       ? `
     -- The permdock model answers for the caller only, so the inviter's
-    -- authority was checked when they invited, not here.`
+    -- invite permission was checked when they invited, not here.${assignAs}`
       : inviter
         ? `
     if ${inviter} is not null
@@ -900,10 +906,8 @@ begin
   if exists (select 1 from ${m} m where m.${mt} = invite.${c("tenant")} and m.${mu} = me) then
     ${fail("INVITATION_ALREADY_MEMBER", "You are already a member")}
   end if;${recheck}
-  perform set_config('${TRUSTED_SETTING}', 'on', true);
   insert into ${m} (${mt}, ${mu}, ${mr})
   values (invite.${c("tenant")}, me, ${roleOf(`invite.${c("role")}`)});
-  perform set_config('${TRUSTED_SETTING}', '', true);
   update ${t.table}
   set ${c("acceptedAt")} = now()${t.has("acceptedBy") ? `, ${c("acceptedBy")} = me` : ""}
   where ${c("id")} = invite.${c("id")};
