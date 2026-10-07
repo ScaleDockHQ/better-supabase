@@ -1,17 +1,11 @@
-import { expect, test as setup } from "@playwright/test";
+import { test as setup } from "@playwright/test";
 
-import { password, users } from "./users";
+import { signIn } from "./nav";
+import { users } from "./users";
 
 for (const [name, user] of Object.entries(users)) {
   setup(`sign in as ${name}`, async ({ page }) => {
-    await page.goto("/login");
-    await page.getByPlaceholder("Email").fill(user.email);
-    await page.getByPlaceholder("Password").fill(password);
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await page.waitForURL((url) => url.pathname === "/");
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
+    await signIn(page, user.email);
     await page.context().storageState({ path: user.storageState });
   });
 }

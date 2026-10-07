@@ -369,6 +369,9 @@ function usernameRules(ctx: ModuleContext): {
 /**
  * The username's length, characters and reserved names, as a check on the
  * managed table. Existing rows that break it leave the check unvalidated.
+ * No `between`: Postgres expands it after flattening the `and` chain, so the
+ * stored expression nests differently from the one pg-delta writes back, and
+ * a declarative sync would drop and re-add the check every time.
  */
 function usernameCheck(ctx: ModuleContext): string {
   const t = ctx.table("profiles");
@@ -377,7 +380,8 @@ function usernameCheck(ctx: ModuleContext): string {
   return `alter table ${t} drop constraint if exists profiles_username_check;
 alter table ${t} add constraint profiles_username_check check (
   ${u} is null or (
-    length(${u}) between ${String(min)} and ${String(max)}
+    length(${u}) >= ${String(min)}
+    and length(${u}) <= ${String(max)}
     and ${u} ~* '^[a-z][a-z0-9_${usernameExtras(ctx)}]*$'
     and lower(${u}) <> all (${reserved})
   )
@@ -439,18 +443,7 @@ ${usernameCheck(ctx)}`
         .map(c)
         .join(", ")}) through ${ctx.fn("my_profile")}().
 revoke select on ${t} from authenticated;
-grant select (${visible.join(", ")}) on ${t} to authenticated;
-create or replace function ${ctx.fn("my_profile")}()
-returns setof ${t}
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select * from ${t} p where p.${c("key")} = auth.uid()
-$$;
-revoke execute on function ${ctx.fn("my_profile")}() from public, anon;
-grant execute on function ${ctx.fn("my_profile")}() to authenticated, service_role;`
+grant select (${visible.join(", ")}) on ${t} to authenticated;`
     : `grant select on ${t} to authenticated;`;
   return `
 create table if not exists ${t} (
@@ -770,7 +763,71 @@ as $$
   select count(*)::integer from auth.users u where ${ctx.fn("sync_profile")}(u.id)
 $$;
 revoke execute on function ${ctx.fn("backfill_profiles")}() from public, anon, authenticated;
-grant execute on function ${ctx.fn("backfill_profiles")}() to service_role;`;
+grant execute on function ${ctx.fn("backfill_profiles")}() to service_role;
+
+drop function if exists ${ctx.fn("my_profile")}();
+create or replace function ${ctx.fn("my_profile")}()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select to_jsonb(p) from ${t} p where p.${key} = (select auth.uid())
+$$;
+revoke execute on function ${ctx.fn("my_profile")}() from public, anon;
+grant execute on function ${ctx.fn("my_profile")}() to authenticated, service_role;
+
+create or replace function ${ctx.fn("update_my_profile")}(attrs jsonb)
+returns boolean
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  updated integer;
+begin
+  update ${t} p
+  set ${selfUpdates(ctx)}${ctx.has("profiles", "updatedAt") ? `,\n    ${ctx.col("profiles", "updatedAt")} = now()` : ""}
+  where p.${key} = (select auth.uid());
+  get diagnostics updated = row_count;
+  return updated > 0;
+end;
+$$;
+revoke execute on function ${ctx.fn("update_my_profile")}(jsonb) from public, anon;
+grant execute on function ${ctx.fn("update_my_profile")}(jsonb) to authenticated, service_role;`;
+}
+
+function profilePhysical(ctx: ModuleContext, logical: string): string {
+  const mapped = ctx.config.columns["profiles"]?.[logical];
+  return typeof mapped === "string"
+    ? mapped
+    : NAMES.tables["profiles"]!.columns[logical]!;
+}
+
+function selfUpdates(ctx: ModuleContext): string {
+  const columns = (
+    [
+      "fullName",
+      "firstName",
+      "lastName",
+      "avatar",
+      "username",
+      "onboarding",
+    ] as const
+  ).filter((logical) => ctx.has("profiles", logical));
+  if (columns.length === 0) {
+    return `${ctx.col("profiles", "key")} = p.${ctx.col("profiles", "key")}`;
+  }
+  return columns
+    .map((logical) => {
+      const quoted = ctx.col("profiles", logical);
+      const key = sqlString(profilePhysical(ctx, logical));
+      const extract = logical === "onboarding" ? "->" : "->>";
+      return `${quoted} = case when update_my_profile.attrs ? ${key} then update_my_profile.attrs ${extract} ${key} else p.${quoted} end`;
+    })
+    .join(",\n    ");
 }
 
 /** The auth.users triggers: sync on sign-up and the email mirror. */
@@ -870,6 +927,8 @@ export const PROFILES: ModuleDefinition = {
   contract: () => [
     { name: "sync_profile", args: ["uuid"], returns: "boolean" },
     { name: "backfill_profiles", args: [], returns: "integer" },
+    { name: "my_profile", args: [], returns: "jsonb" },
+    { name: "update_my_profile", args: ["jsonb"], returns: "boolean" },
   ],
   build,
   data: (ctx) =>

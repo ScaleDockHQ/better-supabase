@@ -3,21 +3,12 @@ import { sessionStale } from "better-supabase/next";
 
 import { bs } from "@/lib/supabase/server";
 
-import { type Permission, can } from "./user-permissions";
+import { PERMISSIONS, type Permission, can } from "./user-permissions";
 
 // Stand-ins for `snapshotFor` from `permdock` and `snapshotTag` and
 // `cacheLifeFor` from `permdock/next`, until permdock is on npm. With
 // PermDock, import those instead and keep the `bs.cached()` call.
 // See https://bettersupabase.com/docs/frameworks/next-cache-components#permdock-snapshots.
-const PERMISSIONS: readonly Permission[] = [
-  "customers.read",
-  "customers.write",
-  "reports.read",
-  "users.manage",
-  "billing.manage",
-  "audit.read",
-  "settings.manage",
-];
 
 /** PermDock's tag for a user's snapshot entries. */
 function snapshotTag(sub: string | null): string {

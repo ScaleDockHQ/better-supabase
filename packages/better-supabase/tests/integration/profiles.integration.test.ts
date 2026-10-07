@@ -188,7 +188,7 @@ describe.skipIf(!live)("profiles", () => {
       const own = await as<{ email: string }>(
         client,
         "ada",
-        `select email from ${SCHEMA}.my_profile()`,
+        `select ${SCHEMA}.my_profile() ->> 'email' as email`,
       );
       expect(own.rows).toEqual([{ email: "ada@new.test" }]);
 

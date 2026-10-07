@@ -8,6 +8,7 @@ import {
   RULES,
   runRules,
 } from "../../../src/cli/doctor/rules.ts";
+import { parseToml } from "../../../src/cli/supabase-toml.ts";
 import {
   type BetterSupabaseConfig,
   resolveConfig,
@@ -123,6 +124,11 @@ create function "better_supabase"."tenant_ids_with"(p text) returns setof uuid l
         ),
       ],
       ["better_supabase.can_assign", expect.stringContaining("doesn't exist")],
+      ["better_supabase.member_can", expect.stringContaining("doesn't exist")],
+      [
+        "better_supabase.can_assign_as",
+        expect.stringContaining("doesn't exist"),
+      ],
     ]);
   });
 
@@ -133,5 +139,99 @@ create function "better_supabase"."tenant_ids_with"(p text) returns setof uuid l
     expect(findings).toMatchObject([
       { severity: "info", message: expect.stringContaining("offline") },
     ]);
+  });
+});
+
+const toml = (text: string): DoctorContext["configToml"] => ({
+  path: "supabase/config.toml",
+  dir: "supabase",
+  text,
+  document: parseToml(text),
+  parser: "smol-toml",
+});
+
+describe("BS325 audit user-session reads", () => {
+  it("warns when the app lists the log and the module stays service_role only", async () => {
+    const findings = await run(
+      context(
+        { sql: { modules: { audit: {} } } },
+        { sources: [{ path: "src/audit.ts", text: "await audit.list()" }] },
+      ),
+      "BS325",
+    );
+    expect(findings).toMatchObject([{ code: "BS325" }]);
+  });
+
+  it("passes when authenticated can read", async () => {
+    const findings = await run(
+      context(
+        {
+          sql: {
+            modules: {
+              audit: {
+                options: {
+                  readPolicy: true,
+                  eventRoles: ["authenticated", "service_role"],
+                },
+              },
+            },
+          },
+        },
+        { sources: [{ path: "src/audit.ts", text: "await audit.list()" }] },
+      ),
+      "BS325",
+    );
+    expect(findings).toEqual([]);
+  });
+});
+
+describe("BS326 secret key", () => {
+  it("warns when deleteAccount is used without a secret key", async () => {
+    const findings = await run(
+      context(
+        {},
+        {
+          sources: [
+            { path: "src/user.ts", text: "await server.deleteAccount(id)" },
+          ],
+        },
+      ),
+      "BS326",
+    );
+    expect(findings).toMatchObject([{ code: "BS326" }]);
+  });
+
+  it("passes when an env file lists the key, even empty", async () => {
+    const findings = await run(
+      context(
+        {},
+        {
+          envFiles: [{ path: ".env.example", text: "SUPABASE_SECRET_KEY=\n" }],
+          sources: [
+            { path: "src/user.ts", text: "await server.deleteAccount(id)" },
+          ],
+        },
+      ),
+      "BS326",
+    );
+    expect(findings).toEqual([]);
+  });
+});
+
+describe("BS327 aal2 without MFA", () => {
+  it("warns when requireAal aal2 runs and totp is off", async () => {
+    const findings = await run(
+      context(
+        {},
+        {
+          configToml: toml("[auth.mfa.totp]\nenroll_enabled = false\n"),
+          sources: [
+            { path: "src/proxy.ts", text: "protect: requireAal('aal2')" },
+          ],
+        },
+      ),
+      "BS327",
+    );
+    expect(findings).toMatchObject([{ code: "BS327" }]);
   });
 });

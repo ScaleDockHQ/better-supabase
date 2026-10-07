@@ -15,7 +15,11 @@ import { rawError } from "../../core/block-transport.ts";
 import { dbError, mapDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { type BlockTemporalOptions, applyTemporal } from "../shared.ts";
+import {
+  type BlockTemporalOptions,
+  applyTemporal,
+  recordsOf,
+} from "../shared.ts";
 
 /**
  * Organization columns by database name: `name`, `slug` and the columns in
@@ -115,6 +119,28 @@ export interface SwitchResult {
   readonly refresh: boolean;
 }
 
+/** A membership `list_my_organizations` returns. */
+export interface OrganizationMembership {
+  readonly id: string;
+  readonly name: string;
+  readonly slug?: string;
+  readonly role: string;
+}
+
+/** A row `list_members` returns. */
+export interface OrganizationMember {
+  readonly userId: string;
+  readonly role: string;
+}
+
+/** An open invitation `list_organization_invitations` returns. */
+export interface OrganizationInvitationRow {
+  readonly id: string;
+  readonly email: string;
+  readonly role: string;
+  readonly expiresAt?: Temporal.Instant;
+}
+
 export interface OrganizationsOptions extends BlockTemporalOptions {
   /** `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
@@ -190,6 +216,12 @@ export interface Organizations {
   ): AsyncResult<true>;
   markUsed(organizationId: string): AsyncResult<boolean>;
   switch(organizationId: string): AsyncResult<SwitchResult>;
+  /** Organizations the caller belongs to. */
+  mine(): AsyncResult<readonly OrganizationMembership[]>;
+  members(organizationId: string): AsyncResult<readonly OrganizationMember[]>;
+  invitations(
+    organizationId: string,
+  ): AsyncResult<readonly OrganizationInvitationRow[]>;
   invite(request: InviteRequest): AsyncResult<InvitationSent>;
   resendInvitation(
     invitationId: string,
@@ -562,6 +594,50 @@ export function createOrganizations(
             refresh: row["refresh"] === true,
           };
         },
+      );
+    },
+    mine() {
+      return run("organizations", "list_my_organizations", {}, (value) =>
+        recordsOf(value, "list_my_organizations").map((row) => {
+          const slug = optionalText(row["slug"]);
+          return {
+            id: text(row["id"]),
+            name: text(row["name"]),
+            ...(slug === null ? {} : { slug }),
+            role: text(row["role"]),
+          };
+        }),
+      );
+    },
+    members(organizationId) {
+      return run(
+        "organizations",
+        "list_members",
+        { organization: organizationId },
+        (value) =>
+          recordsOf(value, "list_members").map((row) => ({
+            userId: text(row["user_id"]),
+            role: text(row["role"]),
+          })),
+      );
+    },
+    invitations(organizationId) {
+      return run(
+        "organizations",
+        "list_organization_invitations",
+        { organization: organizationId },
+        (value) =>
+          recordsOf(value, "list_organization_invitations").map((row) => {
+            const expiresAt = optionalText(row["expires_at"]);
+            return {
+              id: text(row["id"]),
+              email: text(row["email"]),
+              role: text(row["role"]),
+              ...(expiresAt === null
+                ? {}
+                : { expiresAt: temporal().Instant.from(expiresAt) }),
+            };
+          }),
       );
     },
     invite(request) {

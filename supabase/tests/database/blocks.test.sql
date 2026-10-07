@@ -2,7 +2,7 @@
 -- contract (supabase/schemas/045_access_contract.sql): the admin
 -- (…00a1) and the member (…00a2) of Acme (…0001), never Globex (…0002).
 begin;
-select plan(25);
+select plan(26);
 
 insert into better_supabase.comments (id, organization_id, subject_type, subject_id, author_id, body) values
   ('00000000-0000-4000-8000-0000000cc001', '00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001', '00000000-0000-4000-8000-0000000000a1', 'Admin note'),
@@ -12,6 +12,8 @@ insert into better_supabase.activity_entries (organization_id, event_id, type) v
   ('00000000-0000-4000-8000-000000000002', 'globex-event', 'customer.created');
 insert into better_supabase.organization_settings (organization_id, key, value) values
   ('00000000-0000-4000-8000-000000000002', 'theme', '"light"');
+insert into better_supabase.audit_events (op, organization_id, event_type) values
+  ('event', '00000000-0000-4000-8000-000000000001', 'customer.created');
 
 select set_config(
   'request.jwt.claims',
@@ -23,6 +25,11 @@ set local role authenticated;
 select ok(
   better_supabase.can('tenant', '00000000-0000-4000-8000-000000000001', 'settings.update'),
   'the admin updates Acme''s settings'
+);
+select is(
+  jsonb_array_length(better_supabase.list_audit_events()),
+  1,
+  'the admin reads Acme''s audit events'
 );
 select is(
   better_supabase.set_organization_setting('00000000-0000-4000-8000-000000000001', 'theme', '{"value":"dark"}'),
@@ -95,11 +102,10 @@ select ok(
   not better_supabase.delete_comment('00000000-0000-4000-8000-0000000cc001'),
   'the member cannot delete the admin''s comment'
 );
-select throws_ok(
-  $$select better_supabase.list_audit_events()$$,
-  '42501',
-  null,
-  'the member cannot list audit events'
+select is(
+  jsonb_array_length(better_supabase.list_audit_events()),
+  0,
+  'the member reads no Acme audit events'
 );
 select throws_ok(
   $$select better_supabase.purge_rate_limits()$$,
@@ -170,9 +176,9 @@ select lives_ok(
   'the service role purges rate limits'
 );
 reset role;
-update auth.users
-set raw_app_meta_data = raw_app_meta_data || '{"tenant_id":"00000000-0000-4000-8000-000000000002"}'
-where id = '00000000-0000-4000-8000-0000000000a2';
+delete from public.memberships
+where organization_id = '00000000-0000-4000-8000-000000000001'
+  and user_id = '00000000-0000-4000-8000-0000000000a2';
 set local role service_role;
 select is(
   better_supabase.verify_api_key('00000000000000b2', repeat('c', 64)) ->> 'status',

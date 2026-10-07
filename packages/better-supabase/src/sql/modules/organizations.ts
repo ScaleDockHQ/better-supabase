@@ -10,6 +10,7 @@ import {
   updatedAt,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
+import { organizationReads } from "./organizations-reads.ts";
 import {
   activeTenantSource,
   roleNameFrom,
@@ -961,16 +962,22 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["transfer_ownership", `${id}, uuid, text`],
   ["mark_used", id],
   ["switch_organization", id],
+  ["list_my_organizations", ""],
+  ["list_members", id],
 ];
 
 /** The module's functions, without delete_organization under deleteMode "none". */
 const functionsOf = (
   ctx: ModuleContext,
   id: string,
-): readonly (readonly [string, string])[] =>
-  FUNCTIONS(id).filter(
+): readonly (readonly [string, string])[] => [
+  ...FUNCTIONS(id).filter(
     ([name]) => name !== "delete_organization" || deleteMode(ctx) !== "none",
-  );
+  ),
+  ...(ctx.installed("invitations")
+    ? ([["list_organization_invitations", id]] as const)
+    : []),
+];
 
 function organizationsSql(ctx: ModuleContext): string {
   const n = namesOf(ctx);
@@ -984,7 +991,7 @@ grant execute on function ${ctx.fn(name)}(${args}) to authenticated, service_rol
     )
     .join("\n");
   return `${schemaPreamble(ctx)}
-${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${remove(ctx, n)}${guards(ctx, n)}${members(ctx, n)}${switcher(ctx, n)}
+${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${remove(ctx, n)}${guards(ctx, n)}${members(ctx, n)}${switcher(ctx, n)}${organizationReads(ctx, n)}
 ${grants}`;
 }
 
@@ -1001,13 +1008,15 @@ export const ORGANIZATIONS: ModuleDefinition = {
   contract: (ctx) =>
     functionsOf(ctx, "{id}").map(([name, args]) => ({
       name,
-      args: args.split(", "),
+      args: args === "" ? [] : args.split(", "),
       returns:
         name === "create_organization"
           ? "{id}"
           : name === "switch_organization"
             ? "jsonb"
-            : "boolean",
+            : name.startsWith("list_")
+              ? "record"
+              : "boolean",
     })),
   build: organizationsSql,
 };

@@ -131,6 +131,7 @@ export async function expectInstant(
   }
   return expectDbBudget(page, {
     during: run,
+    requireRequest: false,
     ...(expectation.maxCalls === undefined
       ? {}
       : { maxCalls: expectation.maxCalls }),

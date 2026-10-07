@@ -255,9 +255,13 @@ some module checks change under the permdock model:
 
 Your app already has the functions. Give the contract as SQL templates with
 `{scope}`, `{id}`, `{permission}`, `{user}`, `{tenant}` and `{role}`
-placeholders. `can`, `tenantIdsWith`, `isPlatform` and `canAssign` are required;
-`canAssignFor` (`{user}`, `{tenant}`, `{role}`) adds `can_assign_as`, which
-lets an invitation accept check the inviter again.
+placeholders. `can`, `tenantIdsWith`, `isPlatform` and `canAssign` are required.
+`member_can(user, tenant, permission)` and `can_assign_as(user, tenant, role)`
+are required when the `organizations` or `invitations` modules are installed:
+those modules call them for a stored user, not only `auth.uid()`.
+`canAssignFor` (`{user}`, `{tenant}`, `{role}`) is the custom body of
+`can_assign_as`. Without it, write `can_assign_as` yourself so an invitation
+accept can check the inviter again.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({

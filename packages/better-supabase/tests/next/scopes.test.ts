@@ -27,6 +27,7 @@ vi.mock("next/cache.js", () => ({
   cacheTag: mocks.cacheTag,
   updateTag: mocks.updateTag,
   revalidateTag: vi.fn(),
+  io: () => Promise.resolve(),
 }));
 vi.mock("@supabase/server/core", async (original) => {
   const actual = await original<typeof ServerCore>();

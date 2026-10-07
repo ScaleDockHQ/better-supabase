@@ -35,6 +35,7 @@ vi.mock("next/cache.js", () => ({
   revalidateTag: vi.fn(),
   cacheTag: mocks.cacheTag,
   cacheLife: mocks.cacheLife,
+  io: () => Promise.resolve(),
 }));
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";

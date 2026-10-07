@@ -97,6 +97,12 @@ describe("profiles module", () => {
     expect(sql).toContain("meta ->> 'full_name', meta ->> 'name'");
     expect(sql).toContain('"better_supabase"."allocate_username"(');
     expect(sql).toContain("add constraint profiles_username_check check (");
+    // `between` inside the `and` chain nests differently once stored, so a
+    // pg-delta sync would drop and re-add the check on every run.
+    expect(sql).toContain(
+      'length("username") >= 3\n    and length("username") <= 32',
+    );
+    expect(sql).not.toMatch(/length\("username"\) between/);
     expect(sql).toContain("lower(\"username\") <> all (array['admin'");
     expect(sql).toContain("while candidate = any(array['admin'");
     expect(sql).toMatch(
@@ -106,6 +112,9 @@ describe("profiles module", () => {
       "exception when others then\n    raise warning 'No profile for user %",
     );
     expect(sql).toContain('"id" = (select auth.uid())');
+    // jsonb `onboarding` must stay jsonb; `->>` makes plpgsql reject the CASE.
+    expect(sql).toContain("attrs -> 'onboarding'");
+    expect(sql).not.toContain("attrs ->> 'onboarding'");
   });
 
   it("adopts CentraKit's profiles without touching its table or grants", () => {
@@ -157,6 +166,12 @@ describe("profiles module", () => {
     expect(grant).toContain('"locale"');
     expect(grant).not.toContain('"email"');
     expect(sql).toContain('"better_supabase"."my_profile"()');
+    expect(sql).not.toMatch(
+      /create or replace function "better_supabase"\."my_profile"\(\)\s+returns setof/,
+    );
+    expect(sql).toMatch(
+      /drop function if exists "better_supabase"\."my_profile"\(\);\s+create or replace function "better_supabase"\."my_profile"\(\)\s+returns jsonb/,
+    );
   });
 
   it("honours updatable, serviceColumns and turning features off", () => {

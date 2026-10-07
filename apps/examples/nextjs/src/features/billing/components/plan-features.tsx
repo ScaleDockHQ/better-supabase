@@ -1,13 +1,11 @@
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
+import { CheckIcon, MinusIcon } from "lucide-react";
+import { getExtracted } from "next-intl/server";
 
+import type { Entitlement } from "@/lib/claims";
+
+import { activeOrganizationId } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
-import { type Entitlement } from "@/lib/claims";
-
-const FEATURES = {
-  exports: "CSV exports",
-  sso: "Single sign-on",
-  audit: "Audit log",
-} satisfies Record<Entitlement, string>;
 
 /**
  * The plan's features from the token's `features` claim. UX only:
@@ -15,23 +13,34 @@ const FEATURES = {
  */
 export async function PlanFeatures() {
   const session = await getSession();
-  const organizationId =
-    session.kind === "user"
-      ? (session.claims.tenant_id ?? session.claims.app_metadata?.tenant_id)
-      : undefined;
+  const organizationId = activeOrganizationId(session);
   if (!organizationId) return null;
-  // SAFETY: FEATURES is keyed by Entitlement, and Object.entries widens the
-  // keys to string.
+  const t = await getExtracted("billing");
+  const features = [
+    ["exports", t("CSV exports")],
+    ["audit", t("Audit log")],
+    ["sso", t("Single sign-on")],
+  ] satisfies readonly (readonly [Entitlement, string])[];
   return (
-    <ul aria-label="Plan features">
-      {Object.entries(FEATURES).map(([key, label]) => (
-        <li key={key}>
-          {label}:{" "}
-          {hasEntitlement(session, organizationId, key as Entitlement)
-            ? "included"
-            : "not in your plan"}
-        </li>
-      ))}
+    <ul aria-label={t("Plan features")} className="space-y-2 text-sm">
+      {features.map(([key, label]) => {
+        const included = hasEntitlement(session, organizationId, key);
+        return (
+          <li key={key} className="flex items-center gap-2">
+            {included ? (
+              <CheckIcon className="text-primary size-4" />
+            ) : (
+              <MinusIcon className="text-muted-foreground size-4" />
+            )}
+            <span className={included ? undefined : "text-muted-foreground"}>
+              {label}
+            </span>
+            <span className="sr-only">
+              {included ? t("included") : t("not in your plan")}
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
 }

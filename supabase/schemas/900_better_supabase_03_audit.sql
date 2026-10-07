@@ -208,7 +208,7 @@ begin
       else 'system'
     end,
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
-    null,
+    (select o."name"::text from "public"."organizations" o where o."id" = row_tenant),
     row_data ->> entry.label_column,
     null,
     (v_headers ->> 'x-request-id'),
@@ -546,7 +546,7 @@ begin
       else 'system'
     end),
     coalesce(actor_label, coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', auth.jwt() ->> 'email')),
-    null,
+    (select o."name"::text from "public"."organizations" o where o."id" = tenant),
     target_label,
     summary,
     coalesce(request_id, better_supabase.request_header('x-request-id')),
@@ -558,7 +558,7 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) to "service_role";
+grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) to "authenticated", "service_role";
 
 -- audit_event for the app's own security definer functions: it honours
 -- actor_id, actor_kind, actor_label, scope and the request details from any
@@ -641,7 +641,7 @@ begin
       else 'system'
     end),
     coalesce(actor_label, coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', auth.jwt() ->> 'email')),
-    null,
+    (select o."name"::text from "public"."organizations" o where o."id" = tenant),
     target_label,
     summary,
     coalesce(request_id, better_supabase.request_header('x-request-id')),
@@ -686,9 +686,40 @@ drop trigger if exists "bs_audit_no_truncate" on "better_supabase"."audit_events
 create trigger "bs_audit_no_truncate" before truncate on "better_supabase"."audit_events"
   for each statement execute function better_supabase.audit_append_only();
 
+-- Members read their tenant's entries with the audit.read permission;
+-- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and
+-- is_platform when it runs, so this file installs before the access module's.
+create or replace function "better_supabase"."audit_read_tenants"()
+returns setof uuid
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return query select t::uuid from better_supabase.tenant_ids_with('audit.read') t;
+end;
+$$;
+create or replace function "better_supabase"."audit_reads_all"()
+returns boolean
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return better_supabase.is_platform('audit.read');
+end;
+$$;
+revoke execute on function "better_supabase"."audit_read_tenants"() from public, anon;
+revoke execute on function "better_supabase"."audit_reads_all"() from public, anon;
+grant execute on function "better_supabase"."audit_read_tenants"() to authenticated, service_role;
+grant execute on function "better_supabase"."audit_reads_all"() to authenticated, service_role;
 drop policy if exists bs_audit_read on "better_supabase"."audit_events";
-drop function if exists "better_supabase"."audit_read_tenants"();
-drop function if exists "better_supabase"."audit_reads_all"();
+create policy bs_audit_read on "better_supabase"."audit_events" for select to authenticated
+  using (
+    "organization_id" in (select "better_supabase"."audit_read_tenants"())
+    or (select "better_supabase"."audit_reads_all"())
+  );
+grant select on "better_supabase"."audit_events" to authenticated;
 
 -- Deletes up to batch entries older than older_than and returns how many.
 -- With an audit_retention(tenant) function, each tenant keeps its own
@@ -895,8 +926,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) from public, anon;
-revoke execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) from authenticated;
-grant execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) to service_role;
+grant execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) to authenticated, service_role;
 
 create or replace function "better_supabase"."count_audit_events"(
   for_tenants uuid[] default null,
@@ -969,8 +999,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) from public, anon;
-revoke execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) from authenticated;
-grant execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) to service_role;
+grant execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) to authenticated, service_role;
 
 -- Deprecated since 0.5.0: use better_supabase.audit_events (occurred_at, organization_id).
 -- Recreated, since new log columns change what l.* expands to.
@@ -982,6 +1011,82 @@ create view "better_supabase".audit_log
 comment on view "better_supabase".audit_log is 'deprecated: use better_supabase.audit_events';
 revoke all on "better_supabase".audit_log from anon, authenticated;
 grant select on "better_supabase".audit_log to service_role;
+
+-- sql.modules.audit.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."audit_event"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."audit_event"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) $$;
+revoke execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) from public, anon;
+grant execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."audit_event_trusted"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."audit_event_trusted"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) $$;
+revoke execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) from public, anon, authenticated;
+grant execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) to service_role;
+
+create or replace function "api"."audit_read_tenants"()
+returns setof uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."audit_read_tenants"() $$;
+revoke execute on function "api"."audit_read_tenants"() from public, anon;
+grant execute on function "api"."audit_read_tenants"() to authenticated, service_role;
+
+create or replace function "api"."audit_reads_all"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."audit_reads_all"() $$;
+revoke execute on function "api"."audit_reads_all"() from public, anon;
+grant execute on function "api"."audit_reads_all"() to authenticated, service_role;
+
+create or replace function "api"."purge_audit_log"(older_than interval default '1 year', batch integer default 10000, tenant uuid default null, for_tenant boolean default false)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."purge_audit_log"($1, $2, $3, $4) $$;
+revoke execute on function "api"."purge_audit_log"(interval, integer, uuid, boolean) from public, anon, authenticated;
+grant execute on function "api"."purge_audit_log"(interval, integer, uuid, boolean) to service_role;
+
+create or replace function "api"."audit_events_tenants"(older_than interval default '1 day')
+returns setof uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."audit_events_tenants"($1) $$;
+revoke execute on function "api"."audit_events_tenants"(interval) from public, anon, authenticated;
+grant execute on function "api"."audit_events_tenants"(interval) to service_role;
+
+create or replace function "api"."list_audit_events"(for_tenants uuid[] default null, for_event_types text[] default null, for_actors uuid[] default null, for_target_types text[] default null, for_records text[] default null, for_categories text[] default null, for_outcomes text[] default null, search text default null, for_sources text[] default null, for_actor_kinds text[] default null, for_correlation_ids text[] default null, since timestamptz default null, until timestamptz default null, cursor_at timestamptz default null, cursor_id text default null, max_items integer default 50, ascending boolean default false, skip integer default 0)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_audit_events"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) $$;
+revoke execute on function "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) from public, anon;
+grant execute on function "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) to authenticated, service_role;
+
+create or replace function "api"."count_audit_events"(for_tenants uuid[] default null, for_event_types text[] default null, for_actors uuid[] default null, for_target_types text[] default null, for_records text[] default null, for_categories text[] default null, for_outcomes text[] default null, search text default null, for_sources text[] default null, for_actor_kinds text[] default null, for_correlation_ids text[] default null, since timestamptz default null, until timestamptz default null)
+returns bigint
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."count_audit_events"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) $$;
+revoke execute on function "api"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) from public, anon;
+grant execute on function "api"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

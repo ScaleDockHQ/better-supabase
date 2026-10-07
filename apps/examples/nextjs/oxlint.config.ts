@@ -4,12 +4,13 @@ import {
   core,
   node,
   react,
+  shadcn,
   test,
   ignorePatterns,
 } from "@better-supabase/ox-config/oxlint";
 
 export default defineConfig({
-  extends: [core, node, react, test],
+  extends: [core, node, react, shadcn, test],
   ignorePatterns: [
     ...ignorePatterns,
     "**/*.generated.ts",
@@ -17,6 +18,9 @@ export default defineConfig({
     "**/generated.meta.*",
     "**/generated-*.ts",
     "**/database.types.ts",
+    // Copied from the shadcn registry by `shadcn add`.
+    "src/components/ui/**",
+    "src/hooks/use-mobile.ts",
   ],
   overrides: [
     {

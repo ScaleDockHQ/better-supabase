@@ -564,3 +564,41 @@ describe("invitations by id", () => {
     ]);
   });
 });
+
+describe("organization reads", () => {
+  it("lists the caller's organizations, members and invitations", async () => {
+    const { transport, calls } = fake({
+      list_my_organizations: [
+        { id: "org-1", name: "Acme", slug: "acme", role: "owner" },
+      ],
+      list_members: [{ user_id: "user-1", role: "owner" }],
+      list_organization_invitations: [
+        {
+          id: "inv-1",
+          email: "ada@example.com",
+          role: "member",
+          expires_at: "2026-10-10T12:00:00+00:00",
+        },
+      ],
+    });
+    const organizations = createOrganizations({ transport });
+    expect(await organizations.mine().orThrow()).toEqual([
+      { id: "org-1", name: "Acme", slug: "acme", role: "owner" },
+    ]);
+    expect(await organizations.members("org-1").orThrow()).toEqual([
+      { userId: "user-1", role: "owner" },
+    ]);
+    const invitations = await organizations.invitations("org-1").orThrow();
+    expect(invitations).toHaveLength(1);
+    expect(invitations[0]).toMatchObject({
+      id: "inv-1",
+      email: "ada@example.com",
+      role: "member",
+    });
+    expect(calls.map((call) => call.fn)).toEqual([
+      "list_my_organizations",
+      "list_members",
+      "list_organization_invitations",
+    ]);
+  });
+});

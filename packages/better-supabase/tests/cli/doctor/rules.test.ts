@@ -251,6 +251,23 @@ describe("BS107 without the tenant plugin", () => {
     );
     expect(excluded.map((finding) => finding.target)).toEqual(["public.notes"]);
   });
+
+  it("counts a restrictive using (false) policy as covering the command", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        policy("notes_read", "select", "is_member(organization_id)"),
+        {
+          name: "notes_no_write",
+          command: "all",
+          roles: ["authenticated"],
+          permissive: false,
+          using: "false",
+          check: null,
+        },
+      ];
+    });
+    expect(await run("BS107", context(snap))).toEqual([]);
+  });
 });
 
 describe("BS204, BS210, BS301", () => {

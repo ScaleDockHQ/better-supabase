@@ -17,9 +17,13 @@ const meta: SchemaMeta = {
     "customerTags": {"key":"customerTags","name":"customer_tags","schema":"public","kind":"table","columns":{"customerId":{"db":"customer_id","type":"uuid","nullable":false,"hasDefault":false},"tagId":{"db":"tag_id","type":"uuid","nullable":false,"hasDefault":false},"organizationId":{"db":"organization_id","type":"uuid","nullable":false,"hasDefault":false},"createdAt":{"db":"created_at","type":"timestamptz","nullable":false,"hasDefault":true}},"primaryKey":["customerId","tagId"],"uniqueKeys":{},"relations":{"customer":{"table":"customers","kind":"one","nullable":false,"foreignKey":"customer_tags_customer_id_fkey","columns":["customerId","organizationId"],"references":["id","organizationId"],"direction":"forward"},"organization":{"table":"organizations","kind":"one","nullable":false,"foreignKey":"customer_tags_organization_id_fkey","columns":["organizationId"],"references":["id"],"direction":"forward"},"tag":{"table":"tags","kind":"one","nullable":false,"foreignKey":"customer_tags_tag_id_fkey","columns":["tagId","organizationId"],"references":["id","organizationId"],"direction":"forward"}},"flags":{}},
     "customers": {"key":"customers","name":"customers","schema":"public","kind":"table","columns":{"id":{"db":"id","type":"uuid","nullable":false,"hasDefault":true},"organizationId":{"db":"organization_id","type":"uuid","nullable":false,"hasDefault":false},"name":{"db":"name","type":"text","nullable":false,"hasDefault":false},"kvk":{"db":"kvk","type":"text","nullable":true,"hasDefault":false},"status":{"db":"status","type":"text","nullable":false,"hasDefault":true,"enum":["lead","active","archived"]},"primaryContactId":{"db":"primary_contact_id","type":"uuid","nullable":true,"hasDefault":false},"metadata":{"db":"metadata","type":"jsonb","nullable":false,"hasDefault":true,"json":true},"createdBy":{"db":"created_by","type":"uuid","nullable":true,"hasDefault":true},"updatedBy":{"db":"updated_by","type":"uuid","nullable":true,"hasDefault":false},"archivedAt":{"db":"archived_at","type":"timestamptz","nullable":true,"hasDefault":false},"createdAt":{"db":"created_at","type":"timestamptz","nullable":false,"hasDefault":true},"updatedAt":{"db":"updated_at","type":"timestamptz","nullable":false,"hasDefault":true},"logoPath":{"db":"logo_path","type":"text","nullable":true,"hasDefault":false}},"primaryKey":["id"],"uniqueKeys":{},"relations":{"customerTags":{"table":"customerTags","kind":"many","nullable":true,"foreignKey":"customer_tags_customer_id_fkey","columns":["id","organizationId"],"references":["customerId","organizationId"],"direction":"reverse"},"organization":{"table":"organizations","kind":"one","nullable":false,"foreignKey":"customers_organization_id_fkey","columns":["organizationId"],"references":["id"],"direction":"forward"},"primaryContact":{"table":"contacts","kind":"one","nullable":true,"foreignKey":"customers_primary_contact_id_fkey","columns":["primaryContactId","organizationId"],"references":["id","organizationId"],"direction":"forward"},"locations":{"table":"locations","kind":"many","nullable":true,"foreignKey":"locations_customer_id_fkey","columns":["id","organizationId"],"references":["customerId","organizationId"],"direction":"reverse"},"notes":{"table":"notes","kind":"many","nullable":true,"foreignKey":"notes_customer_id_fkey","columns":["id","organizationId"],"references":["customerId","organizationId"],"direction":"reverse"}},"flags":{}},
     "locations": {"key":"locations","name":"locations","schema":"public","kind":"table","columns":{"id":{"db":"id","type":"uuid","nullable":false,"hasDefault":true},"organizationId":{"db":"organization_id","type":"uuid","nullable":false,"hasDefault":false},"customerId":{"db":"customer_id","type":"uuid","nullable":false,"hasDefault":false},"label":{"db":"label","type":"text","nullable":false,"hasDefault":false},"city":{"db":"city","type":"text","nullable":true,"hasDefault":false},"isPrimary":{"db":"is_primary","type":"bool","nullable":false,"hasDefault":true},"createdAt":{"db":"created_at","type":"timestamptz","nullable":false,"hasDefault":true},"updatedAt":{"db":"updated_at","type":"timestamptz","nullable":false,"hasDefault":true}},"primaryKey":["id"],"uniqueKeys":{},"relations":{"customer":{"table":"customers","kind":"one","nullable":false,"foreignKey":"locations_customer_id_fkey","columns":["customerId","organizationId"],"references":["id","organizationId"],"direction":"forward"},"organization":{"table":"organizations","kind":"one","nullable":false,"foreignKey":"locations_organization_id_fkey","columns":["organizationId"],"references":["id"],"direction":"forward"}},"flags":{}},
+    "memberships": {"key":"memberships","name":"memberships","schema":"public","kind":"table","columns":{"organizationId":{"db":"organization_id","type":"uuid","nullable":false,"hasDefault":false},"userId":{"db":"user_id","type":"uuid","nullable":false,"hasDefault":false},"role":{"db":"role","type":"text","nullable":false,"hasDefault":true,"enum":["owner","admin","member"]},"createdAt":{"db":"created_at","type":"timestamptz","nullable":false,"hasDefault":true},"lastUsedAt":{"db":"last_used_at","type":"timestamptz","nullable":true,"hasDefault":false}},"primaryKey":["organizationId","userId"],"uniqueKeys":{},"relations":{"organization":{"table":"organizations","kind":"one","nullable":false,"foreignKey":"memberships_organization_id_fkey","columns":["organizationId"],"references":["id"],"direction":"forward"}},"flags":{}},
     "notes": {"key":"notes","name":"notes","schema":"public","kind":"table","columns":{"id":{"db":"id","type":"int8","nullable":false,"hasDefault":true,"generated":true,"identity":"always"},"organizationId":{"db":"organization_id","type":"uuid","nullable":false,"hasDefault":false},"customerId":{"db":"customer_id","type":"uuid","nullable":false,"hasDefault":false},"kind":{"db":"kind","type":"note_kind","nullable":false,"hasDefault":true,"enum":["call","meeting","email"]},"body":{"db":"body","type":"text","nullable":false,"hasDefault":false},"attachments":{"db":"attachments","type":"jsonb","nullable":true,"hasDefault":false,"json":true},"createdAt":{"db":"created_at","type":"timestamptz","nullable":false,"hasDefault":true},"updatedAt":{"db":"updated_at","type":"timestamptz","nullable":false,"hasDefault":true},"embedding":{"db":"embedding","type":"vector","nullable":true,"hasDefault":false}},"primaryKey":["id"],"uniqueKeys":{},"relations":{"customer":{"table":"customers","kind":"one","nullable":false,"foreignKey":"notes_customer_id_fkey","columns":["customerId","organizationId"],"references":["id","organizationId"],"direction":"forward"},"organization":{"table":"organizations","kind":"one","nullable":false,"foreignKey":"notes_organization_id_fkey","columns":["organizationId"],"references":["id"],"direction":"forward"}},"flags":{}},
     "notifications": {"key":"notifications","name":"notifications","schema":"public","kind":"table","columns":{"id":{"db":"id","type":"int8","nullable":false,"hasDefault":true,"generated":true,"identity":"always"},"organizationId":{"db":"organization_id","type":"uuid","nullable":false,"hasDefault":false},"userId":{"db":"user_id","type":"uuid","nullable":false,"hasDefault":true},"title":{"db":"title","type":"text","nullable":false,"hasDefault":false},"readAt":{"db":"read_at","type":"timestamptz","nullable":true,"hasDefault":false},"createdAt":{"db":"created_at","type":"timestamptz","nullable":false,"hasDefault":true},"updatedAt":{"db":"updated_at","type":"timestamptz","nullable":false,"hasDefault":true}},"primaryKey":["id"],"uniqueKeys":{},"relations":{"organization":{"table":"organizations","kind":"one","nullable":false,"foreignKey":"notifications_organization_id_fkey","columns":["organizationId"],"references":["id"],"direction":"forward"}},"flags":{}},
-    "organizations": {"key":"organizations","name":"organizations","schema":"public","kind":"table","columns":{"id":{"db":"id","type":"uuid","nullable":false,"hasDefault":true},"name":{"db":"name","type":"text","nullable":false,"hasDefault":false},"slug":{"db":"slug","type":"text","nullable":false,"hasDefault":false},"createdAt":{"db":"created_at","type":"timestamptz","nullable":false,"hasDefault":true},"updatedAt":{"db":"updated_at","type":"timestamptz","nullable":false,"hasDefault":true}},"primaryKey":["id"],"uniqueKeys":{"organizations_slug_key":["slug"]},"relations":{"contacts":{"table":"contacts","kind":"many","nullable":true,"foreignKey":"contacts_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"customerTags":{"table":"customerTags","kind":"many","nullable":true,"foreignKey":"customer_tags_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"customers":{"table":"customers","kind":"many","nullable":true,"foreignKey":"customers_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"locations":{"table":"locations","kind":"many","nullable":true,"foreignKey":"locations_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"notes":{"table":"notes","kind":"many","nullable":true,"foreignKey":"notes_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"notifications":{"table":"notifications","kind":"many","nullable":true,"foreignKey":"notifications_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"tags":{"table":"tags","kind":"many","nullable":true,"foreignKey":"tags_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"}},"flags":{}},
+    "organizations": {"key":"organizations","name":"organizations","schema":"public","kind":"table","columns":{"id":{"db":"id","type":"uuid","nullable":false,"hasDefault":true},"name":{"db":"name","type":"text","nullable":false,"hasDefault":false},"slug":{"db":"slug","type":"text","nullable":false,"hasDefault":false},"createdAt":{"db":"created_at","type":"timestamptz","nullable":false,"hasDefault":true},"updatedAt":{"db":"updated_at","type":"timestamptz","nullable":false,"hasDefault":true}},"primaryKey":["id"],"uniqueKeys":{"organizations_slug_key":["slug"]},"relations":{"contacts":{"table":"contacts","kind":"many","nullable":true,"foreignKey":"contacts_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"customerTags":{"table":"customerTags","kind":"many","nullable":true,"foreignKey":"customer_tags_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"customers":{"table":"customers","kind":"many","nullable":true,"foreignKey":"customers_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"locations":{"table":"locations","kind":"many","nullable":true,"foreignKey":"locations_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"memberships":{"table":"memberships","kind":"many","nullable":true,"foreignKey":"memberships_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"notes":{"table":"notes","kind":"many","nullable":true,"foreignKey":"notes_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"notifications":{"table":"notifications","kind":"many","nullable":true,"foreignKey":"notifications_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"subscription":{"table":"subscriptions","kind":"one","nullable":true,"foreignKey":"subscriptions_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"},"tags":{"table":"tags","kind":"many","nullable":true,"foreignKey":"tags_organization_id_fkey","columns":["id"],"references":["organizationId"],"direction":"reverse"}},"flags":{}},
+    "planFeatures": {"key":"planFeatures","name":"plan_features","schema":"public","kind":"table","columns":{"planKey":{"db":"plan_key","type":"text","nullable":false,"hasDefault":false},"featureKey":{"db":"feature_key","type":"text","nullable":false,"hasDefault":false},"included":{"db":"included","type":"bool","nullable":false,"hasDefault":true},"value":{"db":"value","type":"jsonb","nullable":true,"hasDefault":false,"json":true}},"primaryKey":["planKey","featureKey"],"uniqueKeys":{},"relations":{"plan":{"table":"plans","kind":"one","nullable":false,"foreignKey":"plan_features_plan_key_fkey","columns":["planKey"],"references":["key"],"direction":"forward"}},"flags":{}},
+    "plans": {"key":"plans","name":"plans","schema":"public","kind":"table","columns":{"key":{"db":"key","type":"text","nullable":false,"hasDefault":false},"name":{"db":"name","type":"text","nullable":false,"hasDefault":false},"priceCents":{"db":"price_cents","type":"int4","nullable":false,"hasDefault":true},"position":{"db":"position","type":"int4","nullable":false,"hasDefault":true}},"primaryKey":["key"],"uniqueKeys":{},"relations":{"planFeatures":{"table":"planFeatures","kind":"many","nullable":true,"foreignKey":"plan_features_plan_key_fkey","columns":["key"],"references":["planKey"],"direction":"reverse"},"subscriptions":{"table":"subscriptions","kind":"many","nullable":true,"foreignKey":"subscriptions_plan_key_fkey","columns":["key"],"references":["planKey"],"direction":"reverse"}},"flags":{}},
+    "subscriptions": {"key":"subscriptions","name":"subscriptions","schema":"public","kind":"table","columns":{"organizationId":{"db":"organization_id","type":"uuid","nullable":false,"hasDefault":false},"planKey":{"db":"plan_key","type":"text","nullable":false,"hasDefault":false},"status":{"db":"status","type":"text","nullable":false,"hasDefault":true,"enum":["active","trialing","past_due","canceled"]},"currentPeriodEnd":{"db":"current_period_end","type":"timestamptz","nullable":true,"hasDefault":false},"updatedAt":{"db":"updated_at","type":"timestamptz","nullable":false,"hasDefault":true}},"primaryKey":["organizationId"],"uniqueKeys":{},"relations":{"organization":{"table":"organizations","kind":"one","nullable":false,"foreignKey":"subscriptions_organization_id_fkey","columns":["organizationId"],"references":["id"],"direction":"forward"},"plan":{"table":"plans","kind":"one","nullable":false,"foreignKey":"subscriptions_plan_key_fkey","columns":["planKey"],"references":["key"],"direction":"forward"}},"flags":{}},
     "tags": {"key":"tags","name":"tags","schema":"public","kind":"table","columns":{"id":{"db":"id","type":"uuid","nullable":false,"hasDefault":true},"organizationId":{"db":"organization_id","type":"uuid","nullable":false,"hasDefault":false},"name":{"db":"name","type":"text","nullable":false,"hasDefault":false},"color":{"db":"color","type":"text","nullable":false,"hasDefault":true,"enum":["gray","red","green","blue"]},"createdAt":{"db":"created_at","type":"timestamptz","nullable":false,"hasDefault":true},"updatedAt":{"db":"updated_at","type":"timestamptz","nullable":false,"hasDefault":true}},"primaryKey":["id"],"uniqueKeys":{},"relations":{"customerTags":{"table":"customerTags","kind":"many","nullable":true,"foreignKey":"customer_tags_tag_id_fkey","columns":["id","organizationId"],"references":["tagId","organizationId"],"direction":"reverse"},"organization":{"table":"organizations","kind":"one","nullable":false,"foreignKey":"tags_organization_id_fkey","columns":["organizationId"],"references":["id"],"direction":"forward"}},"flags":{}}
   },
   "enums": {
@@ -28,9 +32,14 @@ const meta: SchemaMeta = {
   "functions": {
     "customer_note_counts": {"name":"customer_note_counts","schema":"public","args":[{"name":"p_customer_ids","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"customer_id","name":"customerId"},{"db":"last_note_at","name":"lastNoteAt"},{"db":"note_count","name":"noteCount"}]}},
     "customers_by_status": {"name":"customers_by_status","schema":"public","args":[{"name":"p_limit","type":"int4"},{"name":"p_status","type":"text"}],"returns":"customers","returnsSet":true,"volatility":"stable","result":{"table":"customers"}},
+    "my_organizations": {"name":"my_organizations","schema":"public","args":[],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"id"},{"db":"last_used_at","name":"lastUsedAt"},{"db":"name"},{"db":"plan"},{"db":"role"},{"db":"slug"}]}},
+    "my_profile": {"name":"my_profile","schema":"public","args":[],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"avatar_url","name":"avatarUrl"},{"db":"email"},{"db":"full_name","name":"fullName"},{"db":"username"}]}},
+    "organization_invitations": {"name":"organization_invitations","schema":"public","args":[{"name":"organization","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"created_at","name":"createdAt"},{"db":"email"},{"db":"expires_at","name":"expiresAt"},{"db":"id"},{"db":"invited_by","name":"invitedBy"},{"db":"role"}]}},
+    "organization_members": {"name":"organization_members","schema":"public","args":[{"name":"organization","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"avatar_url","name":"avatarUrl"},{"db":"email"},{"db":"full_name","name":"fullName"},{"db":"joined_at","name":"joinedAt"},{"db":"role"},{"db":"user_id","name":"userId"}]}},
     "rs_workspace_summary": {"name":"rs_workspace_summary","schema":"public","args":[{"name":"p","type":"jsonb"}],"returns":"jsonb","returnsSet":false,"volatility":"stable"},
     "search_notes": {"name":"search_notes","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"notes","returnsSet":true,"volatility":"stable","result":{"table":"notes"}},
-    "search_notes_scores": {"name":"search_notes_scores","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"record","returnsSet":true,"volatility":"stable"}
+    "search_notes_scores": {"name":"search_notes_scores","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"record","returnsSet":true,"volatility":"stable"},
+    "update_my_profile": {"name":"update_my_profile","schema":"public","args":[{"name":"full_name","type":"text"}],"returns":"void","returnsSet":false,"volatility":"volatile"}
   }
 };
 
@@ -43,6 +52,12 @@ export type Database = EnrichDatabase<
       customers: {
         status: "lead" | "active" | "archived";
       };
+      memberships: {
+        role: "owner" | "admin" | "member";
+      };
+      subscriptions: {
+        status: "active" | "trialing" | "past_due" | "canceled";
+      };
       tags: {
         color: "gray" | "red" | "green" | "blue";
       };
@@ -54,6 +69,10 @@ export const noteKindValues = ["call", "meeting", "email"] as const;
 export type NoteKind = (typeof noteKindValues)[number];
 export const customersStatusValues = ["lead", "active", "archived"] as const;
 export type CustomersStatus = (typeof customersStatusValues)[number];
+export const membershipsRoleValues = ["owner", "admin", "member"] as const;
+export type MembershipsRole = (typeof membershipsRoleValues)[number];
+export const subscriptionsStatusValues = ["active", "trialing", "past_due", "canceled"] as const;
+export type SubscriptionsStatus = (typeof subscriptionsStatusValues)[number];
 export const tagsColorValues = ["gray", "red", "green", "blue"] as const;
 export type TagsColor = (typeof tagsColorValues)[number];
 
@@ -223,6 +242,37 @@ export type Models = {
     ForeignKeys: "locations_customer_id_fkey" | "locations_organization_id_fkey";
     Flags: Record<never, never>;
   };
+  memberships: {
+    Row: {
+      organizationId: string;
+      userId: string;
+      role: "owner" | "admin" | "member";
+      createdAt: string;
+      lastUsedAt: string | null;
+    };
+    Insert: {
+      organizationId: string;
+      userId: string;
+      role?: "owner" | "admin" | "member";
+      createdAt?: string;
+      lastUsedAt?: string | null;
+    };
+    Update: {
+      organizationId?: string;
+      userId?: string;
+      role?: "owner" | "admin" | "member";
+      createdAt?: string;
+      lastUsedAt?: string | null;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "organizationId" | "userId";
+    UniqueKeys: Record<never, never>;
+    Checks: "memberships_role_check";
+    ForeignKeys: "memberships_organization_id_fkey" | "memberships_user_id_fkey";
+    Flags: Record<never, never>;
+  };
   notes: {
     Row: {
       id: number;
@@ -331,8 +381,10 @@ export type Models = {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
       customers: { table: "customers"; kind: "many"; nullable: true };
       locations: { table: "locations"; kind: "many"; nullable: true };
+      memberships: { table: "memberships"; kind: "many"; nullable: true };
       notes: { table: "notes"; kind: "many"; nullable: true };
       notifications: { table: "notifications"; kind: "many"; nullable: true };
+      subscription: { table: "subscriptions"; kind: "one"; nullable: true };
       tags: { table: "tags"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
@@ -341,6 +393,95 @@ export type Models = {
     };
     Checks: never;
     ForeignKeys: never;
+    Flags: Record<never, never>;
+  };
+  planFeatures: {
+    Row: {
+      planKey: string;
+      featureKey: string;
+      included: boolean;
+      value: Json | null;
+    };
+    Insert: {
+      planKey: string;
+      featureKey: string;
+      included?: boolean;
+      value?: Json | null;
+    };
+    Update: {
+      planKey?: string;
+      featureKey?: string;
+      included?: boolean;
+      value?: Json | null;
+    };
+    Relations: {
+      plan: { table: "plans"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "planKey" | "featureKey";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "plan_features_plan_key_fkey";
+    Flags: Record<never, never>;
+  };
+  plans: {
+    Row: {
+      key: string;
+      name: string;
+      priceCents: number;
+      position: number;
+    };
+    Insert: {
+      key: string;
+      name: string;
+      priceCents?: number;
+      position?: number;
+    };
+    Update: {
+      key?: string;
+      name?: string;
+      priceCents?: number;
+      position?: number;
+    };
+    Relations: {
+      planFeatures: { table: "planFeatures"; kind: "many"; nullable: true };
+      subscriptions: { table: "subscriptions"; kind: "many"; nullable: true };
+    };
+    PrimaryKey: "key";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: never;
+    Flags: Record<never, never>;
+  };
+  subscriptions: {
+    Row: {
+      organizationId: string;
+      planKey: string;
+      status: "active" | "trialing" | "past_due" | "canceled";
+      currentPeriodEnd: string | null;
+      updatedAt: string;
+    };
+    Insert: {
+      organizationId: string;
+      planKey: string;
+      status?: "active" | "trialing" | "past_due" | "canceled";
+      currentPeriodEnd?: string | null;
+      updatedAt?: string;
+    };
+    Update: {
+      organizationId?: string;
+      planKey?: string;
+      status?: "active" | "trialing" | "past_due" | "canceled";
+      currentPeriodEnd?: string | null;
+      updatedAt?: string;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+      plan: { table: "plans"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "organizationId";
+    UniqueKeys: Record<never, never>;
+    Checks: "subscriptions_status_check";
+    ForeignKeys: "subscriptions_organization_id_fkey" | "subscriptions_plan_key_fkey";
     Flags: Record<never, never>;
   };
   tags: {
@@ -394,6 +535,26 @@ export type Functions = {
     };
     Returns: (Models["customers"]['Row'])[];
   };
+  my_organizations: {
+    Args: Record<never, never>;
+    Returns: { "id": string | null; "lastUsedAt": string | null; "name": string | null; "plan": string | null; "role": string | null; "slug": string | null }[];
+  };
+  my_profile: {
+    Args: Record<never, never>;
+    Returns: { "avatarUrl": string | null; "email": string | null; "fullName": string | null; "username": string | null }[];
+  };
+  organization_invitations: {
+    Args: {
+      organization: string | null;
+    };
+    Returns: { "createdAt": string | null; "email": string | null; "expiresAt": string | null; "id": string | null; "invitedBy": string | null; "role": string | null }[];
+  };
+  organization_members: {
+    Args: {
+      organization: string | null;
+    };
+    Returns: { "avatarUrl": string | null; "email": string | null; "fullName": string | null; "joinedAt": string | null; "role": string | null; "userId": string | null }[];
+  };
   rs_workspace_summary: {
     Args: {
       p: Json | null;
@@ -413,6 +574,12 @@ export type Functions = {
       query: string | null;
     };
     Returns: { "id": Json; "score": number | null }[];
+  };
+  update_my_profile: {
+    Args: {
+      full_name: string | null;
+    };
+    Returns: undefined;
   };
 };
 

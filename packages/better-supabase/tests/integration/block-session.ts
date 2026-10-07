@@ -121,6 +121,15 @@ export class BlockSession {
     );
   }
 
+  /**
+   * Empties tables that supabase/seed.sql fills, for a test that reads all
+   * of their rows. The rollback in `close` restores them.
+   */
+  async clear(tables: readonly string[]): Promise<void> {
+    await this.client.query("reset role");
+    for (const table of tables) await this.client.query(`delete from ${table}`);
+  }
+
   async service(): Promise<void> {
     await this.client.query("reset role");
     await this.client.query(

@@ -112,6 +112,29 @@ describe("invitations module", () => {
     expect(sql).toContain("valid_for > '14 days'::interval");
   });
 
+  it("rejects unknown roles from the access contract in custom mode", () => {
+    const sql = body({
+      access: { model: "custom", roles: { owner: [], admin: [], member: [] } },
+    });
+    expect(sql).toContain(
+      "not (invitee_role = any (array['owner', 'admin', 'member']::text[]))",
+    );
+    expect(sql).not.toContain("'viewer'");
+  });
+
+  it("lets the permdock model accept tenant custom roles", () => {
+    const sql = body({
+      access: {
+        model: "permdock",
+        permdock: { schema: "authz", scope: "organization" },
+      },
+    });
+    expect(sql).toContain("if invitee_role is not null and false then");
+    expect(sql).not.toContain(
+      "not (invitee_role = any (array['owner', 'admin', 'member', 'viewer']::text[]))",
+    );
+  });
+
   it("rejects removed and invalid options", () => {
     const options = (value: Record<string, unknown>) => () =>
       body({ invitations: { options: value } });

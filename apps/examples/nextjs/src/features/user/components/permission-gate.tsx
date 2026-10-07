@@ -1,5 +1,16 @@
 import type { ReactNode } from "react";
 
+import { LockIcon } from "lucide-react";
+import { getExtracted } from "next-intl/server";
+
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+
 import { type Permission, can } from "../user-permissions";
 import { getSession } from "../user-queries";
 
@@ -15,12 +26,21 @@ export async function PermissionGate({
   children: ReactNode;
 }) {
   const session = await getSession();
-  if (!can(session, permission)) {
-    return (
-      <p role="alert" className="forbidden">
-        You need the <code>{permission}</code> permission to see this page.
-      </p>
-    );
-  }
-  return children;
+  if (can(session, permission)) return children;
+  const t = await getExtracted("user");
+  return (
+    <Empty role="alert" className="border">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <LockIcon />
+        </EmptyMedia>
+        <EmptyTitle>{t("You don't have access")}</EmptyTitle>
+        <EmptyDescription>
+          {t("This needs the {permission} permission in this organization.", {
+            permission,
+          })}
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
 }

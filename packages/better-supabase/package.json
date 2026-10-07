@@ -107,6 +107,11 @@
       "types": "./dist/next/image/index.d.ts",
       "default": "./dist/next/image/index.js"
     },
+    "./next/client": {
+      "@better-supabase/source": "./src/next/client/index.ts",
+      "types": "./dist/next/client/index.d.ts",
+      "default": "./dist/next/client/index.js"
+    },
     "./hono": {
       "@better-supabase/source": "./src/hono/index.ts",
       "types": "./dist/hono/index.d.ts",
@@ -181,6 +186,11 @@
       "@better-supabase/source": "./src/blocks/organizations/index.ts",
       "types": "./dist/blocks/organizations/index.d.ts",
       "default": "./dist/blocks/organizations/index.js"
+    },
+    "./blocks/profiles": {
+      "@better-supabase/source": "./src/blocks/profiles/index.ts",
+      "types": "./dist/blocks/profiles/index.d.ts",
+      "default": "./dist/blocks/profiles/index.js"
     },
     "./blocks/notifications": {
       "@better-supabase/source": "./src/blocks/notifications/index.ts",
@@ -413,6 +423,10 @@
         "types": "./dist/next/image/index.d.ts",
         "default": "./dist/next/image/index.js"
       },
+      "./next/client": {
+        "types": "./dist/next/client/index.d.ts",
+        "default": "./dist/next/client/index.js"
+      },
       "./hono": {
         "types": "./dist/hono/index.d.ts",
         "default": "./dist/hono/index.js"
@@ -472,6 +486,10 @@
       "./blocks/organizations": {
         "types": "./dist/blocks/organizations/index.d.ts",
         "default": "./dist/blocks/organizations/index.js"
+      },
+      "./blocks/profiles": {
+        "types": "./dist/blocks/profiles/index.d.ts",
+        "default": "./dist/blocks/profiles/index.js"
       },
       "./blocks/notifications": {
         "types": "./dist/blocks/notifications/index.d.ts",

@@ -668,6 +668,14 @@
       "ImageLoaderProps"
     ]
   },
+  "./next/client": {
+    "values": [
+      "useSessionChange"
+    ],
+    "types": [
+      "SessionChangeRouter"
+    ]
+  },
   "./hono": {
     "values": [
       "createHono",
@@ -967,11 +975,28 @@
       "InvitationStatus",
       "InviteRequest",
       "OrganizationAttributes",
+      "OrganizationInvitationRow",
+      "OrganizationMember",
+      "OrganizationMembership",
       "Organizations",
       "OrganizationsOptions",
       "RpcClient",
       "SlugProblem",
       "SwitchResult"
+    ]
+  },
+  "./blocks/profiles": {
+    "values": [
+      "createProfiles",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Profile",
+      "Profiles",
+      "ProfilesOptions",
+      "RpcClient"
     ]
   },
   "./blocks/notifications": {
@@ -1752,6 +1777,7 @@
   },
   "./sql": {
     "values": [
+      "adoptedColumnProblems",
       "auditRegistrations",
       "compileReadSet",
       "compileReadSets",

@@ -6,3 +6,11 @@ declare namespace NodeJS {
     readonly NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string;
   }
 }
+
+// next-intl's loader turns a catalog into its messages (next.config.ts).
+declare module "*.po" {
+  import type { AbstractIntlMessages } from "next-intl";
+
+  const messages: AbstractIntlMessages;
+  export default messages;
+}

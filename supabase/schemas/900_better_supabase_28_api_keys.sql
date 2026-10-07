@@ -343,6 +343,73 @@ grant execute on function "better_supabase"."verify_api_key"(text, text) to serv
 grant execute on function "better_supabase"."has_scope"(text) to anon, authenticated, service_role;
 grant execute on function "better_supabase"."api_key_tenant"() to anon, authenticated, service_role;
 
+-- sql.modules.api-keys.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."create_api_key"(name text, public_id text, secret_hash text, tenant uuid default null, personal boolean default false, scopes text[] default '{}', expires_at timestamptz default null, rate_limit integer default null, prefix text default 'bs')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."create_api_key"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) from public, anon;
+grant execute on function "api"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text) to authenticated, service_role;
+
+create or replace function "api"."list_api_keys"(tenant uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_api_keys"($1) $$;
+revoke execute on function "api"."list_api_keys"(uuid) from public, anon;
+grant execute on function "api"."list_api_keys"(uuid) to authenticated, service_role;
+
+create or replace function "api"."revoke_api_key"(key uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."revoke_api_key"($1) $$;
+revoke execute on function "api"."revoke_api_key"(uuid) from public, anon;
+grant execute on function "api"."revoke_api_key"(uuid) to authenticated, service_role;
+
+create or replace function "api"."rotate_api_key"(key uuid, public_id text, secret_hash text, grace interval default interval '1 day')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."rotate_api_key"($1, $2, $3, $4) $$;
+revoke execute on function "api"."rotate_api_key"(uuid, text, text, interval) from public, anon;
+grant execute on function "api"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
+
+create or replace function "api"."verify_api_key"(public_id text, secret_hash text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."verify_api_key"($1, $2) $$;
+revoke execute on function "api"."verify_api_key"(text, text) from public, anon, authenticated;
+grant execute on function "api"."verify_api_key"(text, text) to service_role;
+
+create or replace function "api"."has_scope"(scope text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."has_scope"($1) $$;
+revoke execute on function "api"."has_scope"(text) from public;
+grant execute on function "api"."has_scope"(text) to anon, authenticated, service_role;
+
+create or replace function "api"."api_key_tenant"()
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."api_key_tenant"() $$;
+revoke execute on function "api"."api_key_tenant"() from public;
+grant execute on function "api"."api_key_tenant"() to anon, authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,

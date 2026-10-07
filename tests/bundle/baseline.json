@@ -1,7 +1,7 @@
 {
   ".": 59903,
   "./config": 12293,
-  "./cli": 244233,
+  "./cli": 245268,
   "./client": 14849,
   "./client/native": 13057,
   "./react": 8096,
@@ -10,8 +10,9 @@
   "./powersync": 25267,
   "./postgres": 24985,
   "./ssr": 14819,
-  "./next": 84404,
+  "./next": 84478,
   "./next/image": 906,
+  "./next/client": 426,
   "./hono": 72289,
   "./tanstack-start": 1939,
   "./sveltekit": 1705,
@@ -26,7 +27,8 @@
   "./blocks/jobs": 51897,
   "./blocks/audit": 40805,
   "./blocks/outbox": 38538,
-  "./blocks/organizations": 31917,
+  "./blocks/organizations": 32086,
+  "./blocks/profiles": 28949,
   "./blocks/notifications": 33541,
   "./blocks/notifications/react": 9382,
   "./env": 2745,
@@ -59,7 +61,7 @@
   "./plugins/tenant": 9177,
   "./plugins/actor": 6375,
   "./plugins/validation": 11337,
-  "./sql": 244539,
-  "./testing": 99248,
-  "better-supabase CLI (startup)": 12908
+  "./sql": 246364,
+  "./testing": 99283,
+  "better-supabase CLI (startup)": 12909
 }

@@ -1,8 +1,8 @@
 import * as v from "valibot";
 
-const Role = v.picklist(["admin", "member"]);
-/** Stripe entitlement lookup keys the app sells. */
-export const Entitlement = v.picklist(["exports", "sso", "audit"]);
+export const Role = v.picklist(["owner", "admin", "member"]);
+/** Plan features the app sells (public.plan_features). */
+export const Entitlement = v.picklist(["exports", "sso", "audit", "seats"]);
 
 const isEntitlement = (key: string): key is Entitlement =>
   v.is(Entitlement, key);
@@ -13,30 +13,6 @@ const isEntitlement = (key: string): key is Entitlement =>
  * names, so with PermDock this is the manifest's root scope.
  */
 export const MEMBERSHIP_SCOPE = "tenant";
-
-/**
- * A role name or a list of them (PermDock's contract allows both, and `null`
- * for none). Unknown names are dropped instead of rejecting the token.
- */
-const Roles = v.fallback(
-  v.optional(
-    v.pipe(
-      v.nullable(
-        v.union([
-          v.pipe(
-            v.string(),
-            v.transform((role) => [role]),
-          ),
-          v.array(v.string()),
-        ]),
-      ),
-      v.transform((roles) =>
-        (roles ?? []).filter((role): role is Role => v.is(Role, role)),
-      ),
-    ),
-  ),
-  undefined,
-);
 
 const Membership = v.looseObject({
   scope: v.string(),
@@ -65,24 +41,21 @@ const Memberships = v.fallback(
 
 /**
  * The claims the servers validate on every request (`betterSupabase.claims(Claims)`),
- * in PermDock's claim contract. `user_role` comes from the custom access
- * token hook (supabase/schemas/040_rbac.sql), `tenant_id` from the hook or
- * `app_metadata`. An unknown role reads as none instead of rejecting the
- * token.
+ * in PermDock's claim contract. The custom access token hook
+ * (supabase/schemas/040_rbac.sql) writes `memberships` and `features`;
+ * `tenant_id` in `app_metadata` is the active organization, which
+ * `switch_organization` changes.
  *
- * Every object is loose, so claims this schema doesn't name (`authz_ver`,
- * `memberships_truncated`, `attrs`) reach PermDock unchanged.
+ * Every object is loose, so claims this schema doesn't name (`user_role`,
+ * `authz_ver`, `memberships_truncated`) reach PermDock unchanged.
  */
 export const Claims = v.looseObject({
-  user_role: Roles,
   tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
   app_metadata: v.optional(
     v.looseObject({
       tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
-      user_role: Roles,
     }),
   ),
-  // `better_supabase.membership_claims()` or PermDock's hook.
   memberships: Memberships,
   // `better_supabase.feature_claims()` (entitlements SQL module). Keys the
   // app doesn't sell yet are dropped instead of rejecting the token.
@@ -102,7 +75,7 @@ export const Claims = v.looseObject({
 
 /** Editable by the user (`auth.updateUser()`): display only, never access. */
 export const Profile = v.looseObject({
-  display_name: v.optional(v.pipe(v.string(), v.maxLength(80))),
+  full_name: v.optional(v.pipe(v.string(), v.maxLength(80))),
   avatar_url: v.optional(v.pipe(v.string(), v.url())),
 });
 

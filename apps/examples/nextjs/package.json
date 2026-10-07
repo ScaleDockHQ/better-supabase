@@ -2,7 +2,7 @@
   "name": "@better-supabase/example-nextjs",
   "version": "0.0.0",
   "private": true,
-  "description": "A Next.js App Router app: Cache Components, instant navigation, role-aware menus, proxy session refresh, route handlers and actions.",
+  "description": "A multi-tenant SaaS on Next.js App Router: organizations, invitations, MFA, i18n with root params, Cache Components and instant navigation on every page.",
   "type": "module",
   "exports": {
     "./supabase": "./src/lib/supabase/index.ts"
@@ -15,23 +15,34 @@
     "doctor:explain": "better-supabase doctor --only BS205,BS206,BS207 --explain customers,notes --claims '{\"role\":\"authenticated\",\"org_id\":\"00000000-0000-4000-8000-000000000001\"}'",
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check && better-supabase sql sync --check",
-    "lint": "oxlint",
+    "lint": "next typegen && oxlint",
     "start": "next start -p 3100",
     "test:e2e": "pnpm --dir ../../.. supabase:reset && playwright test",
     "transit": "true",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
     "@supabase/server": "catalog:",
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@wrksz/themes": "catalog:",
     "better-result": "catalog:",
     "better-supabase": "workspace:*",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "input-otp": "catalog:",
+    "lucide-react": "catalog:",
     "next": "catalog:",
+    "next-intl": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "server-only": "catalog:",
+    "sonner": "catalog:",
+    "tailwind-merge": "catalog:",
+    "temporal-polyfill": "catalog:",
+    "tw-animate-css": "catalog:",
     "valibot": "catalog:"
   },
   "devDependencies": {
@@ -40,11 +51,15 @@
     "@next/playwright": "catalog:",
     "@playwright/test": "catalog:",
     "@supabase/middleware": "catalog:",
+    "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "oxlint": "catalog:",
     "portless": "catalog:",
+    "postcss": "catalog:",
+    "shadcn": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:"
   }
 }

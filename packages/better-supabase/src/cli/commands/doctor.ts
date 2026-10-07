@@ -143,6 +143,7 @@ export type DoctorArgs = CliArgs<typeof ARGS>;
 const ENV_FILES = [
   ".env",
   ".env.local",
+  ".env.example",
   ".env.development",
   ".env.development.local",
   ".env.production",
