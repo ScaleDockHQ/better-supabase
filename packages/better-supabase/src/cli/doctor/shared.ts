@@ -55,6 +55,7 @@ export const policyObject = (
   kind: "policy",
   schema: table.schema,
   name: policy.name,
+  table: table.name,
 });
 
 const splitTexts = new Map<string, readonly string[]>();

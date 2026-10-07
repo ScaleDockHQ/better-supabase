@@ -185,6 +185,21 @@ describe("loadSnapshot", () => {
     ).rejects.toThrow("relation does not exist");
     expect(open.closed()).toBe(1);
   });
+
+  it("closes the connection when config.toml can't be read", async () => {
+    await mkdir(join(root, "supabase/config.toml"), { recursive: true });
+    const db = fakeSql([]);
+    const open = fakeConnect(db.pg);
+    await expect(
+      loadSnapshot(
+        config({}, root),
+        {},
+        { dbUrl: "postgresql://x/y" },
+        open.connect,
+      ),
+    ).rejects.toThrow("EISDIR");
+    expect(open.closed()).toBe(1);
+  });
 });
 
 describe("parseSnapshot", () => {

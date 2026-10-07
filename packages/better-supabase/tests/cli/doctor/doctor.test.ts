@@ -352,6 +352,20 @@ describe("doctor rules", () => {
       );
     });
 
+    it("counts a column-level grant to PUBLIC for the API roles", async () => {
+      const snap = withTable("memberships", (memberships) => {
+        memberships.policies = [...memberships.policies, updatePolicy];
+        memberships.columnGrants = [
+          { column: "role", role: "PUBLIC", privileges: ["UPDATE"] },
+        ];
+      });
+      const findings = await runRules(context(snap), only);
+      expect(findings[0]?.message).toContain("authenticated may update role.");
+      expect(findings[0]?.message).toContain(
+        "revoke update (role) on better_supabase.memberships from authenticated, public;",
+      );
+    });
+
     it("passes once the grant columns are revoked, or no policy lets the role write", async () => {
       const revoked = withTable("memberships", (memberships) => {
         memberships.policies = [...memberships.policies, updatePolicy];
@@ -2952,6 +2966,31 @@ describe("doctor command", () => {
     expect(
       locate(files, { kind: "table", schema: "public", name: "do_it" }),
     ).toBeUndefined();
+  });
+
+  it("locates a policy on its own table when several tables share the name", () => {
+    const files = [
+      {
+        path: "supabase/schemas/policies.sql",
+        text: 'create policy "read own" on public.notes\nfor select;\ncreate policy "read own"\n  on only "public"."tags" for select;',
+      },
+    ];
+    const policy = (table: string) =>
+      locate(files, {
+        kind: "policy",
+        schema: "public",
+        name: "read own",
+        table,
+      });
+    expect(policy("notes")).toEqual({
+      file: "supabase/schemas/policies.sql",
+      line: 1,
+    });
+    expect(policy("tags")).toEqual({
+      file: "supabase/schemas/policies.sql",
+      line: 3,
+    });
+    expect(policy("note")).toBeUndefined();
   });
 
   it("documents every check", async () => {

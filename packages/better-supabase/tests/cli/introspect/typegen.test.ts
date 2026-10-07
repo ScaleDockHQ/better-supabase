@@ -118,6 +118,19 @@ describe("readGeneratorMetadata", () => {
   });
 });
 
+describe("readGeneratorMetadata queries", () => {
+  it("reads argument positions while typegen introspects", async () => {
+    const db = fakeSql();
+    await readGeneratorMetadata(db.pg, ["public"]);
+    const texts = db.texts();
+    const positions = texts.findIndex((text) =>
+      text.includes("p.proargnames as names"),
+    );
+    expect(positions).toBeGreaterThanOrEqual(0);
+    expect(positions).toBeLessThan(texts.length - 1);
+  });
+});
+
 describe("orderArgsByPosition", () => {
   const arg = (name: string, typeId: number) => ({
     mode: "in" as const,

@@ -31,7 +31,6 @@ select c.oid::int8 as id, n.nspname as schema, c.relname as name,
 from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = any(${schemas}) and c.relkind in ('r', 'p', 'v', 'm', 'f')
-  and not c.relispartition
 order by 2, 3`;
 
 const CONSTRAINTS = (schemas: string) => `
@@ -58,7 +57,7 @@ join pg_class i on i.oid = ix.indexrelid
 join pg_am am on am.oid = i.relam
 join pg_class c on c.oid = ix.indrelid
 join pg_namespace n on n.oid = c.relnamespace
-where n.nspname = any(${schemas})
+where n.nspname = any(${schemas}) and ix.indisvalid
 order by 1, 2`;
 
 const POLICIES = (schemas: string) => `
@@ -157,31 +156,33 @@ join pg_namespace pn on pn.oid = p.pronamespace
 where not t.tgisinternal and n.nspname = any(${schemas})
 order by 1, 2`;
 
-// From the ACL rather than information_schema, which hides grants the
-// introspecting role is neither grantor nor grantee of. MAINTAIN (Postgres 17)
-// stays out so snapshots match older servers.
+// From the ACL rather than information_schema, which hides PUBLIC grants the
+// introspecting role is not the grantor of. Grantee 0 is PUBLIC, which every
+// role inherits. MAINTAIN (Postgres 17) stays out so snapshots match older
+// servers.
 const GRANTS = (schemas: string) => `
-select c.oid::int8 as table_id, r.rolname as role,
+select c.oid::int8 as table_id, coalesce(r.rolname, 'PUBLIC') as role,
   array_agg(distinct acl.privilege_type order by acl.privilege_type)::text[] as privileges
 from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
 cross join lateral aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
-join pg_roles r on r.oid = acl.grantee
+left join pg_roles r on r.oid = acl.grantee
 where n.nspname = any(${schemas}) and c.relkind in ('r', 'p', 'v', 'm', 'f')
-  and r.rolname in ('anon', 'authenticated', 'service_role')
+  and (acl.grantee = 0 or r.rolname in ('anon', 'authenticated', 'service_role'))
   and acl.privilege_type <> 'MAINTAIN'
 group by 1, 2
 order by 1, 2`;
 
 const COLUMN_GRANTS = (schemas: string) => `
-select c.oid::int8 as table_id, a.attname as column, r.rolname as role,
+select c.oid::int8 as table_id, a.attname as column, coalesce(r.rolname, 'PUBLIC') as role,
   array_agg(distinct acl.privilege_type order by acl.privilege_type)::text[] as privileges
 from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
 join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped and a.attacl is not null
 cross join lateral aclexplode(a.attacl) acl
-join pg_roles r on r.oid = acl.grantee
-where n.nspname = any(${schemas}) and r.rolname in ('anon', 'authenticated')
+left join pg_roles r on r.oid = acl.grantee
+where n.nspname = any(${schemas})
+  and (acl.grantee = 0 or r.rolname in ('anon', 'authenticated'))
   and acl.privilege_type in ('INSERT', 'UPDATE')
 group by 1, 2, 3
 order by 1, 2, 3`;

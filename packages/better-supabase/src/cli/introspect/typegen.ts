@@ -60,9 +60,12 @@ export async function readGeneratorMetadata(
   db: Queryable,
   schemas: readonly string[],
 ): Promise<GeneratorMetadata> {
-  const { introspect } = await introspectionModule();
-  const metadata = await introspect(db, { includedSchemas: [...schemas] });
-  const positions = await db.query(argumentPositionsSql(schemas));
+  const [metadata, positions] = await Promise.all([
+    introspectionModule().then(({ introspect }) =>
+      introspect(db, { includedSchemas: [...schemas] }),
+    ),
+    db.query(argumentPositionsSql(schemas)),
+  ]);
   return pruneTypes(orderArgsByPosition(metadata, positions.rows), schemas);
 }
 

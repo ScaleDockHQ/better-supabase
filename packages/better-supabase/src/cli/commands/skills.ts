@@ -11,7 +11,7 @@ import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
 import { byCodePoint } from "../compare.ts";
-import { display, writeIfChanged } from "../io.ts";
+import { display, sameText, writeIfChanged } from "../io.ts";
 
 const ARGS = {
   action: {
@@ -175,7 +175,7 @@ export async function runSkills(
       const current = existsSync(path)
         ? await readFile(path, "utf8")
         : undefined;
-      if (current !== file.contents) stale.push(shown);
+      if (!sameText(current, file.contents)) stale.push(shown);
       continue;
     }
     lines.push(

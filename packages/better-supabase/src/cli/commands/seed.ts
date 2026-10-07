@@ -11,7 +11,7 @@ import { isSeed } from "../../testing/index.ts";
 import { defineCliCommand } from "../command.ts";
 import { databaseUrl, importExport, stdinDatabaseUrl } from "../config.ts";
 import { connect } from "../db.ts";
-import { display, writeIfChanged } from "../io.ts";
+import { display, sameText, writeIfChanged } from "../io.ts";
 import { withSpinner } from "../prompts.ts";
 import { supabaseDir } from "../supabase-toml.ts";
 
@@ -69,7 +69,7 @@ export async function runSeed(
   const current = existsSync(path) ? await readFile(path, "utf8") : undefined;
 
   if (args.check === true) {
-    return current === contents
+    return sameText(current, contents)
       ? { code: 0, output: `${display(config.root, out)} is up to date.` }
       : {
           code: 1,

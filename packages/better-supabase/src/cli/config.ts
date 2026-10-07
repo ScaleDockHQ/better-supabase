@@ -1,7 +1,6 @@
 import { loadConfig as loadC12Config } from "c12";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 
 import type { CliEnv } from "./env.ts";
 
@@ -12,6 +11,7 @@ import {
 } from "../config/index.ts";
 import { configIssues } from "./config-schema.ts";
 import { CliError } from "./errors.ts";
+import { importFresh } from "./fresh-import.ts";
 import { type CliIo, display } from "./io.ts";
 import { findUp, readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 
@@ -49,23 +49,13 @@ export function discoverConfig(
   return dir === undefined ? undefined : configIn(dir);
 }
 
-/** Imports a project module fresh, so watch loops and tests see edits. */
-export async function importModule(
-  path: string,
-): Promise<Record<string, unknown>> {
-  // SAFETY: an ES module namespace is an object of its exports.
-  return (await import(
-    `${pathToFileURL(path).href}?t=${Date.now()}`
-  )) as Record<string, unknown>;
-}
-
 /** The named export, then `default`, of a project module. */
 export async function importExport(
   path: string,
   name: string,
 ): Promise<unknown> {
   if (!existsSync(path)) throw new Error(`Module not found: ${path}`);
-  const loaded = await importModule(path);
+  const loaded = await importFresh(path);
   return loaded[name] ?? loaded["default"];
 }
 

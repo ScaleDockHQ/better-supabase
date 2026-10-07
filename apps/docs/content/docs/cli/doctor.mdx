@@ -377,7 +377,8 @@ their own `role`, or a portal contact who can change `customer_id`, grants
 themselves access.
 
 A table-level grant counts even after a column-level revoke, because
-Postgres checks the table grant first. The finding lists the SQL that keeps
+Postgres checks the table grant first. A grant to `public` counts for both
+roles, and the SQL then revokes it from `public` too. The finding lists the SQL that keeps
 the other columns writable:
 
 ```sql

@@ -317,6 +317,10 @@ const policyAllows = (
       appliesTo(policy, role),
   );
 
+/** Whether `grant` reaches `role`: granted to it, or to PUBLIC, which every role inherits. */
+const grantsTo = (grant: { readonly role: string }, role: string): boolean =>
+  grant.role === role || grant.role === "PUBLIC";
+
 /** The grant columns `role` may write with `command`, through a table-level or a column-level grant. */
 function writableColumns(
   table: CatalogTable,
@@ -327,13 +331,13 @@ function writableColumns(
   if (!policyAllows(table, command, role)) return [];
   const privilege = command.toUpperCase();
   const tableLevel = table.grants.some(
-    (grant) => grant.role === role && grant.privileges.includes(privilege),
+    (grant) => grantsTo(grant, role) && grant.privileges.includes(privilege),
   );
   if (tableLevel) return [...columns];
   return columns.filter((column) =>
     (table.columnGrants ?? []).some(
       (grant) =>
-        grant.role === role &&
+        grantsTo(grant, role) &&
         grant.column === column &&
         grant.privileges.includes(privilege),
     ),
@@ -485,20 +489,35 @@ export const RLS_RULES: readonly Rule[] = [
               const writable = writableColumns(table, columns, command, role);
               if (writable.length === 0) continue;
               writes.push(`${role} may ${command} ${writable.join(", ")}`);
+              const privilege = command.toUpperCase();
               const grantedTable = table.grants.some(
                 (grant) =>
-                  grant.role === role &&
-                  grant.privileges.includes(command.toUpperCase()),
+                  grantsTo(grant, role) && grant.privileges.includes(privilege),
               );
-              if (grantedTable) tableLevel.push(command);
-              else
-                fix.push(
-                  `revoke ${command} (${writable.join(", ")}) on ${name} from ${role};`,
-                );
+              if (grantedTable) {
+                tableLevel.push(command);
+                continue;
+              }
+              const fromPublic = (table.columnGrants ?? []).some(
+                (grant) =>
+                  grant.role === "PUBLIC" &&
+                  writable.includes(grant.column) &&
+                  grant.privileges.includes(privilege),
+              );
+              fix.push(
+                `revoke ${command} (${writable.join(", ")}) on ${name} from ${fromPublic ? `${role}, public` : role};`,
+              );
             }
             if (tableLevel.length === 0) continue;
+            const fromPublic = table.grants.some(
+              (grant) =>
+                grant.role === "PUBLIC" &&
+                tableLevel.some((command) =>
+                  grant.privileges.includes(command.toUpperCase()),
+                ),
+            );
             fix.push(
-              `revoke ${tableLevel.join(", ")} on ${name} from ${role};`,
+              `revoke ${tableLevel.join(", ")} on ${name} from ${fromPublic ? `${role}, public` : role};`,
             );
             const rest = table.columns
               .map((column) => column.name)

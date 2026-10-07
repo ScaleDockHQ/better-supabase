@@ -65,24 +65,26 @@ function toFunction(
   relationName: (id: number | null) => string | null,
 ): CatalogFunction {
   const args: CatalogFunction["args"][number][] = [];
-  const table: { name: string; udt: string }[] = [];
+  const table: NonNullable<CatalogFunction["returnsTable"]>[number][] = [];
   fn.args.forEach((arg, index) => {
     const type = typeOf(arg.type_id);
     const raw = type?.name ?? "unknown";
+    const typeSchema = type ? { typeSchema: type.schema } : {};
     const name = arg.name || `arg${index + 1}`;
     if (arg.mode === "in" || arg.mode === "inout" || arg.mode === "variadic") {
       const isArray = raw.startsWith("_");
       args.push({
         name,
         udt: isArray ? raw.slice(1) : raw,
-        ...(type ? { typeSchema: type.schema } : {}),
+        ...typeSchema,
         isArray,
         hasDefault: arg.has_default === true,
       });
     }
     if (arg.mode === "table" || arg.mode === "out" || arg.mode === "inout")
-      table.push({ name, udt: raw });
+      table.push({ name, udt: raw, ...typeSchema });
   });
+  const returnType = typeOf(fn.return_type_id);
   const searchPath = fn.config_params?.["search_path"];
   return {
     schema: fn.schema,
@@ -90,7 +92,8 @@ function toFunction(
     signature: fn.identity_argument_types,
     args,
     returnsTable: fn.args.some((arg) => arg.mode === "table") ? table : null,
-    returns: typeOf(fn.return_type_id)?.name ?? fn.return_type,
+    returns: returnType?.name ?? fn.return_type,
+    ...(returnType ? { returnsSchema: returnType.schema } : {}),
     returnsRelation: relationName(fn.return_type_relation_id),
     returnsSet: fn.is_set_returning_function,
     // SAFETY: typegen reports behavior as IMMUTABLE, STABLE or VOLATILE, so the

@@ -4,13 +4,13 @@ import type { ResolvedConfig } from "../config/index.ts";
 
 import { isReadSet, type ReadSet } from "../index.ts";
 import { type CompiledReadSet, compileReadSets } from "../sql/index.ts";
-import { importModule } from "./config.ts";
+import { importFresh } from "./fresh-import.ts";
 
 /** Every read set exported by the modules in `config.readSets`. */
 async function loadReadSets(config: ResolvedConfig): Promise<ReadSet[]> {
   const sets: ReadSet[] = [];
   for (const entry of config.readSets) {
-    const loaded = await importModule(resolve(config.root, entry));
+    const loaded = await importFresh(resolve(config.root, entry));
     const found = Object.values(loaded).filter(isReadSet);
     if (found.length === 0) {
       throw new Error(`${entry} exports no read set (defineReadSet)`);

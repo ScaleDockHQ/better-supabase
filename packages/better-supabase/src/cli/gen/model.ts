@@ -318,7 +318,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         column.hasDefault ||
         insertOptional.has(column.name) ||
         (narrowed && beforeInsert);
-      const insertable = !readonly && table.insertable;
+      // A view's computed columns are neither insertable nor updatable;
+      // Postgres reports both through is_updatable.
+      const insertable =
+        !readonly &&
+        table.insertable &&
+        (table.kind !== "view" || column.updatable);
       const updatable = !readonly && table.updatable && column.updatable;
       return {
         app: applyCasing(column.name, casing),
@@ -652,14 +657,14 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       return true;
     })
     .map((fn) => {
-      const typeOf = (format: string, schema = fn.schema): string => {
+      const typeOf = (format: string, typeSchema?: string): string => {
         const isArray = format.startsWith("_");
         const values = enumsByName.get(
-          `${schema}.${isArray ? format.slice(1) : format}`,
+          `${typeSchema ?? fn.schema}.${isArray ? format.slice(1) : format}`,
         );
         if (values)
           return isArray ? arrayOf(enumType(values)) : enumType(values);
-        return tsType(fn.schema, format);
+        return tsType(fn.schema, format, typeSchema);
       };
       const notNull = configFor(config.functions, fn.schema, fn.name)?.notNull;
       const notNullColumns = new Set(Array.isArray(notNull) ? notNull : []);
@@ -691,7 +696,9 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
             db: column.name,
             app: applyCasing(column.name, config.casing),
             codec,
-            tsType: codec ? CODEC_TYPE[codec] : typeOf(column.udt),
+            tsType: codec
+              ? CODEC_TYPE[codec]
+              : typeOf(column.udt, column.typeSchema),
           };
         });
         returns = `{ ${columns
@@ -724,7 +731,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           result = { table: rowTable.key };
         }
       } else {
-        returns = orNull(typeOf(fn.returns));
+        returns = orNull(typeOf(fn.returns, fn.returnsSchema));
         if (fn.returnsSet) returns = arrayOf(returns);
       }
       return {

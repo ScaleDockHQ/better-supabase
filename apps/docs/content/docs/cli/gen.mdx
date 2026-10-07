@@ -34,7 +34,8 @@ the same generator behind `supabase gen types typescript`, and writes:
 
 It doesn't need Docker or the Supabase CLI: it only needs a way to run SQL.
 Files are only rewritten when their contents change, so watchers and bundlers
-don't rebuild for nothing.
+don't rebuild for nothing. Line endings don't count as a change: a checkout
+with `core.autocrlf` keeps its `\r\n` files, and `--check` passes on them.
 
 `database.types.ts` is formatted with [oxfmt](https://oxc.rs/docs/guide/usage/formatter),
 an optional peer. Without it, `gen` writes the file unformatted and says so;
@@ -55,8 +56,8 @@ same files.
 ## Introspection cache
 
 Before reading a database, `gen` runs one query that hashes the system
-catalogs (tables, columns, constraints, policies, functions, grants, comments
-and role settings; planner statistics are left out). When the hash, the
+catalogs (tables, columns, constraints, policies, functions, grants, comments,
+role memberships and role settings; planner statistics are left out). When the hash, the
 schemas, the better-supabase version and the pinned typegen version match the
 last run, it reuses the
 snapshot cached in `node_modules/.cache/better-supabase` and skips
@@ -66,7 +67,9 @@ introspection. Deleting that folder clears the cache.
 milliseconds, so it reads the full schema only after a change. It also checks
 the config file's modification time, and when the file changes it loads it
 again and regenerates; a config that fails to load is reported once and kept
-until the next edit fixes it. Ctrl-C ends the
+until the next edit fixes it. Each run imports the `readSets` and `realtime.policies`
+modules again, with the project files they import (such as the main module
+the run wrote); packages in `node_modules` load once. Ctrl-C ends the
 connection, including a query in flight. Connecting gives up after 10 seconds,
 and each introspection query after 2 minutes.
 

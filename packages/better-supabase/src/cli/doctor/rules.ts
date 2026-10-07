@@ -68,6 +68,8 @@ export interface SqlObject {
   readonly kind: "table" | "function" | "policy";
   readonly schema: string;
   readonly name: string;
+  /** The table a policy is on; policy names are only unique per table. */
+  readonly table?: string;
 }
 
 export interface Finding {
