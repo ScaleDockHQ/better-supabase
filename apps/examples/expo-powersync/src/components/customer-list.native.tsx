@@ -1,5 +1,5 @@
 import { sqliteTables, watch } from "better-supabase/powersync";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Text } from "react-native";
 
 import { conflicts } from "../lib/powersync/connector";
@@ -18,6 +18,7 @@ type Loaded = Awaited<ReturnType<typeof load>>;
 /** iOS and Android: the same list over the synced SQLite database, rerun on every change. */
 export function CustomerList() {
   const [result, setResult] = useState<Loaded>();
+  const refused = useSyncExternalStore(conflicts.subscribe, conflicts.current);
   useEffect(() => watch(powersync, load, { tables, onResult: setResult }), []);
   if (!result) return <Text>Loading</Text>;
   if (!result.ok) return <Text>{result.error.message}</Text>;
@@ -26,7 +27,7 @@ export function CustomerList() {
       rows={result.data.items}
       footer={
         <Text>
-          {result.data.page.total} customers on this device, {conflicts.length}{" "}
+          {result.data.page.total} customers on this device, {refused.length}{" "}
           changes the server refused
         </Text>
       }

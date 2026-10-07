@@ -221,6 +221,9 @@ catalogs:
     '@modelcontextprotocol/server':
       specifier: 2.3.0
       version: 2.3.0
+    '@next/playwright':
+      specifier: 16.3.8
+      version: 16.3.8
     '@op-engineering/op-sqlite':
       specifier: 18.2.5
       version: 18.2.5
@@ -242,6 +245,9 @@ catalogs:
     '@oxlint/plugins':
       specifier: 1.86.0
       version: 1.86.0
+    '@playwright/test':
+      specifier: 1.63.0
+      version: 1.63.0
     '@powersync/common':
       specifier: 2.3.1
       version: 2.3.1
@@ -1035,6 +1041,12 @@ importers:
       '@better-supabase/typescript-config':
         specifier: workspace:*
         version: link:../../../packages/typescript-config
+      '@next/playwright':
+        specifier: 'catalog:'
+        version: 16.3.8(@playwright/test@1.63.0)
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.63.0
       '@supabase/middleware':
         specifier: 'catalog:'
         version: 1.0.0(typescript@7.0.2)
@@ -3102,6 +3114,14 @@ packages:
 
   '@next/env@16.3.8':
     resolution: {integrity: sha512-Al9zqHVV7TJv0eFuOU4U7Lvv74PTih4Ch63sk2xCIpSTkE3udFnaOcnzP2lQVymiL7yS9Cj2iClUXlR3EQ5sEw==}
+
+  '@next/playwright@16.3.8':
+    resolution: {integrity: sha512-w8pc0ANMHfZkLq6+cRHYLXtvXZXw/WerPvj56pA6ju55ZBYlyliM80zOYssc1YO40kVcF8ojBjp9nEkV+q1pMg==}
+    peerDependencies:
+      '@playwright/test': '>=1.0.0'
+    peerDependenciesMeta:
+      '@playwright/test':
+        optional: true
 
   '@next/swc-darwin-arm64@16.3.8':
     resolution: {integrity: sha512-2JPRMh2nmQG5CiL7cXGL9AGwnPWJQ//cTtAUCT+w511QHk79SYz3LGv/pc5X643B/WEO0rvu3Yww0hqwt3kgeA==}
@@ -11568,6 +11588,10 @@ snapshots:
 
   '@next/env@16.3.8': {}
 
+  '@next/playwright@16.3.8(@playwright/test@1.63.0)':
+    optionalDependencies:
+      '@playwright/test': 1.63.0
+
   '@next/swc-darwin-arm64@16.3.8':
     optional: true
 
@@ -12009,7 +12033,6 @@ snapshots:
   '@playwright/test@1.63.0':
     dependencies:
       playwright: 1.63.0
-    optional: true
 
   '@pnpm/deps.graph-sequencer@1100.0.1': {}
 
@@ -16531,13 +16554,11 @@ snapshots:
     dependencies:
       find-up: 3.0.0
 
-  playwright-core@1.63.0:
-    optional: true
+  playwright-core@1.63.0: {}
 
   playwright@1.63.0:
     dependencies:
       playwright-core: 1.63.0
-    optional: true
 
   plist@3.1.1:
     dependencies:
