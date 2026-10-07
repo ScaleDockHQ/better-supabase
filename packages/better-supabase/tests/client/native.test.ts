@@ -57,7 +57,8 @@ describe("secureStorage", () => {
     expect(await storage.getItem("sb-ref-auth-token")).toBe("abcdefghij");
 
     await storage.setItem("sb-ref-auth-token", "xy");
-    expect(store.values.get("sb-ref-auth-token.chunks")).toBe("1");
+    expect(store.values.get("sb-ref-auth-token.chunks")).toBe("1b");
+    expect(store.values.has("sb-ref-auth-token.0")).toBe(false);
     expect(store.values.has("sb-ref-auth-token.2")).toBe(false);
     expect(await storage.getItem("sb-ref-auth-token")).toBe("xy");
 
@@ -78,5 +79,51 @@ describe("secureStorage", () => {
     store.values.delete("k.1");
     expect(await storage.getItem("k")).toBeNull();
     expect(() => secureStorage(store, { chunkSize: 0 })).toThrow(/chunkSize/);
+  });
+
+  it("never reads a value half written by a concurrent setItem", async () => {
+    const store = memoryStore();
+    const storage = secureStorage(store, { chunkSize: 4 });
+    await storage.setItem("k", "abcdefghij");
+    const [, read] = await Promise.all([
+      storage.setItem("k", "12345678"),
+      storage.getItem("k"),
+    ]);
+    expect(["abcdefghij", "12345678"]).toContain(read);
+    expect(await storage.getItem("k")).toBe("12345678");
+  });
+
+  it("keeps the previous value when a write fails part way", async () => {
+    const store = memoryStore();
+    const storage = secureStorage(store, { chunkSize: 4 });
+    await storage.setItem("k", "abcdefghij");
+    const set = store.setItemAsync;
+    let writes = 0;
+    store.setItemAsync = (key, value) => {
+      writes += 1;
+      if (writes === 2) return Promise.reject(new Error("keychain locked"));
+      return set(key, value);
+    };
+    await expect(storage.setItem("k", "12345678")).rejects.toThrow(/keychain/);
+    expect(await storage.getItem("k")).toBe("abcdefghij");
+
+    store.setItemAsync = set;
+    await storage.setItem("k", "12345678");
+    expect(await storage.getItem("k")).toBe("12345678");
+    await storage.removeItem("k");
+    expect(await storage.getItem("k")).toBeNull();
+    expect(store.values.size).toBe(0);
+  });
+
+  it("reads values stored before the second chunk slot existed", async () => {
+    const store = memoryStore();
+    store.values.set("k.chunks", "2");
+    store.values.set("k.0", "ab");
+    store.values.set("k.1", "cd");
+    const storage = secureStorage(store);
+    expect(await storage.getItem("k")).toBe("abcd");
+    await storage.setItem("k", "ef");
+    expect(await storage.getItem("k")).toBe("ef");
+    expect(store.values.has("k.1")).toBe(false);
   });
 });
