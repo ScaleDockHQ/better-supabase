@@ -645,6 +645,13 @@ export async function POST(
 }
 ```
 
+Apps that reach the database over the Data API instead of a direct
+connection pass a service-role `BlockTransport`, like the other blocks:
+`createRateLimit(rpcTransport(adminClient))`. It calls
+`check_rate_limit(scope, key, max_requests, period)`, which returns the same
+decision as JSON; with `sql.modules.rate-limit.api` set, pass the API schema
+as `rpcTransport(adminClient, { schema: "api" })`.
+
 The limit is the scope's rule from `set_rate_limit`, or one given per call
 (`check("chat", threadId, { max: 20, period: "1 minute" })`). A scope with
 neither fails with `RATE_LIMIT_UNKNOWN`. Counters are shared by every

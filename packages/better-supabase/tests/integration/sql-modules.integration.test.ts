@@ -3647,6 +3647,21 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           )
         ).rows[0]!.allowed,
       ).toBe(false);
+      const overTransport = createRateLimit(sqlTransport(postgres.admin));
+      expect(await overTransport.check(scope, "token-c").orThrow()).toEqual({
+        allowed: true,
+        remaining: 1,
+        retryAfter: 0,
+      });
+      expect(
+        await overTransport
+          .check(`adhoc-${RUN}`, "thread-1", { max: 1, period: "1 hour" })
+          .orThrow(),
+      ).toMatchObject({ allowed: false, remaining: 0 });
+      expect(await overTransport.check(`none-${RUN}`, "k")).toMatchObject({
+        ok: false,
+        error: { hint: "RATE_LIMIT_UNKNOWN" },
+      });
     } finally {
       await pool.query("select better_supabase.set_rate_limit($1, null)", [
         scope,

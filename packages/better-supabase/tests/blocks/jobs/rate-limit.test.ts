@@ -44,6 +44,54 @@ describe("createRateLimit", () => {
   });
 });
 
+describe("createRateLimit over a BlockTransport", () => {
+  it("calls check_rate_limit and maps its row", async () => {
+    const calls: [string, string, Record<string, unknown>][] = [];
+    const limit = createRateLimit({
+      async call(schema, fn, args) {
+        calls.push([schema, fn, { ...args }]);
+        return { allowed: false, remaining: 0, retry_after: 7 };
+      },
+    });
+    expect(await limit.check("preview", "token-1").orThrow()).toEqual({
+      allowed: false,
+      remaining: 0,
+      retryAfter: 7,
+    });
+    await limit.check("chat", "t", { max: 3, period: 60 }).orThrow();
+    expect(calls).toEqual([
+      [
+        "better_supabase",
+        "check_rate_limit",
+        {
+          scope: "preview",
+          key: "token-1",
+          max_requests: undefined,
+          period: undefined,
+        },
+      ],
+      [
+        "better_supabase",
+        "check_rate_limit",
+        { scope: "chat", key: "t", max_requests: 3, period: "60 seconds" },
+      ],
+    ]);
+    const failing = createRateLimit({
+      call: () =>
+        Promise.reject(
+          Object.assign(new Error("No rate limit"), {
+            code: "22023",
+            hint: "RATE_LIMIT_UNKNOWN",
+          }),
+        ),
+    });
+    expect(await failing.check("x", "k")).toMatchObject({
+      ok: false,
+      error: { hint: "RATE_LIMIT_UNKNOWN" },
+    });
+  });
+});
+
 describe("rateLimited", () => {
   it("answers 429 problem+json with Retry-After", async () => {
     const response = rateLimited({ retryAfter: 2.2 }, { instance: "/api/x" });

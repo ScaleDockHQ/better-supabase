@@ -1754,6 +1754,22 @@ $$;
 revoke execute on function better_supabase.hit_rate_limit(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.hit_rate_limit(text, text, integer, interval) to service_role;
 
+create or replace function better_supabase.check_rate_limit(
+  scope text,
+  key text,
+  max_requests integer default null,
+  period interval default null
+)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select to_jsonb(h) from better_supabase.hit_rate_limit(scope, key, max_requests, period) h
+$$;
+revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval) from public, anon, authenticated;
+grant execute on function better_supabase.check_rate_limit(text, text, integer, interval) to service_role;
+
 -- Deletes up to batch counters whose window has ended, and counters without
 -- a rule (removed rules, hit_rate_limit with its own limit) after a day.
 -- Every caller keeps a row until then, so schedule it with pg_cron:

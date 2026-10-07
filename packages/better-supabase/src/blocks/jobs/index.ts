@@ -28,6 +28,7 @@ export { createRateLimit, rateLimited } from "./rate-limit.ts";
 export type {
   RateLimit,
   RateLimitDecision,
+  RateLimitOptions,
   RateLimitRule,
 } from "./rate-limit.ts";
 export type {
