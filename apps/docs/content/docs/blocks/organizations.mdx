@@ -54,9 +54,14 @@ pass the second one.
 When another trigger already guards an adopted memberships table, such as
 PermDock's assignment rules (`rls.assignments`), set `assignmentGuard:
 "external"`: the module drops its own trigger, so a role change is checked
-once and fails with one error vocabulary. The module's functions still check
-`can_assign` before they write. A managed memberships table always keeps the
-module's guard.
+once and fails with one error vocabulary. The module's functions still
+check before they write: `update_member_role` refuses a change to the
+caller's own role (`ORGANIZATION_SELF_ROLE`) and needs `can_assign` for both
+the member's current role and the new one (`ORGANIZATION_ROLE_CEILING`), and
+`remove_member` needs it for the current role. Those checks hold even when
+the external guard skips writes from `security definer` functions, as
+PermDock's assignment triggers do. A managed memberships table always keeps
+the module's guard.
 
 The owner check locks the organization row, so two owners who leave at the
 same time can't both succeed. When the block owns the organizations table, the

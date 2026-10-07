@@ -37,6 +37,16 @@ const body = (modules: ModulesConfig) =>
   moduleBody("organizations", { modules })!;
 
 describe("organizations module", () => {
+  it("checks the own-role rule and both roles' ceilings in update_member_role", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      "if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and member = auth.uid() then",
+    );
+    expect(sql).toContain(
+      "if not better_supabase.can_assign(organization, previous_assignable)\n    or not better_supabase.can_assign(organization, (role)::text) then",
+    );
+  });
+
   it("owns its table and makes the creator the owner", () => {
     const sql = body({});
     expect(sql).toContain(

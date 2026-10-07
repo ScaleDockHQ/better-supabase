@@ -562,7 +562,7 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
 -- sql.modules.organizations.options.assignmentGuard is "external": another
 -- trigger on ${n.m} (such as PermDock's assignment rules) checks role
 -- changes, so the module's guard is removed. Its functions still check
--- can_assign before they write.
+-- can_assign and the own-role rule before they write.
 drop trigger if exists ${ctx.trigger("organization_role_guard")} on ${n.m};
 drop function if exists ${ctx.fn("guard_membership")}();
 `;
@@ -636,13 +636,24 @@ as $$
 #variable_conflict use_variable
 declare
   previous text;
+  previous_assignable text;
 begin
   if not ${can("updateRole")} then
     raise exception 'Not allowed to change roles' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;${active}${checkRole(ctx, "role")}
-  select ${roleNameOf(ctx.of("tenant"), "m")} into previous from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
+  select ${roleNameOf(ctx.of("tenant"), "m")}, ${assignableRole(ctx, `m.${n.role}`)} into previous, previous_assignable
+  from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;
   if not found then
     raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
+  end if;
+  -- Checked here whatever sql.modules.organizations.options.assignmentGuard
+  -- says: a guard that checks only client writes never sees this function's.
+  if not (${SERVICE_CALLER}) and member = auth.uid() then
+    raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
+  end if;
+  if not better_supabase.can_assign(organization, previous_assignable)
+    or not better_supabase.can_assign(organization, ${assignableRole(ctx, `(${roleValue(ctx, "role")})`)}) then
+    raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
   end if;
   update ${n.m} set ${n.role} = ${roleValue(ctx, "role")}
   where ${n.tenant} = organization and ${n.user} = member;
