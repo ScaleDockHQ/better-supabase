@@ -109,4 +109,22 @@ describe("webhooks-in module", () => {
     expect(fn("delete_incoming_webhook")).toContain("'hooks.delete'");
     expect(sql).not.toContain("'webhooks.manage'");
   });
+
+  it("updates name, metadata and verification with the update key", () => {
+    const sql = moduleBody("webhooks-in", {
+      modules: { "webhooks-in": { permissions: { update: "hooks.update" } } },
+    })!;
+    const update = sql.slice(
+      sql.indexOf('function "better_supabase"."update_incoming_webhook"('),
+    );
+    expect(update).toContain("'hooks.update'");
+    expect(update).toContain("hint = 'WEBHOOK_IN_NOT_FOUND'");
+    expect(update).toContain("hint = 'WEBHOOK_IN_VERIFY_UNKNOWN'");
+    expect(update).toContain(
+      "if v_verify <> previous.verify and previous.secret_id is not null then",
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."update_incoming_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;',
+    );
+  });
 });

@@ -32,6 +32,11 @@ function secretStorage(ctx: ModuleContext): boolean {
 const vaultSecret = (secret: string, endpoint: string): string =>
   `case when ${secret} is null then null else vault.create_secret(${secret}, 'webhook-in:' || ${endpoint}::text || ':' || gen_random_uuid()::text, 'better-supabase incoming webhook secret') end`;
 
+const newSecret = (mode: string): string => `case ${mode}
+    when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
+    when 'hmac-sha256' then encode(extensions.gen_random_bytes(32), 'hex')
+  end`;
+
 function webhooksInSql(ctx: ModuleContext): string {
   const id = ctx.idType;
   const t = ctx.table("endpoints");
@@ -211,10 +216,7 @@ as $$
 declare
   v_id uuid := gen_random_uuid();
   token text := encode(extensions.gen_random_bytes(24), 'hex');
-  secret text := case verify
-    when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
-    when 'hmac-sha256' then encode(extensions.gen_random_bytes(32), 'hex')
-  end;
+  secret text := ${newSecret("verify")};
   created ${t};
 begin
   if not ${can("tenant", "create")} then
@@ -256,10 +258,7 @@ begin
     raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
   end if;
   if rotate_secret then
-    v_secret := case previous.verify
-      when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
-      when 'hmac-sha256' then encode(extensions.gen_random_bytes(32), 'hex')
-    end;
+    v_secret := ${newSecret("previous.verify")};
   end if;
   update ${t} e set token_hash = encode(extensions.digest(token, 'sha256'), 'hex'),
     secret = case when rotate_secret then ${plain("v_secret")} else e.secret end,
@@ -274,6 +273,65 @@ begin
       : ""
   }
   return jsonb_build_object('id', updated.id, 'token', token, 'secret', v_secret);
+end;
+$$;
+
+create or replace function ${ctx.fn("update_incoming_webhook")}(
+  endpoint uuid,
+  name text default null,
+  metadata jsonb default null,
+  verify text default null,
+  signature_header text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  previous ${t};
+  updated ${t};
+  v_verify text;
+  v_secret text;
+begin
+  select * into previous from ${t} e where e.id = endpoint for update;
+  if previous.id is null or not ${can("previous.tenant", "update")} then
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+  end if;
+  if name is not null and btrim(name) = '' then
+    ${fail("WEBHOOK_IN_NAME_REQUIRED", "An endpoint needs a name", "22023")}
+  end if;
+  if metadata is not null and jsonb_typeof(metadata) <> 'object' then
+    ${fail("WEBHOOK_IN_METADATA_INVALID", "metadata must be a JSON object", "22023")}
+  end if;
+  v_verify := coalesce(verify, previous.verify);
+  if v_verify not in (${verify}) then
+    ${fail("WEBHOOK_IN_VERIFY_UNKNOWN", "Unknown verification mode", "22023")}
+  end if;
+  if v_verify <> previous.verify then
+    v_secret := ${newSecret("v_verify")};
+  end if;
+  update ${t} e set
+    name = coalesce(update_incoming_webhook.name, e.name),
+    metadata = coalesce(update_incoming_webhook.metadata, e.metadata),
+    verify = v_verify,
+    secret = case when v_verify = previous.verify then e.secret else ${plain("v_secret")} end,
+    secret_id = case when v_verify = previous.verify then e.secret_id else ${stored("v_secret", "e.id")} end,
+    signature_header = case when v_verify = 'hmac-sha256'
+      then coalesce(update_incoming_webhook.signature_header, e.signature_header, 'x-signature') end
+  where e.id = endpoint
+  returning * into updated;${
+    vault
+      ? `
+  if v_verify <> previous.verify and previous.secret_id is not null then
+    delete from vault.secrets vs where vs.id = previous.secret_id;
+  end if;`
+      : ""
+  }
+  return jsonb_build_object('id', updated.id, 'tenant', updated.tenant, 'name', updated.name,
+    'verify', updated.verify, 'secret', v_secret, 'signatureHeader', updated.signature_header,
+    'metadata', updated.metadata);
 end;
 $$;
 
@@ -344,6 +402,8 @@ revoke execute on function ${ctx.fn("create_incoming_webhook")}(${id}, text, tex
 grant execute on function ${ctx.fn("create_incoming_webhook")}(${id}, text, text, jsonb, text, text, text) to authenticated, service_role;
 revoke execute on function ${ctx.fn("rotate_incoming_webhook")}(uuid, boolean) from public, anon;
 grant execute on function ${ctx.fn("rotate_incoming_webhook")}(uuid, boolean) to authenticated, service_role;
+revoke execute on function ${ctx.fn("update_incoming_webhook")}(uuid, text, jsonb, text, text) from public, anon;
+grant execute on function ${ctx.fn("update_incoming_webhook")}(uuid, text, jsonb, text, text) to authenticated, service_role;
 revoke execute on function ${ctx.fn("set_incoming_webhook_enabled")}(uuid, boolean) from public, anon;
 grant execute on function ${ctx.fn("set_incoming_webhook_enabled")}(uuid, boolean) to authenticated, service_role;
 revoke execute on function ${ctx.fn("delete_incoming_webhook")}(uuid) from public, anon;
@@ -390,6 +450,11 @@ where e.secret is not null and e.secret_id is null;`;
     {
       name: "create_incoming_webhook",
       args: ["{id}", "text", "text", "jsonb", "text", "text", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "update_incoming_webhook",
+      args: ["uuid", "text", "jsonb", "text", "text"],
       returns: "jsonb",
     },
     {

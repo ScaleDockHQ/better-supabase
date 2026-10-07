@@ -260,6 +260,72 @@ describe("createIncomingWebhooks", () => {
     expect(await broken.rotate("e1")).toMatchObject({ ok: false });
   });
 
+  it("updates an endpoint's name, metadata and verification", async () => {
+    const fake = fakeSql([
+      [
+        "update_incoming_webhook",
+        [
+          {
+            value: {
+              id: "e1",
+              tenant: 7,
+              name: "Renamed",
+              verify: "hmac-sha256",
+              secret: "new",
+              signatureHeader: "x-signature",
+              metadata: { workflow: "w2" },
+            },
+          },
+        ],
+      ],
+    ]);
+    const hooks = createIncomingWebhooks(fake.sql);
+    expect(
+      await hooks
+        .update("e1", {
+          name: "Renamed",
+          metadata: { workflow: "w2" },
+          verify: "hmac-sha256",
+        })
+        .orThrow(),
+    ).toEqual({
+      id: "e1",
+      tenant: "7",
+      name: "Renamed",
+      verify: "hmac-sha256",
+      secret: "new",
+      signatureHeader: "x-signature",
+      metadata: { workflow: "w2" },
+    });
+    expect(fake.calls[0]!.values).toEqual([
+      "e1",
+      "Renamed",
+      '{"workflow":"w2"}',
+      "hmac-sha256",
+      null,
+    ]);
+    await hooks.update("e1", { signatureHeader: "x-hub" }).orThrow();
+    expect(fake.calls[1]!.values).toEqual(["e1", null, null, null, "x-hub"]);
+    const odd = fakeSql([
+      [
+        "update_incoming_webhook",
+        [{ value: { id: "e1", tenant: 7, name: "x", verify: "odd" } }],
+      ],
+    ]);
+    expect(
+      await createIncomingWebhooks(odd.sql).update("e1", {}),
+    ).toMatchObject({ ok: false });
+    const sparse = fakeSql([
+      [
+        "update_incoming_webhook",
+        [{ value: { id: "e1", tenant: 7, name: "x", verify: "none" } }],
+      ],
+    ]);
+    expect(
+      await createIncomingWebhooks(sparse.sql).update("e1", {}).orThrow(),
+    ).toMatchObject({ secret: null, signatureHeader: null, metadata: {} });
+  });
+
   it("verifies Standard Webhooks and HMAC signatures", async () => {
     const secret = `whsec_${btoa("incoming-unit-secret")}`;
     const body = '{"type":"x"}';

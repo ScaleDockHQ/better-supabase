@@ -48,6 +48,32 @@ await hooks.remove(endpoint.id);
 | `standard-webhooks` | a [Standard Webhooks](/docs/standards) signature with the endpoint's `whsec_` secret                            |
 | `hmac-sha256`       | the hex HMAC-SHA256 of the body, optionally prefixed `sha256=`, in `signatureHeader` (`x-signature` by default) |
 
+### Changing an endpoint
+
+`update(id, { name?, metadata?, verify?, signatureHeader? })` renames an
+endpoint, replaces its `metadata` (to bind it to another workflow, say) or
+changes how deliveries are verified, and keeps its token and URL. Fields
+you leave out stay as they are.
+
+```ts
+const changed = await hooks
+  .update(endpoint.id, {
+    metadata: { workflowId: nextWorkflowId },
+    verify: "hmac-sha256",
+  })
+  .orThrow();
+// changed.secret is the new HMAC secret, shown once
+```
+
+Changing `verify` to a signing mode returns a new secret once, and the old
+Vault secret is deleted; changing it to `none` drops the secret. The same
+`verify` keeps the secret, and `secret` comes back `null`. In SQL it is
+`update_incoming_webhook(endpoint, name, metadata, verify, signature_header)`,
+which refuses an empty name (`WEBHOOK_IN_NAME_REQUIRED`), metadata that is
+not an object (`WEBHOOK_IN_METADATA_INVALID`), an unknown mode
+(`WEBHOOK_IN_VERIFY_UNKNOWN`), and a caller without the `update` key
+(`WEBHOOK_IN_NOT_FOUND`).
+
 ### Permissions
 
 Creating, changing and deleting an endpoint check three keys, each
@@ -61,12 +87,12 @@ members add endpoints while only admins remove them:
 },
 ```
 
-| Action   | Checked by                                                     |
-| -------- | -------------------------------------------------------------- |
-| `create` | `create_incoming_webhook`                                      |
-| `update` | `rotate_incoming_webhook` and `set_incoming_webhook_enabled`   |
-| `delete` | `delete_incoming_webhook`                                      |
-| `view`   | the read policy and `list_incoming_webhooks` (`webhooks.read`) |
+| Action   | Checked by                                                                              |
+| -------- | --------------------------------------------------------------------------------------- |
+| `create` | `create_incoming_webhook`                                                               |
+| `update` | `update_incoming_webhook`, `rotate_incoming_webhook` and `set_incoming_webhook_enabled` |
+| `delete` | `delete_incoming_webhook`                                                               |
+| `view`   | the read policy and `list_incoming_webhooks` (`webhooks.read`)                          |
 
 Members with `webhooks.read` read their tenant's endpoints, including
 `receive_count`, `last_received_at` and `last_status`. `hooks.list(tenant)`

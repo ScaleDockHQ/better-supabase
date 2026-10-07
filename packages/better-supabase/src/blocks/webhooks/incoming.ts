@@ -84,6 +84,23 @@ export interface CreatedIncomingWebhook {
   readonly subject: { readonly type: string; readonly id: string } | null;
 }
 
+export interface UpdateIncomingWebhookInput {
+  readonly name?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly verify?: IncomingVerify;
+  readonly signatureHeader?: string;
+}
+
+export interface UpdatedIncomingWebhook {
+  readonly id: string;
+  readonly tenant: string;
+  readonly name: string;
+  readonly verify: IncomingVerify;
+  readonly secret: string | null;
+  readonly signatureHeader: string | null;
+  readonly metadata: Readonly<Record<string, unknown>>;
+}
+
 export interface IncomingWebhooks {
   /**
    * The route for `/hooks/<token>`: finds the endpoint, checks the body
@@ -104,6 +121,10 @@ export interface IncomingWebhooks {
     id: string,
     options?: { readonly rotateSecret?: boolean },
   ): AsyncResult<{ readonly token: string; readonly secret: string | null }>;
+  update(
+    id: string,
+    input: UpdateIncomingWebhookInput,
+  ): AsyncResult<UpdatedIncomingWebhook>;
   setEnabled(id: string, enabled: boolean): AsyncResult<boolean>;
   remove(id: string): AsyncResult<boolean>;
   /**
@@ -130,6 +151,20 @@ interface EndpointRow {
 }
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
+
+const VERIFY_MODES: readonly IncomingVerify[] = [
+  "none",
+  "standard-webhooks",
+  "hmac-sha256",
+];
+
+function verifyOf(value: unknown): IncomingVerify {
+  const mode = VERIFY_MODES.find((entry) => entry === value);
+  if (mode === undefined) {
+    throw new TypeError(`Unknown verification mode ${String(value)}`);
+  }
+  return mode;
+}
 
 const encoder = /* @__PURE__ */ new TextEncoder();
 
@@ -400,6 +435,30 @@ export function createIncomingWebhooks(
           [id, rotateOptions.rotateSecret ?? false],
         );
         return { token: rotated.token, secret: rotated.secret };
+      }),
+    update: (id, input) =>
+      attempt(async () => {
+        const updated = await value<Record<string, unknown>>(
+          `select ${fn("update_incoming_webhook")}($1, $2, $3, $4, $5) as value`,
+          [
+            id,
+            input.name ?? null,
+            input.metadata === undefined
+              ? null
+              : JSON.stringify(input.metadata),
+            input.verify ?? null,
+            input.signatureHeader ?? null,
+          ],
+        );
+        return {
+          id: String(updated["id"]),
+          tenant: String(updated["tenant"]),
+          name: String(updated["name"]),
+          verify: verifyOf(updated["verify"]),
+          secret: optionalText(updated["secret"]) ?? null,
+          signatureHeader: optionalText(updated["signatureHeader"]) ?? null,
+          metadata: isRecord(updated["metadata"]) ? updated["metadata"] : {},
+        };
       }),
     setEnabled: (id, enabled) =>
       attempt(() =>

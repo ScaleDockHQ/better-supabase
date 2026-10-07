@@ -27,6 +27,8 @@ export {
 } from "./incoming.ts";
 export type {
   CreatedIncomingWebhook,
+  UpdatedIncomingWebhook,
+  UpdateIncomingWebhookInput,
   IncomingWebhook,
   CreateIncomingWebhookInput,
   IncomingVerify,
