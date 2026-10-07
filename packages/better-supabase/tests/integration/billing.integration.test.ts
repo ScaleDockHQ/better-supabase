@@ -292,6 +292,79 @@ describe.skipIf(!live)("billing", () => {
           (entry) => entry.row["id"],
         ),
       ).toContain("in_bs_1");
+
+      await s.service();
+      for (const [table, columns] of [
+        [
+          "subscriptions",
+          "id text primary key, customer text, status text, created bigint",
+        ],
+        [
+          "subscription_items",
+          "id text primary key, subscription text, price text, quantity integer, created bigint",
+        ],
+        ["prices", "id text primary key, unit_amount bigint, currency text"],
+      ] as const) {
+        if (
+          !(await s.value<boolean>(
+            `to_regclass('stripe.${table}') is not null`,
+          ))
+        )
+          await s.rows(`create table stripe.${table} (${columns})`);
+      }
+      await s.rows(`insert into stripe.subscriptions (id, customer, status, created) values
+          ('sub_bs_old', 'cus_bs_plans', 'canceled', 1), ('sub_bs_new', 'cus_bs_plans', 'active', 5);
+        insert into stripe.subscription_items (id, subscription, price, quantity, created) values
+          ('si_bs_new', 'sub_bs_new', 'price_pro_y', 3, 5);
+        insert into stripe.prices (id, unit_amount, currency) values ('price_pro_y', 1200, 'eur')`);
+      await s.asRole(staff, { platform_permissions: ["billing.read"] });
+      expect(
+        await s.rows(
+          `select s.subscription, s.status, s.price, s.plan, s.quantity, s.amount, s.currency,
+             s.created = to_timestamp(5) as created, s.cancel_at_period_end
+           from better_supabase.billing_platform_subscriptions() s
+           where s.tenant = $1`,
+          [organization],
+        ),
+      ).toEqual([
+        {
+          subscription: "sub_bs_new",
+          status: "active",
+          price: "price_pro_y",
+          plan: "pro",
+          quantity: "3",
+          amount: "3600",
+          currency: "eur",
+          created: true,
+          cancel_at_period_end: false,
+        },
+      ]);
+      await s.service();
+      expect(
+        await s.rows(
+          `select o.name, s.plan from better_supabase.billing_platform_subscriptions() s
+           join better_supabase.organizations o on o.id = s.tenant
+           where s.tenant = $1`,
+          [organization],
+        ),
+      ).toEqual([{ name: expect.any(String), plan: "pro" }]);
+      expect(
+        await s.rows(
+          `select i.status, count(*)::int as n, sum(i.total)::int as total
+           from better_supabase.billing_platform_invoices() i
+           where i.tenant = $1 group by i.status order by i.status`,
+          [organization],
+        ),
+      ).toEqual([
+        { status: "open", n: 1, total: 500 },
+        { status: "paid", n: 1, total: 1000 },
+      ]);
+      await s.asRole(member);
+      expect(
+        await s.hint(
+          "select * from better_supabase.billing_platform_invoices()",
+        ),
+      ).toBe("BILLING_FORBIDDEN");
     } finally {
       await s.close();
     }

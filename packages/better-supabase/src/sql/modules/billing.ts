@@ -13,6 +13,7 @@ import {
   SERVICE_CALLER,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { type PlanLookup, platformLists } from "./billing-platform.ts";
 
 const NAMES: ModuleNames = {
   options: ["seatRoles", "plans", "tenantKey"],
@@ -94,6 +95,15 @@ const qualified = (table: string): string => {
     : ["public", table];
   return `${sqlIdent(schema!)}.${sqlIdent(name!)}`;
 };
+
+const platformPlans = (
+  plans: PlanCatalog | undefined,
+): PlanLookup | undefined =>
+  plans && {
+    table: qualified(plans.table),
+    key: plans.key,
+    price: plans.price,
+  };
 
 function planPrice(ctx: ModuleContext, plans: PlanCatalog | undefined): string {
   const fn = ctx.fn("billing_plan_price");
@@ -288,7 +298,7 @@ begin
 end;
 $$;
 
-${planPrice(ctx, plansOf(ctx))}
+${planPrice(ctx, plansOf(ctx))}${platformLists(ctx, viewAll, platformPlans(plansOf(ctx)))}
 -- Rows of a Stripe Sync Engine table for the tenant's customer, newest
 -- first, or [] when the table doesn't exist. Reads need billing.read in the
 -- tenant, or platform staff.
@@ -541,6 +551,8 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "text",
     },
     { name: "billing_invoices", args: ["{id}", "integer"], returns: "jsonb" },
+    { name: "billing_platform_subscriptions", args: [], returns: "record" },
+    { name: "billing_platform_invoices", args: [], returns: "record" },
     { name: "billing_payment_methods", args: ["{id}"], returns: "jsonb" },
     { name: "billing_customer_details", args: ["{id}"], returns: "jsonb" },
   ];
