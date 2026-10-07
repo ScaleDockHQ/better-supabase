@@ -2,7 +2,6 @@ import { Pool, type PoolClient } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { InvitationSent } from "../../src/blocks/organizations/index.ts";
-import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { ModuleLayout } from "../../src/sql/registry.ts";
 
 import {
@@ -42,6 +41,21 @@ const USERS = {
 } as const;
 type Who = keyof typeof USERS;
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
+
+/** Runs each call in a savepoint, so a refused call leaves the test transaction usable. */
+const savepointSql = (client: PoolClient) => ({
+  async queryRaw(text: string, params: readonly unknown[] = []) {
+    await client.query("savepoint call");
+    try {
+      const { rows } = await client.query(text, [...params]);
+      await client.query("release savepoint call");
+      return rows;
+    } catch (error) {
+      await client.query("rollback to savepoint call");
+      throw error;
+    }
+  },
+});
 
 const LAYOUT: ModuleLayout = {
   modules: {
@@ -859,7 +873,28 @@ describe.skipIf(!live)("organizations and invitations", () => {
         `${schema}.invite_member($1, $2, 'member')`,
         [organization, email("admin")],
       );
+      expect(
+        await s.hint(`${schema}.update_invitation($1, null, 'nope')`, [
+          platform.id,
+        ]),
+      ).toBe("INVITATION_ROLE_UNKNOWN");
+      expect(
+        await s.value(`${schema}.update_invitation($1, $2, 'support')`, [
+          platform.id,
+          email("member"),
+        ]),
+      ).toMatchObject({
+        id: platform.id,
+        tenant: null,
+        organization: null,
+        role: support,
+      });
       await s.as("outsider");
+      expect(
+        await s.hint(`${schema}.update_invitation($1, null, 'support')`, [
+          platform.id,
+        ]),
+      ).toBe("INVITATION_FORBIDDEN");
       expect(
         await s.hint(`${schema}.accept_invitation_by_id($1)`, [platform.id]),
       ).toBe("INVITATION_EMAIL_MISMATCH");
@@ -1004,6 +1039,159 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
+  it("writes api entry points for the functions only, not the guard helper", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const api = `bs_api_${USERS.owner.slice(0, 8)}`;
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+         values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+        [USERS.owner, email("owner")],
+      );
+      await client.query(`create schema ${api};
+        create function ${api}.guard_membership_role(uuid, uuid, text, uuid, text) returns void
+          language sql as $$ select $$;`);
+      for (const file of renderModules(["organizations", "invitations"], {
+        modules: { organizations: { api }, invitations: { api } },
+      }))
+        await client.query(file.contents);
+      const exists = (signature: string) =>
+        s.value<boolean>(`to_regprocedure($1) is not null`, [
+          `${api}.${signature}`,
+        ]);
+      expect(
+        await exists("guard_membership_role(uuid, uuid, text, uuid, text)"),
+      ).toBe(false);
+      expect(await exists("invitation_tenant_ids()")).toBe(false);
+      expect(await exists("update_member_role(uuid, uuid, text)")).toBe(true);
+      expect(await exists("update_invitation(uuid, text, text, jsonb)")).toBe(
+        true,
+      );
+      await s.as("owner");
+      const organization = await s.value<string>(
+        `${api}.create_organization($1)`,
+        [{ name: "Api", slug: `wrapped-${USERS.owner.slice(0, 8)}` }],
+      );
+      expect(await s.role(organization, "owner")).toBe("owner");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("updates an open invitation in place with the invite checks", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    try {
+      await client.query("begin");
+      for (const who of Object.keys(USERS) as Who[]) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      for (const file of renderModules(
+        ["organizations", "invitations"],
+        LAYOUT,
+      ))
+        await client.query(file.contents);
+
+      await s.as("owner");
+      const organization = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Edit", slug: `edit-${USERS.owner.slice(0, 8)}` }],
+      );
+      const invite = (to: string, role: string) =>
+        s.value<{ token: string; id: string }>(
+          "better_supabase.invite_member($1, $2, $3, '7 days', $4)",
+          [organization, to, role, { name: "Out" }],
+        );
+      const admin = await invite(email("admin"), "admin");
+      const open = await invite(email("outsider"), "member");
+      const owner = await invite(`owner-${email("outsider")}`, "owner");
+      const other = await invite(`renamed-${email("outsider")}`, "member");
+      await s.as("admin");
+      await s.value("better_supabase.accept_invitation($1)", [admin.token]);
+
+      await s.as("outsider");
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'viewer')", [
+          open.id,
+        ]),
+      ).toBe("INVITATION_FORBIDDEN");
+      await s.as("admin");
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'member')", [
+          owner.id,
+        ]),
+      ).toBe("INVITATION_ROLE_FORBIDDEN");
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'owner')", [
+          open.id,
+        ]),
+      ).toBe("INVITATION_ROLE_FORBIDDEN");
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'nope')", [
+          open.id,
+        ]),
+      ).toBe("INVITATION_ROLE_UNKNOWN");
+      expect(
+        await s.hint("better_supabase.update_invitation($1, $2)", [
+          open.id,
+          email("owner"),
+        ]),
+      ).toBe("INVITATION_ALREADY_MEMBER");
+
+      const updated = await s.value<Record<string, unknown>>(
+        "better_supabase.update_invitation($1, $2, 'viewer', $3)",
+        [open.id, ` Renamed-${email("outsider")} `, { name: "Renamed" }],
+      );
+      expect(updated).toMatchObject({
+        id: open.id,
+        email: `renamed-${email("outsider")}`,
+        role: "viewer",
+        prefill: { name: "Renamed" },
+        organization: { id: organization, name: "Edit" },
+      });
+      expect(updated).not.toHaveProperty("token");
+      expect(
+        await s.value(
+          "(select count(*)::int from better_supabase.invitations where id = $1)",
+          [other.id],
+        ),
+      ).toBe(0);
+      await s.as("anon");
+      expect(
+        await s.value("better_supabase.invitation_preview($1)", [open.token]),
+      ).toMatchObject({
+        status: "pending",
+        email: `renamed-${email("outsider")}`,
+        role: "viewer",
+        prefill: { name: "Renamed" },
+      });
+
+      await s.as("owner");
+      expect(
+        await s.value(
+          "better_supabase.update_invitation($1, null, null, null)",
+          [open.id],
+        ),
+      ).toMatchObject({ role: "viewer", prefill: { name: "Renamed" } });
+      await s.value("better_supabase.revoke_invitation($1)", [open.id]);
+      expect(
+        await s.hint("better_supabase.update_invitation($1, null, 'member')", [
+          open.id,
+        ]),
+      ).toBe("INVITATION_INVALID");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("merges the preview hook, reserves the app's slugs and lets platform staff delete", async () => {
     const client = await pool.connect();
     const s = new Session(client);
@@ -1061,6 +1249,30 @@ describe.skipIf(!live)("organizations and invitations", () => {
         invitation: invite.id,
       });
       expect(await s.value(`${schema}.invitation_preview('nope')`)).toBeNull();
+      const preview = await createOrganizations({
+        transport: sqlTransport(savepointSql(client)),
+        schema,
+      })
+        .previewInvitation(invite.token)
+        .orThrow();
+      expect(preview?.extra).toEqual({
+        roleLabel: "Team member",
+        invitation: invite.id,
+      });
+      await s.as("member");
+      const [inbox] = await createOrganizations({
+        transport: sqlTransport(savepointSql(client)),
+        schema,
+      })
+        .myInvitations()
+        .orThrow();
+      expect(inbox).toMatchObject({
+        id: invite.id,
+        organizationId: organization,
+        organization: { id: organization, name: "Extra" },
+        extra: { roleLabel: "Team member", invitation: invite.id },
+      });
+      expect(inbox?.createdAt).toBeDefined();
 
       await s.as("outsider");
       expect(
@@ -1209,20 +1421,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("drives the modules through createOrganizations and sqlTransport", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    // Each call runs in a savepoint, so a refused call leaves the test transaction usable.
-    const sql = {
-      async queryRaw(text: string, params: readonly unknown[] = []) {
-        await client.query("savepoint call");
-        try {
-          const { rows } = await client.query(text, [...params]);
-          await client.query("release savepoint call");
-          return rows;
-        } catch (error) {
-          await client.query("rollback to savepoint call");
-          throw error;
-        }
-      },
-    } as unknown as SqlClient;
+    const sql = savepointSql(client);
     try {
       await client.query("begin");
       for (const who of ["owner", "member"] as const) {

@@ -35,6 +35,7 @@ functions.
 | `mark_used(organization)`                                                    | sets `last_used_at` on the caller's membership                                                                                                                 |
 | `invite_member(tenant, invitee_email, invitee_role)`                         | creates an invitation and returns it with its token (`invite`)                                                                                                 |
 | `resend_invitation(invitation_id)`                                           | issues a new token and expiry; the old token stops working                                                                                                     |
+| `update_invitation(invitation_id, invitee_email, invitee_role, prefill)`     | changes an open invitation's email, role or prefill (null keeps the value) with the `invite` checks; the token and expiry stay                                 |
 | `revoke_invitation(invitation_id)`                                           | revokes an open invitation (`revoke`)                                                                                                                          |
 | `invitation_preview(token)`                                                  | status, email, role and organization for the accept page; callable without a session                                                                           |
 | `accept_invitation(token)` and `decline_invitation(token)`                   | accepts for the signed-in user, or declines                                                                                                                    |
@@ -241,13 +242,25 @@ invitations: {
       user: "user_id",
       role: "role_id",
       // The role column holds a roles table id; the role name is its key.
-      through: { table: "public.roles", id: "id", column: "key" },
+      // where names the platform roles when the table holds tenant roles too.
+      through: {
+        table: "public.roles",
+        id: "id",
+        column: "key",
+        where: "{row}.scope = 'system'",
+      },
       // Optional: who may assign which platform role. {role} is the name.
       canAssign: "authz.can_assign_platform_role({user}, {role})",
     },
   },
 },
 ```
+
+A platform invitation's role resolves only among the roles
+`through.where` accepts (`{row}` is the roles row), so a tenant role's id or
+key is refused with `INVITATION_ROLE_UNKNOWN`, when inviting and again at
+accept. When `through.table` is also the tenant module's `roleThrough`
+table, `where` is required.
 
 The inviter needs `invitePlatform` through `permdock_has`. Without
 `canAssign`, that permission alone lets them invite to any platform role.
@@ -273,8 +286,33 @@ for the signed-in user whose confirmed email the invitation names; anyone
 else gets `INVITATION_EMAIL_MISMATCH` on accept and `false` on decline.
 `my_invitations()` lists the open invitations for the caller's confirmed
 email, tenant and platform ones, without their tokens, so the inbox knows
-what to show. In TypeScript, `organizations.myInvitations()`,
-`acceptInvitationById(id)` and `declineInvitationById(id)` call them.
+what to show. Each one carries `created_at`, its `organization` (the id plus
+`previewColumns`, null for a platform invitation) and the keys an
+`invitation_preview_extra` hook adds, so the inbox needs no read policy on
+the invitations table. In TypeScript, `organizations.myInvitations()` returns
+them as `createdAt`, `organization` and `extra`, and
+`acceptInvitationById(id)` and `declineInvitationById(id)` answer them.
+
+### Editing an invitation
+
+`update_invitation(invitation_id, invitee_email, invitee_role, prefill)`
+changes an open invitation in place, so apps don't need a client update
+policy on the invitations table. A null argument keeps the current value. It
+makes the checks `invite_member` makes: the caller needs `invite` in the
+organization (`invitePlatform` for a platform invitation), may assign both
+the current and the new role (`INVITATION_ROLE_FORBIDDEN`), and a new address
+must not belong to a member (`INVITATION_ALREADY_MEMBER`). Another open
+invitation for the new address is replaced. The token and expiry stay, so
+the link already sent keeps working: call `resend_invitation` to mail a new
+link to a changed address. It returns the invitation without its token and
+emits `invitation.updated`. In TypeScript:
+
+```ts
+await organizations.updateInvitation(invitationId, {
+  role: "admin",
+  prefill: { name: "Ada Lovelace" },
+});
+```
 
 ## Existing tables
 
@@ -340,6 +378,9 @@ as $$
   where i.id = invitation
 $$;
 ```
+
+In TypeScript, `previewInvitation(token)` returns the keys the hook added in
+`extra` (`preview.extra.roleLabel`), next to the fixed fields.
 
 ## Errors
 

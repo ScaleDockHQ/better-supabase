@@ -150,6 +150,7 @@ export interface BlockEventMap {
   "waitlist.approved": WaitlistEventData;
   "invitation.created": InvitationEventData;
   "invitation.resent": InvitationEventData;
+  "invitation.updated": InvitationEventData;
   "invitation.accepted": InvitationEventData;
   "invitation.declined": InvitationEventData;
   "invitation.revoked": InvitationEventData;

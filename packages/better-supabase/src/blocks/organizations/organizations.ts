@@ -51,8 +51,23 @@ export interface Invitation {
   readonly email: string;
   readonly role: string;
   readonly expiresAt: Temporal.Instant;
+  /** Absent when the invitations table has no `createdAt` column. */
+  readonly createdAt?: Temporal.Instant;
   readonly invitedBy?: string;
+  /** The organization's id and `options.previewColumns`; `null` for a platform invitation. */
+  readonly organization: Readonly<Record<string, unknown>> | null;
   readonly prefill: Readonly<Record<string, unknown>>;
+  /** From `myInvitations()`: the keys an `invitation_preview_extra` hook added. */
+  readonly extra: Readonly<Record<string, unknown>>;
+}
+
+/** What `updateInvitation` changes; a missing key keeps the current value. */
+export interface InvitationChanges {
+  readonly email?: string;
+  /** A role name, or a role id or key under the catalog model. */
+  readonly role?: string;
+  /** Replaces the profile fields to fill in on sign-up. */
+  readonly prefill?: Readonly<Record<string, unknown>>;
 }
 
 /** What `onInvite` receives: the place to send the email. */
@@ -79,6 +94,11 @@ export interface InvitationPreview {
   /** The organization columns in `options.previewColumns`. */
   readonly organization: Readonly<Record<string, unknown>> | null;
   readonly prefill: Readonly<Record<string, unknown>>;
+  /**
+   * The keys an `invitation_preview_extra` hook added, such as a role's
+   * display name or branding. Empty without the hook.
+   */
+  readonly extra: Readonly<Record<string, unknown>>;
 }
 
 export interface SwitchResult {
@@ -160,6 +180,15 @@ export interface Organizations {
     invitationId: string,
     validFor?: string,
   ): AsyncResult<InvitationSent>;
+  /**
+   * A new email, role or prefill for an open invitation, with the checks
+   * `invite` makes. The token and expiry stay, so the link already sent
+   * keeps working; call `resendInvitation` to mail the new address.
+   */
+  updateInvitation(
+    invitationId: string,
+    changes: InvitationChanges,
+  ): AsyncResult<Invitation>;
   /** `false` when it was not open. */
   revokeInvitation(invitationId: string): AsyncResult<boolean>;
   declineInvitation(token: string): AsyncResult<boolean>;
@@ -187,16 +216,41 @@ const text = (value: unknown): string =>
 const optionalText = (value: unknown): string | null =>
   value === null || value === undefined ? null : text(value);
 
+const extraOf = (
+  row: Record<string, unknown>,
+  known: ReadonlySet<string>,
+): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(row).filter(([key]) => !known.has(key)));
+
+const INVITATION_KEYS: ReadonlySet<string> = new Set([
+  "id",
+  "tenant",
+  "email",
+  "role",
+  "expires_at",
+  "created_at",
+  "invited_by",
+  "organization",
+  "prefill",
+  "token",
+]);
+
 function invitationFrom(row: Record<string, unknown>): Invitation {
   const invitedBy = optionalText(row["invited_by"]);
+  const createdAt = optionalText(row["created_at"]);
   return {
     id: text(row["id"]),
     organizationId: optionalText(row["tenant"]),
     email: text(row["email"]),
     role: text(row["role"]),
     expiresAt: temporal().Instant.from(text(row["expires_at"])),
+    ...(createdAt === null
+      ? {}
+      : { createdAt: temporal().Instant.from(createdAt) }),
     ...(invitedBy === null ? {} : { invitedBy }),
+    organization: isRecord(row["organization"]) ? row["organization"] : null,
     prefill: isRecord(row["prefill"]) ? row["prefill"] : {},
+    extra: extraOf(row, INVITATION_KEYS),
   };
 }
 
@@ -212,6 +266,16 @@ function isStatus(value: unknown): value is InvitationStatus {
   return typeof value === "string" && STATUSES.has(value);
 }
 
+const PREVIEW_KEYS: ReadonlySet<string> = new Set([
+  "status",
+  "email",
+  "role",
+  "tenant",
+  "expires_at",
+  "organization",
+  "prefill",
+]);
+
 function previewFrom(row: Record<string, unknown>): InvitationPreview {
   const status = row["status"];
   if (!isStatus(status)) {
@@ -225,6 +289,7 @@ function previewFrom(row: Record<string, unknown>): InvitationPreview {
     expiresAt: temporal().Instant.from(text(row["expires_at"])),
     organization: isRecord(row["organization"]) ? row["organization"] : null,
     prefill: isRecord(row["prefill"]) ? row["prefill"] : {},
+    extra: extraOf(row, PREVIEW_KEYS),
   };
 }
 
@@ -510,6 +575,32 @@ export function createOrganizations(
         "resend_invitation",
         { invitation_id: invitationId, valid_for: validFor },
         (value) => sent(value, "resend_invitation", true),
+      );
+    },
+    updateInvitation(invitationId, changes) {
+      return run(
+        "invitations",
+        "update_invitation",
+        {
+          invitation_id: invitationId,
+          invitee_email: changes.email,
+          invitee_role: changes.role,
+          prefill: changes.prefill,
+        },
+        (value) => {
+          const invitation = invitationFrom(
+            recordOf(value, "update_invitation"),
+          );
+          invitationEvent("invitation.updated", {
+            invitationId: invitation.id,
+            ...(invitation.organizationId === null
+              ? {}
+              : { organizationId: invitation.organizationId }),
+            email: invitation.email,
+            role: invitation.role,
+          });
+          return invitation;
+        },
       );
     },
     revokeInvitation(invitationId) {

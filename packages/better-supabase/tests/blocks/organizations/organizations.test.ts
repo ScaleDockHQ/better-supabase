@@ -221,6 +221,52 @@ describe("createOrganizations", () => {
     expect(JSON.stringify(seen[0]?.data)).not.toContain("secret");
   });
 
+  it("updates an open invitation and emits invitation.updated", async () => {
+    const { transport, calls } = fake({
+      update_invitation: {
+        ...invitationRow,
+        token: undefined,
+        email: "grace@example.com",
+        role: "admin",
+      },
+    });
+    const events = new EventHub();
+    const seen: BlockEvent[] = [];
+    events.on("block", (event) => seen.push(event));
+    const organizations = createOrganizations({ transport, events });
+    const updated = await organizations
+      .updateInvitation("inv-1", { email: "grace@example.com", role: "admin" })
+      .orThrow();
+    expect(updated).toMatchObject({
+      id: "inv-1",
+      email: "grace@example.com",
+      role: "admin",
+    });
+    expect(calls).toEqual([
+      {
+        schema: "better_supabase",
+        fn: "update_invitation",
+        args: {
+          invitation_id: "inv-1",
+          invitee_email: "grace@example.com",
+          invitee_role: "admin",
+          prefill: undefined,
+        },
+      },
+    ]);
+    expect(seen.map((event) => [event.type, event.data])).toEqual([
+      [
+        "invitation.updated",
+        {
+          invitationId: "inv-1",
+          organizationId: "org-1",
+          email: "grace@example.com",
+          role: "admin",
+        },
+      ],
+    ]);
+  });
+
   it("returns an error when onInvite throws", async () => {
     const { transport } = fake({ invite_member: invitationRow });
     const result = await createOrganizations({
@@ -342,6 +388,8 @@ describe("createOrganizations", () => {
         expires_at: "2026-10-10T12:00:00Z",
         organization: null,
         prefill: null,
+        roleLabel: "Team member",
+        branding: { color: "#123456" },
       },
     });
     const organizations = createOrganizations({ transport });
@@ -353,6 +401,10 @@ describe("createOrganizations", () => {
     expect(preview).toMatchObject({
       ok: true,
       data: { status: "pending", organizationId: null, prefill: {} },
+    });
+    expect(preview.data?.extra).toEqual({
+      roleLabel: "Team member",
+      branding: { color: "#123456" },
     });
     const empty = createOrganizations({ transport: fake({}).transport });
     expect(await empty.slugProblem("free")).toMatchObject({
@@ -465,14 +517,29 @@ describe("rpcTransport", () => {
 describe("invitations by id", () => {
   it("lists the caller's invitations and answers them by id", async () => {
     const { transport, calls } = fake({
-      my_invitations: [invitationRow, "not a row"],
+      my_invitations: [
+        {
+          ...invitationRow,
+          token: undefined,
+          created_at: "2026-10-03T12:00:00+00:00",
+          organization: { id: "org-1", name: "Acme" },
+          roleLabel: "Member",
+        },
+        "not a row",
+      ],
       accept_invitation_by_id: "org-1",
       decline_invitation_by_id: true,
     });
     const organizations = createOrganizations({ transport });
     const mine = await organizations.myInvitations().orThrow();
     expect(mine).toHaveLength(1);
-    expect(mine[0]).toMatchObject({ id: "inv-1", organizationId: "org-1" });
+    expect(mine[0]).toMatchObject({
+      id: "inv-1",
+      organizationId: "org-1",
+      organization: { id: "org-1", name: "Acme" },
+      extra: { roleLabel: "Member" },
+    });
+    expect(mine[0]?.createdAt?.toString()).toBe("2026-10-03T12:00:00Z");
     expect(await organizations.acceptInvitationById("inv-1").orThrow()).toEqual(
       { organizationId: "org-1" },
     );

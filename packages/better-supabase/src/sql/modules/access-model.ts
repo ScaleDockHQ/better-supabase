@@ -195,6 +195,8 @@ export interface PermdockPlatformRoles {
     readonly table: string;
     readonly id: string;
     readonly column: string;
+    /** A condition on the roles row `{row}` that holds for platform roles only. */
+    readonly where?: string;
   };
   /** A SQL template with `{user}` and `{role}` (the role name) deciding who assigns which platform role. */
   readonly canAssign?: string;
@@ -254,10 +256,13 @@ export function permdockPlatformRoles(
       !isPlain(through) ||
       typeof through["table"] !== "string" ||
       typeof through["id"] !== "string" ||
-      typeof through["column"] !== "string"
+      typeof through["column"] !== "string" ||
+      (through["where"] !== undefined &&
+        (typeof through["where"] !== "string" ||
+          !through["where"].includes("{row}")))
     ) {
       throw new TypeError(
-        `${where}.through must be { table: "schema.table", id: "<key column>", column: "<role name column>" }`,
+        `${where}.through must be { table: "schema.table", id: "<key column>", column: "<role name column>", where?: "<condition on {row}>" }`,
       );
     }
     const id = quotedRef(`${where}.through`, through["table"], through["id"]);
@@ -266,6 +271,9 @@ export function permdockPlatformRoles(
       id: id.column,
       column: quotedRef(`${where}.through`, through["table"], through["column"])
         .column,
+      ...(typeof through["where"] === "string"
+        ? { where: through["where"] }
+        : {}),
     };
   }
   return {

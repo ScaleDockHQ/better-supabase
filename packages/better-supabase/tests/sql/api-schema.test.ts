@@ -20,11 +20,12 @@ describe("sql.modules.<module>.api", () => {
         continue;
       }
       const file = schemaFile(module.name, "api");
+      const internal = new Set(module.internal);
       const granted = [
         ...file.matchAll(
-          /^grant execute on function "?better_supabase"?\.[^\n(]+\([^\n]*\bto [^;]*\b(?:anon|authenticated|service_role)\b/gm,
+          /^grant execute on function "?better_supabase"?\.([^\n(]+)\([^\n]*\bto [^;]*\b(?:anon|authenticated|service_role)\b/gm,
         ),
-      ].length;
+      ].filter((match) => !internal.has(match[1]!.replaceAll('"', ""))).length;
       const wrapped = [...file.matchAll(/create or replace function "api"\./g)]
         .length;
       expect({ module: module.name, wrapped }).toEqual({
@@ -32,6 +33,57 @@ describe("sql.modules.<module>.api", () => {
         wrapped: granted,
       });
     }
+  });
+
+  it("writes no entry point for the helpers policies and triggers call", () => {
+    const organizations = schemaFile("organizations", "api");
+    expect(organizations).not.toContain(
+      `create or replace function "api"."guard_membership_role"`,
+    );
+    expect(organizations).toContain(
+      `drop function if exists "api"."guard_membership_role"(uuid, uuid, text, uuid, text);`,
+    );
+    expect(organizations).toContain(
+      `create or replace function "api"."update_member_role"`,
+    );
+    const invitations = schemaFile("invitations", "api");
+    expect(invitations).not.toContain(
+      `create or replace function "api"."invitation_tenant_ids"`,
+    );
+    expect(invitations).toContain(
+      `create or replace function "api"."my_invitations"`,
+    );
+    for (const [name, helper] of [
+      ["comments", "comment_subject_readable"],
+      ["attachments", "attachment_object_allowed"],
+      ["webhooks-in", "incoming_webhook_tenant_ids"],
+      ["data-lifecycle", "data_export_object_allowed"],
+      ["mfa", "mfa_satisfied"],
+      ["sessions", "session_active"],
+    ] as const) {
+      expect(schemaFile(name, "api")).not.toContain(
+        `create or replace function "api"."${helper}"`,
+      );
+    }
+    expect(() =>
+      schemaFile("organizations", {
+        schema: "api",
+        functions: ["guard_membership_role"],
+      }),
+    ).toThrow(/guard_membership_role is a helper/);
+    const sql = `create or replace function better_supabase.only_helper()
+returns boolean
+language sql
+as $$ select true $$;
+grant execute on function better_supabase.only_helper() to authenticated;`;
+    expect(
+      apiWrappers(sql, "better_supabase", { schema: "api" }, "x", [
+        "only_helper",
+      ]),
+    ).toContain(`drop function if exists "api"."only_helper"();`);
+    expect(
+      apiWrappers(sql, "better_supabase", { schema: "api" }, "x", ["other"]),
+    ).toContain(`create or replace function "api"."only_helper"()`);
   });
 
   it("wraps the service functions of jobs, idempotency and the webhook inbox", () => {

@@ -948,6 +948,7 @@
       "BlockTransport",
       "CreateOrganizationOptions",
       "Invitation",
+      "InvitationChanges",
       "InvitationPreview",
       "InvitationSent",
       "InvitationStatus",

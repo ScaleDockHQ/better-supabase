@@ -228,6 +228,44 @@ describe("platform invitations under the permdock model", () => {
     );
   });
 
+  it("resolves platform roles only among the roles through.where names", () => {
+    const shared = {
+      ...PERMDOCK,
+      tenant: {
+        mode: "adopt" as const,
+        tables: { memberships: "public.team_members" },
+        columns: { memberships: { role: "role_id" } },
+        options: {
+          roleThrough: { table: "public.roles", id: "id", column: "key" },
+        },
+      },
+    };
+    const through = { table: "public.roles", id: "id", column: "key" };
+    const sql = (where?: string) =>
+      body({
+        ...shared,
+        invitations: {
+          options: {
+            platformRoles: {
+              ...roles,
+              through: where === undefined ? through : { ...through, where },
+            },
+          },
+        },
+      });
+    expect(() => sql()).toThrow(/through\.where/);
+    expect(() => sql("scope = 'system'")).toThrow(
+      /where\?: "<condition on \{row\}>"/,
+    );
+    const scoped = sql("{row}.scope = 'system'");
+    expect(scoped).toContain(
+      `(select r."id" from "public"."roles" r where (r."id"::text = (invitee_role)::text or r."key"::text = (invitee_role)::text) and (r.scope = 'system') order by`,
+    );
+    expect(scoped).toMatch(
+      /if \(select r\."id" from "public"\."roles" r where \(r\."id"::text = \(pinvite\."role"\)::text[^\n]* is null then\n\s*raise exception 'Unknown platform role %'/,
+    );
+  });
+
   it("refuses platform invitations without platformRoles and checks its shape", () => {
     expect(body(PERMDOCK)).toContain("INVITATION_SCOPE_UNSUPPORTED");
     const plain = body({
@@ -259,6 +297,22 @@ describe("platform invitations under the permdock model", () => {
         },
       }),
     ).toThrow(/must be "schema.table"/);
+  });
+});
+
+describe("update_invitation", () => {
+  it("edits an open invitation with the invite checks and keeps the token", () => {
+    const sql = body({ invitations: { options: { prefill: true } } });
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."update_invitation"(\n  invitation_id uuid,\n  invitee_email text default null,\n  invitee_role text default null,\n  prefill jsonb default null\n)',
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;',
+    );
+    expect(sql).toContain('updated."prefill" := prefill;');
+    const fn = sql.slice(sql.indexOf('"update_invitation"('));
+    expect(fn.slice(0, fn.indexOf("$$;"))).not.toContain("token_hash");
+    expect(body({})).not.toContain('updated."prefill" := prefill;');
   });
 });
 

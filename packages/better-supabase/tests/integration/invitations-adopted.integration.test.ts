@@ -202,6 +202,17 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
         [agent.email, { name: "Agent" }],
       );
       expect(platform.prefill).toEqual({ name: "Agent" });
+      const adminId = await s.value<string>(
+        `(select id::text from ${schema}.roles where key = 'admin')`,
+      );
+      for (const tenantRole of ["admin", adminId]) {
+        expect(
+          await s.hint(`${schema}.invite_member(null, $1, $2)`, [
+            agent.email,
+            tenantRole,
+          ]),
+        ).toBe("INVITATION_ROLE_UNKNOWN");
+      }
       await s.as(agent);
       expect(
         await s.value<{ prefill: unknown; role: string }>(
@@ -324,9 +335,11 @@ async function sharedSchema(
     create table ${schema}.roles (
       id uuid primary key default gen_random_uuid(),
       key text not null,
-      organization_id uuid
+      organization_id uuid,
+      scope text not null default 'organization'
     );
-    insert into ${schema}.roles (key) values ('owner'), ('admin'), ('member'), ('support');
+    insert into ${schema}.roles (key) values ('owner'), ('admin'), ('member');
+    insert into ${schema}.roles (key, scope) values ('support', 'system');
     create table ${schema}.team_members (
       organization_id uuid not null,
       user_id uuid not null references auth.users (id) on delete cascade,
@@ -404,7 +417,7 @@ function sharedLayout(schema: string): ModuleLayout {
             table: `${schema}.user_roles`,
             user: "user_id",
             role: "role_id",
-            through: roles,
+            through: { ...roles, where: "{row}.scope = 'system'" },
           },
         },
       },

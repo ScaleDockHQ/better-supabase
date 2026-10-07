@@ -179,13 +179,16 @@ grant execute on function ${target}(${types}) to ${grant.roles.join(", ")};`;
  * Data API instead of the module schema, which also holds helpers that only
  * policies should call. A server that reaches the database only through
  * PostgREST then calls the service functions, such as `flag_definitions`,
- * with a service-role client.
+ * with a service-role client. The module's `internal` helpers (granted only
+ * so its policies and triggers can call them as the client) get no wrapper,
+ * and a wrapper an earlier version wrote for one is dropped.
  */
 export function apiWrappers(
   sql: string,
   source: string,
   api: ModuleApi,
   module: string,
+  internal: readonly string[] = [],
 ): string {
   if (api.schema === source) {
     throw new TypeError(
@@ -193,17 +196,35 @@ export function apiWrappers(
     );
   }
   const defined = signatures(sql, source);
-  const grants = apiGrants(sql, source).filter(
-    (grant) => !api.functions || api.functions.includes(grant.name),
+  const granted = apiGrants(sql, source);
+  const helpers = granted.filter((grant) => internal.includes(grant.name));
+  const grants = granted.filter(
+    (grant) =>
+      !internal.includes(grant.name) &&
+      (!api.functions || api.functions.includes(grant.name)),
   );
   for (const name of api.functions ?? []) {
+    if (internal.includes(name)) {
+      throw new TypeError(
+        `sql.modules.${module}.api.functions: ${name} is a helper the module's policies and triggers call, not an entry point for the Data API`,
+      );
+    }
     if (!grants.some((grant) => grant.name === name)) {
       throw new TypeError(
         `sql.modules.${module}.api.functions: ${name} is not a ${module} function that anon, authenticated or service_role may execute`,
       );
     }
   }
-  if (grants.length === 0) return "";
+  const schema = sqlIdent(api.schema);
+  const dropped = [
+    ...new Map(
+      helpers.map((grant) => [
+        `${grant.name}(${grant.types.join(", ")})`,
+        `drop function if exists ${schema}.${sqlIdent(grant.name)}(${grant.types.join(", ")});`,
+      ]),
+    ).values(),
+  ];
+  if (grants.length === 0 && dropped.length === 0) return "";
   const statements = grants.map((grant) => {
     const signature = defined.find(
       (entry) =>
@@ -220,12 +241,11 @@ export function apiWrappers(
     }
     return wrapper(signature, source, api.schema, grant);
   });
-  const schema = sqlIdent(api.schema);
   return `
 -- sql.modules.${module}.api: entry points for the Data API.
 create schema if not exists ${schema};
 grant usage on schema ${schema} to anon, authenticated, service_role;
-
+${dropped.length > 0 ? `\n-- Helpers for the module's policies and triggers have no entry point.\n${dropped.join("\n")}\n` : ""}
 ${statements.join("\n\n")}
 `;
 }
