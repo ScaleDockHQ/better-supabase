@@ -85,6 +85,12 @@
       "skillPath": "skills/next-partial-prefetching-optimizer/SKILL.md",
       "computedHash": "97b935496e9f821417229fd4afe153dc57732911991b48144371b15b11716fbe"
     },
+    "nextjs-app-architecture": {
+      "source": "aurorascharff/nextjs-app-architecture-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "785466f155545805651f980ab43403a0d596207c98476f5e2a6b7a1d359b2bb2"
+    },
     "oauth": {
       "source": "ScaleDockHQ/scaledock-skills",
       "sourceType": "github",
