@@ -9,6 +9,13 @@ export { localSigningKey, signLocalJwt } from "./local-key.ts";
 export { asUser, LOCAL_JWT_SECRET } from "./as-user.ts";
 export type { LocalStack, TestUser } from "./as-user.ts";
 export { expectDbBudget } from "./budget.ts";
+export { expectInstant } from "./instant.ts";
+export type {
+  InstantBrowserContext,
+  InstantExpectation,
+  InstantLocator,
+  InstantPage,
+} from "./instant.ts";
 export { expectTenantIsolation } from "./isolation.ts";
 export type {
   IsolationTable,
@@ -18,6 +25,7 @@ export type {
 } from "./isolation.ts";
 export type {
   BudgetPage,
+  BudgetRequest,
   BudgetResponse,
   DbBudgetExpectation,
   MeasuredRender,

@@ -2,9 +2,10 @@
 
 - BUILD: `pnpm --filter better-supabase build` once (the example imports its
   `dist`), then Playwright's `webServer` runs `next build && next start -p 3100`.
-- EXPOSE: `EXPOSE_TESTING_API=1`, which `webServer` sets for the build. It
-  turns on `experimental.exposeTestingApiInProductionBuild` in
-  `next.config.ts`; no other build sets it.
+- EXPOSE: `EXPOSE_TESTING_API=1`, which `webServer` sets for the build and
+  `next start`. It turns on `experimental.exposeTestingApiInProductionBuild`
+  in `next.config.ts` and `debug.enabled` in `src/lib/supabase/server.ts`
+  (the database budget); no other build sets it.
 - RUN: `pnpm --filter @better-supabase/example-nextjs test:e2e` resets the
   local stack (`pnpm supabase:reset`), then runs `playwright test`. Use
   `pnpm exec playwright test e2e/<file>` from `apps/examples/nextjs` to run one
@@ -16,12 +17,15 @@
   from admin pages), the seed data ("Road Runner Inc" must exist for org 1),
   and token expiry (an expired access token renders signed out, because
   prefetches never refresh). The suite signs in fresh on every run.
-- CONTRACTS:
+- CONTRACTS (the click specs use `expectInstant` from
+  `better-supabase/testing`; the dashboard checks an attribute, so it calls
+  `instant()` directly):
   - Initial load of `/`: `h1` "Dashboard" and the sidebar skeleton under the
     lock; `workspace-summary` after release (`dashboard.spec.ts`).
   - Click "Customers" from `/`: `h1`, "Road Runner Inc" and `similar-notes`
-    from the per-session App Shell (`customers.spec.ts`), and for the member
-    the read-only notice (`member.spec.ts`).
+    from the per-session App Shell, within 8 calls in 2 waves
+    (`customers.spec.ts`), and for the member the read-only notice
+    (`member.spec.ts`).
   - Click "Reports" and "Billing": the permission-gated panels from the
     cached session (`gated-pages.spec.ts`).
   - Click "Inbox": `h1` under the lock; `unread-summary` only after release,
@@ -36,4 +40,6 @@
   `ms-playwright` cache, or run `pnpm exec playwright install chromium`.
 - DIFFERENTIAL: removing `'use cache: private'` from `getCustomers` turns
   both Customers contracts RED (the heading commits, the rows never do);
-  restoring it turns them GREEN.
+  restoring it turns them GREEN. Lowering `maxCalls` in `customers.spec.ts`
+  below 4 turns the App Shell contract RED with the render's calls and
+  tables.

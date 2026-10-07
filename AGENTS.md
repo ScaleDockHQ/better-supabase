@@ -125,8 +125,10 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     without it), `pg` in `src/cli/db.ts` and `@supabase/postgrest-typegen`
     in `src/cli/introspect/typegen.ts` (an install message when they are
     missing), `oxfmt` in the same file (unformatted output with a
-    notice), and `stripe` through a variable specifier in
-    `src/blocks/stripe.ts` (an install message, or pass a client). CLI startup work also loads on
+    notice), `stripe` through a variable specifier in
+    `src/blocks/stripe.ts` (an install message, or pass a client), and
+    `@next/playwright` through a variable specifier in
+    `src/testing/instant.ts` (an install message). CLI startup work also loads on
     demand, each with a comment: the commands, config loading and env
     validation in `src/cli/run.ts`, the prompts in `src/cli/bin.ts`, and
     the arktype-backed typegen entries in `src/cli/introspect/typegen.ts`.

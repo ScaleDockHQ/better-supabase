@@ -1,7 +1,7 @@
-import { instant } from "@next/playwright";
 import { expect, test } from "@playwright/test";
+import { expectInstant } from "better-supabase/testing";
 
-import { heading, sidebarLink } from "./nav";
+import { clickSidebar, heading, sidebarLink } from "./nav";
 import { users } from "./users";
 
 test.use({ storageState: users.member.storageState });
@@ -11,14 +11,13 @@ test("a member's customers come from the App Shell, without write access", async
 }) => {
   await page.goto("/");
   await expect(sidebarLink(page, "Customers")).toBeVisible();
-  await instant(page, async () => {
-    await sidebarLink(page, "Customers").click();
-    await page.waitForURL((url) => url.pathname === "/customers");
-    await expect(heading(page, "Customers")).toBeVisible();
-    await expect(page.getByText("Road Runner Inc")).toBeVisible();
-    await expect(
+  await expectInstant(page, {
+    during: clickSidebar(page, "Customers", "/customers"),
+    visible: [
+      heading(page, "Customers"),
+      page.getByText("Road Runner Inc"),
       page.getByText("Only admins can add customers."),
-    ).toBeVisible();
+    ],
   });
 });
 

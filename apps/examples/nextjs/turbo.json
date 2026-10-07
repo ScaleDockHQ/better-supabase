@@ -5,6 +5,7 @@
   "tasks": {
     "build": {
       "env": [
+        "EXPOSE_TESTING_API",
         "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
         "NEXT_PUBLIC_SUPABASE_URL"
       ],

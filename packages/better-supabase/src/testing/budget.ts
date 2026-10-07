@@ -1,17 +1,31 @@
 import type { DbStats } from "../core/stats.ts";
 
+/** The part of a Playwright `Request` the budget check reads. */
+export interface BudgetRequest {
+  headers(): Record<string, string>;
+}
+
 /** The part of a Playwright `Response` the budget check reads. */
 export interface BudgetResponse {
   url(): string;
   headers(): Record<string, string>;
+  /** Never settles when the browser aborts the stream, so `requestfailed` ends the wait too. */
   finished(): Promise<unknown>;
-  request(): { headers(): Record<string, string> };
+  request(): BudgetRequest;
 }
 
 /** The part of a Playwright `Page` the budget check uses. */
 export interface BudgetPage {
   on(event: "response", listener: (response: BudgetResponse) => void): unknown;
+  on(
+    event: "requestfailed",
+    listener: (request: BudgetRequest) => void,
+  ): unknown;
   off(event: "response", listener: (response: BudgetResponse) => void): unknown;
+  off(
+    event: "requestfailed",
+    listener: (request: BudgetRequest) => void,
+  ): unknown;
   reload(): Promise<unknown>;
   readonly request: {
     get(url: string): Promise<{
@@ -78,22 +92,43 @@ export async function expectDbBudget(
       return;
     seen.push({ response, id, url: new URL(stats, response.url()).href });
   };
+  const failed = new WeakSet<BudgetRequest>();
+  const aborts = new Map<BudgetRequest, () => void>();
+  const onFailed = (request: BudgetRequest): void => {
+    failed.add(request);
+    aborts.get(request)?.();
+  };
+  const ended = (response: BudgetResponse): Promise<unknown> => {
+    const request = response.request();
+    if (failed.has(request)) return Promise.resolve();
+    return Promise.race([
+      response.finished(),
+      new Promise<void>((done) => {
+        aborts.set(request, done);
+      }),
+    ]);
+  };
   page.on("response", listener);
+  page.on("requestfailed", onFailed);
   try {
-    await (expectation.during ? expectation.during() : page.reload());
-  } finally {
-    page.off("response", listener);
-  }
-  if (seen.length === 0) {
-    throw new Error(
-      "expectDbBudget: no response carried x-bs-request-id. Enable createNext(betterSupabase, { debug: { enabled: true } }) and run the proxy.",
+    try {
+      await (expectation.during ? expectation.during() : page.reload());
+    } finally {
+      page.off("response", listener);
+    }
+    if (seen.length === 0) {
+      throw new Error(
+        "expectDbBudget: no response carried x-bs-request-id. Enable createNext(betterSupabase, { debug: { enabled: true } }) and run the proxy.",
+      );
+    }
+    await Promise.all(
+      seen.map(({ response }) =>
+        settle(ended(response), expectation.timeoutMs ?? 10_000),
+      ),
     );
+  } finally {
+    page.off("requestfailed", onFailed);
   }
-  await Promise.all(
-    seen.map(({ response }) =>
-      settle(response.finished(), expectation.timeoutMs ?? 10_000),
-    ),
-  );
 
   const renders: MeasuredRender[] = [];
   for (const { response, id, url } of seen) {

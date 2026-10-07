@@ -10,3 +10,15 @@ export function sidebarLink(page: Page, label: string): Locator {
 export function heading(page: Page, name: string): Locator {
   return page.getByRole("heading", { level: 1, name });
 }
+
+/** Clicks a sidebar link and waits for the URL: the navigation `expectInstant` holds. */
+export function clickSidebar(
+  page: Page,
+  label: string,
+  pathname: string,
+): () => Promise<void> {
+  return async () => {
+    await sidebarLink(page, label).click();
+    await page.waitForURL((url) => url.pathname === pathname);
+  };
+}

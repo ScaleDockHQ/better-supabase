@@ -544,6 +544,11 @@ the test exists to catch. To check that a test can fail, remove
 `'use cache: private'` from the function it depends on. The heading still
 commits, but the rows never appear under the lock.
 
+[`expectInstant`](/docs/testing#instant-navigations) from
+`better-supabase/testing` wraps this pattern: it takes the navigation, the
+locators that must be visible and absent under the lock, and an optional
+database budget for the same navigation.
+
 The [Next.js example's e2e suite](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/nextjs/e2e)
 covers an initial load, the per-session App Shell, permission-gated pages, a
 count that streams after the click, a member's view and a mutation.
