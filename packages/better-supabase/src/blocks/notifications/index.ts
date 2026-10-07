@@ -23,6 +23,7 @@ export type {
   PageOptions,
   Rendered,
   SendInput,
+  SentNotification,
   SubscriptionLevel,
 } from "./notifications.ts";
 export type {

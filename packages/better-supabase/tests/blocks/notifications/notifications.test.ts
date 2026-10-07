@@ -61,10 +61,12 @@ const row = (overrides: Record<string, unknown> = {}) => ({
 
 describe("createNotifications().send", () => {
   it("validates the data, calls notify, emits and runs onSent", async () => {
-    const { transport, calls } = fakeTransport({ notify: () => "e1" });
+    const { transport, calls } = fakeTransport({
+      send_notification: () => ({ id: "e1", recipients: ["u1", "u3"] }),
+    });
     const events = new EventHub();
-    const seen: string[] = [];
-    events.on("block", (event) => seen.push(event.type));
+    const seen: unknown[] = [];
+    events.on("block", (event) => seen.push([event.type, event.data]));
     const onSent = vi.fn();
     const notifications = createNotifications({
       transport,
@@ -80,10 +82,13 @@ describe("createNotifications().send", () => {
       data: { title: "Ship it" },
       key: "task-42",
     });
-    expect(sent).toMatchObject({ ok: true, data: "e1" });
+    expect(sent).toMatchObject({
+      ok: true,
+      data: { id: "e1", recipients: ["u1", "u3"] },
+    });
     expect(calls[0]).toMatchObject({
       schema: "app",
-      fn: "notify",
+      fn: "send_notification",
       args: {
         notification: {
           type: "task.assigned",
@@ -97,12 +102,21 @@ describe("createNotifications().send", () => {
         },
       },
     });
-    expect(seen).toEqual(["notification.created"]);
+    expect(seen).toEqual([
+      [
+        "notification.created",
+        {
+          notificationId: "e1",
+          type: "task.assigned",
+          recipientIds: ["u1", "u3"],
+        },
+      ],
+    ]);
     expect(onSent).toHaveBeenCalledWith({
       id: "e1",
       type: "task.assigned",
       tenant: "organization_1",
-      recipients: ["u1"],
+      recipients: ["u1", "u3"],
     });
   });
 
@@ -126,7 +140,9 @@ describe("createNotifications().send", () => {
   });
 
   it("passes watchers and exclude to notify", async () => {
-    const { transport, calls } = fakeTransport({ notify: () => "e2" });
+    const { transport, calls } = fakeTransport({
+      send_notification: () => ({ id: "e2" }),
+    });
     await createNotifications({ transport, types })
       .send("task.assigned", {
         recipients: ["u1"],
@@ -162,7 +178,7 @@ describe("createNotifications().send", () => {
   });
 
   it("returns null without events when nobody is left to notify", async () => {
-    const { transport } = fakeTransport({ notify: () => null });
+    const { transport } = fakeTransport({ send_notification: () => null });
     const onSent = vi.fn();
     const notifications = createNotifications({ transport, types, onSent });
     const sent = await notifications.send("task.assigned", {
@@ -174,7 +190,7 @@ describe("createNotifications().send", () => {
 
   it("maps database errors through the error mappers and onSent failures", async () => {
     const { transport } = fakeTransport({
-      notify: () => {
+      send_notification: () => {
         throw Object.assign(new Error("not allowed"), {
           code: "42501",
           hint: "NOTIFICATION_FORBIDDEN",
@@ -191,7 +207,9 @@ describe("createNotifications().send", () => {
     });
 
     const failing = createNotifications({
-      transport: fakeTransport({ notify: () => "e1" }).transport,
+      transport: fakeTransport({
+        send_notification: () => ({ id: "e1", recipients: [] }),
+      }).transport,
       types,
       onSent: () => {
         throw new Error("cache down");

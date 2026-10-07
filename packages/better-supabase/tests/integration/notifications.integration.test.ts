@@ -530,6 +530,9 @@ describe.skipIf(!live)("notifications", () => {
         /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
       );
       expect(await s.notify(keyed)).toBe(first);
+      expect(
+        await s.value("better_supabase.send_notification($1)", [keyed]),
+      ).toEqual({ id: first, recipients: [USERS.member] });
 
       const legacy = await s.value<string>(
         "md5(coalesce($1::text, '') || ':' || 'task-2')::uuid",
@@ -620,15 +623,17 @@ describe.skipIf(!live)("notifications", () => {
         [USERS.member],
       );
 
-      const id = await notifications
+      const stored = await notifications
         .send("task.assigned", {
           tenant: organization,
-          recipients: [USERS.member],
+          recipients: [USERS.member, USERS.owner],
           subject: { type: "task", id: "t9", label: "Paint" },
           data: { title: "Paint" },
           channels: ["in_app", "email"],
         })
         .orThrow();
+      expect(stored!.recipients).toEqual([USERS.member]);
+      const id = stored!.id;
       expect(id).toMatch(/^[0-9a-f-]{36}$/);
 
       await s.as("member");

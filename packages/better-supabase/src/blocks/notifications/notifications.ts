@@ -130,6 +130,11 @@ export type AvatarUrls =
   | { readonly url: string; readonly bucket: string }
   | ((path: string) => string | null);
 
+export interface SentNotification {
+  readonly id: string;
+  readonly recipients: readonly string[];
+}
+
 export interface NotificationUpdate {
   readonly count: number;
   readonly items: readonly NotificationItem[];
@@ -230,7 +235,7 @@ export interface Notifications<K extends NotificationTypes> {
   send<N extends TypeName<K>>(
     type: N,
     input: SendInput<StandardSchemaV1.InferInput<K[N]>>,
-  ): AsyncResult<string | null>;
+  ): AsyncResult<SentNotification | null>;
   get(
     id: string,
     options?: Pick<ListOptions, "locale" | "include">,
@@ -601,20 +606,31 @@ export function createNotifications<
           watchers: input.watchers,
           exclude: input.exclude,
         };
-        const sent = await run("notify", { notification }, (value) =>
-          value === null ? null : String(value),
+        const sent = await run(
+          "send_notification",
+          { notification },
+          (value): SentNotification | null =>
+            isRecord(value) && value["id"] !== null && value["id"] !== undefined
+              ? {
+                  id: String(value["id"]),
+                  recipients: (Array.isArray(value["recipients"])
+                    ? value["recipients"]
+                    : []
+                  ).map(String),
+                }
+              : null,
         );
         if (!sent.ok || sent.data === null) return sent;
-        const recipients = input.recipients ?? [];
+        const { id, recipients } = sent.data;
         emit(
           "notification.created",
-          { notificationId: sent.data, type, recipientIds: recipients },
+          { notificationId: id, type, recipientIds: recipients },
           input.tenant ?? null,
         );
         if (options.onSent) {
           try {
             await options.onSent({
-              id: sent.data,
+              id,
               type,
               tenant: input.tenant ?? null,
               recipients,

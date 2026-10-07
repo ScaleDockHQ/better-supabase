@@ -66,9 +66,15 @@ await notifications
   .orThrow();
 ```
 
-`send` returns the notification id, or `null` when nobody was left to notify.
+`send` returns `{ id, recipients }`, the notification id and the user ids
+that hold it after the watchers, the audience hook, preferences and the read
+filter are applied, or `null` when nobody was left to notify. A composer
+can report how many people it reached from `recipients.length`, and
+`onSent` and the `notification.created` block event get the same list.
 With a `key`, sending again in the same organization returns the first id,
-so a retried request never notifies twice. `rpcTransport(supabase)` calls the
+so a retried request never notifies twice. In SQL, `send_notification(jsonb)`
+returns the same `{ "id", "recipients" }` object and `notify(jsonb)` returns
+only the id. `rpcTransport(supabase)` calls the
 same functions over the Data API instead, when the block schema is exposed.
 
 | Input          | Meaning                                                                                                                                   |

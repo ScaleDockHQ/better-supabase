@@ -486,6 +486,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const fns: ModuleContractFunction[] = [
     { name: "notify", args: ["jsonb"], returns: "uuid" },
+    { name: "send_notification", args: ["jsonb"], returns: "jsonb" },
     { name: "get_notification", args: ["uuid"], returns: "jsonb" },
     {
       name: "notification_enabled",
@@ -627,7 +628,7 @@ export const NOTIFICATIONS: ModuleDefinition = {
     {
       from: 3,
       description:
-        "list_notifications and notification_page filter on read, resolved and dismissed; mark_notifications_read, mark_notifications_unread, dismiss_notifications and resolve_notifications return the count and the caller's changed notifications; get_notification is new.",
+        "list_notifications and notification_page filter on read, resolved and dismissed; mark_notifications_read, mark_notifications_unread, dismiss_notifications and resolve_notifications return the count and the caller's changed notifications; get_notification and send_notification are new.",
       sql: (ctx) =>
         [
           `drop function if exists ${ctx.fn("list_notifications")}(${ctx.idType}, text, text[], timestamptz, integer, uuid, text[], text);`,

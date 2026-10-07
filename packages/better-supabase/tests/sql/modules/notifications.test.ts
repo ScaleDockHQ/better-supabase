@@ -184,6 +184,7 @@ describe("notifications module", () => {
     const [contract] = customContracts(["notifications"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "notify",
+      "send_notification",
       "get_notification",
       "notification_enabled",
       "list_notifications",
@@ -210,7 +211,7 @@ describe("notifications module", () => {
         },
       },
     });
-    expect(minimal!.functions).toHaveLength(10);
+    expect(minimal!.functions).toHaveLength(11);
   });
 
   it("reads one notification and returns the changed ones from each update", () => {
@@ -220,6 +221,15 @@ describe("notifications module", () => {
     );
     expect(sql).toContain(
       `where rc."id" = get_notification.id\n    and rc."user_id" = auth.uid()`,
+    );
+    expect(sql).toMatch(
+      /function "better_supabase"\."send_notification"\(notification jsonb\)\nreturns jsonb/,
+    );
+    expect(sql).toContain(
+      `return jsonb_build_object('id', v_event, 'recipients', to_jsonb(v_recipients));`,
+    );
+    expect(sql).toContain(
+      `select ("better_supabase"."send_notification"(notification) ->> 'id')::uuid`,
     );
     for (const fn of [
       "mark_notifications_read",

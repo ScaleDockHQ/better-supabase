@@ -320,8 +320,8 @@ function notify(ctx: ModuleContext, n: NotifyNames): string {
 -- member who wants it on some channel, and a delivery per enabled channel.
 -- Clients can't insert notifications; they call this, which checks the send
 -- permission and records them as the actor.
-create or replace function ${ctx.fn("notify")}(notification jsonb)
-returns uuid
+create or replace function ${ctx.fn("send_notification")}(notification jsonb)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -398,11 +398,26 @@ ${keyed}
     subject: "'notifications/' || v_event::text",
     tenant: "v_tenant",
   })}
-  return v_event;
+  return jsonb_build_object('id', v_event, 'recipients', to_jsonb(v_recipients));
 end;
 $$;
-revoke execute on function ${ctx.fn("notify")}(jsonb) from public, anon${access ? "" : ", authenticated"};
-grant execute on function ${ctx.fn("notify")}(jsonb) to ${access ? "authenticated, " : ""}service_role;`;
+
+create or replace function ${ctx.fn("notify")}(notification jsonb)
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$
+  select (${ctx.fn("send_notification")}(notification) ->> 'id')::uuid
+$$;
+${["send_notification", "notify"]
+  .map(
+    (
+      name,
+    ) => `revoke execute on function ${ctx.fn(name)}(jsonb) from public, anon${access ? "" : ", authenticated"};
+grant execute on function ${ctx.fn(name)}(jsonb) to ${access ? "authenticated, " : ""}service_role;`,
+  )
+  .join("\n")}`;
 }
 
 function inbox(ctx: ModuleContext, n: NotifyNames): string {
