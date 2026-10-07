@@ -6,7 +6,12 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { columnRef, SERVICE_CALLER, schemaPreamble } from "../shared.ts";
+import {
+  columnRef,
+  SERVICE_CALLER,
+  schemaPreamble,
+  tenantIn,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -452,7 +457,7 @@ grant select on ${e} to authenticated;
 grant all on ${e} to service_role;
 drop policy if exists "data_exports_read" on ${e};
 create policy "data_exports_read" on ${e} for select to authenticated
-  using (${ce("requestedBy")} = (select auth.uid()) or (${ce("tenant")} is not null and ${can(ce("tenant"), "export")}));
+  using (${ce("requestedBy")} = (select auth.uid()) or ${tenantIn(ce("tenant"), ctx.permission("export", permissions.export))});
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -490,9 +495,11 @@ stable
 security definer
 set search_path = ''
 as $$
+  -- Files sit under <export id>/, so the primary key finds the one export.
   select exists (
     select 1 from ${e} x
-    where x.${ce("bucket")} = ${bucket}
+    where x.${ce("id")} = case when split_part(path, '/', 1) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(path, '/', 1)::uuid end
+      and x.${ce("bucket")} = ${bucket}
       and x.${ce("status")} = 'ready'
       and (x.${ce("expiresAt")} is null or x.${ce("expiresAt")} > now())
       and path = any (x.${ce("files")})
@@ -966,9 +973,17 @@ export const DATA_LIFECYCLE: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "The storage policy for export files finds the export by the id in the file path.",
+      sql: () => "",
+    },
+  ],
   build,
   data,
 };

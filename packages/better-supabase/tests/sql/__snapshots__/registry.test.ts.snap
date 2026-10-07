@@ -62,6 +62,7 @@ grant execute on function better_supabase.has_entitlement(bigint, text) to authe
 create or replace function better_supabase.tenant_ids_with_entitlement(key text)
 returns setof bigint
 language sql
+rows 1
 stable
 security definer
 set search_path = ''
@@ -215,6 +216,7 @@ grant execute on function better_supabase.has_entitlement(integer, text) to auth
 create or replace function better_supabase.tenant_ids_with_entitlement(key text)
 returns setof integer
 language sql
+rows 1
 stable
 security definer
 set search_path = ''
@@ -368,6 +370,7 @@ grant execute on function better_supabase.has_entitlement(text, text) to authent
 create or replace function better_supabase.tenant_ids_with_entitlement(key text)
 returns setof text
 language sql
+rows 1
 stable
 security definer
 set search_path = ''
@@ -521,6 +524,7 @@ grant execute on function better_supabase.has_entitlement(uuid, text) to authent
 create or replace function better_supabase.tenant_ids_with_entitlement(key text)
 returns setof uuid
 language sql
+rows 1
 stable
 security definer
 set search_path = ''

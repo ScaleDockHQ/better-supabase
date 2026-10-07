@@ -448,6 +448,8 @@ ${service("purge_outbox", "interval, integer")}`;
 
 function tracking(ctx: ModuleContext): string {
   const trigger = ctx.trigger("outbox_events");
+  const updateTrigger = ctx.trigger("outbox_events_update");
+  const run = ctx.fn("outbox_row_event").replaceAll("%", "%%");
   return `
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
 -- row as payload. prefix defaults to the table name.
@@ -481,8 +483,14 @@ set search_path = ''
 as $$
 begin
   execute format('drop trigger if exists ${trigger.replaceAll("%", "%%")} on %s', target);
+  execute format('drop trigger if exists ${updateTrigger.replaceAll("%", "%%")} on %s', target);
   execute format(
-    'create trigger ${trigger.replaceAll("%", "%%")} after insert or update or delete on %s for each row execute function ${ctx.fn("outbox_row_event").replaceAll("%", "%%")}(%L, %L)',
+    'create trigger ${trigger.replaceAll("%", "%%")} after insert or delete on %s for each row execute function ${run}(%L, %L)',
+    target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
+  );
+  -- jsonb, not the row: a row comparison fails on columns without equality (json).
+  execute format(
+    'create trigger ${updateTrigger.replaceAll("%", "%%")} after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function ${run}(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
 end;
@@ -509,8 +517,16 @@ export const OUTBOX: ModuleDefinition = {
   requires: [],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "track_events adds an update trigger that skips updates that change nothing; call it again for tables it already tracks.",
+      sql: () => "",
+    },
+  ],
   contract: () => [
     {
       name: "emit_event",

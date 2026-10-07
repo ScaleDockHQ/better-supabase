@@ -6,7 +6,12 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import {
+  quotedTable,
+  schemaPreamble,
+  SERVICE_CALLER,
+  tenantIn,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -140,12 +145,7 @@ const isMeterTable = (
   value: Readonly<Record<string, UsageMeter>> | MeterTable,
 ): value is MeterTable => "table" in value && typeof value.table === "string";
 
-const qualifiedTable = (table: string): string => {
-  const [schema, name] = table.includes(".")
-    ? table.split(".", 2)
-    : ["public", table];
-  return `${sqlIdent(schema!)}.${sqlIdent(name!)}`;
-};
+const qualifiedTable = (table: string): string => quotedTable(table);
 
 /**
  * `options.meters`: the meter catalog, inline or `{ table }` for one the app
@@ -206,8 +206,15 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const permissions = MODULE_PERMISSIONS.usage;
   const canRead = (tenant: string): string =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission("read", permissions.read)}), false))`;
+  const readPolicy = (tenant: string): string =>
+    tenantIn(tenant, ctx.permission("read", permissions.read));
   const member = (tenant: string): string =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.has_organization_role(${tenant}), false))`;
+  const canRecord = (tenant: string): string =>
+    `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission("record", permissions.record)}), false))`;
+  // used is the quota period's usage, as usage_status reports it; today the UTC day's.
+  const outcome = (recorded: "true" | "false"): string =>
+    `jsonb_build_object('recorded', ${recorded}, 'used', ${fn("usage_used")}(tenant, meter, coalesce((select q.period from ${fn("usage_quota")}(tenant, meter) q), 'month')), 'today', ${fn("usage_used")}(tenant, meter, 'day'))`;
   // Plan quotas apply to tenants with that entitlement key, to tenants on that
   // plan key when entitlements read a plan catalog, or to every tenant with
   // plan '*'.
@@ -272,7 +279,7 @@ grant select on ${counters} to authenticated;
 grant all on ${counters} to service_role;
 drop policy if exists "usage_counters_read" on ${counters};
 create policy "usage_counters_read" on ${counters} for select to authenticated
-  using (${canRead(cc("tenant"))});
+  using (${readPolicy(cc("tenant"))});
 
 -- One row per idempotency key, so a retried increment counts once.
 create table if not exists ${events} (
@@ -306,7 +313,7 @@ grant select on ${history} to authenticated;
 grant all on ${history} to service_role;
 drop policy if exists "usage_history_read" on ${history};
 create policy "usage_history_read" on ${history} for select to authenticated
-  using (${canRead(hc("tenant"))});
+  using (${readPolicy(hc("tenant"))});
 `
     : ""
 }
@@ -338,7 +345,7 @@ grant select on ${quotas} to authenticated;
 grant all on ${quotas} to service_role;
 drop policy if exists "usage_quotas_read" on ${quotas};
 create policy "usage_quotas_read" on ${quotas} for select to authenticated
-  using (${qc("tenant")} is null or ${canRead(qc("tenant"))});
+  using (${qc("tenant")} is null or ${readPolicy(qc("tenant"))});
 
 -- The bigint signatures and return types before quantities were numeric.
 drop function if exists ${fn("usage_quota")}(${id}, text);
@@ -509,8 +516,9 @@ begin
 end;
 $$;
 
--- Adds quantity once per idempotency key. Returns { recorded, used }:
--- recorded is false for a key seen before. With options.history, also keeps
+-- Adds quantity once per idempotency key, for usage.record or the service
+-- role. Returns { recorded, used, today }: recorded is false for a key seen
+-- before, used is the usage in the quota's period and today the UTC day's. With options.history, also keeps
 -- who (the caller, or actor for the service role) and what (source,
 -- metadata) used it.
 create or replace function ${fn("record_usage")}(
@@ -531,7 +539,7 @@ as $$
 declare
   today date := (now() at time zone 'utc')::date;
 begin
-  if not ${member("tenant")} then
+  if not ${canRecord("tenant")} then
     raise exception 'Not allowed to record usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   if quantity is null or quantity < 0 then
@@ -542,7 +550,7 @@ begin
     values (tenant, meter, idempotency_key, quantity)
     on conflict do nothing;
     if not found then
-      return jsonb_build_object('recorded', false, 'used', ${fn("usage_used")}(tenant, meter, 'day'));
+      return ${outcome("false")};
     end if;
   end if;
   insert into ${counters} as c (${cc("tenant")}, ${cc("meter")}, ${cc("day")}, ${cc("value")})
@@ -557,7 +565,7 @@ begin
     record_usage.source, coalesce(record_usage.metadata, '{}'));`
         : ""
     }
-  return jsonb_build_object('recorded', true, 'used', ${fn("usage_used")}(tenant, meter, 'day'));
+  return ${outcome("true")};
 end;
 $$;
 
@@ -585,7 +593,7 @@ declare
   used numeric;
   win record;
 begin
-  if not ${member("tenant")} then
+  if not ${canRecord("tenant")} then
     raise exception 'Not allowed to record usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;${meterCheck}
   insert into ${counters} (${cc("tenant")}, ${cc("meter")}, ${cc("day")})
@@ -598,7 +606,7 @@ begin
     select 1 from ${events} e
     where e.${ec("tenant")} = consume_quota.tenant and e.${ec("meter")} = consume_quota.meter and e.${ec("key")} = consume_quota.idempotency_key
   ) then
-    return jsonb_build_object('recorded', false, 'used', ${fn("usage_used")}(tenant, meter, 'day'));
+    return ${outcome("false")};
   end if;
   select * into quota from ${fn("usage_quota")}(tenant, meter);
   if quota.quota_limit is not null then
@@ -623,7 +631,7 @@ $$;
 -- Records several meters at once, all or none: entries is [{ meter, quantity }],
 -- each checked against its quota first when check is true (a quota_exceeded
 -- on one records nothing). idempotency_key is per batch. Returns { recorded,
--- used: { meter: today's usage } }.
+-- used: { meter: usage in its quota period }, today: { meter: today's usage } }.
 create or replace function ${fn("record_usage_batch")}(
   tenant ${id},
   entries jsonb,
@@ -643,6 +651,7 @@ declare
   outcome jsonb;
   recorded boolean := false;
   used jsonb := '{}';
+  today_used jsonb := '{}';
 begin
   -- A JSON text of the array, as a transport that sends arrays as text passes it.
   if jsonb_typeof(entries) = 'string' then
@@ -666,8 +675,9 @@ begin
     end if;
     recorded := recorded or (outcome ->> 'recorded')::boolean;
     used := used || jsonb_build_object(entry ->> 'meter', outcome -> 'used');
+    today_used := today_used || jsonb_build_object(entry ->> 'meter', outcome -> 'today');
   end loop;
-  return jsonb_build_object('recorded', recorded, 'used', used);
+  return jsonb_build_object('recorded', recorded, 'used', used, 'today', today_used);
 end;
 $$;
 
@@ -837,12 +847,35 @@ end;`
 }
 $$;
 
+-- Deletes up to batch idempotency keys older than older_than; returns how
+-- many. A retry with a purged key counts again, so keep them longer than
+-- any client retries.
+create or replace function ${fn("purge_usage_events")}(older_than interval default '30 days', batch integer default 10000)
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  with gone as (
+    delete from ${events} x
+    where (x.${ec("tenant")}, x.${ec("meter")}, x.${ec("key")}) in (
+      select e.${ec("tenant")}, e.${ec("meter")}, e.${ec("key")} from ${events} e
+      where e.${ec("recordedAt")} < now() - coalesce(older_than, '30 days')
+      order by e.${ec("recordedAt")} limit coalesce(batch, 10000)
+    )
+    returning 1
+  )
+  select count(*)::integer from gone
+$$;
+
 revoke execute on function ${fn("usage_history")}(${id}, text, integer, bigint) from public, anon;
 revoke execute on function ${fn("usage_breakdown")}(${id}, text) from public, anon;
 revoke execute on function ${fn("purge_usage_history")}(interval, integer) from public, anon, authenticated;
 grant execute on function ${fn("usage_history")}(${id}, text, integer, bigint) to authenticated, service_role;
 grant execute on function ${fn("usage_breakdown")}(${id}, text) to authenticated, service_role;
 grant execute on function ${fn("purge_usage_history")}(interval, integer) to service_role;
+revoke execute on function ${fn("purge_usage_events")}(interval, integer) from public, anon, authenticated;
+grant execute on function ${fn("purge_usage_events")}(interval, integer) to service_role;
 revoke execute on function ${fn("usage_window")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_meters")}() from public;
 grant execute on function ${fn("usage_window")}(${id}, text) to service_role;
@@ -922,7 +955,7 @@ export const USAGE: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -941,6 +974,12 @@ export const USAGE: ModuleDefinition = {
         "unreported_usage takes skip_meters and skip_tenants, so reportUsageToStripe passes over counters it can't send instead of stopping at them.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("unreported_usage")}(integer);`,
+    },
+    {
+      from: 3,
+      description:
+        "Recording usage needs usage.record (or the service role) instead of any membership, record_usage returns used for the quota's period and today for the UTC day, and purge_usage_events deletes old idempotency keys.",
+      sql: () => "",
     },
   ],
   names: NAMES,

@@ -15,6 +15,6 @@ delete from better_supabase.audited_tables a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);
 
 insert into better_supabase.modules (name, version, mode)
-values ('audit', 3, 'managed')
+values ('audit', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

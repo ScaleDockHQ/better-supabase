@@ -131,8 +131,9 @@ describe("audit module", () => {
     });
     expect(sql).toContain(`to_regprocedure('"app"."plan_audit_days"(uuid)')`);
     expect(sql).toContain(
-      `to_regprocedure('"app"."plan_audit_days"(uuid)')::oid::regproc\n    ) into purged using older_than, batch;`,
+      `to_regprocedure('"app"."plan_audit_days"(uuid)')::oid::regproc)\n        into v_older using v_tenant;`,
     );
+    expect(sql).toContain("limit batch - purged");
     expect(sql).not.toMatch(/"app"\."plan_audit_days"\(l\./);
   });
 

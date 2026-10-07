@@ -245,12 +245,22 @@ describe.skipIf(!live)("flags", () => {
           organization,
         ]),
       ).toBe(false);
+      expect(
+        await s.value(
+          "array(select better_supabase.tenant_ids_with_flag('dark_mode'))",
+        ),
+      ).toContain(organization);
       await s.asRole(member);
       expect(
         await s.value("better_supabase.flag_enabled('dark_mode', $1)", [
           organization,
         ]),
       ).toBe(false);
+      expect(
+        await s.value(
+          "array(select better_supabase.tenant_ids_with_flag('dark_mode'))",
+        ),
+      ).not.toContain(organization);
       expect(await s.hint("select better_supabase.flag_definitions()")).toMatch(
         /permission denied/,
       );

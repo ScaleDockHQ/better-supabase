@@ -72,7 +72,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not exists (select 1 from pgmq.list_queues() q where q.queue_name = queue) then
+  if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
     perform pgmq.create(queue);
     perform better_supabase.index_job_queue(queue);
   end if;
@@ -364,6 +364,12 @@ create unique index if not exists job_messages_dedupe_idx
   on better_supabase.job_messages (queue, dedupe_key) where archived_at is null and dedupe_key is not null;
 create index if not exists job_messages_archived_idx
   on better_supabase.job_messages (queue, archived_at) where archived_at is not null;
+-- The message's attempt limit as a column, so claims find messages whose
+-- lease ran out on the last attempt through an index.
+alter table better_supabase.job_messages add column if not exists max_attempts integer
+  generated always as (coalesce((message ->> 'max_attempts')::integer, 5)) stored;
+create index if not exists job_messages_exhausted_idx
+  on better_supabase.job_messages (queue, visible_at) where archived_at is null and attempts >= max_attempts;
 alter table better_supabase.job_messages enable row level security;
 revoke all on better_supabase.job_messages from anon, authenticated;
 
@@ -413,6 +419,10 @@ security definer
 set search_path = ''
 as $$
 #variable_conflict use_column
+declare
+  -- A variable, not clock_timestamp() in the where clause, so visible_at is
+  -- an index condition.
+  v_now timestamptz := clock_timestamp();
 begin
   -- A visible message at max_attempts lost its worker on the last attempt
   -- (fail_job archives it otherwise).
@@ -420,20 +430,20 @@ begin
   set message = m.message || jsonb_build_object('last_error', 'The lease ran out on the last attempt', 'dead', true),
       dead = true,
       archived_at = now()
-  where m.queue = claim_jobs.queue and m.archived_at is null and m.visible_at <= clock_timestamp()
-    and m.attempts >= coalesce((m.message ->> 'max_attempts')::integer, 5);
+  where m.queue = claim_jobs.queue and m.archived_at is null and m.visible_at <= v_now
+    and m.attempts >= m.max_attempts;
   return query
     with picked as (
       select m.id
       from better_supabase.job_messages m
-      where m.queue = claim_jobs.queue and m.archived_at is null and m.visible_at <= clock_timestamp()
+      where m.queue = claim_jobs.queue and m.archived_at is null and m.visible_at <= v_now
       order by m.visible_at, m.id
       limit greatest(batch, 1)
       for update skip locked
     )
     update better_supabase.job_messages m
     set attempts = m.attempts + 1,
-        visible_at = clock_timestamp() + make_interval(secs => lease)
+        visible_at = v_now + make_interval(secs => lease)
     from picked
     where m.id = picked.id
     returning m.id, m.attempts, m.enqueued_at, m.visible_at, m.message;
@@ -532,6 +542,7 @@ as $$
     where id in (
       select m.id from better_supabase.job_messages m
       where m.queue = purge_job_archive.queue
+        and m.archived_at < now() - least(older_than, dead_older_than)
         and m.archived_at < now() - case when m.dead then dead_older_than else older_than end
       order by m.id
       limit batch
@@ -945,7 +956,7 @@ export const JOBS: ModuleDefinition = {
     "Typed jobs on Supabase Queues (pgmq) or a plain table (modules.jobs.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.",
   requires: [],
   target: "schema",
-  version: 5,
+  version: 6,
   names: { tables: {}, options: ["backend", "scheduler"] },
   data: (ctx) =>
     jobsBackend(ctx) === "pgmq"
@@ -979,6 +990,12 @@ export const JOBS: ModuleDefinition = {
         "A schedule written in SQL without a next run gets its first run from the drain; claim_due_schedules returns first_after.",
       sql: () =>
         "drop function if exists better_supabase.claim_due_schedules(integer, integer);",
+    },
+    {
+      from: 5,
+      description:
+        "The table backend stores max_attempts as a generated column with an index for lost leases, and claims compare visible_at with one timestamp.",
+      sql: () => "",
     },
   ],
   build: jobsSql,

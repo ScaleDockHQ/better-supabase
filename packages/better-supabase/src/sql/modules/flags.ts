@@ -145,8 +145,11 @@ begin
   if chosen is not null then
     reason := 'TARGETING_MATCH';
   else
-    if tenant is not null then
+    -- The role and plan lookups run only for flags with rules that read them.
+    if tenant is not null and flag.${f("rules")} @? '$[*].roles' then
       role := better_supabase.organization_member_role(tenant, member);
+    end if;
+    if tenant is not null and flag.${f("rules")} @? '$[*].plans' then
       tenant_plans := ${plans};
     end if;
     for rule in select * from jsonb_array_elements(flag.${f("rules")}) loop
@@ -174,7 +177,7 @@ begin
 end;
 $$;
 
--- For policies:
+-- For policies on one row (tenant_ids_with_flag is the form for many rows):
 --   using (better_supabase.flag_enabled('new_editor', organization_id))
 create or replace function ${fn("flag_enabled")}(key text, tenant ${id} default null)
 returns boolean
@@ -184,6 +187,20 @@ security definer
 set search_path = ''
 as $$
   select coalesce((${fn("flag_evaluation")}(key, tenant) -> 'value') = 'true'::jsonb, false)
+$$;
+
+-- The caller's tenants where key is on. In a policy this evaluates the flag
+-- once per tenant instead of once per row:
+--   using (organization_id in (select better_supabase.tenant_ids_with_flag('new_editor')))
+create or replace function ${fn("tenant_ids_with_flag")}(key text)
+returns setof ${id}
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select t.id from better_supabase.member_organization_ids() as t(id)
+  where ${fn("flag_enabled")}(tenant_ids_with_flag.key, t.id)
 $$;
 
 -- Every flag with its overrides, for the TypeScript provider's cache.
@@ -317,6 +334,8 @@ grant execute on function ${fn("set_flag_override")}(text, text, ${id}, uuid) to
 revoke execute on function ${fn("flag_evaluation")}(text, ${id}, uuid) from public, anon, authenticated;
 revoke execute on function ${fn("flag_enabled")}(text, ${id}) from public, anon;
 revoke execute on function ${fn("flag_definitions")}() from public, anon, authenticated;
+revoke execute on function ${fn("tenant_ids_with_flag")}(text) from public, anon;
+grant execute on function ${fn("tenant_ids_with_flag")}(text) to authenticated, service_role;
 grant execute on function ${fn("flag_bucket")}(text, text) to anon, authenticated, service_role;
 grant execute on function ${fn("flag_evaluation")}(text, ${id}, uuid) to service_role;
 grant execute on function ${fn("flag_enabled")}(text, ${id}) to authenticated, service_role;
@@ -333,6 +352,7 @@ function contract(): readonly ModuleContractFunction[] {
     },
     { name: "flag_enabled", args: ["text", "{id}"], returns: "boolean" },
     { name: "flag_definitions", args: [], returns: "jsonb" },
+    { name: "tenant_ids_with_flag", args: ["text"], returns: "{id}" },
     { name: "list_flags", args: [], returns: "jsonb" },
     { name: "save_flag", args: ["text", "jsonb"], returns: "jsonb" },
     { name: "delete_flag", args: ["text"], returns: "boolean" },
@@ -352,8 +372,16 @@ export const FLAGS: ModuleDefinition = {
   requires: ["tenant"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "tenant_ids_with_flag() lists the caller's tenants where a flag is on, for policies; flag_evaluation looks up the role and plans only when a rule reads them.",
+      sql: () => "",
+    },
+  ],
   build,
 };

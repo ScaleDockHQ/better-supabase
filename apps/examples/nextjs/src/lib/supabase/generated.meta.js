@@ -30,6 +30,6 @@ export default {
     "customerLogos": {"id":"customer-logos","public":true,"path":"{organizationId}/{customerId}/logo/{version}.webp","policy":"tenant","fileSizeLimit":"5MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp"]}
   },
   "realtime": {
-    "notifications": {"tenant":"organizationId"}
+    "notifications": {"user":"userId"}
   }
 };

@@ -91,6 +91,15 @@ create policy "drafts_insert" on public.drafts for insert to authenticated
   with check (better_supabase.flag_enabled('new_editor', organization_id));
 ```
 
+`flag_enabled` evaluates the flag for each row it checks. For a policy that
+reads many rows, `tenant_ids_with_flag(key)` returns the caller's tenants
+where the flag is on, and Postgres evaluates it once per statement:
+
+```sql
+create policy "drafts_read" on public.drafts for select to authenticated
+  using (organization_id in (select better_supabase.tenant_ids_with_flag('new_editor')));
+```
+
 `flag_evaluation(key, tenant, user)` returns `{ value, variant, reason }` for
 any flag type, or null for an unknown flag. It is granted to the service role.
 

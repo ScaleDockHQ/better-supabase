@@ -6,7 +6,7 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -177,7 +177,7 @@ drop policy if exists "onboarding_progress_read" on ${p};
 create policy "onboarding_progress_read" on ${p} for select to authenticated
   using (
     ${c("user")} = (select auth.uid())
-    or (${c("tenant")} is not null and ${can(c("tenant"), "read")})
+    or ${tenantIn(c("tenant"), ctx.permission("read", permissions.read))}
   );
 
 -- [{ step, completedAt, completedBy }] of one checklist for the caller, or

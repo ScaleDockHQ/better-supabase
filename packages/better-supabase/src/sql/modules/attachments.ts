@@ -6,7 +6,12 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, schemaPreamble } from "../shared.ts";
+import {
+  ensureCheck,
+  SERVICE_CALLER,
+  schemaPreamble,
+  tenantIn,
+} from "../shared.ts";
 import {
   type Subject,
   subjectCascades,
@@ -207,6 +212,20 @@ function build(ctx: ModuleContext): string {
     tenantless.length === 0
       ? can(tenant, action)
       : `(${tenant} is null or ${can(tenant, action)})`;
+  // The policy form of inTenant: the tenant_ids_with set runs once per
+  // statement instead of can() once per row.
+  const memberIn = (
+    tenant: string,
+    action: keyof typeof permissions,
+  ): string => {
+    const member = tenantIn(
+      tenant,
+      ctx.permission(action, permissions[action]),
+    );
+    return tenantless.length === 0
+      ? member
+      : `(${tenant} is null or ${member})`;
+  };
   const perSubject = subjectBuckets(subjects, bucket);
   const buckets = [
     ...new Set([bucket, ...perSubject.map((entry) => entry.bucket)]),
@@ -232,10 +251,12 @@ function build(ctx: ModuleContext): string {
   ];
   const mimeCheck =
     mimeRules.length === 0
-      ? ""
-      : `\nalter table ${t} add constraint bs_attachments_mime_type check (${mimeRules
-          .map((rule) => `(${rule})`)
-          .join(" and ")});`;
+      ? `alter table ${t} drop constraint if exists bs_attachments_mime_type;`
+      : ensureCheck(
+          t,
+          "bs_attachments_mime_type",
+          mimeRules.map((rule) => `(${rule})`).join(" and "),
+        );
   const subjectReadableSql = subjectReadable(subjects, {
     type: "subject_type",
     id: "subject_id",
@@ -325,16 +346,13 @@ ${
   tenantless.length === 0
     ? ""
     : `alter table ${t} alter column ${c("tenant")} drop not null;
-alter table ${t} drop constraint if exists bs_attachments_tenant;
-alter table ${t} add constraint bs_attachments_tenant check (${c("tenant")} is not null or coalesce(${c("subjectType")} in (${tenantless.map(sqlString).join(", ")}), false));
+${ensureCheck(t, "bs_attachments_tenant", `${c("tenant")} is not null or coalesce(${c("subjectType")} in (${tenantless.map(sqlString).join(", ")}), false)`)}
 `
 }comment on column ${t}.${c("path")} is ${sqlString(pathComment)};
 alter table ${t} alter column ${c("bucket")} set default ${bucketLiteral};
-alter table ${t} drop constraint if exists bs_attachments_bucket;
-alter table ${t} add constraint bs_attachments_bucket check (${c("bucket")} in (${bucketList})) not valid;
-alter table ${t} drop constraint if exists bs_attachments_size;
-alter table ${t} add constraint bs_attachments_size check (${c("size")} between 0 and ${String(maxSize)});
-alter table ${t} drop constraint if exists bs_attachments_mime_type;${mimeCheck}
+${ensureCheck(t, "bs_attachments_bucket", `${c("bucket")} in (${bucketList})`, { notValid: true })}
+${ensureCheck(t, "bs_attachments_size", `${c("size")} between 0 and ${String(maxSize)}`)}
+${mimeCheck}
 create unique index if not exists attachments_object_idx on ${t} (${c("bucket")}, ${c("path")});
 create index if not exists attachments_subject_idx on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
 create index if not exists attachments_uploaded_by_idx on ${t} (${c("uploadedBy")});
@@ -360,7 +378,7 @@ grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}
 
 drop policy if exists "attachments_read" on ${t};
 create policy "attachments_read" on ${t} for select to authenticated
-  using (${inTenant(c("tenant"), "read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
+  using (${memberIn(c("tenant"), "read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")}));
 drop policy if exists "attachments_insert" on ${t};
 create policy "attachments_insert" on ${t} for insert to authenticated
   with check (
@@ -370,7 +388,7 @@ create policy "attachments_insert" on ${t} for insert to authenticated
   );
 drop policy if exists "attachments_delete" on ${t};
 create policy "attachments_delete" on ${t} for delete to authenticated
-  using (${c("uploadedBy")} = (select auth.uid()) or ${can(c("tenant"), "manage")});
+  using (${c("uploadedBy")} = (select auth.uid()) or ${tenantIn(c("tenant"), ctx.permission("manage", permissions.manage))});
 
 -- Whether the caller may run action (insert, select or delete) on the
 -- object at path in bucket: an upload needs the caller's pending record, a

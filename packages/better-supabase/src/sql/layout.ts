@@ -28,6 +28,7 @@ export function moduleLayout(
     readSets,
     realtimeTables: config.realtime.tables,
     realtimeGlobal: config.realtime.global,
+    realtimeUsers: config.realtime.users,
     entitlements: config.entitlements,
     claims: config.claims,
     modules: config.sql.modules,

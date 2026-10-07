@@ -81,6 +81,18 @@ describe("liveTopic", () => {
     );
   });
 
+  it("scopes realtime.users tables per user and requires the user", () => {
+    const meta = {
+      ...betterSupabase.meta,
+      realtime: {
+        ...betterSupabase.meta.realtime,
+        notes: { user: "authorId" },
+      },
+    };
+    expect(liveTopic(meta, "notes", "o1", "u1")).toBe("bs:t:public.notes:u:u1");
+    expect(() => liveTopic(meta, "notes", "o1")).toThrow(/pass `user`/);
+  });
+
   it("rejects an unknown table", () => {
     expect(() => liveTopic(betterSupabase.meta, "nope")).toThrow(
       /unknown table "nope"/,

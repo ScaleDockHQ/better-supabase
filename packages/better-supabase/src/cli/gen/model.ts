@@ -722,7 +722,13 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       : {}),
     ...(Object.keys(config.topics).length > 0 ? { topics: config.topics } : {}),
     ...(config.realtime.tables.length > 0
-      ? { realtime: realtimeMeta(config.realtime.tables, tableModels) }
+      ? {
+          realtime: realtimeMeta(
+            config.realtime.tables,
+            config.realtime.users,
+            tableModels,
+          ),
+        }
       : {}),
     ...(Object.keys(claimOverrides).length > 0
       ? { claims: claimOverrides }
@@ -852,6 +858,7 @@ function dedupeRelations(
 
 function realtimeMeta(
   names: readonly string[],
+  users: Readonly<Record<string, string>>,
   tables: readonly TableModel[],
 ): Record<string, RealtimeTableMeta> {
   const out: Record<string, RealtimeTableMeta> = {};
@@ -865,6 +872,17 @@ function realtimeMeta(
       throw new Error(
         `realtime.tables: unknown table "${name}". Check the name and \`schemas\`.`,
       );
+    }
+    const owner = users[name];
+    if (owner !== undefined) {
+      const user = Object.entries(table.meta.columns).find(
+        ([, column]) => column.db === owner,
+      )?.[0];
+      if (user === undefined) {
+        throw new Error(`realtime.users: "${name}" has no column "${owner}".`);
+      }
+      out[table.key] = { user };
+      continue;
     }
     const tenant = table.meta.flags.tenant;
     out[table.key] = tenant ? { tenant } : {};

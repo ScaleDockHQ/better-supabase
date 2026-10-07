@@ -22,6 +22,7 @@ $$;
 create or replace function better_supabase.member_organization_ids(roles text[] default null)
 returns setof uuid
 language sql
+rows 1
 stable
 security definer
 set search_path = ''
@@ -109,6 +110,7 @@ $$;
 create or replace function better_supabase.tenant_ids_with(permission text)
 returns setof uuid
 language sql
+rows 1
 stable
 security definer
 set search_path = ''

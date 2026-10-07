@@ -9,8 +9,10 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addForeignKey,
   columnRef,
+  quotedTable,
   schemaPreamble,
   SERVICE_CALLER,
+  tenantIn,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { type PlanLookup, platformLists } from "./billing-platform.ts";
@@ -89,12 +91,7 @@ function plansOf(ctx: ModuleContext): PlanCatalog | undefined {
   };
 }
 
-const qualified = (table: string): string => {
-  const [schema, name] = table.includes(".")
-    ? table.split(".", 2)
-    : ["public", table];
-  return `${sqlIdent(schema!)}.${sqlIdent(name!)}`;
-};
+const qualified = (table: string): string => quotedTable(table);
 
 const platformPlans = (
   plans: PlanCatalog | undefined,
@@ -213,7 +210,7 @@ grant select on ${t} to authenticated;
 grant all on ${t} to service_role;
 ${tenantKey}drop policy if exists "billing_customers_read" on ${t};
 create policy "billing_customers_read" on ${t} for select to authenticated
-  using (${can(c("tenant"), "read")});
+  using (${tenantIn(c("tenant"), ctx.permission("read", permissions.read))});
 
 create or replace function ${fn("billing_customer")}(tenant ${id})
 returns text

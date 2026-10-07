@@ -10,6 +10,7 @@ import {
   type JsonSchemaCheck,
   jsonSchemaChecks,
   schemaPreamble,
+  tenantIn,
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
@@ -215,6 +216,8 @@ function build(ctx: ModuleContext): string {
   const permissions = MODULE_PERMISSIONS.settings;
   const can = (tenant: string, action: "read" | "update"): string =>
     `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`;
+  const member = (tenant: string, action: "read" | "update"): string =>
+    tenantIn(tenant, ctx.permission(action, permissions[action]));
   const KEY = `check (key ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$')`;
   const p = ctx.table("platform");
   const pc = (logical: string): string => ctx.col("platform", logical);
@@ -292,17 +295,17 @@ grant select, insert, update, delete on ${o} to authenticated;
 grant all on ${o} to service_role;
 drop policy if exists "organization_settings_read" on ${o};
 create policy "organization_settings_read" on ${o} for select to authenticated
-  using (${can(oc("tenant"), "read")});
+  using (${member(oc("tenant"), "read")});
 drop policy if exists "organization_settings_insert" on ${o};
 create policy "organization_settings_insert" on ${o} for insert to authenticated
   with check (${can(oc("tenant"), "update")});
 drop policy if exists "organization_settings_update" on ${o};
 create policy "organization_settings_update" on ${o} for update to authenticated
-  using (${can(oc("tenant"), "update")})
-  with check (${can(oc("tenant"), "update")});
+  using (${member(oc("tenant"), "update")})
+  with check (${member(oc("tenant"), "update")});
 drop policy if exists "organization_settings_delete" on ${o};
 create policy "organization_settings_delete" on ${o} for delete to authenticated
-  using (${can(oc("tenant"), "update")});
+  using (${member(oc("tenant"), "update")});
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission

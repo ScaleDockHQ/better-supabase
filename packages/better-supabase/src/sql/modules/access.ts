@@ -6,6 +6,7 @@ import {
   addForeignKey,
   disabledHelpers,
   disabledHelpersNeedLaterTables,
+  ensureCheck,
   schemaPreamble,
 } from "../shared.ts";
 import {
@@ -157,8 +158,7 @@ create table if not exists ${ctx.table("roles")} (
 );
 -- A tenant role goes in memberships, a platform role in platform assignments.
 alter table ${ctx.table("roles")} add column if not exists ${ctx.col("roles", "scope")} text not null default 'tenant';
-alter table ${ctx.table("roles")} drop constraint if exists roles_scope_check;
-alter table ${ctx.table("roles")} add constraint roles_scope_check check (${ctx.col("roles", "scope")} in ('tenant', 'platform'));
+${ensureCheck(ctx.table("roles"), "roles_scope_check", `${ctx.col("roles", "scope")} in ('tenant', 'platform')`)}
 create table if not exists ${ctx.table("permissions")} (
   ${ctx.col("permissions", "id")} uuid primary key default gen_random_uuid(),
   ${ctx.col("permissions", "key")} text not null unique
@@ -328,6 +328,7 @@ $$;
 create or replace function better_supabase.tenant_ids_with(permission text)
 returns setof ${id}
 language sql
+rows 1
 stable
 security definer
 set search_path = ''
@@ -612,6 +613,7 @@ $$;${assignFor}
 create or replace function better_supabase.tenant_ids_with(permission text)
 returns setof ${id}
 language sql
+rows 1
 stable
 security definer
 set search_path = ''
@@ -703,6 +705,7 @@ $$;
 create or replace function better_supabase.tenant_ids_with(permission text)
 returns setof ${id}
 language sql
+rows 1
 stable
 security definer
 set search_path = ''
@@ -777,9 +780,11 @@ $$;
 ${body}
 
 -- The access contract. Policies and SQL modules call these, never a model's
--- tables, so the model can change without touching them:
---   using ((select better_supabase.can('${tenantScope(ctx)}', organization_id, 'invoices.read')))
+-- tables, so the model can change without touching them. In a policy, use
+-- the set, which runs once per statement and can use the tenant index:
 --   using (organization_id in (select better_supabase.tenant_ids_with('invoices.read')))
+-- can() with a column argument runs once per row, even inside (select ...);
+-- keep it for checks on one row and inside functions.
 create or replace function better_supabase.can(scope text, scope_id ${id}, permission text)
 returns boolean
 language sql

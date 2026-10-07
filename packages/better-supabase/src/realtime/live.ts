@@ -22,6 +22,8 @@ export interface LiveQueryOptions {
   readonly onChange: (tables: readonly string[]) => void;
   /** Tenant value for tables scoped by a tenant column (`realtime-tables` topics). */
   readonly tenant?: string;
+  /** The signed-in user's id, for tables that broadcast per user (`realtime.users`). */
+  readonly user?: string;
   /** Waits this long after the last change before calling `onChange`. Defaults to 100 ms. */
   readonly debounceMs?: number;
   readonly onStatus?: (status: SubscriptionStatus, error?: Error) => void;
@@ -46,15 +48,28 @@ export interface LiveCountSeed<T extends string = string> {
   readonly count: number | null;
 }
 
-/** Topic a `realtime-tables` trigger broadcasts on: `bs:t:<schema>.<table>[:<tenant>]`. */
+/**
+ * Topic a `realtime-tables` trigger broadcasts on:
+ * `bs:t:<schema>.<table>[:<tenant>]`, or `bs:t:<schema>.<table>:u:<user>`
+ * for a `realtime.users` table.
+ */
 export function liveTopic(
   meta: SchemaMeta,
   table: string,
   tenant?: string,
+  user?: string,
 ): string {
   const found = meta.tables[table];
   if (!found) throw new TypeError(`better-supabase: unknown table "${table}"`);
   const base = `bs:t:${found.schema}.${found.name}`;
+  if (meta.realtime?.[table]?.user) {
+    if (user === undefined) {
+      throw new TypeError(
+        `better-supabase: "${table}" broadcasts per user; pass \`user\` to watch it`,
+      );
+    }
+    return `${base}:u:${user}`;
+  }
   if (!meta.realtime?.[table]?.tenant) return base;
   if (tenant === undefined) {
     throw new TypeError(
@@ -186,11 +201,15 @@ export function liveQuery(
   };
 
   const memberships = tables.map((table) =>
-    join(client, liveTopic(betterSupabase.meta, table, options.tenant), () => {
-      changed.add(table);
-      if (timer !== undefined) clearTimeout(timer);
-      timer = setTimeout(flush, debounceMs);
-    }),
+    join(
+      client,
+      liveTopic(betterSupabase.meta, table, options.tenant, options.user),
+      () => {
+        changed.add(table);
+        if (timer !== undefined) clearTimeout(timer);
+        timer = setTimeout(flush, debounceMs);
+      },
+    ),
   );
 
   options.onStatus?.(tables.length === 0 ? "closed" : "joining");
@@ -270,6 +289,7 @@ export function liveCount(
   const live = liveQuery(betterSupabase, client, spec, {
     onChange: refetch,
     ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
+    ...(options.user === undefined ? {} : { user: options.user }),
     ...(options.debounceMs === undefined
       ? {}
       : { debounceMs: options.debounceMs }),

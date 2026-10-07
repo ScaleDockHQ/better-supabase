@@ -338,6 +338,13 @@ export interface RealtimeConfig {
    */
   readonly global?: readonly string[];
   /**
+   * Tables in `tables` whose rows belong to one user: table to its user
+   * column (`{ notifications: "user_id" }`). They broadcast on a topic per
+   * user, `bs:t:<schema>.<table>:u:<user id>`, which only that user
+   * receives, instead of the tenant's topic.
+   */
+  readonly users?: Readonly<Record<string, string>>;
+  /**
    * Writes the `realtime.messages` policies of the topics that `from`
    * exports (`defineTopic`) to `output`, a file in `supabase/schemas`, on
    * `better-supabase sql sync`; `sql sync --check` fails when it is stale.
@@ -881,6 +888,7 @@ export function resolveConfig(
     realtime: {
       tables: config.realtime?.tables ?? [],
       global: config.realtime?.global ?? [],
+      users: config.realtime?.users ?? {},
       ...(config.realtime?.policies === undefined
         ? {}
         : { policies: config.realtime.policies }),

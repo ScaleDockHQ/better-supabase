@@ -13,10 +13,13 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  new := jsonb_populate_record(
-    new,
-    jsonb_build_object(coalesce(tg_argv[0], 'updated_at'), now())
-  );
+  -- The default column is assigned directly; jsonb_populate_record copies the
+  -- whole row, so it only serves other column names.
+  if tg_nargs = 0 or tg_argv[0] = 'updated_at' then
+    new.updated_at := now();
+  else
+    new := jsonb_populate_record(new, jsonb_build_object(tg_argv[0], now()));
+  end if;
   return new;
 end;
 $$;

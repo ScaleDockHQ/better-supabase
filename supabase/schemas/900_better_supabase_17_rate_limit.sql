@@ -25,6 +25,9 @@ create unlogged table if not exists better_supabase.rate_limits (
   hits integer not null,
   primary key (scope, key)
 );
+-- The window length the counter was last hit with, so purge_rate_limits keeps
+-- a counter for its whole window when no rule names its period.
+alter table better_supabase.rate_limits add column if not exists period interval;
 
 alter table better_supabase.rate_limit_rules enable row level security;
 alter table better_supabase.rate_limits enable row level security;
@@ -98,11 +101,12 @@ begin
       claims ->> rule.key_claim,
       'ip:' || coalesce(nullif(trim(reverse(split_part(reverse(headers ->> 'x-forwarded-for'), ',', 1))), ''), 'unknown')
     );
-    insert into better_supabase.rate_limits as l (scope, key, window_start, hits)
-    values (rule.scope, caller, now(), 1)
+    insert into better_supabase.rate_limits as l (scope, key, window_start, hits, period)
+    values (rule.scope, caller, now(), 1, rule.period)
     on conflict on constraint rate_limits_pkey do update set
       window_start = case when l.window_start + rule.period <= now() then now() else l.window_start end,
-      hits = case when l.window_start + rule.period <= now() then 1 else l.hits + 1 end
+      hits = case when l.window_start + rule.period <= now() then 1 else l.hits + 1 end,
+      period = rule.period
     returning l.hits, l.window_start into used, started;
     if used > rule.max_requests then
       retry := greatest(1, ceil(extract(epoch from started + rule.period - now()))::integer);
@@ -157,11 +161,12 @@ begin
     raise exception 'No rate limit for %: call set_rate_limit or pass max_requests and period', scope
       using errcode = '22023', hint = 'RATE_LIMIT_UNKNOWN';
   end if;
-  insert into better_supabase.rate_limits as l (scope, key, window_start, hits)
-  values (scope, key, now(), 1)
+  insert into better_supabase.rate_limits as l (scope, key, window_start, hits, period)
+  values (scope, key, now(), 1, limit_period)
   on conflict on constraint rate_limits_pkey do update set
     window_start = case when l.window_start + limit_period <= now() then now() else l.window_start end,
-    hits = case when l.window_start + limit_period <= now() then 1 else l.hits + 1 end
+    hits = case when l.window_start + limit_period <= now() then 1 else l.hits + 1 end,
+    period = limit_period
   returning l.hits, l.window_start into used, started;
   return query select
     used <= limit_max,
@@ -189,20 +194,21 @@ $$;
 revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.check_rate_limit(text, text, integer, interval) to service_role;
 
--- Deletes up to batch counters whose window has ended, and counters without
--- a rule (removed rules, hit_rate_limit with its own limit) after a day.
--- Every caller keeps a row until then, so schedule it with pg_cron:
+-- Deletes up to batch counters whose window has ended: the period the
+-- counter was last hit with, else its rule's, else a day (counters from
+-- before the period column). Every caller keeps a row until then, so
+-- schedule it with pg_cron:
 -- select cron.schedule('purge-rate-limits', '*/15 * * * *', 'select better_supabase.purge_rate_limits()');
 create or replace function better_supabase.purge_rate_limits(batch integer default 10000)
 returns integer
 language sql
+security definer
 set search_path = ''
 as $$
   with expired as (
     select l.scope, l.key from better_supabase.rate_limits l
     left join better_supabase.rate_limit_rules r on r.scope = l.scope
-    where (r.scope is null and l.window_start < now() - interval '1 day')
-      or l.window_start + r.period <= now()
+    where l.window_start + coalesce(l.period, r.period, interval '1 day') <= now()
     limit batch
   ),
   purged as (

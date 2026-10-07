@@ -119,9 +119,44 @@ function literal(set: ReadSet, value: unknown): string {
   throw new TypeError(`Cannot inline a ${typeof value} parameter`);
 }
 
+/**
+ * Replaces each `$n` with `replace(n)`, outside quoted identifiers and string
+ * literals and not as part of an identifier (`"price$1"`, `price$1`).
+ */
+export function substituteParams(
+  text: string,
+  replace: (index: number) => string,
+): string {
+  let out = "";
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index]!;
+    if (char === '"' || char === "'") {
+      let end = index + 1;
+      while (end < text.length) {
+        if (text[end] !== char) end += 1;
+        else if (text[end + 1] === char) end += 2;
+        else break;
+      }
+      out += text.slice(index, end + 1);
+      index = end + 1;
+      continue;
+    }
+    const param = char === "$" ? /^\$(\d+)/.exec(text.slice(index)) : null;
+    if (param && !/[\w$]/.test(text[index - 1] ?? "")) {
+      out += replace(Number(param[1]));
+      index += param[0].length;
+      continue;
+    }
+    out += char;
+    index += 1;
+  }
+  return out;
+}
+
 function inline(set: ReadSet, query: SqlQuery): string {
-  return query.text.replaceAll(/\$(\d+)/g, (_, index: string) =>
-    literal(set, query.params[Number(index) - 1]),
+  return substituteParams(query.text, (index) =>
+    literal(set, query.params[index - 1]),
   );
 }
 

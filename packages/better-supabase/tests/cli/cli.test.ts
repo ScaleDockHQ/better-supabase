@@ -691,7 +691,10 @@ describe("gen", () => {
         casing: "camel",
         output: "src/db/generated.ts",
         plugins: { tenant: true },
-        realtime: { tables: ["customers", "public.tags", "organizations"] },
+        realtime: {
+          tables: ["customers", "public.tags", "organizations"],
+          users: { "public.tags": "organization_id" },
+        },
       }),
     );
     expect(
@@ -702,7 +705,7 @@ describe("gen", () => {
       "utf8",
     );
     expect(generated).toMatch(
-      /"realtime": \{\s+"customers": \{"tenant":"organizationId"\},\s+"tags": \{"tenant":"organizationId"\},\s+"organizations": \{\}/,
+      /"realtime": \{\s+"customers": \{"tenant":"organizationId"\},\s+"tags": \{"user":"organizationId"\},\s+"organizations": \{\}/,
     );
 
     await writeFile(
@@ -718,6 +721,24 @@ describe("gen", () => {
     ]);
     expect(failed.code).not.toBe(0);
     expect(failed.stderr).toContain('realtime.tables: unknown table "nope"');
+
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        realtime: { tables: ["customers"], users: { customers: "nope" } },
+      }),
+    );
+    const noColumn = await run([
+      "gen",
+      "--snapshot",
+      "snapshot.json",
+      "--cwd",
+      dir,
+    ]);
+    expect(noColumn.code).not.toBe(0);
+    expect(noColumn.stderr).toContain(
+      'realtime.users: "customers" has no column "nope"',
+    );
   });
 
   it("refuses bucket policies with PermDock keys that have row conditions", async () => {

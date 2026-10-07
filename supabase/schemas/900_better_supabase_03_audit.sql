@@ -1,5 +1,5 @@
 -- better-supabase module: audit (0.5.1)
--- @bs-module audit@3 managed
+-- @bs-module audit@4 managed
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,6 +22,20 @@ alter table better_supabase.audited_tables add column if not exists tenant_colum
 alter table better_supabase.audited_tables add column if not exists label_column text;
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
+
+-- The request headers, or null outside a Data API request.
+create or replace function better_supabase.request_headers()
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return nullif(current_setting('request.headers', true), '')::jsonb;
+exception when others then
+  return null;
+end;
+$$;
 
 -- One request header, or null outside a Data API request.
 create or replace function better_supabase.request_header(name text)
@@ -66,8 +80,18 @@ create table if not exists "better_supabase"."audit_events" (
   "occurred_at" timestamptz not null default now()
 );
 alter table "better_supabase"."audit_events" drop constraint if exists audit_log_op_check;
-alter table "better_supabase"."audit_events" drop constraint if exists bs_audit_op_check;
-alter table "better_supabase"."audit_events" add constraint bs_audit_op_check check ("op" in ('insert', 'update', 'delete', 'event'));
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."audit_events"'::regclass and c.conname = 'bs_audit_op_check'
+  ), 'pg_constraint'), '') <> 'better-supabase check 50fe4698' then
+    alter table "better_supabase"."audit_events" drop constraint if exists "bs_audit_op_check";
+    alter table "better_supabase"."audit_events" add constraint "bs_audit_op_check" check ("op" in ('insert', 'update', 'delete', 'event'));
+    comment on constraint "bs_audit_op_check" on "better_supabase"."audit_events" is 'better-supabase check 50fe4698';
+  end if;
+end;
+$$;
 alter table "better_supabase"."audit_events" alter column "table_name" drop not null;
 -- Set when an admin acted as the user (the act claim).
 alter table "better_supabase"."audit_events" add column if not exists "impersonated_by" uuid;
@@ -114,6 +138,8 @@ declare
   changed_columns text[];
   changed_values jsonb;
   row_tenant uuid;
+  v_jwt jsonb := auth.jwt();
+  v_headers jsonb := better_supabase.request_headers();
 begin
   if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
@@ -140,7 +166,7 @@ begin
     from (select 1) one
     left join better_supabase.audited_tables a on a.target = tg_relid::regclass;
   end if;
-  row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~ '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
+  row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
   old_row := old_row - entry.ignore;
   new_row := new_row - entry.ignore;
   if tg_op = 'UPDATE' then
@@ -154,14 +180,6 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  -- One change per column, values cut at 1000 characters, for revealing a
-  -- single change without the whole rows.
-  select jsonb_object_agg(k, jsonb_build_object(
-    'old', case when length((old_row -> k)::text) > 1000 then to_jsonb(left((old_row -> k)::text, 1000)) else old_row -> k end,
-    'new', case when length((new_row -> k)::text) > 1000 then to_jsonb(left((new_row -> k)::text, 1000)) else new_row -> k end
-  ))
-  into changed_values
-  from unnest(coalesce(changed_columns, array(select jsonb_object_keys(coalesce(new_row, old_row))))) k;
   insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     tg_table_schema || '.' || tg_table_name,
@@ -171,30 +189,30 @@ begin
     new_row,
     changed_columns,
     auth.uid(),
-    coalesce(auth.jwt() ->> 'role', current_user),
+    coalesce(v_jwt ->> 'role', current_user),
     row_tenant,
-    case when auth.jwt() -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (auth.jwt() -> 'act' ->> 'sub')::uuid end,
-    auth.jwt() -> 'act' ->> 'reason',
-    case when auth.jwt() -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (auth.jwt() -> 'act' ->> 'session_id')::uuid end,
+    case when v_jwt -> 'act' ->> 'sub' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'sub')::uuid end,
+    v_jwt -> 'act' ->> 'reason',
+    case when v_jwt -> 'act' ->> 'session_id' ~ '^[0-9a-f-]{36}$' then (v_jwt -> 'act' ->> 'session_id')::uuid end,
     coalesce(entry.event_prefix, tg_table_name) || '.' || case tg_op when 'INSERT' then 'created' when 'UPDATE' then 'updated' else 'deleted' end,
     coalesce(entry.category, 'data'),
     'success',
     'database',
     coalesce(entry.target_type, tg_table_name),
     case
-      when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
-      when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
-      when auth.jwt() -> 'act' is not null then 'impersonation'
-      when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
+      when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
+      when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' is not null then 'impersonation'
+      when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
       else 'system'
     end,
-    coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', auth.jwt() ->> 'email'),
+    coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
     null,
-    better_supabase.request_header('x-request-id'),
-    better_supabase.request_header('x-correlation-id'),
+    (v_headers ->> 'x-request-id'),
+    (v_headers ->> 'x-correlation-id'),
     case when row_tenant is null then 'platform' else 'tenant' end
   )
   returning "id" into entry_id;
@@ -551,15 +569,15 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if tg_op = 'DELETE'
-    and current_setting('better_supabase.audit_purge', true) = 'on'
-    and current_user = (
+  -- The setting first: the owner lookup runs only for a purge.
+  if tg_op = 'DELETE' and current_setting('better_supabase.audit_purge', true) = 'on' then
+    if current_user = (
       select r.rolname from pg_catalog.pg_proc p
       join pg_catalog.pg_roles r on r.oid = p.proowner
       where p.oid = to_regprocedure('better_supabase.purge_audit_log(interval, integer, uuid, boolean)')
-    )
-  then
-    return old;
+    ) then
+      return old;
+    end if;
   end if;
   raise exception 'audit log entries are append-only'
     using errcode = '42501', hint = 'Delete old entries with better_supabase.purge_audit_log()';
@@ -596,27 +614,59 @@ security definer
 set search_path = ''
 as $$
 declare
-  purged integer;
+  purged integer := 0;
+  gone integer;
+  v_tenant uuid;
+  v_older interval;
 begin
   perform set_config('better_supabase.audit_purge', 'on', true);
   if not for_tenant and to_regprocedure('"public"."audit_retention"(uuid)') is not null then
-    -- Not a literal name, so plpgsql_check passes without the hook.
-    execute format(
-      'with gone as (
-      delete from "better_supabase"."audit_events"
-      where "id" in (
-        select l."id" from "better_supabase"."audit_events" l
-        where l."occurred_at" < now() - coalesce(%s(l."organization_id"), $1)
-        order by l."occurred_at"
-        limit $2
+    -- One delete per tenant with that tenant's interval as a constant, so
+    -- each runs on the (tenant, occurred_at) index. The tenants come from a
+    -- skip scan of that index, not a scan of the log.
+    for v_tenant in
+      with recursive t (v) as (
+        (select l."organization_id" from "better_supabase"."audit_events" l where l."organization_id" is not null order by l."organization_id" limit 1)
+        union all
+        select (select l."organization_id" from "better_supabase"."audit_events" l where l."organization_id" > t.v order by l."organization_id" limit 1)
+        from t where t.v is not null
       )
-      returning 1
-    )
-    select count(*)::integer from gone',
-      to_regprocedure('"public"."audit_retention"(uuid)')::oid::regproc
-    ) into purged using older_than, batch;
+      select t.v from t where t.v is not null
+    loop
+      exit when purged >= batch;
+      -- Not a literal name, so plpgsql_check passes without the hook.
+      execute format('select %s($1)', to_regprocedure('"public"."audit_retention"(uuid)')::oid::regproc)
+        into v_older using v_tenant;
+      v_older := coalesce(v_older, older_than);
+      with deleted as (
+        delete from "better_supabase"."audit_events"
+        where "id" in (
+          select l."id" from "better_supabase"."audit_events" l
+          where l."organization_id" = v_tenant and l."occurred_at" < now() - v_older
+          order by l."occurred_at"
+          limit batch - purged
+        )
+        returning 1
+      )
+      select count(*)::integer into gone from deleted;
+      purged := purged + gone;
+    end loop;
+    if purged < batch then
+      with deleted as (
+        delete from "better_supabase"."audit_events"
+        where "id" in (
+          select l."id" from "better_supabase"."audit_events" l
+          where l."organization_id" is null and l."occurred_at" < now() - older_than
+          order by l."occurred_at"
+          limit batch - purged
+        )
+        returning 1
+      )
+      select count(*)::integer into gone from deleted;
+      purged := purged + gone;
+    end if;
   else
-    with gone as (
+    with deleted as (
       delete from "better_supabase"."audit_events"
       where "id" in (
         select l."id" from "better_supabase"."audit_events" l
@@ -627,7 +677,7 @@ begin
       )
       returning 1
     )
-    select count(*)::integer into purged from gone;
+    select count(*)::integer into purged from deleted;
   end if;
   perform set_config('better_supabase.audit_purge', 'off', true);
   return purged;
@@ -678,44 +728,80 @@ create or replace function "better_supabase"."list_audit_events"(
   skip integer default 0
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(x.entry order by
-    case when ascending then x.occurred_at end, case when ascending then x.id end,
-    x.occurred_at desc, x.id desc), '[]')
+declare
+  v_where text := 'true';
+  v_order text := case when ascending then 'asc' else 'desc' end;
+  result jsonb;
+begin
+  if cardinality(for_tenants) > 0 then
+    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+  end if;
+  if cardinality(for_event_types) > 0 then
+    v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
+  end if;
+  if cardinality(for_actors) > 0 then
+    v_where := v_where || $q$ and l."actor_id" = any ($3)$q$;
+  end if;
+  if cardinality(for_target_types) > 0 then
+    v_where := v_where || $q$ and l."target_type" = any ($4)$q$;
+  end if;
+  if cardinality(for_records) > 0 then
+    v_where := v_where || $q$ and l."record_id" = any ($5)$q$;
+  end if;
+  if cardinality(for_categories) > 0 then
+    v_where := v_where || $q$ and l."category" = any ($6)$q$;
+  end if;
+  if cardinality(for_outcomes) > 0 then
+    v_where := v_where || $q$ and l."outcome" = any ($7)$q$;
+  end if;
+  if cardinality(for_sources) > 0 then
+    v_where := v_where || $q$ and l."source" = any ($9)$q$;
+  end if;
+  if cardinality(for_actor_kinds) > 0 then
+    v_where := v_where || $q$ and l."actor_kind" = any ($10)$q$;
+  end if;
+  if cardinality(for_correlation_ids) > 0 then
+    v_where := v_where || $q$ and l."correlation_id" = any ($11)$q$;
+  end if;
+  if search <> '' then
+    v_where := v_where || $q$ and concat_ws(' ', l."event_type", l."summary", l."target_label", l."actor_label", l."tenant_label", l."record_id", l."table_name") ilike '%' || replace(replace(replace($8, '\', '\\'), '%', '\%'), '_', '\_') || '%'$q$;
+  end if;
+  if since is not null then
+    v_where := v_where || $q$ and l."occurred_at" >= $12$q$;
+  end if;
+  if until is not null then
+    v_where := v_where || $q$ and l."occurred_at" < $13$q$;
+  end if;
+  if cursor_at is not null then
+    v_where := v_where || case when ascending
+      then $q$ and (l."occurred_at", l."id") > ($14, $15::bigint)$q$
+      else $q$ and (l."occurred_at", l."id") < ($14, $15::bigint)$q$
+    end;
+  end if;
+  -- Only the filters passed reach the query, so the planner sees no
+  -- "is null or" branches and can use the (tenant, occurred_at) index.
+  execute $q$select coalesce(jsonb_agg(x.entry order by x.occurred_at $q$ || v_order || $q$, x.id $q$ || v_order || $q$), '[]')
   from (
-    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."organization_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id"::text as id
+    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."organization_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id" as id
     from "better_supabase"."audit_events" l
-    where (for_tenants is null or cardinality(for_tenants) = 0 or l."organization_id" = any (for_tenants))
-      and (for_event_types is null or cardinality(for_event_types) = 0 or l."event_type" = any (for_event_types))
-      and (for_actors is null or cardinality(for_actors) = 0 or l."actor_id" = any (for_actors))
-      and (for_target_types is null or cardinality(for_target_types) = 0 or l."target_type" = any (for_target_types))
-      and (for_records is null or cardinality(for_records) = 0 or l."record_id" = any (for_records))
-      and (for_categories is null or cardinality(for_categories) = 0 or l."category" = any (for_categories))
-      and (for_outcomes is null or cardinality(for_outcomes) = 0 or l."outcome" = any (for_outcomes))
-      and (for_sources is null or cardinality(for_sources) = 0 or l."source" = any (for_sources))
-      and (for_actor_kinds is null or cardinality(for_actor_kinds) = 0 or l."actor_kind" = any (for_actor_kinds))
-      and (for_correlation_ids is null or cardinality(for_correlation_ids) = 0 or l."correlation_id" = any (for_correlation_ids))
-      and (search is null or search = '' or concat_ws(' ', l."event_type", l."summary", l."target_label", l."actor_label", l."tenant_label", l."record_id", l."table_name") ilike '%' || replace(replace(replace(search, '\', '\\'), '%', '\%'), '_', '\_') || '%')
-      and (since is null or l."occurred_at" >= since)
-      and (until is null or l."occurred_at" < until)
-      and (cursor_at is null or (
-        case when ascending
-          then (l."occurred_at", l."id"::text) > (cursor_at, coalesce(cursor_id, ''))
-          else (l."occurred_at", l."id"::text) < (cursor_at, coalesce(cursor_id, ''))
-        end))
-    order by
-      case when ascending then l."occurred_at" end, case when ascending then l."id"::text end,
-      l."occurred_at" desc, l."id"::text desc
-    limit least(greatest(coalesce(max_items, 50), 1), 1000)
-    offset greatest(coalesce(skip, 0), 0)
-  ) x
+    where $q$ || v_where || $q$
+    order by l."occurred_at" $q$ || v_order || $q$, l."id" $q$ || v_order || $q$
+    limit $16
+    offset $17
+  ) x$q$
+  into result
+  using for_tenants, for_event_types, for_actors, for_target_types, for_records, for_categories, for_outcomes, search, for_sources, for_actor_kinds, for_correlation_ids, since, until, cursor_at, cursor_id, least(greatest(coalesce(max_items, 50), 1), 1000), greatest(coalesce(skip, 0), 0);
+  return result;
+end;
 $$;
 revoke execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) from public, anon;
-grant execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) from authenticated;
+grant execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) to service_role;
 
 create or replace function "better_supabase"."count_audit_events"(
   for_tenants uuid[] default null,
@@ -733,28 +819,63 @@ create or replace function "better_supabase"."count_audit_events"(
   until timestamptz default null
 )
 returns bigint
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select count(*) from "better_supabase"."audit_events" l
-  where (for_tenants is null or cardinality(for_tenants) = 0 or l."organization_id" = any (for_tenants))
-      and (for_event_types is null or cardinality(for_event_types) = 0 or l."event_type" = any (for_event_types))
-      and (for_actors is null or cardinality(for_actors) = 0 or l."actor_id" = any (for_actors))
-      and (for_target_types is null or cardinality(for_target_types) = 0 or l."target_type" = any (for_target_types))
-      and (for_records is null or cardinality(for_records) = 0 or l."record_id" = any (for_records))
-      and (for_categories is null or cardinality(for_categories) = 0 or l."category" = any (for_categories))
-      and (for_outcomes is null or cardinality(for_outcomes) = 0 or l."outcome" = any (for_outcomes))
-      and (for_sources is null or cardinality(for_sources) = 0 or l."source" = any (for_sources))
-      and (for_actor_kinds is null or cardinality(for_actor_kinds) = 0 or l."actor_kind" = any (for_actor_kinds))
-      and (for_correlation_ids is null or cardinality(for_correlation_ids) = 0 or l."correlation_id" = any (for_correlation_ids))
-      and (search is null or search = '' or concat_ws(' ', l."event_type", l."summary", l."target_label", l."actor_label", l."tenant_label", l."record_id", l."table_name") ilike '%' || replace(replace(replace(search, '\', '\\'), '%', '\%'), '_', '\_') || '%')
-      and (since is null or l."occurred_at" >= since)
-      and (until is null or l."occurred_at" < until)
+declare
+  v_where text := 'true';
+  result bigint;
+begin
+  if cardinality(for_tenants) > 0 then
+    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+  end if;
+  if cardinality(for_event_types) > 0 then
+    v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
+  end if;
+  if cardinality(for_actors) > 0 then
+    v_where := v_where || $q$ and l."actor_id" = any ($3)$q$;
+  end if;
+  if cardinality(for_target_types) > 0 then
+    v_where := v_where || $q$ and l."target_type" = any ($4)$q$;
+  end if;
+  if cardinality(for_records) > 0 then
+    v_where := v_where || $q$ and l."record_id" = any ($5)$q$;
+  end if;
+  if cardinality(for_categories) > 0 then
+    v_where := v_where || $q$ and l."category" = any ($6)$q$;
+  end if;
+  if cardinality(for_outcomes) > 0 then
+    v_where := v_where || $q$ and l."outcome" = any ($7)$q$;
+  end if;
+  if cardinality(for_sources) > 0 then
+    v_where := v_where || $q$ and l."source" = any ($9)$q$;
+  end if;
+  if cardinality(for_actor_kinds) > 0 then
+    v_where := v_where || $q$ and l."actor_kind" = any ($10)$q$;
+  end if;
+  if cardinality(for_correlation_ids) > 0 then
+    v_where := v_where || $q$ and l."correlation_id" = any ($11)$q$;
+  end if;
+  if search <> '' then
+    v_where := v_where || $q$ and concat_ws(' ', l."event_type", l."summary", l."target_label", l."actor_label", l."tenant_label", l."record_id", l."table_name") ilike '%' || replace(replace(replace($8, '\', '\\'), '%', '\%'), '_', '\_') || '%'$q$;
+  end if;
+  if since is not null then
+    v_where := v_where || $q$ and l."occurred_at" >= $12$q$;
+  end if;
+  if until is not null then
+    v_where := v_where || $q$ and l."occurred_at" < $13$q$;
+  end if;
+  execute $q$select count(*) from "better_supabase"."audit_events" l where $q$ || v_where
+  into result
+  using for_tenants, for_event_types, for_actors, for_target_types, for_records, for_categories, for_outcomes, search, for_sources, for_actor_kinds, for_correlation_ids, since, until;
+  return result;
+end;
 $$;
 revoke execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) from public, anon;
-grant execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) from authenticated;
+grant execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) to service_role;
 
 -- Deprecated since 0.5.0: use better_supabase.audit_events (occurred_at, organization_id).
 -- Recreated, since new log columns change what l.* expands to.

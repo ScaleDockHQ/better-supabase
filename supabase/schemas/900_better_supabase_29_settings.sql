@@ -41,17 +41,17 @@ grant select, insert, update, delete on "better_supabase"."organization_settings
 grant all on "better_supabase"."organization_settings" to service_role;
 drop policy if exists "organization_settings_read" on "better_supabase"."organization_settings";
 create policy "organization_settings_read" on "better_supabase"."organization_settings" for select to authenticated
-  using (coalesce(better_supabase.can('tenant', "organization_id", 'settings.read'), false));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.read')));
 drop policy if exists "organization_settings_insert" on "better_supabase"."organization_settings";
 create policy "organization_settings_insert" on "better_supabase"."organization_settings" for insert to authenticated
   with check (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false));
 drop policy if exists "organization_settings_update" on "better_supabase"."organization_settings";
 create policy "organization_settings_update" on "better_supabase"."organization_settings" for update to authenticated
-  using (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false))
-  with check (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')))
+  with check ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')));
 drop policy if exists "organization_settings_delete" on "better_supabase"."organization_settings";
 create policy "organization_settings_delete" on "better_supabase"."organization_settings" for delete to authenticated
-  using (coalesce(better_supabase.can('tenant', "organization_id", 'settings.update'), false));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('settings.update')));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission

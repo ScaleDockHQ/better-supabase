@@ -21,9 +21,34 @@ create schema if not exists ${ctx.schema};
 grant usage on schema ${ctx.schema} to anon, authenticated, service_role;`;
 }
 
+/**
+ * A policy condition for "the caller holds `permission` in this row's
+ * tenant". Postgres never inlines `can()` (it is `security definer`), so a
+ * `can('tenant', column, ...)` in `using` runs once per row and can't use the
+ * tenant index; the `tenant_ids_with` set runs once per statement.
+ */
+export function tenantIn(tenant: string, permission: string): string {
+  return `${tenant} in (select better_supabase.tenant_ids_with(${permission}))`;
+}
+
 /** A claim from the top level of the token, then `app_metadata`. */
 export function jwtClaim(name: string): string {
   return `coalesce(auth.jwt() ->> ${sqlString(name)}, auth.jwt() -> 'app_metadata' ->> ${sqlString(name)})`;
+}
+
+/** `table` or `schema.table` as `[schema, table]`, in `public` without a schema. */
+export function splitTable(name: string): readonly [string, string] {
+  const parts = name.split(".");
+  if (parts.length > 2 || parts.some((part) => part.length === 0)) {
+    throw new TypeError(`"${name}" must be "table" or "schema.table"`);
+  }
+  return parts.length === 2 ? [parts[0]!, parts[1]!] : ["public", parts[0]!];
+}
+
+/** `table` or `schema.table`, quoted. */
+export function quotedTable(name: string): string {
+  const [schema, table] = splitTable(name);
+  return `${sqlIdent(schema)}.${sqlIdent(table)}`;
 }
 
 /** `schema.table.column` split into its quoted table and column. */
@@ -353,17 +378,67 @@ export interface JsonSchemaCheck {
   readonly where?: { readonly column: string; readonly value: string };
 }
 
+/** FNV-1a, as 8 hex digits: a stable suffix that keeps two names apart. */
+function shortHash(text: string): string {
+  let hash = 0x81_1c_9d_c5;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.codePointAt(index) ?? 0;
+    hash = Math.imul(hash, 0x01_00_01_93) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+/**
+ * Adds CHECK `name` on `table` (quoted) unless a re-run finds it already
+ * checking `expression`: the constraint comment records a hash of the
+ * expression, so an unchanged check skips the table scan under ACCESS
+ * EXCLUSIVE. `notValid` leaves existing rows unchecked.
+ */
+export function ensureCheck(
+  table: string,
+  name: string,
+  expression: string,
+  options: { readonly notValid?: boolean } = {},
+): string {
+  const marker = sqlString(
+    `better-supabase check ${shortHash(`${expression}|${options.notValid === true}`)}`,
+  );
+  const constraint = sqlIdent(name);
+  return `do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = ${sqlString(table)}::regclass and c.conname = ${sqlString(name)}
+  ), 'pg_constraint'), '') <> ${marker} then
+    alter table ${table} drop constraint if exists ${constraint};
+    alter table ${table} add constraint ${constraint} check (${expression})${options.notValid === true ? " not valid" : ""};
+    comment on constraint ${constraint} on ${table} is ${marker};
+  end if;
+end;
+$$;`;
+}
+
+/**
+ * The constraint and trigger name of a check. A key that sanitizing or the
+ * 63-byte limit would change (`notify.email`, `notify-email`, a long key)
+ * gets a hash of the key, so two keys never share a name and drop each
+ * other's check.
+ */
+function jsonCheckName(check: JsonSchemaCheck): string {
+  const base = `bs_json_${check.column}`;
+  if (!check.where) return base.slice(0, 63);
+  const key = check.where.value;
+  const clean = key.replaceAll(/[^a-z0-9_]/gi, "_");
+  const plain = `${base}_${clean}`;
+  if (clean === key && plain.length <= 63) return plain;
+  return `${plain.slice(0, 54)}_${shortHash(key)}`;
+}
+
 export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
   if (checks.length === 0) return "";
   const statements = checks.map((check) => {
-    const [schema, table] = check.table.includes(".")
-      ? check.table.split(".", 2)
-      : ["public", check.table];
-    const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
-    const suffix = check.where
-      ? `_${check.where.value.replaceAll(/[^a-z0-9_]/gi, "_")}`
-      : "";
-    const name = sqlIdent(`bs_json_${check.column}${suffix}`.slice(0, 63));
+    const target = quotedTable(check.table);
+    const name = sqlIdent(jsonCheckName(check));
     const schemaText = sqlString(JSON.stringify(check.schema));
     const matches = `extensions.jsonb_matches_schema(${schemaText}::json, ${sqlIdent(check.column)})`;
     const columns = check.where

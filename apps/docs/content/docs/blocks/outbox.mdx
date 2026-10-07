@@ -51,7 +51,8 @@ The signed-in user (`auth.uid()`) is stored as the actor. Only
 
 `track_events(table, type_prefix, tenant_column)` adds a row trigger that
 emits `<prefix>.created`, `.updated` and `.deleted` with the row as payload
-and `<table>/<id>` as subject:
+and `<table>/<id>` as subject. An update that changes no column emits
+nothing:
 
 ```sql
 select better_supabase.track_events('public.invoices', 'invoice', 'organization_id');

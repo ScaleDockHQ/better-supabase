@@ -74,15 +74,28 @@ export function listEntries(
     chunks.push(
       `jsonb_build_object(${pairs.slice(index, index + 20).join(", ")})`,
     );
-  const filter = (logical: string, param: string) => {
-    if (!hasColumn(ctx, "log", logical)) return "";
+  // The filters and their positions in the dynamic query's `using` list.
+  const conditions: string[] = [];
+  const filter = (logical: string, param: string, position: number) => {
+    if (!hasColumn(ctx, "log", logical)) return;
     const value = `l.${c(logical)}`;
     const read = isAuditValueColumn(logical)
       ? auditRead(ctx, logical, value)
       : value;
-    return `
-      and (${param} is null or cardinality(${param}) = 0 or ${read} = any (${param}))`;
+    conditions.push(`  if cardinality(${param}) > 0 then
+    v_where := v_where || $q$ and ${read} = any ($${position})$q$;
+  end if;`);
   };
+  filter("tenant", "for_tenants", 1);
+  filter("eventType", "for_event_types", 2);
+  filter("actor", "for_actors", 3);
+  filter("targetType", "for_target_types", 4);
+  filter("record", "for_records", 5);
+  filter("category", "for_categories", 6);
+  filter("outcome", "for_outcomes", 7);
+  filter("source", "for_sources", 9);
+  filter("actorKind", "for_actor_kinds", 10);
+  filter("correlationId", "for_correlation_ids", 11);
   const searchable = (
     [
       "eventType",
@@ -96,14 +109,24 @@ export function listEntries(
   )
     .filter((logical) => hasColumn(ctx, "log", logical))
     .map((logical) => `l.${c(logical)}`);
-  const search =
-    searchable.length === 0
-      ? ""
-      : `
-      and (search is null or search = '' or concat_ws(' ', ${searchable.join(", ")}) ilike '%' || replace(replace(replace(search, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%')`;
-  const where = `(for_tenants is null or cardinality(for_tenants) = 0 or l.${c("tenant")} = any (for_tenants))${filter("eventType", "for_event_types")}${filter("actor", "for_actors")}${filter("targetType", "for_target_types")}${filter("record", "for_records")}${filter("category", "for_categories")}${filter("outcome", "for_outcomes")}${filter("source", "for_sources")}${filter("actorKind", "for_actor_kinds")}${filter("correlationId", "for_correlation_ids")}${search}
-      and (since is null or l.${c("occurredAt")} >= since)
-      and (until is null or l.${c("occurredAt")} < until)`;
+  if (searchable.length > 0) {
+    conditions.push(`  if search <> '' then
+    v_where := v_where || $q$ and concat_ws(' ', ${searchable.join(", ")}) ilike '%' || replace(replace(replace($8, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'$q$;
+  end if;`);
+  }
+  conditions.push(`  if since is not null then
+    v_where := v_where || $q$ and l.${c("occurredAt")} >= $12$q$;
+  end if;
+  if until is not null then
+    v_where := v_where || $q$ and l.${c("occurredAt")} < $13$q$;
+  end if;`);
+  const where = conditions.join("\n");
+  const using =
+    "for_tenants, for_event_types, for_actors, for_target_types, for_records, for_categories, for_outcomes, search, for_sources, for_actor_kinds, for_correlation_ids, since, until";
+  // A managed log's id is a bigint, so "10" pages after "9"; an adopted
+  // log's id compares as text.
+  const idKey = ctx.manages ? `l.${c("id")}` : `l.${c("id")}::text`;
+  const cursorKey = ctx.manages ? "$15::bigint" : "$15";
   const filters = `for_tenants ${id}[] default null,
   for_event_types text[] default null,
   for_actors uuid[] default null,
@@ -119,6 +142,16 @@ export function listEntries(
   until timestamptz default null`;
   const filterTypes = `${id}[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz`;
   const listTypes = `${filterTypes}, timestamptz, text, integer, boolean, integer`;
+  // A managed log without options.readPolicy grants users no select, so the
+  // invoker functions would only raise 42501 for them.
+  const callers =
+    !ctx.manages || ctx.flag("readPolicy", false)
+      ? "authenticated, service_role"
+      : "service_role";
+  const revokeUsers = (fn: string, types: string): string =>
+    callers === "service_role"
+      ? `revoke execute on function ${fn}(${types}) from authenticated;\n`
+      : "";
   return `-- A page of the entries the caller can read, newest first unless ascending:
 -- the read policy decides (security invoker). Each filter takes several
 -- values; search matches the event type, summary, labels, record and table.
@@ -135,47 +168,64 @@ create or replace function ${ctx.fn("list_audit_events")}(
   skip integer default 0
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(x.entry order by
-    case when ascending then x.occurred_at end, case when ascending then x.id end,
-    x.occurred_at desc, x.id desc), '[]')
+declare
+  v_where text := 'true';
+  v_order text := case when ascending then 'asc' else 'desc' end;
+  result jsonb;
+begin
+${where}
+  if cursor_at is not null then
+    v_where := v_where || case when ascending
+      then $q$ and (l.${c("occurredAt")}, ${idKey}) > ($14, ${cursorKey})$q$
+      else $q$ and (l.${c("occurredAt")}, ${idKey}) < ($14, ${cursorKey})$q$
+    end;
+  end if;
+  -- Only the filters passed reach the query, so the planner sees no
+  -- "is null or" branches and can use the (tenant, occurred_at) index.
+  execute $q$select coalesce(jsonb_agg(x.entry order by x.occurred_at $q$ || v_order || $q$, x.id $q$ || v_order || $q$), '[]')
   from (
-    select ${chunks.join(" || ")} as entry, l.${c("occurredAt")} as occurred_at, l.${c("id")}::text as id
+    select ${chunks.join(" || ")} as entry, l.${c("occurredAt")} as occurred_at, ${idKey} as id
     from ${log} l
-    where ${where}
-      and (cursor_at is null or (
-        case when ascending
-          then (l.${c("occurredAt")}, l.${c("id")}::text) > (cursor_at, coalesce(cursor_id, ''))
-          else (l.${c("occurredAt")}, l.${c("id")}::text) < (cursor_at, coalesce(cursor_id, ''))
-        end))
-    order by
-      case when ascending then l.${c("occurredAt")} end, case when ascending then l.${c("id")}::text end,
-      l.${c("occurredAt")} desc, l.${c("id")}::text desc
-    limit least(greatest(coalesce(max_items, 50), 1), 1000)
-    offset greatest(coalesce(skip, 0), 0)
-  ) x
+    where $q$ || v_where || $q$
+    order by l.${c("occurredAt")} $q$ || v_order || $q$, ${idKey} $q$ || v_order || $q$
+    limit $16
+    offset $17
+  ) x$q$
+  into result
+  using ${using}, cursor_at, cursor_id, least(greatest(coalesce(max_items, 50), 1), 1000), greatest(coalesce(skip, 0), 0);
+  return result;
+end;
 $$;
 revoke execute on function ${ctx.fn("list_audit_events")}(${listTypes}) from public, anon;
-grant execute on function ${ctx.fn("list_audit_events")}(${listTypes}) to authenticated, service_role;
+${revokeUsers(ctx.fn("list_audit_events"), listTypes)}grant execute on function ${ctx.fn("list_audit_events")}(${listTypes}) to ${callers};
 
 create or replace function ${ctx.fn("count_audit_events")}(
   ${filters}
 )
 returns bigint
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select count(*) from ${log} l
-  where ${where}
+declare
+  v_where text := 'true';
+  result bigint;
+begin
+${where}
+  execute $q$select count(*) from ${log} l where $q$ || v_where
+  into result
+  using ${using};
+  return result;
+end;
 $$;
 revoke execute on function ${ctx.fn("count_audit_events")}(${filterTypes}) from public, anon;
-grant execute on function ${ctx.fn("count_audit_events")}(${filterTypes}) to authenticated, service_role;`;
+${revokeUsers(ctx.fn("count_audit_events"), filterTypes)}grant execute on function ${ctx.fn("count_audit_events")}(${filterTypes}) to ${callers};`;
 }
 
 /**
