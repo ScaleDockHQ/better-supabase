@@ -264,6 +264,9 @@ table, `where` is required there too (`roleThrough.where`, such as
 `"{row}.scope = 'organization'"`), so organization invitations, accept and
 `update_member_role` resolve only tenant roles; see
 [membership roles stored as ids](/docs/blocks/access#membership-roles-stored-as-ids).
+With `through.where`, a `bs_role_scope` trigger on `platformRoles.table` also
+refuses a direct write of any other role, from the service role too, with
+`PLATFORM_ROLE_SCOPE`.
 
 The inviter needs `invitePlatform` through `permdock_has`. Without
 `canAssign`, that permission alone lets them invite to any platform role.

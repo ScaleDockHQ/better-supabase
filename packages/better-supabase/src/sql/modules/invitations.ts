@@ -19,6 +19,7 @@ import { hasCanAssignAs, permdockForUser } from "./access.ts";
 import {
   invitePlatform,
   platformAssignment,
+  platformRoleScope,
   tenantRole,
 } from "./invitations-roles.ts";
 import {
@@ -771,7 +772,7 @@ function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
     `revoke execute on function ${ctx.fn(fn)}(${args}) from ${revokeFrom};
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
   return `${schemaPreamble(ctx)}
-${tenantTableSql(ctx)}${platformTableSql(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
+${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
 ${grant("invite_member", `${id}, text, text, interval, jsonb`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}

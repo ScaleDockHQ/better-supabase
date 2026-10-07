@@ -314,6 +314,66 @@ describe("platform invitations under the permdock model", () => {
     ).toContain(tenantOnly);
   });
 
+  it("checks every write to the roles tables against where with bs_role_scope", () => {
+    const through = { table: "public.roles", id: "id", column: "key" };
+    const modules = (where: boolean): ModulesConfig => ({
+      ...PERMDOCK,
+      tenant: {
+        mode: "adopt" as const,
+        tables: { memberships: "public.team_members" },
+        columns: { memberships: { role: "role_id" } },
+        options: {
+          roleThrough: where
+            ? { ...through, where: "{row}.scope = 'organization'" }
+            : through,
+        },
+      },
+      invitations: {
+        options: {
+          platformRoles: {
+            ...roles,
+            through: where
+              ? {
+                  ...through,
+                  table: "public.platform_roles",
+                  where: "{row}.scope = 'system'",
+                }
+              : { ...through, table: "public.platform_roles" },
+          },
+        },
+      },
+    });
+    const tenant = moduleBody("tenant", { modules: modules(true) })!;
+    expect(tenant).toContain(
+      `where r."id"::text = new."role_id"::text and (r.scope = 'organization')`,
+    );
+    expect(tenant).toContain("hint = 'MEMBERSHIP_ROLE_SCOPE'");
+    expect(tenant).toContain(
+      `create trigger "bs_role_scope" before insert or update of "role_id" on "public"."team_members"`,
+    );
+    const platform = body(modules(true));
+    expect(platform).toContain(
+      `where r."id"::text = new."role_id"::text and (r.scope = 'system')`,
+    );
+    expect(platform).toContain("hint = 'PLATFORM_ROLE_SCOPE'");
+    expect(platform).toContain(
+      `create trigger "bs_role_scope" before insert or update of "role_id" on "public"."user_roles"`,
+    );
+    const unscoped = moduleBody("tenant", { modules: modules(false) })!;
+    expect(unscoped).toContain(
+      `drop trigger if exists "bs_role_scope" on "public"."team_members";`,
+    );
+    expect(unscoped).not.toContain('create trigger "bs_role_scope"');
+    const unscopedPlatform = body(modules(false));
+    expect(unscopedPlatform).toContain(
+      `drop trigger if exists "bs_role_scope" on "public"."user_roles";`,
+    );
+    expect(unscopedPlatform).not.toContain("PLATFORM_ROLE_SCOPE");
+    expect(moduleBody("tenant", { modules: {} })).not.toContain(
+      "bs_role_scope",
+    );
+  });
+
   it("refuses platform invitations without platformRoles and checks its shape", () => {
     expect(body(PERMDOCK)).toContain("INVITATION_SCOPE_UNSUPPORTED");
     const plain = body({

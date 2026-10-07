@@ -331,6 +331,15 @@ with `ORGANIZATION_ROLE_UNKNOWN`. When the table is
 also `platformRoles.through`'s, `where` is required on both, and
 [doctor BS324](/docs/cli/doctor#bs324) reports the side that lacks it.
 
+With `where` set, the tenant module also puts a `bs_role_scope` trigger on
+the memberships table, so a direct write can't store a role outside it
+either: an insert or a role update through a client policy, the service role
+or an admin connection fails with `MEMBERSHIP_ROLE_SCOPE` (SQLSTATE `23514`).
+The invitations module does the same on `platformRoles.table` with
+`platformRoles.through.where` (`PLATFORM_ROLE_SCOPE`). Both triggers check new
+writes only; rows stored before you set `where` stay until they change.
+Removing `where` drops the trigger.
+
 Under the permdock model, `sql add` reads the setting from the manifest: when
 a membership source of the tenant scope is the adopted memberships table and
 its role column reads `through` a roles table, the tenant module uses the same
