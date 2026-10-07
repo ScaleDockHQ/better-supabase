@@ -48,6 +48,7 @@ function fakeClient(
     }),
     removeChannel: vi.fn(async (channel: { topic: string }) => {
       channels.delete(channel.topic);
+      statusCallbacks.get(channel.topic)?.("CLOSED");
       return "ok" as const;
     }),
     realtime: { setAuth: vi.fn(async () => undefined) },

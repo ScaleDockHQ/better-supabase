@@ -27,8 +27,6 @@ import type {
   TableMeta,
 } from "../schema/types.ts";
 
-import { ok } from "../core/result.ts";
-
 /** Facet value meaning "not set": filters with `is null`. */
 export const UNSET = "__unset__";
 
@@ -864,12 +862,17 @@ export function defineListQuery<
           if (rows.length > facetLimit) truncated.push(facet.key);
           facetCounts[facet.key] = countsOf(facet, rows.slice(0, facetLimit));
         }
-        // SAFETY: paginate returns a page object.
-        return ok({
-          ...(data as object),
-          facetCounts,
-          facetCountsTruncated: truncated,
-        });
+        // A literal, not ok(), keeps the error classes out of this entry.
+        return {
+          ok: true as const,
+          // SAFETY: paginate returns a page object.
+          data: {
+            ...(data as object),
+            facetCounts,
+            facetCountsTruncated: truncated,
+          },
+          error: null,
+        };
       }) as AsyncResult<never>;
     },
     openapi,

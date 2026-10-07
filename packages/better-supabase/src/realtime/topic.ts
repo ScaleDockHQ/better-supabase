@@ -271,6 +271,8 @@ function joinTopic(
       if (subscribers.size === 0) return;
       await new Promise<void>((resolve, reject) => {
         channel.subscribe((state, error) => {
+          // Dropped channels still report CLOSED on removal.
+          if (topics.get(topic) !== entry) return;
           switch (state) {
             case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED:
               entry.subscribed = true;
@@ -287,11 +289,11 @@ function joinTopic(
               const failure =
                 error ??
                 new Error(`Realtime ${state.toLowerCase()} on ${topic}`);
+              status("error", failure);
+              reject(failure);
               // A joined channel rejoins on its own; one that never joined is
               // dropped so the next subscribe opens a fresh channel.
               if (!entry.subscribed) evict();
-              status("error", failure);
-              reject(failure);
               return;
             }
             default: {

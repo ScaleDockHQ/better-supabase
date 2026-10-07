@@ -43,6 +43,7 @@ function fakeClient(
   const listeners: Listener[] = [];
   const removed: unknown[] = [];
   const open: unknown[] = [];
+  let report: ((status: string, error?: Error) => void) | undefined;
   const channel = {
     topic: "",
     on: (_type: string, _filter: unknown, listener: Listener) => {
@@ -51,6 +52,7 @@ function fakeClient(
     },
     subscribe: vi.fn((callback: (status: string, error?: Error) => void) => {
       open.push(channel);
+      report = callback;
       queueMicrotask(() => {
         callback(status, error ?? undefined);
       });
@@ -71,6 +73,7 @@ function fakeClient(
     removeChannel: vi.fn(async (value: unknown) => {
       removed.push(value);
       open.splice(open.indexOf(value), 1);
+      report?.("CLOSED");
       return "ok" as const;
     }),
     realtime: { setAuth: vi.fn(async () => undefined) },

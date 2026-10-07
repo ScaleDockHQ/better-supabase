@@ -126,13 +126,14 @@ function join(
               return;
             case REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR:
             case REALTIME_SUBSCRIBE_STATES.TIMED_OUT:
-              // A joined channel rejoins on its own; one that never joined is
-              // dropped so the next join opens a fresh channel.
-              if (!joined) evict();
               reject(
                 error ??
                   new Error(`Realtime ${status.toLowerCase()} on ${topic}`),
               );
+              // A joined channel rejoins on its own; one that never joined is
+              // dropped so the next join opens a fresh channel. Removing it
+              // reports CLOSED, so this runs after the reject.
+              if (!joined) evict();
               return;
             default: {
               const unknown: never = status;
