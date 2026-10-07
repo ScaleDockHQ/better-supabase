@@ -180,8 +180,8 @@ from a user or tenant: link previews, imports from a URL, avatars by URL,
 OAuth callback checks. It returns a `fetch` that refuses a URL outside
 `publicUrl` (or your `allowUrl`) with `UnsafeUrlError`, checks every redirect
 before following it (3 at most by default, `maxRedirects`), drops
-`authorization` and `cookie` on a redirect to another origin, and stops
-after `timeoutMs` (10 seconds):
+`authorization`, `cookie` and `proxy-authorization` on a redirect to another
+origin, and stops after `timeoutMs` (10 seconds):
 
 ```ts
 import { createSafeFetch } from "better-supabase/blocks/webhooks";
@@ -189,6 +189,14 @@ import { createSafeFetch } from "better-supabase/blocks/webhooks";
 const safeFetch = createSafeFetch();
 
 const response = await safeFetch(userSuppliedUrl);
+```
+
+When your requests carry credentials in other headers, such as an API key
+for the service you call, list them in `sensitiveHeaders` so a redirect to
+another origin drops them too. Redirects within the same origin keep them.
+
+```ts
+const safeFetch = createSafeFetch({ sensitiveHeaders: ["x-api-key"] });
 ```
 
 The DNS caveat above applies here too.

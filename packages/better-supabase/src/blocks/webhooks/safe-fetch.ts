@@ -16,6 +16,7 @@ export interface SafeFetchOptions extends PublicUrlOptions {
   readonly maxRedirects?: number;
   /** Per call, across redirects. Defaults to 10 seconds. */
   readonly timeoutMs?: number;
+  readonly sensitiveHeaders?: readonly string[];
 }
 
 /** A request `safeFetch` refused: a URL outside the policy or too many redirects. */
@@ -43,7 +44,8 @@ const CREDENTIALS = ["authorization", "cookie", "proxy-authorization"];
  * avatars by URL, callback URLs): it refuses private, loopback and
  * link-local addresses, non-HTTPS URLs and credentials in the URL, checks
  * every redirect against the same policy before following it, and stops
- * after `timeoutMs`. It throws `UnsafeUrlError` for a refused URL.
+ * after `timeoutMs`. It throws `UnsafeUrlError` for a refused URL. A redirect
+ * to another origin drops the credential headers and `sensitiveHeaders`.
  *
  * DNS can change between the check and the connection; route the requests
  * through an egress proxy when that matters.
@@ -53,6 +55,7 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
   const allowUrl = options.allowUrl ?? publicUrl(options);
   const maxRedirects = options.maxRedirects ?? 3;
   const timeoutMs = options.timeoutMs ?? 10_000;
+  const sensitive = [...CREDENTIALS, ...(options.sensitiveHeaders ?? [])];
   const check = async (url: URL): Promise<void> => {
     let ok = false;
     try {
@@ -99,7 +102,7 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
       }
       const next = new URL(location, url);
       if (next.origin !== url.origin) {
-        for (const name of CREDENTIALS) headers.delete(name);
+        for (const name of sensitive) headers.delete(name);
       }
       url = next;
     }

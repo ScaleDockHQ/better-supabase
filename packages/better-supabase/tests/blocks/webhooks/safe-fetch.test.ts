@@ -75,6 +75,41 @@ describe("createSafeFetch", () => {
     expect(hops[1]!.headers.get("authorization")).toBeNull();
   });
 
+  it("drops sensitiveHeaders across origins and keeps them on the same origin", async () => {
+    const { fetch, hops } = fakeFetch((url) => {
+      if (url.pathname === "/start")
+        return new Response(null, {
+          status: 302,
+          headers: { location: "/same" },
+        });
+      if (url.pathname === "/same")
+        return new Response(null, {
+          status: 302,
+          headers: { location: "https://other.example.com/next" },
+        });
+      return new Response("done");
+    });
+    const safe = createSafeFetch({
+      fetch,
+      resolve,
+      sensitiveHeaders: ["X-Api-Key"],
+    });
+    await safe("https://example.com/start", {
+      headers: { "x-api-key": "k", cookie: "c", accept: "text/plain" },
+    });
+    expect(
+      hops.map((hop) => [
+        hop.headers.get("x-api-key"),
+        hop.headers.get("cookie"),
+        hop.headers.get("accept"),
+      ]),
+    ).toEqual([
+      ["k", "c", "text/plain"],
+      ["k", "c", "text/plain"],
+      [null, null, "text/plain"],
+    ]);
+  });
+
   it("keeps the body on 307, limits redirects and needs a location", async () => {
     let count = 0;
     const { fetch, hops } = fakeFetch(() => {
