@@ -9,6 +9,12 @@ const config: NextConfig = {
   // `pnpm dev:portless` serves the example at https://example.localhost.
   allowedDevOrigins: ["127.0.0.1", "*.localhost"],
   images: { loader: "custom", loaderFile: "./src/image-loader.ts" },
+  experimental: {
+    // `pnpm test:e2e` builds with it so `instant()` can hold the navigation;
+    // a build without it ignores the lock and every test passes vacuously.
+    exposeTestingApiInProductionBuild:
+      process.env["EXPOSE_TESTING_API"] === "1",
+  },
 };
 
 export default config;

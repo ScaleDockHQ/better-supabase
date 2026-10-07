@@ -70,8 +70,32 @@ async function upload(entry: CrudEntry): Promise<Result<unknown>> {
   }
 }
 
-/** Changes the server refused, for the UI to show next to the row. */
-export const conflicts: { entry: CrudEntry; error: DbError }[] = [];
+interface Conflict {
+  readonly entry: CrudEntry;
+  readonly error: DbError;
+}
+
+let refused: readonly Conflict[] = [];
+const listeners = new Set<() => void>();
+
+/**
+ * Changes the server refused, for the UI to show next to the row. A store
+ * for `useSyncExternalStore`, so a new conflict re-renders its readers.
+ */
+export const conflicts = {
+  current: (): readonly Conflict[] => refused,
+  subscribe: (listener: () => void): (() => void) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  },
+};
+
+function refuse(conflict: Conflict): void {
+  refused = [...refused, conflict];
+  for (const listener of listeners) listener();
+}
 
 export const connector: PowerSyncBackendConnector = {
   async fetchCredentials() {
@@ -96,7 +120,7 @@ export const connector: PowerSyncBackendConnector = {
           // PowerSync keeps the transaction queued and calls uploadData again.
           throw new Error(result.error.message);
         case "conflict":
-          conflicts.push({ entry, error: result.error });
+          refuse({ entry, error: result.error });
           break;
         case "discard":
           break;

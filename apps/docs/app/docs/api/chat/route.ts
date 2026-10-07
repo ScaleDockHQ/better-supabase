@@ -63,21 +63,22 @@ export async function POST(request: Request): Promise<Response> {
     return problem(503, "Ask AI is not configured on this deployment");
   }
 
-  const verdict = await checkBotId().catch(() => undefined);
+  const [verdict, body] = await Promise.all([
+    checkBotId().catch(() => undefined),
+    request.json().then(
+      (json) => v.safeParse(ChatBody, json),
+      () => null,
+    ),
+  ]);
   if (verdict === undefined) {
     return problem(503, "Bot protection is not available on this deployment");
   }
   if (verdict.isBot) {
     return problem(403, "Ask AI is not available to automated clients");
   }
-
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
+  if (body === null) {
     return problem(400, "The request body is not JSON");
   }
-  const body = v.safeParse(ChatBody, json);
   if (!body.success) {
     return problem(400, "Send between 1 and 20 chat messages");
   }
@@ -88,10 +89,14 @@ export async function POST(request: Request): Promise<Response> {
     return problem(400, "Send between 1 and 20 chat messages");
   }
 
+  const [context, messages] = await Promise.all([
+    documentation(lastUserText(parsed.data)),
+    convertToModelMessages(parsed.data),
+  ]);
   const result = streamText({
     model: MODEL,
-    instructions: `${SYSTEM}\n\n${await documentation(lastUserText(parsed.data))}`,
-    messages: await convertToModelMessages(parsed.data),
+    instructions: `${SYSTEM}\n\n${context}`,
+    messages,
   });
   return createUIMessageStreamResponse({
     stream: toUIMessageStream({ stream: result.stream }),

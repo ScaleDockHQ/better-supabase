@@ -72,7 +72,13 @@ const config: KnipConfig = {
     "apps/examples/orpc-api": serverExample,
     "apps/examples/nextjs": {
       ...browserExample,
-      entry: ["better-supabase.config.ts", "src/image-loader.ts"],
+      // Knip's Playwright plugin finds the specs; the setup project is a
+      // `testMatch` regex it can't read.
+      entry: [
+        "better-supabase.config.ts",
+        "src/image-loader.ts",
+        "e2e/auth.setup.ts",
+      ],
     },
     "apps/examples/vite-react": browserExample,
     "apps/examples/monorepo/runtime": serverExample,

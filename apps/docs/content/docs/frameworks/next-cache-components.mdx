@@ -534,18 +534,38 @@ await expectDbBudget(page, {
 `@next/playwright`'s `instant()` holds back dynamic content while its
 callback runs, so you can assert on exactly what the shell or prefetch
 contains. Against `next start`, enable the testing API for the test build
-only:
+only. Set the variable while running `next build`: a build without it ignores
+the lock, and every `instant()` test passes without checking anything.
 
 ```ts title="next.config.ts"
 experimental: {
-  exposeTestingApiInProductionBuild: process.env.NEXT_E2E === '1',
+  exposeTestingApiInProductionBuild: process.env.EXPOSE_TESTING_API === "1",
 },
 ```
 
-```ts
-await instant(page, async () => {
-  await page.getByRole("link", { name: "Customers" }).click();
-  await page.waitForURL((url) => url.pathname === "/customers");
-  await page.getByText("Road Runner Inc").waitFor(); // from the per-session App Shell
+```ts title="e2e/customers.spec.ts"
+import { instant } from "@next/playwright";
+import { expect, test } from "@playwright/test";
+
+test("customers come from the per-session App Shell", async ({ page }) => {
+  await page.goto("/");
+  await instant(page, async () => {
+    await page.getByRole("link", { name: "Customers", exact: true }).click();
+    await page.waitForURL((url) => url.pathname === "/customers");
+    await expect(page.getByText("Road Runner Inc")).toBeVisible();
+  });
 });
 ```
+
+For content that should stream after the click, assert that it is absent
+inside the callback and visible after it. Run the tests against a production
+build, never `next dev`, and without retries: a retry hides the regression
+the test exists to catch. To check that a test can fail, remove
+`'use cache: private'` from the function it depends on. The heading still
+commits, but the rows never appear under the lock.
+
+The [Next.js example's e2e suite](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/nextjs/e2e)
+covers an initial load, the per-session App Shell, permission-gated pages, a
+count that streams after the click, a member's view and a mutation.
+`pnpm --filter @better-supabase/example-nextjs test:e2e` builds the example
+with the testing API and runs it against the local stack.
