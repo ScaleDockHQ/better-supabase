@@ -865,4 +865,32 @@ describe("compilePostgrest through supabase-js", () => {
       "limit=10",
     ]);
   });
+
+  it("sends Dates as ISO text, null in a list as is.null and * literally", async () => {
+    const { client, last } = capturingClient();
+    const db = defineSupabase(schema).connect(client);
+    await db.customers
+      .findMany({
+        select: ["id"],
+        where: {
+          name: { contains: "50*off" },
+          kvk: { in: ["1", null] as never, notIn: [null] as never },
+          createdAt: { gte: new Date("2026-01-02T03:04:05Z") as never },
+        },
+      })
+      .orThrow();
+    expect(query(last())).toEqual([
+      "select=id",
+      "name=imatch.^.*50\\*off.*$",
+      "or=(kvk.in.(1),kvk.is.null)",
+      "kvk=not.is.null",
+      "created_at=gte.2026-01-02T03:04:05.000Z",
+      "order=id.asc",
+    ]);
+    expect(
+      await db.customers.findMany({
+        where: { createdAt: { gte: new Date("nope") as never } },
+      }),
+    ).toMatchObject({ error: { kind: "invalid_value" } });
+  });
 });

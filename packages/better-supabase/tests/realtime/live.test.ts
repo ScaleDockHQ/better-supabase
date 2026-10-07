@@ -48,6 +48,7 @@ function fakeClient(
     }),
     removeChannel: vi.fn(async (channel: { topic: string }) => {
       channels.delete(channel.topic);
+      statusCallbacks.get(channel.topic)?.("CLOSED");
       return "ok" as const;
     }),
     realtime: { setAuth: vi.fn(async () => undefined) },
@@ -136,6 +137,28 @@ describe("liveQuery join states", () => {
     expect(errors).toEqual([cause]);
     await notes.unsubscribe();
     await customers.unsubscribe();
+  });
+
+  it("drops a channel that never joined so the next live query starts over", async () => {
+    let attempt = 0;
+    const { client, raw } = fakeClient(() =>
+      attempt++ === 0 ? ["TIMED_OUT"] : ["SUBSCRIBED"],
+    );
+    const failed = liveQuery(betterSupabase, client, ["notes"], {
+      onChange: vi.fn(),
+    });
+    await expect(failed.ready).rejects.toThrow(
+      "Realtime timed_out on bs:t:public.notes",
+    );
+    expect(raw.removeChannel).toHaveBeenCalledTimes(1);
+    const retried = liveQuery(betterSupabase, client, ["notes"], {
+      onChange: vi.fn(),
+    });
+    await retried.ready;
+    expect(raw.channel).toHaveBeenCalledTimes(2);
+    await failed.unsubscribe();
+    await retried.unsubscribe();
+    expect(raw.removeChannel).toHaveBeenCalledTimes(2);
   });
 
   it("rejects an unknown status and wraps non-Error causes", async () => {

@@ -1,5 +1,6 @@
 export { defineListQuery, UNSET } from "./list-query.ts";
 export type {
+  FacetCountFields,
   FacetCounts,
   FacetInfo,
   ListDefinition,

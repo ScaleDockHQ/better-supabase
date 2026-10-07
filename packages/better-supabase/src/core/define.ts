@@ -161,11 +161,29 @@ function isExecutor(value: unknown): value is Executor {
   );
 }
 
+/** No plugins, one shared array so the caches keyed on a plugin list hit. */
+const NO_PLUGINS: readonly AnyPlugin[] = Object.freeze([]);
+
+/** The kept lists per installed list and `keep` names, so each is one stable array. */
+const keptLists = new WeakMap<
+  readonly AnyPlugin[],
+  Map<string, readonly AnyPlugin[]>
+>();
+
 /** The installed plugins named in `keep`; a name that isn't installed throws, so a typo can't drop tracing silently. */
 function keptPlugins(
   plugins: readonly AnyPlugin[],
   keep: readonly string[],
 ): readonly AnyPlugin[] {
+  if (keep.length === 0) return NO_PLUGINS;
+  let byKeep = keptLists.get(plugins);
+  if (!byKeep) {
+    byKeep = new Map();
+    keptLists.set(plugins, byKeep);
+  }
+  const key = keep.join("\u0000");
+  const cached = byKeep.get(key);
+  if (cached) return cached;
   for (const name of keep) {
     if (!plugins.some((plugin) => plugin.name === name)) {
       throw new TypeError(
@@ -173,7 +191,9 @@ function keptPlugins(
       );
     }
   }
-  return plugins.filter((plugin) => keep.includes(plugin.name));
+  const kept = plugins.filter((plugin) => keep.includes(plugin.name));
+  byKeep.set(key, kept);
+  return kept;
 }
 
 /**
@@ -809,7 +829,7 @@ export class BetterSupabase<
               )
             : usePlugins
               ? db
-              : this.#db(client, base, given, [], recorder, tuning)
+              : this.#db(client, base, given, NO_PLUGINS, recorder, tuning)
         ) as Record<string, unknown>;
         const results = await Promise.all(
           specs.map(async (spec) => {
@@ -897,6 +917,36 @@ export class BetterSupabase<
       string,
       { rows?: Record<string, unknown>[] | null; count?: number | null }
     >;
+    // The specs run one at a time, so one decoding db serves them all: its
+    // executor answers with the rows of the spec being decoded.
+    let rows: Record<string, unknown>[] = [];
+    let count: number | null = null;
+    const stub: Executor = {
+      name: "read-set",
+      execute: (op) => {
+        if (op.kind === "select" && op.single) {
+          if (rows.length > 1)
+            return Promise.resolve(
+              err(dbError("multiple_rows", `Expected one ${op.table.key} row`)),
+            );
+          if (rows.length === 0 && op.single === "one")
+            return Promise.resolve(
+              err(dbError("not_found", `No ${op.table.key} row matched`)),
+            );
+        }
+        return Promise.resolve(ok({ rows, count }));
+      },
+    };
+    // SAFETY: #db returns the repositories indexed by table name, plus the $ methods.
+    const decoder = this.#db(
+      client,
+      stub,
+      context,
+      NO_PLUGINS,
+      new StatsRecorder(),
+      {},
+      (this.#decodeEvents ??= new EventHub(this.events.logger)),
+    ) as Record<string, unknown>;
     const out: Record<string, unknown> = {};
     for (const [key, spec] of Object.entries(specs)) {
       const entry = payload[key];
@@ -908,35 +958,8 @@ export class BetterSupabase<
           ),
         );
       }
-      const rows = entry.rows ?? [];
-      const stub: Executor = {
-        name: "read-set",
-        execute: (op) => {
-          if (op.kind === "select" && op.single) {
-            if (rows.length > 1)
-              return Promise.resolve(
-                err(
-                  dbError("multiple_rows", `Expected one ${op.table.key} row`),
-                ),
-              );
-            if (rows.length === 0 && op.single === "one")
-              return Promise.resolve(
-                err(dbError("not_found", `No ${op.table.key} row matched`)),
-              );
-          }
-          return Promise.resolve(ok({ rows, count: entry.count ?? null }));
-        },
-      };
-      // SAFETY: #db returns the repositories indexed by table name, plus the $ methods.
-      const decoder = this.#db(
-        client,
-        stub,
-        context,
-        [],
-        new StatsRecorder(),
-        {},
-        (this.#decodeEvents ??= new EventHub(this.events.logger)),
-      ) as Record<string, unknown>;
+      rows = entry.rows ?? [];
+      count = entry.count ?? null;
       const result = await runSpec(decoder, spec, undefined);
       if (!result.ok) return result;
       out[key] = result.data;

@@ -9,6 +9,7 @@ import {
   type Plugin,
   type RepositoryExtension,
 } from "../../core/plugin.ts";
+import { simplify } from "../../ir/simplify.ts";
 import { lookupOf } from "../../schema/lookup.ts";
 
 export type RuleLevel = "off" | "warn" | "error";
@@ -338,6 +339,8 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
     requireOrderByForCursor: (op) =>
       op.kind === "select" &&
       !op.head &&
+      op.unpaged !== true &&
+      op.source === undefined &&
       op.orderBy.length === 0 &&
       (op.offset !== undefined || (op.limit !== undefined && op.limit > 1))
         ? "paging without orderBy returns rows in no stable order"
@@ -372,7 +375,7 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
         : undefined;
     },
     noDeleteManyWithoutWhere: (op) =>
-      op.kind === "delete" && op.where === undefined
+      op.kind === "delete" && simplify(op.where) === true
         ? "delete without where removes every visible row"
         : undefined,
     requireMaxAffected: (op) => {

@@ -437,8 +437,8 @@ describe("reportUsageToStripe", () => {
     expect(calls.map(([, fn]) => fn)).toEqual([
       "unreported_usage",
       "tenant_stripe_customer",
-      "mark_usage_reported",
       "tenant_stripe_customer",
+      "mark_usage_reported",
       "unreported_usage",
     ]);
     expect(calls[0]?.[2]).toEqual({
@@ -446,7 +446,7 @@ describe("reportUsageToStripe", () => {
       skip_meters: [],
       skip_tenants: [],
     });
-    expect(calls[2]?.[2]).toEqual({
+    expect(calls[3]?.[2]).toEqual({
       tenant: "org-1",
       meter: "api_calls",
       day: "2026-10-05",

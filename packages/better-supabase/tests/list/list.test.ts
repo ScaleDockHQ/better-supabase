@@ -121,18 +121,24 @@ describe("defineListQuery", () => {
       facetCounts: true,
       count: "planned",
     });
-    const { client, requests } = capturingClient((request) =>
-      request.params.get("select")?.includes("count()")
-        ? {
-            body: [
-              { status: "active", kvk: "1001", _count: 3 },
-              { status: "active", kvk: null, _count: 2 },
-              { status: "lead", kvk: "1001", _count: 4 },
-              { status: "lead", kvk: "2002", _count: 5 },
-            ],
-          }
-        : { body: [{ id: "c1" }], headers: { "content-range": "0-0/1" } },
-    );
+    const { client, requests } = capturingClient((request) => {
+      const select = request.params.get("select");
+      if (select?.startsWith("status"))
+        return {
+          body: [
+            { status: "active", _count: 5 },
+            { status: "lead", _count: 9 },
+          ],
+        };
+      if (select?.startsWith("kvk"))
+        return {
+          body: [
+            { kvk: "1001", _count: 3 },
+            { kvk: null, _count: 2 },
+          ],
+        };
+      return { body: [{ id: "c1" }], headers: { "content-range": "0-0/1" } };
+    });
     const db = betterSupabase.connect(client);
     const query = faceted.parse({
       q: "acme",
@@ -145,17 +151,23 @@ describe("defineListQuery", () => {
       status: { active: 5, lead: 9, archived: 0 },
       kvk: { "1001": 3, [UNSET]: 2 },
     });
-    expect(db.$stats()).toMatchObject({ calls: 2, waves: 1 });
+    expect(page.facetCountsTruncated).toEqual([]);
+    expect(db.$stats()).toMatchObject({ calls: 3, waves: 1 });
 
-    const [pageRequest, groupRequest] = requests;
+    const [pageRequest, statusRequest, kvkRequest] = requests;
     expect(pageRequest!.headers.get("prefer")).toContain("count=planned");
     expect(pageRequest!.params.get("status")).toBe("in.(active)");
-    expect(groupRequest!.params.get("status")).toBeNull();
-    expect(groupRequest!.params.get("organization_id")).toBe("eq.org-1");
-    expect(groupRequest!.params.toString()).toContain("acme");
+    expect(statusRequest!.params.get("select")).toBe("status,_count:count()");
+    expect(statusRequest!.params.get("status")).toBeNull();
+    expect(statusRequest!.params.get("limit")).toBe("101");
+    expect(kvkRequest!.params.get("status")).toBe("in.(active)");
+    for (const request of [statusRequest, kvkRequest]) {
+      expect(request!.params.get("organization_id")).toBe("eq.org-1");
+      expect(request!.params.toString()).toContain("acme");
+    }
 
     await faceted.run(db, query, { count: "estimated" }).orThrow();
-    expect(requests[2]!.headers.get("prefer")).toContain("count=estimated");
+    expect(requests[3]!.headers.get("prefer")).toContain("count=estimated");
   });
 
   it("fails the run when the facet counts fail", async () => {
@@ -350,7 +362,7 @@ describe("defineListQuery", () => {
     });
     expect(fts.args(fts.parse({ q: "road" }).value!)).toMatchObject({
       where: { name: { search: { query: "road", config: "dutch" } } },
-      count: "exact",
+      count: "planned",
       page: 1,
       size: 50,
     });
@@ -447,17 +459,21 @@ describe("defineListQuery", () => {
       defaultSort: "name",
       facetCounts: true,
     });
-    const { client } = capturingClient((request) =>
-      request.params.get("select")?.includes("count()")
-        ? {
-            body: [
-              { status: "lead", kvk: null, _count: 2 },
-              { status: "active", kvk: null },
-              { status: "lead", kvk: "9", _count: 7 },
-            ],
-          }
-        : { body: [], headers: { "content-range": "*/0" } },
-    );
+    const { client } = capturingClient((request) => {
+      const select = request.params.get("select");
+      if (select?.startsWith("status"))
+        return {
+          body: [{ status: "lead", _count: 2 }, { status: "active" }],
+        };
+      if (select?.startsWith("kvk"))
+        return {
+          body: [
+            { kvk: null, _count: 2 },
+            { kvk: "9", _count: 7 },
+          ],
+        };
+      return { body: [], headers: { "content-range": "*/0" } };
+    });
     const query = faceted.parse({ facets: { kvk: [UNSET] } }).value!;
     const page = await faceted
       .run(betterSupabase.connect(client), query)
@@ -466,6 +482,31 @@ describe("defineListQuery", () => {
       status: { lead: 2, active: 0, archived: 0 },
       kvk: { [UNSET]: 2, "9": 7 },
     });
+  });
+
+  it("caps the values counted per facet and names the cut facets", async () => {
+    const faceted = defineListQuery(betterSupabase, "customers", {
+      facets: { status: "status", kvk: "kvk" },
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+      facetCounts: true,
+      facetLimit: 2,
+    });
+    const { client } = capturingClient((request) => {
+      const select = request.params.get("select");
+      if (select?.startsWith("kvk"))
+        return {
+          body: ["1", "2", "3"].map((kvk) => ({ kvk, _count: 1 })),
+        };
+      if (select?.startsWith("status"))
+        return { body: [{ status: "lead", _count: 4 }] };
+      return { body: [], headers: { "content-range": "*/0" } };
+    });
+    const page = await faceted
+      .run(betterSupabase.connect(client), faceted.defaults)
+      .orThrow();
+    expect(page.facetCounts.kvk).toEqual({ "1": 1, "2": 1 });
+    expect(page.facetCountsTruncated).toEqual(["kvk"]);
   });
 
   it("pages by cursor when pagination is cursor", async () => {

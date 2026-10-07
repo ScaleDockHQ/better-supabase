@@ -257,6 +257,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
 
   it("runs the same list definition", async () => {
     const list = defineListQuery(betterSupabase, "customers", {
+      count: "exact",
       search: ["name", "kvk"],
       facets: { status: "status", kvk: "kvk" },
       sorts: {

@@ -52,6 +52,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
     { claims },
   );
   const customerList = defineListQuery(betterSupabase, "customers", {
+    count: "exact",
     search: ["name", "kvk"],
     facets: { status: "status", kvk: "kvk" },
     sorts: { name: [{ name: "asc" }, { id: "asc" }] },

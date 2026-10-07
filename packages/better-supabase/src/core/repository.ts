@@ -4,6 +4,7 @@ import type { ExecuteContext, ExecuteResult, Executor } from "./executor.ts";
 
 import { type IrBuilder, invalidRequest } from "../ir/build.ts";
 import { decodeRows, needsDecoding } from "../ir/codec.ts";
+import { simplify } from "../ir/simplify.ts";
 import {
   type Condition,
   type DeleteOp,
@@ -15,9 +16,6 @@ import {
   type Selection,
   type UpdateOp,
   and,
-  column as columnIs,
-  not,
-  or,
 } from "../ir/types.ts";
 import { encodeValue } from "../ir/wire.ts";
 import { lookupOf } from "../schema/lookup.ts";
@@ -29,6 +27,7 @@ import {
   type ErrorMapper,
   dbError,
 } from "./errors.ts";
+import { keysetCondition } from "./keyset.ts";
 import {
   type AnyPlugin,
   type CallOptions,
@@ -273,6 +272,16 @@ export class OperationRunner {
         });
       }
     }
+    // PostgREST answers an empty PATCH with no rows, which reads as not_found.
+    if (current.kind === "update" && Object.keys(current.set).length === 0) {
+      return this.fail(
+        op.table,
+        dbError(
+          "invalid_request",
+          `The update on "${op.table.key}" sets no columns`,
+        ),
+      );
+    }
 
     const timed = runtime.events.has("query");
     const started = timed ? performance.now() : 0;
@@ -395,6 +404,7 @@ export class OperationRunner {
 }
 
 const sensitiveByTable = new WeakMap<TableMeta, ReadonlySet<string>>();
+const primaryOrders = new WeakMap<TableMeta, readonly OrderTerm[]>();
 
 /** Database names of the table's `config.sensitive` columns. */
 function sensitiveColumnsOf(table: TableMeta): ReadonlySet<string> {
@@ -426,6 +436,20 @@ export function createRepository(
       args?.["include"],
     );
 
+  const rowCount = (
+    args: Args | undefined,
+    name: "limit" | "offset",
+  ): number | undefined => {
+    const value = args?.[name];
+    if (value === undefined) return undefined;
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
+      invalidRequest(
+        `"${name}" must be a non-negative integer, not ${String(value)}`,
+        table.key,
+      );
+    return value;
+  };
+
   const selectOp = (
     args: Args | undefined,
     patch: Partial<SelectOp> = {},
@@ -435,8 +459,8 @@ export function createRepository(
     selection: selection(args),
     where: builder.where(table, args?.["where"]),
     orderBy: builder.orderBy(table, args?.["orderBy"]),
-    limit: typeof args?.["limit"] === "number" ? args["limit"] : undefined,
-    offset: typeof args?.["offset"] === "number" ? args["offset"] : undefined,
+    limit: rowCount(args, "limit"),
+    offset: rowCount(args, "offset"),
     count: undefined,
     head: false,
     single: undefined,
@@ -461,13 +485,18 @@ export function createRepository(
   ): Promise<Result<ExecuteResult>> =>
     runner.run(op, optionsOf(args), signalOf(args), tuningOf(args));
 
-  let primaryOrder: readonly OrderTerm[] | undefined;
   /** `primaryKey` holds app names; order terms take database names. */
-  const defaultOrder = (): readonly OrderTerm[] =>
-    (primaryOrder ??= table.primaryKey.map((name): OrderTerm => ({
-      column: builder.column(table, name),
-      direction: "asc",
-    })));
+  const defaultOrder = (): readonly OrderTerm[] => {
+    let order = primaryOrders.get(table);
+    if (!order) {
+      order = table.primaryKey.map((name): OrderTerm => ({
+        column: builder.column(table, name),
+        direction: "asc",
+      }));
+      primaryOrders.set(table, order);
+    }
+    return order;
+  };
 
   const notFound = <T>(): Result<T> =>
     runner.fail(table, dbError("not_found", `No ${table.key} row matched`));
@@ -497,7 +526,10 @@ export function createRepository(
 
     findOnly(args: Args) {
       return AsyncResult.from(async () => {
-        const result = await run(selectOp(args, { limit: 2 }), args);
+        const result = await run(
+          selectOp(args, { limit: 2, unpaged: true }),
+          args,
+        );
         if (!result.ok) return result;
         if (result.data.rows.length > 1)
           return runner.fail(
@@ -683,6 +715,16 @@ export function createRepository(
 
     updateMany(args: Args) {
       return AsyncResult.from(async () => {
+        const where = builder.where(table, args["where"]);
+        if (simplify(where) === true && args["allowAll"] !== true) {
+          return runner.fail(
+            table,
+            dbError(
+              "invalid_request",
+              'updateMany needs a "where" that filters rows; pass allowAll: true to update every row',
+            ),
+          );
+        }
         const rows = args["returning"] === true;
         const bound = maxAffectedOf(args);
         if ("invalid" in bound)
@@ -691,7 +733,7 @@ export function createRepository(
           kind: "update",
           table,
           set: builder.row(table, args["data"], "update"),
-          where: builder.where(table, args["where"]),
+          where,
           returning: rows ? returning(args) : undefined,
           ...bound,
           ...countOf(args),
@@ -751,10 +793,13 @@ export function createRepository(
     deleteMany(args: Args) {
       return AsyncResult.from(async () => {
         const where = builder.where(table, args["where"]);
-        if (!where) {
+        if (!where || simplify(where) === true) {
           return runner.fail(
             table,
-            dbError("invalid_request", 'deleteMany needs a non-empty "where"'),
+            dbError(
+              "invalid_request",
+              'deleteMany needs a "where" that filters rows',
+            ),
           );
         }
         const rows = args["returning"] === true;
@@ -1036,50 +1081,4 @@ function byKey(
     return 0;
   });
   return keyed.map((entry) => entry.row);
-}
-
-/**
- * The rows after the cursor `values` in `orderBy` order, as an OR of ANDs:
- * `a > x or (a = x and b > y)`. The SQL compiler sends that shape as the row
- * comparison `(a, b) > (x, y)`. Nulls sort where Postgres puts them: last
- * for `asc`, first for `desc`, unless the term says otherwise.
- */
-function keysetCondition(
-  orderBy: readonly OrderTerm[],
-  values: readonly unknown[],
-  nullable: (column: string) => boolean,
-): Condition {
-  const isNull = (name: string): Condition => columnIs(name, "is", null);
-  const branches = orderBy.flatMap((term, index): Condition[] => {
-    const value = values[index];
-    const nullsFirst =
-      (term.nulls ?? (term.direction === "desc" ? "first" : "last")) ===
-      "first";
-    const after = columnIs(
-      term.column,
-      term.direction === "asc" ? "gt" : "lt",
-      value,
-    );
-    const step =
-      value === null
-        ? nullsFirst
-          ? not(isNull(term.column))
-          : undefined
-        : nullsFirst || !nullable(term.column)
-          ? after
-          : or(after, isNull(term.column));
-    if (!step) return [];
-    const equal = orderBy
-      .slice(0, index)
-      .map((prev, prevIndex) =>
-        values[prevIndex] === null
-          ? isNull(prev.column)
-          : columnIs(prev.column, "eq", values[prevIndex]),
-      );
-    return [and(...equal, step) ?? step];
-  });
-  // A null in the last nulls-last term leaves nothing after the cursor.
-  return branches.length > 0
-    ? or(...branches)
-    : columnIs(orderBy[0]?.column ?? "", "in", []);
 }

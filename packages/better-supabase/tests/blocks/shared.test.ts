@@ -4,6 +4,7 @@ import type { BlockTransport } from "../../src/core/block-transport.ts";
 
 import {
   blockCall,
+  eachLimit,
   instantArg,
   optionalInstant,
   optionalText,
@@ -89,5 +90,38 @@ describe("row helpers", () => {
     const token = randomToken(32);
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(randomToken()).not.toBe(randomToken());
+  });
+});
+
+describe("eachLimit", () => {
+  it("keeps at most `limit` calls in flight and visits every item", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const seen: number[] = [];
+    await eachLimit([1, 2, 3, 4, 5], 2, async (item, index) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1);
+      });
+      seen[index] = item;
+      inFlight -= 1;
+    });
+    expect(peak).toBe(2);
+    expect(seen).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("starts nothing new after a rejection and rethrows it", async () => {
+    const started: number[] = [];
+    await expect(
+      eachLimit([1, 2, 3, 4], 1, async (item) => {
+        started.push(item);
+        if (item === 2) throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+    expect(started).toEqual([1, 2]);
+    await eachLimit([], 4, async () => {
+      throw new Error("never");
+    });
   });
 });

@@ -212,7 +212,8 @@ describe("compileReadSet", () => {
     expect(sql).toContain("false");
     expect(sql).toContain("'2026-01-02T03:04:05Z'");
     expect(sql).toContain(String.raw`{"a\"b","c\\d"}`);
-    expect(sql).toContain('{NULL,"2026-01-02T03:04:05Z"}');
+    expect(sql).toContain('{"2026-01-02T03:04:05Z"}');
+    expect(sql).toMatch(/"kvk" is null/);
     expect(sql).toContain('{"12","10"}');
     expect(sql).not.toMatch(/\$\d/);
   });
@@ -413,6 +414,71 @@ describe("batchingExecutor", () => {
     })();
     await Promise.all([first, second]);
     expect(executor.batches.map((batch) => batch.length)).toEqual([2, 1]);
+  });
+
+  it("aborts the batch only once every reader has aborted", async () => {
+    const signals: (AbortSignal | undefined)[] = [];
+    let release = (): void => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const base = {
+      name: "held",
+      execute: async () => ok({ rows: [], count: 0 }),
+      batch: async (
+        ops: readonly Operation[],
+        context: { signal?: AbortSignal },
+      ) => {
+        signals.push(context.signal);
+        await held;
+        return ops.map(() => ok({ rows: [], count: 0 }));
+      },
+    };
+    const batcher = batchingExecutor(base, 2);
+    const op = await captureOp();
+    const a = new AbortController();
+    const b = new AbortController();
+    const first = batcher.executor.execute(op, {
+      errorMappers: [],
+      signal: a.signal,
+    });
+    const second = batcher.executor.execute(op, {
+      errorMappers: [],
+      signal: b.signal,
+    });
+    const batchSignal = signals[0];
+    a.abort();
+    expect(await first).toMatchObject({ error: { kind: "aborted" } });
+    expect(batchSignal?.aborted).toBe(false);
+    b.abort();
+    expect(batchSignal?.aborted).toBe(true);
+    expect(await second).toMatchObject({ error: { kind: "aborted" } });
+    release();
+  });
+
+  it("sends no signal when a reader has none", async () => {
+    const signals: (AbortSignal | undefined)[] = [];
+    const base = {
+      name: "plain",
+      execute: async () => ok({ rows: [], count: 0 }),
+      batch: async (
+        ops: readonly Operation[],
+        context: { signal?: AbortSignal },
+      ) => {
+        signals.push(context.signal);
+        return ops.map(() => ok({ rows: [], count: 0 }));
+      },
+    };
+    const batcher = batchingExecutor(base, 2);
+    const op = await captureOp();
+    await Promise.all([
+      batcher.executor.execute(op, {
+        errorMappers: [],
+        signal: new AbortController().signal,
+      }),
+      batcher.executor.execute(op, { errorMappers: [] }),
+    ]);
+    expect(signals).toEqual([undefined]);
   });
 });
 

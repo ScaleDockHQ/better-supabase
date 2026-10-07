@@ -53,7 +53,7 @@ describe("CRM latency ports", () => {
 
     // Each facet's counts apply the other facets' selection, not its own.
     expect(page.facetCounts.status).toMatchObject({ active: 5, prospect: 2 });
-    expect(db.$stats()).toMatchObject({ calls: 2, waves: 1 });
+    expect(db.$stats()).toMatchObject({ calls: 3, waves: 1 });
     const selects = urls().map((url) => url.searchParams.get("select") ?? "");
     expect(selects.some((select) => select.includes("count()"))).toBe(true);
     expect(selects.some((select) => select.includes("updated_at.max()"))).toBe(

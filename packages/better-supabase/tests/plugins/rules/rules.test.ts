@@ -171,6 +171,9 @@ describe("rules()", () => {
         .error,
     ).toBeNull();
     expect((await db.customers.paginate({ size: 10 })).error).toBeNull();
+    expect(
+      (await db.customers.findOnly({ where: { name: "Acme" } })).error,
+    ).toBeNull();
     expect(violations).toEqual([]);
 
     const claims = defineSupabase(schema)

@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
@@ -37,6 +38,133 @@ describe("oversized in lists", () => {
       requests.flatMap((request) => listOf(request.params.get("id"))),
     ).toEqual(ids);
     expect(rows.map((row) => row.id)).toEqual([...ids].reverse());
+  });
+
+  it("selects an unselected order column for the sort and removes it", async () => {
+    const { client, requests } = capturingClient((request) => ({
+      body: listOf(request.params.get("id")).map((id, index) => ({
+        id,
+        _bs_order0: `2026-01-01T00:00:${String(59 - (index % 60)).padStart(2, "0")}+00:00`,
+      })),
+    }));
+    const rows = await betterSupabase
+      .connect(client)
+      .customers.findMany({
+        select: ["id"],
+        where: { id: { in: ids } },
+        orderBy: { createdAt: "asc" },
+      })
+      .orThrow();
+    expect(requests.length).toBeGreaterThan(1);
+    for (const request of requests) {
+      expect(request.params.get("select")).toBe("id,_bs_order0:created_at");
+      expect(request.params.toString().length).toBeLessThanOrEqual(4000);
+    }
+    expect(rows).toHaveLength(ids.length);
+    expect(rows.every((row) => Object.keys(row).join() === "id")).toBe(true);
+  });
+
+  it("orders by the primary key without selecting it", async () => {
+    const { client } = capturingClient((request) => ({
+      body: listOf(request.params.get("id"))
+        .map((id) => ({ name: id, _bs_order0: id }))
+        .reverse(),
+    }));
+    const rows = await betterSupabase
+      .connect(client)
+      .customers.findMany({ select: ["name"], where: { id: { in: ids } } })
+      .orThrow();
+    expect(rows.map((row) => row.name)).toEqual(ids);
+  });
+
+  it("sends each value once when the list repeats values", async () => {
+    const { client, requests } = capturingClient((request) => ({
+      body: listOf(request.params.get("id")).map((id) => ({ id })),
+    }));
+    const rows = await betterSupabase
+      .connect(client)
+      .customers.findMany({
+        select: ["id"],
+        where: { id: { in: [...ids, ...ids] } },
+      })
+      .orThrow();
+    const sent = requests.flatMap((request) =>
+      listOf(request.params.get("id")),
+    );
+    expect(sent).toEqual(ids);
+    expect(rows).toHaveLength(ids.length);
+  });
+
+  it("orders times by instant across offsets", async () => {
+    const times = [
+      "2026-01-01T02:00:00+02:00",
+      "2026-01-01T00:30:00+00:00",
+      "2026-01-01T00:00:00.000001+00:00",
+      "2026-01-01T00:00:00+00:00",
+    ];
+    const { client } = capturingClient((request) => ({
+      body: listOf(request.params.get("id")).map((id, index) => ({
+        id,
+        createdAt: times[index % times.length],
+      })),
+    }));
+    const rows = await betterSupabase
+      .connect(client)
+      .customers.findMany({
+        select: ["id", "createdAt"],
+        where: { id: { in: ids } },
+        orderBy: { createdAt: "asc" },
+      })
+      .orThrow();
+    const order = [...new Set(rows.map((row) => row.createdAt))];
+    expect(order.slice(2)).toEqual([
+      "2026-01-01T00:00:00.000001+00:00",
+      "2026-01-01T00:30:00+00:00",
+    ]);
+    expect(order.slice(0, 2).sort()).toEqual([
+      "2026-01-01T00:00:00+00:00",
+      "2026-01-01T02:00:00+02:00",
+    ]);
+  });
+
+  it("runs at most four chunks at once", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    let calls = 0;
+    const client = createClient(
+      "http://localhost:54321",
+      "sb_publishable_test",
+      {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: {
+          fetch: async (input) => {
+            calls += 1;
+            inFlight += 1;
+            peak = Math.max(peak, inFlight);
+            await new Promise((resolve) => {
+              setTimeout(resolve, 2);
+            });
+            inFlight -= 1;
+            const url = new URL(String(input));
+            return Response.json(
+              listOf(url.searchParams.get("id")).map((id) => ({ id })),
+            );
+          },
+        },
+      },
+    );
+    const many = Array.from(
+      { length: 1500 },
+      (_, index) =>
+        `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    );
+    const rows = await defineSupabase(schema, { urlLengthLimit: 2000 })
+      .connect(client)
+      .customers.findMany({ select: ["id"], where: { id: { in: many } } })
+      .orThrow();
+    expect(rows).toHaveLength(many.length);
+    expect(calls).toBeGreaterThan(4);
+    expect(peak).toBe(4);
   });
 
   it("keeps a read that fits in one request", async () => {
@@ -91,15 +219,6 @@ describe("oversized in lists", () => {
       'order on "name"',
     ],
     [
-      "an order on an unselected column",
-      {
-        where: { id: { in: ids } },
-        orderBy: { createdAt: "asc" },
-        select: ["id"],
-      },
-      'order on "created_at"',
-    ],
-    [
       "a long list inside OR",
       { where: { OR: [{ id: { in: ids } }, { kvk: "1" }] } },
       "no top-level in list",
@@ -140,6 +259,26 @@ describe("oversized in lists", () => {
       });
     expect(result.error?.message).toContain("leaves no room");
   });
+
+  it.each([
+    ["updateMany", { where: { id: { in: ids } }, data: { status: "active" } }],
+    ["deleteMany", { where: { id: { in: ids } } }],
+  ] as const)(
+    "returns invalid_request for a %s whose URL is too long",
+    async (method, args) => {
+      const { client, requests } = capturingClient();
+      const { customers } = betterSupabase.connect(client);
+      const result = await (method === "updateMany"
+        ? customers.updateMany(args as never)
+        : customers.deleteMany(args as never));
+      expect(result.error).toMatchObject({
+        kind: "invalid_request",
+        table: "customers",
+        message: expect.stringContaining("a write can't be split"),
+      });
+      expect(requests).toHaveLength(0);
+    },
+  );
 
   it("passes the first error through", async () => {
     let call = 0;

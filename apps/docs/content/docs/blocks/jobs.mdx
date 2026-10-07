@@ -110,6 +110,11 @@ await jobs.work(
 - An idle worker polls after `pollInterval` (1 second), then doubles the wait
   after each empty poll up to `maxPollInterval` (30 seconds). The next claimed
   job resets it.
+- A claim that fails with a `network`, `timeout`, `serialization` or
+  `rate_limited` error is retried up to 3 times, waiting `pollInterval` and
+  then twice as long each time. Any other claim error, or a fourth in a row,
+  stops every lane, and `work` or `drain` rejects with a `TypeError` whose
+  `cause` is the `DbError`.
 - A `dedupeKey` keeps one waiting or running job per key.
 - `drain(queue, handler)` works the queue until it is empty, which suits cron
   and Edge Functions. `claim`, `complete`, `fail` and `extend` are available

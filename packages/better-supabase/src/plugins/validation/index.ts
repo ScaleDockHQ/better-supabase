@@ -63,10 +63,12 @@ async function check(
   const result = await validate(schema, decoded(table, row), label);
   if (result.ok) {
     const output = result.data;
+    // The output goes over the row: a schema that strips unknown keys would
+    // otherwise drop the columns other plugins filled (tenant, actor).
     // SAFETY: the condition narrows output to a non-null object, and schemas
     // for rows output records.
     return typeof output === "object" && output !== null
-      ? encoded(toDb(table, output as Record<string, unknown>))
+      ? { ...row, ...encoded(toDb(table, output as Record<string, unknown>)) }
       : { ...row };
   }
   const error = result.error;

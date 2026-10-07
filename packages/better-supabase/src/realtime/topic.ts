@@ -202,6 +202,138 @@ export interface Topic<P extends string, E extends EventSchemas> {
   ): AsyncResult<void>;
 }
 
+interface Subscriber {
+  readonly onStatus: SubscribeOptions["onStatus"];
+  readonly receive: (message: TopicMessage) => void;
+}
+
+interface SharedTopic {
+  readonly channel: RealtimeChannel;
+  readonly self: boolean;
+  readonly subscribers: Set<Subscriber>;
+  readonly ready: Promise<void>;
+  subscribed: boolean;
+}
+
+const topicChannels = new WeakMap<RealtimeClient, Map<string, SharedTopic>>();
+
+/**
+ * One channel per topic and client, shared by every `subscribe()` on it:
+ * supabase-js hands back the open channel for a topic, so a second join or
+ * an early `removeChannel` would break the first subscription.
+ */
+function joinTopic(
+  client: RealtimeClient,
+  topic: string,
+  isPrivate: boolean,
+  self: boolean,
+  subscriber: Subscriber,
+): {
+  channel: RealtimeChannel;
+  ready: Promise<void>;
+  leave: () => Promise<void>;
+} {
+  let byTopic = topicChannels.get(client);
+  if (!byTopic) {
+    byTopic = new Map();
+    topicChannels.set(client, byTopic);
+  }
+  const topics = byTopic;
+  let shared = topics.get(topic);
+  if (shared && shared.self !== self) {
+    throw new TypeError(
+      `better-supabase: "${topic}" is already subscribed with self: ${String(shared.self)}; every subscription on a topic needs the same \`self\``,
+    );
+  }
+  if (!shared) {
+    const channel = client.channel(topic, {
+      config: { private: isPrivate, broadcast: { self } },
+    });
+    const subscribers = new Set<Subscriber>();
+    const status = (next: SubscriptionStatus, error?: Error): void => {
+      for (const each of subscribers) each.onStatus?.(next, error);
+    };
+    channel.on("broadcast", { event: "*" }, (raw) => {
+      const message: TopicMessage = {
+        event: raw.event,
+        payload: raw["payload"],
+        topic,
+      };
+      for (const each of subscribers) each.receive(message);
+    });
+    const evict = (): void => {
+      if (topics.get(topic) !== entry) return;
+      topics.delete(topic);
+      void client.removeChannel(channel);
+    };
+    const ready = (async () => {
+      if (isPrivate) await refreshRealtimeAuth(client);
+      if (subscribers.size === 0) return;
+      await new Promise<void>((resolve, reject) => {
+        channel.subscribe((state, error) => {
+          // Dropped channels still report CLOSED on removal.
+          if (topics.get(topic) !== entry) return;
+          switch (state) {
+            case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED:
+              entry.subscribed = true;
+              status("subscribed");
+              resolve();
+              return;
+            case REALTIME_SUBSCRIBE_STATES.CLOSED:
+              entry.subscribed = false;
+              status("closed");
+              resolve();
+              return;
+            case REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR:
+            case REALTIME_SUBSCRIBE_STATES.TIMED_OUT: {
+              const failure =
+                error ??
+                new Error(`Realtime ${state.toLowerCase()} on ${topic}`);
+              status("error", failure);
+              reject(failure);
+              // A joined channel rejoins on its own; one that never joined is
+              // dropped so the next subscribe opens a fresh channel.
+              if (!entry.subscribed) evict();
+              return;
+            }
+            default: {
+              const unknown: never = state;
+              reject(new Error(`Unknown realtime status ${String(unknown)}`));
+            }
+          }
+        });
+      });
+    })();
+    ready.catch(() => undefined);
+    const entry: SharedTopic = {
+      channel,
+      self,
+      subscribers,
+      ready,
+      subscribed: false,
+    };
+    shared = entry;
+    topics.set(topic, entry);
+  }
+  const current = shared;
+  current.subscribers.add(subscriber);
+  subscriber.onStatus?.("joining");
+  if (current.subscribed) subscriber.onStatus?.("subscribed");
+  return {
+    channel: current.channel,
+    ready: current.ready,
+    leave: async () => {
+      current.subscribers.delete(subscriber);
+      if (current.subscribers.size > 0) return;
+      // Removed right away rather than on the next tick like live queries: a
+      // resubscribe for another user must join with that user's token.
+      if (topics.get(topic) !== current) return;
+      topics.delete(topic);
+      await client.removeChannel(current.channel);
+    },
+  };
+}
+
 const VALUE = /^[\w.@+=-]+$/;
 
 function validateValue(_name: string, value: string): string | undefined {
@@ -434,12 +566,6 @@ export function defineTopic<
     },
     subscribe(client, values, handlers, subscribeOptions = {}) {
       const topic = topicOf(values);
-      const channel = client.channel(topic, {
-        config: {
-          private: isPrivate,
-          broadcast: { self: subscribeOptions.self ?? false },
-        },
-      });
       // SAFETY: handlers maps event names to callbacks; the per-event payload
       // types stop at this boundary.
       const table = handlers as Readonly<
@@ -448,65 +574,36 @@ export function defineTopic<
           ((payload: unknown, message: TopicMessage) => void) | undefined
         >
       >;
-      channel.on("broadcast", { event: "*" }, (raw) => {
-        const message: TopicMessage = {
-          event: raw.event,
-          payload: raw["payload"],
-          topic,
-        };
-        const handler = table[message.event] ?? table["*"];
-        if (!handler) return;
-        void validate(schemas[message.event], message.payload).then(
-          (checked) => {
-            if (checked.ok) handler(checked.value, message);
-            else subscribeOptions.onInvalid?.(message, checked.issues);
-          },
-        );
-      });
+      const subscriber: Subscriber = {
+        onStatus: subscribeOptions.onStatus,
+        receive: (message) => {
+          const handler = table[message.event] ?? table["*"];
+          if (!handler) return;
+          void validate(schemas[message.event], message.payload).then(
+            (checked) => {
+              if (checked.ok) handler(checked.value, message);
+              else subscribeOptions.onInvalid?.(message, checked.issues);
+            },
+          );
+        },
+      };
+      const shared = joinTopic(
+        client,
+        topic,
+        isPrivate,
+        subscribeOptions.self ?? false,
+        subscriber,
+      );
       let closed = false;
-      subscribeOptions.onStatus?.("joining");
-      const ready = (async () => {
-        if (isPrivate) await refreshRealtimeAuth(client);
-        // oxlint-disable-next-line typescript/no-unnecessary-condition -- `close()` can run while the auth refresh is awaited.
-        if (closed) return;
-        await new Promise<void>((resolve, reject) => {
-          channel.subscribe((status, error) => {
-            switch (status) {
-              case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED:
-                subscribeOptions.onStatus?.("subscribed");
-                resolve();
-                return;
-              case REALTIME_SUBSCRIBE_STATES.CLOSED:
-                subscribeOptions.onStatus?.("closed");
-                resolve();
-                return;
-              case REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR:
-              case REALTIME_SUBSCRIBE_STATES.TIMED_OUT: {
-                const failure =
-                  error ??
-                  new Error(`Realtime ${status.toLowerCase()} on ${topic}`);
-                subscribeOptions.onStatus?.("error", failure);
-                reject(failure);
-                return;
-              }
-              default: {
-                const unknown: never = status;
-                reject(new Error(`Unknown realtime status ${String(unknown)}`));
-              }
-            }
-          });
-        });
-      })();
-      ready.catch(() => undefined);
       const unsubscribe = async () => {
         if (closed) return;
         closed = true;
-        await client.removeChannel(channel);
+        await shared.leave();
       };
       return {
         topic,
-        channel,
-        ready,
+        channel: shared.channel,
+        ready: shared.ready,
         unsubscribe,
         [Symbol.dispose]: () => void unsubscribe(),
         [Symbol.asyncDispose]: unsubscribe,

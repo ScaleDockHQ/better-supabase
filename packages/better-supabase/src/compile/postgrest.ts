@@ -13,6 +13,7 @@ import type { RelationMeta, TableMeta } from "../schema/types.ts";
 import { temporalText } from "../core/temporal.ts";
 import { invalidRequest } from "../ir/build.ts";
 import { simplifyOrFalse } from "../ir/simplify.ts";
+import { dateText } from "../ir/wire.ts";
 
 /**
  * A compiled PostgREST request, expressed as calls on the public
@@ -94,13 +95,8 @@ function scalar(value: unknown): string {
     return String(value);
   const temporalValue = temporalText(value);
   if (temporalValue !== undefined) return temporalValue;
-  if (
-    typeof value === "number" ||
-    typeof value === "bigint" ||
-    typeof value === "boolean"
-  ) {
-    return String(value);
-  }
+  if (value instanceof Date) return dateText(value);
+  if (typeof value === "bigint") return String(value);
   if (value === null) return "null";
   return JSON.stringify(value);
 }
@@ -136,6 +132,27 @@ function target(condition: Extract<Condition, { kind: "column" }>): string {
   return `${column}${path.map((key, index) => `${index === last ? "->>" : "->"}${key}`).join("")}`;
 }
 
+const REGEX_SPECIAL = /[\\^$.|?*+()[\]{}]/;
+
+/**
+ * A LIKE pattern as an anchored POSIX regex. PostgREST reads every `*` in a
+ * like value as `%`, so a pattern with a literal `*` goes as `match`.
+ */
+function likeToRegex(pattern: string): string {
+  let regex = "^";
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern.charAt(index);
+    if (char === "\\" && index + 1 < pattern.length) {
+      index += 1;
+      const next = pattern.charAt(index);
+      regex += REGEX_SPECIAL.test(next) ? `\\${next}` : next;
+    } else if (char === "%") regex += ".*";
+    else if (char === "_") regex += ".";
+    else regex += REGEX_SPECIAL.test(char) ? `\\${char}` : char;
+  }
+  return `${regex}$`;
+}
+
 function isBoolLike(value: unknown): value is null | boolean {
   return value === null || typeof value === "boolean";
 }
@@ -154,11 +171,18 @@ function operatorAndValue(
     case "gte":
     case "lt":
     case "lte":
-    case "like":
-    case "ilike":
     case "match":
     case "imatch":
       return { operator: op, value: plain(value) };
+    case "like":
+    case "ilike": {
+      const text = scalar(value);
+      if (!text.includes("*")) return { operator: op, value: plain(text) };
+      return {
+        operator: op === "like" ? "match" : "imatch",
+        value: plain(likeToRegex(text)),
+      };
+    }
     case "in":
       if (!Array.isArray(value)) invalidRequest('"in" needs an array');
       return {
@@ -350,15 +374,15 @@ class PostgrestCompiler {
 
   // Filter embeds created from a logic tree hang off the current embed list;
   // their path is resolved by the caller that owns the list.
-  readonly #paths = new WeakMap<EmbedNode[], string | undefined>();
+  #paths: WeakMap<EmbedNode[], string | undefined> | undefined;
 
   withPath(embeds: EmbedNode[], path: string | undefined): EmbedNode[] {
-    this.#paths.set(embeds, path);
+    (this.#paths ??= new WeakMap()).set(embeds, path);
     return embeds;
   }
 
   private pathOf(alias: string, embeds: EmbedNode[]): string {
-    const parent = this.#paths.get(embeds);
+    const parent = this.#paths?.get(embeds);
     return parent ? `${parent}.${alias}` : alias;
   }
 
