@@ -181,13 +181,17 @@ describe("notifications module", () => {
       "notify",
       "notification_enabled",
       "list_notifications",
+      "notification_page",
       "notification_counts",
       "mark_notifications_read",
+      "mark_notifications_unread",
       "dismiss_notifications",
       "purge_notifications",
       "resolve_notifications",
       "set_notification_subscription",
+      "list_notification_subscriptions",
       "set_notification_preference",
+      "list_notification_preferences",
       "claim_notification_deliveries",
       "complete_notification_delivery",
     ]);
@@ -200,7 +204,57 @@ describe("notifications module", () => {
         },
       },
     });
-    expect(minimal!.functions).toHaveLength(7);
+    expect(minimal!.functions).toHaveLength(9);
+  });
+
+  it("pages, searches, filters by subject type and reads the caller's settings", () => {
+    const sql = body();
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."notification_page"(',
+    );
+    expect(sql).toContain("'total', (select count(*) from matched)");
+    expect(sql).toContain(
+      "offset greatest(coalesce(notification_page.skip, 0), 0)",
+    );
+    expect(sql).toContain(
+      `case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) else rc."dismissed_at" is null end`,
+    );
+    expect(sql).toContain(
+      `or ev."subject_type" = any(list_notifications.subject_types)`,
+    );
+    expect(sql).toContain(
+      `concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92))`,
+    );
+    expect(sql).toContain(
+      `drop function if exists "better_supabase"."list_notifications"(uuid, text, text[], timestamptz, integer, uuid);`,
+    );
+    expect(sql).toContain(
+      `'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end)`,
+    );
+    expect(sql).toContain(`set "read_at" = null`);
+    for (const fn of [
+      /mark_notifications_unread"?\(uuid\[\], uuid\) from public, anon;/,
+      /list_notification_subscriptions"?\(uuid, text, text\) from public, anon;/,
+      /list_notification_preferences"?\(uuid\) from public, anon;/,
+    ]) {
+      expect(sql).toMatch(fn);
+    }
+    const bare = body({
+      notifications: {
+        tables: { subscriptions: null, preferences: null },
+        columns: {
+          events: { subjectType: null, subjectId: null, summary: null },
+          recipients: { resolvedAt: null },
+        },
+      },
+    });
+    expect(bare).not.toContain("list_notification_subscriptions");
+    expect(bare).not.toContain("list_notification_preferences");
+    expect(bare).toContain("(list_notifications.subject_types is null)");
+    expect(bare).toContain(`'actionable_subjects', 0`);
+    expect(bare).toContain(
+      `then rc."dismissed_at" is not null else rc."dismissed_at" is null end`,
+    );
   });
 
   it("skips the recipient read filter under the permdock model", () => {

@@ -63,8 +63,10 @@ export interface SendInput<D = unknown> {
 
 export interface ListOptions<K extends string = string> {
   readonly tenant?: string;
-  readonly status?: "all" | "unread" | "read" | "unresolved";
+  readonly status?: "all" | "unread" | "read" | "unresolved" | "settled";
   readonly types?: readonly K[];
+  readonly subjectTypes?: readonly string[];
+  readonly search?: string;
   /**
    * Page: only notifications older than this. Pass the last item of the
    * previous page; a bare instant skips items created at that same instant.
@@ -83,6 +85,32 @@ export interface ListOptions<K extends string = string> {
   readonly include?: readonly "actor"[];
 }
 
+export interface PageOptions<K extends string = string> extends Omit<
+  ListOptions<K>,
+  "before"
+> {
+  readonly offset?: number;
+}
+
+export interface NotificationPage<K extends string = string> {
+  readonly items: readonly Rendered<K>[];
+  readonly total: number;
+}
+
+export interface NotificationSubscription {
+  readonly subject: { readonly type: string; readonly id: string };
+  readonly level: SubscriptionLevel;
+  readonly tenant: string | null;
+  readonly createdAt: Temporal.Instant | null;
+}
+
+export interface NotificationPreference {
+  readonly type: string;
+  readonly channel: string;
+  readonly enabled: boolean;
+  readonly tenant: string | null;
+}
+
 /** The actor of a notification, from the `profiles` module's table. */
 export interface NotificationActor {
   readonly id: string;
@@ -97,6 +125,7 @@ export interface NotificationCounts {
   readonly unread: number;
   /** Unresolved notifications of the `actionable` types. */
   readonly actionable: number;
+  readonly actionableSubjects: number;
 }
 
 export type SubscriptionLevel = "participating" | "all" | "ignore";
@@ -190,12 +219,19 @@ export interface Notifications<K extends NotificationTypes> {
   list(
     options?: ListOptions<TypeName<K>>,
   ): AsyncResult<readonly Rendered<TypeName<K>>[]>;
+  page(
+    options?: PageOptions<TypeName<K>>,
+  ): AsyncResult<NotificationPage<TypeName<K>>>;
   counts(options?: {
     readonly tenant?: string;
   }): AsyncResult<NotificationCounts>;
   /** Marks the given notifications, or all of them, read. */
   markRead(options?: {
     readonly ids?: readonly string[];
+    readonly tenant?: string;
+  }): AsyncResult<number>;
+  markUnread(options: {
+    readonly ids: readonly string[];
     readonly tenant?: string;
   }): AsyncResult<number>;
   dismiss(ids: readonly string[]): AsyncResult<number>;
@@ -221,6 +257,13 @@ export interface Notifications<K extends NotificationTypes> {
      */
     readonly ifAbsent?: boolean;
   }): AsyncResult<void>;
+  subscriptions(options?: {
+    readonly tenant?: string;
+    readonly subject?: { readonly type: string; readonly id?: string };
+  }): AsyncResult<readonly NotificationSubscription[]>;
+  preferences(options?: {
+    readonly tenant?: string;
+  }): AsyncResult<readonly NotificationPreference[]>;
   /** Turns a type (`*` for all) on or off on a channel; `null` removes it. */
   setPreference(input: {
     readonly type: TypeName<K> | "*";
@@ -283,6 +326,18 @@ function cursorOf(before: ListOptions["before"]): {
   }
   return { before: before.createdAt.toString(), before_id: before.id };
 }
+
+function filtersOf(filters: PageOptions): Record<string, unknown> {
+  return {
+    tenant: filters.tenant ?? null,
+    status: filters.status ?? "all",
+    types: filters.types ?? null,
+    subject_types: filters.subjectTypes ?? null,
+    search: filters.search ?? null,
+  };
+}
+
+const LEVELS: readonly SubscriptionLevel[] = ["participating", "all", "ignore"];
 
 const errorText = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
@@ -364,6 +419,40 @@ export function createNotifications<
       ),
     );
   };
+
+  const itemsOf = (value: unknown): NotificationItem[] =>
+    (Array.isArray(value) ? value : []).filter(isRecord).map(toItem);
+
+  const decorate = (
+    items: readonly NotificationItem[],
+    listOptions: Pick<ListOptions, "locale" | "include">,
+  ): AsyncResult<readonly Rendered[]> =>
+    AsyncResult.from(async () => {
+      try {
+        const locale = listOptions.locale;
+        const context = locale === undefined ? {} : { locale };
+        const [hydrated, actors] = await Promise.all([
+          options.hydrate ? options.hydrate(items, context) : undefined,
+          listOptions.include?.includes("actor") ? actorsOf(items) : undefined,
+        ]);
+        return ok(
+          items.map((item) => {
+            const rendered = render(item, locale, hydrated);
+            return actors
+              ? {
+                  ...rendered,
+                  actor: item.actorId
+                    ? (actors.get(item.actorId) ?? null)
+                    : null,
+                }
+              : rendered;
+          }),
+        );
+      } catch (cause) {
+        const raw = rawError(cause);
+        return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
+      }
+    });
 
   async function deliverOne(
     channel: NotificationChannel,
@@ -492,43 +581,30 @@ export function createNotifications<
       return run(
         "list_notifications",
         {
-          tenant: listOptions.tenant ?? null,
-          status: listOptions.status ?? "all",
-          types: listOptions.types ?? null,
+          ...filtersOf(listOptions),
           ...cursorOf(listOptions.before),
           max_items: listOptions.limit ?? 50,
         },
-        (value) =>
-          (Array.isArray(value) ? value : []).filter(isRecord).map(toItem),
-      ).andThen((items) =>
-        AsyncResult.from(async () => {
-          try {
-            const locale = listOptions.locale;
-            const context = locale === undefined ? {} : { locale };
-            const [hydrated, actors] = await Promise.all([
-              options.hydrate ? options.hydrate(items, context) : undefined,
-              listOptions.include?.includes("actor")
-                ? actorsOf(items)
-                : undefined,
-            ]);
-            return ok(
-              items.map((item) => {
-                const rendered = render(item, locale, hydrated);
-                return actors
-                  ? {
-                      ...rendered,
-                      actor: item.actorId
-                        ? (actors.get(item.actorId) ?? null)
-                        : null,
-                    }
-                  : rendered;
-              }),
-            );
-          } catch (cause) {
-            const raw = rawError(cause);
-            return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
-          }
+        itemsOf,
+      ).andThen((items) => decorate(items, listOptions));
+    },
+    page(pageOptions = {}) {
+      return run(
+        "notification_page",
+        {
+          ...filtersOf(pageOptions),
+          max_items: pageOptions.limit ?? 50,
+          skip: pageOptions.offset ?? 0,
+        },
+        (value) => ({
+          items: itemsOf(isRecord(value) ? value["items"] : []),
+          total: Number(isRecord(value) ? (value["total"] ?? 0) : 0),
         }),
+      ).andThen((found) =>
+        decorate(found.items, pageOptions).map((items) => ({
+          items,
+          total: found.total,
+        })),
       );
     },
     counts(countOptions = {}) {
@@ -541,6 +617,9 @@ export function createNotifications<
         (value) => ({
           unread: Number(isRecord(value) ? (value["unread"] ?? 0) : 0),
           actionable: Number(isRecord(value) ? (value["actionable"] ?? 0) : 0),
+          actionableSubjects: Number(
+            isRecord(value) ? (value["actionable_subjects"] ?? 0) : 0,
+          ),
         }),
       );
     },
@@ -548,6 +627,13 @@ export function createNotifications<
       return run(
         "mark_notifications_read",
         { ids: readOptions.ids ?? null, tenant: readOptions.tenant ?? null },
+        Number,
+      );
+    },
+    markUnread(unreadOptions) {
+      return run(
+        "mark_notifications_unread",
+        { ids: unreadOptions.ids, tenant: unreadOptions.tenant ?? null },
         Number,
       );
     },
@@ -578,6 +664,50 @@ export function createNotifications<
           if_absent: input.ifAbsent,
         },
         () => undefined,
+      );
+    },
+    subscriptions(subscriptionOptions = {}) {
+      return run(
+        "list_notification_subscriptions",
+        {
+          tenant: subscriptionOptions.tenant ?? null,
+          subject_type: subscriptionOptions.subject?.type ?? null,
+          subject_id: subscriptionOptions.subject?.id ?? null,
+        },
+        (value) =>
+          (Array.isArray(value) ? value : [])
+            .filter(isRecord)
+            .flatMap((row): NotificationSubscription[] => {
+              const level = LEVELS.find((entry) => entry === row["level"]);
+              return level === undefined
+                ? []
+                : [
+                    {
+                      subject: {
+                        type: String(row["subject_type"]),
+                        id: String(row["subject_id"]),
+                      },
+                      level,
+                      tenant: textOf(row["tenant"]),
+                      createdAt: instantOf(row["created_at"]),
+                    },
+                  ];
+            }),
+      );
+    },
+    preferences(preferenceOptions = {}) {
+      return run(
+        "list_notification_preferences",
+        { tenant: preferenceOptions.tenant ?? null },
+        (value) =>
+          (Array.isArray(value) ? value : [])
+            .filter(isRecord)
+            .map((row): NotificationPreference => ({
+              type: String(row["type"]),
+              channel: String(row["channel"]),
+              enabled: row["enabled"] === true,
+              tenant: textOf(row["tenant"]),
+            })),
       );
     },
     setPreference(input) {

@@ -338,7 +338,7 @@ describe.skipIf(!live)("notifications", () => {
           organization,
           ["approval.requested"],
         ]),
-      ).toEqual({ unread: 2, actionable: 1 });
+      ).toEqual({ unread: 2, actionable: 1, actionable_subjects: 1 });
       const [latest] = inbox as unknown as { id: string }[];
       expect(
         await s.value("better_supabase.mark_notifications_read($1)", [
@@ -582,6 +582,7 @@ describe.skipIf(!live)("notifications", () => {
       ).toEqual({
         unread: 1,
         actionable: 0,
+        actionableSubjects: 0,
       });
       expect(
         await notifications.markRead({ tenant: organization }).orThrow(),
@@ -597,6 +598,240 @@ describe.skipIf(!live)("notifications", () => {
         email: email("member"),
         text: { title: "Assigned: Paint" },
       });
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+  it("pages, searches and settles the inbox and reads the caller's settings", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    const sql: SqlClient = {
+      async queryRaw<T>(text: string, params: unknown[] = []) {
+        const { rows } = await client.query(text, params);
+        return rows as T[];
+      },
+    };
+    const anything: StandardSchemaV1<{ title: string }> = {
+      "~standard": {
+        version: 1,
+        vendor: "test",
+        validate: (value) => ({ value: value as { title: string } }),
+      },
+    };
+    const notifications = createNotifications({
+      transport: sqlTransport(sql),
+      types: { "task.assigned": anything, "approval.requested": anything },
+      actionable: ["approval.requested"],
+    });
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "member", "outsider"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      for (const file of renderModules(
+        ["organizations", "notifications"],
+        LAYOUT,
+      ))
+        await client.query(file.contents);
+      await s.as("owner");
+      const organization = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Acme", slug: `acme-inbox-${USERS.owner.slice(0, 8)}` }],
+      );
+      await client.query(
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
+        [organization, USERS.member],
+      );
+      const send = (
+        type: "task.assigned" | "approval.requested",
+        subject: { type: string; id: string; label: string },
+        summary: string,
+      ) =>
+        notifications
+          .send(type, {
+            tenant: organization,
+            recipients: [USERS.member],
+            subject,
+            summary,
+            data: { title: summary },
+          })
+          .orThrow();
+      await send(
+        "task.assigned",
+        { type: "task", id: "t1", label: "Fix the roof" },
+        "Roof 100% done",
+      );
+      await send(
+        "task.assigned",
+        { type: "task", id: "t2", label: "Paint the fence" },
+        "Fence",
+      );
+      await send(
+        "approval.requested",
+        { type: "invoice", id: "i1", label: "Invoice 7" },
+        "Approve invoice",
+      );
+      await send(
+        "approval.requested",
+        { type: "invoice", id: "i1", label: "Invoice 7" },
+        "Approve invoice again",
+      );
+
+      await s.as("member");
+      const first = await notifications
+        .page({ tenant: organization, limit: 2 })
+        .orThrow();
+      expect(first.total).toBe(4);
+      expect(first.items).toHaveLength(2);
+      const second = await notifications
+        .page({ tenant: organization, limit: 2, offset: 2 })
+        .orThrow();
+      expect(second.total).toBe(4);
+      expect(
+        [...first.items, ...second.items].map((item) => item.summary),
+      ).toEqual([
+        "Approve invoice again",
+        "Approve invoice",
+        "Fence",
+        "Roof 100% done",
+      ]);
+      expect(
+        (
+          await notifications
+            .list({ tenant: organization, search: "roof" })
+            .orThrow()
+        ).map((item) => item.subject?.id),
+      ).toEqual(["t1"]);
+      expect(
+        await notifications
+          .page({ tenant: organization, search: "100%" })
+          .orThrow(),
+      ).toMatchObject({ total: 1 });
+      expect(
+        await notifications
+          .page({ tenant: organization, search: "1_0" })
+          .orThrow(),
+      ).toMatchObject({ total: 0 });
+      expect(
+        (
+          await notifications
+            .list({ tenant: organization, subjectTypes: ["invoice"] })
+            .orThrow()
+        ).map((item) => item.summary),
+      ).toEqual(["Approve invoice again", "Approve invoice"]);
+      expect(
+        await notifications.counts({ tenant: organization }).orThrow(),
+      ).toEqual({ unread: 4, actionable: 2, actionableSubjects: 1 });
+
+      const fence = second.items[0]!;
+      expect(fence.summary).toBe("Fence");
+      expect(await notifications.markRead({ ids: [fence.id] }).orThrow()).toBe(
+        1,
+      );
+      expect(
+        await notifications.markUnread({ ids: [fence.id] }).orThrow(),
+      ).toBe(1);
+      expect(
+        await notifications.markUnread({ ids: [fence.id] }).orThrow(),
+      ).toBe(0);
+      await s.as("outsider");
+      expect(
+        await notifications.markUnread({ ids: [fence.id] }).orThrow(),
+      ).toBe(0);
+      expect(
+        await notifications.page({ tenant: organization }).orThrow(),
+      ).toEqual({ items: [], total: 0 });
+
+      await s.as("member");
+      expect(await notifications.dismiss([fence.id]).orThrow()).toBe(1);
+      await s.as("owner");
+      expect(
+        await notifications
+          .resolve({
+            type: "approval.requested",
+            subject: { type: "invoice", id: "i1" },
+            tenant: organization,
+          })
+          .orThrow(),
+      ).toBe(2);
+      await s.as("member");
+      const settled = await notifications
+        .page({ tenant: organization, status: "settled" })
+        .orThrow();
+      expect(settled.items.map((item) => item.summary)).toEqual([
+        "Approve invoice again",
+        "Approve invoice",
+        "Fence",
+      ]);
+      expect(
+        (await notifications.list({ tenant: organization }).orThrow()).map(
+          (item) => item.summary,
+        ),
+      ).toEqual(["Approve invoice again", "Approve invoice", "Roof 100% done"]);
+      expect(
+        await notifications.counts({ tenant: organization }).orThrow(),
+      ).toMatchObject({ actionable: 0, actionableSubjects: 0 });
+
+      await notifications
+        .subscribe({
+          subject: { type: "task", id: "t1" },
+          level: "all",
+          tenant: organization,
+        })
+        .orThrow();
+      await notifications
+        .subscribe({
+          subject: { type: "invoice", id: "i1" },
+          level: "ignore",
+          tenant: organization,
+        })
+        .orThrow();
+      await notifications
+        .setPreference({ type: "*", channel: "email", enabled: false })
+        .orThrow();
+      await notifications
+        .setPreference({
+          type: "task.assigned",
+          channel: "email",
+          enabled: true,
+          tenant: organization,
+        })
+        .orThrow();
+      const subscriptions = await notifications
+        .subscriptions({ tenant: organization })
+        .orThrow();
+      expect(
+        subscriptions
+          .map((entry) => [entry.subject.id, entry.level])
+          .toSorted((a, b) => a[0]!.localeCompare(b[0]!)),
+      ).toEqual([
+        ["i1", "ignore"],
+        ["t1", "all"],
+      ]);
+      expect(
+        await notifications
+          .subscriptions({ subject: { type: "task", id: "t1" } })
+          .orThrow(),
+      ).toMatchObject([{ level: "all", tenant: organization }]);
+      expect(
+        await notifications.preferences({ tenant: organization }).orThrow(),
+      ).toEqual([
+        { type: "*", channel: "email", enabled: false, tenant: null },
+        {
+          type: "task.assigned",
+          channel: "email",
+          enabled: true,
+          tenant: organization,
+        },
+      ]);
+      await s.as("outsider");
+      expect(await notifications.subscriptions().orThrow()).toEqual([]);
+      expect(await notifications.preferences().orThrow()).toEqual([]);
     } finally {
       await client.query("rollback");
       client.release();

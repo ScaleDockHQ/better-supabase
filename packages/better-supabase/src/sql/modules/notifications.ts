@@ -499,7 +499,14 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "timestamp with time zone",
         "integer",
         "uuid",
+        "text[]",
+        "text",
       ],
+      returns: "jsonb",
+    },
+    {
+      name: "notification_page",
+      args: ["{id}", "text", "text[]", "text[]", "text", "integer", "integer"],
       returns: "jsonb",
     },
     {
@@ -509,6 +516,11 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     },
     {
       name: "mark_notifications_read",
+      args: ["uuid[]", "{id}"],
+      returns: "integer",
+    },
+    {
+      name: "mark_notifications_unread",
       args: ["uuid[]", "{id}"],
       returns: "integer",
     },
@@ -527,18 +539,32 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     });
   }
   if (ctx.hasTable("subscriptions")) {
-    fns.push({
-      name: "set_notification_subscription",
-      args: ["text", "text", "text", "{id}", "uuid", "boolean"],
-      returns: "void",
-    });
+    fns.push(
+      {
+        name: "set_notification_subscription",
+        args: ["text", "text", "text", "{id}", "uuid", "boolean"],
+        returns: "void",
+      },
+      {
+        name: "list_notification_subscriptions",
+        args: ["{id}", "text", "text"],
+        returns: "jsonb",
+      },
+    );
   }
   if (ctx.hasTable("preferences")) {
-    fns.push({
-      name: "set_notification_preference",
-      args: ["text", "text", "boolean", "{id}"],
-      returns: "void",
-    });
+    fns.push(
+      {
+        name: "set_notification_preference",
+        args: ["text", "text", "boolean", "{id}"],
+        returns: "void",
+      },
+      {
+        name: "list_notification_preferences",
+        args: ["{id}"],
+        returns: "jsonb",
+      },
+    );
   }
   if (ctx.hasTable("deliveries")) {
     fns.push(
@@ -565,7 +591,7 @@ export const NOTIFICATIONS: ModuleDefinition = {
   requires: ["updated-at"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 2,
+  version: 3,
   names: NAMES,
   contract,
   upgrades: [
@@ -574,6 +600,13 @@ export const NOTIFICATIONS: ModuleDefinition = {
       description:
         "The broadcast trigger fires on an update only when read_at, dismissed_at or resolved_at changes; new indexes serve unread counts, user deletes, purges and lost delivery leases.",
       sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "list_notifications takes subject_types and search and a settled status; notification_page pages with an offset and a total; mark_notifications_unread and the subscription and preference readers are new.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("list_notifications")}(${ctx.idType}, text, text[], timestamptz, integer, uuid);`,
     },
   ],
   build,
