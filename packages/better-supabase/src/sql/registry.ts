@@ -54,8 +54,10 @@ import {
   EQUIVALENT_TRIGGERS,
   type JsonSchemaCheck,
   jsonSchemaChecks,
+  quotedTable,
   SCHEMA,
   serviceOnly,
+  splitTable,
 } from "./shared.ts";
 
 export {
@@ -672,12 +674,7 @@ revoke execute on function better_supabase.feature_claims(uuid) from public, ano
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
 };
 
-const qualified = (table: string): string => {
-  const [schema, name] = table.includes(".")
-    ? table.split(".", 2)
-    : ["public", table];
-  return `${sqlIdent(schema!)}.${sqlIdent(name!)}`;
-};
+const qualified = (table: string): string => quotedTable(table);
 
 /** `tenant_entitlements` over a plan catalog: the active subscription's plan features. */
 function planEntitlements(
@@ -1044,7 +1041,7 @@ const WEBHOOK_INBOX: SqlModule = {
     "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.",
   requires: [],
   target: "schema",
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -1059,6 +1056,12 @@ const WEBHOOK_INBOX: SqlModule = {
         "receive_webhook takes the source's max_attempts; claims mark a message whose last attempt lost its worker as dead.",
       sql: () =>
         "drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);",
+    },
+    {
+      from: 3,
+      description:
+        "Message ids are unique per source and tenant, so two tenants of one provider can send the same id.",
+      sql: () => "",
     },
   ],
   sql: `${SCHEMA}
@@ -1079,13 +1082,28 @@ create table if not exists better_supabase.webhook_inbox (
   locked_until timestamptz,
   last_error text,
   received_at timestamptz not null default now(),
-  processed_at timestamptz,
-  unique (source, message_id)
+  processed_at timestamptz
 );
 -- The tenant a message belongs to (a per-tenant integration), and progress a
 -- handler saved mid-processing (checkpoint_webhook), such as a provider cursor.
 alter table better_supabase.webhook_inbox add column if not exists tenant text;
 alter table better_supabase.webhook_inbox add column if not exists checkpoint jsonb not null default '{}';
+-- Message ids are unique per source and tenant: two tenants of one provider
+-- can send the same id. A null tenant counts as one tenant.
+do $$
+begin
+  if not exists (
+    select 1 from pg_catalog.pg_constraint
+    where conrelid = 'better_supabase.webhook_inbox'::regclass
+      and conname = 'webhook_inbox_source_tenant_message_id_key'
+  ) then
+    alter table better_supabase.webhook_inbox
+      add constraint webhook_inbox_source_tenant_message_id_key
+      unique nulls not distinct (source, tenant, message_id);
+  end if;
+end;
+$$;
+alter table better_supabase.webhook_inbox drop constraint if exists webhook_inbox_source_message_id_key;
 create index if not exists webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
 create index if not exists webhook_inbox_tenant_idx
@@ -1100,7 +1118,7 @@ drop function if exists better_supabase.receive_webhook(text, text, text, jsonb,
 drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
 
--- duplicate = true when the message id was seen before (the sender retried).
+-- duplicate = true when the source and tenant saw the message id before (the sender retried).
 -- max_attempts is the source's limit, 8 when null.
 create or replace function better_supabase.receive_webhook(
   source text,
@@ -1121,7 +1139,7 @@ declare
 begin
   insert into better_supabase.webhook_inbox (source, message_id, event_type, payload, headers, tenant, max_attempts)
   values (source, message_id, event_type, payload, headers, receive_webhook.tenant, greatest(coalesce(receive_webhook.max_attempts, 8), 1))
-  on conflict on constraint webhook_inbox_source_message_id_key do nothing
+  on conflict on constraint webhook_inbox_source_tenant_message_id_key do nothing
   returning webhook_inbox.id into inbox_id;
   if inbox_id is not null then
     return query select inbox_id, false;
@@ -1129,7 +1147,9 @@ begin
   end if;
   return query
     select w.id, true from better_supabase.webhook_inbox w
-    where w.source = receive_webhook.source and w.message_id = receive_webhook.message_id;
+    where w.source = receive_webhook.source
+      and w.tenant is not distinct from receive_webhook.tenant
+      and w.message_id = receive_webhook.message_id;
 end;
 $$;
 
@@ -1289,7 +1309,8 @@ security definer
 set search_path = ''
 as $$
 declare
-  base text := 'bs:t:' || tg_table_schema || '.' || tg_table_name;
+  base text := 'bs:t:' || tg_table_schema || '.' || tg_table_name
+    || case when tg_nargs > 1 and tg_argv[1] = 'user' then ':u' else '' end;
   payload jsonb := jsonb_build_object('schema', tg_table_schema, 'table', tg_table_name, 'operation', tg_op);
   source text;
   tenant text;
@@ -1313,25 +1334,36 @@ $$;
 -- select better_supabase.track_realtime('public.customers', 'organization_id');
 -- tenant_column => null broadcasts on one topic every signed-in user receives;
 -- a tenant column the table lacks is an error, so no tenant table goes global.
-create or replace function better_supabase.track_realtime(target regclass, tenant_column text default null)
+-- user_column broadcasts per user (bs:t:<table>:u:<user id>) instead.
+drop function if exists better_supabase.track_realtime(regclass, text);
+create or replace function better_supabase.track_realtime(
+  target regclass,
+  tenant_column text default null,
+  user_column text default null
+)
 returns void
 language plpgsql
 set search_path = ''
 as $$
+declare
+  scope_column text := coalesce(user_column, tenant_column);
+  scope_kind text := case when user_column is null then 'tenant' else 'user' end;
 begin
-  if tenant_column is not null and not exists (
+  if scope_column is not null and not exists (
     select 1 from pg_catalog.pg_attribute a
-    where a.attrelid = target and a.attname = tenant_column and a.attnum > 0 and not a.attisdropped
+    where a.attrelid = target and a.attname = scope_column and a.attnum > 0 and not a.attisdropped
   ) then
-    raise exception '% has no column %', target, tenant_column
+    raise exception '% has no column %', target, scope_column
       using errcode = '42703',
-        hint = 'Add the tenant column, or list the table in realtime.global to broadcast it to every signed-in user';
+        hint = case when user_column is null
+          then 'Add the tenant column, or list the table in realtime.global to broadcast it to every signed-in user'
+          else 'Check the column in realtime.users' end;
   end if;
   execute format('drop trigger if exists bs_realtime on %s', target);
   execute format('drop trigger if exists bs_realtime_insert on %s', target);
   execute format('drop trigger if exists bs_realtime_update on %s', target);
   execute format('drop trigger if exists bs_realtime_delete on %s', target);
-  if tenant_column is null then
+  if scope_column is null then
     execute format(
       'create trigger bs_realtime after insert or update or delete on %s for each statement execute function better_supabase.broadcast_changes()',
       target
@@ -1339,16 +1371,16 @@ begin
     return;
   end if;
   execute format(
-    'create trigger bs_realtime_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L)',
-    target, tenant_column
+    'create trigger bs_realtime_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',
+    target, scope_column, scope_kind
   );
   execute format(
-    'create trigger bs_realtime_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L)',
-    target, tenant_column
+    'create trigger bs_realtime_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',
+    target, scope_column, scope_kind
   );
   execute format(
-    'create trigger bs_realtime_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes(%L)',
-    target, tenant_column
+    'create trigger bs_realtime_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',
+    target, scope_column, scope_kind
   );
 end;
 $$;
@@ -1366,10 +1398,11 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.track_realtime(regclass, text) from public, anon, authenticated;
+revoke execute on function better_supabase.track_realtime(regclass, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.untrack_realtime(regclass) from public, anon, authenticated;
 
--- Signed-in users receive unscoped topics, and topics of their active tenant.
+-- Signed-in users receive unscoped topics, topics of their active tenant and
+-- their own user topics (bs:t:<table>:u:<user id>).
 -- Anonymous users (signInAnonymously()) are authenticated too, but receive nothing.
 drop policy if exists bs_realtime_tables_receive on realtime.messages;
 create policy bs_realtime_tables_receive on realtime.messages for select to authenticated
@@ -1379,11 +1412,13 @@ create policy bs_realtime_tables_receive on realtime.messages for select to auth
     and not coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false)
     and (
       split_part((select realtime.topic()), ':', 4) = ''
-      or split_part((select realtime.topic()), ':', 4) = coalesce(
+      or (split_part((select realtime.topic()), ':', 5) = '' and split_part((select realtime.topic()), ':', 4) = coalesce(
         (select auth.jwt()) ->> ${sqlString(claims.tenant)},
         (select auth.jwt()) -> 'app_metadata' ->> ${sqlString(claims.tenant)},
         ''
-      )
+      ))
+      or (split_part((select realtime.topic()), ':', 4) = 'u'
+        and split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text)
     )
   );`;
 
@@ -1391,7 +1426,7 @@ const REALTIME_TABLES: SqlModule = {
   name: "realtime-tables",
   title: "Realtime table changes",
   description:
-    "Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>] for live queries.",
+    "Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>], or bs:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.",
   requires: [],
   target: "schema",
   sql: realtimeTablesSql(DEFAULT_CLAIMS),
@@ -1609,6 +1644,9 @@ create unlogged table if not exists better_supabase.rate_limits (
   hits integer not null,
   primary key (scope, key)
 );
+-- The window length the counter was last hit with, so purge_rate_limits keeps
+-- a counter for its whole window when no rule names its period.
+alter table better_supabase.rate_limits add column if not exists period interval;
 
 alter table better_supabase.rate_limit_rules enable row level security;
 alter table better_supabase.rate_limits enable row level security;
@@ -1682,11 +1720,12 @@ begin
       claims ->> rule.key_claim,
       'ip:' || coalesce(nullif(trim(reverse(split_part(reverse(headers ->> 'x-forwarded-for'), ',', 1))), ''), 'unknown')
     );
-    insert into better_supabase.rate_limits as l (scope, key, window_start, hits)
-    values (rule.scope, caller, now(), 1)
+    insert into better_supabase.rate_limits as l (scope, key, window_start, hits, period)
+    values (rule.scope, caller, now(), 1, rule.period)
     on conflict on constraint rate_limits_pkey do update set
       window_start = case when l.window_start + rule.period <= now() then now() else l.window_start end,
-      hits = case when l.window_start + rule.period <= now() then 1 else l.hits + 1 end
+      hits = case when l.window_start + rule.period <= now() then 1 else l.hits + 1 end,
+      period = rule.period
     returning l.hits, l.window_start into used, started;
     if used > rule.max_requests then
       retry := greatest(1, ceil(extract(epoch from started + rule.period - now()))::integer);
@@ -1741,11 +1780,12 @@ begin
     raise exception 'No rate limit for %: call set_rate_limit or pass max_requests and period', scope
       using errcode = '22023', hint = 'RATE_LIMIT_UNKNOWN';
   end if;
-  insert into better_supabase.rate_limits as l (scope, key, window_start, hits)
-  values (scope, key, now(), 1)
+  insert into better_supabase.rate_limits as l (scope, key, window_start, hits, period)
+  values (scope, key, now(), 1, limit_period)
   on conflict on constraint rate_limits_pkey do update set
     window_start = case when l.window_start + limit_period <= now() then now() else l.window_start end,
-    hits = case when l.window_start + limit_period <= now() then 1 else l.hits + 1 end
+    hits = case when l.window_start + limit_period <= now() then 1 else l.hits + 1 end,
+    period = limit_period
   returning l.hits, l.window_start into used, started;
   return query select
     used <= limit_max,
@@ -1773,20 +1813,21 @@ $$;
 revoke execute on function better_supabase.check_rate_limit(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.check_rate_limit(text, text, integer, interval) to service_role;
 
--- Deletes up to batch counters whose window has ended, and counters without
--- a rule (removed rules, hit_rate_limit with its own limit) after a day.
--- Every caller keeps a row until then, so schedule it with pg_cron:
+-- Deletes up to batch counters whose window has ended: the period the
+-- counter was last hit with, else its rule's, else a day (counters from
+-- before the period column). Every caller keeps a row until then, so
+-- schedule it with pg_cron:
 -- select cron.schedule('purge-rate-limits', '*/15 * * * *', 'select better_supabase.purge_rate_limits()');
 create or replace function better_supabase.purge_rate_limits(batch integer default 10000)
 returns integer
 language sql
+security definer
 set search_path = ''
 as $$
   with expired as (
     select l.scope, l.key from better_supabase.rate_limits l
     left join better_supabase.rate_limit_rules r on r.scope = l.scope
-    where (r.scope is null and l.window_start < now() - interval '1 day')
-      or l.window_start + r.period <= now()
+    where l.window_start + coalesce(l.period, r.period, interval '1 day') <= now()
     limit batch
   ),
   purged as (
@@ -1993,6 +2034,8 @@ export interface ModuleLayout {
   readonly realtimeTables?: readonly string[];
   /** `config.realtime.global`: tables registered with `tenant_column => null`. */
   readonly realtimeGlobal?: readonly string[];
+  /** `config.realtime.users`: tables registered with `user_column`. */
+  readonly realtimeUsers?: Readonly<Record<string, string>>;
   /** Tenant column passed to `track_realtime` for the other tables. */
   readonly tenantColumn?: string;
   /** Check constraints for the `jsonb-schemas` module. */
@@ -2277,12 +2320,10 @@ function vectorSearchFunctions(
 ): string {
   if (tables.length === 0) return "";
   const functions = tables.map((entry) => {
-    const [schema, table] = entry.table.includes(".")
-      ? entry.table.split(".", 2)
-      : ["public", entry.table];
-    const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
-    const fn = `${sqlIdent(schema!)}.${sqlIdent(`search_${table!}`)}`;
-    const scores = `${sqlIdent(schema!)}.${sqlIdent(`search_${table!}_scores`)}`;
+    const [schema, table] = splitTable(entry.table);
+    const target = `${sqlIdent(schema)}.${sqlIdent(table)}`;
+    const fn = `${sqlIdent(schema)}.${sqlIdent(`search_${table}`)}`;
+    const scores = `${sqlIdent(schema)}.${sqlIdent(`search_${table}_scores`)}`;
     const column = `t.${sqlIdent(entry.column)}`;
     const operator = DISTANCE_OPERATORS[entry.distance];
     const type = entry.type ?? "vector";
@@ -2409,12 +2450,7 @@ interface FunctionGrant {
   readonly roles: readonly ("anon" | "authenticated" | "service_role")[];
 }
 
-const qualifiedTable = (name: string): string => {
-  const [schema, table] = name.includes(".")
-    ? name.split(".", 2)
-    : ["public", name];
-  return `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
-};
+const qualifiedTable = (name: string): string => quotedTable(name);
 
 function qualifiedFunction(signature: string): string {
   const open = signature.indexOf("(");
@@ -2490,10 +2526,10 @@ function permdockEntitlementMembers(permdock: ModulePermdock): string {
           : undefined
         : `\n    and m.${sqlIdent(source.scope.column)}::text = ${sqlString(permdock.scope)}`;
     if (scoped === undefined) return [];
-    const [schema, table] = source.table.split(".", 2);
+    const [schema, table] = splitTable(source.table);
     return [
       `  select distinct m.${sqlIdent(source.userColumn)}::uuid
-  from ${sqlIdent(schema!)}.${sqlIdent(table!)} m
+  from ${sqlIdent(schema)}.${sqlIdent(table)} m
   where m.${sqlIdent(source.idColumn)}::text in (select t::text from better_supabase.stripe_customer_tenants(customer) t)${scoped}`,
     ];
   });
@@ -2559,10 +2595,8 @@ function entitlementsSource(
 ): string {
   const permdock = layout.permdock;
   const m = memberships(layout);
-  const [schema, table] = source.table.includes(".")
-    ? source.table.split(".", 2)
-    : ["public", source.table];
-  const target = `${sqlIdent(schema!)}.${sqlIdent(table!)}`;
+  const [schema, table] = splitTable(source.table);
+  const target = `${sqlIdent(schema)}.${sqlIdent(table)}`;
   const key = `t.${sqlIdent(source.key)}`;
   const column = `t.${sqlIdent(source.column)}`;
   const id = permdock?.idType ?? m.idType;
@@ -2651,6 +2685,7 @@ function moduleExtras(
       layout.realtimeTables ?? [],
       layout.realtimeGlobal ?? [],
       layout.tenantColumn,
+      layout.realtimeUsers ?? {},
     );
   if (module.name === "jsonb-schemas")
     return jsonSchemaChecks(layout.jsonSchemas ?? []);
@@ -3293,13 +3328,21 @@ function realtimeRegistrations(
   tables: readonly string[],
   global: readonly string[],
   tenantColumn: string | undefined,
+  users: Readonly<Record<string, string>>,
 ): string {
   if (tables.length === 0) return "";
   const qualify = (table: string): string =>
     table.includes(".") ? table : `public.${table}`;
   const unscoped = new Set(global.map(qualify));
+  const owners = new Map(
+    Object.entries(users).map(([table, column]) => [qualify(table), column]),
+  );
   const lines = tables.map((table) => {
     const target = qualify(table);
+    const owner = owners.get(target);
+    if (owner !== undefined) {
+      return `select better_supabase.track_realtime(${sqlString(target)}, tenant_column => null, user_column => ${sqlString(owner)});`;
+    }
     const tenant =
       tenantColumn && !unscoped.has(target) ? sqlString(tenantColumn) : "null";
     return `select better_supabase.track_realtime(${sqlString(target)}, tenant_column => ${tenant});`;

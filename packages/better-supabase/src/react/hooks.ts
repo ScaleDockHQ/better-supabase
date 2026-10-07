@@ -365,13 +365,13 @@ export function useLiveQuery(
         onChange: (tables) => void invalidateTables(queryClient, tables),
         onStatus: setStatus,
         ...(tenant === undefined ? {} : { tenant }),
+        ...(userId === null ? {} : { user: userId }),
         ...(debounceMs === undefined ? {} : { debounceMs }),
       },
     );
     return () => {
       void live.unsubscribe();
     };
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
   }, [client, queryClient, key, tenant, userId, auth.status, debounceMs]);
 
   return status;
@@ -446,13 +446,13 @@ export function useLiveCount(
         },
         onStatus: setStatus,
         ...(tenant === undefined ? {} : { tenant }),
+        ...(userId === null ? {} : { user: userId }),
         ...(debounceMs === undefined ? {} : { debounceMs }),
       },
     );
     return () => {
       void live.unsubscribe();
     };
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
   }, [client, key, tenant, userId, auth.status, debounceMs, hasInitial]);
 
   const fresh = state.key === key;

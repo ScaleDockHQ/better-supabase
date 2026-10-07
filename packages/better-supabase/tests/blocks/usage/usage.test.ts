@@ -25,10 +25,11 @@ function fakeTransport(
 }
 
 describe("batches", () => {
-  it("sends the entries as JSON with the check flag and maps today's usage", async () => {
+  it("sends the entries as JSON with the check flag and maps the usage", async () => {
     const { transport, calls } = fakeTransport(() => ({
       recorded: true,
-      used: { a: "1.5", b: 2 },
+      used: { a: "10.5", b: 2 },
+      today: { a: "1.5", b: 2 },
     }));
     const usage = createUsage({ transport });
     expect(
@@ -38,7 +39,11 @@ describe("batches", () => {
           source: "s",
         })
         .orThrow(),
-    ).toEqual({ recorded: true, today: { a: 1.5, b: 2 } });
+    ).toEqual({
+      recorded: true,
+      today: { a: 1.5, b: 2 },
+      used: { a: 10.5, b: 2 },
+    });
     expect(calls[0]![2]).toMatchObject({
       tenant: "org",
       entries: '[{"meter":"a","quantity":1.5},{"meter":"b","quantity":1}]',
@@ -52,7 +57,7 @@ describe("batches", () => {
       await createUsage(fakeTransport(() => ({ recorded: false })))
         .recordMany("org", [{ meter: "a" }])
         .orThrow(),
-    ).toEqual({ recorded: false, today: {} });
+    ).toEqual({ recorded: false, today: {}, used: {} });
   });
 });
 
@@ -139,12 +144,14 @@ describe("createUsage", () => {
   it("records and consumes with defaults and idempotency keys", async () => {
     const { transport, calls } = fakeTransport(() => ({
       recorded: true,
-      used: "4",
+      used: "40",
+      today: "4",
     }));
     const usage = createUsage({ transport, schema: "app" });
     expect(await usage.record("org", "api_calls").orThrow()).toEqual({
       recorded: true,
       today: 4,
+      used: 40,
     });
     await usage
       .consume("org", "seats", { quantity: 2, idempotencyKey: "k" })

@@ -1,6 +1,7 @@
 import type { ModuleContext } from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { quotedTable } from "./shared.ts";
 
 /**
  * One subject type a module's rows belong to (`options.subjects`): the
@@ -133,12 +134,7 @@ export function subjectsOption(
   });
 }
 
-export const qualifiedTable = (table: string): string => {
-  const [schema, name] = table.includes(".")
-    ? table.split(".", 2)
-    : ["public", table];
-  return `${sqlIdent(schema ?? "public")}.${sqlIdent(name ?? table)}`;
-};
+export const qualifiedTable = (table: string): string => quotedTable(table);
 
 /**
  * Whether the caller may read the subject `type`/`id` in `tenant`: its row

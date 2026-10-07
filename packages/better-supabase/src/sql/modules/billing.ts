@@ -9,6 +9,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addForeignKey,
   columnRef,
+  quotedTable,
   schemaPreamble,
   SERVICE_CALLER,
   tenantIn,
@@ -90,12 +91,7 @@ function plansOf(ctx: ModuleContext): PlanCatalog | undefined {
   };
 }
 
-const qualified = (table: string): string => {
-  const [schema, name] = table.includes(".")
-    ? table.split(".", 2)
-    : ["public", table];
-  return `${sqlIdent(schema!)}.${sqlIdent(name!)}`;
-};
+const qualified = (table: string): string => quotedTable(table);
 
 const platformPlans = (
   plans: PlanCatalog | undefined,

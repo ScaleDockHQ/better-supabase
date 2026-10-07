@@ -6,6 +6,7 @@ import {
   addForeignKey,
   disabledHelpers,
   disabledHelpersNeedLaterTables,
+  ensureCheck,
   schemaPreamble,
 } from "../shared.ts";
 import {
@@ -157,8 +158,7 @@ create table if not exists ${ctx.table("roles")} (
 );
 -- A tenant role goes in memberships, a platform role in platform assignments.
 alter table ${ctx.table("roles")} add column if not exists ${ctx.col("roles", "scope")} text not null default 'tenant';
-alter table ${ctx.table("roles")} drop constraint if exists roles_scope_check;
-alter table ${ctx.table("roles")} add constraint roles_scope_check check (${ctx.col("roles", "scope")} in ('tenant', 'platform'));
+${ensureCheck(ctx.table("roles"), "roles_scope_check", `${ctx.col("roles", "scope")} in ('tenant', 'platform')`)}
 create table if not exists ${ctx.table("permissions")} (
   ${ctx.col("permissions", "id")} uuid primary key default gen_random_uuid(),
   ${ctx.col("permissions", "key")} text not null unique

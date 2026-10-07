@@ -36,17 +36,17 @@ describe.skipIf(!live)("usage", () => {
         await usage
           .record(organization, "api_calls", { idempotencyKey: "a" })
           .orThrow(),
-      ).toEqual({ recorded: true, today: 1 });
+      ).toEqual({ recorded: true, today: 1, used: 1 });
       expect(
         await usage
           .record(organization, "api_calls", { idempotencyKey: "a" })
           .orThrow(),
-      ).toEqual({ recorded: false, today: 1 });
+      ).toEqual({ recorded: false, today: 1, used: 1 });
       expect(
         await usage
           .consume(organization, "api_calls", { quantity: 2 })
           .orThrow(),
-      ).toEqual({ recorded: true, today: 3 });
+      ).toEqual({ recorded: true, today: 3, used: 3 });
 
       const over = await usage.consume(organization, "api_calls");
       expect(over).toMatchObject({
@@ -99,7 +99,7 @@ describe.skipIf(!live)("usage", () => {
       await s.asRole(owner);
       expect(
         await usage.consume(organization, "seats", { quantity: 5 }).orThrow(),
-      ).toEqual({ recorded: true, today: 5 });
+      ).toEqual({ recorded: true, today: 5, used: 5 });
       expect(
         await usage.current(organization, "seats").orThrow(),
       ).toMatchObject({
@@ -238,15 +238,20 @@ describe.skipIf(!live)("usage", () => {
       const organization = await s.organization(owner, { member });
       const usage = createUsage({ transport: sqlTransport(s.sql) });
       await s.asRole(member);
+      await s.rows("savepoint member");
+      expect(await usage.record(organization, "tokens")).toMatchObject({
+        error: { kind: "forbidden", hint: "USAGE_FORBIDDEN" },
+      });
+      await s.rows("rollback to savepoint member");
+      await s.service();
       await usage
         .record(organization, "tokens", {
           quantity: 2,
           source: "feature:summary",
           metadata: { doc: "d1" },
-          actor: owner.id,
+          actor: member.id,
         })
         .orThrow();
-      await s.service();
       await usage
         .consume(organization, "tokens", { quantity: 3, actor: owner.id })
         .orThrow();
@@ -303,6 +308,7 @@ describe.skipIf(!live)("usage", () => {
       ).toEqual({
         recorded: true,
         today: { input_tokens: 40, output_tokens: 6 },
+        used: { input_tokens: 40, output_tokens: 6 },
       });
       expect(
         await usage
@@ -323,7 +329,11 @@ describe.skipIf(!live)("usage", () => {
         await usage
           .recordMany(organization, [{ meter: "output_tokens", quantity: 50 }])
           .orThrow(),
-      ).toEqual({ recorded: true, today: { output_tokens: 56 } });
+      ).toEqual({
+        recorded: true,
+        today: { output_tokens: 56 },
+        used: { output_tokens: 56 },
+      });
       await s.rows("savepoint empty");
       expect(await usage.recordMany(organization, [])).toMatchObject({
         error: { hint: "USAGE_ENTRIES" },
@@ -403,12 +413,12 @@ describe.skipIf(!live)("usage", () => {
         await usage
           .record(organization, "gb_hours", { quantity: 1.25 })
           .orThrow(),
-      ).toEqual({ recorded: true, today: 1.25 });
+      ).toEqual({ recorded: true, today: 1.25, used: 1.25 });
       expect(
         await usage
           .consume(organization, "gb_hours", { quantity: 1.2 })
           .orThrow(),
-      ).toEqual({ recorded: true, today: 2.45 });
+      ).toEqual({ recorded: true, today: 2.45, used: 2.45 });
       expect(
         await usage.consume(organization, "gb_hours", { quantity: 0.1 }),
       ).toMatchObject({ error: { kind: "quota_exceeded", limit: 2.5 } });

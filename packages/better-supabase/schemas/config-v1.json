@@ -657,6 +657,13 @@
             "type": "string"
           }
         },
+        "users": {
+          "description": "Tables in `tables` whose rows belong to one user, mapped to the user column. They broadcast on a topic per user that only that user receives.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "policies": {
           "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `sql sync`; `sql sync --check` fails when the file is stale.",
           "type": "object",

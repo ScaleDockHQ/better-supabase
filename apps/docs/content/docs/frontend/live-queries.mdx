@@ -37,6 +37,17 @@ use one topic that every signed-in user receives:
 realtime: { tables: ["customers", "plans"], global: ["plans"] },
 ```
 
+A table whose rows each belong to one user, such as notifications, can
+broadcast per user instead: map it to its user column in `realtime.users`.
+It uses the topic `bs:t:public.notifications:u:<user id>`, which only that
+user receives, so a change to one user's rows doesn't make the rest of the
+tenant refetch. The React hooks pass the signed-in user; `liveQuery` and
+`liveCount` take it as `user`.
+
+```ts title="better-supabase.config.ts"
+realtime: { tables: ["notifications"], users: { notifications: "user_id" } },
+```
+
 ## React
 
 ```tsx

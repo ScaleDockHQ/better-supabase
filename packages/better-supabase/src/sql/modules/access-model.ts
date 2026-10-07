@@ -79,7 +79,7 @@ export const MODULE_PERMISSIONS = {
     update: "settings.update",
     platform: "settings.manage",
   },
-  usage: { read: "usage.read" },
+  usage: { read: "usage.read", record: "usage.record" },
   billing: {
     read: "billing.read",
     manage: "billing.manage",
@@ -141,7 +141,7 @@ export const MODULE_PERMISSION_SCOPES: {
   "webhooks-in": { manage: "tenant", view: "tenant" },
   "api-keys": { manage: "tenant", own: "tenant" },
   settings: { read: "tenant", update: "tenant", platform: "platform" },
-  usage: { read: "tenant" },
+  usage: { read: "tenant", record: "tenant" },
   billing: { read: "tenant", manage: "tenant", viewAll: "platform" },
   comments: {
     read: "tenant",

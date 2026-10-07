@@ -147,6 +147,8 @@ export interface ClaimsMeta {
 export interface RealtimeTableMeta {
   /** App column whose value scopes the broadcast topic. */
   readonly tenant?: string;
+  /** App column of the row's user (`realtime.users`): the topic is per user. */
+  readonly user?: string;
 }
 
 /**

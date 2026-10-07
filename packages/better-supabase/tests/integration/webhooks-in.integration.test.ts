@@ -288,4 +288,29 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       await s.close();
     }
   });
+
+  it("dedupes message ids per source and tenant", async () => {
+    const client = await pool.connect();
+    const source = `inbox-${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await client.query("begin");
+      for (const file of renderModules(["webhook-inbox"]))
+        if (file.kind === "schema") await client.query(file.contents);
+      const receive = async (tenant: string | null) =>
+        (
+          await client.query<{ duplicate: boolean }>(
+            "select duplicate from better_supabase.receive_webhook($1, 'm1', null, '{}', '{}', $2)",
+            [source, tenant],
+          )
+        ).rows[0]!.duplicate;
+      expect(await receive("tenant-a")).toBe(false);
+      expect(await receive("tenant-b")).toBe(false);
+      expect(await receive(null)).toBe(false);
+      expect(await receive("tenant-a")).toBe(true);
+      expect(await receive(null)).toBe(true);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
 });

@@ -54,6 +54,8 @@ export interface UsageBatchRecorded {
   readonly recorded: boolean;
   /** Today's usage per meter (UTC). */
   readonly today: Readonly<Record<string, number>>;
+  /** Usage per meter in its quota's current period, as `current()` reports it. */
+  readonly used: Readonly<Record<string, number>>;
 }
 
 /** One entry of the usage history. */
@@ -88,6 +90,8 @@ export interface UsageRecorded {
   readonly recorded: boolean;
   /** Today's usage of the meter (UTC). */
   readonly today: number;
+  /** Usage in the quota's current period, as `current()` reports it. */
+  readonly used: number;
 }
 
 /**
@@ -201,8 +205,19 @@ const periodOf = (value: unknown): UsagePeriod => {
 
 function recordedOf(value: unknown): UsageRecorded {
   const row = recordOf(value, "record_usage");
-  return { recorded: row["recorded"] === true, today: numberOf(row["used"]) };
+  return {
+    recorded: row["recorded"] === true,
+    today: numberOf(row["today"]),
+    used: numberOf(row["used"]),
+  };
 }
+
+const perMeter = (value: unknown): Readonly<Record<string, number>> =>
+  isRecord(value)
+    ? Object.fromEntries(
+        Object.entries(value).map(([meter, used]) => [meter, numberOf(used)]),
+      )
+    : {};
 
 function statusOf(value: unknown): UsageStatus {
   const row = recordOf(value, "usage_status");
@@ -275,15 +290,10 @@ export function createUsage(options: UsageOptions): Usage {
         },
         (value) => {
           const row = recordOf(value, "record_usage_batch");
-          const used = isRecord(row["used"]) ? row["used"] : {};
           return {
             recorded: row["recorded"] === true,
-            today: Object.fromEntries(
-              Object.entries(used).map(([meter, today]) => [
-                meter,
-                numberOf(today),
-              ]),
-            ),
+            today: perMeter(row["today"]),
+            used: perMeter(row["used"]),
           };
         },
       );

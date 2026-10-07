@@ -19,8 +19,10 @@ better-supabase sql add usage   # adds tenant and access as well
 | `usage_quotas`   | `limit` and `period` (`day`, `week`, `month`, `year` or `billing`) per tenant or per plan |
 
 Members with `usage.read` (the default `admin` role) can read the counters
-and the tenant's quotas. Recording usage needs a membership in the tenant or
-the service role. Only the service role writes quotas.
+and the tenant's quotas. Recording usage (`record`, `consume` and the batch
+variants) needs `usage.record` (also in the default `admin` role) or the
+service role, so a member can't inflate or use up the tenant's quota from
+the browser. Only the service role writes quotas.
 
 ## Quotas
 
@@ -209,8 +211,12 @@ await usage
     { idempotencyKey: requestId, source: "feature:chat" },
   )
   .orThrow();
-// { recorded: true, today: { input_tokens: 1200, output_tokens: 300 } }
+// { recorded: true, today: { input_tokens: 1200, ... }, used: { input_tokens: 48000, ... } }
 ```
+
+`record`, `consume` and the batches return `today`, the UTC day's usage, and
+`used`, the usage in the quota's current period (the month without a quota),
+the same number `current` returns.
 
 In SQL, `record_usage_batch(tenant, entries, idempotency_key, check)` takes
 `entries` as a JSON array of `{ meter, quantity }`.

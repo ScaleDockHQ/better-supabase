@@ -119,6 +119,16 @@ export function listEntries(
   until timestamptz default null`;
   const filterTypes = `${id}[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz`;
   const listTypes = `${filterTypes}, timestamptz, text, integer, boolean, integer`;
+  // A managed log without options.readPolicy grants users no select, so the
+  // invoker functions would only raise 42501 for them.
+  const callers =
+    !ctx.manages || ctx.flag("readPolicy", false)
+      ? "authenticated, service_role"
+      : "service_role";
+  const revokeUsers = (fn: string, types: string): string =>
+    callers === "service_role"
+      ? `revoke execute on function ${fn}(${types}) from authenticated;\n`
+      : "";
   return `-- A page of the entries the caller can read, newest first unless ascending:
 -- the read policy decides (security invoker). Each filter takes several
 -- values; search matches the event type, summary, labels, record and table.
@@ -160,7 +170,7 @@ as $$
   ) x
 $$;
 revoke execute on function ${ctx.fn("list_audit_events")}(${listTypes}) from public, anon;
-grant execute on function ${ctx.fn("list_audit_events")}(${listTypes}) to authenticated, service_role;
+${revokeUsers(ctx.fn("list_audit_events"), listTypes)}grant execute on function ${ctx.fn("list_audit_events")}(${listTypes}) to ${callers};
 
 create or replace function ${ctx.fn("count_audit_events")}(
   ${filters}
@@ -175,7 +185,7 @@ as $$
   where ${where}
 $$;
 revoke execute on function ${ctx.fn("count_audit_events")}(${filterTypes}) from public, anon;
-grant execute on function ${ctx.fn("count_audit_events")}(${filterTypes}) to authenticated, service_role;`;
+${revokeUsers(ctx.fn("count_audit_events"), filterTypes)}grant execute on function ${ctx.fn("count_audit_events")}(${filterTypes}) to ${callers};`;
 }
 
 /**

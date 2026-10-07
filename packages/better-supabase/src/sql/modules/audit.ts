@@ -4,6 +4,7 @@ import type { AuditInsert } from "./audit-metadata.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  ensureCheck,
   EQUIVALENT_TRIGGERS,
   renameSql,
   SCHEMA,
@@ -133,7 +134,7 @@ const NAMES: ModuleNames = {
 function castId(value: string, idType: ModuleIdType): string {
   switch (idType) {
     case "uuid":
-      return `case when ${value} ~ '^[0-9a-f-]{36}$' then (${value})::uuid end`;
+      return `case when ${value} ~* '^[0-9a-f-]{36}$' then (${value})::uuid end`;
     case "bigint":
       return `case when ${value} ~ '^-?[0-9]{1,18}$' then (${value})::bigint end`;
     case "integer":
@@ -235,8 +236,7 @@ function managedTables(ctx: ModuleContext, restricted: boolean): string {
   const op = ctx.has("log", "op")
     ? `
 alter table ${log} drop constraint if exists audit_log_op_check;
-alter table ${log} drop constraint if exists bs_audit_op_check;
-alter table ${log} add constraint bs_audit_op_check check (${c("op")} in ('insert', 'update', 'delete', 'event'));`
+${ensureCheck(log, "bs_audit_op_check", `${c("op")} in ('insert', 'update', 'delete', 'event')`)}`
     : "";
   const table = ctx.has("log", "table")
     ? `\nalter table ${log} alter column ${c("table")} drop not null;`

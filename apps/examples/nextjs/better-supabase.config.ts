@@ -20,9 +20,13 @@ export default defineConfig({
     notifications: crud,
     organizations: ["select"],
   },
-  // Topics per organization: `bs:t:public.notifications:<organization id>`.
+  // Tenant tables broadcast per organization; notifications per user
+  // (`bs:t:public.notifications:u:<user id>`).
   plugins: { tenant: { column: "organization_id" } },
-  realtime: { tables: ["notifications"] },
+  realtime: {
+    tables: ["notifications"],
+    users: { notifications: "user_id" },
+  },
   buckets: {
     customerLogos: {
       path: "{organizationId}/{customerId}/logo/{version}.webp",

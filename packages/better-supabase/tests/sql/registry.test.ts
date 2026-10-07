@@ -370,6 +370,23 @@ describe("sameModuleFile", () => {
     );
   });
 
+  it("registers realtime.users tables per user, and lets only that user receive them", () => {
+    const [file] = renderModules(["realtime-tables"], {
+      realtimeTables: ["notifications", "customers"],
+      realtimeUsers: { notifications: "user_id" },
+      tenantColumn: "organization_id",
+    });
+    expect(file!.contents).toContain(
+      "select better_supabase.track_realtime('public.notifications', tenant_column => null, user_column => 'user_id');",
+    );
+    expect(file!.contents).toContain(
+      "select better_supabase.track_realtime('public.customers', tenant_column => 'organization_id');",
+    );
+    expect(file!.contents).toContain(
+      "split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text",
+    );
+  });
+
   it("adds pg_jsonschema checks for json config schemas", () => {
     const schema = resolveJsonSchema(
       toStandardJsonSchema(v.object({ source: v.string() })),

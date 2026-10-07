@@ -268,6 +268,9 @@ begin
   if old.${c("revokedAt")} is not null and old.${c("revokedAt")} <= now() then
     ${fail("API_KEY_REVOKED", "A revoked API key cannot be rotated", "22023")}
   end if;
+  if old.${c("expiresAt")} is not null and old.${c("expiresAt")} <= now() then
+    ${fail("API_KEY_EXPIRED", "An expired API key cannot be rotated", "22023")}
+  end if;
   if grace is null or grace < interval '0' then
     ${fail("API_KEY_GRACE", "grace must be zero or more", "22023")}
   end if;
