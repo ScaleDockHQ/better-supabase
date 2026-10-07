@@ -176,6 +176,58 @@ added a query shows up in the message. The page type is structural, so
 Playwright stays your dependency, not better-supabase's. The app needs
 `createNext(betterSupabase, { debug: { enabled: true } })` for the test build.
 
+A response the browser aborts mid-stream (the router does this for some
+navigations) counts as finished, so the check doesn't wait out `timeoutMs`
+for it.
+
+## Instant navigations
+
+`expectInstant(page, { during, visible, absent, maxCalls, maxWaves })` runs
+`during` inside `@next/playwright`'s
+[`instant()`](/docs/frameworks/next-cache-components#testing-instant-navigations),
+then checks what the prefetched UI shows while the lock still holds: every
+`visible` locator must be visible, and every `absent` locator must match
+nothing. With `maxCalls` or `maxWaves` it also checks the navigation's
+database budget, as `expectDbBudget` does, and returns the measured renders.
+
+```ts title="e2e/customers.spec.ts"
+import { expect, test } from "@playwright/test";
+import { expectInstant } from "better-supabase/testing";
+
+test("customers come from the per-session App Shell", async ({ page }) => {
+  await page.goto("/");
+  const link = page.getByRole("link", { name: "Customers", exact: true });
+  await expect(link).toBeVisible();
+  await expectInstant(page, {
+    during: async () => {
+      await link.click();
+      await page.waitForURL((url) => url.pathname === "/customers");
+    },
+    visible: [
+      page.getByRole("heading", { name: "Customers" }),
+      page.getByText("Road Runner Inc"),
+    ],
+    maxCalls: 8,
+    maxWaves: 2,
+  });
+});
+```
+
+- Install `@next/playwright` as a dev dependency. It is an optional peer that
+  `expectInstant` loads when it runs, so apps that never call it don't need
+  it.
+- The app needs a `next build` with
+  `experimental.exposeTestingApiInProductionBuild`; without it the lock is
+  ignored and the check passes without testing anything. The budget options
+  also need `debug.enabled` and `bs.debugRoute()`, as above.
+- A missing `visible` locator fails after `timeoutMs` (5 seconds by
+  default) with the locator in the message. Content that should stream in
+  after the navigation, such as a count read per request, goes in `absent`
+  (`absent: [page.getByTestId("unread-summary")]`); assert it with `expect`
+  after `expectInstant` returns.
+- Pass `baseURL` when `during` loads the first page, so the lock can be set
+  before the page has a URL.
+
 ## pgTAP
 
 `better-supabase sql add pgtap` writes

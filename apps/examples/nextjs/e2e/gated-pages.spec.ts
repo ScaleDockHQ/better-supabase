@@ -1,7 +1,7 @@
-import { instant } from "@next/playwright";
 import { expect, test } from "@playwright/test";
+import { expectInstant } from "better-supabase/testing";
 
-import { heading, sidebarLink } from "./nav";
+import { clickSidebar, heading, sidebarLink } from "./nav";
 import { users } from "./users";
 
 test.use({ storageState: users.admin.storageState });
@@ -11,11 +11,12 @@ test("Reports passes its permission gate from the cached session", async ({
 }) => {
   await page.goto("/");
   await expect(sidebarLink(page, "Reports")).toBeVisible();
-  await instant(page, async () => {
-    await sidebarLink(page, "Reports").click();
-    await page.waitForURL((url) => url.pathname === "/reports");
-    await expect(heading(page, "Reports")).toBeVisible();
-    await expect(page.getByText("Revenue and pipeline reports.")).toBeVisible();
+  await expectInstant(page, {
+    during: clickSidebar(page, "Reports", "/reports"),
+    visible: [
+      heading(page, "Reports"),
+      page.getByText("Revenue and pipeline reports."),
+    ],
   });
 });
 
@@ -24,12 +25,11 @@ test("Billing shows the plan features from the cached session", async ({
 }) => {
   await page.goto("/");
   await expect(sidebarLink(page, "Billing")).toBeVisible();
-  await instant(page, async () => {
-    await sidebarLink(page, "Billing").click();
-    await page.waitForURL((url) => url.pathname === "/billing");
-    await expect(heading(page, "Billing")).toBeVisible();
-    await expect(
+  await expectInstant(page, {
+    during: clickSidebar(page, "Billing", "/billing"),
+    visible: [
+      heading(page, "Billing"),
       page.getByRole("list", { name: "Plan features" }),
-    ).toBeVisible();
+    ],
   });
 });

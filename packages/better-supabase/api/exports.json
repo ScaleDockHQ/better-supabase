@@ -326,13 +326,16 @@
   },
   "./client/native": {
     "values": [
+      "autoRefreshOnForeground",
       "createNativeClient",
       "secureStorage"
     ],
     "types": [
+      "AppStateLike",
       "AuthSnapshot",
       "AuthStorage",
       "AuthUser",
+      "AutoRefreshClient",
       "BetterClient",
       "ClientAuth",
       "SecureStorageOptions",
@@ -1807,6 +1810,7 @@
       "createTestSigner",
       "defineSeed",
       "expectDbBudget",
+      "expectInstant",
       "expectTenantIsolation",
       "isSeed",
       "LOCAL_JWT_SECRET",
@@ -1833,11 +1837,16 @@
     "types": [
       "AdapterRun",
       "BudgetPage",
+      "BudgetRequest",
       "BudgetResponse",
       "ConformanceCheck",
       "ConformanceReport",
       "DbBudgetExpectation",
       "ExactSeed",
+      "InstantBrowserContext",
+      "InstantExpectation",
+      "InstantLocator",
+      "InstantPage",
       "IsolationTable",
       "IsolationTables",
       "IsolationTenant",

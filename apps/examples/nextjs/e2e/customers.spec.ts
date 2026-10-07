@@ -1,7 +1,7 @@
-import { instant } from "@next/playwright";
 import { expect, test } from "@playwright/test";
+import { expectInstant } from "better-supabase/testing";
 
-import { heading, sidebarLink } from "./nav";
+import { clickSidebar, heading, sidebarLink } from "./nav";
 import { users } from "./users";
 
 test.use({ storageState: users.admin.storageState });
@@ -11,12 +11,15 @@ test("customers come from the per-session App Shell on a click", async ({
 }) => {
   await page.goto("/");
   await expect(sidebarLink(page, "Customers")).toBeVisible();
-  await instant(page, async () => {
-    await sidebarLink(page, "Customers").click();
-    await page.waitForURL((url) => url.pathname === "/customers");
-    await expect(heading(page, "Customers")).toBeVisible();
-    await expect(page.getByText("Road Runner Inc")).toBeVisible();
-    await expect(page.getByTestId("similar-notes")).toBeVisible();
+  await expectInstant(page, {
+    during: clickSidebar(page, "Customers", "/customers"),
+    visible: [
+      heading(page, "Customers"),
+      page.getByText("Road Runner Inc"),
+      page.getByTestId("similar-notes"),
+    ],
+    maxCalls: 8,
+    maxWaves: 2,
   });
 });
 

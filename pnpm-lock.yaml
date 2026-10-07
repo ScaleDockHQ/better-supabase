@@ -1294,6 +1294,9 @@ importers:
       '@modelcontextprotocol/server':
         specifier: 'catalog:'
         version: 2.3.0
+      '@next/playwright':
+        specifier: 'catalog:'
+        version: 16.3.8(@playwright/test@1.63.0)
       '@openfeature/server-sdk':
         specifier: 'catalog:'
         version: 1.23.0(@openfeature/core@1.12.0)

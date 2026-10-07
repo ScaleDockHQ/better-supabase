@@ -6,10 +6,12 @@ description: Repositories in Expo and React Native apps, with sessions in the de
 ```ts title="src/lib/supabase/native.ts"
 import { createClient } from "@supabase/supabase-js";
 import {
+  autoRefreshOnForeground,
   createNativeClient,
   secureStorage,
 } from "better-supabase/client/native";
 import * as SecureStore from "expo-secure-store";
+import { AppState } from "react-native";
 import { betterSupabase } from "./index";
 
 const supabase = createClient(
@@ -24,6 +26,8 @@ const supabase = createClient(
     },
   },
 );
+
+autoRefreshOnForeground(supabase, AppState);
 
 export const bs = createNativeClient(betterSupabase, supabase);
 ```
@@ -50,6 +54,34 @@ Reads and writes of one key run one at a time. A write stores the new
 chunks next to the old ones and switches `<key>.chunks` to them only once
 all are stored, so a read never joins chunks of two sessions, and a write
 that fails part way keeps the previous session.
+
+## Refreshing in the foreground
+
+supabase-js refreshes the access token on a timer, but on React Native it
+can't tell when the app goes to the background. Supabase asks apps to call
+`supabase.auth.startAutoRefresh()` when the app becomes active and
+`stopAutoRefresh()` when it leaves. `autoRefreshOnForeground(supabase, AppState)`
+does both: it starts refreshing at once when `AppState.currentState` is
+`active`, follows every `change` event after that, and returns a function
+that removes the listener and stops refreshing.
+
+```tsx title="src/app/_layout.tsx"
+import { useEffect } from "react";
+import { AppState } from "react-native";
+import { autoRefreshOnForeground } from "better-supabase/client/native";
+import { supabase } from "@/lib/supabase/native";
+
+export default function RootLayout() {
+  useEffect(() => autoRefreshOnForeground(supabase, AppState), []);
+  // ...
+}
+```
+
+Call it once, either at module level next to `createClient` as above or in
+an effect as here, not both. `AppState` is typed by its shape, so
+better-supabase never imports `react-native`; any object with `currentState`
+and `addEventListener("change", listener)` works, including a fake in a unit
+test.
 
 ## Hermes and Temporal
 

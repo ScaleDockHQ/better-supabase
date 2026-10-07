@@ -4,12 +4,20 @@ import type { DbStats } from "../../src/core/stats.ts";
 
 import {
   type BudgetPage,
+  type BudgetRequest,
   type BudgetResponse,
   expectDbBudget,
 } from "../../src/testing/budget.ts";
 
-function fakePage(renders: Record<string, DbStats>): BudgetPage {
+function fakePage(
+  renders: Record<string, DbStats>,
+  during?: (
+    respond: (id: string, path: string) => BudgetResponse,
+    fail: (request: BudgetRequest) => void,
+  ) => void,
+): BudgetPage {
   let listener: ((response: BudgetResponse) => void) | undefined;
+  let onFailed: ((request: BudgetRequest) => void) | undefined;
   const respond = (
     id: string,
     path: string,
@@ -23,14 +31,33 @@ function fakePage(renders: Record<string, DbStats>): BudgetPage {
     }),
     finished: () => Promise.resolve(null),
   });
+  const aborted = (id: string, path: string): BudgetResponse => {
+    const request = { headers: () => ({}) };
+    const response: BudgetResponse = {
+      ...respond(id, path),
+      request: () => request,
+      finished: () => new Promise(() => {}),
+    };
+    listener?.(response);
+    return response;
+  };
   return {
-    on: (_event, fn) => {
-      listener = fn;
+    on: (
+      event: string,
+      fn: (value: BudgetResponse & BudgetRequest) => void,
+    ) => {
+      if (event === "response") listener = fn as typeof listener;
+      else onFailed = fn as typeof onFailed;
     },
-    off: () => {
-      listener = undefined;
+    off: (event: string) => {
+      if (event === "response") listener = undefined;
+      else onFailed = undefined;
     },
     reload: () => {
+      if (during) {
+        during(aborted, (request) => onFailed?.(request));
+        return Promise.resolve();
+      }
       listener?.(respond("doc", "/customers"));
       listener?.(respond("rsc", "/customers?_rsc=1"));
       listener?.(
@@ -88,6 +115,25 @@ describe("expectDbBudget", () => {
     ).rejects.toThrow(
       /over the budget of 8 calls and 2 waves:\n {2}https:\/\/app\.test\/customers: 9 calls in 4 waves \(customers\)/,
     );
+  });
+
+  it("stops waiting when the browser aborts a streamed response", async () => {
+    const started = Date.now();
+    const renders = await expectDbBudget(
+      fakePage({ early: stats(1, 1), late: stats(2, 1) }, (respond, fail) => {
+        fail(respond("early", "/customers?_rsc=1").request());
+        const late = respond("late", "/customers?_rsc=2");
+        setTimeout(() => {
+          fail(late.request());
+        }, 10);
+      }),
+      { maxCalls: 2, timeoutMs: 5000 },
+    );
+    expect(renders.map((render) => render.requestId)).toEqual([
+      "early",
+      "late",
+    ]);
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 
   it("explains a missing debug route", async () => {

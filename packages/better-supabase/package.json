@@ -643,6 +643,7 @@
     "@effect/platform-node": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
+    "@next/playwright": "catalog:",
     "@openfeature/server-sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@orpc/contract": "catalog:",
@@ -689,6 +690,7 @@
   },
   "peerDependencies": {
     "@modelcontextprotocol/server": "catalog:peers",
+    "@next/playwright": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
     "@orpc/server": "catalog:peers",
     "@supabase/config": "catalog:peers",
@@ -706,6 +708,9 @@
   },
   "peerDependenciesMeta": {
     "@modelcontextprotocol/server": {
+      "optional": true
+    },
+    "@next/playwright": {
       "optional": true
     },
     "@opentelemetry/api": {

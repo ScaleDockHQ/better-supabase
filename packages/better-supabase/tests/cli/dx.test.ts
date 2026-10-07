@@ -302,6 +302,11 @@ describe("templates", () => {
             "declare module 'expo-secure-store' {\n  export function getItemAsync(key: string): Promise<string | null>;\n  export function setItemAsync(key: string, value: string): Promise<void>;\n  export function deleteItemAsync(key: string): Promise<void>;\n}\n",
         },
         {
+          path: "react-native.d.ts",
+          contents:
+            "declare module 'react-native' {\n  export const AppState: {\n    currentState: 'active' | 'background' | 'inactive';\n    addEventListener(type: 'change', listener: (state: 'active' | 'background' | 'inactive') => void): { remove(): void };\n  };\n}\n",
+        },
+        {
           path: "tsconfig.json",
           contents: JSON.stringify({
             extends: join(packageRoot, "tsconfig.json"),

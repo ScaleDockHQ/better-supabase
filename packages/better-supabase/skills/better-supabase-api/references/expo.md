@@ -35,10 +35,12 @@ export default bs.middleware();
 ```ts title="src/lib/supabase/native.ts"
 import { createClient } from "@supabase/supabase-js";
 import {
+  autoRefreshOnForeground,
   createNativeClient,
   secureStorage,
 } from "better-supabase/client/native";
 import * as SecureStore from "expo-secure-store";
+import { AppState } from "react-native";
 
 const supabase = createClient(url, key, {
   auth: {
@@ -47,9 +49,11 @@ const supabase = createClient(url, key, {
     detectSessionInUrl: false,
   },
 });
+autoRefreshOnForeground(supabase, AppState);
 export const bs = createNativeClient(betterSupabase, supabase);
 ```
 
+- `autoRefreshOnForeground(supabase, AppState)` refreshes the session only while the app is active; supabase-js can't detect the background on React Native.
 - Never import `better-supabase/client` on the device: it pulls in `@supabase/ssr`.
 - Hermes has no `Temporal`: `defineSupabase(schema, { temporal: Temporal })` with `temporal-polyfill`, no global install.
 - Put device-only code (SecureStore, PowerSync) in `.native.ts` files or modules only they import.
