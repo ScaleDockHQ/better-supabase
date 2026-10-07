@@ -19,11 +19,11 @@ function setup(answer: Answer, stripeOverrides: Record<string, unknown> = {}) {
       return answer(fn, { ...args });
     },
   };
-  const stripeCalls: [string, unknown][] = [];
+  const stripeCalls: [string, unknown, unknown?][] = [];
   const stripe = {
     customers: {
-      create: async (params: unknown) => {
-        stripeCalls.push(["customers.create", params]);
+      create: async (params: unknown, options?: unknown) => {
+        stripeCalls.push(["customers.create", params, options]);
         return { id: "cus_new" };
       },
     },
@@ -93,6 +93,7 @@ describe("createBilling", () => {
     expect(t.stripeCalls[0]).toEqual([
       "customers.create",
       { email: "a@b.test", name: "Acme", metadata: { organization_id: "org" } },
+      { idempotencyKey: "customer:org" },
     ]);
     expect(t.stripeCalls[1]).toEqual([
       "checkout.create",
