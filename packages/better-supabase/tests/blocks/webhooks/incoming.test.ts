@@ -308,5 +308,37 @@ describe("createIncomingWebhooks", () => {
       (await hooks.receive(post(body, { "x-hub": hex }), "mac")).status,
     ).toBe(202);
     expect((await hooks.receive(post(body), "mac")).status).toBe(401);
+    await hooks.receive(
+      post(body, { "x-hub": `sha256=${hex}`, "webhook-id": "replayed" }),
+      "mac",
+    );
+    expect(
+      fake.calls
+        .filter((call) => call.text.includes("receive_webhook"))
+        .slice(1)
+        .map((call) => call.values[1]),
+    ).toEqual([`e1:hmac:${hex}`, `e1:hmac:${hex}`]);
+  });
+
+  it("stops reading a body without a Content-Length at the limit", async () => {
+    let pulled = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(new TextEncoder().encode("abcdefgh"));
+        if (pulled > 100) controller.close();
+      },
+    });
+    const fake = fakeSql([["incoming_webhook_by_token", [endpoint()]]]);
+    const response = await createIncomingWebhooks(fake.sql).receive(
+      new Request("https://api.test/hooks/tok", {
+        method: "POST",
+        body: stream,
+        duplex: "half",
+      } as RequestInit),
+      "tok",
+    );
+    expect(response.status).toBe(413);
+    expect(pulled).toBeLessThan(5);
   });
 });

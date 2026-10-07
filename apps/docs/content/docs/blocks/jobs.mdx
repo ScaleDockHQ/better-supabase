@@ -549,7 +549,8 @@ await inbox.process(async (message) => {
 `verify` to use a provider's own scheme instead. `receive` answers `202` for
 a new message and `200` for a duplicate. A message id is unique per source
 and tenant, so two tenants of one provider can send the same id. A failed
-verification gets a Problem Details response.
+verification gets a Problem Details response, and a body over `maxBodyBytes`
+(1 MiB by default) gets `413` before it is read in full.
 
 A failed message is retried with exponential backoff until `maxAttempts`
 (8 by default, set per source on `createInbox`), then marked dead. Each
@@ -581,7 +582,10 @@ next `process` instead of running again.
 stops claiming once the budget is spent, finishes the messages it already
 claimed, and the next call picks up the rest. `batch` (10) and `lease` (300
 seconds) set how many messages one claim takes and how long they stay with
-the worker.
+the worker. While a handler runs, a heartbeat renews its message's lease
+every half lease. A worker whose lease ran out and was taken by another
+claim can't complete, fail or checkpoint that message: the inbox checks the
+attempt it claimed, and skips a message whose lease it can't renew.
 
 ```ts title="app/api/inbox/route.ts"
 export const GET = async () =>

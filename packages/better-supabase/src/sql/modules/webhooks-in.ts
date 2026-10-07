@@ -18,6 +18,20 @@ const INCOMING_VERIFY = ["none", "standard-webhooks", "hmac-sha256"] as const;
 const fail = (code: string, message: string, errcode = "42501"): string =>
   `raise exception '${message}' using errcode = '${errcode}', hint = '${code}';`;
 
+function secretStorage(ctx: ModuleContext): boolean {
+  const storage = ctx.text("secretStorage", "vault");
+  if (storage !== "vault" && storage !== "column") {
+    throw new TypeError(
+      `sql.modules.webhooks-in.options.secretStorage must be "vault" or "column", not "${storage}"`,
+    );
+  }
+  return storage === "vault";
+}
+
+/** A Vault secret holding secret for endpoint, or null when secret is null. */
+const vaultSecret = (secret: string, endpoint: string): string =>
+  `case when ${secret} is null then null else vault.create_secret(${secret}, 'webhook-in:' || ${endpoint}::text || ':' || gen_random_uuid()::text, 'better-supabase incoming webhook secret') end`;
+
 function webhooksInSql(ctx: ModuleContext): string {
   const id = ctx.idType;
   const t = ctx.table("endpoints");
@@ -26,6 +40,31 @@ function webhooksInSql(ctx: ModuleContext): string {
   const view = ctx.permission("view", p.view);
   const verify = INCOMING_VERIFY.map((mode) => `'${mode}'`).join(", ");
   const maxBody = ctx.number("maxBodyBytes", 1_048_576);
+  const vault = secretStorage(ctx);
+  const stored = (secret: string, endpoint: string) =>
+    vault ? vaultSecret(secret, endpoint) : "null";
+  const plain = (secret: string) => (vault ? "null" : secret);
+  const cleanupTrigger = ctx.trigger("incoming_webhook_vault");
+  const cleanup = vault
+    ? `
+-- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
+create or replace function ${ctx.fn("drop_incoming_webhook_secret")}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from vault.secrets vs where vs.id = old.secret_id;
+  return null;
+end;
+$$;
+revoke execute on function ${ctx.fn("drop_incoming_webhook_secret")}() from public, anon, authenticated;
+drop trigger if exists ${cleanupTrigger} on ${t};
+create trigger ${cleanupTrigger} after delete on ${t}
+  for each row when (old.secret_id is not null) execute function ${ctx.fn("drop_incoming_webhook_secret")}();`
+    : `
+drop trigger if exists ${cleanupTrigger} on ${t};`;
   const can = (tenant: string) =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${manage}), false))`;
   const subjects = subjectsOption(ctx);
@@ -56,7 +95,8 @@ function webhooksInSql(ctx: ModuleContext): string {
   return `${schemaPreamble(ctx)}
 -- Trigger URLs a tenant hands to another system: /hooks/<token> stores each
 -- delivery in the webhook inbox (source webhook-in), with the endpoint's
--- tenant. Only the token's hash is kept.
+-- tenant. Only the token's hash is kept, and the signing secret is a Vault
+-- secret (secret_id) unless options.secretStorage is "column".
 create table if not exists ${t} (
   id uuid primary key default gen_random_uuid(),
   tenant ${id} not null,
@@ -64,6 +104,7 @@ create table if not exists ${t} (
   token_hash text not null unique,
   verify text not null default 'none' check (verify in (${verify})),
   secret text,
+  secret_id uuid,
   signature_header text,
   enabled boolean not null default true,
   max_body_bytes integer not null default ${String(maxBody)} check (max_body_bytes > 0),
@@ -79,9 +120,11 @@ create table if not exists ${t} (
 );
 alter table ${t} add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table ${t} add column if not exists subject_id text check (length(subject_id) between 1 and 200);
+alter table ${t} add column if not exists secret_id uuid;
 create index if not exists incoming_webhooks_tenant_idx on ${t} (tenant);
 create index if not exists incoming_webhooks_subject_idx on ${t} (tenant, subject_type, subject_id);
-${updatedAt(t, "updated_at")}
+create index if not exists incoming_webhooks_created_by_idx on ${t} (created_by) where created_by is not null;
+${updatedAt(t, "updated_at")}${cleanup}
 alter table ${t} enable row level security;
 revoke all on ${t} from anon, authenticated;
 -- The secret stays with the service: members read every other column.
@@ -165,6 +208,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
+  v_id uuid := gen_random_uuid();
   token text := encode(extensions.gen_random_bytes(24), 'hex');
   secret text := case verify
     when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
@@ -181,8 +225,8 @@ begin
   if subject_type is not null and not (${subjectExists}) then
     ${fail("WEBHOOK_IN_SUBJECT_INVALID", "No such subject in this tenant", "22023")}
   end if;
-  insert into ${t} (tenant, name, token_hash, verify, secret, signature_header, metadata, subject_type, subject_id, created_by)
-  values (tenant, name, encode(extensions.digest(token, 'sha256'), 'hex'), verify, secret,
+  insert into ${t} (id, tenant, name, token_hash, verify, secret, secret_id, signature_header, metadata, subject_type, subject_id, created_by)
+  values (v_id, tenant, name, encode(extensions.digest(token, 'sha256'), 'hex'), verify, ${plain("secret")}, ${stored("secret", "v_id")},
     case when verify = 'hmac-sha256' then coalesce(signature_header, 'x-signature') end,
     coalesce(metadata, '{}'), subject_type, subject_id, auth.uid())
   returning * into created;
@@ -202,20 +246,33 @@ as $$
 #variable_conflict use_variable
 declare
   token text := encode(extensions.gen_random_bytes(24), 'hex');
+  v_secret text;
   updated ${t};
+  previous ${t};
 begin
-  select * into updated from ${t} e where e.id = endpoint for update;
-  if updated.id is null or not ${can("updated.tenant")} then
+  select * into previous from ${t} e where e.id = endpoint for update;
+  if previous.id is null or not ${can("previous.tenant")} then
     raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
   end if;
+  if rotate_secret then
+    v_secret := case previous.verify
+      when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
+      when 'hmac-sha256' then encode(extensions.gen_random_bytes(32), 'hex')
+    end;
+  end if;
   update ${t} e set token_hash = encode(extensions.digest(token, 'sha256'), 'hex'),
-    secret = case when rotate_secret and e.verify = 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
-      when rotate_secret and e.verify = 'hmac-sha256' then encode(extensions.gen_random_bytes(32), 'hex')
-      else e.secret end
+    secret = case when rotate_secret then ${plain("v_secret")} else e.secret end,
+    secret_id = case when rotate_secret then ${stored("v_secret", "e.id")} else e.secret_id end
   where e.id = endpoint
-  returning * into updated;
-  return jsonb_build_object('id', updated.id, 'token', token,
-    'secret', case when rotate_secret then updated.secret end);
+  returning * into updated;${
+    vault
+      ? `
+  if rotate_secret and previous.secret_id is not null then
+    delete from vault.secrets vs where vs.id = previous.secret_id;
+  end if;`
+      : ""
+  }
+  return jsonb_build_object('id', updated.id, 'token', token, 'secret', v_secret);
 end;
 $$;
 
@@ -265,8 +322,8 @@ stable
 security definer
 set search_path = ''
 as $$
-  select e.id, e.tenant::text, e.enabled, e.verify, e.secret, e.signature_header, e.max_body_bytes
-  from ${t} e
+  select e.id, e.tenant::text, e.enabled, e.verify, ${vault ? "coalesce(ds.decrypted_secret, e.secret)" : "e.secret"}, e.signature_header, e.max_body_bytes
+  from ${t} e${vault ? "\n  left join vault.decrypted_secrets ds on ds.id = e.secret_id" : ""}
   where e.token_hash = encode(extensions.digest(incoming_webhook_by_token.token, 'sha256'), 'hex')
 $$;
 
@@ -311,8 +368,23 @@ export const WEBHOOKS_IN: ModuleDefinition = {
     tables: {
       endpoints: { name: "incoming_webhooks", columns: {} },
     },
-    options: ["maxBodyBytes", "subjects"],
+    options: ["maxBodyBytes", "secretStorage", "subjects"],
   },
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        'Signing secrets move to Vault (secret_id) unless options.secretStorage is "column"; existing plaintext secrets are copied to Vault and cleared.',
+      sql: (ctx) => {
+        if (!secretStorage(ctx)) return "";
+        const t = ctx.table("endpoints");
+        return `alter table ${t} add column if not exists secret_id uuid;
+update ${t} e set secret_id = ${vaultSecret("e.secret", "e.id")}, secret = null
+where e.secret is not null and e.secret_id is null;`;
+      },
+    },
+  ],
   contract: () => [
     {
       name: "create_incoming_webhook",

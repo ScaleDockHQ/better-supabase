@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseRetryAfter } from "../../../src/blocks/webhooks/http.ts";
 import {
   fetchTransport,
+  UrlCheckError,
   WebhookPolicyError,
 } from "../../../src/blocks/webhooks/index.ts";
 import { testWebhookTransport } from "../../../src/testing/index.ts";
@@ -125,15 +126,26 @@ describe("fetchTransport", () => {
     });
   });
 
-  it("treats a throwing allowUrl as a rejection", async () => {
+  it("treats a throwing allowUrl as a failed check that can be retried, not a refusal", async () => {
     const { fetch, calls } = fakeFetch(() => new Response("ok"));
+    const dns = Object.assign(new Error("getaddrinfo EAI_AGAIN"), {
+      code: "EAI_AGAIN",
+    });
     const transport = fetchTransport({
       fetch,
       allowUrl: () => {
-        throw new Error("dns failed");
+        throw dns;
       },
     });
-    await expect(transport.send(request)).rejects.toThrow("not allowed");
+    const error: unknown = await transport
+      .send(request)
+      .catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(UrlCheckError);
+    expect(error).not.toBeInstanceOf(WebhookPolicyError);
+    expect(error).toMatchObject({
+      message: "Could not check endpoint URL: hooks.example.com",
+      cause: dns,
+    });
     expect(calls).toHaveLength(0);
   });
 

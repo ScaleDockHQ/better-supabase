@@ -9,6 +9,7 @@ import {
 import { type AsyncResult, ok, type Result } from "../../core/result.ts";
 import {
   errorText,
+  readBodyCapped,
   run,
   seconds,
   toInstant,
@@ -411,12 +412,21 @@ export interface InboxOptions
    * each message as it arrives. Defaults to 8.
    */
   readonly maxAttempts?: number;
+  /**
+   * The largest body `receive` reads; a larger one gets 413 without being
+   * read to the end. Defaults to 1 MiB.
+   */
+  readonly maxBodyBytes?: number;
 }
 
 export interface InboxProcessOptions {
   /** Messages claimed at once. Defaults to 10. */
   readonly batch?: number;
-  /** How long a claimed message stays with this worker. Defaults to 300 seconds. */
+  /**
+   * How long a claimed message stays with this worker. It is renewed when
+   * the message's turn in the batch comes and every half lease while the
+   * handler runs. Defaults to 300 seconds.
+   */
   readonly lease?: number | string;
   /**
    * Stop claiming after this many ms, so a backlog can't outrun a
@@ -471,7 +481,8 @@ export interface Inbox {
   store(event: InboxEvent): AsyncResult<{ id: number; duplicate: boolean }>;
   /**
    * Processes stored messages until none are ready, or until `budgetMs`
-   * is spent.
+   * is spent. A message whose lease another claim took over is skipped,
+   * and its outcome is not counted.
    */
   process<T = unknown>(
     handler: (message: InboxMessage<T>) => unknown,
@@ -518,20 +529,24 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
       `createInbox maxAttempts must be a positive integer, not ${String(maxAttempts)}`,
     );
   }
+  const maxBodyBytes = options.maxBodyBytes ?? 1_048_576;
+  if (!Number.isInteger(maxBodyBytes) || maxBodyBytes < 1) {
+    throw new TypeError(
+      `createInbox maxBodyBytes must be a positive integer, not ${String(maxBodyBytes)}`,
+    );
+  }
 
   const verified = async (
     request: Request,
+    body: string,
   ): Promise<
     Result<{ id: string; payload: unknown; tenant?: string | null }>
   > => {
-    if (options.verify)
-      return options.verify(request, await request.clone().text());
-    if (!options.secrets) {
-      throw new TypeError(
-        `The inbox for "${options.source}" has no \`secrets\` or \`verify\`, so it only stores events through \`store\``,
-      );
-    }
-    const result = await verifyWebhook(request, options.secrets);
+    if (options.verify) return options.verify(request, body);
+    const result = await verifyWebhook(
+      { headers: request.headers, body },
+      options.secrets ?? [],
+    );
     return result.ok
       ? ok({ id: result.data.id, payload: result.data.payload })
       : result;
@@ -608,7 +623,24 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
       if (request.method !== "POST") {
         return new Response(null, { status: 405, headers: { allow: "POST" } });
       }
-      const message = await verified(request);
+      if (!options.verify && !options.secrets) {
+        throw new TypeError(
+          `The inbox for "${options.source}" has no \`secrets\` or \`verify\`, so it only stores events through \`store\``,
+        );
+      }
+      const body = await readBodyCapped(request.clone(), maxBodyBytes);
+      if (body === undefined) {
+        return problemResponse(
+          {
+            ...dbError("invalid_input", "The body is too large", {
+              code: "WEBHOOK_TOO_LARGE",
+            }),
+            status: 413,
+          },
+          { instance, format },
+        );
+      }
+      const message = await verified(request, body);
       if (!message.ok)
         return problemResponse(message.error, { instance, format });
       const headers = Object.fromEntries(
@@ -635,6 +667,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
     async process(handler, processOptions = {}) {
       let succeeded = 0;
       let failed = 0;
+      const lease = seconds(processOptions.lease ?? 300);
       const deadline =
         processOptions.budgetMs === undefined
           ? undefined
@@ -644,16 +677,23 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
           return { succeeded, failed };
         const rows = await sql.queryRaw<InboxRow>(
           "select * from better_supabase.claim_webhooks($1, $2, $3, $4::interval)",
-          [
-            options.source,
-            worker,
-            processOptions.batch ?? 10,
-            seconds(processOptions.lease ?? 300),
-          ],
+          [options.source, worker, processOptions.batch ?? 10, lease],
         );
         if (rows.length === 0) return { succeeded, failed };
         for (const row of rows) {
           const id = Number(row.id);
+          const attempt = row.attempts;
+          // Renews the lease, which ran from the claim while earlier messages
+          // of the batch were handled. No lease: another claim took it over.
+          const extend = async (): Promise<number | undefined> => {
+            const [held] = await sql.queryRaw<{ lease: number | null }>(
+              "select better_supabase.extend_webhook($1, $2, $3, $4::interval) as lease",
+              [id, worker, attempt, lease],
+            );
+            return held?.lease ?? undefined;
+          };
+          const leaseSeconds = await extend();
+          if (leaseSeconds === undefined) continue;
           const message: InboxMessage<never> = {
             id,
             source: row.source,
@@ -670,12 +710,16 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
             progress: row.checkpoint ?? {},
             async checkpoint(fields) {
               const [saved] = await sql.queryRaw<{ saved: boolean }>(
-                "select better_supabase.checkpoint_webhook($1, $2, $3) as saved",
-                [id, worker, JSON.stringify(fields)],
+                "select better_supabase.checkpoint_webhook($1, $2, $3, $4) as saved",
+                [id, worker, JSON.stringify(fields), attempt],
               );
               return saved?.saved ?? false;
             },
           };
+          const heartbeat = setInterval(
+            () => void extend().catch(() => undefined),
+            Math.max(1000, leaseSeconds * 500),
+          );
           try {
             const outcome: unknown = await handler(message);
             if (
@@ -693,17 +737,19 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
                 ),
               );
             }
-            await sql.queryRaw(
-              "select better_supabase.complete_webhook($1, $2)",
-              [message.id, worker],
+            const [done] = await sql.queryRaw<{ done: boolean }>(
+              "select better_supabase.complete_webhook($1, $2, $3) as done",
+              [message.id, worker, attempt],
             );
-            succeeded += 1;
+            if (done?.done !== false) succeeded += 1;
           } catch (cause) {
             await sql.queryRaw(
-              "select better_supabase.fail_webhook($1, $2, $3)",
-              [message.id, worker, errorText(cause)],
+              "select better_supabase.fail_webhook($1, $2, $3, null, $4)",
+              [message.id, worker, errorText(cause), attempt],
             );
             failed += 1;
+          } finally {
+            clearInterval(heartbeat);
           }
         }
       }

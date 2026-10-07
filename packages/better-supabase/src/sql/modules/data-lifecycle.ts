@@ -453,6 +453,7 @@ create table if not exists ${e} (
 create unique index if not exists data_exports_open_user_idx on ${e} (${ce("user")}) where ${ce("status")} in ('pending', 'running') and ${ce("subject")} = 'user';
 create unique index if not exists data_exports_open_tenant_idx on ${e} (${ce("tenant")}) where ${ce("status")} in ('pending', 'running') and ${ce("subject")} = 'organization';
 create index if not exists data_exports_requested_by_idx on ${e} (${ce("requestedBy")});
+create index if not exists data_exports_user_idx on ${e} (${ce("user")}) where ${ce("user")} is not null;
 alter table ${e} enable row level security;
 revoke all on ${e} from anon, authenticated;
 grant select on ${e} to authenticated;
@@ -474,6 +475,7 @@ create table if not exists ${d} (
   ${cd("previouslyDisabled")} boolean not null default false
 );
 create index if not exists organization_deletions_due_idx on ${d} (${cd("purgeAfter")}) where ${cd("cancelledAt")} is null and ${cd("purgedAt")} is null;
+create index if not exists organization_deletions_requested_by_idx on ${d} (${cd("requestedBy")}) where ${cd("requestedBy")} is not null;
 alter table ${d} enable row level security;
 revoke all on ${d} from anon, authenticated;
 grant all on ${d} to service_role;

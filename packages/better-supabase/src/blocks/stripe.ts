@@ -4,11 +4,14 @@
  */
 export interface StripeClient {
   readonly customers: {
-    create(params: {
-      readonly email?: string;
-      readonly name?: string;
-      readonly metadata?: Readonly<Record<string, string>>;
-    }): Promise<{ readonly id: string }>;
+    create(
+      params: {
+        readonly email?: string;
+        readonly name?: string;
+        readonly metadata?: Readonly<Record<string, string>>;
+      },
+      options?: { readonly idempotencyKey?: string },
+    ): Promise<{ readonly id: string }>;
     /** Used by `billing.updateCustomer`. */
     update?(
       id: string,

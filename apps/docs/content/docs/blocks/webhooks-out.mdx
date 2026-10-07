@@ -121,6 +121,7 @@ The delivery id is the `webhook-id`, the same on every retry.
 | ------------------------------ | --------------------------------- |
 | 2xx                            | `succeeded`                       |
 | 408, 429, 5xx, a network error | `retrying`, on the schedule below |
+| A URL check that fails (DNS)   | `retrying`, on the schedule below |
 | Any other status               | `dead`                            |
 | A URL `allowUrl` rejects       | `dead`, never sent                |
 | The last of `maxAttempts` (8)  | `dead`, also when the worker died |

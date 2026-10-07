@@ -18,8 +18,12 @@ better-supabase sql add webhooks-in   # adds access, tenant and webhook-inbox
 
 A member with `webhooks.manage` (`sql.modules.webhooks-in.permissions.manage`)
 creates an endpoint for their tenant. The token, which goes in the URL, and
-the signing secret are returned once; only the token's hash is stored, and
-members can't read the secret column.
+the signing secret are returned once. Only the token's hash is stored, and
+the secret is a [Vault](https://supabase.com/docs/guides/database/vault)
+secret that only the receiving route decrypts. Set
+`sql.modules.webhooks-in.options.secretStorage` to `"column"` to keep it in
+the `secret` column instead (members can't read that column either). Deleting
+an endpoint, or rotating its secret, deletes the old Vault secret.
 
 ```ts
 import { createIncomingWebhooks } from "better-supabase/blocks/webhooks";
@@ -113,8 +117,17 @@ the endpoint's `max_body_bytes` (1 MiB by default,
 `rateLimit` (counted per endpoint with the
 [`rate-limit` module](/docs/blocks/sql#limits-in-route-handlers)), and `401` for a
 bad signature. Otherwise it stores the delivery and answers `202`, or `200`
-when the same `webhook-id` arrived before. Every answer after the lookup is
-counted on the endpoint.
+when the same delivery arrived before: one with a `webhook-id` seen before
+or, on an `hmac-sha256` endpoint, one with a signature seen before. The id
+header isn't signed there, so a replayed body is stored once whatever id it
+carries. Every answer after the lookup is counted on the endpoint.
+
+### Upgrading from version 1
+
+Version 2 of the module moves signing secrets to Vault. `better-supabase sql
+upgrade` writes a step that adds the `secret_id` column, copies every
+plaintext secret into Vault and clears the column; the receiving route reads
+either while the step is pending.
 
 ## Processing
 

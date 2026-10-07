@@ -11,6 +11,7 @@ import { fromPgError } from "../../postgres/executor.ts";
 import {
   isRecord,
   optionalText,
+  readBodyCapped,
   type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
@@ -88,7 +89,10 @@ export interface IncomingWebhooks {
    * The route for `/hooks/<token>`: finds the endpoint, checks the body
    * size, the rate limit and the signature, stores the delivery in the
    * webhook inbox with the endpoint's tenant and answers 202 (200 for a
-   * repeated `webhook-id`). Needs a service connection.
+   * repeated delivery). A delivery repeats when its signed `webhook-id`
+   * does (`standard-webhooks`), when its body does (`hmac-sha256`, whose
+   * signature covers only the body), or when its `webhook-id` header does
+   * (`none`). Needs a service connection.
    */
   receive(request: Request, token: string): Promise<Response>;
   /** Creates an endpoint for a tenant; the caller needs `webhooks.manage`. */
@@ -209,13 +213,8 @@ export function createIncomingWebhooks(
             dbError("not_found", "No such webhook endpoint"),
           );
         }
-        const length = Number(request.headers.get("content-length") ?? 0);
-        const body =
-          length > endpoint.max_body_bytes ? undefined : await request.text();
-        if (
-          body === undefined ||
-          encoder.encode(body).length > endpoint.max_body_bytes
-        ) {
+        const body = await readBodyCapped(request, endpoint.max_body_bytes);
+        if (body === undefined) {
           return await problem(
             {
               ...dbError("invalid_input", "The body is too large", {
@@ -274,6 +273,10 @@ export function createIncomingWebhooks(
               endpoint.id,
             );
           }
+          // The signature covers only the body, so an id header could be
+          // changed to replay it. The HMAC itself is the id: a replayed
+          // body is a duplicate.
+          messageId = `hmac:${expected}`;
         }
         let payload: unknown = body;
         try {

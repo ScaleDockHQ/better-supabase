@@ -236,4 +236,73 @@ describe.skipIf(!live)("outbox", () => {
     await outbox.relay("crm", { send: () => undefined });
     expect((await outbox.purge("0 seconds")).data).toBeGreaterThan(0);
   });
+
+  it("backs off, then moves an event that keeps failing to the dead letters", async () => {
+    await outbox.register("poison", { types: ["poison.*"] });
+    expect((await outbox.emit("poison.bad", { n: 1 })).ok).toBe(true);
+    expect((await outbox.emit("poison.good", { n: 2 })).ok).toBe(true);
+    const handled: string[] = [];
+    const handler = (events: readonly { type: string }[]) => {
+      if (events.some((event) => event.type === "poison.bad"))
+        throw new Error("No such customer");
+      handled.push(...events.map((event) => event.type));
+    };
+    const options = { maxAttempts: 2 };
+    const ready = () =>
+      pool.query(
+        `update ${SCHEMA}.outbox_consumers set retry_at = now() - interval '1 second' where name = 'poison'`,
+      );
+
+    const first = await outbox.consume("poison", handler, options);
+    expect(first).toMatchObject({ delivered: 0 });
+    expect(first.error?.message).toContain("No such customer");
+    const { rows } = await pool.query(
+      `select attempts, last_error, retry_at > now() as waiting from ${SCHEMA}.outbox_consumers where name = 'poison'`,
+    );
+    expect(rows[0]).toEqual({
+      attempts: 1,
+      last_error: "No such customer",
+      waiting: true,
+    });
+    expect(await outbox.consume("poison", handler, options)).toEqual({
+      delivered: 0,
+    });
+
+    await ready();
+    const second = await outbox.consume("poison", handler, options);
+    expect(second).toMatchObject({ delivered: 0, deadLettered: 1 });
+
+    expect(await outbox.consume("poison", handler, options)).toEqual({
+      delivered: 1,
+    });
+    expect(handled).toEqual(["poison.good"]);
+    const letters = await outbox.deadLetters("poison");
+    expect(letters.data).toHaveLength(1);
+    expect(letters.data?.[0]).toMatchObject({
+      consumer: "poison",
+      attempts: 2,
+      error: "No such customer",
+      event: { type: "poison.bad", payload: { n: 1 } },
+    });
+    const { rows: after } = await pool.query(
+      `select attempts, last_error, retry_at from ${SCHEMA}.outbox_consumers where name = 'poison'`,
+    );
+    expect(after[0]).toEqual({ attempts: 0, last_error: null, retry_at: null });
+  });
+
+  it("purges past a consumer that stopped claiming when asked to", async () => {
+    await outbox.register("idle", { fromStart: true });
+    await pool.query(
+      `update ${SCHEMA}.outbox_consumers set updated_at = now() - interval '2 days' where name = 'idle'`,
+    );
+    expect((await outbox.emit("purge.me")).ok).toBe(true);
+    for (const consumer of ["crm", "audit", "poison"])
+      await outbox.relay(consumer, { send: () => undefined });
+
+    expect((await outbox.purge("0 seconds")).data).toBe(0);
+    expect(
+      (await outbox.purge("0 seconds", 10_000, { ignoreIdle: "1 day" })).data,
+    ).toBeGreaterThan(0);
+    expect((await outbox.deadLetters("poison")).data).toEqual([]);
+  });
 });

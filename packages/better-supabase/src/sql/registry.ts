@@ -1220,7 +1220,7 @@ const WEBHOOK_INBOX: SqlModule = {
     "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.",
   requires: [],
   target: "schema",
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -1241,6 +1241,17 @@ const WEBHOOK_INBOX: SqlModule = {
       description:
         "Message ids are unique per source and tenant, so two tenants of one provider can send the same id.",
       sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "complete_webhook, fail_webhook and checkpoint_webhook take the claimed attempt as the lease token, extend_webhook renews a lease, and purge_webhooks has indexes.",
+      sql: () =>
+        [
+          "drop function if exists better_supabase.complete_webhook(bigint, text);",
+          "drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);",
+          "drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);",
+        ].join("\n"),
     },
   ],
   sql: `${SCHEMA}
@@ -1287,15 +1298,24 @@ create index if not exists webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
 create index if not exists webhook_inbox_tenant_idx
   on better_supabase.webhook_inbox (tenant, received_at) where tenant is not null;
+-- purge_webhooks: processed messages by processed_at, dead ones by received_at.
+create index if not exists webhook_inbox_processed_idx
+  on better_supabase.webhook_inbox (processed_at) where status = 'processed';
+create index if not exists webhook_inbox_dead_idx
+  on better_supabase.webhook_inbox (received_at) where status = 'dead';
 
 alter table better_supabase.webhook_inbox enable row level security;
 revoke all on better_supabase.webhook_inbox from anon, authenticated;
 grant all on better_supabase.webhook_inbox to service_role;
 
--- The signatures before messages had a tenant, and before a source set its attempts.
+-- The signatures before messages had a tenant, before a source set its
+-- attempts, and before the attempt was the lease token.
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
 drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
+drop function if exists better_supabase.complete_webhook(bigint, text);
+drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
+drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
 
 -- duplicate = true when the source and tenant saw the message id before (the sender retried).
 -- max_attempts is the source's limit, 8 when null.
@@ -1366,7 +1386,11 @@ as $$
   returning w.*
 $$;
 
-create or replace function better_supabase.complete_webhook(inbox_id bigint, worker text)
+-- attempt is the attempts value the claim returned: it is the lease token,
+-- so a call that lost its lease (and the claim that took the message over,
+-- even under the same worker name) can't complete, fail or extend it.
+-- Without attempt, the worker name alone decides.
+create or replace function better_supabase.complete_webhook(inbox_id bigint, worker text, attempt integer default null)
 returns boolean
 language sql
 set search_path = ''
@@ -1375,6 +1399,7 @@ as $$
     update better_supabase.webhook_inbox
     set status = 'processed', processed_at = now(), locked_by = null, locked_until = null, last_error = null
     where id = inbox_id and locked_by = worker and status = 'processing'
+      and (attempt is null or attempts = attempt)
     returning 1
   )
   select exists (select 1 from done)
@@ -1384,7 +1409,8 @@ create or replace function better_supabase.fail_webhook(
   inbox_id bigint,
   worker text,
   error text,
-  retry_in interval default null
+  retry_in interval default null,
+  attempt integer default null
 )
 returns text
 language sql
@@ -1397,12 +1423,32 @@ as $$
       locked_by = null,
       locked_until = null
   where id = inbox_id and locked_by = worker and status = 'processing'
+    and (attempt is null or attempts = attempt)
   returning status
+$$;
+
+-- Renews the lease of a message the worker still holds for lease more, and
+-- returns the lease in seconds; no row when the lease was lost.
+create or replace function better_supabase.extend_webhook(
+  inbox_id bigint,
+  worker text,
+  attempt integer,
+  lease interval default '5 minutes'
+)
+returns double precision
+language sql
+set search_path = ''
+as $$
+  update better_supabase.webhook_inbox
+  set locked_until = now() + lease
+  where id = inbox_id and locked_by = worker and status = 'processing'
+    and attempts = attempt
+  returning extract(epoch from lease)::double precision
 $$;
 
 -- Saves progress for a message the worker still holds, merged into its
 -- checkpoint, so a retry resumes there. False when the lease was lost.
-create or replace function better_supabase.checkpoint_webhook(inbox_id bigint, worker text, fields jsonb)
+create or replace function better_supabase.checkpoint_webhook(inbox_id bigint, worker text, fields jsonb, attempt integer default null)
 returns boolean
 language sql
 set search_path = ''
@@ -1411,6 +1457,7 @@ as $$
     update better_supabase.webhook_inbox
     set checkpoint = checkpoint || coalesce(fields, '{}')
     where id = inbox_id and locked_by = worker and status = 'processing'
+      and (attempt is null or attempts = attempt)
     returning 1
   )
   select exists (select 1 from saved)
@@ -1470,9 +1517,10 @@ $$;
 ${serviceOnly([
   "receive_webhook(text, text, text, jsonb, jsonb, text, integer)",
   "claim_webhooks(text, text, integer, interval)",
-  "complete_webhook(bigint, text)",
-  "fail_webhook(bigint, text, text, interval)",
-  "checkpoint_webhook(bigint, text, jsonb)",
+  "complete_webhook(bigint, text, integer)",
+  "fail_webhook(bigint, text, text, interval, integer)",
+  "extend_webhook(bigint, text, integer, interval)",
+  "checkpoint_webhook(bigint, text, jsonb, integer)",
   "list_webhooks(text, text, text, integer)",
   "purge_webhooks(interval, boolean, integer, text)",
 ])}`,

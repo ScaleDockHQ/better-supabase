@@ -461,11 +461,15 @@ export function createBilling(options: BillingOptions): Billing {
     customer(organizationId).andThen(async (existing) => {
       if (existing !== undefined) return ok(existing);
       const created = await withStripe((client) =>
-        client.customers.create({
-          ...(details.email === undefined ? {} : { email: details.email }),
-          ...(details.name === undefined ? {} : { name: details.name }),
-          metadata: { [ORGANIZATION_KEY]: organizationId },
-        }),
+        client.customers.create(
+          {
+            ...(details.email === undefined ? {} : { email: details.email }),
+            ...(details.name === undefined ? {} : { name: details.name }),
+            metadata: { [ORGANIZATION_KEY]: organizationId },
+          },
+          // Two first calls racing for one organization get one customer.
+          { idempotencyKey: `customer:${organizationId}` },
+        ),
       );
       if (!created.ok) return created;
       const linked = await link(organizationId, created.data.id);
