@@ -109,18 +109,21 @@ export function listEntries(ctx: ModuleContext, restricted: boolean): string {
   since timestamptz default null,
   until timestamptz default null`;
   const filterTypes = `${id}[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz`;
-  const listTypes = `${filterTypes}, timestamptz, text, integer, boolean`;
+  const listTypes = `${filterTypes}, timestamptz, text, integer, boolean, integer`;
   return `-- A page of the entries the caller can read, newest first unless ascending:
 -- the read policy decides (security invoker). Each filter takes several
 -- values; search matches the event type, summary, labels, record and table.
--- Page with the last entry's occurred_at and id as cursor_at and cursor_id.
+-- Page with the last entry's occurred_at and id as cursor_at and cursor_id,
+-- or open page N with skip (an offset) and count_audit_events for the total.
 drop function if exists ${ctx.fn("list_audit_events")}(${id}, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
+drop function if exists ${ctx.fn("list_audit_events")}(${filterTypes}, timestamptz, text, integer, boolean);
 create or replace function ${ctx.fn("list_audit_events")}(
   ${filters},
   cursor_at timestamptz default null,
   cursor_id text default null,
   max_items integer default 50,
-  ascending boolean default false
+  ascending boolean default false,
+  skip integer default 0
 )
 returns jsonb
 language sql
@@ -144,6 +147,7 @@ as $$
       case when ascending then l.${c("occurredAt")} end, case when ascending then l.${c("id")}::text end,
       l.${c("occurredAt")} desc, l.${c("id")}::text desc
     limit least(greatest(coalesce(max_items, 50), 1), 1000)
+    offset greatest(coalesce(skip, 0), 0)
   ) x
 $$;
 revoke execute on function ${ctx.fn("list_audit_events")}(${listTypes}) from public, anon;

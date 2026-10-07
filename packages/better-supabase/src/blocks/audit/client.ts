@@ -85,6 +85,7 @@ export interface AuditListOptions {
   readonly before?: AuditCursor | undefined;
   /** Default 50, at most 1000. */
   readonly limit?: number;
+  readonly offset?: number;
 }
 
 export interface AuditPage {
@@ -347,6 +348,7 @@ export function createAuditLog(options: AuditLogOptions): AuditLog {
         cursor_id: list.before?.id,
         max_items: limit,
         ascending: list.order === "asc",
+        skip: list.offset,
       },
       (value): AuditPage => {
         const entries = (Array.isArray(value) ? value : []).map(recordOfEntry);
@@ -381,16 +383,20 @@ export function createAuditLog(options: AuditLogOptions): AuditLog {
     }
     const encoder = new TextEncoder();
     let before: AuditCursor | undefined;
+    const { offset: start, ...filters } = exporting;
+    let offset = start;
     let header = format === "csv";
     let done = false;
     return new ReadableStream<Uint8Array>({
       async pull(controller) {
         if (done) return;
         const page = await list({
-          ...exporting,
+          ...filters,
           ...(before ? { before } : {}),
+          ...(offset === undefined ? {} : { offset }),
           limit: exporting.batch ?? 500,
         });
+        offset = undefined;
         if (!page.ok) {
           done = true;
           controller.error(new Error(page.error.message));

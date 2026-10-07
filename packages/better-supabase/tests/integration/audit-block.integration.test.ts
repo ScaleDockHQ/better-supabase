@@ -350,6 +350,18 @@ describe.skipIf(!live)("audit block", () => {
         "invoice.sent",
       ]);
       expect(second.next).toBeUndefined();
+      const third = await audit
+        .list({
+          organizationId: organization,
+          limit: 1,
+          offset: 2,
+          count: true,
+        })
+        .orThrow();
+      expect(third.entries.map((entry) => entry.eventType)).toEqual([
+        "invoice.sent",
+      ]);
+      expect(third.total).toBe(3);
 
       const details = await audit.reveal(first.entries[0]!.id).orThrow();
       expect(details.entry).toBe(first.entries[0]!.id);

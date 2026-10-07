@@ -145,6 +145,23 @@ describe("createAuditLog", () => {
     expect(counted.total).toBe(3);
   });
 
+  it("opens page N by offset, with a total, and starts an export there", async () => {
+    const { transport, calls } = fake([[entry("3")], [entry("2")], []]);
+    const audit = createAuditLog({ transport });
+    const page = await audit
+      .list({ organizationId: "org", limit: 1, offset: 2, count: true })
+      .orThrow();
+    expect(page).toMatchObject({ total: 3, entries: [{ id: "3" }] });
+    expect(calls[0]![1]).toMatchObject({ skip: 2, max_items: 1 });
+    await new Response(audit.export({ offset: 1, batch: 1 })).text();
+    expect(
+      calls
+        .filter(([fn]) => fn === "list_audit_events")
+        .slice(1)
+        .map(([, args]) => args["skip"]),
+    ).toEqual([1, undefined]);
+  });
+
   it("reveals details and maps errors", async () => {
     const audit = createAuditLog({ transport: fake([]).transport });
     expect(await audit.reveal("7").orThrow()).toEqual({

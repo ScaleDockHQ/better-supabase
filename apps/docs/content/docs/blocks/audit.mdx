@@ -95,6 +95,23 @@ const page = await audit
 // page.total: 12
 ```
 
+A table with page numbers opens page N with `offset` next to `count`:
+
+```ts
+const page = await audit
+  .list({
+    organizationId,
+    limit: 25,
+    offset: (pageNumber - 1) * 25,
+    count: true,
+  })
+  .orThrow();
+// page.entries: the entries of that page; page.total: every match
+```
+
+`offset` skips that many entries after the filters (and after `before`, when
+both are set), and `export` takes it too, to start an export at that entry.
+
 `export` takes the same filters, `search` and `order`. Restricted details (row snapshots, IP, user agent) are
 never in the list. `audit.reveal(entryId)` returns them for a member with the
 reveal permission in the entry's tenant, or platform staff, and records the
