@@ -893,9 +893,13 @@
       "toOcsf"
     ],
     "types": [
+      "AuditColumns",
+      "AuditCsvColumn",
+      "AuditCsvOptions",
       "AuditCursor",
       "AuditDetails",
       "AuditEntry",
+      "AuditEventInput",
       "AuditExportBucket",
       "AuditExportOptions",
       "AuditExportToStorageOptions",
@@ -1734,6 +1738,7 @@
       "MODULE_ID_TYPES",
       "moduleBody",
       "moduleDeprecations",
+      "moduleEventTriggers",
       "moduleFilePaths",
       "moduleFileVersion",
       "moduleIdType",

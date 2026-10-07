@@ -319,6 +319,41 @@ begin
 end;
 $$;
 
+create or replace function better_supabase.unaudit(target text)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  relation regclass := pg_catalog.to_regclass(unaudit.target);
+begin
+  if relation is not null then
+    perform better_supabase.unaudit(relation);
+  end if;
+  delete from better_supabase.audited_tables a
+  where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);
+end;
+$$;
+
+create or replace function better_supabase.audit_forget_dropped()
+returns event_trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  delete from better_supabase.audited_tables a
+  where a.target::oid in (
+    select d.objid from pg_catalog.pg_event_trigger_dropped_objects() d
+    where d.object_type = 'table'
+  );
+end;
+$$;
+
+drop event trigger if exists bs_audit_forget_dropped;
+create event trigger bs_audit_forget_dropped on sql_drop
+  when tag in ('DROP TABLE', 'DROP SCHEMA')
+  execute function better_supabase.audit_forget_dropped();
+
 -- The audit() calls for every table in schema_name with tenant_column,
 -- except tables whose name matches an exempt pattern (like 'audit_%').
 -- Paste them into a schema file: static calls keep their place in a
@@ -389,19 +424,24 @@ $$;
 
 revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
+revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
+revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;
 revoke execute on function better_supabase.audit_settings(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_schema_calls(text, text, text[]) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_schema(text, text, text[]) from public, anon, authenticated;
 
 -- Records a semantic app event (invoice.sent, member.invited) next to the
 -- row changes. A repeated idempotency_key returns the first entry's id.
--- actor_id, actor_kind, actor_label, ip, user_agent and session_id are
--- honoured for the service role and direct admin connections; everyone else
--- gets auth.uid() and the request's own values. restricted goes to the restricted table;
--- without that table, passing it fails instead of dropping the details.
+-- actor_id, actor_kind, actor_label, ip, user_agent, session_id, request_id
+-- and scope are honoured for the service role and direct admin connections,
+-- which never get the request's own address, user agent or session; everyone
+-- else gets auth.uid() and the request's own values. restricted goes to the
+-- restricted table, with no row when every restricted value is empty; without
+-- that table, passing it fails instead of dropping the details.
 drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid);
 drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text);
 drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text);
+drop function if exists better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text);
 create or replace function better_supabase.audit_event(
   event_type text,
   category text default null,
@@ -421,7 +461,9 @@ create or replace function better_supabase.audit_event(
   actor_label text default null,
   ip inet default null,
   user_agent text default null,
-  session_id text default null
+  session_id text default null,
+  request_id text default null,
+  scope text default null
 )
 returns text
 language plpgsql
@@ -443,6 +485,8 @@ begin
     ip := null;
     user_agent := null;
     session_id := null;
+    request_id := null;
+    scope := null;
   elsif actor_id is null then
     actor_id := auth.uid();
   end if;
@@ -487,16 +531,16 @@ begin
     null,
     target_label,
     summary,
-    better_supabase.request_header('x-request-id'),
+    coalesce(request_id, better_supabase.request_header('x-request-id')),
     coalesce(correlation_id, better_supabase.request_header('x-correlation-id')),
-    case when tenant is null then 'platform' else 'tenant' end
+    coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)
   )
   returning "id" into entry_id;
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text) to "service_role";
+revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) to "service_role";
 
 -- Entries are append-only. purge_audit_log deletes old ones: it runs as its
 -- owner and sets better_supabase.audit_purge, and a role that only sets the
@@ -609,8 +653,10 @@ grant execute on function better_supabase.audit_events_tenants(interval) to serv
 -- A page of the entries the caller can read, newest first unless ascending:
 -- the read policy decides (security invoker). Each filter takes several
 -- values; search matches the event type, summary, labels, record and table.
--- Page with the last entry's occurred_at and id as cursor_at and cursor_id.
+-- Page with the last entry's occurred_at and id as cursor_at and cursor_id,
+-- or open page N with skip (an offset) and count_audit_events for the total.
 drop function if exists "better_supabase"."list_audit_events"(uuid, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
+drop function if exists "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean);
 create or replace function "better_supabase"."list_audit_events"(
   for_tenants uuid[] default null,
   for_event_types text[] default null,
@@ -628,7 +674,8 @@ create or replace function "better_supabase"."list_audit_events"(
   cursor_at timestamptz default null,
   cursor_id text default null,
   max_items integer default 50,
-  ascending boolean default false
+  ascending boolean default false,
+  skip integer default 0
 )
 returns jsonb
 language sql
@@ -664,10 +711,11 @@ as $$
       case when ascending then l."occurred_at" end, case when ascending then l."id"::text end,
       l."occurred_at" desc, l."id"::text desc
     limit least(greatest(coalesce(max_items, 50), 1), 1000)
+    offset greatest(coalesce(skip, 0), 0)
   ) x
 $$;
-revoke execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean) from public, anon;
-grant execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) from public, anon;
+grant execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) to authenticated, service_role;
 
 create or replace function "better_supabase"."count_audit_events"(
   for_tenants uuid[] default null,
