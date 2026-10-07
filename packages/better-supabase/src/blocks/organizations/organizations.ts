@@ -173,6 +173,7 @@ export interface Organizations {
     invitationId: string,
   ): AsyncResult<{ readonly organizationId: string | null }>;
   declineInvitationById(invitationId: string): AsyncResult<boolean>;
+  myInvitations(): AsyncResult<readonly Invitation[]>;
 }
 
 const DEFAULT_SCHEMA = "better_supabase";
@@ -548,6 +549,13 @@ export function createOrganizations(
         "accept_invitation_by_id",
         { invitation_id: invitationId },
         accepted,
+      );
+    },
+    myInvitations() {
+      return run("invitations", "my_invitations", {}, (value) =>
+        (Array.isArray(value) ? value.filter(isRecord) : []).map(
+          invitationFrom,
+        ),
       );
     },
     declineInvitationById(invitationId) {

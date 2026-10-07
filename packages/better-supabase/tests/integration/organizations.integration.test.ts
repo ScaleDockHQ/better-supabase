@@ -866,7 +866,20 @@ describe.skipIf(!live)("organizations and invitations", () => {
       expect(
         await s.value(`${schema}.decline_invitation_by_id($1)`, [declined.id]),
       ).toBe(false);
+      expect(await s.value(`${schema}.my_invitations()`)).toEqual([]);
       await s.as("member");
+      const inbox = await s.value<Record<string, unknown>[]>(
+        `${schema}.my_invitations()`,
+      );
+      expect(new Set(inbox.map((entry) => entry["id"]))).toEqual(
+        new Set([platform.id, tenant.id]),
+      );
+      expect(inbox.every((entry) => !("token" in entry))).toBe(true);
+      expect(inbox.find((entry) => entry["id"] === tenant.id)).toMatchObject({
+        tenant: organization,
+        role: "member",
+        email: email("member"),
+      });
       expect(
         await s.value(`${schema}.accept_invitation_by_id($1)`, [platform.id]),
       ).toBeNull();

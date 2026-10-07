@@ -512,6 +512,53 @@ $$;
 }
 
 /** Whether the caller may manage tenant invitation row `alias` (revoke and resend). */
+function mine(ctx: ModuleContext): string {
+  const t = tenantTable(ctx);
+  const p = platformTable(ctx);
+  const confirmed = ctx.flag("requireConfirmedEmail", true)
+    ? " and u.email_confirmed_at is not null"
+    : "";
+  const rows = (table: InviteTable, tenant: string) => {
+    const open = openFilter(table, "i");
+    return `select ${inviteJson(table, "i", "null", tenant)} - 'token' as invitation, i.${table.col("expiresAt")} as expires_at
+    from ${table.table} i
+    where lower(i.${table.col("email")}) = invitee_email
+      and i.${table.col("expiresAt")} >= now()${open ? ` and ${open}` : ""}${table.only("i")}`;
+  };
+  return `
+create or replace function ${ctx.fn("my_invitations")}()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  invitee_email text;
+begin
+  select lower(u.email) into invitee_email
+  from auth.users u
+  where u.id = auth.uid()${confirmed};
+  if invitee_email is null then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(x.invitation order by x.expires_at), '[]'::jsonb)
+    from (
+    ${rows(t, `i.${t.col("tenant")}`)}${
+      p
+        ? `
+    union all
+    ${rows(p, "null")}`
+        : ""
+    }
+    ) x
+  );
+end;
+$$;
+`;
+}
+
 function canManage(ctx: ModuleContext, alias: string): string {
   const tenant = `${alias}.${ctx.col("invitations", "tenant")}`;
   return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${ctx.permission("revoke", MODULE_PERMISSIONS.invitations.revoke)}), false)`;
@@ -883,7 +930,7 @@ function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
     `revoke execute on function ${ctx.fn(fn)}(${args}) from ${revokeFrom};
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
   return `${schemaPreamble(ctx)}
-${tenantTableSql(ctx)}${platformTableSql(ctx)}${invite(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}
+${tenantTableSql(ctx)}${platformTableSql(ctx)}${invite(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${mine(ctx)}
 ${grant("invite_member", `${id}, text, text, interval, jsonb`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}
@@ -892,7 +939,8 @@ ${grant("decline_invitation", "text", "anon, authenticated, service_role", "publ
 ${grant("invitation_preview", "text", "anon, authenticated, service_role", "public")}
 ${grant("accept_invitation", "text", "authenticated")}
 ${grant("accept_invitation_by_id", "uuid", "authenticated")}
-${grant("decline_invitation_by_id", "uuid", "authenticated")}`;
+${grant("decline_invitation_by_id", "uuid", "authenticated")}
+${grant("my_invitations", "", "authenticated")}`;
 }
 
 export const INVITATIONS: ModuleDefinition = {
@@ -916,6 +964,7 @@ export const INVITATIONS: ModuleDefinition = {
     { name: "decline_invitation", args: ["text"], returns: "boolean" },
     { name: "accept_invitation_by_id", args: ["uuid"], returns: "{id}" },
     { name: "decline_invitation_by_id", args: ["uuid"], returns: "boolean" },
+    { name: "my_invitations", args: [], returns: "jsonb" },
     { name: "revoke_invitation", args: ["uuid"], returns: "boolean" },
     { name: "resend_invitation", args: ["uuid", "interval"], returns: "jsonb" },
   ],

@@ -246,9 +246,11 @@ An in-app inbox can't hold the invitation token, since only its hash is
 stored. `accept_invitation_by_id(invitation_id)` and
 `decline_invitation_by_id(invitation_id)` do the same as the token functions
 for the signed-in user whose confirmed email the invitation names; anyone
-else gets `INVITATION_EMAIL_MISMATCH` on accept and `false` on decline. In
-TypeScript, `organizations.acceptInvitationById(id)` and
-`declineInvitationById(id)` call them.
+else gets `INVITATION_EMAIL_MISMATCH` on accept and `false` on decline.
+`my_invitations()` lists the open invitations for the caller's confirmed
+email, tenant and platform ones, without their tokens, so the inbox knows
+what to show. In TypeScript, `organizations.myInvitations()`,
+`acceptInvitationById(id)` and `declineInvitationById(id)` call them.
 
 ## Existing tables
 

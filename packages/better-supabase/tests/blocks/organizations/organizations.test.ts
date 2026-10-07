@@ -461,3 +461,28 @@ describe("rpcTransport", () => {
     });
   });
 });
+
+describe("invitations by id", () => {
+  it("lists the caller's invitations and answers them by id", async () => {
+    const { transport, calls } = fake({
+      my_invitations: [invitationRow, "not a row"],
+      accept_invitation_by_id: "org-1",
+      decline_invitation_by_id: true,
+    });
+    const organizations = createOrganizations({ transport });
+    const mine = await organizations.myInvitations().orThrow();
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ id: "inv-1", organizationId: "org-1" });
+    expect(await organizations.acceptInvitationById("inv-1").orThrow()).toEqual(
+      { organizationId: "org-1" },
+    );
+    expect(await organizations.declineInvitationById("inv-2").orThrow()).toBe(
+      true,
+    );
+    expect(calls.map((call) => [call.fn, call.args])).toEqual([
+      ["my_invitations", {}],
+      ["accept_invitation_by_id", { invitation_id: "inv-1" }],
+      ["decline_invitation_by_id", { invitation_id: "inv-2" }],
+    ]);
+  });
+});
