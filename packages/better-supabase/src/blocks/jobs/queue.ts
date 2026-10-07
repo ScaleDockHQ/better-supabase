@@ -104,6 +104,13 @@ export interface EnqueueOptions {
    */
   readonly dedupeKey?: string;
   /**
+   * Which jobs with the same `dedupeKey` take the enqueue: `"always"` (the
+   * default) a waiting or running one, `"waiting"` only one no worker has
+   * claimed yet, so a change made during a run queues one follow-up (a
+   * debounce).
+   */
+  readonly dedupe?: "always" | "waiting";
+  /**
    * The request context whose actor and tenant the job records, next to the
    * payload. The tenant is `context.tenant`, the one `tenant()` resolved, or
    * the `tenant_id` claim (then `app_metadata.tenant_id`).
@@ -783,6 +790,7 @@ export function createJobs<const Q extends QueueSchemas>(
             delay,
             enqueueOptions.maxAttempts ?? 5,
             enqueueOptions.dedupeKey,
+            enqueueOptions.dedupe,
           ),
         );
       });

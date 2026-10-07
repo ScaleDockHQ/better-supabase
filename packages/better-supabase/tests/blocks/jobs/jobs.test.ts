@@ -510,8 +510,8 @@ describe("createJobs over SQL", () => {
     expect(await jobs.enqueue("reports", { day: "mon" }).orThrow()).toBe(17);
     expect(fake.calls).toEqual([
       {
-        text: "select better_supabase.enqueue_job($1, $2, $3, $4, $5) as id",
-        values: ["reports", '{"day":"MON"}', 0, 5, null],
+        text: "select better_supabase.enqueue_job($1, $2, $3, $4, $5, $6) as id",
+        values: ["reports", '{"day":"MON"}', 0, 5, null, true],
       },
     ]);
   });
@@ -531,7 +531,16 @@ describe("createJobs over SQL", () => {
       30,
       2,
       "welcome:u1",
+      true,
     ]);
+    await createJobs(fake.sql, queues)
+      .enqueue(
+        "emails",
+        { to: "a@example.com" },
+        { dedupeKey: "signals:p1", dedupe: "waiting" },
+      )
+      .orThrow();
+    expect(fake.calls[1]!.values.slice(4)).toEqual(["signals:p1", false]);
   });
 
   it("turns runAt into a delay in whole seconds, never negative", async () => {
@@ -818,6 +827,7 @@ describe("schedules with the drain scheduler", () => {
       0,
       5,
       "schedule:digest:2026-01-01T10:00:00Z",
+      true,
     ]);
     expect(advance!.values[0]).toBe("digest");
     expect(advance!.values[1]).toBe("2026-01-01T10:00:00Z");
@@ -866,6 +876,7 @@ describe("schedules with the drain scheduler", () => {
       0,
       5,
       "schedule:past:2026-01-01T11:00:00Z",
+      true,
     ]);
     expect((calls[3]![1] as unknown[]).slice(0, 2)).toEqual([
       "past",

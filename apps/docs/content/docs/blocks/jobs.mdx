@@ -115,7 +115,11 @@ await jobs.work(
   then twice as long each time. Any other claim error, or a fourth in a row,
   stops every lane, and `work` or `drain` rejects with a `TypeError` whose
   `cause` is the `DbError`.
-- A `dedupeKey` keeps one waiting or running job per key.
+- A `dedupeKey` keeps one waiting or running job per key. With
+  `dedupe: "waiting"` it coalesces only onto a job no worker has claimed
+  yet, so a change made while the job runs queues one follow-up instead of
+  being dropped: a debounce per entity. In SQL this is
+  `enqueue_job(..., dedupe_key => key, dedupe_running => false)`.
 - `drain(queue, handler)` works the queue until it is empty, which suits cron
   and Edge Functions. `claim`, `complete`, `fail` and `extend` are available
   when you want to drive the queue yourself.

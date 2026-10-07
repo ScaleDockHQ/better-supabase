@@ -96,6 +96,8 @@ export interface QueueBackend {
     delay: number,
     maxAttempts: number,
     dedupeKey: string | undefined,
+    /** `"waiting"` coalesces only onto a job no worker has claimed; `undefined` means `"always"`. */
+    dedupe?: "always" | "waiting",
   ): Promise<number>;
   read(
     queue: string,
@@ -204,15 +206,16 @@ export function sqlQueueBackend(sql: SqlClient): QueueBackend {
     apiVersion: 1,
     name: "sql",
     leases: true,
-    async send(queue, payload, delay, maxAttempts, dedupeKey) {
+    async send(queue, payload, delay, maxAttempts, dedupeKey, dedupe) {
       const [row] = await sql.queryRaw<{ id: string | number }>(
-        "select better_supabase.enqueue_job($1, $2, $3, $4, $5) as id",
+        "select better_supabase.enqueue_job($1, $2, $3, $4, $5, $6) as id",
         [
           queue,
           JSON.stringify(payload ?? {}),
           delay,
           maxAttempts,
           dedupeKey ?? null,
+          dedupe !== "waiting",
         ],
       );
       return Number(row!.id);

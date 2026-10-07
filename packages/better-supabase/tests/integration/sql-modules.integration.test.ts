@@ -1602,6 +1602,54 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     expect(result).toEqual({ succeeded: 4, failed: 0 });
   });
 
+  it("coalesces only onto waiting jobs with dedupe waiting, on both backends", async () => {
+    const check = async (queue: string) => {
+      const jobs = createJobs(postgres.admin, {
+        [queue]: v.object({ id: v.string() }),
+      });
+      const waiting = { dedupeKey: "p1", dedupe: "waiting" } as const;
+      const first = await jobs.enqueue(queue, { id: "1" }, waiting).orThrow();
+      expect(await jobs.enqueue(queue, { id: "2" }, waiting).orThrow()).toBe(
+        first,
+      );
+      const [running] = await jobs.claim(queue).orThrow();
+      expect(running!.id).toBe(first);
+      const followUp = await jobs
+        .enqueue(queue, { id: "3" }, waiting)
+        .orThrow();
+      expect(followUp).not.toBe(first);
+      expect(await jobs.enqueue(queue, { id: "4" }, waiting).orThrow()).toBe(
+        followUp,
+      );
+      expect(
+        [first, followUp].includes(
+          await jobs.enqueue(queue, { id: "5" }, { dedupeKey: "p1" }).orThrow(),
+        ),
+      ).toBe(true);
+      await jobs.complete(running!).orThrow();
+      const [next] = await jobs.claim(queue).orThrow();
+      expect(next!.id).toBe(followUp);
+      await jobs.complete(next!).orThrow();
+    };
+    await check(`block_${RUN}_debounce`);
+    await pool.query(
+      moduleBody("jobs", {
+        modules: {
+          jobs: { options: { backend: "table", scheduler: "drain" } },
+        },
+      })!,
+    );
+    try {
+      await check(`block_${RUN}_debounce_table`);
+    } finally {
+      await pool.query(
+        "delete from better_supabase.job_messages where queue = $1",
+        [`block_${RUN}_debounce_table`],
+      );
+      await pool.query(SQL_MODULES["jobs"]!.sql);
+    }
+  });
+
   it("passes the queue backend conformance kit on pgmq", async () => {
     await testQueueBackend(sqlQueueBackend(postgres.admin), {
       queue: `block_${RUN}_conf`,
