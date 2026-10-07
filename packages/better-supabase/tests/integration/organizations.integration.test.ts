@@ -2,7 +2,6 @@ import { Pool, type PoolClient } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { InvitationSent } from "../../src/blocks/organizations/index.ts";
-import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { ModuleLayout } from "../../src/sql/registry.ts";
 
 import {
@@ -42,6 +41,21 @@ const USERS = {
 } as const;
 type Who = keyof typeof USERS;
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
+
+/** Runs each call in a savepoint, so a refused call leaves the test transaction usable. */
+const savepointSql = (client: PoolClient) => ({
+  async queryRaw(text: string, params: readonly unknown[] = []) {
+    await client.query("savepoint call");
+    try {
+      const { rows } = await client.query(text, [...params]);
+      await client.query("release savepoint call");
+      return rows;
+    } catch (error) {
+      await client.query("rollback to savepoint call");
+      throw error;
+    }
+  },
+});
 
 const LAYOUT: ModuleLayout = {
   modules: {
@@ -1061,6 +1075,16 @@ describe.skipIf(!live)("organizations and invitations", () => {
         invitation: invite.id,
       });
       expect(await s.value(`${schema}.invitation_preview('nope')`)).toBeNull();
+      const preview = await createOrganizations({
+        transport: sqlTransport(savepointSql(client)),
+        schema,
+      })
+        .previewInvitation(invite.token)
+        .orThrow();
+      expect(preview?.extra).toEqual({
+        roleLabel: "Team member",
+        invitation: invite.id,
+      });
 
       await s.as("outsider");
       expect(
@@ -1209,20 +1233,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("drives the modules through createOrganizations and sqlTransport", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    // Each call runs in a savepoint, so a refused call leaves the test transaction usable.
-    const sql = {
-      async queryRaw(text: string, params: readonly unknown[] = []) {
-        await client.query("savepoint call");
-        try {
-          const { rows } = await client.query(text, [...params]);
-          await client.query("release savepoint call");
-          return rows;
-        } catch (error) {
-          await client.query("rollback to savepoint call");
-          throw error;
-        }
-      },
-    } as unknown as SqlClient;
+    const sql = savepointSql(client);
     try {
       await client.query("begin");
       for (const who of ["owner", "member"] as const) {

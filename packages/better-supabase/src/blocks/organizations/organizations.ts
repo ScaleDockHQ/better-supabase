@@ -79,6 +79,11 @@ export interface InvitationPreview {
   /** The organization columns in `options.previewColumns`. */
   readonly organization: Readonly<Record<string, unknown>> | null;
   readonly prefill: Readonly<Record<string, unknown>>;
+  /**
+   * The keys an `invitation_preview_extra` hook added, such as a role's
+   * display name or branding. Empty without the hook.
+   */
+  readonly extra: Readonly<Record<string, unknown>>;
 }
 
 export interface SwitchResult {
@@ -212,6 +217,22 @@ function isStatus(value: unknown): value is InvitationStatus {
   return typeof value === "string" && STATUSES.has(value);
 }
 
+const PREVIEW_KEYS: ReadonlySet<string> = new Set([
+  "status",
+  "email",
+  "role",
+  "tenant",
+  "expires_at",
+  "organization",
+  "prefill",
+]);
+
+const extraOf = (
+  row: Record<string, unknown>,
+  known: ReadonlySet<string>,
+): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(row).filter(([key]) => !known.has(key)));
+
 function previewFrom(row: Record<string, unknown>): InvitationPreview {
   const status = row["status"];
   if (!isStatus(status)) {
@@ -225,6 +246,7 @@ function previewFrom(row: Record<string, unknown>): InvitationPreview {
     expiresAt: temporal().Instant.from(text(row["expires_at"])),
     organization: isRecord(row["organization"]) ? row["organization"] : null,
     prefill: isRecord(row["prefill"]) ? row["prefill"] : {},
+    extra: extraOf(row, PREVIEW_KEYS),
   };
 }
 

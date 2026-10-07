@@ -342,6 +342,8 @@ describe("createOrganizations", () => {
         expires_at: "2026-10-10T12:00:00Z",
         organization: null,
         prefill: null,
+        roleLabel: "Team member",
+        branding: { color: "#123456" },
       },
     });
     const organizations = createOrganizations({ transport });
@@ -353,6 +355,10 @@ describe("createOrganizations", () => {
     expect(preview).toMatchObject({
       ok: true,
       data: { status: "pending", organizationId: null, prefill: {} },
+    });
+    expect(preview.data?.extra).toEqual({
+      roleLabel: "Team member",
+      branding: { color: "#123456" },
     });
     const empty = createOrganizations({ transport: fake({}).transport });
     expect(await empty.slugProblem("free")).toMatchObject({
