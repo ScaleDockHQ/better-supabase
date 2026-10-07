@@ -342,6 +342,24 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     expect(await sql(["sync", "--check"], config)).toMatchObject({ code: 0 });
   });
 
+  it("leaves the generated pgTAP files out of sql upgrade --check", async () => {
+    const config: BetterSupabaseConfig = {
+      sql: { modules: ["audit", "pgtap"] },
+    };
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/010_crm.sql"),
+      "select better_supabase.audit('public.customers');\n",
+    );
+    expect((await sql(["sync"], config)).output).toContain(
+      "supabase/tests/900_better_supabase_audit_public_customers.test.sql (audit)",
+    );
+    expect(await sql(["upgrade", "--check"], config)).toEqual({
+      code: 0,
+      output: "SQL modules are at their current versions.",
+    });
+  });
+
   it("derives grants from the schema files' policies with fromPolicies", async () => {
     const config: BetterSupabaseConfig = {
       expose: { notes: ["select"] },

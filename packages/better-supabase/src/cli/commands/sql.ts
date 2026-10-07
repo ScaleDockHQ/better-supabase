@@ -561,6 +561,8 @@ async function upgrade(
   const diffs: string[] = [];
   for (const file of files) {
     if (file.kind === "data") continue;
+    if (file.kind === "test" && SQL_MODULES[file.module]?.target !== "test")
+      continue;
     const current = await readFile(
       resolve(config.root, file.path),
       "utf8",

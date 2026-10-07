@@ -770,7 +770,10 @@ written before the line existed, counts as version 1). It then writes the
 forward steps into `<timestamp>_better_supabase_block_upgrade.sql` in the
 `migrations` folder next to your `config.toml` and rewrites the module files. Create the schema migration afterwards, so the
 steps run first. `sql upgrade --check` exits with 1 when a module is behind or
-a file is stale, and `--dry-run` lists the steps without writing.
+a file is stale, and `--dry-run` lists the steps without writing. The pgTAP
+files a module writes for your tables (the audit tests, say) carry no module
+version; `sql sync --check` keeps them current, and `sql upgrade` leaves them
+out.
 
 A renamed function, table or claim keeps working for at least one minor
 version. The module file keeps a wrapper under the old name (a view for a
