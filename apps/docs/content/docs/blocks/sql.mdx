@@ -347,7 +347,7 @@ The module options (`sql.modules.audit.options`):
 | `eventSource`   | `app`                    | the source of an `audit_event` call without one                                                                                                                                                           |
 | `exempt`        | `[]`                     | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                  |
 | `tenantLabel`   | the organizations module | `schema.table.column` that `tenant_label` copies, matched on `tenantLabelKey` (`id` by default), for apps without the `organizations` module                                                              |
-| `values`        | none                     | adopt mode only: the adopted log's values for `scope`, `actorKind`, `outcome` and `source`, see below                                                                                                     |
+| `values`        | none                     | adopt mode only: the adopted log's values for `scope`, `actorKind`, `outcome`, `source` and `category`, see below                                                                                         |
 
 `sql add` and `sql sync` read the `audit(...)` calls and `bs_audit` triggers in
 your schema files and migrations, and write a pgTAP file per audited table to `sql.testsDir`
@@ -392,6 +392,7 @@ export default defineConfig({
             actorKind: { user: "member", service: "api" },
             outcome: { success: "ok", failure: "error" },
             source: { database: "db" },
+            category: { data: "record", system: "platform" },
           },
           tenantLabel: "public.workspaces.title",
           tenantLabelKey: "workspace_id",
@@ -402,7 +403,9 @@ export default defineConfig({
 });
 ```
 
-`source` covers row changes (`database`) and `audit_event` calls alike.
+`source` covers row changes (`database`) and `audit_event` calls alike, and
+`category` maps the defaults (`data` for row changes, `eventCategory` for
+events) and any category a registration or an `audit_event` call names.
 Values without a mapping are stored as they are. Two module values can't map
 to the same stored value, because reads couldn't tell them apart.
 

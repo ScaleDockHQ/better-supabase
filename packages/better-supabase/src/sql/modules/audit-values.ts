@@ -4,13 +4,19 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { columnRef } from "../shared.ts";
 
 /** The log columns whose values `sql.modules.audit.options.values` maps. */
-export type AuditValueColumn = "scope" | "actorKind" | "outcome" | "source";
+export type AuditValueColumn =
+  | "scope"
+  | "actorKind"
+  | "outcome"
+  | "source"
+  | "category";
 
 const COLUMNS: readonly AuditValueColumn[] = [
   "scope",
   "actorKind",
   "outcome",
   "source",
+  "category",
 ];
 
 export const isAuditValueColumn = (key: string): key is AuditValueColumn =>

@@ -177,6 +177,7 @@ describe("audit value mapping", () => {
         actorKind: { user: "member", service: "api" },
         outcome: { success: "ok", failure: "error" },
         source: { database: "db" },
+        category: { data: "record", system: "platform" },
       },
       tenantLabel: "public.workspaces.title",
       tenantLabelKey: "workspace_id",
@@ -208,6 +209,12 @@ describe("audit value mapping", () => {
     );
     expect(sql).toContain(
       `(select o."title"::text from "public"."workspaces" o where o."workspace_id" = row_tenant)`,
+    );
+    expect(sql).toContain(
+      "case (coalesce(entry.category, 'data')) when 'data' then 'record' when 'system' then 'platform' else (coalesce(entry.category, 'data')) end",
+    );
+    expect(sql).toContain(
+      `'category', case l."category" when 'record' then 'data' when 'platform' then 'system' else l."category" end`,
     );
   });
 

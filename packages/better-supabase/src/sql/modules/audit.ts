@@ -379,7 +379,10 @@ function triggerFunction(
       "eventType",
       "coalesce(entry.event_prefix, tg_table_name) || '.' || case tg_op when 'INSERT' then 'created' when 'UPDATE' then 'updated' else 'deleted' end",
     ],
-    ["category", "coalesce(entry.category, 'data')"],
+    [
+      "category",
+      auditWrite(ctx, "category", "coalesce(entry.category, 'data')"),
+    ],
     ["outcome", auditWrite(ctx, "outcome", "'success'")],
     ["source", auditWrite(ctx, "source", "'database'")],
     ["targetType", "coalesce(entry.target_type, tg_table_name)"],
@@ -497,7 +500,11 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
     ["eventType", "event_type"],
     [
       "category",
-      `coalesce(category, ${sqlString(ctx.text("eventCategory", "system"))})`,
+      auditWrite(
+        ctx,
+        "category",
+        `coalesce(category, ${sqlString(ctx.text("eventCategory", "system"))})`,
+      ),
     ],
     ["outcome", auditWrite(ctx, "outcome", "coalesce(outcome, 'success')")],
     [

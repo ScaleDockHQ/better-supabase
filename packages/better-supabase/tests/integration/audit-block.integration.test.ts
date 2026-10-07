@@ -124,6 +124,7 @@ describe.skipIf(!live)("audit block", () => {
                 scope: { tenant: "workspace", platform: "global" },
                 actorKind: { service: "api" },
                 outcome: { success: "ok", failure: "error" },
+                category: { system: "platform", billing: "invoicing" },
               },
               tenantLabel: `${workspaces}.title`,
               tenantLabelKey: "workspace_id",
@@ -138,16 +139,17 @@ describe.skipIf(!live)("audit block", () => {
       );
       await s.service();
       await s.client.query(
-        "select better_supabase.audit_event('deal.lost', outcome => 'failure', tenant => $1)",
+        "select better_supabase.audit_event('deal.lost', category => 'billing', outcome => 'failure', tenant => $1)",
         [workspace],
       );
       await s.client.query("select better_supabase.audit_event('system.ping')");
       const { rows } = await s.client.query<Record<string, string | null>>(
-        `select event_type, outcome, scope, actor_type, workspace_name from ${log} order by id`,
+        `select event_type, category, outcome, scope, actor_type, workspace_name from ${log} order by id`,
       );
       expect(rows).toEqual([
         {
           event_type: "deal.lost",
+          category: "invoicing",
           outcome: "error",
           scope: "workspace",
           actor_type: "api",
@@ -155,6 +157,7 @@ describe.skipIf(!live)("audit block", () => {
         },
         {
           event_type: "system.ping",
+          category: "platform",
           outcome: "ok",
           scope: "global",
           actor_type: "api",
@@ -164,21 +167,26 @@ describe.skipIf(!live)("audit block", () => {
       const audit = createAuditLog({ transport: sqlTransport(s.sql) });
       const page = await audit.list({ limit: 10 }).orThrow();
       expect(
-        page.entries.map(({ eventType, outcome, scope, actorKind }) => ({
-          eventType,
-          outcome,
-          scope,
-          actorKind,
-        })),
+        page.entries.map(
+          ({ eventType, category, outcome, scope, actorKind }) => ({
+            eventType,
+            category,
+            outcome,
+            scope,
+            actorKind,
+          }),
+        ),
       ).toEqual([
         {
           eventType: "system.ping",
+          category: "system",
           outcome: "success",
           scope: "platform",
           actorKind: "service",
         },
         {
           eventType: "deal.lost",
+          category: "billing",
           outcome: "failure",
           scope: "tenant",
           actorKind: "service",
