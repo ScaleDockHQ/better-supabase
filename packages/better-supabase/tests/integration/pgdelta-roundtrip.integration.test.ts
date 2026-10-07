@@ -8,8 +8,10 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -41,6 +43,39 @@ const supabase = (cwd: string, args: string[]) => {
   if (run.status !== 0)
     throw new Error(`supabase ${args.join(" ")}:\n${run.stdout}${run.stderr}`);
   return run.stdout;
+};
+
+const portFree = (port: number) =>
+  new Promise<boolean>((done) => {
+    const server = createServer();
+    server.once("error", () => {
+      done(false);
+    });
+    server.listen(port, "0.0.0.0", () => {
+      server.close(() => {
+        done(true);
+      });
+    });
+  });
+
+const startWhenPortFree = async (cwd: string) => {
+  const deadline = Date.now() + 120_000;
+  for (;;) {
+    if (await portFree(DB_PORT)) {
+      const run = spawnSync(SUPABASE, ["db", "start"], {
+        cwd,
+        encoding: "utf8",
+      });
+      if (run.status === 0) return;
+      const output = `${run.stdout}${run.stderr}`;
+      if (!/address already in use|port is already allocated/i.test(output))
+        throw new Error(`supabase db start:\n${output}`);
+      spawnSync(SUPABASE, ["stop", "--no-backup"], { cwd, stdio: "ignore" });
+    }
+    if (Date.now() > deadline)
+      throw new Error(`Port ${String(DB_PORT)} stayed in use`);
+    await sleep(1000);
+  }
 };
 
 describe.skipIf(!available)(
@@ -115,7 +150,7 @@ declarative_schema_path = "./schemas"
       );
       expect(schema).not.toMatch(/^insert into/im);
 
-      supabase(root, ["db", "start"]);
+      await startWhenPortFree(root);
       const client = new Client({
         connectionString: `postgresql://postgres:postgres@127.0.0.1:${String(DB_PORT)}/postgres`,
       });
