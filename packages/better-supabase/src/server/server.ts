@@ -135,7 +135,9 @@ export interface ServerOptions {
    * setting over Postgres and the `x-bs-tenant` header over PostgREST, which
    * `current_tenant_id()` reads only while the caller is a member. Async
    * resolvers need `context(request)`; `contextFromResolution` takes
-   * `options.tenant` instead.
+   * `options.tenant` instead. Under `createNext`, Server Components and
+   * actions pass a request with the incoming headers and a placeholder URL,
+   * so read a header there, not the path.
    */
   readonly tenant?: (
     request: Request,

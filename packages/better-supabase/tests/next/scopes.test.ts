@@ -4,6 +4,7 @@ import type * as SupabaseJs from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
+import { dbError } from "../../src/core/errors.ts";
 import { createNext, sessionStale, sessionTag } from "../../src/next/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -178,6 +179,21 @@ describe("private-cache scopes", () => {
     });
   });
 
+  it("keeps the verification error of an expired token", async () => {
+    const token = await signer.sign({ sub: USER, expiresIn: -60 });
+    const session = {
+      kind: "user",
+      user: { id: USER },
+      claims: { sub: USER },
+      expiresAt: null,
+    } as never;
+    const ctx = await bs.contextForSession(session, { token });
+    expect(ctx.auth.kind).toBe("invalid");
+    expect(
+      ctx.auth.kind === "invalid" ? ctx.auth.error.message : undefined,
+    ).not.toMatch(/does not belong/);
+  });
+
   it("drops the cached session after deleting the account", async () => {
     const calls: string[] = [];
     const fetchMock = vi
@@ -224,9 +240,28 @@ describe("sessionStale", () => {
     expect(sessionStale(user(null))).toBe(300);
     expect(sessionStale(user(now / 1000 + 3600), {}, now)).toBe(300);
     expect(sessionStale(user(now / 1000 + 90), {}, now)).toBe(90);
-    expect(sessionStale(user(now / 1000 + 5), {}, now)).toBe(30);
     expect(sessionStale(user(now / 1000 + 90), { min: 10, max: 60 }, now)).toBe(
       60,
     );
+  });
+
+  it("keeps a view of a token in its last seconds out of prefetches", () => {
+    expect(sessionStale(user(now / 1000 + 5), {}, now)).toBe(0);
+    expect(sessionStale(user(now / 1000 - 5), {}, now)).toBe(0);
+    expect(sessionStale(user(now / 1000 + 20), { min: 10 }, now)).toBe(20);
+  });
+
+  it("keeps a signed-out view that a refresh or sign-in would change out of the App Shell", () => {
+    expect(sessionStale({ kind: "anon", reason: "expired" })).toBe(0);
+    expect(sessionStale({ kind: "anon", reason: "refresh_failed" })).toBe(0);
+    expect(
+      sessionStale({
+        kind: "invalid",
+        reason: "token",
+        error: dbError("network", "JWKS unreachable"),
+      }),
+    ).toBe(0);
+    expect(sessionStale({ kind: "anon", reason: "signed_out" })).toBe(300);
+    expect(sessionStale({ kind: "service", keyName: "cron" })).toBe(300);
   });
 });

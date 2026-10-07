@@ -114,6 +114,35 @@ describe("handle", () => {
     ).rejects.toBe(control);
   });
 
+  it("flushes event sends before rethrowing control flow", async () => {
+    const control = new Error("NEXT_REDIRECT");
+    const waitUntil = vi.fn();
+    let release = (): void => undefined;
+    await expect(
+      handle(
+        server,
+        request(),
+        () => {
+          betterSupabase.events.track(
+            new Promise<void>((resolve) => {
+              release = resolve;
+            }),
+          );
+          throw control;
+        },
+        {
+          allow: ["anon"],
+          waitUntil,
+          rethrow: (cause) => {
+            if (cause === control) throw control;
+          },
+        },
+      ),
+    ).rejects.toBe(control);
+    expect(waitUntil).toHaveBeenCalledOnce();
+    release();
+  });
+
   it("applies the primary pin and flushes event sends", async () => {
     const waitUntil = vi.fn();
     let release = (): void => undefined;

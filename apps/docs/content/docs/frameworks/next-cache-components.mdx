@@ -47,9 +47,13 @@ export async function getSession(): Promise<AuthSession> {
 ```
 
 `sessionStale(session, { min: 30, max: 300 })` returns `max`, but never
-more than the seconds left on the token and never less than `min`, so a
-signed-in view is not reused after its token expired. `stale` decides where
-the result can be reused:
+more than the seconds left on the token, so a signed-in view is not reused
+after its token expired. With fewer than `min` seconds left it returns 0.
+A signed-out view that a refresh or a sign-in would change also gets 0: an
+`anon` session whose cookie is `expired` or `refresh_failed` (prefetches
+never refresh), and an `invalid` one (for example when the JWKS was
+unreachable). Without a session cookie (`anon` with reason `none`) it
+returns `max`. `stale` decides where the result can be reused:
 
 | `stale`       | Effect                                                        |
 | ------------- | ------------------------------------------------------------- |
@@ -372,7 +376,9 @@ immediately.
 
 Outside a request, `bs.contextForSession(session, { token })` builds the same
 context from a session you already have. The token is verified again, and a
-token for another user gives an `invalid` context.
+token for another user gives an `invalid` context. A token that fails to
+verify (expired, or the JWKS unreachable) gives the `invalid` context with
+that error.
 
 ### What one scope costs
 
@@ -398,7 +404,8 @@ Don't pass a user id into a shared `'use cache'` function that uses
 `bs.admin()`: that bypasses RLS.
 
 Mutations through `bs.action()` call `updateTag`, which also clears the
-client router cache, so the user sees their own write.
+client router cache, so the user sees their own write. Mutations elsewhere
+(`bs.route()`, webhooks) expire the tags with `revalidateTag(tag, { expire: 0 })`.
 
 ## 7. Signing in and out
 

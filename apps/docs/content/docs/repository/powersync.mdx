@@ -76,7 +76,11 @@ const stop = watch(powersync, () => customerList.run(local, query), {
 
 `sqliteTables` maps table keys to the names PowerSync uses (`customerTags`
 to `customer_tags`). The function `watch` returns stops it, and so does
-`signal`.
+`signal`; a signal that is already aborted never starts it.
+
+A read with a count (`paginate` with `count: "exact"`, a list query's total)
+runs the rows and the count in one `readTransaction`, so the two agree while
+PowerSync syncs.
 
 ## Table names and keys
 

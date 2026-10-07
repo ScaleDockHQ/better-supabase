@@ -23,7 +23,8 @@ import { schema } from "../fixtures/generated-camel.ts";
 const mocks = vi.hoisted(() => ({
   headers: new Headers(),
   updateTag: vi.fn<(tag: string) => void>(),
-  revalidateTag: vi.fn<(tag: string, profile: string) => void>(),
+  revalidateTag:
+    vi.fn<(tag: string, profile: string | { expire?: number }) => void>(),
   cacheTag: vi.fn<(...tags: string[]) => void>(),
   setCookie: vi.fn<(name: string, value: string, options: unknown) => void>(),
   after: vi.fn<(task: () => unknown) => void>(),
@@ -715,9 +716,9 @@ describe("createNext", () => {
       .orThrow();
     expect(mocks.updateTag).toHaveBeenCalledTimes(1);
     expect(mocks.revalidateTag.mock.calls).toEqual([
-      [tagFor("customers"), "max"],
-      ["bs:customers@*", "max"],
-      [tagFor("customers", "c1"), "max"],
+      [tagFor("customers"), { expire: 0 }],
+      ["bs:customers@*", { expire: 0 }],
+      [tagFor("customers", "c1"), { expire: 0 }],
     ]);
 
     bs.cacheTag("customers", "c1");
@@ -916,6 +917,74 @@ describe("read replicas", () => {
         "POST abcdefghijklmnopqrst.supabase.co",
         "POST abcdefghijklmnopqrst.supabase.co",
       ]);
+    } finally {
+      fetch.mockRestore();
+    }
+  });
+
+  it("keeps the pin and flushes events when an action or route redirects after a write", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(() => Promise.resolve(Response.json([{ id: "c1" }])));
+    const token = await signer.sign({ sub: USER });
+    const definition = defineSupabase(schema);
+    const bs = createNext(definition, {
+      env: { ...env, readUrl: READ_URL },
+      auth: { jwks: signer.jwks as never },
+      cacheTags: false,
+      replicas: { pinMs: 2000 },
+    });
+    let release = (): void => undefined;
+    const writeThenRedirect = async ({
+      db,
+    }: Awaited<ReturnType<typeof bs.context>>): Promise<never> => {
+      await db.customers
+        .create({ name: "Acme", organizationId: "o1" }, { select: ["id"] })
+        .orThrow();
+      definition.events.track(
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      );
+      redirect("/customers/c1");
+    };
+    try {
+      mocks.headers = new Headers({ authorization: `Bearer ${token}` });
+      mocks.setCookie.mockReset();
+      mocks.after.mockReset();
+      const action = bs.action({}, (_input, ctx) => writeThenRedirect(ctx));
+      await expect(action(undefined)).rejects.toMatchObject({
+        digest: expect.stringContaining("NEXT_REDIRECT"),
+      });
+      expect(mocks.setCookie).toHaveBeenCalledWith(
+        "bs-primary-until",
+        expect.stringMatching(/^\d+$/),
+        expect.objectContaining({ maxAge: 2 }),
+      );
+      expect(mocks.after).toHaveBeenCalledTimes(1);
+      release();
+
+      mocks.setCookie.mockReset();
+      mocks.after.mockReset();
+      const route = bs.route((_request, ctx) => writeThenRedirect(ctx));
+      await expect(
+        route(
+          new NextRequest("https://app.test/api/customers", {
+            method: "POST",
+            headers: { authorization: `Bearer ${token}` },
+          }),
+          { params: Promise.resolve({}) },
+        ),
+      ).rejects.toMatchObject({
+        digest: expect.stringContaining("NEXT_REDIRECT"),
+      });
+      expect(mocks.setCookie).toHaveBeenCalledWith(
+        "bs-primary-until",
+        expect.stringMatching(/^\d+$/),
+        expect.objectContaining({ maxAge: 2 }),
+      );
+      expect(mocks.after).toHaveBeenCalledTimes(1);
+      release();
     } finally {
       fetch.mockRestore();
     }

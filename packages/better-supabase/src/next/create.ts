@@ -30,6 +30,7 @@ import {
   guard,
   type GuardOptions,
   settle,
+  type Settled,
 } from "../server/respond.ts";
 import {
   type BetterServer,
@@ -263,7 +264,10 @@ export function supportTag(sessionId: string): string {
 }
 
 export interface SessionStaleOptions {
-  /** Below this, the result would not be prefetched anyway. Defaults to 30. */
+  /**
+   * With fewer seconds left on the token, the view is not reused at all (0):
+   * Next.js would not prefetch it anyway. Defaults to 30.
+   */
   readonly min?: number;
   /** 300 (5 minutes) joins the route's App Shell. Defaults to 300. */
   readonly max?: number;
@@ -271,7 +275,10 @@ export interface SessionStaleOptions {
 
 /**
  * `cacheLife` `stale` seconds for a view of `session`: `max`, but never past
- * the token's expiry, and at least `min`.
+ * the token's expiry, and 0 once fewer than `min` seconds are left. A
+ * signed-out view that a refresh would change (an `expired` or
+ * `refresh_failed` cookie, or an `invalid` token) is 0 as well, so it never
+ * joins the App Shell.
  */
 export function sessionStale(
   session: AuthSession,
@@ -280,9 +287,26 @@ export function sessionStale(
 ): number {
   const min = options.min ?? 30;
   const max = options.max ?? 300;
-  if (session.kind !== "user" || session.expiresAt === null) return max;
-  const remaining = session.expiresAt - Math.floor(now / 1000);
-  return Math.min(max, Math.max(min, remaining));
+  switch (session.kind) {
+    case "invalid":
+      return 0;
+    case "anon":
+      return session.reason === "expired" || session.reason === "refresh_failed"
+        ? 0
+        : max;
+    case "service":
+    case "apiKey":
+      return max;
+    case "user": {
+      if (session.expiresAt === null) return max;
+      const remaining = session.expiresAt - Math.floor(now / 1000);
+      return remaining < min ? 0 : Math.min(max, remaining);
+    }
+    default: {
+      const exhaustive: never = session;
+      return exhaustive;
+    }
+  }
 }
 
 export interface CachedOptions {
@@ -344,12 +368,21 @@ function tableTags(table: string, options: TagOptions): string[] {
       ];
 }
 
+/** The second argument of `revalidateTag`: a `cacheLife` profile name or `{ expire }`. */
+type RevalidateProfile = string | { readonly expire?: number };
+
+/** The next read waits for fresh data instead of serving the stale entry. */
+const EXPIRE_NOW = { expire: 0 } as const;
+
 /**
  * Invalidates tags with `updateTag` (Server Actions), else `revalidateTag`
  * (Route Handlers), else not at all (jobs, scripts). The first tag decides
  * for the rest, so a mutation outside an action throws once, not per tag.
  */
-function invalidateAll(tags: readonly string[]): void {
+function invalidateAll(
+  tags: readonly string[],
+  profile: RevalidateProfile = EXPIRE_NOW,
+): void {
   let index = 0;
   try {
     for (; index < tags.length; index++) updateTag(tags[index]!);
@@ -358,10 +391,20 @@ function invalidateAll(tags: readonly string[]): void {
     // Not in a Server Action: revalidate from the tag that failed.
   }
   try {
-    for (; index < tags.length; index++) revalidateTag(tags[index]!, "max");
+    for (; index < tags.length; index++) revalidateTag(tags[index]!, profile);
   } catch {
     // Outside a Next.js request (jobs, scripts): nothing to invalidate.
   }
+}
+
+export interface NextCacheOptions {
+  /**
+   * How a mutation outside a Server Action (a route handler, a webhook)
+   * expires its tags with `revalidateTag`. Defaults to `{ expire: 0 }`, so
+   * the next read waits for fresh data; `'max'` serves the stale entry
+   * while it revalidates.
+   */
+  readonly revalidate?: string | { readonly expire?: number };
 }
 
 /**
@@ -370,7 +413,7 @@ function invalidateAll(tags: readonly string[]): void {
  * no tenant) and `bs:<table>:<id>` for the changed rows. Reads another tenant
  * tagged stay cached. `createNext` attaches it unless `cacheTags: false`.
  */
-export function nextCache(): CacheAdapter {
+export function nextCache(options: NextCacheOptions = {}): CacheAdapter {
   return {
     name: "next",
     invalidate: (target) => {
@@ -379,7 +422,7 @@ export function nextCache(): CacheAdapter {
       for (const table of target.tables)
         tags.push(tagFor(table), tagFor(table, undefined, tenant));
       for (const id of target.ids) tags.push(tagFor(target.table, id));
-      invalidateAll(tags);
+      invalidateAll(tags, options.revalidate);
     },
   };
 }
@@ -520,6 +563,15 @@ export function createNext<
   const flushAfter = (): void => {
     flushEvents(betterSupabase, waitUntil);
   };
+  /** Sets the context's cookies (the replica pin) through Next's cookie jar. */
+  const writeCookies = async (
+    ctx: ServerContext<M, F, E, C, P>,
+  ): Promise<void> => {
+    const writes = ctx.cookies();
+    if (writes.length === 0) return;
+    const jar = await cookies();
+    for (const write of writes) jar.set(write.name, write.value, write.options);
+  };
 
   const incomingRequest = async (): Promise<Request> =>
     new Request("http://next.local/", {
@@ -582,6 +634,8 @@ export function createNext<
     { token }: { readonly token: string | null },
   ): Promise<ServerContext<M, F, E, C, P>> => {
     const ctx = await base.context(bearerRequest(token));
+    // An expired token or an unreachable JWKS keeps its own error.
+    if (ctx.auth.kind === "invalid") return ctx;
     const matches =
       ctx.auth.kind === "user"
         ? view.kind === "user" && view.user.id === ctx.auth.user.id
@@ -710,24 +764,33 @@ export function createNext<
     route(handler, guardOptions = {}) {
       return async (request, segment) => {
         let stats: (() => DbStats) | undefined;
-        const response = await handle(
-          base,
-          request,
-          async (ctx) => {
-            stats = () => ctx.stats();
-            const params = await segment.params;
-            return handler(request, withExtra(ctx, { params }));
-          },
-          {
-            ...guardOptions,
-            expose,
-            instance: request.nextUrl.pathname,
-            context: statsFor(request),
-            waitUntil,
-            // redirect(), notFound() and dynamic-rendering bailouts are Next's to handle.
-            rethrow: rethrowNextControlFlow,
-          },
-        );
+        let current: ServerContext<M, F, E, C, P> | undefined;
+        let response: Response;
+        try {
+          response = await handle(
+            base,
+            request,
+            async (ctx) => {
+              current = ctx;
+              stats = () => ctx.stats();
+              const params = await segment.params;
+              return handler(request, withExtra(ctx, { params }));
+            },
+            {
+              ...guardOptions,
+              expose,
+              instance: request.nextUrl.pathname,
+              context: statsFor(request),
+              waitUntil,
+              // redirect(), notFound() and dynamic-rendering bailouts are Next's to handle.
+              rethrow: rethrowNextControlFlow,
+            },
+          );
+        } catch (cause) {
+          // Next builds the redirect response itself and adds the jar's cookies to it.
+          if (current) await writeCookies(current);
+          throw cause;
+        }
         if (collector && stats) {
           try {
             response.headers.set(statsHeader, formatStats(stats()));
@@ -782,15 +845,15 @@ export function createNext<
             return { ok: false, data: null, error: checked.error };
           parsed = checked.data;
         }
-        // SAFETY: parsed is the validated input, or the raw input when the
-        // action has no schema.
-        const settled = await settle(() => fn(parsed as never, ctx));
-        flushAfter();
-        const writes = ctx.cookies();
-        if (writes.length > 0) {
-          const jar = await cookies();
-          for (const write of writes)
-            jar.set(write.name, write.value, write.options);
+        let settled: Settled;
+        try {
+          // SAFETY: parsed is the validated input, or the raw input when the
+          // action has no schema.
+          settled = await settle(() => fn(parsed as never, ctx));
+        } finally {
+          // Also when redirect() or notFound() follows a write.
+          flushAfter();
+          await writeCookies(ctx);
         }
         // SAFETY: Out is the Result of the action's return type, which both branches build.
         return (

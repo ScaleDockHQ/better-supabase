@@ -4,7 +4,7 @@ import type { AuthResolution } from "../../auth/resolve.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 import type { ActiveSupport } from "../support.ts";
 
-import { callOf, type ServerCore } from "./core.ts";
+import { callOf, type ServerCore, supportLookup } from "./core.ts";
 
 /**
  * Entry contributing `ctx.support`: the support session ("view as user") the
@@ -34,7 +34,7 @@ export function withSupport<
     run: () => async (request, ctx) => {
       const support =
         callOf(ctx)?.options.support ??
-        (await core.support(request, ctx.session.auth));
+        (await supportLookup(core, request, ctx.session));
       return { support };
     },
   })();

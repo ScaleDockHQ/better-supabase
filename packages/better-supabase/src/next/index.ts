@@ -15,6 +15,7 @@ export type {
   BetterNext,
   CachedContext,
   CachedOptions,
+  NextCacheOptions,
   NextDebugOptions,
   NextOptions,
   ProxyOptions,

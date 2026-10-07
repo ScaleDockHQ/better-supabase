@@ -42,6 +42,10 @@ export interface PowerSyncDatabaseLike extends SqliteContextLike {
   writeTransaction<T>(
     callback: (tx: SqliteContextLike) => Promise<T>,
   ): Promise<T>;
+  /** Runs a list's rows and its count on one snapshot when present. */
+  readTransaction?<T>(
+    callback: (tx: SqliteContextLike) => Promise<T>,
+  ): Promise<T>;
   onChange?(
     handler: {
       onChange: (event: { changedTables: string[] }) => Promise<void> | void;
@@ -247,22 +251,29 @@ async function runKeyed(
   return { rows, count: keys.length };
 }
 
+async function runSelect(
+  context: SqliteContextLike,
+  plan: Extract<SqlitePlan, { kind: "select" }>,
+): Promise<ExecuteResult> {
+  const [rows, counted] = await Promise.all([
+    plan.rows ? all(context, plan.rows) : [],
+    plan.count ? all(context, plan.count) : undefined,
+  ]);
+  return {
+    rows: decode(rows, plan.columns),
+    count: counted ? Number(counted[0]?.["count"] ?? 0) : null,
+  };
+}
+
 async function run(
   db: PowerSyncDatabaseLike,
   plan: Exclude<SqlitePlan, { kind: "never" }>,
 ): Promise<ExecuteResult> {
   switch (plan.kind) {
-    case "select": {
-      const rows = plan.rows
-        ? decode(await all(db, plan.rows), plan.columns)
-        : [];
-      let count: number | null = null;
-      if (plan.count) {
-        const [first] = await all(db, plan.count);
-        count = Number(first?.["count"] ?? 0);
-      }
-      return { rows, count };
-    }
+    case "select":
+      return plan.rows && plan.count && db.readTransaction
+        ? db.readTransaction((tx) => runSelect(tx, plan))
+        : runSelect(db, plan);
     case "insert":
       return db.writeTransaction((tx) => runInsert(tx, plan));
     case "update":

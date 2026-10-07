@@ -46,6 +46,11 @@ characters (`chunkSize` changes that). Keys are rewritten to the characters
 SecureStore allows. Any object with `getItemAsync`, `setItemAsync` and
 `deleteItemAsync` works in its place.
 
+Reads and writes of one key run one at a time. A write stores the new
+chunks next to the old ones and switches `<key>.chunks` to them only once
+all are stored, so a read never joins chunks of two sessions, and a write
+that fails part way keeps the previous session.
+
 ## Hermes and Temporal
 
 Hermes has no `Temporal`, and installing a polyfill on `globalThis` is a side
