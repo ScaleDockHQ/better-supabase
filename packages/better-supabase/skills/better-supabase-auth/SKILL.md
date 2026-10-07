@@ -50,7 +50,8 @@ path treats `invalid` as `anon`.
    `betterSupabase.userMetadata(schema)` and read `session.profile`.
 3. Read roles, memberships, the tenant and entitlements from the verified
    claims only. Never from `user_metadata`, `session.profile`, a URL or a
-   request body.
+   request body. A tenant from the URL or input is only safe through the
+   `tenant` resolver or the `{ tenant }` option, which check membership.
 
 Done when `session.claims` is typed without casts, and a token whose claims
 fail the schema gets a 401 with code `CLAIMS_INVALID`.
@@ -127,6 +128,13 @@ membership lasts until the next refresh. When that window matters:
   and caps its lifetime at the token's.
 - `bs.cached({ tags, life: { stale } })` adds tags and caps the stale time
   further, for example for a PermDock snapshot.
+- For a tenant from the route params, call `bs.cached({ tenant })` and take
+  the tenant as an argument of the `'use cache: private'` function, so it is
+  part of the cache key. Outside a cache, use `bs.context({ tenant })`.
+- In the proxy, set `bs.proxy(request, { protect, expiredPrefetch: "render" })`
+  instead of returning early for `{ kind: "anon", reason: "expired" }` in
+  `protect`. A prefetch never refreshes, so without it the prefetch caches a
+  redirect to sign-in.
 - Keep layouts synchronous: pass the `bs.session()` promise to
   `<SessionProvider>` and read it with `useSession()`.
 
