@@ -443,18 +443,7 @@ ${usernameCheck(ctx)}`
         .map(c)
         .join(", ")}) through ${ctx.fn("my_profile")}().
 revoke select on ${t} from authenticated;
-grant select (${visible.join(", ")}) on ${t} to authenticated;
-create or replace function ${ctx.fn("my_profile")}()
-returns setof ${t}
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select * from ${t} p where p.${c("key")} = auth.uid()
-$$;
-revoke execute on function ${ctx.fn("my_profile")}() from public, anon;
-grant execute on function ${ctx.fn("my_profile")}() to authenticated, service_role;`
+grant select (${visible.join(", ")}) on ${t} to authenticated;`
     : `grant select on ${t} to authenticated;`;
   return `
 create table if not exists ${t} (
@@ -776,11 +765,12 @@ $$;
 revoke execute on function ${ctx.fn("backfill_profiles")}() from public, anon, authenticated;
 grant execute on function ${ctx.fn("backfill_profiles")}() to service_role;
 
+drop function if exists ${ctx.fn("my_profile")}();
 create or replace function ${ctx.fn("my_profile")}()
 returns jsonb
 language sql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
   select to_jsonb(p) from ${t} p where p.${key} = (select auth.uid())

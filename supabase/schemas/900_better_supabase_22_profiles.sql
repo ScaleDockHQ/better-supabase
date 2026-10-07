@@ -184,11 +184,12 @@ $$;
 revoke execute on function "better_supabase"."backfill_profiles"() from public, anon, authenticated;
 grant execute on function "better_supabase"."backfill_profiles"() to service_role;
 
+drop function if exists "better_supabase"."my_profile"();
 create or replace function "better_supabase"."my_profile"()
 returns jsonb
 language sql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
   select to_jsonb(p) from "better_supabase"."profiles" p where p."id" = (select auth.uid())

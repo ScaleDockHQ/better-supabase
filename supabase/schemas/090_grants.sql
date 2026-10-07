@@ -1,5 +1,4 @@
 grant usage on schema better_supabase to anon, authenticated, service_role, supabase_auth_admin;
-grant select on public.memberships to authenticated;
 grant all on public.memberships to service_role;
 revoke execute on function better_supabase.clear_tenant_claim() from public, anon, authenticated;
 
@@ -12,6 +11,7 @@ grant select on public.plans, public.plan_features, public.subscriptions to auth
 
 revoke all on
   public.organizations,
+  public.memberships,
   public.contacts,
   public.customers,
   public.locations,
@@ -20,7 +20,7 @@ revoke all on
   public.notes,
   public.notifications
 from anon, authenticated;
-grant select on public.organizations to authenticated;
+grant select on public.organizations, public.memberships to authenticated;
 grant select, insert, update, delete on
   public.contacts,
   public.customers,

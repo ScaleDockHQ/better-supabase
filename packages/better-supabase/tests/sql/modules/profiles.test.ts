@@ -166,6 +166,12 @@ describe("profiles module", () => {
     expect(grant).toContain('"locale"');
     expect(grant).not.toContain('"email"');
     expect(sql).toContain('"better_supabase"."my_profile"()');
+    expect(sql).not.toMatch(
+      /create or replace function "better_supabase"\."my_profile"\(\)\s+returns setof/,
+    );
+    expect(sql).toMatch(
+      /drop function if exists "better_supabase"\."my_profile"\(\);\s+create or replace function "better_supabase"\."my_profile"\(\)\s+returns jsonb/,
+    );
   });
 
   it("honours updatable, serviceColumns and turning features off", () => {

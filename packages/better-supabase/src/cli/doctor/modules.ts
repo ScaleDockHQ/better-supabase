@@ -866,7 +866,7 @@ function missingSecretKey(context: DoctorContext): FindingInput[] {
   );
   if (!usesAdmin) return [];
   const hasKey = context.envFiles.some((file) =>
-    /^\s*(?:SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY)\s*=\s*\S+/m.test(
+    /^\s*(?:SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY)\s*=/m.test(
       file.text,
     ),
   );

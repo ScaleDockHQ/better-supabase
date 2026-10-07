@@ -3,8 +3,10 @@
 -- invitations for the settings pages, and the caller's own profile. The
 -- profiles and invitations tables live in `better_supabase`, which the Data
 -- API doesn't expose, and public.organizations shows only the active one.
+-- The SECURITY DEFINER bodies stay in `better_supabase` so splinter does not
+-- flag public RPCs that authenticated can execute.
 
-create or replace function public.my_organizations()
+create or replace function better_supabase.app_my_organizations()
 returns table (id uuid, name text, slug text, role text, plan text, last_used_at timestamptz)
 language plpgsql
 stable
@@ -22,7 +24,7 @@ begin
 end;
 $$;
 
-create or replace function public.organization_members(organization uuid)
+create or replace function better_supabase.app_organization_members(organization uuid)
 returns table (user_id uuid, role text, full_name text, email text, avatar_url text, joined_at timestamptz)
 language plpgsql
 stable
@@ -43,7 +45,7 @@ begin
 end;
 $$;
 
-create or replace function public.organization_invitations(organization uuid)
+create or replace function better_supabase.app_organization_invitations(organization uuid)
 returns table (id uuid, email text, role text, invited_by text, created_at timestamptz, expires_at timestamptz)
 language plpgsql
 stable
@@ -63,6 +65,36 @@ begin
     and i.expires_at >= now()
   order by i.created_at desc;
 end;
+$$;
+
+create or replace function public.my_organizations()
+returns table (id uuid, name text, slug text, role text, plan text, last_used_at timestamptz)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select * from better_supabase.app_my_organizations()
+$$;
+
+create or replace function public.organization_members(organization uuid)
+returns table (user_id uuid, role text, full_name text, email text, avatar_url text, joined_at timestamptz)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select * from better_supabase.app_organization_members(organization)
+$$;
+
+create or replace function public.organization_invitations(organization uuid)
+returns table (id uuid, email text, role text, invited_by text, created_at timestamptz, expires_at timestamptz)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select * from better_supabase.app_organization_invitations(organization)
 $$;
 
 create or replace function public.my_profile()
@@ -95,6 +127,13 @@ begin
   where p.id = (select auth.uid());
 end;
 $$;
+
+revoke execute on function better_supabase.app_my_organizations() from public, anon;
+revoke execute on function better_supabase.app_organization_members(uuid) from public, anon;
+revoke execute on function better_supabase.app_organization_invitations(uuid) from public, anon;
+grant execute on function better_supabase.app_my_organizations() to authenticated, service_role;
+grant execute on function better_supabase.app_organization_members(uuid) to authenticated, service_role;
+grant execute on function better_supabase.app_organization_invitations(uuid) to authenticated, service_role;
 
 revoke execute on function public.my_organizations() from public, anon;
 revoke execute on function public.organization_members(uuid) from public, anon;

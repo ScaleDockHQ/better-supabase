@@ -122,6 +122,19 @@ describe("invitations module", () => {
     expect(sql).not.toContain("'viewer'");
   });
 
+  it("lets the permdock model accept tenant custom roles", () => {
+    const sql = body({
+      access: {
+        model: "permdock",
+        permdock: { schema: "authz", scope: "organization" },
+      },
+    });
+    expect(sql).toContain("if invitee_role is not null and false then");
+    expect(sql).not.toContain(
+      "not (invitee_role = any (array['owner', 'admin', 'member', 'viewer']::text[]))",
+    );
+  });
+
   it("rejects removed and invalid options", () => {
     const options = (value: Record<string, unknown>) => () =>
       body({ invitations: { options: value } });

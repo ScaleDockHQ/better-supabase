@@ -200,6 +200,22 @@ describe("BS326 secret key", () => {
     );
     expect(findings).toMatchObject([{ code: "BS326" }]);
   });
+
+  it("passes when an env file lists the key, even empty", async () => {
+    const findings = await run(
+      context(
+        {},
+        {
+          envFiles: [{ path: ".env.example", text: "SUPABASE_SECRET_KEY=\n" }],
+          sources: [
+            { path: "src/user.ts", text: "await server.deleteAccount(id)" },
+          ],
+        },
+      ),
+      "BS326",
+    );
+    expect(findings).toEqual([]);
+  });
 });
 
 describe("BS327 aal2 without MFA", () => {
