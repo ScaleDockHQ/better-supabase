@@ -381,7 +381,7 @@ as $$
       when jsonb_typeof(coalesce(t -> 'verification', t -> '_raw_data' -> 'verification')) = 'object'
         then jsonb_build_object('status', coalesce(t -> 'verification', t -> '_raw_data' -> 'verification') ->> 'status')
     end,
-    'created', t -> 'created'
+    'created', coalesce(t -> 'created', t -> '_raw_data' -> 'created')
   ) order by ord), '[]'::jsonb)
   from jsonb_array_elements(${fn("billing_stripe_rows")}(billing_tax_ids.tenant, 'tax_ids', 100)) with ordinality as r(t, ord)
 $$;

@@ -110,6 +110,7 @@ export interface StripeTaxId {
   readonly value: string;
   readonly country?: string | null;
   readonly verification?: { readonly status?: string | null } | null;
+  readonly created?: number | null;
 }
 
 /**

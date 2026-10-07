@@ -79,6 +79,9 @@ describe("billing module", () => {
       `"billing_stripe_rows"(billing_tax_ids.tenant, 'tax_ids', 100)`,
     );
     expect(sql).toContain(
+      "'created', coalesce(t -> 'created', t -> '_raw_data' -> 'created')",
+    );
+    expect(sql).toContain(
       `grant execute on function "better_supabase"."billing_tax_ids"(uuid) to authenticated, service_role;`,
     );
     expect(sql).toContain(

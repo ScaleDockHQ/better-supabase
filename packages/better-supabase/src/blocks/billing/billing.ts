@@ -340,6 +340,11 @@ function subscriptionItemOf(value: unknown): SubscriptionItem | undefined {
 /** A row of `billing_tax_ids` as Stripe's tax id object. */
 function syncedTaxId(row: Readonly<Record<string, unknown>>): StripeTaxId {
   const verification = row["verification"];
+  const raw = row["created"];
+  const created =
+    typeof raw === "number" || (typeof raw === "string" && /^\d+$/.test(raw))
+      ? Number(raw)
+      : Number.NaN;
   return {
     id: textOf(row["id"]),
     type: textOf(row["type"]),
@@ -348,6 +353,7 @@ function syncedTaxId(row: Readonly<Record<string, unknown>>): StripeTaxId {
     verification: isRecord(verification)
       ? { status: optionalText(verification["status"]) ?? null }
       : null,
+    created: Number.isSafeInteger(created) ? created : null,
   };
 }
 

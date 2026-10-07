@@ -11,6 +11,7 @@ interface SameTenant {
   readonly key: string;
   readonly parentTenant: string;
   readonly where: string | undefined;
+  readonly match: readonly (readonly [string, string])[];
 }
 
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
@@ -24,7 +25,7 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) {
     throw new TypeError(
-      `${where} must be a list of { table, column, references, tenant? }`,
+      `${where} must be a list of { table, column, references, tenant?, match? }`,
     );
   }
   const fallback = ctx.col("memberships", "tenant").replaceAll('"', "");
@@ -44,7 +45,7 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
         !isRecord(entry["references"]))
     ) {
       throw new TypeError(
-        `${at} must be { table: "schema.table", column: "<column>", references: "schema.table" | { table, column?, tenant?, where? }, tenant? }`,
+        `${at} must be { table: "schema.table", column: "<column>", references: "schema.table" | { table, column?, tenant?, where? }, tenant?, match? }`,
       );
     }
     const references: Record<string, unknown> =
@@ -63,6 +64,12 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
         `${at}.references.where must be a condition on {row}`,
       );
     }
+    const match = entry["match"] ?? {};
+    if (!isRecord(match)) {
+      throw new TypeError(
+        `${at}.match must be { <column>: "<referenced column>" }`,
+      );
+    }
     const tenant = ident(`${at}.tenant`, entry["tenant"], fallback);
     return {
       table: quotedTable(entry["table"]),
@@ -76,6 +83,13 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
         tenant,
       ),
       where: condition,
+      match: Object.entries(match).map(
+        ([own, referenced]) =>
+          [
+            ident(`${at}.match`, own),
+            ident(`${at}.match.${own}`, referenced),
+          ] as const,
+      ),
     };
   });
 }
@@ -100,13 +114,23 @@ export function sameTenantSql(ctx: ModuleContext): string {
       entry.parent,
       entry.key,
       entry.parentTenant,
-      ...(entry.where === undefined
+      ...(entry.where === undefined && entry.match.length === 0
         ? []
-        : [entry.where.replaceAll("{row}", "p")]),
+        : [entry.where?.replaceAll("{row}", "p") ?? ""]),
+      ...entry.match.flat(),
     ].map(sqlString);
     const name = triggerName(entry.column);
+    const columns = [
+      ...new Set([
+        entry.column,
+        entry.tenant,
+        ...entry.match.map(([own]) => own),
+      ]),
+    ]
+      .map(sqlIdent)
+      .join(", ");
     return `drop trigger if exists ${name} on ${entry.table};
-create trigger ${name} before insert or update of ${sqlIdent(entry.column)}, ${sqlIdent(entry.tenant)} on ${entry.table}
+create trigger ${name} before insert or update of ${columns} on ${entry.table}
   for each row execute function better_supabase.same_tenant(${args.join(", ")});`;
   });
   return `
@@ -124,14 +148,22 @@ set search_path = ''
 as $$
 declare
   matched boolean;
+  extra text := '';
+  i integer := 6;
 begin
   if pg_catalog.to_jsonb(new) -> tg_argv[0] = 'null'::jsonb then
     return new;
   end if;
+  if tg_nargs > 5 and tg_argv[5] <> '' then
+    extra := ' and (' || tg_argv[5] || ')';
+  end if;
+  while i + 1 < tg_nargs loop
+    extra := extra || pg_catalog.format(' and p.%I is not distinct from ($1).%I', tg_argv[i + 1], tg_argv[i]);
+    i := i + 2;
+  end loop;
   execute pg_catalog.format(
     'select exists (select 1 from %s p where p.%I = ($1).%I and p.%I is not distinct from ($1).%I%s)',
-    tg_argv[2], tg_argv[3], tg_argv[0], tg_argv[4], tg_argv[1],
-    case when tg_nargs > 5 then ' and (' || tg_argv[5] || ')' else '' end
+    tg_argv[2], tg_argv[3], tg_argv[0], tg_argv[4], tg_argv[1], extra
   ) into matched using new;
   if not matched then
     raise exception '%.% must reference a row of % in the same tenant', tg_table_name, tg_argv[0], tg_argv[2]
