@@ -313,6 +313,26 @@ select better_supabase.audit_event(
 );
 ```
 
+A job, a webhook handler or an admin tool that records an event as the
+service role can say who acted and from where: `actor_id`, `actor_kind`
+(such as `job` or `api-key`), `actor_label`, and, with the restricted table,
+`ip`, `user_agent` and `session_id`. The function takes these only from the
+service role and direct admin connections; for any other caller it uses
+`auth.uid()`, the request's JWT and headers, so a user can't record an event
+in someone else's name. Without the restricted table, passing `ip`,
+`user_agent` or `session_id` fails with `22023`, as `restricted` does:
+
+```sql
+select better_supabase.audit_event(
+  event_type => 'export.finished',
+  actor_kind => 'job',
+  actor_label => 'Nightly export',
+  ip => '198.51.100.7',
+  user_agent => 'export-worker/1.0',
+  restricted => '{}'
+);
+```
+
 The module options (`sql.modules.audit.options`):
 
 | Option          | Default                  | What it does                                                                                                                                                                                              |

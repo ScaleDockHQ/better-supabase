@@ -2383,7 +2383,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
        from unnest(array['anon', 'authenticated', 'service_role']) as r(role),
             unnest(array[
               'better_supabase.purge_audit_log(interval, integer, uuid, boolean)',
-              'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text)',
+              'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text)',
               'better_supabase.purge_webhooks(interval, boolean, integer, text)',
               'better_supabase.purge_job_archive(text, interval, integer, interval)',
               'better_supabase.replay_dead_job(text, bigint)'
@@ -2604,6 +2604,87 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await pool.query(deleteAudit("table_name = any($1)"), [
         [called, declared, legacy],
       ]);
+    }
+  });
+
+  it("takes the actor and request details from service-role events only", async () => {
+    const client = await pool.connect();
+    const actor = crypto.randomUUID();
+    try {
+      await client.query("begin");
+      await client.query(
+        moduleBody("audit", {
+          modules: {
+            audit: {
+              options: {
+                restricted: true,
+                eventRoles: ["service_role", "authenticated"],
+              },
+            },
+          },
+        })!,
+      );
+      const record = async (claims: Record<string, unknown>, role?: string) => {
+        await client.query(
+          `select set_config('request.jwt.claims', $1, true),
+                  set_config('request.headers', $2, true)`,
+          [
+            JSON.stringify(claims),
+            JSON.stringify({
+              "user-agent": "request-agent",
+              "x-forwarded-for": "10.0.0.1, 203.0.113.9",
+            }),
+          ],
+        );
+        if (role) await client.query(`set local role ${role}`);
+        const { rows } = await client.query<{ id: string }>(
+          `select better_supabase.audit_event('job.finished', actor_id => $1,
+             actor_kind => 'job', actor_label => 'Nightly export', ip => '198.51.100.7',
+             user_agent => 'export-worker/1.0', session_id => 'job-42',
+             restricted => '{}') as id`,
+          [actor],
+        );
+        await client.query("reset role");
+        const { rows: entries } = await client.query(
+          `select l.actor_id::text, l.actor_kind, l.actor_label, host(r.ip_address) as ip,
+             r.user_agent, r.session_id
+           from better_supabase.audit_events l
+           join better_supabase.audit_events_restricted r on r.entry_id = l.id
+           where l.id = $1::bigint`,
+          [rows[0]!.id],
+        );
+        return entries[0];
+      };
+      expect(await record({ role: "service_role" })).toEqual({
+        actor_id: actor,
+        actor_kind: "job",
+        actor_label: "Nightly export",
+        ip: "198.51.100.7",
+        user_agent: "export-worker/1.0",
+        session_id: "job-42",
+      });
+      const user = crypto.randomUUID();
+      expect(
+        await record(
+          {
+            sub: user,
+            role: "authenticated",
+            email: "ada@example.test",
+            session_id: "s-1",
+          },
+          "authenticated",
+        ),
+      ).toEqual({
+        actor_id: user,
+        actor_kind: "user",
+        actor_label: "ada@example.test",
+        ip: "203.0.113.9",
+        user_agent: "request-agent",
+        session_id: "s-1",
+      });
+    } finally {
+      await client.query("rollback");
+      client.release();
     }
   });
 

@@ -158,11 +158,17 @@ const ACTOR_LABEL = `coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', aut
 function contextPairs(
   ctx: ModuleContext,
   tenant: string,
-  values: { targetLabel: string; summary: string; correlationId: string },
+  values: {
+    targetLabel: string;
+    summary: string;
+    correlationId: string;
+    actorKind?: string;
+    actorLabel?: string;
+  },
 ): (readonly [string, string])[] {
   return [
-    ["actorKind", auditWrite(ctx, "actorKind", ACTOR_KIND)],
-    ["actorLabel", ACTOR_LABEL],
+    ["actorKind", auditWrite(ctx, "actorKind", values.actorKind ?? ACTOR_KIND)],
+    ["actorLabel", values.actorLabel ?? ACTOR_LABEL],
     ["tenantLabel", tenantLabel(ctx, tenant)],
     ["targetLabel", values.targetLabel],
     ["summary", values.summary],
@@ -307,7 +313,15 @@ $$;`;
 function restrictedInsert(
   ctx: ModuleContext,
   restricted: boolean,
-  values: { old: string; new: string; metadata: string; changed?: string },
+  values: {
+    old: string;
+    new: string;
+    metadata: string;
+    changed?: string;
+    ip?: string;
+    userAgent?: string;
+    sessionId?: string;
+  },
 ): string {
   if (!restricted) return "";
   const r = (logical: string) => ctx.col("restricted", logical);
@@ -315,10 +329,10 @@ function restrictedInsert(
     ["entry", "entry_id"],
     ["old", values.old],
     ["new", values.new],
-    ["ip", "better_supabase.request_ip()"],
-    ["userAgent", requestHeader("user-agent")],
+    ["ip", values.ip ?? "better_supabase.request_ip()"],
+    ["userAgent", values.userAgent ?? requestHeader("user-agent")],
     ["metadata", values.metadata],
-    ["sessionId", "auth.jwt() ->> 'session_id'"],
+    ["sessionId", values.sessionId ?? "auth.jwt() ->> 'session_id'"],
     ["changedValues", values.changed ?? "null"],
   ];
   const kept = pairs.filter(
@@ -455,6 +469,9 @@ $$;`;
 
 /** `audit_event`'s argument types. */
 const EVENT_ARGS = (id: string): string =>
+  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text`;
+
+const PREVIOUS_EVENT_ARGS = (id: string): string =>
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text`;
 
 function auditEvent(ctx: ModuleContext, restricted: boolean): string {
@@ -498,13 +515,15 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
       targetLabel: "target_label",
       summary: "summary",
       correlationId: `coalesce(correlation_id, ${requestHeader("x-correlation-id")})`,
+      actorKind: `coalesce(actor_kind, ${ACTOR_KIND})`,
+      actorLabel: `coalesce(actor_label, ${ACTOR_LABEL})`,
     }),
   ]);
   const roles = ctx.list("eventRoles", ["service_role"]);
   const noRestricted = restricted
     ? ""
     : `
-  if restricted is not null then
+  if restricted is not null or ip is not null or user_agent is not null or session_id is not null then
     raise exception 'audit_event got restricted details, and the audit module has no restricted table'
       using errcode = '22023', hint = ${sqlString(
         ctx.manages
@@ -528,10 +547,12 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
     : "";
   return `-- Records a semantic app event (invoice.sent, member.invited) next to the
 -- row changes. A repeated idempotency_key returns the first entry's id.
--- actor_id is honoured for the service role and direct admin connections;
--- everyone else is auth.uid(). restricted goes to the restricted table;
+-- actor_id, actor_kind, actor_label, ip, user_agent and session_id are
+-- honoured for the service role and direct admin connections; everyone else
+-- gets auth.uid() and the request's own values. restricted goes to the restricted table;
 -- without that table, passing it fails instead of dropping the details.
 drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid);
+drop function if exists better_supabase.audit_event(${PREVIOUS_EVENT_ARGS(id)});
 drop function if exists better_supabase.audit_event(${EVENT_ARGS(id)});
 create or replace function better_supabase.audit_event(
   event_type text,
@@ -547,7 +568,12 @@ create or replace function better_supabase.audit_event(
   actor_id uuid default null,
   summary text default null,
   target_label text default null,
-  correlation_id text default null
+  correlation_id text default null,
+  actor_kind text default null,
+  actor_label text default null,
+  ip inet default null,
+  user_agent text default null,
+  session_id text default null
 )
 returns text
 language plpgsql
@@ -558,14 +584,21 @@ declare
   existing text;
   entry_id ${log}.${c("id")}%type;
 begin${noRestricted}
-  if not (${SERVICE_CALLER}) or actor_id is null then
+  if not (${SERVICE_CALLER}) then
+    actor_id := auth.uid();
+    actor_kind := null;
+    actor_label := null;
+    ip := null;
+    user_agent := null;
+    session_id := null;
+  elsif actor_id is null then
     actor_id := auth.uid();
   end if;${idempotent}
   insert into ${log} (${insert.columns})
   values (
     ${insert.values}
   )
-  returning ${c("id")} into entry_id;${restrictedInsert(ctx, restricted, { old: "null", new: "null", metadata: "coalesce(restricted, '{}')" })}
+  returning ${c("id")} into entry_id;${restrictedInsert(ctx, restricted, { old: "null", new: "null", metadata: "coalesce(restricted, '{}')", ip: "coalesce(ip, better_supabase.request_ip())", userAgent: `coalesce(user_agent, ${requestHeader("user-agent")})`, sessionId: "coalesce(session_id, auth.jwt() ->> 'session_id')" })}
   return entry_id::text;
 end;
 $$;
