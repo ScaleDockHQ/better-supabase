@@ -9,7 +9,7 @@ import {
   INCOMING_ENDPOINT_HEADER,
   signWebhook,
 } from "../../src/blocks/webhooks/index.ts";
-import { renderModules } from "../../src/sql/registry.ts";
+import { renderModules, upgradePlan } from "../../src/sql/registry.ts";
 import { BlockSession } from "./block-session.ts";
 
 const dbUrl =
@@ -116,6 +116,27 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         .create({ tenant: organization, name: "HMAC", verify: "hmac-sha256" })
         .orThrow();
       expect(hmac.signatureHeader).toBe("x-signature");
+      const stored = async (id: string) =>
+        (
+          await client.query<{ secret: string | null; vaulted: string | null }>(
+            `select e.secret, ds.decrypted_secret as vaulted
+             from better_supabase.incoming_webhooks e
+             left join vault.decrypted_secrets ds on ds.id = e.secret_id
+             where e.id = $1`,
+            [id],
+          )
+        ).rows[0];
+      expect(await stored(signed.id)).toEqual({
+        secret: null,
+        vaulted: signed.secret,
+      });
+      expect(await stored(plain.id)).toEqual({ secret: null, vaulted: null });
+      const vaultCount = async () =>
+        (
+          await client.query<{ n: number }>(
+            "select count(*)::int as n from vault.secrets where name like 'webhook-in:%'",
+          )
+        ).rows[0]!.n;
       claims = { sub: outsider, role: "authenticated" };
       expect(
         await hooks.create({ tenant: organization, name: "Nope" }),
@@ -203,6 +224,17 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       claims = { sub: owner, role: "authenticated" };
       const rotated = await hooks.rotate(plain.id).orThrow();
       expect(rotated.secret).toBeNull();
+      const before = await vaultCount();
+      const resigned = await hooks
+        .rotate(signed.id, { rotateSecret: true })
+        .orThrow();
+      expect(resigned.secret).toMatch(/^whsec_/);
+      expect(resigned.secret).not.toBe(signed.secret);
+      expect(await stored(signed.id)).toEqual({
+        secret: null,
+        vaulted: resigned.secret,
+      });
+      expect(await vaultCount()).toBe(before);
       expect(await hooks.setEnabled(signed.id, false).orThrow()).toBe(true);
       claims = { role: "service_role" };
       expect((await post(plain.token, "{}")).status).toBe(404);
@@ -210,6 +242,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       claims = { sub: owner, role: "authenticated" };
       expect(await hooks.remove(hmac.id).orThrow()).toBe(true);
       expect(await hooks.remove(hmac.id).orThrow()).toBe(false);
+      expect(await vaultCount()).toBe(before - 1);
     } finally {
       await client.query("rollback");
       client.release();
@@ -286,6 +319,36 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       ).toBe(1);
     } finally {
       await s.close();
+    }
+  });
+
+  it("moves plaintext secrets of an older install to Vault on upgrade", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      for (const file of renderModules(["webhooks-in"]))
+        if (file.kind === "schema") await client.query(file.contents);
+      const { rows } = await client.query<{ id: string }>(
+        `insert into better_supabase.incoming_webhooks (tenant, name, token_hash, verify, secret)
+         values ($1, 'Legacy', $2, 'hmac-sha256', 'legacy-secret-0123456789') returning id`,
+        [crypto.randomUUID(), crypto.randomUUID()],
+      );
+      const [plan] = upgradePlan([{ module: "webhooks-in", version: 1 }]);
+      for (const step of plan!.steps) await client.query(step.sql);
+      for (const step of plan!.steps) await client.query(step.sql);
+      const { rows: after } = await client.query(
+        `select e.secret, ds.decrypted_secret as vaulted
+         from better_supabase.incoming_webhooks e
+         left join vault.decrypted_secrets ds on ds.id = e.secret_id
+         where e.id = $1`,
+        [rows[0]!.id],
+      );
+      expect(after).toEqual([
+        { secret: null, vaulted: "legacy-secret-0123456789" },
+      ]);
+    } finally {
+      await client.query("rollback");
+      client.release();
     }
   });
 
