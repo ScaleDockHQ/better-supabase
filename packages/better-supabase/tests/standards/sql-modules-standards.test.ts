@@ -64,7 +64,9 @@ describe(`pgvector iterative index scans (${SPEC_PINS.pgvector}+)`, () => {
 
   it("sets hnsw.iterative_scan to a value pgvector 0.8 accepts", () => {
     const values = [
-      ...file.contents.matchAll(/set hnsw\.iterative_scan = '([a-z_]+)'/g),
+      ...file.contents.matchAll(
+        /set_config\('hnsw\.iterative_scan', '([a-z_]+)', true\)/g,
+      ),
     ].map((match) => match[1]);
     expect(values).toHaveLength(6);
     for (const value of values)

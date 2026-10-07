@@ -458,12 +458,21 @@ describe("sameModuleFile", () => {
       [
         'create or replace function "public"."search_chunks"(query extensions.vector, k integer default 10)',
         'returns setof "public"."chunks"',
-        "language sql",
+        "language plpgsql",
         "stable",
         "security invoker",
         "set search_path = ''",
-        "set hnsw.iterative_scan = 'strict_order'",
+        "as $$",
+        "#variable_conflict use_column",
+        "declare",
+        "  previous_scan text := current_setting('hnsw.iterative_scan', true);",
+        "begin",
+        "  perform set_config('hnsw.iterative_scan', 'strict_order', true);",
       ].join("\n"),
+    );
+    expect(file!.contents).not.toContain("set hnsw.iterative_scan");
+    expect(file!.contents).toContain(
+      "  perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);",
     );
     expect(file!.contents).toContain(
       'order by t."embedding" operator(extensions.<=>) query',
@@ -477,6 +486,31 @@ describe("sameModuleFile", () => {
     expect(renderModules(["vector-search"])[0]!.contents).not.toContain(
       "config.vectorSearch",
     );
+    const elsewhere = (layout: Record<string, unknown>) =>
+      renderModules(["vector-search"], {
+        ...moduleLayout(config),
+        ...layout,
+      })[0]!.contents;
+    const found = elsewhere({ vectorSchema: "public" });
+    expect(found).toContain(
+      "create extension if not exists vector with schema public;",
+    );
+    expect(found).toContain(
+      '"public"."search_chunks"(query public.vector, k integer default 10)',
+    );
+    expect(found).toContain("operator(public.<=>) query");
+    expect(found).not.toContain("extensions.");
+    expect(
+      elsewhere({
+        vectorSchema: "public",
+        modules: { "vector-search": { options: { schema: "vec" } } },
+      }),
+    ).toContain("query vec.vector");
+    expect(() =>
+      elsewhere({
+        modules: { "vector-search": { options: { schema: "Bad" } } },
+      }),
+    ).toThrow(/options\.schema must be the lowercase name/);
   });
 });
 

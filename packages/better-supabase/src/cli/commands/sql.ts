@@ -25,6 +25,7 @@ import {
   moduleSchemaExtensions,
   moduleTopics,
   declaredTables,
+  extensionSchema,
   policyGrants,
   renderModules,
   resolveModules,
@@ -245,6 +246,9 @@ async function layoutFor(
     ...(resolved.has("audit")
       ? { auditedTables: await auditedTables(config) }
       : {}),
+    ...(resolved.has("vector-search")
+      ? vectorSchemaOf(await schemaTexts(config))
+      : {}),
     ...(resolved.has("grants") &&
     config.sql.modules["grants"]?.options?.["fromPolicies"] === true
       ? {
@@ -261,6 +265,13 @@ async function layoutFor(
         }
       : {}),
   };
+}
+
+function vectorSchemaOf(sources: readonly { readonly text: string }[]): {
+  vectorSchema?: string;
+} {
+  const schema = extensionSchema(sources, "vector");
+  return schema === undefined ? {} : { vectorSchema: schema };
 }
 
 const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;

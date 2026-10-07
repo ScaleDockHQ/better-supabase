@@ -240,6 +240,30 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     );
   });
 
+  it("writes vector search in the schema the app installed pgvector in", async () => {
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/migrations/20200101000000_init.sql"),
+      "create extension if not exists vector with schema public;\n",
+    );
+    const config: BetterSupabaseConfig = {
+      sql: { modules: ["vector-search"] },
+      vectorSearch: { chunks: "embedding" },
+    };
+    expect((await sql(["sync"], config)).output).not.toContain(
+      "_better_supabase_extensions.sql",
+    );
+    const file = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_18_vector_search.sql"),
+      "utf8",
+    );
+    expect(file).toContain(
+      "create extension if not exists vector with schema public;",
+    );
+    expect(file).toContain("query public.vector, k integer default 10");
+    expect((await sql(["sync"], config)).output).toContain("Unchanged");
+  });
+
   it("has nothing to sync for an empty sql.modules", async () => {
     expect(await sql(["sync"])).toEqual({
       code: 0,

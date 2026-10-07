@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   declaredTables,
+  extensionSchema,
   policyGrants,
   tableGlobs,
 } from "../../src/sql/schema-scan.ts";
@@ -64,5 +65,33 @@ create table public.notes (id int);`,
     const [pattern] = tableGlobs(["public.audit_*"]);
     expect(pattern!.test("public.audit_log")).toBe(true);
     expect(pattern!.test("public.auditlog")).toBe(false);
+  });
+});
+
+describe("extensionSchema", () => {
+  it("finds the schema an extension is created in, outside module files", () => {
+    expect(
+      extensionSchema(
+        [
+          {
+            text: "-- @bs-module vector-search@1 managed\ncreate extension if not exists vector with schema extensions;",
+          },
+          {
+            text: "-- create extension vector schema nope;\ncreate table a (id int);",
+          },
+          {
+            text: 'CREATE EXTENSION IF NOT EXISTS "vector" WITH SCHEMA "public";',
+          },
+          { text: "create extension vector schema later;" },
+        ],
+        "vector",
+      ),
+    ).toBe("public");
+    expect(
+      extensionSchema(
+        [{ text: "create extension pgcrypto schema x;" }],
+        "vector",
+      ),
+    ).toBeUndefined();
   });
 });

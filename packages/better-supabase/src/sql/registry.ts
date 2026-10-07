@@ -1783,6 +1783,28 @@ revoke execute on function better_supabase.purge_rate_limits(integer) from publi
 grant execute on function better_supabase.purge_rate_limits(integer) to service_role;`,
 };
 
+const vectorSearchSql = (schema: string): string =>
+  `create extension if not exists vector with schema ${schema};
+
+-- Functions for the tables in \`vectorSearch\` (better-supabase.config.ts); \`sql sync\` rewrites them.
+-- They are security invoker, so RLS (a tenant policy, say) filters inside the
+-- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
+-- (pgvector 0.8+) instead of returning fewer.`;
+
+const VECTOR_SCHEMA = /^[a-z_][a-z0-9_]{0,62}$/;
+
+function vectorSchemaOf(layout: ModuleLayout): string {
+  const option = layout.modules?.["vector-search"]?.options?.["schema"];
+  const schema =
+    option === undefined ? (layout.vectorSchema ?? "extensions") : option;
+  if (typeof schema !== "string" || !VECTOR_SCHEMA.test(schema)) {
+    throw new TypeError(
+      "sql.modules.vector-search.options.schema must be the lowercase name of the schema pgvector is installed in",
+    );
+  }
+  return schema;
+}
+
 const VECTOR_SEARCH: SqlModule = {
   name: "vector-search",
   title: "Vector search",
@@ -1790,12 +1812,9 @@ const VECTOR_SEARCH: SqlModule = {
     "search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.",
   requires: [],
   target: "schema",
-  sql: `create extension if not exists vector with schema extensions;
-
--- Functions for the tables in \`vectorSearch\` (better-supabase.config.ts); \`sql sync\` rewrites them.
--- They are security invoker, so RLS (a tenant policy, say) filters inside the
--- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
--- (pgvector 0.8+) instead of returning fewer.`,
+  names: { tables: {}, options: ["schema"] },
+  sql: vectorSearchSql("extensions"),
+  build: (_ctx, layout) => vectorSearchSql(vectorSchemaOf(layout)),
 };
 
 /** Schemas whose tables Supabase or Postgres own; the event trigger leaves them alone. */
@@ -1980,6 +1999,7 @@ export interface ModuleLayout {
   readonly entitlements?: EntitlementsSource;
   /** `config.vectorSearch`: the tables the `vector-search` module writes a search function for. */
   readonly vectorSearch?: readonly VectorSearchTable[];
+  readonly vectorSchema?: string;
   /** `config.claims`: claim names the modules read and write. */
   readonly claims?: ClaimsMeta;
   /** PermDock's helpers and membership sources, from its manifest: `entitlements` reads them instead of `tenant`. */
@@ -2123,11 +2143,12 @@ function vectorRanking(
   entry: VectorSearchTable,
   target: string,
   advanced: boolean,
+  vector: string,
 ): string {
   const where = `vectorSearch.${entry.table}`;
   const key = `t.${sqlIdent(entry.key ?? "id")}`;
   const column = `t.${sqlIdent(entry.column)}`;
-  const operator = `operator(extensions.${DISTANCE_OPERATORS[entry.distance]})`;
+  const operator = `operator(${vector}.${DISTANCE_OPERATORS[entry.distance]})`;
   const prefilter = (entry.prefilter ?? [])
     .map((name) => {
       const quoted = sqlIdent(name);
@@ -2222,7 +2243,19 @@ function vectorRanking(
   limit least(greatest(k, 1), 1000)`;
 }
 
-function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
+const ITERATIVE_SCAN = `#variable_conflict use_column
+declare
+  previous_scan text := current_setting('hnsw.iterative_scan', true);
+begin
+  perform set_config('hnsw.iterative_scan', 'strict_order', true);`;
+
+const RESTORE_SCAN = `  perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);
+end;`;
+
+function vectorSearchFunctions(
+  tables: readonly VectorSearchTable[],
+  vector: string,
+): string {
   if (tables.length === 0) return "";
   const functions = tables.map((entry) => {
     const [schema, table] = entry.table.includes(".")
@@ -2241,11 +2274,11 @@ function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
       entry.order !== undefined ||
       (entry.prefilter?.length ?? 0) > 0;
     const params = advanced
-      ? `query extensions.${type}, k integer default 10, filter jsonb default '{}', text_query text default null`
-      : `query extensions.${type}, k integer default 10`;
+      ? `query ${vector}.${type}, k integer default 10, filter jsonb default '{}', text_query text default null`
+      : `query ${vector}.${type}, k integer default 10`;
     const types = advanced
-      ? `extensions.${type}, integer, jsonb, text`
-      : `extensions.${type}, integer`;
+      ? `${vector}.${type}, integer, jsonb, text`
+      : `${vector}.${type}, integer`;
     const options = [
       entry.distance,
       type === "halfvec" ? "halfvec" : "",
@@ -2261,34 +2294,36 @@ function vectorSearchFunctions(tables: readonly VectorSearchTable[]): string {
     const main = advanced
       ? `create or replace function ${fn}(${params})
 returns setof ${target}
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
-set hnsw.iterative_scan = 'strict_order'
 as $$
-  select t.* from (
-  ${vectorRanking(entry, target, true)}
+${ITERATIVE_SCAN}
+  return query select t.* from (
+  ${vectorRanking(entry, target, true, vector)}
   ) r
   join ${target} t on t.${sqlIdent(entry.key ?? "id")} = r.id
-  order by r.ord
+  order by r.ord;
+${RESTORE_SCAN}
 $$;`
       : `create or replace function ${fn}(${params})
 returns setof ${target}
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
-set hnsw.iterative_scan = 'strict_order'
 as $$
-  select t.* from ${target} t
+${ITERATIVE_SCAN}
+  return query select t.* from ${target} t
   where ${column} is not null
-  order by ${column} operator(extensions.${operator}) query
-  limit least(greatest(k, 1), 1000)
+  order by ${column} operator(${vector}.${operator}) query
+  limit least(greatest(k, 1), 1000);
+${RESTORE_SCAN}
 $$;`;
     const other = advanced
-      ? `extensions.${type}, integer`
-      : `extensions.${type}, integer, jsonb, text`;
+      ? `${vector}.${type}, integer`
+      : `${vector}.${type}, integer, jsonb, text`;
     return `-- ${entry.table}.${entry.column} (${options})
 drop function if exists ${fn}(${other});
 drop function if exists ${scores}(${other});
@@ -2299,16 +2334,17 @@ grant execute on function ${fn}(${types}) to authenticated, service_role;
 -- The ids and scores of the same search, best first, for db.$search({ score: true }).
 create or replace function ${scores}(${params})
 returns table (id jsonb, score double precision)
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
-set hnsw.iterative_scan = 'strict_order'
 as $$
-  select to_jsonb(r.id), r.score from (
-  ${vectorRanking(entry, target, advanced)}
+${ITERATIVE_SCAN}
+  return query select to_jsonb(r.id), r.score from (
+  ${vectorRanking(entry, target, advanced, vector)}
   ) r
-  order by r.ord
+  order by r.ord;
+${RESTORE_SCAN}
 $$;
 revoke execute on function ${scores}(${types}) from public, anon;
 grant execute on function ${scores}(${types}) to authenticated, service_role;`;
@@ -2591,7 +2627,10 @@ function moduleExtras(
     return jsonSchemaChecks(layout.jsonSchemas ?? []);
   if (module.name === "grants") return tableGrants(layout);
   if (module.name === "vector-search")
-    return vectorSearchFunctions(layout.vectorSearch ?? []);
+    return vectorSearchFunctions(
+      layout.vectorSearch ?? [],
+      vectorSchemaOf(layout),
+    );
   if (module.name === "read-sets") {
     const sets = layout.readSets ?? [];
     if (sets.length === 0) return "";

@@ -2,7 +2,7 @@ import type { PostgresApi } from "@supabase/server/middleware/postgres";
 
 import { pipeline } from "@supabase/middleware";
 import { withPostgresAdminClient } from "@supabase/server/middleware/postgres-admin";
-import { Pool } from "pg";
+import { Client, Pool } from "pg";
 import * as v from "valibot";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -3061,6 +3061,70 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const sql = await alice.sql!.$many(specs).orThrow();
     expect(sql).toEqual(rest);
     expect(rest[0]).toBeGreaterThan(0);
+  });
+
+  it("creates and runs vector search in sessions that haven't loaded pgvector", async () => {
+    const name = `bs_fresh_vectors_${RUN}`;
+    await pool.query(`
+      create extension if not exists vector with schema extensions;
+      create table public.${name} (id int primary key, embedding extensions.vector(3));
+      insert into public.${name} values (1, '[1,0,0]'), (2, '[0,1,0]');
+      grant select on public.${name} to authenticated;
+    `);
+    const fresh = async <T>(
+      run: (client: Client) => Promise<T>,
+    ): Promise<T> => {
+      const client = new Client({ connectionString: dbUrl });
+      await client.connect();
+      try {
+        return await run(client);
+      } finally {
+        await client.end();
+      }
+    };
+    try {
+      for (const vectorSearch of [
+        [{ table: name, column: "embedding", distance: "cosine" as const }],
+        [
+          {
+            table: name,
+            column: "embedding",
+            distance: "cosine" as const,
+            prefilter: ["id"],
+          },
+        ],
+      ]) {
+        const [module] = renderModules(["vector-search"], { vectorSearch });
+        await fresh((client) => client.query(module!.contents));
+      }
+      const result = await fresh(async (client) => {
+        await client.query("begin");
+        await client.query("set local role authenticated");
+        await client.query("set local hnsw.iterative_scan = 'relaxed_order'");
+        const { rows } = await client.query<{ id: number }>(
+          `select id from public.search_${name}('[0,1,0]', 1, '{}')`,
+        );
+        const { rows: scores } = await client.query<{ id: number }>(
+          `select id from public.search_${name}_scores('[1,0,0]', 1, '{}')`,
+        );
+        const { rows: setting } = await client.query<{ value: string }>(
+          "select current_setting('hnsw.iterative_scan') as value",
+        );
+        await client.query("rollback");
+        return { rows, scores, setting };
+      });
+      expect(result).toEqual({
+        rows: [{ id: 2 }],
+        scores: [{ id: 1 }],
+        setting: [{ value: "relaxed_order" }],
+      });
+    } finally {
+      await pool.query(`drop table if exists public.${name} cascade;
+        drop function if exists public.search_${name}(extensions.vector, integer, jsonb, text);
+        drop function if exists public.search_${name}_scores(extensions.vector, integer, jsonb, text);
+        drop function if exists public.search_${name}(extensions.vector, integer);
+        drop function if exists public.search_${name}_scores(extensions.vector, integer);`);
+    }
   });
 
   it("searches the nearest rows the caller can read", async () => {

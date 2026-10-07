@@ -126,3 +126,23 @@ export function policyGrants(
           : 1,
     );
 }
+
+const EXTENSION = new RegExp(
+  String.raw`\bcreate\s+extension\s+(?:if\s+not\s+exists\s+)?(${NAME})(?:\s+with)?\s+schema\s+(${NAME})`,
+  "gi",
+);
+
+const MODULE_FILE = /^-- @bs-module /m;
+
+export function extensionSchema(
+  sources: readonly { readonly text: string }[],
+  extension: string,
+): string | undefined {
+  for (const source of sources) {
+    if (MODULE_FILE.test(source.text)) continue;
+    for (const match of withoutComments(source.text).matchAll(EXTENSION)) {
+      if (unquote(match[1]!) === extension) return unquote(match[2]!);
+    }
+  }
+  return undefined;
+}
