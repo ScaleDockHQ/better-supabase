@@ -60,7 +60,7 @@ describe("profiles module", () => {
     expect(sql).toContain("lower(\"username\") <> all (array['admin'");
     expect(sql).toContain("while candidate = any(array['admin'");
     expect(sql).toMatch(
-      /if created then\s+if to_regprocedure\('"public"\."after_profile_sync"\(uuid\)'\)/,
+      /if created then\s+declare\s+v_hook regprocedure := to_regprocedure\('"public"\."after_profile_sync"\(uuid\)'\)/,
     );
     expect(sql).toContain(
       "exception when others then\n    raise warning 'No profile for user %",

@@ -28,6 +28,18 @@ const CENTRAKIT: ModulesConfig = {
 };
 
 describe("notifications module", () => {
+  it("broadcasts an update only when a read, dismissed or resolved time changes", () => {
+    const sql = body();
+    expect(sql).toContain(
+      'create trigger "bs_notification_broadcast" after insert on "better_supabase"."notification_recipients"',
+    );
+    expect(sql).toContain(
+      'after update of "read_at", "dismissed_at", "resolved_at" on "better_supabase"."notification_recipients"\n  for each row when (old."read_at" is distinct from new."read_at" or old."dismissed_at" is distinct from new."dismissed_at" or old."resolved_at" is distinct from new."resolved_at")',
+    );
+    expect(sql).toContain("notification_recipients_unread_idx");
+    expect(sql).toContain("notification_events_created_at_idx");
+  });
+
   it("owns its tables with RLS and keeps notify for the definer", () => {
     const sql = body();
     expect(sql).toContain(

@@ -193,6 +193,7 @@ create table if not exists ${n.table("events")} (
       ? `\ncreate index if not exists notification_events_subject_idx on ${n.table("events")} (${c("events", "subjectType")}, ${c("events", "subjectId")});`
       : ""
   }${n.has("events", "actor") ? `\ncreate index if not exists notification_events_actor_idx on ${n.table("events")} (${c("events", "actor")});` : ""}${n.has("events", "createdBy") ? `\ncreate index if not exists notification_events_created_by_idx on ${n.table("events")} (${c("events", "createdBy")});` : ""}
+create index if not exists notification_events_created_at_idx on ${n.table("events")} (${c("events", "createdAt")});
 alter table ${n.table("events")} enable row level security;
 revoke all on ${n.table("events")} from anon, authenticated;
 grant select on ${n.table("events")} to authenticated;
@@ -213,6 +214,8 @@ create table if not exists ${n.table("recipients")} (
   ].join(",\n  ")}
 );
 create index if not exists notification_recipients_inbox_idx on ${n.table("recipients")} (${c("recipients", "user")}, ${c("recipients", "createdAt")} desc) where ${c("recipients", "dismissedAt")} is null;
+create index if not exists notification_recipients_unread_idx on ${n.table("recipients")} (${c("recipients", "user")}) where ${c("recipients", "readAt")} is null and ${c("recipients", "dismissedAt")} is null;
+create index if not exists notification_recipients_user_idx on ${n.table("recipients")} (${c("recipients", "user")});
 alter table ${n.table("recipients")} enable row level security;
 revoke all on ${n.table("recipients")} from anon, authenticated;
 grant select on ${n.table("recipients")} to authenticated;
@@ -258,6 +261,7 @@ create table if not exists ${n.table("deliveries")} (
   ].join(",\n  ")}
 );
 create index if not exists notification_deliveries_pending_idx on ${n.table("deliveries")} (${c("deliveries", "channel")}, ${c("deliveries", "createdAt")}) where ${c("deliveries", "status")} = 'pending';
+create index if not exists notification_deliveries_leased_idx on ${n.table("deliveries")} (${c("deliveries", "channel")}, ${c("deliveries", "attemptedAt")}) where ${c("deliveries", "status")} = 'pending' and ${c("deliveries", "attemptedAt")} is not null;
 alter table ${n.table("deliveries")} enable row level security;
 revoke all on ${n.table("deliveries")} from anon, authenticated;
 grant select on ${n.table("deliveries")} to authenticated;
@@ -386,12 +390,15 @@ function topic(
 function realtime(ctx: ModuleContext, n: NotifyNames): string {
   const mode = ctx.text("realtime", "broadcast");
   const trigger = ctx.trigger("notification_broadcast");
+  const updateTrigger = ctx.trigger("notification_broadcast_update");
   const t = n.table("recipients");
+  const drop = `drop trigger if exists ${trigger} on ${t};
+drop trigger if exists ${updateTrigger} on ${t};`;
   switch (mode) {
     case "none":
-      return `drop trigger if exists ${trigger} on ${t};`;
+      return drop;
     case "changes":
-      return `drop trigger if exists ${trigger} on ${t};
+      return `${drop}
 do $$
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
@@ -413,6 +420,9 @@ $$;`;
         ctx.text("updatedEvent", "notification_updated"),
       );
       const receive = ctx.trigger("notifications_receive");
+      const changed = (["readAt", "dismissedAt", "resolvedAt"] as const)
+        .filter((logical) => n.has("recipients", logical))
+        .map((logical) => n.col("recipients", logical));
       const tenant = n.has("recipients", "tenant")
         ? `, 'tenant', new.${n.col("recipients", "tenant")}`
         : "";
@@ -436,9 +446,12 @@ begin
 end;
 $$;
 revoke execute on function ${ctx.fn("broadcast_notification")}() from public, anon, authenticated;
-drop trigger if exists ${trigger} on ${t};
-create trigger ${trigger} after insert or update on ${t}
+${drop}
+create trigger ${trigger} after insert on ${t}
   for each row execute function ${ctx.fn("broadcast_notification")}();
+create trigger ${updateTrigger} after update of ${changed.join(", ")} on ${t}
+  for each row when (${changed.map((column) => `old.${column} is distinct from new.${column}`).join(" or ")})
+  execute function ${ctx.fn("broadcast_notification")}();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
@@ -552,9 +565,17 @@ export const NOTIFICATIONS: ModuleDefinition = {
   requires: ["updated-at"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "The broadcast trigger fires on an update only when read_at, dismissed_at or resolved_at changes; new indexes serve unread counts, user deletes, purges and lost delivery leases.",
+      sql: () => "",
+    },
+  ],
   build,
   topics: (ctx) =>
     ctx.text("realtime", "broadcast") === "broadcast"

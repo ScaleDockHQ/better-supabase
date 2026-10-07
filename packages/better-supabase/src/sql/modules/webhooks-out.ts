@@ -154,10 +154,19 @@ grant select, insert, update, delete on ${n.table("endpoints")} to authenticated
           "endpoints",
           "bs_webhook_endpoints_read",
           `for select to authenticated using (${n.member(d("tenant"), "view")})`,
+        )}
+drop policy if exists bs_webhook_endpoints_write on ${n.table("endpoints")};${policy(
+          "endpoints",
+          "bs_webhook_endpoints_insert",
+          `for insert to authenticated with check (${n.member(d("tenant"), "manage")})`,
         )}${policy(
           "endpoints",
-          "bs_webhook_endpoints_write",
-          `for all to authenticated using (${n.member(d("tenant"), "manage")}) with check (${n.member(d("tenant"), "manage")})`,
+          "bs_webhook_endpoints_update",
+          `for update to authenticated using (${n.member(d("tenant"), "manage")}) with check (${n.member(d("tenant"), "manage")})`,
+        )}${policy(
+          "endpoints",
+          "bs_webhook_endpoints_delete",
+          `for delete to authenticated using (${n.member(d("tenant"), "manage")})`,
         )}`
       : ""
   }`;
@@ -204,7 +213,8 @@ create table if not exists ${n.table("deliveries")} (
   ].join(",\n  ")}
 );
 create index if not exists webhook_deliveries_due_idx on ${n.table("deliveries")} (${v("availableAt")}, ${v("leasedUntil")}) where ${v("status")} in ('pending', 'retrying', 'delivering');
-create index if not exists webhook_deliveries_endpoint_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("createdAt")} desc);${
+create index if not exists webhook_deliveries_endpoint_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("createdAt")} desc);
+create index if not exists webhook_deliveries_open_idx on ${n.table("deliveries")} (${v("endpoint")}) where ${v("status")} in ('pending', 'retrying');${
     n.has("deliveries", "tenant")
       ? `
 create index if not exists webhook_deliveries_tenant_created_idx on ${n.table("deliveries")} (${v("tenant")}, ${v("createdAt")} desc);`
@@ -344,8 +354,16 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
   requires: ["updated-at"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Endpoint writes have one policy per command, so reads check one policy; an index finds an endpoint's open deliveries.",
+      sql: () => "",
+    },
+  ],
   build,
 };

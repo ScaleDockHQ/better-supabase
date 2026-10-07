@@ -847,12 +847,35 @@ end;`
 }
 $$;
 
+-- Deletes up to batch idempotency keys older than older_than; returns how
+-- many. A retry with a purged key counts again, so keep them longer than
+-- any client retries.
+create or replace function ${fn("purge_usage_events")}(older_than interval default '30 days', batch integer default 10000)
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  with gone as (
+    delete from ${events} x
+    where (x.${ec("tenant")}, x.${ec("meter")}, x.${ec("key")}) in (
+      select e.${ec("tenant")}, e.${ec("meter")}, e.${ec("key")} from ${events} e
+      where e.${ec("recordedAt")} < now() - coalesce(older_than, '30 days')
+      order by e.${ec("recordedAt")} limit coalesce(batch, 10000)
+    )
+    returning 1
+  )
+  select count(*)::integer from gone
+$$;
+
 revoke execute on function ${fn("usage_history")}(${id}, text, integer, bigint) from public, anon;
 revoke execute on function ${fn("usage_breakdown")}(${id}, text) from public, anon;
 revoke execute on function ${fn("purge_usage_history")}(interval, integer) from public, anon, authenticated;
 grant execute on function ${fn("usage_history")}(${id}, text, integer, bigint) to authenticated, service_role;
 grant execute on function ${fn("usage_breakdown")}(${id}, text) to authenticated, service_role;
 grant execute on function ${fn("purge_usage_history")}(interval, integer) to service_role;
+revoke execute on function ${fn("purge_usage_events")}(interval, integer) from public, anon, authenticated;
+grant execute on function ${fn("purge_usage_events")}(interval, integer) to service_role;
 revoke execute on function ${fn("usage_window")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_meters")}() from public;
 grant execute on function ${fn("usage_window")}(${id}, text) to service_role;
@@ -955,7 +978,7 @@ export const USAGE: ModuleDefinition = {
     {
       from: 3,
       description:
-        "Recording usage needs usage.record (or the service role) instead of any membership, and record_usage returns used for the quota's period and today for the UTC day.",
+        "Recording usage needs usage.record (or the service role) instead of any membership, record_usage returns used for the quota's period and today for the UTC day, and purge_usage_events deletes old idempotency keys.",
       sql: () => "",
     },
   ],

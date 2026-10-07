@@ -495,9 +495,11 @@ stable
 security definer
 set search_path = ''
 as $$
+  -- Files sit under <export id>/, so the primary key finds the one export.
   select exists (
     select 1 from ${e} x
-    where x.${ce("bucket")} = ${bucket}
+    where x.${ce("id")} = case when split_part(path, '/', 1) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(path, '/', 1)::uuid end
+      and x.${ce("bucket")} = ${bucket}
       and x.${ce("status")} = 'ready'
       and (x.${ce("expiresAt")} is null or x.${ce("expiresAt")} > now())
       and path = any (x.${ce("files")})
@@ -971,9 +973,17 @@ export const DATA_LIFECYCLE: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "The storage policy for export files finds the export by the id in the file path.",
+      sql: () => "",
+    },
+  ],
   build,
   data,
 };

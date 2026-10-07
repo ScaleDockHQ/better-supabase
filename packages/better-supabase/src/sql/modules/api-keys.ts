@@ -96,6 +96,10 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const allowed = allowedScopes(ctx, layout);
   const prefix = sqlString(prefixOf(ctx));
   const touch = Math.max(0, Math.trunc(ctx.number("touchInterval", 60)));
+  const reset = `(k.${c("windowStart")} is null or k.${c("windowStart")} + interval '1 minute' <= now())`;
+  const nextHits = `case when ${reset} then 1 else k.${c("windowHits")} + 1 end`;
+  const due = (alias: string): string =>
+    `(${alias}.${c("lastUsedAt")} is null or ${alias}.${c("lastUsedAt")} + interval '${touch} seconds' <= now())`;
   const wildcard =
     allowed === undefined && accessModel(ctx) === "permdock"
       ? `
@@ -153,6 +157,9 @@ create table if not exists ${t} (
   ${c("createdAt")} timestamptz not null default now(),
   check (${c("tenant")} is not null or ${c("user")} is not null)
 );
+-- verify_api_key updates the counters on every request; free space on each
+-- page keeps those updates HOT (no index writes).
+alter table ${t} set (fillfactor = 80);
 create index if not exists api_keys_tenant_idx on ${t} (${c("tenant")});
 create index if not exists api_keys_user_idx on ${t} (${c("user")});
 create index if not exists api_keys_rotated_from_idx on ${t} (${c("rotatedFrom")});
@@ -211,18 +218,24 @@ $$;
 -- A tenant's keys for its managers, or the caller's own keys.
 create or replace function ${fn("list_api_keys")}(tenant ${id} default null)
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${json("k")} order by k.${c("createdAt")} desc), '[]'::jsonb)
-  from ${t} k
-  where case
-    when list_api_keys.tenant is null then k.${c("user")} = auth.uid()
-    when ${SERVICE_CALLER} or ${can("list_api_keys.tenant", "manage")} then k.${c("tenant")} = list_api_keys.tenant
-    else k.${c("tenant")} = list_api_keys.tenant and k.${c("user")} = auth.uid()
-  end
+begin
+  -- One plain filter per branch, so each reads through the tenant or user index.
+  if list_api_keys.tenant is null then
+    return (select coalesce(jsonb_agg(${json("k")} order by k.${c("createdAt")} desc), '[]'::jsonb)
+      from ${t} k where k.${c("user")} = auth.uid());
+  end if;
+  if ${SERVICE_CALLER} or ${can("list_api_keys.tenant", "manage")} then
+    return (select coalesce(jsonb_agg(${json("k")} order by k.${c("createdAt")} desc), '[]'::jsonb)
+      from ${t} k where k.${c("tenant")} = list_api_keys.tenant);
+  end if;
+  return (select coalesce(jsonb_agg(${json("k")} order by k.${c("createdAt")} desc), '[]'::jsonb)
+    from ${t} k where k.${c("tenant")} = list_api_keys.tenant and k.${c("user")} = auth.uid());
+end;
 $$;
 
 create or replace function ${fn("revoke_api_key")}(key uuid)
@@ -309,9 +322,11 @@ begin
     return jsonb_build_object('status', 'invalid');
   end if;
   if found.${c("rateLimit")} is not null then
+    -- One update counts the hit and, for an allowed request, touches last_used_at.
     update ${t} k set
-      ${c("windowStart")} = case when k.${c("windowStart")} is null or k.${c("windowStart")} + interval '1 minute' <= now() then now() else k.${c("windowStart")} end,
-      ${c("windowHits")} = case when k.${c("windowStart")} is null or k.${c("windowStart")} + interval '1 minute' <= now() then 1 else k.${c("windowHits")} + 1 end
+      ${c("windowStart")} = case when ${reset} then now() else k.${c("windowStart")} end,
+      ${c("windowHits")} = ${nextHits},
+      ${c("lastUsedAt")} = case when ${nextHits} <= k.${c("rateLimit")} and ${due("k")} then now() else k.${c("lastUsedAt")} end
     where k.${c("id")} = found.${c("id")}
     returning k.${c("windowStart")}, k.${c("windowHits")} into started, hits;
     if hits > found.${c("rateLimit")} then
@@ -320,8 +335,7 @@ begin
         'retry_after', greatest(1, ceil(extract(epoch from started + interval '1 minute' - now()))::integer)
       );
     end if;
-  end if;
-  if found.${c("lastUsedAt")} is null or found.${c("lastUsedAt")} + interval '${touch} seconds' <= now() then
+  elsif ${due("found")} then
     update ${t} k set ${c("lastUsedAt")} = now() where k.${c("id")} = found.${c("id")};
   end if;
   return jsonb_build_object('status', 'ok', 'key', ${json("found")});
@@ -329,8 +343,9 @@ end;
 $$;
 
 -- For policies: whether the request's API key carries scope. Requests
--- without an API key (a signed-in user) are not limited by scopes.
---   using (organization_id = better_supabase.api_key_tenant() and better_supabase.has_scope('deals:read'))
+-- without an API key (a signed-in user) are not limited by scopes. Wrap the
+-- calls in (select ...) so they run once per statement, not once per row:
+--   using (organization_id = (select better_supabase.api_key_tenant()) and (select better_supabase.has_scope('deals:read')))
 create or replace function ${fn("has_scope")}(scope text)
 returns boolean
 language sql
@@ -405,8 +420,16 @@ export const API_KEYS: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "verify_api_key counts a hit and touches last_used_at in one update; the table uses fillfactor 80; list_api_keys reads through the tenant or user index.",
+      sql: () => "",
+    },
+  ],
   build,
 };

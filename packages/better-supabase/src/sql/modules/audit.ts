@@ -297,6 +297,20 @@ alter table better_supabase.audited_tables add column if not exists label_column
 alter table better_supabase.audited_tables enable row level security;
 revoke all on better_supabase.audited_tables from anon, authenticated;
 
+-- The request headers, or null outside a Data API request.
+create or replace function better_supabase.request_headers()
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+begin
+  return nullif(current_setting('request.headers', true), '')::jsonb;
+exception when others then
+  return null;
+end;
+$$;
+
 -- One request header, or null outside a Data API request.
 create or replace function better_supabase.request_header(name text)
 returns text
@@ -429,6 +443,26 @@ function triggerFunction(
     `row_data ->> coalesce(entry.tenant_column, ${sqlString(tenantColumn)})`,
     ctx.idType,
   );
+  // The trigger reads the JWT and the request headers once per row, not once
+  // per column that uses them.
+  const once = (sql: string): string =>
+    sql
+      .replaceAll("auth.jwt()", "v_jwt")
+      .replaceAll(
+        /better_supabase\.request_header\(('[^']*')\)/g,
+        "(v_headers ->> $1)",
+      );
+  const changedValues = restricted
+    ? `
+  -- One change per column, values cut at 1000 characters, for revealing a
+  -- single change without the whole rows.
+  select jsonb_object_agg(k, jsonb_build_object(
+    'old', case when length((old_row -> k)::text) > 1000 then to_jsonb(left((old_row -> k)::text, 1000)) else old_row -> k end,
+    'new', case when length((new_row -> k)::text) > 1000 then to_jsonb(left((new_row -> k)::text, 1000)) else new_row -> k end
+  ))
+  into changed_values
+  from unnest(coalesce(changed_columns, array(select jsonb_object_keys(coalesce(new_row, old_row))))) k;`
+    : "";
   return `create or replace function better_supabase.audit_row_change()
 returns trigger
 language plpgsql
@@ -445,6 +479,8 @@ declare
   changed_columns text[];
   changed_values jsonb;
   row_tenant ${ctx.idType};
+  v_jwt jsonb := auth.jwt();
+  v_headers jsonb := better_supabase.request_headers();
 begin
   if tg_nargs > 0 then
     settings := tg_argv[0]::jsonb;
@@ -484,20 +520,12 @@ begin
   end if;
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
-  new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  -- One change per column, values cut at 1000 characters, for revealing a
-  -- single change without the whole rows.
-  select jsonb_object_agg(k, jsonb_build_object(
-    'old', case when length((old_row -> k)::text) > 1000 then to_jsonb(left((old_row -> k)::text, 1000)) else old_row -> k end,
-    'new', case when length((new_row -> k)::text) > 1000 then to_jsonb(left((new_row -> k)::text, 1000)) else new_row -> k end
-  ))
-  into changed_values
-  from unnest(coalesce(changed_columns, array(select jsonb_object_keys(coalesce(new_row, old_row))))) k;
+  new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');${changedValues}
   insert into ${ctx.table("log")} (${insert.columns})
   values (
-    ${insert.values}
+    ${once(insert.values)}
   )
-  returning ${ctx.col("log", "id")} into entry_id;${restrictedInsert(ctx, restricted, { old: "old_row", new: "new_row", metadata: "'{}'::jsonb", changed: "changed_values" })}
+  returning ${ctx.col("log", "id")} into entry_id;${once(restrictedInsert(ctx, restricted, { old: "old_row", new: "new_row", metadata: "'{}'::jsonb", changed: "changed_values" }))}
   return null;
 end;
 $$;`;
@@ -677,15 +705,15 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if tg_op = 'DELETE'
-    and current_setting('better_supabase.audit_purge', true) = 'on'
-    and current_user = (
+  -- The setting first: the owner lookup runs only for a purge.
+  if tg_op = 'DELETE' and current_setting('better_supabase.audit_purge', true) = 'on' then
+    if current_user = (
       select r.rolname from pg_catalog.pg_proc p
       join pg_catalog.pg_roles r on r.oid = p.proowner
       where p.oid = to_regprocedure(${purge})
-    )
-  then
-    return old;
+    ) then
+      return old;
+    end if;
   end if;
   raise exception 'audit log entries are append-only'
     using errcode = '42501', hint = 'Delete old entries with better_supabase.purge_audit_log()';
@@ -818,7 +846,7 @@ export const AUDIT: ModuleDefinition = {
       : [],
   target: "schema",
   modes: ["managed", "adopt"],
-  version: 3,
+  version: 4,
   names: NAMES,
   contract: () => [
     {
@@ -911,6 +939,12 @@ export const AUDIT: ModuleDefinition = {
           "drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text);",
           `drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${ctx.idType}, jsonb, text, jsonb, uuid);`,
         ].join("\n"),
+    },
+    {
+      from: 3,
+      description:
+        "The row trigger reads the JWT and the request headers once per row; list_audit_events and count_audit_events filter only on the arguments you pass; per-tenant retention deletes tenant by tenant through the index.",
+      sql: () => "",
     },
   ],
   deprecated: [

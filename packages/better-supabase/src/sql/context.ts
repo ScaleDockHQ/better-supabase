@@ -390,14 +390,17 @@ export function createModuleContext(
       const target = hookTarget(name);
       const types = args.map(([type]) => type).join(", ");
       const params = args.map(([type], i) => `$${String(i + 1)}::${type}`);
-      const found = `to_regprocedure(${sqlString(`${target}(${types})`)})`;
-      return `if ${found} is not null then
-    execute format('select %s(${params.join(", ")})', ${found}::oid::regproc)${
-      args.length > 0
-        ? `\n      using ${args.map(([, value]) => value).join(", ")}`
-        : ""
-    };
-  end if;`;
+      return `declare
+    v_hook regprocedure := to_regprocedure(${sqlString(`${target}(${types})`)});
+  begin
+    if v_hook is not null then
+      execute format('select %s(${params.join(", ")})', v_hook::oid::regproc)${
+        args.length > 0
+          ? `\n        using ${args.map(([, value]) => value).join(", ")}`
+          : ""
+      };
+    end if;
+  end;`;
     },
     hookTarget,
     emit(event) {

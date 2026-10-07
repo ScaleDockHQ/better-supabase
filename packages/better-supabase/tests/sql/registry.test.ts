@@ -709,7 +709,12 @@ describe("vector search options", () => {
       "coalesce(1.0 / (50 + v.rank), 0) + coalesce(1.0 / (50 + x.rank), 0) as score",
     );
     expect(sql).toContain("coalesce((t.priority)::double precision, 1)");
-    expect(sql).toContain(`and (not filter ? 'organization_id' or exists (`);
+    expect(sql).toContain(
+      `and (not filter ? 'organization_id' or t."organization_id" = any (array(`,
+    );
+    expect(sql).toContain(
+      `(jsonb_populate_record(null::"public"."chunks", jsonb_build_object('organization_id', f.v)))."organization_id"`,
+    );
     expect(sql).toContain("least(greatest(k, 1) * 4, 1000)");
     expect(sql).toContain('join "public"."chunks" t on t."chunk_id" = r.id');
     expect(sql).toContain(

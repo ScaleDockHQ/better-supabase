@@ -31,27 +31,59 @@ security definer
 set search_path = ''
 as $$
 declare
-  purged integer;
+  purged integer := 0;
+  gone integer;
+  v_tenant ${id};
+  v_older interval;
 begin
   perform set_config('better_supabase.audit_purge', 'on', true);
   if not for_tenant and to_regprocedure(${signature}) is not null then
-    -- Not a literal name, so plpgsql_check passes without the hook.
-    execute format(
-      ${sqlString(`with gone as (
-      delete from ${log}
-      where ${c("id")} in (
-        select l.${c("id")} from ${log} l
-        where l.${c("occurredAt")} < now() - coalesce(%s(l.${c("tenant")}), $1)
-        order by l.${c("occurredAt")}
-        limit $2
+    -- One delete per tenant with that tenant's interval as a constant, so
+    -- each runs on the (tenant, occurred_at) index. The tenants come from a
+    -- skip scan of that index, not a scan of the log.
+    for v_tenant in
+      with recursive t (v) as (
+        (select l.${c("tenant")} from ${log} l where l.${c("tenant")} is not null order by l.${c("tenant")} limit 1)
+        union all
+        select (select l.${c("tenant")} from ${log} l where l.${c("tenant")} > t.v order by l.${c("tenant")} limit 1)
+        from t where t.v is not null
       )
-      returning 1
-    )
-    select count(*)::integer from gone`)},
-      to_regprocedure(${signature})::oid::regproc
-    ) into purged using older_than, batch;
+      select t.v from t where t.v is not null
+    loop
+      exit when purged >= batch;
+      -- Not a literal name, so plpgsql_check passes without the hook.
+      execute format('select %s($1)', to_regprocedure(${signature})::oid::regproc)
+        into v_older using v_tenant;
+      v_older := coalesce(v_older, older_than);
+      with deleted as (
+        delete from ${log}
+        where ${c("id")} in (
+          select l.${c("id")} from ${log} l
+          where l.${c("tenant")} = v_tenant and l.${c("occurredAt")} < now() - v_older
+          order by l.${c("occurredAt")}
+          limit batch - purged
+        )
+        returning 1
+      )
+      select count(*)::integer into gone from deleted;
+      purged := purged + gone;
+    end loop;
+    if purged < batch then
+      with deleted as (
+        delete from ${log}
+        where ${c("id")} in (
+          select l.${c("id")} from ${log} l
+          where l.${c("tenant")} is null and l.${c("occurredAt")} < now() - older_than
+          order by l.${c("occurredAt")}
+          limit batch - purged
+        )
+        returning 1
+      )
+      select count(*)::integer into gone from deleted;
+      purged := purged + gone;
+    end if;
   else
-    with gone as (
+    with deleted as (
       delete from ${log}
       where ${c("id")} in (
         select l.${c("id")} from ${log} l
@@ -62,7 +94,7 @@ begin
       )
       returning 1
     )
-    select count(*)::integer into purged from gone;
+    select count(*)::integer into purged from deleted;
   end if;
   perform set_config('better_supabase.audit_purge', 'off', true);
   return purged;

@@ -195,10 +195,13 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  new := jsonb_populate_record(
-    new,
-    jsonb_build_object(coalesce(tg_argv[0], 'updated_at'), now())
-  );
+  -- The default column is assigned directly; jsonb_populate_record copies the
+  -- whole row, so it only serves other column names.
+  if tg_nargs = 0 or tg_argv[0] = 'updated_at' then
+    new.updated_at := now();
+  else
+    new := jsonb_populate_record(new, jsonb_build_object(tg_argv[0], now()));
+  end if;
   return new;
 end;
 $$;
@@ -260,7 +263,9 @@ begin
       case when tg_op = 'INSERT' then to_jsonb(actor) else to_jsonb(old) -> tg_argv[0] end
     ));
   end if;
-  if tg_argv[1] <> '' then
+  if tg_argv[1] = 'updated_by' then
+    new.updated_by := actor;
+  elsif tg_argv[1] <> '' then
     new := jsonb_populate_record(new, jsonb_build_object(tg_argv[1], actor));
   end if;
   -- The admin behind an impersonated write (the act claim). A user's own
@@ -2184,6 +2189,14 @@ const SIMILARITY: Readonly<Record<VectorSearchTable["distance"], string>> = {
   inner_product: "-v.distance",
 };
 
+const OPERATOR_CLASSES: Readonly<
+  Record<VectorSearchTable["distance"], string>
+> = {
+  cosine: "cosine_ops",
+  l2: "l2_ops",
+  inner_product: "ip_ops",
+};
+
 const REGCONFIG = /^[a-z_][a-z0-9_]*$/;
 
 /** `vectorSearch.<table>.boost`: one expression, no statement separators or comments. */
@@ -2215,11 +2228,13 @@ function vectorRanking(
     .map((name) => {
       const quoted = sqlIdent(name);
       const values = `case jsonb_typeof(filter -> ${sqlString(name)}) when 'array' then filter -> ${sqlString(name)} else jsonb_build_array(filter -> ${sqlString(name)}) end`;
+      // jsonb_populate_record casts each value to the column's type, so the
+      // comparison is a typed = any (array) that an index on the column serves.
       return `
-      and (not filter ? ${sqlString(name)} or exists (
-        select 1 from jsonb_array_elements(${values}) f(v)
-        where (f.v = 'null'::jsonb and t.${quoted} is null) or t.${quoted}::text = f.v #>> '{}'
-      ))`;
+      and (not filter ? ${sqlString(name)} or t.${quoted} = any (array(
+        select (jsonb_populate_record(null::${target}, jsonb_build_object(${sqlString(name)}, f.v))).${quoted}
+        from jsonb_array_elements(${values}) f(v) where f.v <> 'null'::jsonb
+      )) or (t.${quoted} is null and ${values} @> '[null]'::jsonb))`;
     })
     .join("");
   const predicate =
@@ -2407,7 +2422,25 @@ ${ITERATIVE_SCAN}
 ${RESTORE_SCAN}
 $$;
 revoke execute on function ${scores}(${types}) from public, anon;
-grant execute on function ${scores}(${types}) to authenticated, service_role;`;
+grant execute on function ${scores}(${types}) to authenticated, service_role;
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_catalog.pg_index i
+    join pg_catalog.pg_class c on c.oid = i.indexrelid
+    join pg_catalog.pg_am am on am.oid = c.relam
+    join pg_catalog.pg_opclass oc on oc.oid = i.indclass[0]
+    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0]
+    where i.indrelid = ${sqlString(target)}::regclass
+      and a.attname = ${sqlString(entry.column)}
+      and am.amname in ('hnsw', 'ivfflat')
+      and oc.opcname = ${sqlString(`${type}_${OPERATOR_CLASSES[entry.distance]}`)}
+  ) then
+    raise notice '%', ${sqlString(`${entry.table}.${entry.column} has no hnsw or ivfflat index with ${type}_${OPERATOR_CLASSES[entry.distance]}, so search_${table} scans the table`)};
+  end if;
+end;
+$$;`;
   });
   return `\n-- config.vectorSearch\n${functions.join("\n\n")}\n`;
 }

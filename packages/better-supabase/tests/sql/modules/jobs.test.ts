@@ -61,7 +61,7 @@ describe("jobs module", () => {
 
   it("drops the old schedule_job signature when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "jobs", version: 1 }]);
-    expect(plan).toMatchObject({ module: "jobs", from: 1, to: 5 });
+    expect(plan).toMatchObject({ module: "jobs", from: 1, to: 6 });
     expect(plan!.steps[0]!.sql).toContain(
       "drop function if exists better_supabase.schedule_job(text, text, text, jsonb);",
     );
@@ -73,6 +73,25 @@ describe("jobs module", () => {
     );
     expect(plan!.steps[3]!.sql).toContain(
       "drop function if exists better_supabase.claim_due_schedules(integer, integer);",
+    );
+  });
+
+  it("claims table-backend jobs through indexable conditions", () => {
+    const sql = jobs({ backend: "table" });
+    expect(sql).toContain(
+      "generated always as (coalesce((message ->> 'max_attempts')::integer, 5)) stored;",
+    );
+    expect(sql).toContain(
+      "where archived_at is null and attempts >= max_attempts;",
+    );
+    expect(sql).toContain(
+      "m.visible_at <= v_now\n    and m.attempts >= m.max_attempts;",
+    );
+    expect(sql).not.toContain(
+      "archived_at is null and m.visible_at <= clock_timestamp()\n",
+    );
+    expect(sql).toContain(
+      "m.archived_at < now() - least(older_than, dead_older_than)",
     );
   });
 

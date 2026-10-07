@@ -336,7 +336,9 @@ create trigger ${ctx.trigger("comments_before_write")}
   before insert or update on ${comments}
   for each row execute function ${fn("comments_before_write")}();
 
--- Notifies newly mentioned members who can read comments in the tenant,
+${
+  created || mentioned || deleted || notifications
+    ? `-- Notifies newly mentioned members who can read comments in the tenant,
 -- and writes comment.created, comment.mentioned and comment.deleted to the
 -- outbox when it is installed.
 create or replace function ${fn("comments_after_write")}()
@@ -371,7 +373,11 @@ revoke execute on function ${fn("comments_after_write")}() from public, anon, au
 drop trigger if exists ${ctx.trigger("comments_after_write")} on ${comments};
 create trigger ${ctx.trigger("comments_after_write")}
   after insert or update of ${c("mentions")}, ${c("deletedAt")} on ${comments}
-  for each row execute function ${fn("comments_after_write")}();
+  for each row execute function ${fn("comments_after_write")}();`
+    : `-- Without notifications or the outbox there is nothing to send after a write.
+drop trigger if exists ${ctx.trigger("comments_after_write")} on ${comments};
+drop function if exists ${fn("comments_after_write")}();`
+}
 
 -- The functions run as the caller, so the policies above decide.
 drop function if exists ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid);
@@ -677,7 +683,7 @@ export const COMMENTS: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -685,6 +691,12 @@ export const COMMENTS: ModuleDefinition = {
         "list_comments takes skip for offset paging; comment_counts counts comments per subject.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("list_comments")}(${ctx.idType}, text, text, timestamptz, integer);`,
+    },
+    {
+      from: 2,
+      description:
+        "Without notifications or the outbox, comments have no after-write trigger.",
+      sql: () => "",
     },
   ],
   names: NAMES,

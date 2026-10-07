@@ -155,18 +155,21 @@ describe("hooks and events", () => {
         ["uuid", "new_id"],
         ["uuid", "auth.uid()"],
       ]),
-    )
-      .toBe(`if to_regprocedure('"public"."after_item_create"(uuid, uuid)') is not null then
-    execute format('select %s($1::uuid, $2::uuid)', to_regprocedure('"public"."after_item_create"(uuid, uuid)')::oid::regproc)
-      using new_id, auth.uid();
-  end if;`);
+    ).toBe(`declare
+    v_hook regprocedure := to_regprocedure('"public"."after_item_create"(uuid, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
+        using new_id, auth.uid();
+    end if;
+  end;`);
     expect(
       createModuleContext("demo", () => ({
         ...names,
         hooks: ["on_tick"],
       })).hook("on_tick", []),
     ).toContain(
-      `execute format('select %s()', to_regprocedure('"public"."on_tick"()')::oid::regproc);`,
+      `v_hook regprocedure := to_regprocedure('"public"."on_tick"()');`,
     );
     expect(() => ctx.hook("before_item_create", [])).toThrow(
       'Module "demo" declares no hook "before_item_create"',
@@ -185,7 +188,7 @@ describe("hooks and events", () => {
       },
     });
     expect(ctx.hook("after_item_create", [["uuid", "id"]])).toContain(
-      `execute format('select %s($1::uuid)', to_regprocedure('"private"."seed_item"(uuid)')::oid::regproc)`,
+      `v_hook regprocedure := to_regprocedure('"private"."seed_item"(uuid)');`,
     );
     expect(() =>
       createModuleContext("demo", () => hooked, {
