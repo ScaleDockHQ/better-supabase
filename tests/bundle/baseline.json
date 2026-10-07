@@ -1,7 +1,7 @@
 {
   ".": 56795,
   "./config": 11944,
-  "./cli": 239992,
+  "./cli": 240441,
   "./client": 14126,
   "./client/native": 11696,
   "./react": 8096,
@@ -59,7 +59,7 @@
   "./plugins/tenant": 9177,
   "./plugins/actor": 6375,
   "./plugins/validation": 11337,
-  "./sql": 229493,
+  "./sql": 230310,
   "./testing": 95102,
-  "better-supabase CLI (startup)": 12907
+  "better-supabase CLI (startup)": 12906
 }
