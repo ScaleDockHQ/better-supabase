@@ -240,6 +240,7 @@ create table if not exists ${d} (
   check (not ${cd("enforceSso")} or ${cd("verifiedAt")} is not null)
 );
 create unique index if not exists organization_domains_verified_idx on ${d} (${cd("domain")}) where ${cd("verifiedAt")} is not null;
+create index if not exists organization_domains_created_by_idx on ${d} (${cd("createdBy")}) where ${cd("createdBy")} is not null;
 alter table ${d} enable row level security;
 revoke all on ${d} from anon, authenticated;
 grant all on ${d} to service_role;
@@ -281,6 +282,7 @@ create unique index if not exists scim_users_user_name_idx on ${u} (${cu("tenant
 create unique index if not exists scim_users_external_id_idx on ${u} (${cu("tenant")}, ${cu("externalId")}) where ${cu("externalId")} is not null;
 create unique index if not exists scim_users_user_idx on ${u} (${cu("tenant")}, ${cu("user")}) where ${cu("user")} is not null;
 create index if not exists scim_users_email_idx on ${u} (${cu("email")}) where ${cu("user")} is null;
+create index if not exists scim_users_account_idx on ${u} (${cu("user")}) where ${cu("user")} is not null;
 alter table ${u} enable row level security;
 revoke all on ${u} from anon, authenticated;
 grant all on ${u} to service_role;

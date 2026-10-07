@@ -81,6 +81,7 @@ alter table ${t} add column if not exists subject_type text check (subject_type 
 alter table ${t} add column if not exists subject_id text check (length(subject_id) between 1 and 200);
 create index if not exists incoming_webhooks_tenant_idx on ${t} (tenant);
 create index if not exists incoming_webhooks_subject_idx on ${t} (tenant, subject_type, subject_id);
+create index if not exists incoming_webhooks_created_by_idx on ${t} (created_by) where created_by is not null;
 ${updatedAt(t, "updated_at")}
 alter table ${t} enable row level security;
 revoke all on ${t} from anon, authenticated;

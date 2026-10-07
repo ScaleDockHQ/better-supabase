@@ -169,6 +169,23 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     await installSchemaModules(pool);
   });
 
+  it("indexes the columns of every foreign key", async () => {
+    const { rows } = await pool.query<{ constraint: string }>(
+      `select c.conrelid::regclass::text || ' ' || c.conname as constraint
+       from pg_constraint c
+       join pg_namespace n on n.oid = c.connamespace
+       where c.contype = 'f' and n.nspname = 'better_supabase'
+         and not exists (
+           select 1 from pg_index i
+           where i.indrelid = c.conrelid
+             and (string_to_array(i.indkey::text, ' ')::int2[])[1:cardinality(c.conkey)] @> c.conkey
+             and (i.indpred is null or pg_get_expr(i.indpred, i.indrelid) ilike '%is not null%')
+         )
+       order by 1`,
+    );
+    expect(rows.map((row) => row.constraint)).toEqual([]);
+  });
+
   it("ensure-rls enables RLS on new tables outside the managed schemas", async () => {
     const client = await pool.connect();
     try {
