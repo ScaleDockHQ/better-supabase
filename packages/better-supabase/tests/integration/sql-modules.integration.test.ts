@@ -2898,6 +2898,16 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           (item) => item.id,
         ),
       ).toEqual([entries[0]!.id]);
+      expect(
+        await list({
+          for_target_types: [name],
+          for_sources: ["database"],
+          for_actor_kinds: ["system", "user"],
+        }),
+      ).toHaveLength(2);
+      expect(
+        await list({ for_target_types: [name], for_sources: ["app"] }),
+      ).toEqual([]);
       expect(await list({ for_target_types: [name], search: "fi%al" })).toEqual(
         [],
       );

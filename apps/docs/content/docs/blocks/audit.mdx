@@ -43,7 +43,8 @@ const older = await audit.list({ organizationId, before: page.next });
 ```
 
 `list` calls `list_audit_events` with the tenant, event type, actor, target
-type, record, category, outcome and time filters, newest first; pass
+type, record, category, outcome, source, actor kind, correlation id and time
+filters, newest first; pass
 `page.next` as `before` for the next page. Every filter but the times takes
 one value or a list, `search` matches text in the event type, summary,
 target, actor and tenant labels, record and table (case-insensitive),

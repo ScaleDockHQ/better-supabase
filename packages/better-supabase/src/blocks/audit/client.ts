@@ -71,6 +71,9 @@ export interface AuditListOptions {
   readonly record?: OneOrMany;
   readonly category?: OneOrMany;
   readonly outcome?: OneOrMany;
+  readonly source?: OneOrMany;
+  readonly actorKind?: OneOrMany;
+  readonly correlationId?: OneOrMany;
   readonly search?: string;
   readonly order?: "desc" | "asc";
   readonly count?: boolean;
@@ -304,6 +307,9 @@ export function createAuditLog(options: AuditLogOptions): AuditLog {
       for_records: many(list.record),
       for_categories: many(list.category),
       for_outcomes: many(list.outcome),
+      for_sources: many(list.source),
+      for_actor_kinds: many(list.actorKind),
+      for_correlation_ids: many(list.correlationId),
       search: list.search,
       since: instantArg(list.since),
       until: instantArg(list.until),

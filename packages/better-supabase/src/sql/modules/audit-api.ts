@@ -92,7 +92,7 @@ export function listEntries(ctx: ModuleContext, restricted: boolean): string {
       ? ""
       : `
       and (search is null or search = '' or concat_ws(' ', ${searchable.join(", ")}) ilike '%' || replace(replace(replace(search, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%')`;
-  const where = `(for_tenants is null or cardinality(for_tenants) = 0 or l.${c("tenant")} = any (for_tenants))${filter("eventType", "for_event_types")}${filter("actor", "for_actors")}${filter("targetType", "for_target_types")}${filter("record", "for_records")}${filter("category", "for_categories")}${filter("outcome", "for_outcomes")}${search}
+  const where = `(for_tenants is null or cardinality(for_tenants) = 0 or l.${c("tenant")} = any (for_tenants))${filter("eventType", "for_event_types")}${filter("actor", "for_actors")}${filter("targetType", "for_target_types")}${filter("record", "for_records")}${filter("category", "for_categories")}${filter("outcome", "for_outcomes")}${filter("source", "for_sources")}${filter("actorKind", "for_actor_kinds")}${filter("correlationId", "for_correlation_ids")}${search}
       and (since is null or l.${c("occurredAt")} >= since)
       and (until is null or l.${c("occurredAt")} < until)`;
   const filters = `for_tenants ${id}[] default null,
@@ -103,9 +103,12 @@ export function listEntries(ctx: ModuleContext, restricted: boolean): string {
   for_categories text[] default null,
   for_outcomes text[] default null,
   search text default null,
+  for_sources text[] default null,
+  for_actor_kinds text[] default null,
+  for_correlation_ids text[] default null,
   since timestamptz default null,
   until timestamptz default null`;
-  const filterTypes = `${id}[], text[], uuid[], text[], text[], text[], text[], text, timestamptz, timestamptz`;
+  const filterTypes = `${id}[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz`;
   const listTypes = `${filterTypes}, timestamptz, text, integer, boolean`;
   return `-- A page of the entries the caller can read, newest first unless ascending:
 -- the read policy decides (security invoker). Each filter takes several
