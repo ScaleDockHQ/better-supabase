@@ -198,6 +198,7 @@ export interface PermdockPlatformRoles {
   };
   /** A SQL template with `{user}` and `{role}` (the role name) deciding who assigns which platform role. */
   readonly canAssign?: string;
+  readonly canAssignFor?: string;
 }
 
 const isPlain = (value: unknown): value is Record<string, unknown> =>
@@ -234,10 +235,14 @@ export function permdockPlatformRoles(
     typeof value["table"] !== "string" ||
     typeof value["user"] !== "string" ||
     typeof value["role"] !== "string" ||
-    (value["canAssign"] !== undefined && typeof value["canAssign"] !== "string")
+    (value["canAssign"] !== undefined &&
+      typeof value["canAssign"] !== "string") ||
+    (value["canAssignFor"] !== undefined &&
+      (typeof value["canAssignFor"] !== "string" ||
+        !value["canAssignFor"].includes("{user}")))
   ) {
     throw new TypeError(
-      `${where} must be { table: "schema.table", user: "<user column>", role: "<role column>", through?: { table, id, column }, canAssign?: "<SQL template>" }`,
+      `${where} must be { table: "schema.table", user: "<user column>", role: "<role column>", through?: { table, id, column }, canAssign?: "<SQL template>", canAssignFor?: "<SQL template with {user}>" }`,
     );
   }
   const user = quotedRef(where, value["table"], value["user"]);
@@ -270,6 +275,9 @@ export function permdockPlatformRoles(
     ...(lookup ? { through: lookup } : {}),
     ...(typeof value["canAssign"] === "string"
       ? { canAssign: value["canAssign"] }
+      : {}),
+    ...(typeof value["canAssignFor"] === "string"
+      ? { canAssignFor: value["canAssignFor"] }
       : {}),
   };
 }

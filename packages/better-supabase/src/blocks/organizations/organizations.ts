@@ -169,6 +169,10 @@ export interface Organizations {
   acceptInvitation(
     token: string,
   ): AsyncResult<{ readonly organizationId: string | null }>;
+  acceptInvitationById(
+    invitationId: string,
+  ): AsyncResult<{ readonly organizationId: string | null }>;
+  declineInvitationById(invitationId: string): AsyncResult<boolean>;
 }
 
 const DEFAULT_SCHEMA = "better_supabase";
@@ -321,6 +325,19 @@ export function createOrganizations(
     });
     await options.onInvite?.(result);
     return result;
+  };
+
+  const accepted = (
+    value: unknown,
+  ): { readonly organizationId: string | null } => {
+    const organizationId = optionalText(value);
+    if (organizationId !== null) {
+      organizationEvent("organization.member_added", {
+        organizationId,
+        ...(options.actorId ? { userId: options.actorId } : {}),
+      });
+    }
+    return { organizationId };
   };
 
   return {
@@ -523,16 +540,23 @@ export function createOrganizations(
       );
     },
     acceptInvitation(token) {
-      return run("invitations", "accept_invitation", { token }, (value) => {
-        const organizationId = optionalText(value);
-        if (organizationId !== null) {
-          organizationEvent("organization.member_added", {
-            organizationId,
-            ...(options.actorId ? { userId: options.actorId } : {}),
-          });
-        }
-        return { organizationId };
-      });
+      return run("invitations", "accept_invitation", { token }, accepted);
+    },
+    acceptInvitationById(invitationId) {
+      return run(
+        "invitations",
+        "accept_invitation_by_id",
+        { invitation_id: invitationId },
+        accepted,
+      );
+    },
+    declineInvitationById(invitationId) {
+      return run(
+        "invitations",
+        "decline_invitation_by_id",
+        { invitation_id: invitationId },
+        (value) => value === true,
+      );
     },
   };
 }
