@@ -19,10 +19,11 @@ import { hasCanAssignAs, permdockForUser } from "./access.ts";
 import {
   invitePlatform,
   platformAssignment,
+  platformRoleScope,
   tenantRole,
 } from "./invitations-roles.ts";
 import {
-  extraHook,
+  invitationExtra,
   inviteJson,
   myInvitations,
   organizationJson,
@@ -548,7 +549,6 @@ function preview(ctx: ModuleContext): string {
     where i.${p.col("tokenHash")} = ${tokenHash(ctx, "invitation_preview.token")}${p.only("i")};
   end if;`
     : "";
-  const extra = extraHook(ctx);
   return `
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus
@@ -565,17 +565,13 @@ as $$
 declare
   preview jsonb;
   invitation uuid;
-  extra jsonb;
 begin
   select ${json(t, c("tenant"), organization)}, ${c("id")}
   into preview, invitation
   from ${t.table} i
   where ${c("tokenHash")} = ${tokenHash(ctx, "invitation_preview.token")}${t.only("i")};${platform}
-  if preview is not null and to_regprocedure(${extra}) is not null then
-    -- Not a literal name, so plpgsql_check passes without the hook.
-    execute format('select %s($1)', to_regprocedure(${extra})::oid::regproc)
-      into extra using invitation;
-    preview := preview || coalesce(extra, '{}');
+  if preview is not null then
+    preview := preview || ${ctx.fn("invitation_extra")}(invitation);
   end if;
   return preview;
 end;
@@ -771,7 +767,7 @@ function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
     `revoke execute on function ${ctx.fn(fn)}(${args}) from ${revokeFrom};
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
   return `${schemaPreamble(ctx)}
-${tenantTableSql(ctx)}${platformTableSql(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
+${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
 ${grant("invite_member", `${id}, text, text, interval, jsonb`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}

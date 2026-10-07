@@ -26,7 +26,7 @@
   "./blocks/jobs": 50242,
   "./blocks/audit": 39549,
   "./blocks/outbox": 37214,
-  "./blocks/organizations": 30912,
+  "./blocks/organizations": 30932,
   "./blocks/notifications": 31878,
   "./blocks/notifications/react": 9382,
   "./env": 2745,
@@ -59,7 +59,7 @@
   "./plugins/tenant": 9177,
   "./plugins/actor": 6375,
   "./plugins/validation": 11337,
-  "./sql": 230310,
+  "./sql": 231309,
   "./testing": 95102,
   "better-supabase CLI (startup)": 12909
 }

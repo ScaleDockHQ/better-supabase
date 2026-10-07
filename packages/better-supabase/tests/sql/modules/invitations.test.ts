@@ -314,6 +314,66 @@ describe("platform invitations under the permdock model", () => {
     ).toContain(tenantOnly);
   });
 
+  it("checks every write to the roles tables against where with bs_role_scope", () => {
+    const through = { table: "public.roles", id: "id", column: "key" };
+    const modules = (where: boolean): ModulesConfig => ({
+      ...PERMDOCK,
+      tenant: {
+        mode: "adopt" as const,
+        tables: { memberships: "public.team_members" },
+        columns: { memberships: { role: "role_id" } },
+        options: {
+          roleThrough: where
+            ? { ...through, where: "{row}.scope = 'organization'" }
+            : through,
+        },
+      },
+      invitations: {
+        options: {
+          platformRoles: {
+            ...roles,
+            through: where
+              ? {
+                  ...through,
+                  table: "public.platform_roles",
+                  where: "{row}.scope = 'system'",
+                }
+              : { ...through, table: "public.platform_roles" },
+          },
+        },
+      },
+    });
+    const tenant = moduleBody("tenant", { modules: modules(true) })!;
+    expect(tenant).toContain(
+      `where r."id"::text = new."role_id"::text and (r.scope = 'organization')`,
+    );
+    expect(tenant).toContain("hint = 'MEMBERSHIP_ROLE_SCOPE'");
+    expect(tenant).toContain(
+      `create trigger "bs_role_scope" before insert or update of "role_id" on "public"."team_members"`,
+    );
+    const platform = body(modules(true));
+    expect(platform).toContain(
+      `where r."id"::text = new."role_id"::text and (r.scope = 'system')`,
+    );
+    expect(platform).toContain("hint = 'PLATFORM_ROLE_SCOPE'");
+    expect(platform).toContain(
+      `create trigger "bs_role_scope" before insert or update of "role_id" on "public"."user_roles"`,
+    );
+    const unscoped = moduleBody("tenant", { modules: modules(false) })!;
+    expect(unscoped).toContain(
+      `drop trigger if exists "bs_role_scope" on "public"."team_members";`,
+    );
+    expect(unscoped).not.toContain('create trigger "bs_role_scope"');
+    const unscopedPlatform = body(modules(false));
+    expect(unscopedPlatform).toContain(
+      `drop trigger if exists "bs_role_scope" on "public"."user_roles";`,
+    );
+    expect(unscopedPlatform).not.toContain("PLATFORM_ROLE_SCOPE");
+    expect(moduleBody("tenant", { modules: {} })).not.toContain(
+      "bs_role_scope",
+    );
+  });
+
   it("refuses platform invitations without platformRoles and checks its shape", () => {
     expect(body(PERMDOCK)).toContain("INVITATION_SCOPE_UNSUPPORTED");
     const plain = body({
@@ -362,6 +422,13 @@ describe("update_invitation", () => {
     expect(fn.slice(0, fn.indexOf("$$;"))).not.toContain("token_hash");
     expect(body({})).not.toContain('updated."prefill" := prefill;');
   });
+
+  it("refuses an expired invitation", () => {
+    const fn = body({}).slice(body({}).indexOf('"update_invitation"('));
+    expect(fn).toMatch(
+      /if current_invite\."expires_at" < now\(\) then\n\s*raise exception 'The invitation has expired; resend it to renew it' using errcode = '[0-9A-Z]{5}', hint = 'INVITATION_INVALID';/,
+    );
+  });
 });
 
 describe("invitation_preview_extra", () => {
@@ -372,6 +439,33 @@ describe("invitation_preview_extra", () => {
       },
     });
     expect(sql).toContain(`to_regprocedure('"app"."preview"(uuid)')`);
-    expect(sql).toContain("preview := preview || coalesce(extra, '{}');");
+    expect(sql).toContain(
+      'preview := preview || "better_supabase"."invitation_extra"(invitation);',
+    );
+  });
+
+  it("returns the hook's keys and the inviter's profile with every invitation", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      'revoke execute on function "better_supabase"."invitation_extra"(uuid) from public, anon, authenticated;',
+    );
+    expect(sql).not.toMatch(
+      /grant execute on function "better_supabase"\."invitation_extra"/,
+    );
+    for (const row of ["created", "updated"]) {
+      expect(sql).toContain(
+        `) || "better_supabase"."invitation_extra"(${row}."id"))`,
+      );
+    }
+    expect(sql).not.toContain("'inviter'");
+    const withProfiles = renderModules(["profiles", "invitations"], {}).find(
+      (file) => file.module === "invitations" && file.kind === "schema",
+    )!.contents;
+    expect(withProfiles).toContain(
+      `'inviter', (select jsonb_build_object('id', pr."id", 'username', pr."username", 'fullName', pr."full_name"`,
+    );
+    expect(withProfiles).toContain(
+      `from "better_supabase"."profiles" pr where pr."id" = created."invited_by")`,
+    );
   });
 });
