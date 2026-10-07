@@ -930,6 +930,9 @@ export const AUDIT: ModuleDefinition = {
     },
   ],
   build: auditSql,
+  data: () => `-- Registrations of tables dropped before bs_audit_forget_dropped existed.
+delete from better_supabase.audited_tables a
+where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);`,
   tests: (ctx, layout) =>
     auditTests(ctx, layout.auditedTables ?? [], restrictedOn(ctx)),
 };

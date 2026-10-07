@@ -128,6 +128,35 @@ async function rateLimitHook(context: DoctorContext): Promise<FindingInput[]> {
   ];
 }
 
+const DANGLING_AUDIT = `select a.target::oid::text as oid
+from better_supabase.audited_tables a
+where pg_catalog.to_regclass('better_supabase.audited_tables') is not null
+  and not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid)
+order by 1`;
+
+/** `better_supabase.audited_tables` rows whose table no longer exists. */
+async function danglingAuditRegistrations(
+  context: DoctorContext,
+): Promise<FindingInput[]> {
+  const db = context.database;
+  if (
+    !context.config.sql.moduleNames.includes("audit") ||
+    !db ||
+    "skipped" in db
+  )
+    return [];
+  let rows: { oid: string }[];
+  try {
+    rows = await db.query(DANGLING_AUDIT);
+  } catch {
+    return [];
+  }
+  return rows.map((row) => ({
+    message: `better_supabase.audited_tables registers the table with oid ${row.oid}, which no longer exists. It was dropped before the audit module's sql_drop event trigger was installed. Run \`better-supabase sql sync\` and apply the migration \`better-supabase sql data\` writes, which deletes such rows, or run \`delete from better_supabase.audited_tables where not exists (select 1 from pg_catalog.pg_class c where c.oid = target::oid)\`.`,
+    target: `better_supabase.audited_tables ${row.oid}`,
+  }));
+}
+
 /** Custom-mode modules whose contract functions the database or SQL files don't have. */
 async function missingContracts(
   context: DoctorContext,
@@ -679,5 +708,13 @@ export const MODULE_RULES: readonly Rule[] = [
     description:
       "The `sessions` module is in `sql.modules`, and a table with RLS in `schemas` has no restrictive policy that calls `better_supabase.session_active()`, so a token whose session was signed out, or whose user was banned or deleted, keeps reaching it until it expires. `sql.modules.sessions.options.policies` writes the policy on every table; `options.exclude` lists the tables to skip, as `schema.table` globs.",
     check: sessionlessTables,
+  },
+  {
+    code: "BS322",
+    severity: "warning",
+    title: "Audit registration of a dropped table",
+    description:
+      "The `audit` module is in `sql.modules`, and `better_supabase.audited_tables` on the live database has a row whose table no longer exists. A table dropped before the module's `sql_drop` event trigger was installed keeps its row; the module's data migration deletes such rows.",
+    check: danglingAuditRegistrations,
   },
 ];

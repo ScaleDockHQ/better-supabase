@@ -742,6 +742,17 @@ runs before the schema migration. For your own schema files, add
 `create extension if not exists <name>;` to a migration that runs before the
 one that uses it. The rule stays quiet until the project has a migration.
 
+### BS322
+
+**Warning: audit registration of a dropped table.** The `audit` module is in
+`sql.modules`, and `better_supabase.audited_tables` on the live database has
+a row whose table no longer exists. Since the module installs the
+`bs_audit_forget_dropped` event trigger, dropping a table deletes its row,
+but a table dropped before that keeps it. Run `better-supabase sql sync`
+and apply the migration `better-supabase sql data` writes: the module's data
+file deletes registrations whose table is gone. Doctor checks this only
+against a database.
+
 ## Auth config
 
 ### BS401

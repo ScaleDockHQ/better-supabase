@@ -376,6 +376,10 @@ table's row from `better_supabase.audited_tables`, so install the module as
 table name as text, so a migration can still call
 `select better_supabase.unaudit('public.old_notes')` after the table is
 gone; it then clears the registrations of tables that no longer exist.
+Tables dropped before the event trigger existed keep their rows; the
+module's data file deletes them, so the next `sql data` migration cleans
+them up, and [doctor BS322](/docs/cli/doctor#bs322) reports any that remain
+on a database.
 
 An app with its own audit table adopts it: map `sql.modules.audit.tables.log` and
 `columns.log` to your names, and `null` the columns you don't have (the row

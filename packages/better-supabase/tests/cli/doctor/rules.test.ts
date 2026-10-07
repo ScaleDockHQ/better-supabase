@@ -896,6 +896,49 @@ describe("rate limits wired to PostgREST (BS313)", () => {
   });
 });
 
+describe("audit registrations of dropped tables (BS322)", () => {
+  const live = (
+    module: string[],
+    rows: Record<string, unknown>[] | Error,
+  ): Parameters<typeof run>[1] => ({
+    ...context(base, {}, { sql: { modules: module } }),
+    database: {
+      describe: "test",
+      session: true,
+      query: <R>() =>
+        rows instanceof Error
+          ? Promise.reject(rows)
+          : Promise.resolve(rows as R[]),
+    },
+  });
+
+  it("reports each registration whose table is gone", async () => {
+    expect(
+      await run("BS322", live(["audit"], [{ oid: "16384" }, { oid: "16390" }])),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "better_supabase.audited_tables 16384",
+        message: expect.stringContaining("oid 16384, which no longer exists"),
+      }),
+      expect.objectContaining({
+        target: "better_supabase.audited_tables 16390",
+      }),
+    ]);
+  });
+
+  it("passes a clean registry, projects without the module, a failed query and no database", async () => {
+    expect(await run("BS322", live(["audit"], []))).toEqual([]);
+    expect(await run("BS322", live(["tenant"], [{ oid: "1" }]))).toEqual([]);
+    expect(await run("BS322", live(["audit"], new Error("denied")))).toEqual(
+      [],
+    );
+    expect(
+      await run("BS322", context(base, {}, { sql: { modules: ["audit"] } })),
+    ).toEqual([]);
+  });
+});
+
 describe("migration-only module options (BS314)", () => {
   it("warns about each weakening option on a module in sql.modules", async () => {
     const findings = await run(

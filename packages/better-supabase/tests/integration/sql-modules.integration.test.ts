@@ -2634,6 +2634,21 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(await registered()).toBe(1);
       await pool.query(`select better_supabase.unaudit('${stray}')`);
       expect(await registered()).toBe(0);
+      await pool.query(`
+        create table ${stray} (id int primary key, organization_id uuid);
+        insert into better_supabase.audited_tables (target) values ('${stray}');
+        alter event trigger bs_audit_forget_dropped disable;
+        drop table ${stray};
+        alter event trigger bs_audit_forget_dropped enable;
+      `);
+      expect(await registered()).toBe(1);
+      const data = renderModules(["audit"]).find(
+        (file) => file.kind === "data",
+      )!.contents;
+      await pool.query(
+        /^delete from better_supabase\.audited_tables[^;]*;/m.exec(data)![0],
+      );
+      expect(await registered()).toBe(0);
     } finally {
       await pool.query("alter event trigger bs_audit_forget_dropped enable");
       await pool.query(`
