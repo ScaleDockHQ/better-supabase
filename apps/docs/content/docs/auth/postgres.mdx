@@ -112,6 +112,28 @@ await postgres.transaction(
 A thrown error rolls everything back. Plugins run as usual inside the
 transaction.
 
+## Functions
+
+`db.$rpc` works over the Postgres executor too, so a request that runs as an
+API key or a job over a direct connection calls the same functions as one
+over PostgREST:
+
+```ts
+const db = betterSupabase.connect(postgres.executorFor(claims), { claims });
+const rows = await db
+  .$rpc("customers_by_status", { p_status: "active" })
+  .orThrow();
+```
+
+It runs `select ... from schema.name(arg => $1, ...)` with the named
+arguments and returns what PostgREST returns: an array for a set-returning
+or `returns table` function, one value or row otherwise, and `null` for
+`void`. It reads whether the function returns a set from the generated
+metadata, and sends `json` and `jsonb` arguments as JSON; a function the
+metadata doesn't list is looked up in `pg_proc` first. Errors map like any
+other statement, and a function that doesn't exist fails with
+`invalid_request`, as PostgREST's `PGRST202` does.
+
 ## An existing pool
 
 Pass `pool` to run on a pool you already have, such as the app's `pg.Pool`

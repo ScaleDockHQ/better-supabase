@@ -1,4 +1,5 @@
 import type { Operation } from "../ir/types.ts";
+import type { FunctionMeta } from "../schema/types.ts";
 import type { ErrorMapper } from "./errors.ts";
 import type { Result } from "./result.ts";
 
@@ -54,4 +55,5 @@ export interface RpcContext extends ExecuteContext {
   readonly schema: string;
   /** The function is `stable`: send it as a GET, so read replicas can serve it. */
   readonly get?: boolean;
+  readonly function?: FunctionMeta;
 }

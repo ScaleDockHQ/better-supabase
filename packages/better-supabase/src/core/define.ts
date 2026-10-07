@@ -1127,11 +1127,14 @@ function rpc(
     const invalid = invalidTuning(tuning);
     if (invalid) return err(dbError("invalid_request", invalid));
     const limit = deadline(options?.signal, tuning.timeout);
+    const schema = options?.schema ?? "public";
+    const fn = meta.functions[name];
     const context = {
-      schema: options?.schema ?? "public",
+      schema,
       errorMappers,
       ...(limit.signal ? { signal: limit.signal } : {}),
       ...(tuning.retry === undefined ? {} : { retry: tuning.retry }),
+      ...(fn?.schema === schema ? { function: fn } : {}),
     };
     let result: Result<unknown>;
     try {

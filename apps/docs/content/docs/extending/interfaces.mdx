@@ -55,7 +55,10 @@ runs the operations in parallel through `execute`. `testExecutor` checks
 
 `rpc(name, args, context)` is optional too. `context.get` is set for
 `stable` functions such as [read sets](/docs/repository/read-sets). Send
-those as GET, so read replicas can serve them.
+those as GET, so read replicas can serve them. `context.function` carries
+the function's generated metadata (its arguments, return type and whether it
+returns a set) when the schema has it; `postgresExecutor` reads it to shape
+the result like PostgREST.
 
 `functionSources: true` says the executor honors `SelectOp.source`: read from
 that set-returning function, with its named arguments, instead of the table.
