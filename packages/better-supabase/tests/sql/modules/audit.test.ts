@@ -184,6 +184,28 @@ describe("audit value mapping", () => {
     },
   };
 
+  it("fills an adopted log's own columns from metadata keys", () => {
+    const sql = audit({
+      ...ADOPTED,
+      options: { metadataColumns: { ticket_id: "ticketId" } },
+    });
+    expect(sql).toContain(
+      `(pg_catalog.jsonb_populate_record(null::"public"."activity_log", pg_catalog.jsonb_build_object('ticket_id', metadata -> 'ticketId')))."ticket_id"`,
+    );
+    expect(sql).toContain(
+      "request_id text default null,\n  scope text default null",
+    );
+    expect(() =>
+      audit({ options: { metadataColumns: { ticket_id: "ticketId" } } }),
+    ).toThrow(/adopted log/);
+    expect(() =>
+      audit({ ...ADOPTED, options: { metadataColumns: { scope: "scope" } } }),
+    ).toThrow(/already fills it/);
+    expect(() =>
+      audit({ ...ADOPTED, options: { metadataColumns: { ticket_id: 1 } } }),
+    ).toThrow(/metadata key/);
+  });
+
   it("writes the adopted log's values and reads them back as the module's", () => {
     const sql = audit(ADOPTED);
     expect(sql).toContain(

@@ -315,8 +315,9 @@ select better_supabase.audit_event(
 
 A job, a webhook handler or an admin tool that records an event as the
 service role can say who acted and from where: `actor_id`, `actor_kind`
-(such as `job` or `api-key`), `actor_label`, and, with the restricted table,
-`ip`, `user_agent` and `session_id`. The function takes these only from the
+(such as `job` or `api-key`), `actor_label`, `request_id` (the request it
+handled), `scope` (an adopted log's own value, or `tenant` and `platform`),
+and, with the restricted table, `ip`, `user_agent` and `session_id`. The function takes these only from the
 service role and direct admin connections; for any other caller it uses
 `auth.uid()`, the request's JWT and headers, so a user can't record an event
 in someone else's name. Without the restricted table, passing `ip`,
@@ -335,19 +336,20 @@ select better_supabase.audit_event(
 
 The module options (`sql.modules.audit.options`):
 
-| Option          | Default                  | What it does                                                                                                                                                                                              |
-| --------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tenantColumn`  | `plugins.tenant`         | the tenant column of audited tables                                                                                                                                                                       |
-| `appendOnly`    | `true` when managed      | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                      |
-| `readPolicy`    | `false`                  | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/access))                                                           |
-| `impersonators` | `show`                   | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                               |
-| `restricted`    | `false`                  | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023` |
-| `eventRoles`    | `['service_role']`       | the roles that can call `audit_event`                                                                                                                                                                     |
-| `eventCategory` | `system`                 | the category of an `audit_event` call without one                                                                                                                                                         |
-| `eventSource`   | `app`                    | the source of an `audit_event` call without one                                                                                                                                                           |
-| `exempt`        | `[]`                     | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                  |
-| `tenantLabel`   | the organizations module | `schema.table.column` that `tenant_label` copies, matched on `tenantLabelKey` (`id` by default), for apps without the `organizations` module                                                              |
-| `values`        | none                     | adopt mode only: the adopted log's values for `scope`, `actorKind`, `outcome`, `source` and `category`, see below                                                                                         |
+| Option            | Default                  | What it does                                                                                                                                                                                              |
+| ----------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tenantColumn`    | `plugins.tenant`         | the tenant column of audited tables                                                                                                                                                                       |
+| `appendOnly`      | `true` when managed      | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                      |
+| `readPolicy`      | `false`                  | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/access))                                                           |
+| `impersonators`   | `show`                   | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                               |
+| `restricted`      | `false`                  | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023` |
+| `eventRoles`      | `['service_role']`       | the roles that can call `audit_event`                                                                                                                                                                     |
+| `eventCategory`   | `system`                 | the category of an `audit_event` call without one                                                                                                                                                         |
+| `eventSource`     | `app`                    | the source of an `audit_event` call without one                                                                                                                                                           |
+| `exempt`          | `[]`                     | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                  |
+| `tenantLabel`     | the organizations module | `schema.table.column` that `tenant_label` copies, matched on `tenantLabelKey` (`id` by default), for apps without the `organizations` module                                                              |
+| `values`          | none                     | adopt mode only: the adopted log's values for `scope`, `actorKind`, `outcome`, `source` and `category`, see below                                                                                         |
+| `metadataColumns` | none                     | adopt mode only: the adopted log's own columns that `audit_event` fills from a key of its `metadata`, such as `{ ticket_id: "ticketId" }`; the value is converted to the column's type                    |
 
 `sql add` and `sql sync` read the `audit(...)` calls and `bs_audit` triggers in
 your schema files and migrations, and write a pgTAP file per audited table to `sql.testsDir`

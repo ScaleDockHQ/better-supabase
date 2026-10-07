@@ -2383,7 +2383,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
        from unnest(array['anon', 'authenticated', 'service_role']) as r(role),
             unnest(array[
               'better_supabase.purge_audit_log(interval, integer, uuid, boolean)',
-              'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text)',
+              'better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text)',
               'better_supabase.purge_webhooks(interval, boolean, integer, text)',
               'better_supabase.purge_job_archive(text, interval, integer, interval)',
               'better_supabase.replay_dead_job(text, bigint)'

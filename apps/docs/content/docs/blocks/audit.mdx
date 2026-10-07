@@ -1,6 +1,6 @@
 ---
 title: Audit log
-description: List, reveal and export a tenant's audit entries as NDJSON, CSV or OCSF, and purge them per tenant's retention.
+description: Record events, and list, reveal and export a tenant's audit entries as NDJSON, CSV or OCSF, and purge them per tenant's retention.
 ---
 
 The `audit` SQL module records row changes and `audit_event()` calls (see
@@ -20,6 +20,36 @@ export default defineConfig({
   sql: { modules: { audit: { options: { readPolicy: true } } } },
 });
 ```
+
+## Recording events
+
+`audit.record` writes a semantic event through `audit_event` and returns the
+entry id. Call it with a service-role transport from a job, a webhook
+handler or an API route:
+
+```ts
+const id = await audit
+  .record({
+    eventType: "ticket.escalated",
+    category: "support",
+    organizationId,
+    record: ticket.id,
+    summary: "Escalated to the on-call team",
+    requestId: request.headers.get("x-request-id") ?? undefined,
+    metadata: { ticketId: ticket.id, priority: 2 },
+  })
+  .orThrow();
+```
+
+Its fields are the arguments of `audit_event`. `actorId`, `actorKind`,
+`actorLabel`, `ip`, `userAgent`, `sessionId`, `requestId` and `scope` count
+only for the service role and direct admin connections; any other caller
+gets its own user and the request's `x-request-id` header. `scope` defaults
+to `tenant` with an organization and `platform` without one, and an adopted
+log can take its own value (`region`, say). An adopted log's columns outside
+the module's model are filled from metadata keys with
+`sql.modules.audit.options.metadataColumns` (see
+[SQL modules](/docs/blocks/sql#audit-log)).
 
 ## Listing entries
 

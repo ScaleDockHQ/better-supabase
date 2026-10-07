@@ -35,6 +35,38 @@ function fake(pages: unknown[][], fail = false) {
 }
 
 describe("createAuditLog", () => {
+  it("records an event with audit_event and returns the entry id", async () => {
+    const calls: [string, Record<string, unknown>][] = [];
+    const transport: BlockTransport = {
+      call(_schema, fn, args) {
+        calls.push([fn, { ...args }]);
+        return Promise.resolve(42);
+      },
+    };
+    const id = await createAuditLog({ transport })
+      .record({
+        eventType: "invoice.sent",
+        organizationId: "org",
+        requestId: "req-1",
+        scope: "tenant",
+        metadata: { ticketId: "t1" },
+      })
+      .orThrow();
+    expect(id).toBe("42");
+    expect(calls).toEqual([
+      [
+        "audit_event",
+        expect.objectContaining({
+          event_type: "invoice.sent",
+          tenant: "org",
+          request_id: "req-1",
+          scope: "tenant",
+          metadata: { ticketId: "t1" },
+        }),
+      ],
+    ]);
+  });
+
   it("lists entries with typed fields and a cursor for the next page", async () => {
     const { transport, calls } = fake([
       [

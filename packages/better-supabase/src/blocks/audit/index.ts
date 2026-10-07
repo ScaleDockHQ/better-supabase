@@ -2,6 +2,7 @@ export { createAuditLog } from "./client.ts";
 export type {
   AuditCursor,
   AuditDetails,
+  AuditEventInput,
   AuditExportBucket,
   AuditExportOptions,
   AuditExportToStorageOptions,

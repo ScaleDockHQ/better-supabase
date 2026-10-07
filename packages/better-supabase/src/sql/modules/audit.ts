@@ -23,6 +23,7 @@ const NAMES: ModuleNames = {
     "eventSource",
     "exempt",
     "impersonators",
+    "metadataColumns",
     "readPolicy",
     "restricted",
     "tenantColumn",
@@ -164,6 +165,8 @@ function contextPairs(
     correlationId: string;
     actorKind?: string;
     actorLabel?: string;
+    requestId?: string;
+    scope?: string;
   },
 ): (readonly [string, string])[] {
   return [
@@ -172,14 +175,15 @@ function contextPairs(
     ["tenantLabel", tenantLabel(ctx, tenant)],
     ["targetLabel", values.targetLabel],
     ["summary", values.summary],
-    ["requestId", requestHeader("x-request-id")],
+    ["requestId", values.requestId ?? requestHeader("x-request-id")],
     ["correlationId", values.correlationId],
     [
       "scope",
       auditWrite(
         ctx,
         "scope",
-        `case when ${tenant} is null then 'platform' else 'tenant' end`,
+        values.scope ??
+          `case when ${tenant} is null then 'platform' else 'tenant' end`,
       ),
     ],
   ];
@@ -472,10 +476,44 @@ $$;`;
 
 /** `audit_event`'s argument types. */
 const EVENT_ARGS = (id: string): string =>
-  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text`;
+  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text`;
 
-const PREVIOUS_EVENT_ARGS = (id: string): string =>
-  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text`;
+const PREVIOUS_EVENT_ARGS = (id: string): readonly string[] => [
+  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text`,
+  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text`,
+];
+
+function metadataColumns(
+  ctx: ModuleContext,
+): readonly (readonly [column: string, key: string])[] {
+  const where = "sql.modules.audit.options.metadataColumns";
+  const configured = ctx.option("metadataColumns");
+  if (configured === undefined) return [];
+  if (typeof configured !== "object" || configured === null) {
+    throw new TypeError(`${where} must map columns to metadata keys`);
+  }
+  if (ctx.manages) {
+    throw new TypeError(
+      `${where} fills an adopted log's own columns; set mode: "adopt" or keep the values in metadata`,
+    );
+  }
+  const mapped = new Set(
+    Object.values(ctx.config.columns["log"] ?? {}).filter(
+      (column): column is string => typeof column === "string",
+    ),
+  );
+  return Object.entries(configured).map(([column, key]) => {
+    if (typeof key !== "string" || key === "") {
+      throw new TypeError(`${where}.${column} must be a metadata key`);
+    }
+    if (mapped.has(column)) {
+      throw new TypeError(
+        `${where}.${column}: the column is mapped in sql.modules.audit.columns.log, so the module already fills it`,
+      );
+    }
+    return [column, key] as const;
+  });
+}
 
 function auditEvent(ctx: ModuleContext, restricted: boolean): string {
   const id = ctx.idType;
@@ -524,8 +562,23 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
       correlationId: `coalesce(correlation_id, ${requestHeader("x-correlation-id")})`,
       actorKind: `coalesce(actor_kind, ${ACTOR_KIND})`,
       actorLabel: `coalesce(actor_label, ${ACTOR_LABEL})`,
+      requestId: `coalesce(request_id, ${requestHeader("x-request-id")})`,
+      scope:
+        "coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)",
     }),
   ]);
+  const extra = metadataColumns(ctx);
+  const columns = [
+    insert.columns,
+    ...extra.map(([column]) => sqlIdent(column)),
+  ].join(", ");
+  const values = [
+    insert.values,
+    ...extra.map(
+      ([column, key]) =>
+        `(pg_catalog.jsonb_populate_record(null::${log}, pg_catalog.jsonb_build_object(${sqlString(column)}, metadata -> ${sqlString(key)}))).${sqlIdent(column)}`,
+    ),
+  ].join(",\n    ");
   const roles = ctx.list("eventRoles", ["service_role"]);
   const noRestricted = restricted
     ? ""
@@ -554,12 +607,16 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
     : "";
   return `-- Records a semantic app event (invoice.sent, member.invited) next to the
 -- row changes. A repeated idempotency_key returns the first entry's id.
--- actor_id, actor_kind, actor_label, ip, user_agent and session_id are
--- honoured for the service role and direct admin connections; everyone else
--- gets auth.uid() and the request's own values. restricted goes to the restricted table;
+-- actor_id, actor_kind, actor_label, ip, user_agent, session_id, request_id
+-- and scope are honoured for the service role and direct admin connections;
+-- everyone else gets auth.uid() and the request's own values. restricted goes to the restricted table;
 -- without that table, passing it fails instead of dropping the details.
 drop function if exists better_supabase.audit_event(text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid);
-drop function if exists better_supabase.audit_event(${PREVIOUS_EVENT_ARGS(id)});
+${PREVIOUS_EVENT_ARGS(id)
+  .map(
+    (args) => `drop function if exists better_supabase.audit_event(${args});`,
+  )
+  .join("\n")}
 drop function if exists better_supabase.audit_event(${EVENT_ARGS(id)});
 create or replace function better_supabase.audit_event(
   event_type text,
@@ -580,7 +637,9 @@ create or replace function better_supabase.audit_event(
   actor_label text default null,
   ip inet default null,
   user_agent text default null,
-  session_id text default null
+  session_id text default null,
+  request_id text default null,
+  scope text default null
 )
 returns text
 language plpgsql
@@ -598,12 +657,14 @@ begin${noRestricted}
     ip := null;
     user_agent := null;
     session_id := null;
+    request_id := null;
+    scope := null;
   elsif actor_id is null then
     actor_id := auth.uid();
   end if;${idempotent}
-  insert into ${log} (${insert.columns})
+  insert into ${log} (${columns})
   values (
-    ${insert.values}
+    ${values}
   )
   returning ${c("id")} into entry_id;${restrictedInsert(ctx, restricted, { old: "null", new: "null", metadata: "coalesce(restricted, '{}')", ip: "coalesce(ip, better_supabase.request_ip())", userAgent: `coalesce(user_agent, ${requestHeader("user-agent")})`, sessionId: "coalesce(session_id, auth.jwt() ->> 'session_id')" })}
   return entry_id::text;
@@ -881,6 +942,13 @@ export const AUDIT: ModuleDefinition = {
         "text",
         "jsonb",
         "uuid",
+        "text",
+        "text",
+        "text",
+        "text",
+        "text",
+        "inet",
+        "text",
         "text",
         "text",
         "text",

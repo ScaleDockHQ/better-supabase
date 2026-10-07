@@ -197,6 +197,114 @@ describe.skipIf(!live)("audit block", () => {
     }
   });
 
+  it("records events with a request id, a scope and metadata in adopted columns", async () => {
+    const s = await BlockSession.open(pool);
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const log = `public.bs_activity_${suffix}`;
+    try {
+      await s.client.query(`
+        create table ${log} (
+          id bigint generated always as identity primary key,
+          workspace_id uuid,
+          occurred_at timestamptz not null default now(),
+          event_type text, category text, outcome text, source text,
+          target_type text, record_id text, actor_id uuid, metadata jsonb,
+          request_ref text, scope text, ticket_id uuid, priority integer
+        );`);
+      await s.install(["audit"], {
+        modules: {
+          audit: {
+            mode: "adopt",
+            tables: { log },
+            columns: {
+              log: {
+                tenant: "workspace_id",
+                requestId: "request_ref",
+                scope: "scope",
+                table: null,
+                op: null,
+                old: null,
+                new: null,
+                changed: null,
+                actorRole: null,
+                impersonatedBy: null,
+                impersonationReason: null,
+                supportSession: null,
+                idempotencyKey: null,
+              },
+            },
+            options: {
+              values: { scope: { platform: "global" } },
+              metadataColumns: { ticket_id: "ticketId", priority: "priority" },
+              eventRoles: ["service_role", "authenticated"],
+            },
+          },
+        },
+      });
+      const workspace = crypto.randomUUID();
+      const ticket = crypto.randomUUID();
+      const audit = createAuditLog({ transport: sqlTransport(s.sql) });
+      await s.service();
+      const id = await audit
+        .record({
+          eventType: "ticket.escalated",
+          organizationId: workspace,
+          requestId: "req-1",
+          scope: "region",
+          metadata: { ticketId: ticket, priority: 2, note: "kept" },
+        })
+        .orThrow();
+      await audit
+        .record({ eventType: "system.ping", scope: "platform" })
+        .orThrow();
+      const user = await s.user("member");
+      await s.asRole(user);
+      await audit
+        .record({
+          eventType: "ticket.viewed",
+          organizationId: workspace,
+          requestId: "forged",
+          scope: "forged",
+        })
+        .orThrow();
+      await s.service();
+      const { rows } = await s.client.query<Record<string, unknown>>(
+        `select id::text, event_type, request_ref, scope, ticket_id, priority, metadata ->> 'note' as note from ${log} order by id`,
+      );
+      expect(rows).toEqual([
+        {
+          id,
+          event_type: "ticket.escalated",
+          request_ref: "req-1",
+          scope: "region",
+          ticket_id: ticket,
+          priority: 2,
+          note: "kept",
+        },
+        {
+          id: expect.any(String),
+          event_type: "system.ping",
+          request_ref: null,
+          scope: "global",
+          ticket_id: null,
+          priority: null,
+          note: null,
+        },
+        {
+          id: expect.any(String),
+          event_type: "ticket.viewed",
+          request_ref: null,
+          scope: "tenant",
+          ticket_id: null,
+          priority: null,
+          note: null,
+        },
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("lists, reveals and exports through list_audit_events as the caller", async () => {
     const s = await BlockSession.open(pool);
     try {

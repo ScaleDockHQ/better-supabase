@@ -147,6 +147,30 @@ export interface AuditExportToStorageOptions extends AuditExportOptions {
   readonly signedUrlTtl?: number;
 }
 
+export interface AuditEventInput {
+  readonly eventType: string;
+  readonly category?: string;
+  readonly outcome?: string;
+  readonly source?: string;
+  readonly targetType?: string;
+  readonly record?: string;
+  readonly organizationId?: string;
+  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly idempotencyKey?: string;
+  readonly restricted?: Readonly<Record<string, unknown>>;
+  readonly summary?: string;
+  readonly targetLabel?: string;
+  readonly correlationId?: string;
+  readonly actorId?: string;
+  readonly actorKind?: string;
+  readonly actorLabel?: string;
+  readonly ip?: string;
+  readonly userAgent?: string;
+  readonly sessionId?: string;
+  readonly requestId?: string;
+  readonly scope?: string;
+}
+
 export interface AuditLogOptions extends BlockTemporalOptions {
   /** `sqlTransport(ctx.postgres)` for members, or `rpcTransport` over an API schema. */
   readonly transport: BlockTransport;
@@ -156,6 +180,7 @@ export interface AuditLogOptions extends BlockTemporalOptions {
 }
 
 export interface AuditLog {
+  record(event: AuditEventInput): AsyncResult<string>;
   /** A page of the entries the caller can read, newest first. */
   list(options?: AuditListOptions): AsyncResult<AuditPage>;
   /**
@@ -398,7 +423,37 @@ export function createAuditLog(options: AuditLogOptions): AuditLog {
     });
   };
 
+  const record = (event: AuditEventInput): AsyncResult<string> =>
+    call(
+      "audit_event",
+      {
+        event_type: event.eventType,
+        category: event.category,
+        outcome: event.outcome,
+        source: event.source,
+        target_type: event.targetType,
+        record_id: event.record,
+        tenant: event.organizationId,
+        metadata: event.metadata,
+        idempotency_key: event.idempotencyKey,
+        restricted: event.restricted,
+        actor_id: event.actorId,
+        summary: event.summary,
+        target_label: event.targetLabel,
+        correlation_id: event.correlationId,
+        actor_kind: event.actorKind,
+        actor_label: event.actorLabel,
+        ip: event.ip,
+        user_agent: event.userAgent,
+        session_id: event.sessionId,
+        request_id: event.requestId,
+        scope: event.scope,
+      },
+      textOf,
+    );
+
   return {
+    record,
     list,
     reveal: (entryId) =>
       call("reveal_audit_entry", { entry: entryId }, (value): AuditDetails => {
