@@ -902,7 +902,9 @@ exactly those two helpers for the chosen scope and warns when:
   `better_supabase.feature_claims`, so `hasEntitlement()` would never see the
   plan features. The message names the `supabase.hook.claims` setting, or the
   `claims.features` name to use when the function is registered under another
-  claim;
+  claim, and `entitlements.claim: false` as the alternative. With
+  `entitlements.claim: false` the token carries no features, so doctor skips
+  this check and keeps the helper checks below;
 - the manifest's `rls.memberships`, the tables PermDock's
   `member_<scope>_ids_for` reads, maps no table to the scope, so
   `entitlement_members()` finds no users to sign out after a plan change. A

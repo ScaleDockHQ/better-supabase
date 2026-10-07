@@ -1686,6 +1686,33 @@ uri = "https://example.com/hook"
           ),
         ],
       ]);
+      expect((await messages(withClaims([])))[0]![1]).toContain(
+        "entitlements.claim: false",
+      );
+      const claimOff = (
+        claims: { name: string; source: string }[],
+        snapshotOf = withHelpers,
+      ) =>
+        check(
+          {
+            permdock: withClaims(claims),
+            snapshot: snapshotOf,
+          },
+          {
+            sql: { modules: ["entitlements"] },
+            entitlements: { claim: false },
+          },
+        );
+      expect(await claimOff([])).toEqual([]);
+      expect(
+        await claimOff([{ name: "features", source: "public.feature_claims" }]),
+      ).toEqual([]);
+      expect(
+        (await claimOff([], base)).map((finding) => finding.target),
+      ).toEqual([
+        "public.member_organization_ids",
+        "public.member_organization_ids_for",
+      ]);
     });
 
     it("warns when rls.memberships maps no table to the scope", async () => {

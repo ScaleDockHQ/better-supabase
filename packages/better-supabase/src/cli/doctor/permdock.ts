@@ -306,7 +306,7 @@ export const PERMDOCK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "PermDock helpers the entitlements module calls are missing",
     description:
-      "With a PermDock manifest, the `entitlements` SQL module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`, as `authenticated`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`, which PermDock's hook calls as `supabase_auth_admin`). Doctor warns when a PermDock project has no readable manifest or no `rls` module, when the scope is not one of the manifest's scopes or can't be chosen, when the scope's id type is missing or not `uuid`, `text`, `bigint` or `integer`, when the manifest has no `claims.features` claim filled by `better_supabase.feature_claims`, when no membership source covers the scope, when the manifest's `rls.helpers` lacks one of those helpers or doesn't grant it to that role (naming the `permdock.config.ts` setting that adds it), or when the snapshot lacks it (apply the migration `permdock rls generate` wrote).",
+      "With a PermDock manifest, the `entitlements` SQL module reads memberships from PermDock's `member_<scope>_ids()` (in `has_entitlement`, as `authenticated`) and `member_<scope>_ids_for(uuid)` (in `feature_claims`, which PermDock's hook calls as `supabase_auth_admin`). Doctor warns when a PermDock project has no readable manifest or no `rls` module, when the scope is not one of the manifest's scopes or can't be chosen, when the scope's id type is missing or not `uuid`, `text`, `bigint` or `integer`, when the manifest has no `claims.features` claim filled by `better_supabase.feature_claims` (unless `entitlements.claim` is `false`), when no membership source covers the scope, when the manifest's `rls.helpers` lacks one of those helpers or doesn't grant it to that role (naming the `permdock.config.ts` setting that adds it), or when the snapshot lacks it (apply the migration `permdock rls generate` wrote).",
     check: (context) => {
       if (!context.config.sql.moduleNames.includes("entitlements")) return [];
       const mode = entitlementsMode(context.config, context.permdock);
@@ -330,7 +330,11 @@ export const PERMDOCK_RULES: readonly Rule[] = [
       const features = context.config.claims.features;
       const claims = project?.manifest?.claims ?? [];
       const featureClaim = claims.find((claim) => claim.name === features);
-      if (featureClaim?.source !== "better_supabase.feature_claims") {
+      const claimOff = context.config.entitlements.claim === false;
+      if (
+        !claimOff &&
+        featureClaim?.source !== "better_supabase.feature_claims"
+      ) {
         const registered = claims.find(
           (claim) => claim.source === "better_supabase.feature_claims",
         );
@@ -339,7 +343,7 @@ export const PERMDOCK_RULES: readonly Rule[] = [
             ? `${manifest} registers better_supabase.feature_claims as the "${registered.name}" claim, but claims.features is "${features}", so hasEntitlement() never finds the plan features. Set claims.features to "${registered.name}", or rename the claim in permdock.config.ts (supabase.hook.claims).`
             : featureClaim
               ? `${manifest} fills the "${features}" claim from ${featureClaim.source}, not better_supabase.feature_claims, so the claim doesn't carry the entitlements module's features. Point supabase.hook.claims.${features} in permdock.config.ts at 'better_supabase.feature_claims', ${regenerate}`
-              : `${manifest} has no "${features}" claim, so PermDock's hook never writes the plan features hasEntitlement() reads. Add \`supabase.hook.claims: { ${features}: 'better_supabase.feature_claims' }\` to permdock.config.ts, ${regenerate}`,
+              : `${manifest} has no "${features}" claim, so PermDock's hook never writes the plan features hasEntitlement() reads. Add \`supabase.hook.claims: { ${features}: 'better_supabase.feature_claims' }\` to permdock.config.ts, ${regenerate} Or set \`entitlements.claim: false\` in better-supabase.config.ts to keep the features out of the token and check them in SQL with has_entitlement.`,
           target: `claims.${features}`,
         });
       }
