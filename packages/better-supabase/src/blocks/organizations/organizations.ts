@@ -51,8 +51,14 @@ export interface Invitation {
   readonly email: string;
   readonly role: string;
   readonly expiresAt: Temporal.Instant;
+  /** Absent when the invitations table has no `createdAt` column. */
+  readonly createdAt?: Temporal.Instant;
   readonly invitedBy?: string;
+  /** The organization's id and `options.previewColumns`; `null` for a platform invitation. */
+  readonly organization: Readonly<Record<string, unknown>> | null;
   readonly prefill: Readonly<Record<string, unknown>>;
+  /** From `myInvitations()`: the keys an `invitation_preview_extra` hook added. */
+  readonly extra: Readonly<Record<string, unknown>>;
 }
 
 /** What `onInvite` receives: the place to send the email. */
@@ -192,16 +198,41 @@ const text = (value: unknown): string =>
 const optionalText = (value: unknown): string | null =>
   value === null || value === undefined ? null : text(value);
 
+const extraOf = (
+  row: Record<string, unknown>,
+  known: ReadonlySet<string>,
+): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(row).filter(([key]) => !known.has(key)));
+
+const INVITATION_KEYS: ReadonlySet<string> = new Set([
+  "id",
+  "tenant",
+  "email",
+  "role",
+  "expires_at",
+  "created_at",
+  "invited_by",
+  "organization",
+  "prefill",
+  "token",
+]);
+
 function invitationFrom(row: Record<string, unknown>): Invitation {
   const invitedBy = optionalText(row["invited_by"]);
+  const createdAt = optionalText(row["created_at"]);
   return {
     id: text(row["id"]),
     organizationId: optionalText(row["tenant"]),
     email: text(row["email"]),
     role: text(row["role"]),
     expiresAt: temporal().Instant.from(text(row["expires_at"])),
+    ...(createdAt === null
+      ? {}
+      : { createdAt: temporal().Instant.from(createdAt) }),
     ...(invitedBy === null ? {} : { invitedBy }),
+    organization: isRecord(row["organization"]) ? row["organization"] : null,
     prefill: isRecord(row["prefill"]) ? row["prefill"] : {},
+    extra: extraOf(row, INVITATION_KEYS),
   };
 }
 
@@ -226,12 +257,6 @@ const PREVIEW_KEYS: ReadonlySet<string> = new Set([
   "organization",
   "prefill",
 ]);
-
-const extraOf = (
-  row: Record<string, unknown>,
-  known: ReadonlySet<string>,
-): Record<string, unknown> =>
-  Object.fromEntries(Object.entries(row).filter(([key]) => !known.has(key)));
 
 function previewFrom(row: Record<string, unknown>): InvitationPreview {
   const status = row["status"];

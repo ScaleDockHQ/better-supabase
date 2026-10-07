@@ -284,21 +284,47 @@ const invitePlatform = (ctx: ModuleContext): string =>
     MODULE_PERMISSIONS.invitations.invitePlatform,
   );
 
+/**
+ * The invitation's organization: its id plus
+ * `sql.modules.invitations.options.previewColumns` when the organizations
+ * module is installed.
+ */
+function organizationJson(ctx: ModuleContext, tenant: string): string {
+  if (!ctx.installed("organizations")) {
+    return `jsonb_build_object('id', ${tenant})`;
+  }
+  const organizations = ctx.of("organizations");
+  const id = organizations.col("organizations", "id");
+  const columns = ctx.list("previewColumns", ["name"]).map((column) => {
+    if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
+      throw new TypeError(
+        `sql.modules.invitations.options.previewColumns: "${column}" is not a valid column`,
+      );
+    }
+    return `, ${sqlString(column)}, o.${sqlIdent(column)}`;
+  });
+  return `(select jsonb_build_object('id', o.${id}${columns.join("")})
+      from ${organizations.table("organizations")} o where o.${id} = ${tenant})`;
+}
+
 /** The invitation as returned to the inviter; the token only right after creating it. */
 function inviteJson(
+  ctx: ModuleContext,
   t: InviteTable,
   row: string,
   token: string,
-  tenant: string,
+  tenant: string | null,
 ): string {
   const c = (logical: string) => `${row}.${t.col(logical)}`;
   return `jsonb_build_object(
     'id', ${c("id")},
-    'tenant', ${tenant},
+    'tenant', ${tenant ?? "null"},
     'email', ${c("email")},
     'role', ${c("role")},
     'expires_at', ${c("expiresAt")},
+    'created_at', ${optionalCol(t, row, "createdAt", "null")},
     'invited_by', ${optionalCol(t, row, "invitedBy", "null")},
+    'organization', ${tenant === null ? "null" : organizationJson(ctx, tenant)},
     'prefill', ${optionalCol(t, row, "prefill", "'{}'::jsonb")},
     'token', ${token}
   )`;
@@ -361,7 +387,7 @@ function platformInvite(
     values (${present.map(([, value]) => value).join(", ")})
     returning * into platform_created;
     ${ctx.emit({ type: "invitation.created", payload: `jsonb_build_object('invitationId', platform_created.${c("id")}, 'organizationId', null, 'email', platform_created.${c("email")}, 'role', platform_created.${c("role")})`, subject: `'invitations/' || platform_created.${c("id")}::text` })}
-    return ${inviteJson(p, "platform_created", "token", "null")};`;
+    return ${inviteJson(ctx, p, "platform_created", "token", null)};`;
 }
 
 function invite(ctx: ModuleContext): string {
@@ -408,7 +434,7 @@ function invite(ctx: ModuleContext): string {
     returning * into platform_updated;
     if platform_updated.${pc("id")} is not null then
       ${ctx.emit({ type: "invitation.resent", payload: `jsonb_build_object('invitationId', platform_updated.${pc("id")}, 'organizationId', null, 'email', platform_updated.${pc("email")})`, subject: `'invitations/' || platform_updated.${pc("id")}::text` })}
-      return ${inviteJson(p, "platform_updated", "token", "null")};
+      return ${inviteJson(ctx, p, "platform_updated", "token", null)};
     end if;`
     : "";
   return `
@@ -468,7 +494,7 @@ begin
   values (${present.map(([, value]) => value).join(", ")})
   returning * into created;
   ${ctx.emit({ type: "invitation.created", payload: `jsonb_build_object('invitationId', created.${c("id")}, 'organizationId', tenant::text, 'email', created.${c("email")}, 'role', created.${c("role")})`, subject: `'invitations/' || created.${c("id")}::text`, tenant: "tenant" })}
-  return ${inviteJson(t, "created", "token", `created.${c("tenant")}`)};
+  return ${inviteJson(ctx, t, "created", "token", `created.${c("tenant")}`)};
 end;
 $$;
 
@@ -511,27 +537,37 @@ begin
     ${fail("INVITATION_INVALID", "No open invitation %", "invitation_id")}
   end if;
   ${ctx.emit({ type: "invitation.resent", payload: `jsonb_build_object('invitationId', updated.${c("id")}, 'organizationId', updated.${c("tenant")}::text, 'email', updated.${c("email")})`, subject: `'invitations/' || updated.${c("id")}::text`, tenant: `updated.${c("tenant")}` })}
-  return ${inviteJson(t, "updated", "token", `updated.${c("tenant")}`)};
+  return ${inviteJson(ctx, t, "updated", "token", `updated.${c("tenant")}`)};
 end;
 $$;
 `;
 }
 
-/** Whether the caller may manage tenant invitation row `alias` (revoke and resend). */
+/** The `invitation_preview_extra(uuid)` hook's signature, for `to_regprocedure`. */
+const extraHook = (ctx: ModuleContext): string =>
+  sqlString(`${ctx.hookTarget("invitation_preview_extra")}(uuid)`);
+
+/**
+ * `my_invitations()`: the caller's open invitations without their tokens,
+ * with the organization and the `invitation_preview_extra` keys.
+ */
 function mine(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
   const confirmed = ctx.flag("requireConfirmedEmail", true)
     ? " and u.email_confirmed_at is not null"
     : "";
-  const rows = (table: InviteTable, tenant: string) => {
+  const rows = (table: InviteTable, tenant: string | null) => {
     const open = openFilter(table, "i");
-    return `select ${inviteJson(table, "i", "null", tenant)} - 'token' as invitation, i.${table.col("expiresAt")} as expires_at
+    return `select ${inviteJson(ctx, table, "i", "null", tenant)} - 'token' as invitation, i.${table.col("id")} as id, i.${table.col("expiresAt")} as expires_at
     from ${table.table} i
     where lower(i.${table.col("email")}) = invitee_email
       and i.${table.col("expiresAt")} >= now()${open ? ` and ${open}` : ""}${table.only("i")}`;
   };
   return `
+-- The caller's open invitations, for an in-app inbox: the invitation without
+-- its token, its organization (id plus previewColumns) and the keys an
+-- invitation_preview_extra(invitation uuid) hook adds.
 create or replace function ${ctx.fn("my_invitations")}()
 returns jsonb
 language plpgsql
@@ -541,30 +577,44 @@ set search_path = ''
 as $$
 declare
   invitee_email text;
+  hook regprocedure := to_regprocedure(${extraHook(ctx)});
+  entry record;
+  extra jsonb;
+  result jsonb := '[]'::jsonb;
 begin
   select lower(u.email) into invitee_email
   from auth.users u
   where u.id = auth.uid()${confirmed};
   if invitee_email is null then
-    return '[]'::jsonb;
+    return result;
   end if;
-  return (
-    select coalesce(jsonb_agg(x.invitation order by x.expires_at), '[]'::jsonb)
+  for entry in
+    select x.invitation, x.id
     from (
     ${rows(t, `i.${t.col("tenant")}`)}${
       p
         ? `
     union all
-    ${rows(p, "null")}`
+    ${rows(p, null)}`
         : ""
     }
     ) x
-  );
+    order by x.expires_at
+  loop
+    extra := null;
+    if hook is not null then
+      -- Not a literal name, so plpgsql_check passes without the hook.
+      execute format('select %s($1)', hook::oid::regproc) into extra using entry.id;
+    end if;
+    result := result || jsonb_build_array(entry.invitation || coalesce(extra, '{}'));
+  end loop;
+  return result;
 end;
 $$;
 `;
 }
 
+/** Whether the caller may manage tenant invitation row `alias` (revoke and resend). */
 function canManage(ctx: ModuleContext, alias: string): string {
   const tenant = `${alias}.${ctx.col("invitations", "tenant")}`;
   return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${ctx.permission("revoke", MODULE_PERMISSIONS.invitations.revoke)}), false)`;
@@ -685,20 +735,7 @@ function preview(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
   const c = (logical: string) => `i.${t.col(logical)}`;
-  let organization = `jsonb_build_object('id', ${c("tenant")})`;
-  if (ctx.installed("organizations")) {
-    const organizations = ctx.of("organizations");
-    const columns = ctx.list("previewColumns", ["name"]).map((column) => {
-      if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
-        throw new TypeError(
-          `sql.modules.invitations.options.previewColumns: "${column}" is not a valid column`,
-        );
-      }
-      return `, ${sqlString(column)}, o.${sqlIdent(column)}`;
-    });
-    organization = `(select jsonb_build_object('id', o.${organizations.col("organizations", "id")}${columns.join("")})
-      from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${c("tenant")})`;
-  }
+  const organization = organizationJson(ctx, c("tenant"));
   const json = (table: InviteTable, tenant: string, organization: string) =>
     `jsonb_build_object(
     'status', ${statusOf(table, "i")},
@@ -718,9 +755,7 @@ function preview(ctx: ModuleContext): string {
     where i.${p.col("tokenHash")} = ${tokenHash(ctx, "invitation_preview.token")}${p.only("i")};
   end if;`
     : "";
-  const extra = sqlString(
-    `${ctx.hookTarget("invitation_preview_extra")}(uuid)`,
-  );
+  const extra = extraHook(ctx);
   return `
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus

@@ -471,14 +471,29 @@ describe("rpcTransport", () => {
 describe("invitations by id", () => {
   it("lists the caller's invitations and answers them by id", async () => {
     const { transport, calls } = fake({
-      my_invitations: [invitationRow, "not a row"],
+      my_invitations: [
+        {
+          ...invitationRow,
+          token: undefined,
+          created_at: "2026-10-03T12:00:00+00:00",
+          organization: { id: "org-1", name: "Acme" },
+          roleLabel: "Member",
+        },
+        "not a row",
+      ],
       accept_invitation_by_id: "org-1",
       decline_invitation_by_id: true,
     });
     const organizations = createOrganizations({ transport });
     const mine = await organizations.myInvitations().orThrow();
     expect(mine).toHaveLength(1);
-    expect(mine[0]).toMatchObject({ id: "inv-1", organizationId: "org-1" });
+    expect(mine[0]).toMatchObject({
+      id: "inv-1",
+      organizationId: "org-1",
+      organization: { id: "org-1", name: "Acme" },
+      extra: { roleLabel: "Member" },
+    });
+    expect(mine[0]?.createdAt?.toString()).toBe("2026-10-03T12:00:00Z");
     expect(await organizations.acceptInvitationById("inv-1").orThrow()).toEqual(
       { organizationId: "org-1" },
     );

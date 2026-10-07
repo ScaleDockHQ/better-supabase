@@ -1085,6 +1085,20 @@ describe.skipIf(!live)("organizations and invitations", () => {
         roleLabel: "Team member",
         invitation: invite.id,
       });
+      await s.as("member");
+      const [inbox] = await createOrganizations({
+        transport: sqlTransport(savepointSql(client)),
+        schema,
+      })
+        .myInvitations()
+        .orThrow();
+      expect(inbox).toMatchObject({
+        id: invite.id,
+        organizationId: organization,
+        organization: { id: organization, name: "Extra" },
+        extra: { roleLabel: "Team member", invitation: invite.id },
+      });
+      expect(inbox?.createdAt).toBeDefined();
 
       await s.as("outsider");
       expect(
