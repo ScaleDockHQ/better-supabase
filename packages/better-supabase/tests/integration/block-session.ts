@@ -165,12 +165,26 @@ export class BlockSession {
     return "no error";
   }
 
+  private queue: Promise<unknown> = Promise.resolve();
+
   /**
    * A `SqlClient` over this session's connection, for the TypeScript side.
    * Each statement runs in a savepoint, so an expected error leaves the
    * transaction usable.
    */
   get sql(): SqlClient {
+    const raw = this.savepointed();
+    return {
+      queryRaw: <T>(text: string, params?: unknown[]): Promise<T[]> => {
+        const run = () => raw.queryRaw<T>(text, params);
+        const result = this.queue.then(run, run);
+        this.queue = result.catch(() => undefined);
+        return result;
+      },
+    };
+  }
+
+  private savepointed(): SqlClient {
     const client = this.client;
     return {
       async queryRaw<T>(text: string, params?: unknown[]): Promise<T[]> {

@@ -299,6 +299,7 @@ export interface DataExporterOptions extends BlockTemporalOptions {
    * text prefixed with `'`, for people who open exports in a spreadsheet.
    */
   readonly format?: "ndjson" | "csv";
+  readonly concurrency?: number;
 }
 
 /** The payload `job` expects. */
@@ -323,6 +324,12 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
   const pageSize = options.pageSize ?? 1000;
+  const concurrency = options.concurrency ?? 4;
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new TypeError(
+      "createDataExporter: concurrency must be a whole number above zero",
+    );
+  }
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
 
   const write = async (
@@ -332,8 +339,7 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
   ): Promise<Result<readonly string[]>> => {
     const bucket = options.storage.from(claimed.bucket);
     const csv = options.format === "csv";
-    const files: string[] = [];
-    for (const table of tables) {
+    const exportTable = async (table: string): Promise<Result<string>> => {
       const lines: string[] = [];
       const records: Record<string, unknown>[] = [];
       let after: string | undefined;
@@ -367,10 +373,34 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
       const uploaded = await stored(
         bucket.upload(path, body, { contentType, upsert: true }),
       );
-      if (!uploaded.ok) return uploaded;
-      files.push(path);
-    }
-    return ok(files);
+      return uploaded.ok ? ok(path) : uploaded;
+    };
+    const files: string[] = [];
+    let failed: Result<readonly string[]> | undefined;
+    let next = 0;
+    let stopped = false;
+    const worker = async (): Promise<void> => {
+      while (!stopped && failed === undefined && next < tables.length) {
+        const index = next;
+        next += 1;
+        let written: Result<string>;
+        try {
+          written = await exportTable(tables[index]!);
+        } catch (cause) {
+          stopped = true;
+          throw cause;
+        }
+        if (!written.ok) {
+          failed ??= written;
+          return;
+        }
+        files[index] = written.data;
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, tables.length) }, worker),
+    );
+    return failed ?? ok(files);
   };
 
   const run = (

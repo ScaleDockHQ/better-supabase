@@ -136,6 +136,14 @@ const exporter = createDataExporter({
 await outbox.relay("data-exports", exporter.sink());
 ```
 
+The exporter writes `concurrency` tables at a time (4 by default), each in
+pages of `pageSize` rows (1,000), and the file list keeps the table order.
+A tenant with hundreds of tables then exports in a fraction of the time it
+takes one table after another. With a `postgres.admin` pool each table
+reads on its own connection, so keep `concurrency` below the pool size;
+`concurrency: 1` restores the sequential order. The first failing table
+stops the others from starting, and the export is marked failed.
+
 `exporter.job` is a [jobs](/docs/blocks/jobs) handler for an `{ exportId }`
 payload when you prefer a queue. A failure marks the export `failed` with
 the error, and running it again starts over.
