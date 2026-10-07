@@ -365,7 +365,10 @@ export interface ReportUsageOptions {
 export interface ReportUsageResult {
   /** Meter events sent; usage inside the quota with `overage` is marked without one. */
   readonly reported: number;
-  /** Counters left for a later run: no customer, or no event name. */
+  /**
+   * Counters left for a later run: no customer, or no event name. They don't
+   * hold up the other counters of the batch.
+   */
   readonly skipped: number;
 }
 
@@ -390,64 +393,80 @@ export async function reportUsageToStripe(
           tenant: organizationId,
         }),
       ));
-  const rows = recordsOf(
-    await transport.call(schema, "unreported_usage", {
-      max_rows: options.batch ?? 500,
-    }),
-    "unreported_usage",
-  );
+  const limit = options.batch ?? 500;
+  const skipMeters = new Set<string>();
+  const skipTenants = new Set<string>();
   let reported = 0;
   let skipped = 0;
-  for (const row of rows) {
-    const organizationId = textOf(row["organization_id"]);
-    const meter = textOf(row["meter"]);
-    const day = textOf(row["day"]).slice(0, 10);
-    const value = numberOf(row["value"]);
-    const previous = numberOf(row["reported_value"]);
-    const included = optionalNumber(row["included"]);
-    const before = numberOf(row["window_before"] ?? 0);
-    const delta =
-      options.overage === true && included !== undefined
-        ? Math.max(0, before + value - included) -
-          Math.max(0, before + previous - included)
-        : value - previous;
-    const eventName = options.eventName ? options.eventName(meter) : meter;
-    if (!customers.has(organizationId)) {
-      customers.set(organizationId, await customerOf(organizationId));
-    }
-    const customer = customers.get(organizationId);
-    if (eventName === undefined || customer === undefined) {
-      skipped += 1;
-      continue;
-    }
-    const identifier = `${organizationId}:${meter}:${day}:${String(value)}`;
-    if (delta <= 0) {
+  let handled = 0;
+  for (;;) {
+    const rows = recordsOf(
+      await transport.call(schema, "unreported_usage", {
+        max_rows: limit - handled,
+        skip_meters: [...skipMeters],
+        skip_tenants: [...skipTenants],
+      }),
+      "unreported_usage",
+    );
+    let passedOver = false;
+    for (const row of rows) {
+      const organizationId = textOf(row["organization_id"]);
+      const meter = textOf(row["meter"]);
+      if (skipMeters.has(meter) || skipTenants.has(organizationId)) {
+        skipped += 1;
+        continue;
+      }
+      const eventName = options.eventName ? options.eventName(meter) : meter;
+      if (eventName === undefined) {
+        skipMeters.add(meter);
+        skipped += 1;
+        passedOver = true;
+        continue;
+      }
+      if (!customers.has(organizationId)) {
+        customers.set(organizationId, await customerOf(organizationId));
+      }
+      const customer = customers.get(organizationId);
+      if (customer === undefined) {
+        skipTenants.add(organizationId);
+        skipped += 1;
+        passedOver = true;
+        continue;
+      }
+      handled += 1;
+      const day = textOf(row["day"]).slice(0, 10);
+      const value = numberOf(row["value"]);
+      const previous = numberOf(row["reported_value"]);
+      const included = optionalNumber(row["included"]);
+      const before = numberOf(row["window_before"] ?? 0);
+      const delta =
+        options.overage === true && included !== undefined
+          ? Math.max(0, before + value - included) -
+            Math.max(0, before + previous - included)
+          : value - previous;
+      const identifier = `${organizationId}:${meter}:${day}:${String(value)}`;
+      if (delta > 0) {
+        await stripe.billing.meterEvents.create(
+          {
+            event_name: eventName,
+            payload: { stripe_customer_id: customer, value: String(delta) },
+            identifier,
+            timestamp: Math.floor(
+              Math.min(Date.now(), Date.parse(`${day}T23:59:59Z`)) / 1000,
+            ),
+          },
+          { idempotencyKey: identifier },
+        );
+        reported += 1;
+      }
       await transport.call(schema, "mark_usage_reported", {
         tenant: organizationId,
         meter,
         day,
         value,
       });
-      continue;
     }
-    await stripe.billing.meterEvents.create(
-      {
-        event_name: eventName,
-        payload: { stripe_customer_id: customer, value: String(delta) },
-        identifier,
-        timestamp: Math.floor(
-          Math.min(Date.now(), Date.parse(`${day}T23:59:59Z`)) / 1000,
-        ),
-      },
-      { idempotencyKey: identifier },
-    );
-    await transport.call(schema, "mark_usage_reported", {
-      tenant: organizationId,
-      meter,
-      day,
-      value,
-    });
-    reported += 1;
+    if (!passedOver || handled >= limit || rows.length === 0) break;
   }
   return { reported, skipped };
 }

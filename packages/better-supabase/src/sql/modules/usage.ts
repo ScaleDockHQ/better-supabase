@@ -344,6 +344,8 @@ drop function if exists ${fn("mark_usage_reported")}(${id}, text, date, bigint);
 -- The signatures before usage carried a source, metadata and actor.
 drop function if exists ${fn("record_usage")}(${id}, text, numeric, text);
 drop function if exists ${fn("consume_quota")}(${id}, text, numeric, text);
+-- The signature before the report could skip meters and tenants.
+drop function if exists ${fn("unreported_usage")}(integer);
 
 -- The quota that applies to tenant and meter, or no row.
 create or replace function ${fn("usage_quota")}(tenant ${id}, meter text)
@@ -638,8 +640,13 @@ $$;
 -- Server-side, for reportUsageToStripe: counters with unreported usage, with
 -- the quota that includes some of it (included, null without a quota) and the
 -- usage of the earlier days of that quota's window (window_before), so the
--- report can send only the overage.
-create or replace function ${fn("unreported_usage")}(max_rows integer default 500)
+-- report can send only the overage. skip_meters and skip_tenants leave out
+-- counters the report can't send yet, so they don't fill every batch.
+create or replace function ${fn("unreported_usage")}(
+  max_rows integer default 500,
+  skip_meters text[] default '{}',
+  skip_tenants ${id}[] default '{}'
+)
 returns jsonb
 language sql
 stable
@@ -671,6 +678,8 @@ as $$
   from (
     select * from ${counters} c
     where c.${cc("value")} > c.${cc("reported")}
+      and c.${cc("meter")} <> all (coalesce(unreported_usage.skip_meters, '{}'))
+      and c.${cc("tenant")} <> all (coalesce(unreported_usage.skip_tenants, '{}'))
     order by c.${cc("day")}
     limit max_rows
   ) c
@@ -811,7 +820,7 @@ revoke execute on function ${fn("record_usage")}(${id}, text, numeric, text, tex
 revoke execute on function ${fn("consume_quota")}(${id}, text, numeric, text, text, jsonb, uuid) from public, anon;
 revoke execute on function ${fn("record_usage_batch")}(${id}, jsonb, text, boolean, text, jsonb, uuid) from public, anon;
 grant execute on function ${fn("record_usage_batch")}(${id}, jsonb, text, boolean, text, jsonb, uuid) to authenticated, service_role;
-revoke execute on function ${fn("unreported_usage")}(integer) from public, anon, authenticated;
+revoke execute on function ${fn("unreported_usage")}(integer, text[], ${id}[]) from public, anon, authenticated;
 revoke execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) from public, anon, authenticated;
 grant execute on function ${fn("usage_quota")}(${id}, text) to service_role;
 grant execute on function ${fn("usage_used")}(${id}, text, text) to service_role;
@@ -819,7 +828,7 @@ grant execute on function ${fn("usage_status")}(${id}, text) to authenticated, s
 grant execute on function ${fn("within_quota")}(${id}, text, bigint) to authenticated, service_role;
 grant execute on function ${fn("record_usage")}(${id}, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function ${fn("consume_quota")}(${id}, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
-grant execute on function ${fn("unreported_usage")}(integer) to service_role;
+grant execute on function ${fn("unreported_usage")}(integer, text[], ${id}[]) to service_role;
 grant execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) to service_role;`;
 }
 
@@ -848,7 +857,11 @@ function contract(): readonly ModuleContractFunction[] {
       args: ["{id}", "jsonb", "text", "boolean", "text", "jsonb", "uuid"],
       returns: "jsonb",
     },
-    { name: "unreported_usage", args: ["integer"], returns: "jsonb" },
+    {
+      name: "unreported_usage",
+      args: ["integer", "text[]", "{id}[]"],
+      returns: "jsonb",
+    },
     {
       name: "usage_history",
       args: ["{id}", "text", "integer", "bigint"],
@@ -871,7 +884,7 @@ export const USAGE: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -883,6 +896,13 @@ export const USAGE: ModuleDefinition = {
           `drop function if exists ${ctx.fn("consume_quota")}(${ctx.idType}, text, bigint, text);`,
           `drop function if exists ${ctx.fn("mark_usage_reported")}(${ctx.idType}, text, date, bigint);`,
         ].join("\n"),
+    },
+    {
+      from: 2,
+      description:
+        "unreported_usage takes skip_meters and skip_tenants, so reportUsageToStripe passes over counters it can't send instead of stopping at them.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("unreported_usage")}(integer);`,
     },
   ],
   names: NAMES,

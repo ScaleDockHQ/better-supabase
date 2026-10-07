@@ -321,15 +321,30 @@ describe("reportUsageToStripe", () => {
     );
   });
 
-  it("sends each delta once per total and marks it reported", async () => {
-    const { transport, calls } = fakeTransport((fn, args) => {
-      if (fn === "unreported_usage") return rows;
-      if (fn === "tenant_stripe_customer")
-        return args["tenant"] === "org-1" ? "cus_1" : null;
+  function counterStore(counters: readonly Record<string, unknown>[]) {
+    const marked = new Set<string>();
+    const keyOf = (row: Record<string, unknown>) =>
+      `${String(row["organization_id"] ?? row["tenant"])}:${String(row["meter"])}:${String(row["day"])}`;
+    return (fn: string, args: Record<string, unknown>) => {
+      if (fn === "unreported_usage") {
+        const meters = (args["skip_meters"] ?? []) as string[];
+        const tenants = (args["skip_tenants"] ?? []) as string[];
+        return counters
+          .filter(
+            (row) =>
+              !marked.has(keyOf(row)) &&
+              !meters.includes(String(row["meter"])) &&
+              !tenants.includes(String(row["organization_id"])),
+          )
+          .slice(0, Number(args["max_rows"]));
+      }
+      if (fn === "mark_usage_reported") marked.add(keyOf(args));
       return true;
-    });
-    const sent: unknown[] = [];
-    const stripe = {
+    };
+  }
+
+  const recordingStripe = (sent: unknown[]) =>
+    ({
       billing: {
         meterEvents: {
           create: async (params: unknown, options: unknown) => {
@@ -338,10 +353,19 @@ describe("reportUsageToStripe", () => {
           },
         },
       },
-    } as unknown as StripeClient;
+    }) as unknown as StripeClient;
+
+  it("sends each delta once per total and marks it reported", async () => {
+    const counters = counterStore(rows);
+    const { transport, calls } = fakeTransport((fn, args) => {
+      if (fn === "tenant_stripe_customer")
+        return args["tenant"] === "org-1" ? "cus_1" : null;
+      return counters(fn, args);
+    });
+    const sent: unknown[] = [];
     const result = await reportUsageToStripe({
       transport,
-      stripe,
+      stripe: recordingStripe(sent),
       batch: 10,
       eventName: (meter) => (meter === "internal" ? undefined : `bs_${meter}`),
     });
@@ -362,13 +386,68 @@ describe("reportUsageToStripe", () => {
       "tenant_stripe_customer",
       "mark_usage_reported",
       "tenant_stripe_customer",
+      "unreported_usage",
     ]);
-    expect(calls[0]?.[2]).toEqual({ max_rows: 10 });
+    expect(calls[0]?.[2]).toEqual({
+      max_rows: 10,
+      skip_meters: [],
+      skip_tenants: [],
+    });
     expect(calls[2]?.[2]).toEqual({
       tenant: "org-1",
       meter: "api_calls",
       day: "2026-10-05",
       value: 10,
     });
+    expect(calls[4]?.[2]).toEqual({
+      max_rows: 9,
+      skip_meters: ["internal"],
+      skip_tenants: ["org-2"],
+    });
+  });
+
+  it("passes over meters without an event name and tenants without a customer", async () => {
+    const counter = (organizationId: string, meter: string, day: string) => ({
+      organization_id: organizationId,
+      meter,
+      day,
+      value: 2,
+      reported_value: 0,
+    });
+    const counters = counterStore([
+      counter("org-1", "internal", "2026-10-01"),
+      counter("org-2", "api_calls", "2026-10-01"),
+      counter("org-1", "internal", "2026-10-02"),
+      counter("org-2", "api_calls", "2026-10-02"),
+      counter("org-1", "api_calls", "2026-10-03"),
+      counter("org-3", "api_calls", "2026-10-03"),
+    ]);
+    const { transport, calls } = fakeTransport((fn, args) => {
+      if (fn === "tenant_stripe_customer")
+        return args["tenant"] === "org-2"
+          ? null
+          : `cus_${String(args["tenant"])}`;
+      return counters(fn, args);
+    });
+    const sent: unknown[] = [];
+    expect(
+      await reportUsageToStripe({
+        transport,
+        stripe: recordingStripe(sent),
+        batch: 2,
+        eventName: (meter) => (meter === "internal" ? undefined : meter),
+      }),
+    ).toEqual({ reported: 2, skipped: 2 });
+    expect(
+      sent.map((entry) => (entry as [{ identifier: string }])[0].identifier),
+    ).toEqual(["org-1:api_calls:2026-10-03:2", "org-3:api_calls:2026-10-03:2"]);
+    expect(
+      calls
+        .filter(([, fn]) => fn === "unreported_usage")
+        .map(([, , args]) => args),
+    ).toEqual([
+      { max_rows: 2, skip_meters: [], skip_tenants: [] },
+      { max_rows: 2, skip_meters: ["internal"], skip_tenants: ["org-2"] },
+    ]);
   });
 });

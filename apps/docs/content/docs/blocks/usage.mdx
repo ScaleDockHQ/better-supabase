@@ -262,7 +262,11 @@ that window) for the calculation; usage that arrives late on an earlier day
 is counted with that day.
 
 Counters without a
-customer or an event name are skipped and stay unreported. `stripe` is an
+customer or an event name are skipped and stay unreported. They don't hold up
+the rest: once a run meets a meter without an event name or a tenant without
+a customer, it asks `unreported_usage` again with that meter in `skip_meters`
+or that tenant in `skip_tenants`, so `batch` still fills with counters it can
+send. `stripe` is an
 optional peer; pass a Stripe client instead of `secretKey` to use your own.
 
 ## Functions
@@ -278,5 +282,5 @@ optional peer; pass a Stripe client instead of `secretKey` to use your own.
 | `usage_history(tenant, meter, max_rows, before_id)`                        | `authenticated`, `service_role` | the history entries, for `usage.read`                                                      |
 | `usage_breakdown(tenant, meter)`                                           | `authenticated`, `service_role` | `[{ actor, source, quantity }]` in the current window                                      |
 | `usage_window(tenant, period)`                                             | `service_role`                  | the current window's `starts_at` and `ends_at`                                             |
-| `unreported_usage(max_rows)`                                               | `service_role`                  | counters with `value > reported_value`                                                     |
+| `unreported_usage(max_rows, skip_meters, skip_tenants)`                    | `service_role`                  | counters with `value > reported_value`                                                     |
 | `mark_usage_reported(tenant, meter, day, value)`                           | `service_role`                  | whether the counter exists                                                                 |

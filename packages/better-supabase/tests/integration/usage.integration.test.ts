@@ -128,6 +128,60 @@ describe.skipIf(!live)("usage", () => {
     }
   });
 
+  it("reports past counters it can't send without waiting for them", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "usage"]);
+      const owner = await s.user("owner");
+      const billed = await s.organization(owner);
+      const unbilled = await s.organization(owner);
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.usage_counters (organization_id, meter, day, value)
+         values ($1, 'internal', current_date - 3, 5),
+                ($2, 'api_calls', current_date - 2, 4),
+                ($1, 'api_calls', current_date - 1, 2)`,
+        [billed, unbilled],
+      );
+      const sent: unknown[] = [];
+      const stripe = {
+        billing: {
+          meterEvents: {
+            create: async (params: unknown) => {
+              sent.push(params);
+              return {};
+            },
+          },
+        },
+      } as unknown as StripeClient;
+      const report = () =>
+        reportUsageToStripe({
+          transport: sqlTransport(s.sql),
+          stripe,
+          batch: 1,
+          eventName: (meter) => (meter === "internal" ? undefined : meter),
+          customer: async (id) => (id === billed ? "cus_1" : undefined),
+        });
+      expect(await report()).toEqual({ reported: 1, skipped: 2 });
+      expect(sent).toMatchObject([
+        { event_name: "api_calls", payload: { value: "2" } },
+      ]);
+      expect(await report()).toEqual({ reported: 0, skipped: 2 });
+      expect(
+        await s.rows(
+          "select meter, reported_value::text as reported from better_supabase.usage_counters where organization_id = any($1) order by day",
+          [[billed, unbilled]],
+        ),
+      ).toEqual([
+        { meter: "internal", reported: "0" },
+        { meter: "api_calls", reported: "0" },
+        { meter: "api_calls", reported: "2" },
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("keeps who and what used a meter with options.history", async () => {
     const s = await BlockSession.open(pool);
     try {
