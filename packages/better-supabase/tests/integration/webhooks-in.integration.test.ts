@@ -361,6 +361,91 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     }
   });
 
+  it("rotates a signing secret and verifies the old one during the grace", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "webhooks-in"]);
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+      const hooks = createIncomingWebhooks(s.sql, {
+        source: `rotate-${organization.slice(0, 8)}`,
+      });
+      const vaultCount = () =>
+        s.value<number>(
+          "(select count(*)::int from vault.secrets where name like 'webhook-in:%')",
+        );
+      await s.as(owner);
+      const created = await hooks
+        .create({
+          tenant: organization,
+          name: "Signed",
+          verify: "standard-webhooks",
+        })
+        .orThrow();
+      const plain = await hooks
+        .create({ tenant: organization, name: "Plain" })
+        .orThrow();
+      const count = await vaultCount();
+      const rotated = await hooks
+        .rotateSecret(created.id, { grace: "1 hour" })
+        .orThrow();
+      expect(rotated.secret).toMatch(/^whsec_/);
+      expect(rotated.secret).not.toBe(created.secret);
+      expect(rotated.previousSecretExpiresAt).not.toBeNull();
+      expect(await vaultCount()).toBe(count + 1);
+
+      const body = '{"type":"x"}';
+      const post = async (secret: string, id: string) =>
+        (
+          await hooks.receive(
+            new Request(`https://api.test/hooks/${created.token}`, {
+              method: "POST",
+              headers: await signWebhook(secret, { id, body }),
+              body,
+            }),
+            created.token,
+          )
+        ).status;
+      await s.service();
+      expect(await post(created.secret!, "a1")).toBe(202);
+      expect(await post(rotated.secret, "a2")).toBe(202);
+
+      await s.client.query(
+        "update better_supabase.incoming_webhooks set previous_secret_expires_at = now() - interval '1 second' where id = $1",
+        [created.id],
+      );
+      expect(await post(created.secret!, "a3")).toBe(401);
+      expect(await post(rotated.secret, "a4")).toBe(202);
+
+      await s.as(owner);
+      const again = await hooks.rotateSecret(created.id).orThrow();
+      expect(again.previousSecretExpiresAt).toBeNull();
+      expect(await vaultCount()).toBe(count);
+      await s.service();
+      expect(await post(rotated.secret, "a5")).toBe(401);
+      expect(await post(again.secret, "a6")).toBe(202);
+
+      await s.as(owner);
+      expect(await hooks.rotateSecret(plain.id)).toMatchObject({
+        ok: false,
+        error: { hint: "WEBHOOK_IN_NO_SECRET" },
+      });
+      await s.as(member);
+      expect(await hooks.rotateSecret(created.id)).toMatchObject({
+        ok: false,
+        error: { hint: "WEBHOOK_IN_NOT_FOUND" },
+      });
+      await s.as(owner);
+      await hooks.rotateSecret(created.id, { grace: "1 day" }).orThrow();
+      expect(await vaultCount()).toBe(count + 1);
+      expect(await hooks.remove(created.id).orThrow()).toBe(true);
+      expect(await vaultCount()).toBe(count - 1);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("ties endpoints to readable subjects and cascades their deletes", async () => {
     const s = await BlockSession.open(pool);
     try {

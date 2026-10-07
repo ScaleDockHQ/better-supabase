@@ -260,6 +260,106 @@ describe("createIncomingWebhooks", () => {
     expect(await broken.rotate("e1")).toMatchObject({ ok: false });
   });
 
+  it("rotates the secret and verifies with the previous one during the grace", async () => {
+    const [oldStd, newStd] = [
+      `whsec_${btoa("old-unit-secret")}`,
+      `whsec_${btoa("new-unit-secret")}`,
+    ];
+    const body = '{"type":"x"}';
+    const fake = fakeSql([
+      [
+        "incoming_webhook_by_token",
+        (call) => [
+          call.values[0] === "std"
+            ? endpoint({
+                verify: "standard-webhooks",
+                secret: newStd,
+                previous_secret: oldStd,
+                max_body_bytes: 99,
+              })
+            : endpoint({
+                verify: "hmac-sha256",
+                secret: "new",
+                previous_secret: call.values[0] === "mac" ? "old" : null,
+                max_body_bytes: 99,
+              }),
+        ],
+      ],
+      ["receive_webhook", [{ id: 1, duplicate: false }]],
+      [
+        "rotate_incoming_webhook_secret",
+        (call) => [
+          {
+            value: {
+              id: "e1",
+              secret: "s2",
+              previousSecretExpiresAt:
+                call.values[1] === null ? null : "2026-10-08T10:00:00+00:00",
+            },
+          },
+        ],
+      ],
+    ]);
+    const hooks = createIncomingWebhooks(fake.sql);
+    for (const secret of [oldStd, newStd]) {
+      const headers = await signWebhook(secret, { id: "w1", body });
+      expect((await hooks.receive(post(body, headers), "std")).status).toBe(
+        202,
+      );
+    }
+    const stranger = await signWebhook(`whsec_${btoa("other")}`, {
+      id: "w1",
+      body,
+    });
+    expect((await hooks.receive(post(body, stranger), "std")).status).toBe(401);
+    const hex = async (key: string) =>
+      Array.from(
+        new Uint8Array(
+          await crypto.subtle.sign(
+            "HMAC",
+            await crypto.subtle.importKey(
+              "raw",
+              new TextEncoder().encode(key),
+              { name: "HMAC", hash: "SHA-256" },
+              false,
+              ["sign"],
+            ),
+            new TextEncoder().encode(body),
+          ),
+        ),
+        (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("");
+    const old = { "x-signature": await hex("old") };
+    expect((await hooks.receive(post(body, old), "mac")).status).toBe(202);
+    expect(
+      (
+        await hooks.receive(
+          post(body, { "x-signature": await hex("new") }),
+          "mac",
+        )
+      ).status,
+    ).toBe(202);
+    expect((await hooks.receive(post(body, old), "expired")).status).toBe(401);
+    expect(
+      await hooks.rotateSecret("e1", { grace: "1 hour" }).orThrow(),
+    ).toMatchObject({ secret: "s2" });
+    const timed = await hooks
+      .rotateSecret("e1", { grace: Temporal.Duration.from({ minutes: 30 }) })
+      .orThrow();
+    expect(timed.previousSecretExpiresAt?.toString()).toBe(
+      "2026-10-08T10:00:00Z",
+    );
+    expect(await hooks.rotateSecret("e1").orThrow()).toEqual({
+      secret: "s2",
+      previousSecretExpiresAt: null,
+    });
+    expect(
+      fake.calls
+        .filter((call) => call.text.includes("rotate_incoming_webhook_secret"))
+        .map((call) => call.values[1]),
+    ).toEqual(["1 hour", "PT30M", null]);
+  });
+
   it("updates an endpoint's name, metadata and verification", async () => {
     const fake = fakeSql([
       [

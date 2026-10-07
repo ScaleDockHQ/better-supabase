@@ -61,14 +61,14 @@ security definer
 set search_path = ''
 as $$
 begin
-  delete from vault.secrets vs where vs.id = old.secret_id;
+  delete from vault.secrets vs where vs.id in (old.secret_id, old.previous_secret_id);
   return null;
 end;
 $$;
 revoke execute on function ${ctx.fn("drop_incoming_webhook_secret")}() from public, anon, authenticated;
 drop trigger if exists ${cleanupTrigger} on ${t};
 create trigger ${cleanupTrigger} after delete on ${t}
-  for each row when (old.secret_id is not null) execute function ${ctx.fn("drop_incoming_webhook_secret")}();`
+  for each row when (old.secret_id is not null or old.previous_secret_id is not null) execute function ${ctx.fn("drop_incoming_webhook_secret")}();`
     : `
 drop trigger if exists ${cleanupTrigger} on ${t};`;
   const can = (tenant: string, action: "create" | "update" | "delete") =>
@@ -111,6 +111,9 @@ create table if not exists ${t} (
   verify text not null default 'none' check (verify in (${verify})),
   secret text,
   secret_id uuid,
+  previous_secret text,
+  previous_secret_id uuid,
+  previous_secret_expires_at timestamptz,
   signature_header text,
   enabled boolean not null default true,
   max_body_bytes integer not null default ${String(maxBody)} check (max_body_bytes > 0),
@@ -127,6 +130,9 @@ create table if not exists ${t} (
 alter table ${t} add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table ${t} add column if not exists subject_id text check (length(subject_id) between 1 and 200);
 alter table ${t} add column if not exists secret_id uuid;
+alter table ${t} add column if not exists previous_secret text;
+alter table ${t} add column if not exists previous_secret_id uuid;
+alter table ${t} add column if not exists previous_secret_expires_at timestamptz;
 create index if not exists incoming_webhooks_tenant_idx on ${t} (tenant);
 create index if not exists incoming_webhooks_subject_idx on ${t} (tenant, subject_type, subject_id);
 create index if not exists incoming_webhooks_created_by_idx on ${t} (created_by) where created_by is not null;
@@ -262,17 +268,59 @@ begin
   end if;
   update ${t} e set token_hash = encode(extensions.digest(token, 'sha256'), 'hex'),
     secret = case when rotate_secret then ${plain("v_secret")} else e.secret end,
-    secret_id = case when rotate_secret then ${stored("v_secret", "e.id")} else e.secret_id end
+    secret_id = case when rotate_secret then ${stored("v_secret", "e.id")} else e.secret_id end,
+    previous_secret = case when rotate_secret then null else e.previous_secret end,
+    previous_secret_id = case when rotate_secret then null else e.previous_secret_id end,
+    previous_secret_expires_at = case when rotate_secret then null else e.previous_secret_expires_at end
   where e.id = endpoint
   returning * into updated;${
     vault
       ? `
-  if rotate_secret and previous.secret_id is not null then
-    delete from vault.secrets vs where vs.id = previous.secret_id;
+  if rotate_secret then
+    delete from vault.secrets vs where vs.id in (previous.secret_id, previous.previous_secret_id);
   end if;`
       : ""
   }
   return jsonb_build_object('id', updated.id, 'token', token, 'secret', v_secret);
+end;
+$$;
+
+create or replace function ${ctx.fn("rotate_incoming_webhook_secret")}(endpoint uuid, grace interval default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  previous ${t};
+  updated ${t};
+  v_secret text;
+  v_keep boolean := coalesce(grace > interval '0', false);
+begin
+  select * into previous from ${t} e where e.id = endpoint for update;
+  if previous.id is null or not ${can("previous.tenant", "update")} then
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+  end if;
+  v_secret := ${newSecret("previous.verify")};
+  if v_secret is null then
+    ${fail("WEBHOOK_IN_NO_SECRET", "This endpoint verifies no secret", "22023")}
+  end if;
+  update ${t} e set
+    secret = ${plain("v_secret")},
+    secret_id = ${stored("v_secret", "e.id")},
+    previous_secret = case when v_keep then e.secret end,
+    previous_secret_id = case when v_keep then e.secret_id end,
+    previous_secret_expires_at = case when v_keep then now() + grace end
+  where e.id = endpoint
+  returning * into updated;${
+    vault
+      ? `
+  delete from vault.secrets vs
+  where vs.id = previous.previous_secret_id or (not v_keep and vs.id = previous.secret_id);`
+      : ""
+  }
+  return jsonb_build_object('id', updated.id, 'secret', v_secret, 'previousSecretExpiresAt', updated.previous_secret_expires_at);
 end;
 $$;
 
@@ -318,14 +366,17 @@ begin
     verify = v_verify,
     secret = case when v_verify = previous.verify then e.secret else ${plain("v_secret")} end,
     secret_id = case when v_verify = previous.verify then e.secret_id else ${stored("v_secret", "e.id")} end,
+    previous_secret = case when v_verify = previous.verify then e.previous_secret end,
+    previous_secret_id = case when v_verify = previous.verify then e.previous_secret_id end,
+    previous_secret_expires_at = case when v_verify = previous.verify then e.previous_secret_expires_at end,
     signature_header = case when v_verify = 'hmac-sha256'
       then coalesce(update_incoming_webhook.signature_header, e.signature_header, 'x-signature') end
   where e.id = endpoint
   returning * into updated;${
     vault
       ? `
-  if v_verify <> previous.verify and previous.secret_id is not null then
-    delete from vault.secrets vs where vs.id = previous.secret_id;
+  if v_verify <> previous.verify then
+    delete from vault.secrets vs where vs.id in (previous.secret_id, previous.previous_secret_id);
   end if;`
       : ""
   }
@@ -374,15 +425,17 @@ end;
 $$;
 
 -- The endpoint behind a token, with its secret, for the receiving route.
+drop function if exists ${ctx.fn("incoming_webhook_by_token")}(text);
 create or replace function ${ctx.fn("incoming_webhook_by_token")}(token text)
-returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer)
+returns table (id uuid, tenant text, enabled boolean, verify text, secret text, signature_header text, max_body_bytes integer, previous_secret text)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select e.id, e.tenant::text, e.enabled, e.verify, ${vault ? "coalesce(ds.decrypted_secret, e.secret)" : "e.secret"}, e.signature_header, e.max_body_bytes
-  from ${t} e${vault ? "\n  left join vault.decrypted_secrets ds on ds.id = e.secret_id" : ""}
+  select e.id, e.tenant::text, e.enabled, e.verify, ${vault ? "coalesce(ds.decrypted_secret, e.secret)" : "e.secret"}, e.signature_header, e.max_body_bytes,
+    case when e.previous_secret_expires_at > now() then ${vault ? "coalesce(dp.decrypted_secret, e.previous_secret)" : "e.previous_secret"} end
+  from ${t} e${vault ? "\n  left join vault.decrypted_secrets ds on ds.id = e.secret_id\n  left join vault.decrypted_secrets dp on dp.id = e.previous_secret_id" : ""}
   where e.token_hash = encode(extensions.digest(incoming_webhook_by_token.token, 'sha256'), 'hex')
 $$;
 
@@ -402,6 +455,8 @@ revoke execute on function ${ctx.fn("create_incoming_webhook")}(${id}, text, tex
 grant execute on function ${ctx.fn("create_incoming_webhook")}(${id}, text, text, jsonb, text, text, text) to authenticated, service_role;
 revoke execute on function ${ctx.fn("rotate_incoming_webhook")}(uuid, boolean) from public, anon;
 grant execute on function ${ctx.fn("rotate_incoming_webhook")}(uuid, boolean) to authenticated, service_role;
+revoke execute on function ${ctx.fn("rotate_incoming_webhook_secret")}(uuid, interval) from public, anon;
+grant execute on function ${ctx.fn("rotate_incoming_webhook_secret")}(uuid, interval) to authenticated, service_role;
 revoke execute on function ${ctx.fn("update_incoming_webhook")}(uuid, text, jsonb, text, text) from public, anon;
 grant execute on function ${ctx.fn("update_incoming_webhook")}(uuid, text, jsonb, text, text) to authenticated, service_role;
 revoke execute on function ${ctx.fn("set_incoming_webhook_enabled")}(uuid, boolean) from public, anon;
@@ -431,7 +486,7 @@ export const WEBHOOKS_IN: ModuleDefinition = {
     },
     options: ["maxBodyBytes", "secretStorage", "subjects"],
   },
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -445,11 +500,22 @@ update ${t} e set secret_id = ${vaultSecret("e.secret", "e.id")}, secret = null
 where e.secret is not null and e.secret_id is null;`;
       },
     },
+    {
+      from: 2,
+      description:
+        "rotate_incoming_webhook_secret replaces the signing secret and keeps the old one verifying for a grace period; incoming_webhook_by_token returns it as previous_secret, and update_incoming_webhook is new.",
+      sql: () => "",
+    },
   ],
   contract: () => [
     {
       name: "create_incoming_webhook",
       args: ["{id}", "text", "text", "jsonb", "text", "text", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "rotate_incoming_webhook_secret",
+      args: ["uuid", "interval"],
       returns: "jsonb",
     },
     {

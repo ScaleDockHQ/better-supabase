@@ -11,6 +11,7 @@ import { fromPgError } from "../../postgres/executor.ts";
 import {
   isRecord,
   optionalText,
+  toInstant,
   readBodyCapped,
   type BlockTemporalOptions,
   applyTemporal,
@@ -101,6 +102,11 @@ export interface UpdatedIncomingWebhook {
   readonly metadata: Readonly<Record<string, unknown>>;
 }
 
+export interface RotatedIncomingSecret {
+  readonly secret: string;
+  readonly previousSecretExpiresAt: Temporal.Instant | null;
+}
+
 export interface IncomingWebhooks {
   /**
    * The route for `/hooks/<token>`: finds the endpoint, checks the body
@@ -121,6 +127,10 @@ export interface IncomingWebhooks {
     id: string,
     options?: { readonly rotateSecret?: boolean },
   ): AsyncResult<{ readonly token: string; readonly secret: string | null }>;
+  rotateSecret(
+    id: string,
+    options?: { readonly grace?: Temporal.Duration | string },
+  ): AsyncResult<RotatedIncomingSecret>;
   update(
     id: string,
     input: UpdateIncomingWebhookInput,
@@ -148,6 +158,7 @@ interface EndpointRow {
   readonly secret: string | null;
   readonly signature_header: string | null;
   readonly max_body_bytes: number;
+  readonly previous_secret?: string | null;
 }
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
@@ -289,18 +300,33 @@ export function createIncomingWebhooks(
           request.headers.get("svix-id") ??
           crypto.randomUUID();
         if (endpoint.verify === "standard-webhooks") {
-          const verified = await verifyWebhook(
+          let verified = await verifyWebhook(
             { headers: request.headers, body },
             endpoint.secret ?? "",
           );
+          if (!verified.ok && endpoint.previous_secret) {
+            const previous = await verifyWebhook(
+              { headers: request.headers, body },
+              endpoint.previous_secret,
+            );
+            if (previous.ok) verified = previous;
+          }
           if (!verified.ok) return await problem(verified.error, endpoint.id);
           messageId = verified.data.id;
         } else if (endpoint.verify === "hmac-sha256") {
           const given =
             request.headers.get(endpoint.signature_header ?? "x-signature") ??
             "";
-          const expected = await hmacHex(endpoint.secret ?? "", body);
-          if (!timingSafeEqual(given.replace(/^sha256=/, ""), expected)) {
+          const signature = given.replace(/^sha256=/, "");
+          let expected = await hmacHex(endpoint.secret ?? "", body);
+          if (
+            !timingSafeEqual(signature, expected) &&
+            endpoint.previous_secret
+          ) {
+            const previous = await hmacHex(endpoint.previous_secret, body);
+            if (timingSafeEqual(signature, previous)) expected = previous;
+          }
+          if (!timingSafeEqual(signature, expected)) {
             return await problem(
               dbError("unauthorized", "Invalid webhook signature", {
                 code: "WEBHOOK_INVALID_SIGNATURE",
@@ -435,6 +461,24 @@ export function createIncomingWebhooks(
           [id, rotateOptions.rotateSecret ?? false],
         );
         return { token: rotated.token, secret: rotated.secret };
+      }),
+    rotateSecret: (id, rotateOptions = {}) =>
+      attempt(async () => {
+        const rotated = await value<Record<string, unknown>>(
+          `select ${fn("rotate_incoming_webhook_secret")}($1, $2::interval) as value`,
+          [
+            id,
+            rotateOptions.grace === undefined
+              ? null
+              : String(rotateOptions.grace),
+          ],
+        );
+        const expires = optionalText(rotated["previousSecretExpiresAt"]);
+        return {
+          secret: String(rotated["secret"]),
+          previousSecretExpiresAt:
+            expires === undefined ? null : toInstant(expires),
+        };
       }),
     update: (id, input) =>
       attempt(async () => {

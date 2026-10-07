@@ -1268,6 +1268,7 @@
       "PublishInput",
       "ResolveHost",
       "RetryPolicy",
+      "RotatedIncomingSecret",
       "RotateSecretOptions",
       "RpcClient",
       "SafeFetchOptions",
