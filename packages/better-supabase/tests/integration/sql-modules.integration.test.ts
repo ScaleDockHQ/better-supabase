@@ -3674,6 +3674,58 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("read sets count the caller's own rows through auth.uid", async () => {
+    const betterSupabase = defineSupabase(schema);
+    const mine = defineReadSet(
+      betterSupabase,
+      `mine_${RUN}`,
+      {},
+      (s, _p, auth) => ({
+        mine: s.customers.count({ where: { createdBy: auth.uid } }),
+      }),
+    );
+    const [file] = renderModules(["read-sets"], {
+      readSets: [await compileReadSet(mine)],
+    });
+    const alice = crypto.randomUUID();
+    const bob = crypto.randomUUID();
+    await pool.query(file!.contents);
+    await pool.query(
+      `insert into public.customers (organization_id, name, created_by)
+       values ($1, $2, $3), ($1, $4, $3), ($1, $5, $6)`,
+      [ACME, `Alice A ${RUN}`, alice, `Alice B ${RUN}`, `Bob ${RUN}`, bob],
+    );
+    await pool.query(`notify pgrst, 'reload schema'`);
+
+    try {
+      const counts = async (sub: string) => {
+        const user = await asUser(
+          betterSupabase,
+          { sub, tenant_id: ACME },
+          { url, publishableKey, postgres },
+        );
+        let rest = await user.db.$many(mine, {});
+        for (let attempt = 0; !rest.ok && attempt < 20; attempt += 1) {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          rest = await user.db.$many(mine, {});
+        }
+        expect(rest.error).toBeNull();
+        const sql = await user.sql!.$many(mine, {}).orThrow();
+        return { rest: rest.data!.mine, sql: sql.mine };
+      };
+      expect(await counts(alice)).toEqual({ rest: 2, sql: 2 });
+      expect(await counts(bob)).toEqual({ rest: 1, sql: 1 });
+    } finally {
+      await pool.query(
+        `delete from public.customers where created_by = any ($1)`,
+        [[alice, bob]],
+      );
+      await pool.query(`drop function if exists public.rs_mine_${RUN}(jsonb)`);
+    }
+  });
+
   it("db.$many batches ad-hoc specs in one SQL transaction", async () => {
     const betterSupabase = defineSupabase(schema);
     const alice = await asUser(

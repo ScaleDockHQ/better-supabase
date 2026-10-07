@@ -40,6 +40,11 @@ const chrome = defineReadSet(
   }),
 );
 
+const mine = defineReadSet(betterSupabase, "mine", {}, (s, _p, auth) => ({
+  mine: s.customers.count({ where: { createdBy: auth.uid } }),
+  named: s.customers.count({ where: { name: { contains: auth.uid } } }),
+}));
+
 function fakeExecutor(): Executor & {
   batches: Operation[][];
   executed: Operation[];
@@ -277,6 +282,60 @@ describe("compileReadSet", () => {
       one: s.customers.count({ where: { name: "$rs$" } }),
     }));
     await expect(compileReadSet(set)).rejects.toThrow(/contains "\$rs\$"/);
+  });
+});
+
+describe("auth.uid", () => {
+  it("compiles to auth.uid() in the function, also inside a string", async () => {
+    const { sql } = await compileReadSet(mine);
+    expect(sql).toContain('t0."created_by" = (select auth.uid())');
+    expect(sql).toContain("((select auth.uid())::text)");
+    expect(sql).not.toContain("p->>");
+  });
+
+  it("refuses auth.uid inside a list", async () => {
+    const listed = defineReadSet(
+      betterSupabase,
+      "listed",
+      {},
+      (s, _p, auth) => ({
+        mine: s.customers.count({ where: { createdBy: { in: [auth.uid] } } }),
+      }),
+    );
+    await expect(compileReadSet(listed)).rejects.toThrow(
+      /auth\.uid is a single value/,
+    );
+  });
+
+  it("sends no user id over PostgREST", async () => {
+    const { client, requests } = capturingClient(() => ({
+      body: {
+        mine: { rows: [], count: 2 },
+        named: { rows: [], count: 0 },
+      },
+    }));
+    const result = await betterSupabase.connect(client).$many(mine, {});
+    expect(result.ok && result.data).toEqual({ mine: 2, named: 0 });
+    expect(JSON.parse(requests[0]!.params.get("p")!)).toEqual({});
+  });
+
+  it("binds the verified sub claim on a batch executor", async () => {
+    const executor = fakeExecutor();
+    const result = await betterSupabase
+      .connect(executor, { claims: { sub: USER } })
+      .$many(mine, {});
+    expect(result.ok).toBe(true);
+    const text = JSON.stringify(executor.batches[0]);
+    expect(text).toContain(USER);
+    expect(text).not.toContain("\\u0000");
+  });
+
+  it("fails on a batch executor without user claims", async () => {
+    const executor = fakeExecutor();
+    const result = await betterSupabase.connect(executor).$many(mine, {});
+    expect(!result.ok && result.error.kind).toBe("invalid_request");
+    expect(!result.ok && result.error.message).toMatch(/reads auth\.uid/);
+    expect(executor.batches).toHaveLength(0);
   });
 });
 

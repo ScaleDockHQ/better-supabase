@@ -7,16 +7,18 @@ import { betterSupabase } from "./supabase/index.ts";
 /**
  * The dashboard's numbers as one round trip: `gen` compiles this into
  * `public.rs_workspace_summary(p jsonb)`, and `db.$many` calls it with a
- * single GET. RLS scopes every entry to the caller's organization.
+ * single GET. RLS scopes every entry to the caller's organization, and
+ * `mine` reads `auth.uid()` in the function, so nobody counts another
+ * member's customers.
  */
 export const workspaceSummary = defineReadSet(
   betterSupabase,
   "workspace_summary",
-  { params: { userId: "uuid" } },
-  (s, p) => ({
+  {},
+  (s, _p, auth) => ({
     customers: s.customers.count(),
     active: s.customers.count({ where: { status: "active" } }),
-    mine: s.customers.count({ where: { createdBy: p.userId } }),
+    mine: s.customers.count({ where: { createdBy: auth.uid } }),
     latestNote: s.notes.findFirst({
       select: ["body", "createdAt"],
       orderBy: { createdAt: "desc" },

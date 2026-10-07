@@ -1,5 +1,5 @@
 import type { Executor } from "../core/executor.ts";
-import type { ReadSet } from "../core/read-set.ts";
+import type { Placeholder, ReadSet } from "../core/read-set.ts";
 import type { Operation } from "../ir/types.ts";
 
 import { compileSql, type SqlQuery } from "../compile/sql.ts";
@@ -69,6 +69,26 @@ async function operations(set: ReadSet): Promise<Map<string, Operation>> {
   return ops;
 }
 
+const AUTH_UID = "(select auth.uid())";
+
+function placeholderRef(set: ReadSet, placeholder: Placeholder): string {
+  switch (placeholder.kind) {
+    case "param":
+      return paramRef(set, placeholder.name, placeholder.array);
+    case "auth":
+      if (placeholder.array) {
+        throw new TypeError(
+          `Read set "${set.name}": auth.uid is a single value; compare with it directly instead of putting it in a list`,
+        );
+      }
+      return AUTH_UID;
+    default: {
+      const unknown: never = placeholder;
+      throw new TypeError(`Unknown placeholder ${String(unknown)}`);
+    }
+  }
+}
+
 function paramRef(set: ReadSet, name: string, array: boolean): string {
   const type = set.params[name];
   if (!type)
@@ -96,7 +116,7 @@ function arrayElement(value: unknown): string {
 /** A parameter value as SQL: a reference to `p` for placeholders, else a literal. */
 function literal(set: ReadSet, value: unknown): string {
   const placeholder = placeholderOf(value);
-  if (placeholder) return paramRef(set, placeholder.name, placeholder.array);
+  if (placeholder) return placeholderRef(set, placeholder);
   if (value === null || value === undefined) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "number") {
@@ -109,7 +129,11 @@ function literal(set: ReadSet, value: unknown): string {
   if (typeof value === "string") {
     if (!hasPlaceholder(value)) return sqlString(value);
     const parts = splitPlaceholders(value).map((part) =>
-      "text" in part ? sqlString(part.text) : `(p->>${sqlString(part.param)})`,
+      "text" in part
+        ? sqlString(part.text)
+        : part.kind === "auth"
+          ? `(${AUTH_UID}::text)`
+          : `(p->>${sqlString(part.name)})`,
     );
     return `(${parts.join(" || ")})`;
   }

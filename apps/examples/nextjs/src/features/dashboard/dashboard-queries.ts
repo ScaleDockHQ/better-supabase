@@ -12,5 +12,5 @@ export async function getWorkspaceSummary() {
   const { db, session } = await bs.cached();
   bs.cacheTags(workspaceSummary);
   if (session.kind !== "user") return null;
-  return db.$many(workspaceSummary, { userId: session.user.id }).orThrow();
+  return db.$many(workspaceSummary, {}).orThrow();
 }

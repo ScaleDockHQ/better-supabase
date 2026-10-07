@@ -160,6 +160,7 @@
       "RawDbError",
       "ReadMethod",
       "ReadSet",
+      "ReadSetAuth",
       "ReadSetOptions",
       "ReadSetParams",
       "ReadSetParamType",

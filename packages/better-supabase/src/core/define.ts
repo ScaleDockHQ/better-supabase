@@ -873,8 +873,9 @@ export class BetterSupabase<
           );
         }
         const keys = Object.keys(set.specs);
-        const bound = bindParams(set, values ?? {});
+        const { specs: bound, noCaller } = bindParams(set, values, context);
         if (base.batch || !executor.rpc) {
+          if (noCaller) return err(noCaller);
           const result = await many(
             keys.map((key) => bound[key]),
             signal,
