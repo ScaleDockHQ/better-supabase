@@ -41,6 +41,19 @@ const body = (modules: ModulesConfig) =>
   moduleBody("organizations", { modules })!;
 
 describe("organizations module", () => {
+  it("names the deletion's audit category with auditCategory", () => {
+    const audited = (options: Record<string, unknown>) =>
+      renderModules(["organizations", "audit"], {
+        modules: { organizations: { options } },
+      }).find(
+        (file) => file.module === "organizations" && file.kind === "schema",
+      )!.contents;
+    expect(audited({})).toContain("category => 'organization',");
+    expect(audited({ auditCategory: "tenancy" })).toContain(
+      "category => 'tenancy',",
+    );
+  });
+
   it("deletes through data-lifecycle or not at all with deleteMode", () => {
     const lifecycle = renderModules(["organizations", "data-lifecycle"], {
       modules: { organizations: { options: { deleteMode: "lifecycle" } } },

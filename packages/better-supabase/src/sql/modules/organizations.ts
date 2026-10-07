@@ -21,6 +21,7 @@ const NAMES: ModuleNames = {
   options: [
     "assignmentGuard",
     "attributes",
+    "auditCategory",
     "deleteMode",
     "formerOwnerRole",
     "ownerInvariant",
@@ -481,11 +482,14 @@ drop function if exists ${ctx.fn("delete_organization")}(${id});
       "sql.modules.organizations.options.deleteMode 'soft' needs the deletedAt column",
     );
   }
+  // audit_event maps the category through sql.modules.audit.options.values,
+  // so an adopted log with its own vocabulary maps "organization" there, or
+  // names its value in auditCategory.
   const audit = ctx.installed("audit")
     ? `
   perform better_supabase.audit_event(
     event_type => 'organization.deleted',
-    category => 'organization',
+    category => ${sqlString(ctx.text("auditCategory", "organization"))},
     tenant => organization,
     metadata => jsonb_build_object('mode', ${sqlString(soft ? "soft" : "hard")})
   );`

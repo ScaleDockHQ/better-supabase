@@ -292,4 +292,70 @@ describe.skipIf(!live)("organizations member guards", () => {
       await s.close();
     }
   });
+
+  it("records the deletion in an adopted audit log with its own categories", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const log = `public.bs_activity_${crypto.randomUUID().slice(0, 8)}`;
+      await s.client.query(`
+        create table ${log} (
+          id bigint generated always as identity primary key,
+          organization_id uuid,
+          occurred_at timestamptz not null default now(),
+          event_type text, outcome text, source text, target_type text,
+          record_id text, actor_id uuid, metadata jsonb,
+          category text not null check (category in ('tenancy', 'admin', 'data', 'system'))
+        );`);
+      const audit = (options: Record<string, unknown>) => ({
+        mode: "adopt" as const,
+        tables: { log },
+        columns: {
+          log: {
+            tenant: "organization_id",
+            table: null,
+            op: null,
+            old: null,
+            new: null,
+            changed: null,
+            actorRole: null,
+            impersonatedBy: null,
+            impersonationReason: null,
+            supportSession: null,
+            idempotencyKey: null,
+          },
+        },
+        options,
+      });
+      const owner = await s.user("owner");
+      const categories = async (
+        modules: NonNullable<ModuleLayout["modules"]>,
+      ) => {
+        await s.install(["organizations", "audit"], { modules });
+        const organization = await s.organization(owner);
+        await s.as(owner);
+        await s.value("better_supabase.delete_organization($1)", [
+          organization,
+        ]);
+        await s.service();
+        await s.client.query("set constraints all immediate");
+        return s.value<string>(
+          `(select category from ${log} where organization_id = $1 and event_type = 'organization.deleted')`,
+          [organization],
+        );
+      };
+      expect(
+        await categories({
+          audit: audit({ values: { category: { organization: "tenancy" } } }),
+        }),
+      ).toBe("tenancy");
+      expect(
+        await categories({
+          audit: audit({}),
+          organizations: { options: { auditCategory: "admin" } },
+        }),
+      ).toBe("admin");
+    } finally {
+      await s.close();
+    }
+  });
 });
