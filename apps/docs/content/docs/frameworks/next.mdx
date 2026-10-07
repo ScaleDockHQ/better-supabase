@@ -201,8 +201,10 @@ renders as the target. `bs.cached()` reads add a `bs:support:<id>` tag
 
 Every mutation invalidates `bs:<table>`, its tenant's `bs:<table>@<tenant>`
 and `bs:<table>:<id>`: with
-`updateTag` inside server actions (read-your-writes), with `revalidateTag`
-elsewhere. Tag your cached reads to match:
+`updateTag` inside server actions (read-your-writes), and with
+`revalidateTag(tag, { expire: 0 })` elsewhere, so the next read after a
+write in a route handler waits for fresh data instead of serving the stale
+entry. Tag your cached reads to match:
 
 ```ts
 async function publicPlans() {
@@ -249,4 +251,10 @@ takes the same option as its third argument, and `tagFor(table, undefined,
 
 Turn invalidation off with `createNext(betterSupabase, { cacheTags: false })`. The
 invalidation is the `nextCache()` [cache adapter](/docs/extending/interfaces#cacheadapter);
-attach others with `betterSupabase.cache(adapter)`.
+attach others with `betterSupabase.cache(adapter)`. To serve stale entries
+while they revalidate after writes outside an action, turn `cacheTags` off
+and attach `nextCache({ revalidate: "max" })` yourself.
+
+A `redirect()` or `notFound()` after a write in `bs.action()` or
+`bs.route()` still sets the replica pin cookie and keeps the event sends
+running.
