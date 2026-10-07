@@ -86,6 +86,9 @@ describe("invitations module", () => {
     expect(sql).toContain(
       `where i."token" = token and i."organization_id" is not null\n  for update;`,
     );
+    expect(sql).toMatch(
+      /insert into "public"\."organization_invitations" \("email", "role_id", "token", "invited_by", "expires_at", "prefill"\)\n    values \(lower\(btrim\(invitee_email\)\), \(select r\.[^\n]*limit 1\), token, auth\.uid\(\), now\(\) \+ valid_for, coalesce\(prefill, '\{\}'\)\)/,
+    );
   });
 
   it("keeps platform invitations in their own table, under a role ceiling", () => {

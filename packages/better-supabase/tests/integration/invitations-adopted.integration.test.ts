@@ -179,4 +179,159 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
       await s.close();
     }
   });
+
+  it("invites to tenant and platform roles in one shared table with a uuid role column", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const owner = await s.user("owner");
+      const staff = await s.user("staff");
+      const member = await s.user("member");
+      const agent = await s.user("agent");
+      const organization = crypto.randomUUID();
+      const schema = await sharedSchema(s, organization, owner, staff);
+      await s.install(["invitations"], sharedLayout(schema));
+      const roleKey = (table: string, user: TestUser) =>
+        s.value<string>(
+          `(select r.key from ${schema}.${table} m join ${schema}.roles r on r.id = m.role_id where m.user_id = $1)`,
+          [user.id],
+        );
+
+      await s.as(staff);
+      const platform = await s.value<{ token: string; prefill: unknown }>(
+        `${schema}.invite_member(null, $1, 'support', prefill => $2)`,
+        [agent.email, { name: "Agent" }],
+      );
+      expect(platform.prefill).toEqual({ name: "Agent" });
+      await s.as(agent);
+      expect(
+        await s.value<{ prefill: unknown; role: string }>(
+          `${schema}.invitation_preview($1)`,
+          [platform.token],
+        ),
+      ).toMatchObject({ prefill: { name: "Agent" } });
+      expect(
+        await s.value(`${schema}.accept_invitation($1)`, [platform.token]),
+      ).toBeNull();
+      expect(await roleKey("user_roles", agent)).toBe("support");
+
+      await s.as(owner);
+      const tenant = await s.value<{ token: string }>(
+        `${schema}.invite_member($1, $2, 'member')`,
+        [organization, member.email],
+      );
+      await s.as(member);
+      expect(
+        await s.value(`${schema}.accept_invitation($1)`, [tenant.token]),
+      ).toBe(organization);
+      expect(await roleKey("team_members", member)).toBe("member");
+    } finally {
+      await s.close();
+    }
+  });
 });
+
+/**
+ * One roles table for tenant and platform roles (uuid ids, a key, and the
+ * tenant of a custom role), memberships and platform assignments that point
+ * into it, and one invitations table for both kinds whose role column is a
+ * uuid.
+ */
+async function sharedSchema(
+  s: BlockSession,
+  organization: string,
+  owner: TestUser,
+  staff: TestUser,
+): Promise<string> {
+  const schema = `bs_shared_${crypto.randomUUID().slice(0, 8)}`;
+  await s.client.query(`
+    create schema ${schema};
+    create table ${schema}.roles (
+      id uuid primary key default gen_random_uuid(),
+      key text not null,
+      organization_id uuid
+    );
+    insert into ${schema}.roles (key) values ('owner'), ('admin'), ('member'), ('support');
+    create table ${schema}.team_members (
+      organization_id uuid not null,
+      user_id uuid not null references auth.users (id) on delete cascade,
+      role_id uuid not null references ${schema}.roles (id),
+      primary key (organization_id, user_id)
+    );
+    insert into ${schema}.team_members
+      select '${organization}', '${owner.id}', id from ${schema}.roles where key = 'owner';
+    create table ${schema}.user_roles (
+      user_id uuid not null references auth.users (id) on delete cascade,
+      role_id uuid not null references ${schema}.roles (id),
+      primary key (user_id, role_id)
+    );
+    create table ${schema}.invitations (
+      id uuid primary key default gen_random_uuid(),
+      organization_id uuid,
+      email text not null,
+      role_id uuid not null references ${schema}.roles (id),
+      token_hash text not null unique,
+      invited_by uuid,
+      created_at timestamptz not null default now(),
+      expires_at timestamptz not null,
+      accepted_at timestamptz,
+      accepted_by uuid,
+      declined_at timestamptz,
+      revoked_at timestamptz,
+      prefill jsonb not null default '{}'
+    );
+    create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+      language sql stable as $$
+        select m.organization_id from ${schema}.team_members m
+        join ${schema}.roles r on r.id = m.role_id
+        where m.user_id = auth.uid() and r.key in ('owner', 'admin') $$;
+    create function ${schema}.permdock_has(permission text) returns boolean
+      language sql stable as $$ select auth.uid() = '${staff.id}' $$;
+    create function ${schema}.permdock_can_assign(p_role text, p_scope_id text) returns boolean
+      language sql stable as $$ select p_role <> 'owner' $$;
+  `);
+  return schema;
+}
+
+function sharedLayout(schema: string): ModuleLayout {
+  const roles = { table: `${schema}.roles`, id: "id", column: "key" };
+  return {
+    accessPermdock: { schema, scope: "organization", idType: "uuid" },
+    modules: {
+      access: {
+        model: "permdock",
+        functions: {
+          canAssign: `${schema}.permdock_can_assign({role}, {tenant}::text)`,
+        },
+      },
+      tenant: {
+        schema,
+        mode: "adopt",
+        tables: { memberships: `${schema}.team_members` },
+        columns: {
+          memberships: { role: "role_id", updatedAt: null, lastUsedAt: null },
+        },
+        options: { roleThrough: roles },
+      },
+      invitations: {
+        schema,
+        mode: "adopt",
+        tables: {
+          invitations: `${schema}.invitations`,
+          platformInvitations: `${schema}.invitations`,
+        },
+        columns: {
+          invitations: { role: "role_id", updatedAt: null },
+          platformInvitations: { role: "role_id", updatedAt: null },
+        },
+        options: {
+          platformRoles: {
+            table: `${schema}.user_roles`,
+            user: "user_id",
+            role: "role_id",
+            through: roles,
+          },
+        },
+      },
+    },
+  };
+}

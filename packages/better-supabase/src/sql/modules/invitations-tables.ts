@@ -109,10 +109,14 @@ export function platformTable(ctx: ModuleContext): InviteTable | undefined {
     return undefined;
   }
   const logical = sharesTable(ctx) ? "invitations" : "platformInvitations";
+  // A table shared with tenant invitations has their prefill column.
+  const columns = (column: string) =>
+    column in PLATFORM_COLUMNS ||
+    (logical === "invitations" && column === "prefill");
   return {
     table: ctx.table(logical),
     col: (column) => ctx.col(logical, column),
-    has: (column) => column in PLATFORM_COLUMNS && ctx.has(logical, column),
+    has: (column) => columns(column) && ctx.has(logical, column),
     only: (alias) =>
       logical === "invitations"
         ? ` and ${alias}.${ctx.col("invitations", "tenant")} is null`

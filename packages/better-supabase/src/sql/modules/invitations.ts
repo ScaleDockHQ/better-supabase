@@ -324,10 +324,11 @@ function platformInvite(
   const ceiling = assignment.canAssign("auth.uid()", `(${role})`);
   const columns: (readonly [string, string])[] = [
     ["email", "lower(btrim(invitee_email))"],
-    ["role", `(${role})::text`],
+    ["role", role],
     ["tokenHash", tokenHash(ctx, "token")],
     ["invitedBy", "auth.uid()"],
     ["expiresAt", "now() + valid_for"],
+    ["prefill", "coalesce(prefill, '{}')"],
   ];
   const present = columns.filter(([logical]) => p.has(logical));
   const open = openFilter(p, "i");

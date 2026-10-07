@@ -240,7 +240,11 @@ invitations: {
 
 The inviter needs `invitePlatform` through `permdock_has`. Without
 `canAssign`, that permission alone lets them invite to any platform role.
-Accepting inserts the assignment into the table. With
+Accepting inserts the assignment into the table. Platform invitations can
+share the tenant invitations table (map `tables.platformInvitations` to the
+same table): their rows have no tenant, the role is stored in the role
+column's own type (a uuid through the roles table, say), and `prefill` is
+written when the table has that column. With
 `sql.modules.access.permdock.forUser`, accept checks the inviter again
 through PermDock's `_for` helpers, never the invitee: a `canAssign` with
 `{user}` runs with the inviter, a `canAssign` that reads the caller (no
