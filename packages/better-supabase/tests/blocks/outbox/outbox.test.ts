@@ -141,7 +141,10 @@ describe("createOutbox", () => {
     expect(purged.ok).toBe(false);
     expect(purged.error).toMatchObject({ hint: "OUTBOX_UNKNOWN_CONSUMER" });
     expect((await outbox.purge(undefined, 500)).data).toBe(3);
-    expect(calls.at(-1)).toEqual({ fn: "purge_outbox", args: [null, 500] });
+    expect(calls.at(-1)).toEqual({
+      fn: "purge_outbox",
+      args: [null, 500, null],
+    });
     expect((await outbox.unregister("billing")).data).toBe(true);
   });
 
@@ -211,8 +214,11 @@ describe("createOutbox", () => {
     expect(failed.error?.message).toContain("index down");
   });
 
-  it("releases the lease without moving the cursor when the sink throws", async () => {
-    const { sql, calls } = fakeSql({ outbox_claim: [[row(1)]] });
+  it("records a failed attempt instead of acknowledging when the sink throws", async () => {
+    const { sql, calls } = fakeSql({
+      outbox_claim: [[row(1), row(2)]],
+      outbox_fail: ["retrying"],
+    });
     const outbox = createOutbox(sql, OPTIONS);
     const result = await outbox.relay(
       "crm",
@@ -225,9 +231,68 @@ describe("createOutbox", () => {
     );
     expect(result.delivered).toBe(0);
     expect(result.error?.message).toContain("receiver down");
+    expect(result.deadLettered).toBeUndefined();
+    expect(calls.map((call) => call.fn)).not.toContain("outbox_ack");
     expect(calls.at(-1)).toEqual({
-      fn: "outbox_ack",
-      args: ["crm", "w1", null],
+      fn: "outbox_fail",
+      args: ["crm", "w1", null, "receiver down", 10, "10 minutes"],
+    });
+  });
+
+  it("names the one claimed event so it can go to the dead letters", async () => {
+    const { sql, calls } = fakeSql({
+      outbox_claim: [[row(7)]],
+      outbox_fail: ["dead"],
+    });
+    const result = await createOutbox(sql, OPTIONS).consume(
+      "billing-seats",
+      () => {
+        throw new Error("No such customer");
+      },
+      { owner: "w1", maxAttempts: 3, maxBackoff: "1 minute" },
+    );
+    expect(result).toMatchObject({ delivered: 0, deadLettered: 1 });
+    expect(calls.at(-1)).toEqual({
+      fn: "outbox_fail",
+      args: ["billing-seats", "w1", 7, "No such customer", 3, "1 minute"],
+    });
+  });
+
+  it("lists dead letters and purges past idle consumers", async () => {
+    const { sql, calls } = fakeSql({
+      outbox_dead_letters: [
+        [
+          {
+            consumer: "crm",
+            position: 7,
+            event: row(7),
+            attempts: 10,
+            error: "boom",
+            dead_at: "2026-01-02T00:00:00Z",
+          },
+          { consumer: "crm", event: { bad: 1 } },
+          null,
+        ],
+      ],
+      purge_outbox: [4],
+    });
+    const outbox = createOutbox(sql, OPTIONS);
+    const letters = await outbox.deadLetters("crm");
+    expect(letters.data).toHaveLength(1);
+    expect(letters.data?.[0]).toMatchObject({
+      consumer: "crm",
+      attempts: 10,
+      error: "boom",
+      event: { position: 7, type: "organization.created" },
+    });
+    expect(letters.data?.[0]?.deadAt.toString()).toBe("2026-01-02T00:00:00Z");
+    expect(calls[0]).toEqual({ fn: "outbox_dead_letters", args: ["crm", 100] });
+    expect(
+      (await outbox.purge("7 days", 100, { ignoreIdle: "30 days" })).data,
+    ).toBe(4);
+    expect(calls.at(-1)).toEqual({
+      fn: "purge_outbox",
+      args: ["7 days", 100, "30 days"],
     });
   });
 

@@ -33,7 +33,23 @@ const NAMES: ModuleNames = {
         types: "types",
         leaseOwner: "lease_owner",
         leaseUntil: "lease_until",
+        attempts: "attempts",
+        lastError: "last_error",
+        retryAt: "retry_at",
         updatedAt: "updated_at",
+      },
+    },
+    deadLetters: {
+      name: "outbox_dead_letters",
+      columns: {
+        consumer: "consumer",
+        position: "position",
+        eventId: "event_id",
+        type: "type",
+        event: "event",
+        attempts: "attempts",
+        error: "error",
+        deadAt: "dead_at",
       },
     },
   },
@@ -43,8 +59,10 @@ const NAMES: ModuleNames = {
 interface Names {
   readonly t: string;
   readonly c: string;
+  readonly d: string;
   readonly e: (logical: string) => string;
   readonly k: (logical: string) => string;
+  readonly x: (logical: string) => string;
   readonly has: (logical: string) => boolean;
 }
 
@@ -52,13 +70,16 @@ function names(ctx: ModuleContext): Names {
   return {
     t: ctx.table("events"),
     c: ctx.table("consumers"),
+    d: ctx.table("deadLetters"),
     e: (logical) => ctx.col("events", logical),
     k: (logical) => ctx.col("consumers", logical),
+    x: (logical) => ctx.col("deadLetters", logical),
     has: (logical) => ctx.has("events", logical),
   };
 }
 
-// Cursors are module state no app has yet, so adopt mode still creates them.
+// Cursors and dead letters are module state no app has yet, so adopt mode
+// still creates them.
 function consumersTable(n: Names): string {
   return `
 create table if not exists ${n.c} (
@@ -71,11 +92,36 @@ create table if not exists ${n.c} (
   ${n.k("types")} text[],
   ${n.k("leaseOwner")} text,
   ${n.k("leaseUntil")} timestamptz,
+  -- Failed claims in a row since the cursor last moved, and when to try again.
+  ${n.k("attempts")} integer not null default 0,
+  ${n.k("lastError")} text,
+  ${n.k("retryAt")} timestamptz,
   ${n.k("updatedAt")} timestamptz not null default now()
 );
+alter table ${n.c} add column if not exists ${n.k("attempts")} integer not null default 0;
+alter table ${n.c} add column if not exists ${n.k("lastError")} text;
+alter table ${n.c} add column if not exists ${n.k("retryAt")} timestamptz;
 alter table ${n.c} enable row level security;
 revoke all on ${n.c} from anon, authenticated;
 grant all on ${n.c} to service_role;
+
+-- Events a consumer skipped after max_attempts failures, with a copy of the
+-- event, so one bad event can't stop the consumer.
+create table if not exists ${n.d} (
+  ${n.x("consumer")} text not null references ${n.c} (${n.k("name")}) on delete cascade,
+  ${n.x("position")} bigint not null,
+  ${n.x("eventId")} text not null,
+  ${n.x("type")} text not null,
+  ${n.x("event")} jsonb not null,
+  ${n.x("attempts")} integer not null,
+  ${n.x("error")} text,
+  ${n.x("deadAt")} timestamptz not null default now(),
+  primary key (${n.x("consumer")}, ${n.x("position")})
+);
+create index if not exists outbox_dead_letters_dead_at_idx on ${n.d} (${n.x("deadAt")});
+alter table ${n.d} enable row level security;
+revoke all on ${n.d} from anon, authenticated;
+grant all on ${n.d} to service_role;
 `;
 }
 
@@ -268,6 +314,8 @@ grant execute on function ${ctx.fn(fn)}(${args}) to service_role;`;
   const retention = sqlString(ctx.text("retention", "30 days"));
   return `
 drop function if exists ${ctx.fn("purge_outbox")}(interval);
+-- The signature before purge_outbox could pass over idle consumers.
+drop function if exists ${ctx.fn("purge_outbox")}(interval, integer);
 
 -- Registers a consumer. A new one starts after the latest event, or at the
 -- first with from_start. Registering again changes only its types.
@@ -313,7 +361,9 @@ $$;
       : `Events newer than the settle interval are held back for
 -- slow commits.`
   } When no event matches the consumer's types,
--- the cursor moves past the settled events it scanned.
+-- the cursor moves past the settled events it scanned. After a failure
+-- (outbox_fail) the consumer waits until retry_at, then claims one event at
+-- a time, so the next failure belongs to that event.
 create or replace function ${ctx.fn("outbox_claim")}(consumer text, owner text, max_events integer default 100, lease interval default '1 minute')
 returns jsonb
 language plpgsql
@@ -329,6 +379,7 @@ begin
   set ${n.k("leaseOwner")} = owner, ${n.k("leaseUntil")} = now() + lease, ${n.k("updatedAt")} = now()
   where k.${n.k("name")} = consumer
     and (k.${n.k("leaseUntil")} is null or k.${n.k("leaseUntil")} < now() or k.${n.k("leaseOwner")} = owner)
+    and (k.${n.k("retryAt")} is null or k.${n.k("retryAt")} <= now())
   returning k.* into c;
   if not found then
     if not exists (select 1 from ${n.c} k where k.${n.k("name")} = consumer) then
@@ -344,7 +395,7 @@ begin
       and ${settled}
       and ${matches}
     order by ${order("e")}
-    limit max_events
+    limit case when c.${n.k("attempts")} > 0 then 1 else max_events end
   ) x;
   if events is null then
     update ${n.c} k
@@ -361,8 +412,8 @@ begin
 end;
 $$;
 
--- Moves the cursor to the event at position upto (when given) and releases
--- the lease. False when owner no longer holds it.
+-- Moves the cursor to the event at position upto (when given), clears the
+-- failure count and releases the lease. False when owner no longer holds it.
 create or replace function ${ctx.fn("outbox_ack")}(consumer text, owner text, upto bigint default null)
 returns boolean
 language plpgsql
@@ -375,6 +426,7 @@ begin
   set (${n.k("cursorXid")}, ${n.k("cursor")}) = (
       select ${xidOf("e")}, ${pos("e")} from ${n.t} e where ${pos("e")} = upto
     ),
+    ${n.k("attempts")} = 0, ${n.k("lastError")} = null, ${n.k("retryAt")} = null,
     ${n.k("leaseOwner")} = null, ${n.k("leaseUntil")} = null, ${n.k("updatedAt")} = now()
   where k.${n.k("name")} = consumer and k.${n.k("leaseOwner")} = owner
     and upto is not null
@@ -387,6 +439,88 @@ begin
   where k.${n.k("name")} = consumer and k.${n.k("leaseOwner")} = owner;
   return found;
 end;
+$$;
+
+-- Records a failed claim and releases the lease. The consumer waits
+-- 2^attempts seconds (at most max_backoff) before its next claim. When the
+-- claim held the one event at position failed and the consumer has failed
+-- max_attempts times, the event goes to the dead letters and the cursor
+-- moves past it. Returns 'retrying', 'dead', or null when owner no longer
+-- holds the lease.
+create or replace function ${ctx.fn("outbox_fail")}(
+  consumer text,
+  owner text,
+  failed bigint default null,
+  error text default null,
+  max_attempts integer default 10,
+  max_backoff interval default '10 minutes'
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  c ${n.c};
+begin
+  update ${n.c} k
+  set ${n.k("attempts")} = k.${n.k("attempts")} + 1, ${n.k("lastError")} = left(error, 4000),
+    ${n.k("leaseOwner")} = null, ${n.k("leaseUntil")} = null, ${n.k("updatedAt")} = now()
+  where k.${n.k("name")} = consumer and k.${n.k("leaseOwner")} = owner
+  returning k.* into c;
+  if not found then
+    return null;
+  end if;
+  if failed is not null and c.${n.k("attempts")} >= greatest(coalesce(max_attempts, 10), 1) then
+    insert into ${n.d} (${n.x("consumer")}, ${n.x("position")}, ${n.x("eventId")}, ${n.x("type")}, ${n.x("event")}, ${n.x("attempts")}, ${n.x("error")})
+    select consumer, ${pos("e")}, e.${n.e("id")}::text, e.${n.e("type")}, ${eventJson(n, "e")}, c.${n.k("attempts")}, c.${n.k("lastError")}
+    from ${n.t} e
+    where ${pos("e")} = failed and ${key("e")} > ${cursor("c")}
+    on conflict do nothing;
+    update ${n.c} k
+    set (${n.k("cursorXid")}, ${n.k("cursor")}) = (
+        select ${xidOf("e")}, ${pos("e")} from ${n.t} e where ${pos("e")} = failed
+      ),
+      ${n.k("attempts")} = 0, ${n.k("retryAt")} = null
+    where k.${n.k("name")} = consumer
+      and exists (select 1 from ${n.t} e where ${pos("e")} = failed and ${key("e")} > ${cursor("k")});
+    if found then
+      return 'dead';
+    end if;
+  end if;
+  update ${n.c} k
+  set ${n.k("retryAt")} = now() + least(
+    coalesce(max_backoff, '10 minutes'),
+    interval '1 second' * power(2, least(c.${n.k("attempts")}, 20))
+  )
+  where k.${n.k("name")} = consumer;
+  return 'retrying';
+end;
+$$;
+
+-- A consumer's dead letters, newest first.
+create or replace function ${ctx.fn("outbox_dead_letters")}(consumer text, max_rows integer default 100)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'consumer', x.${n.x("consumer")},
+    'position', x.${n.x("position")},
+    'event', x.${n.x("event")},
+    'attempts', x.${n.x("attempts")},
+    'error', x.${n.x("error")},
+    'dead_at', x.${n.x("deadAt")}
+  ) order by x.${n.x("deadAt")} desc, x.${n.x("position")} desc), '[]')
+  from (
+    select * from ${n.d} d
+    where d.${n.x("consumer")} = outbox_dead_letters.consumer
+    order by d.${n.x("deadAt")} desc, d.${n.x("position")} desc
+    limit least(greatest(coalesce(max_rows, 100), 1), 1000)
+  ) x
 $$;
 
 -- Kept events, by subject and type, oldest first.
@@ -410,24 +544,34 @@ as $$
 $$;
 
 -- Deletes up to batch events older than older_than that every consumer has
--- passed, and returns how many. Run it until it returns less than batch.
--- A null argument takes its default.
-create or replace function ${ctx.fn("purge_outbox")}(older_than interval default ${retention}, batch integer default 10000)
+-- passed, and returns how many, along with dead letters older than
+-- older_than. With ignore_idle, a consumer that hasn't claimed for that long
+-- no longer holds events back. Run it until it returns less than batch.
+-- A null older_than or batch takes its default.
+create or replace function ${ctx.fn("purge_outbox")}(older_than interval default ${retention}, batch integer default 10000, ignore_idle interval default null)
 returns integer
 language sql
 security definer
 set search_path = ''
 as $$
-  with gone as (
+  with active as (
+    select ${byXid ? `k.${n.k("cursorXid")}, ` : ""}k.${n.k("cursor")} from ${n.c} k
+    where ignore_idle is null or k.${n.k("updatedAt")} >= now() - ignore_idle
+  ),
+  letters as (
+    delete from ${n.d} x
+    where x.${n.x("deadAt")} < now() - coalesce(older_than, ${retention}::interval)
+  ),
+  gone as (
     delete from ${n.t} e
     where e.${n.e("id")} in (
       select d.${n.e("id")} from ${n.t} d
       where d.${n.e("createdAt")} < now() - coalesce(older_than, ${retention}::interval)
         and (
-          not exists (select 1 from ${n.c})
+          not exists (select 1 from active)
           or ${key("d")} <= (
-            select ${byXid ? `k.${n.k("cursorXid")}, ` : ""}k.${n.k("cursor")} from ${n.c} k
-            order by ${byXid ? `k.${n.k("cursorXid")}, ` : ""}k.${n.k("cursor")}
+            select ${byXid ? `a.${n.k("cursorXid")}, ` : ""}a.${n.k("cursor")} from active a
+            order by ${byXid ? `a.${n.k("cursorXid")}, ` : ""}a.${n.k("cursor")}
             limit 1
           )
         )
@@ -442,8 +586,10 @@ ${service("outbox_register", "text, text[], boolean")}
 ${service("outbox_unregister", "text")}
 ${service("outbox_claim", "text, text, integer, interval")}
 ${service("outbox_ack", "text, text, bigint")}
+${service("outbox_fail", "text, text, bigint, text, integer, interval")}
+${service("outbox_dead_letters", "text, integer")}
 ${service("outbox_history", "text, text, bigint, integer")}
-${service("purge_outbox", "interval, integer")}`;
+${service("purge_outbox", "interval, integer, interval")}`;
 }
 
 function tracking(ctx: ModuleContext): string {
@@ -517,7 +663,7 @@ export const OUTBOX: ModuleDefinition = {
   requires: [],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 2,
+  version: 3,
   names: NAMES,
   upgrades: [
     {
@@ -525,6 +671,13 @@ export const OUTBOX: ModuleDefinition = {
       description:
         "track_events adds an update trigger that skips updates that change nothing; call it again for tables it already tracks.",
       sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "Consumers count failures (outbox_fail) and back off; after max_attempts an event goes to outbox_dead_letters and the cursor moves on. purge_outbox takes ignore_idle.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("purge_outbox")}(interval, integer);`,
     },
   ],
   contract: () => [
@@ -549,6 +702,16 @@ export const OUTBOX: ModuleDefinition = {
       returns: "boolean",
     },
     {
+      name: "outbox_fail",
+      args: ["text", "text", "bigint", "text", "integer", "interval"],
+      returns: "text",
+    },
+    {
+      name: "outbox_dead_letters",
+      args: ["text", "integer"],
+      returns: "jsonb",
+    },
+    {
       name: "outbox_history",
       args: ["text", "text", "bigint", "integer"],
       returns: "jsonb",
@@ -556,7 +719,7 @@ export const OUTBOX: ModuleDefinition = {
     { name: "outbox_unregister", args: ["text"], returns: "boolean" },
     {
       name: "purge_outbox",
-      args: ["interval", "integer"],
+      args: ["interval", "integer", "interval"],
       returns: "integer",
     },
   ],
