@@ -19,6 +19,7 @@ import {
   permdockPlatformRoles,
   roleNames,
 } from "./access-model.ts";
+import { sameTenantSql } from "./tenant-same.ts";
 
 /**
  * `sql.modules.tenant.options.roleThrough`: the membership role column holds
@@ -329,7 +330,7 @@ create policy bs_memberships_read on ${m}
     model === "catalog" || accessHelpers || disabledHelpersNeedLaterTables(ctx);
   return `${schemaPreamble(ctx)}
 grant usage on schema better_supabase to supabase_auth_admin;
-${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${roleScope(ctx)}${accessHelpers ? "" : disabledHelpers(ctx)}
+${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${roleScope(ctx)}${sameTenantSql(ctx)}${accessHelpers ? "" : disabledHelpers(ctx)}
 ${currentTenant(ctx)}
 
 -- Policies compare against the set once per statement:
@@ -424,7 +425,7 @@ export const TENANT: ModuleDefinition = {
   version: 2,
   modes: ["managed", "adopt", "custom"],
   names: {
-    options: ["claimFormat", "roleThrough"],
+    options: ["claimFormat", "roleThrough", "sameTenant"],
     tables: {
       memberships: {
         name: "memberships",
