@@ -80,6 +80,7 @@ Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runt
 
 - Next.js: `const { db } = await bs.context()`, `bs.route(...)`, `bs.action(...)`
 - Next.js Cache Components: keep layouts synchronous; read `bs.session()` in a `'use cache: private'` function inside `<Suspense>`, pass the promise to `<SessionProvider>` and read it with `useSession()`
+- Next.js with the tenant in the route (`/[organizationId]/...`): `bs.context({ tenant: organizationId })`, `bs.cached({ tenant })` inside a `'use cache: private'` function that takes the tenant as an argument, and `bs.action({ input, tenant: (input) => input.organizationId }, fn)`. The tenant gets the resolver's membership checks. Client Components get the id as a prop and pass it to actions and to `useLiveQuery(spec, { tenant })`; the browser client only knows the claim's tenant
 - Hono: `c.var.db` after `bs.middleware()`
 - oRPC: `context.db` after `bs.middleware()`
 - Edge Functions: `bs.handler((request, { db }) => ...)`

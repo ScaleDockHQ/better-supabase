@@ -58,7 +58,11 @@ sets per request (the default `sql.modules.access.activeTenant: 'resolver'`), th
 the verified `tenant_id` claim (renamed with `claims.tenant` in
 `better-supabase.config.ts`), then `app_metadata.tenant_id`. A resolver may
 read the URL, but `current_tenant_id()` only returns a tenant the caller is a
-member of. Never trust a tenant from `user_metadata` or a request body. When the project
+member of. In Next.js Server Components and actions there is no request URL:
+pass the route's tenant with `bs.context({ tenant })`, `bs.cached({ tenant })`
+or `bs.action({ tenant: (input) => input.organizationId })`, which take the
+resolver's path and get the same check. Never trust a tenant from
+`user_metadata`, and never use one from a request body outside those options. When the project
 has a `permdock.config.ts`, PermDock's hook writes that claim and the
 memberships: don't run `sql add tenant`, and follow the PermDock reference of
 the `better-supabase-auth` skill

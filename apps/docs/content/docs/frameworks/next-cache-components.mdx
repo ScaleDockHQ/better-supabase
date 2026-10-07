@@ -268,8 +268,6 @@ rendering at no extra cost:
 const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   const { pathname } = request.nextUrl;
   if (pathname === "/login" || pathname.startsWith("/api/")) return undefined;
-  // Prefetches never refresh: an expired token renders the page signed out.
-  if (auth.kind === "anon" && auth.reason === "expired") return undefined;
   const session = toSession(auth);
   if (session.kind !== "user")
     return NextResponse.redirect(new URL("/login", request.url));
@@ -279,8 +277,19 @@ const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   return undefined;
 };
 
-export const proxy = (request: NextRequest) => bs.proxy(request, { protect });
+export const proxy = (request: NextRequest) =>
+  bs.proxy(request, { protect, expiredPrefetch: "render" });
 ```
+
+Prefetches never refresh, so a session whose token expired arrives as
+`{ kind: "anon", reason: "expired" }`. Without `expiredPrefetch`, `protect`
+sees it like any other caller and the prefetch caches a redirect to
+`/login`, even though the click would refresh the session. With
+`expiredPrefetch: "render"`, `protect` is skipped for those prefetches, so
+they render signed out. `sessionStale` gives that view 0, so it never joins
+the App Shell, and the navigation itself refreshes the session. Other
+requests with an expired token, and prefetches without any session, still
+go through `protect`.
 
 ## 6. Data derived from the session
 
@@ -307,7 +316,11 @@ that function's arguments. It:
   their role. `tags` adds more tags to the entry, and
   `bs.invalidateSession(userId, { tags })` drops those too;
 - returns the caller's context plus `session`. `db`, `supabase` and `sql` are
-  built on first access.
+  built on first access;
+- scopes that context to `tenant` when you pass one, for example from the
+  route params. Take it as an argument of your function so it is part of the
+  cache key: `getCustomers(organizationId)` calls
+  `bs.cached({ tenant: organizationId })`.
 
 ### PermDock snapshots
 

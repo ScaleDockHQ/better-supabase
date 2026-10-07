@@ -98,7 +98,10 @@ const { count } = useLiveCount(seed);
 ```
 
 `bs.liveCount` uses `bs.context()`; inside `'use cache: private'`,
-pass the `db` from `bs.cached()` as the second argument. A failed count
+pass the `db` from `bs.cached()` as the second argument. For a tenant from
+the route, pass the `db` from `bs.context({ tenant })` or
+`bs.cached({ tenant })`, and give the client hook the same
+`{ tenant }`. A failed count
 gives `count: null`, and the client fetches it instead. Don't seed from a
 cache entry that can outlive changes made by other users: changes made
 before the client joins the channel aren't broadcast to it.

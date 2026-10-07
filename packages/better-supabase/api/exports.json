@@ -643,6 +643,7 @@
       "NextOptions",
       "ProxyOptions",
       "RequireAalOptions",
+      "ScopeOptions",
       "SessionStaleOptions",
       "SupportOptions",
       "SupportPolicy",

@@ -495,24 +495,40 @@ export const bs = createServer(betterSupabase, {
 });
 ```
 
-Under `createNext`, `bs.context()`, `bs.session()` and `bs.cached()` take
-no request: they read the incoming headers, and the resolver gets a request
-whose URL is always `http://next.local/`. Read a header there instead,
-for example one your proxy sets from the path:
+Under `createNext`, Server Components, actions and private caches have no
+request URL: the resolver gets a request with the incoming headers and a
+placeholder URL. Pass the tenant from the route params instead. It goes
+where the resolver's result goes, so `current_tenant_id()` and the
+`tenant()` plugin check it the same way, and a tenant the caller doesn't
+belong to grants nothing:
 
-```ts title="src/lib/supabase/server.ts"
-import "server-only";
-import { createNext } from "better-supabase/next";
-
-import { betterSupabase } from "./index";
-
-export const bs = createNext(betterSupabase, {
-  tenant: (request) => request.headers.get("x-organization-slug") ?? undefined,
-});
+```tsx title="src/app/[organizationId]/customers/page.tsx"
+export default async function Customers({
+  params,
+}: PageProps<"/[organizationId]/customers">) {
+  const { organizationId } = await params;
+  const { db } = await bs.context({ tenant: organizationId });
+  const customers = await db.customers.findMany().orThrow();
+  return <CustomerList customers={customers} />;
+}
 ```
 
-`bs.route()` and `bs.context(request)` pass the real request, so the URL
-works there.
+`bs.cached({ tenant })` does the same inside `'use cache: private'`. Take
+the tenant as an argument of your function, because Next.js keys the
+cache entry on the arguments:
+
+```ts
+async function getCustomers(organizationId: string) {
+  "use cache: private";
+  const { db } = await bs.cached({ tenant: organizationId });
+  return db.customers.findMany().orThrow();
+}
+```
+
+Actions take it from their validated input with
+`bs.action({ input, tenant: (input) => input.organizationId }, fn)`.
+`bs.route()` and `bs.context(request)` pass the real request, so a resolver
+that reads the URL works there.
 
 A route that already knows the tenant passes it directly:
 `bs.context(request, { tenant })`. `contextFromResolution` runs only

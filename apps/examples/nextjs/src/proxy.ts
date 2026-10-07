@@ -12,8 +12,6 @@ import { bs } from "./lib/supabase/server";
 const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   const { pathname } = request.nextUrl;
   if (pathname === "/login" || pathname.startsWith("/api/")) return;
-  // Prefetches never refresh; an expired token renders the page signed out.
-  if (auth.kind === "anon" && auth.reason === "expired") return;
   const session = toSession(auth);
   if (session.kind !== "user")
     return NextResponse.redirect(new URL("/login", request.url));
@@ -26,6 +24,8 @@ const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
 export const proxy = (request: NextRequest) =>
   bs.proxy(request, {
     protect,
+    // Prefetches never refresh; an expired token prefetches the page signed out.
+    expiredPrefetch: "render",
     after: (response, auth) => {
       // Shared caches must never store a signed-in response.
       if (auth.kind === "user") response.headers.append("vary", "cookie");
