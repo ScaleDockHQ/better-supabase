@@ -29,7 +29,7 @@ import {
   tokenHash,
   type InviteTable,
 } from "./invitations-tables.ts";
-import { assignableRole, roleValue, TRUSTED_SETTING } from "./organizations.ts";
+import { assignableRole, roleValue } from "./organizations.ts";
 import { roleThrough } from "./tenant.ts";
 
 const NAMES: ModuleNames = {
@@ -900,10 +900,8 @@ begin
   if exists (select 1 from ${m} m where m.${mt} = invite.${c("tenant")} and m.${mu} = me) then
     ${fail("INVITATION_ALREADY_MEMBER", "You are already a member")}
   end if;${recheck}
-  perform set_config('${TRUSTED_SETTING}', 'on', true);
   insert into ${m} (${mt}, ${mu}, ${mr})
   values (invite.${c("tenant")}, me, ${roleOf(`invite.${c("role")}`)});
-  perform set_config('${TRUSTED_SETTING}', '', true);
   update ${t.table}
   set ${c("acceptedAt")} = now()${t.has("acceptedBy") ? `, ${c("acceptedBy")} = me` : ""}
   where ${c("id")} = invite.${c("id")};

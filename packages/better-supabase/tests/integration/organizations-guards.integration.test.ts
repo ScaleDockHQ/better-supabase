@@ -126,4 +126,55 @@ describe.skipIf(!live)("organizations member guards", () => {
       await s.close();
     }
   });
+
+  it("checks client writes only, so the app's own security definer functions write memberships", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations"]);
+      const owner = await s.user("owner");
+      const admin = await s.user("admin");
+      const member = await s.user("member");
+      const newcomer = await s.user("newcomer");
+      const organization = await s.organization(owner, { admin, member });
+      const schema = `bs_app_${crypto.randomUUID().slice(0, 8)}`;
+      await s.client.query(`
+        create schema ${schema};
+        grant usage on schema ${schema} to authenticated;
+        create function ${schema}.seat(organization uuid, member uuid, role text) returns void
+        language sql security definer set search_path = '' as $$
+          insert into better_supabase.memberships (organization_id, user_id, role)
+          values (organization, member, role)
+        $$;
+        grant execute on function ${schema}.seat(uuid, uuid, text) to authenticated;
+        grant update on better_supabase.memberships to authenticated;
+        create policy bs_test_update on better_supabase.memberships for update to authenticated
+          using (true) with check (true);
+      `);
+      const role = (user: { id: string }) =>
+        s.value<string>(
+          "(select role from better_supabase.memberships where organization_id = $1 and user_id = $2)",
+          [organization, user.id],
+        );
+
+      await s.asRole(admin);
+      await s.value(`${schema}.seat($1, $2, 'owner')`, [
+        organization,
+        newcomer.id,
+      ]);
+      const update = (user: { id: string }, value: string) =>
+        s.hint(
+          "update better_supabase.memberships set role = $3 where organization_id = $1 and user_id = $2",
+          [organization, user.id, value],
+        );
+      expect(await update(owner, "member")).toBe("ORGANIZATION_ROLE_CEILING");
+      expect(await update(admin, "viewer")).toBe("ORGANIZATION_SELF_ROLE");
+      expect(await update(member, "viewer")).toBe("no error");
+      await s.service();
+      expect(await role(newcomer)).toBe("owner");
+      expect(await role(member)).toBe("viewer");
+      expect(await role(owner)).toBe("owner");
+    } finally {
+      await s.close();
+    }
+  });
 });

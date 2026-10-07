@@ -61,12 +61,8 @@ const NAMES: ModuleNames = {
   ],
 };
 
-/** The transaction-local setting that lets the module's own writes past the guard. */
-export const TRUSTED_SETTING = "better_supabase.trusted";
-
-const TRUSTED = `coalesce(current_setting('${TRUSTED_SETTING}', true), '') = 'on'`;
-const trust = (on: boolean): string =>
-  `perform set_config('${TRUSTED_SETTING}', '${on ? "on" : ""}', true);`;
+/** The roles client writes run as; the guard checks only their writes. */
+const CLIENT_WRITE = "current_user in ('anon', 'authenticated')";
 
 const DEFAULT_SLUG_PATTERN = "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$";
 
@@ -371,10 +367,8 @@ begin
     ["uuid", "owner"],
   ])}
   ${insert}
-  ${trust(true)}
   insert into ${n.m} (${n.tenant}, ${n.user}, ${n.role})
   values (organization, owner, ${roleValue(ctx, sqlString(n.ownerRole))});
-  ${trust(false)}
   ${ctx.hook("after_organization_create", [
     [id, "organization"],
     ["uuid", "owner"],
@@ -565,32 +559,55 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
 -- can_assign and the own-role rule before they write.
 drop trigger if exists ${ctx.trigger("organization_role_guard")} on ${n.m};
 drop function if exists ${ctx.fn("guard_membership")}();
+drop function if exists ${ctx.fn("guard_membership_role")}(${ctx.idType}, uuid, text, ${ctx.idType}, text);
 `;
   }
   const ceiling = `
--- No one grants a role above their own permissions (can_assign), demotes
--- someone above them, or changes their own role. The service role, direct
--- admin connections and the module's own writes (${TRUSTED_SETTING}) pass.
-create or replace function ${ctx.fn("guard_membership")}()
-returns trigger
+-- No client grants a role above their own permissions (can_assign), demotes
+-- someone above them, or changes their own role. Only writes made as anon or
+-- authenticated are checked, like PermDock's assignment triggers: the
+-- service role, direct admin connections and security definer functions
+-- (the module's own and the app's, which check their own ceilings) pass.
+-- The checks, as the module's owner, so the client needs no rights on the
+-- roles tables. It only raises, so a direct call reveals nothing.
+create or replace function ${ctx.fn("guard_membership_role")}(target_tenant ${ctx.idType}, target_member uuid, target_role text, previous_tenant ${ctx.idType}, previous_role text)
+returns void
 language plpgsql
+stable
 security definer
 set search_path = ''
 as $$
 begin
-  if ${TRUSTED} or ${SERVICE_CALLER} then
+  if target_member = auth.uid() then
+    raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
+  end if;
+  if not better_supabase.can_assign(target_tenant, ${assignableRole(ctx, "target_role")})
+    or (previous_tenant is not null and not better_supabase.can_assign(previous_tenant, ${assignableRole(ctx, "previous_role")})) then
+    raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
+  end if;
+end;
+$$;
+revoke execute on function ${ctx.fn("guard_membership_role")}(${ctx.idType}, uuid, text, ${ctx.idType}, text) from public, anon;
+grant execute on function ${ctx.fn("guard_membership_role")}(${ctx.idType}, uuid, text, ${ctx.idType}, text) to authenticated, service_role;
+
+-- Security invoker, so current_user is the role that wrote the row.
+create or replace function ${ctx.fn("guard_membership")}()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if not (${CLIENT_WRITE}) then
     return new;
   end if;
   if tg_op = 'UPDATE' and new.${n.role} is not distinct from old.${n.role} then
     return new;
   end if;
-  if new.${n.user} = auth.uid() then
-    raise exception 'You cannot change your own role' using errcode = '42501', hint = 'ORGANIZATION_SELF_ROLE';
-  end if;
-  if not better_supabase.can_assign(new.${n.tenant}, ${assignableRole(ctx, `new.${n.role}`)})
-    or (tg_op = 'UPDATE' and not better_supabase.can_assign(old.${n.tenant}, ${assignableRole(ctx, `old.${n.role}`)})) then
-    raise exception 'That role is above your own' using errcode = '42501', hint = 'ORGANIZATION_ROLE_CEILING';
-  end if;
+  perform ${ctx.fn("guard_membership_role")}(
+    new.${n.tenant}, new.${n.user}, new.${n.role}::text,
+    case when tg_op = 'UPDATE' then old.${n.tenant} end,
+    case when tg_op = 'UPDATE' then old.${n.role}::text end
+  );
   return new;
 end;
 $$;
@@ -738,14 +755,12 @@ begin
   if not exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = new_owner) then
     raise exception 'The new owner must be a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
-  ${trust(true)}
   update ${n.m} set ${n.role} = ${roleValue(ctx, sqlString(n.ownerRole))}
   where ${n.tenant} = organization and ${n.user} = new_owner;
   if me is not null and me <> new_owner then
     update ${n.m} m set ${n.role} = ${roleValue(ctx, "former_role")}
     where m.${n.tenant} = organization and m.${n.user} = me and ${isOwner(ctx, n, "m")};
   end if;
-  ${trust(false)}
   ${change("new_owner", "owner")}
   ${ctx.emit({ type: "organization.ownership_transferred", payload: event("organization", "new_owner", `, 'role', ${sqlString(n.ownerRole)}`), subject, tenant: "organization" })}
   return true;

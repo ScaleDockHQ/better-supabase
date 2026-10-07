@@ -67,8 +67,12 @@ describe("organizations module", () => {
     expect(sql).toContain("on delete cascade not valid;");
     expect(sql).toContain("deferrable initially deferred");
     expect(sql).toContain("hint = 'ORGANIZATION_ROLE_CEILING'");
+    expect(sql).not.toContain("better_supabase.trusted");
     expect(sql).toContain(
-      "perform set_config('better_supabase.trusted', 'on', true);",
+      "  if not (current_user in ('anon', 'authenticated')) then\n    return new;",
+    );
+    expect(sql).toMatch(
+      /create or replace function "better_supabase"\."guard_membership"\(\)\nreturns trigger\nlanguage plpgsql\nset search_path/,
     );
     expect(sql).toContain(
       'delete from "better_supabase"."organizations" where "id" = organization;',
@@ -208,7 +212,7 @@ describe("roles through a lookup table", () => {
   it("stores role ids and checks and assigns by role name", () => {
     const sql = body(THROUGH);
     expect(sql).toContain(
-      `can_assign(new."team_id", (select r."key"::text from "public"."team_roles" r where r."id"::text = (new."role_id")::text))`,
+      `can_assign(target_tenant, (select r."key"::text from "public"."team_roles" r where r."id"::text = (target_role)::text))`,
     );
     expect(sql).toContain(
       `set "role_id" = (select r."id" from "public"."team_roles" r where r."id"::text = (role)::text or r."key"::text = (role)::text`,

@@ -48,8 +48,12 @@ Every check runs in the function, and the database keeps two rules even for
 writes that bypass the functions. A deferred trigger refuses a commit that
 leaves an organization without an owner (`ownerInvariant`), and a trigger on
 the memberships table stops members from changing their own role or
-assigning a role above their own. The module's own writes and the service role
-pass the second one.
+assigning a role above their own. That guard checks only client writes (made
+as `anon` or `authenticated`), like PermDock's assignment triggers: the
+service role, direct admin connections and `security definer` functions pass
+it, so your own functions that write memberships (an invitation accept that
+seats the invitee, a one-statement ownership transfer) work, and check their
+own ceilings as the module's functions do.
 
 When another trigger already guards an adopted memberships table, such as
 PermDock's assignment rules (`rls.assignments`), set `assignmentGuard:
