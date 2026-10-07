@@ -42,6 +42,13 @@ export interface PurgeAuditLogOptions extends BlockTemporalOptions {
   ) => number | undefined | Promise<number | undefined>;
 }
 
+type Retention = NonNullable<PurgeAuditLogOptions["retention"]>;
+
+const RETENTION_MANY = new WeakMap<
+  Retention,
+  (tenants: readonly string[]) => Promise<ReadonlyMap<string, number>>
+>();
+
 /**
  * Deletes audit entries past their retention and returns how many. Without
  * `retention` it is one `purge_audit_log` call (which honours an
@@ -71,9 +78,18 @@ export function purgeAuditLog(
       "select tenant::text from better_supabase.audit_events_tenants($1::interval) as tenant",
       ["1 day"],
     );
+    const many = RETENTION_MANY.get(retention);
+    const ids = tenants.flatMap(({ tenant }) =>
+      tenant === null ? [] : [tenant],
+    );
+    const known = many && ids.length > 0 ? await many(ids) : undefined;
     let purged = 0;
     for (const { tenant } of tenants) {
-      const days = await retention(tenant);
+      const days = known
+        ? tenant === null
+          ? undefined
+          : known.get(tenant)
+        : await retention(tenant);
       const keep = days === undefined ? olderThan : `${days} days`;
       purged += await purge(
         [keep, batch, tenant],
@@ -95,22 +111,41 @@ export interface AuditRetentionSource {
 
 /**
  * A `retention` callback for `purgeAuditLog` that reads each tenant's days
- * from a column (a plan's `audit_retention_days`, say), one query per tenant.
+ * from a column (a plan's `audit_retention_days`, say). `purgeAuditLog` reads
+ * every tenant's days in one query; a direct call reads one tenant.
  */
 export function setAuditRetention(
   sql: SqlClient,
   source: AuditRetentionSource,
-): NonNullable<PurgeAuditLogOptions["retention"]> {
+): Retention {
   const [schema, name] = source.table.includes(".")
     ? source.table.split(".", 2)
     : ["public", source.table];
-  const text = `select ${sqlIdent(source.column)}::integer as days from ${sqlIdent(schema!)}.${sqlIdent(name!)} where ${sqlIdent(source.key ?? "id")}::text = $1`;
-  return async (tenant) => {
+  const key = sqlIdent(source.key ?? "id");
+  const from = `${sqlIdent(source.column)}::integer as days from ${sqlIdent(schema!)}.${sqlIdent(name!)}`;
+  const kept = (days: number | null | undefined) =>
+    typeof days === "number" && days > 0 ? days : undefined;
+  const retention: Retention = async (tenant) => {
     if (tenant === null) return;
-    const [row] = await sql.queryRaw<{ days: number | null }>(text, [tenant]);
-    const days = row?.days;
-    return typeof days === "number" && days > 0 ? days : undefined;
+    const [row] = await sql.queryRaw<{ days: number | null }>(
+      `select ${from} where ${key}::text = $1`,
+      [tenant],
+    );
+    return kept(row?.days);
   };
+  RETENTION_MANY.set(retention, async (tenants) => {
+    const rows = await sql.queryRaw<{ tenant: string; days: number | null }>(
+      `select ${key}::text as tenant, ${from} where ${key}::text = any($1::text[])`,
+      [tenants],
+    );
+    const days = new Map<string, number>();
+    for (const row of rows) {
+      const value = kept(row.days);
+      if (value !== undefined) days.set(row.tenant, value);
+    }
+    return days;
+  });
+  return retention;
 }
 
 /** One audit entry as `exportAuditLog` reads it. */

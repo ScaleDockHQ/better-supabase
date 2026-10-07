@@ -82,6 +82,44 @@ describe("setAuditRetention", () => {
       'from "public"."plans" where "organization_id"',
     );
   });
+
+  it("reads every tenant's days in one query when purgeAuditLog runs", async () => {
+    const fake = fakeSql([
+      [
+        "audit_events_tenants",
+        [{ tenant: "a" }, { tenant: "b" }, { tenant: "c" }, { tenant: null }],
+      ],
+      [
+        "any($1::text[])",
+        [
+          { tenant: "a", days: 30 },
+          { tenant: "b", days: null },
+        ],
+      ],
+      ["purge_audit_log", [{ n: 1 }]],
+    ]);
+    const retention = setAuditRetention(fake.sql, {
+      table: "public.organizations",
+      column: "audit_retention_days",
+    });
+    expect(
+      await purgeAuditLog(fake.sql, { olderThan: 86_400, retention }).orThrow(),
+    ).toBe(4);
+    const lookups = fake.calls.filter((call) =>
+      call.text.includes('"organizations"'),
+    );
+    expect(lookups).toEqual([
+      {
+        text: 'select "id"::text as tenant, "audit_retention_days"::integer as days from "public"."organizations" where "id"::text = any($1::text[])',
+        values: [["a", "b", "c"]],
+      },
+    ]);
+    expect(
+      fake.calls
+        .filter((call) => call.text.includes("purge_audit_log"))
+        .map((call) => call.values[0]),
+    ).toEqual(["30 days", "86400 seconds", "86400 seconds", "86400 seconds"]);
+  });
 });
 
 const ROWS = [

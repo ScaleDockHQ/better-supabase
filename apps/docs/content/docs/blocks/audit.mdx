@@ -255,5 +255,6 @@ await purgeAuditLog(postgres.admin, {
 });
 ```
 
-A tenant whose column is `null` keeps the `olderThan` default. Run the job
+`purgeAuditLog` reads every tenant's days in one query. A tenant whose
+column is `null` keeps the `olderThan` default. Run the job
 until it returns 0; each call deletes at most `batch` entries per tenant.
