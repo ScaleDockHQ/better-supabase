@@ -153,4 +153,17 @@ describe("webhooks-in module", () => {
       "case when e.previous_secret_expires_at > now() then e.previous_secret end",
     );
   });
+
+  it("accepts a shared secret header mode with its own default header", () => {
+    const sql = moduleBody("webhooks-in")!;
+    expect(sql).toContain(
+      "add constraint incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'));",
+    );
+    expect(sql).toContain(
+      "when 'shared-secret' then coalesce(signature_header, null, 'x-webhook-secret')",
+    );
+    expect(sql).toContain(
+      "when 'shared-secret' then encode(extensions.gen_random_bytes(32), 'hex')",
+    );
+  });
 });

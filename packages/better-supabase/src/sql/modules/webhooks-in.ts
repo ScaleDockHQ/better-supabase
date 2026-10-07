@@ -13,7 +13,18 @@ import {
 import { MODULE_PERMISSIONS, modulePermissionKey } from "./access-model.ts";
 
 /** How a delivery to an endpoint proves it came from the sender. */
-const INCOMING_VERIFY = ["none", "standard-webhooks", "hmac-sha256"] as const;
+const INCOMING_VERIFY = [
+  "none",
+  "standard-webhooks",
+  "hmac-sha256",
+  "shared-secret",
+] as const;
+
+const headerFor = (mode: string, given: string, kept: string): string =>
+  `case ${mode}
+      when 'hmac-sha256' then coalesce(${given}, ${kept}, 'x-signature')
+      when 'shared-secret' then coalesce(${given}, ${kept}, 'x-webhook-secret')
+    end`;
 
 const fail = (code: string, message: string, errcode = "42501"): string =>
   `raise exception '${message}' using errcode = '${errcode}', hint = '${code}';`;
@@ -35,6 +46,7 @@ const vaultSecret = (secret: string, endpoint: string): string =>
 const newSecret = (mode: string): string => `case ${mode}
     when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
     when 'hmac-sha256' then encode(extensions.gen_random_bytes(32), 'hex')
+    when 'shared-secret' then encode(extensions.gen_random_bytes(32), 'hex')
   end`;
 
 function webhooksInSql(ctx: ModuleContext): string {
@@ -130,6 +142,8 @@ create table if not exists ${t} (
 alter table ${t} add column if not exists subject_type text check (subject_type ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table ${t} add column if not exists subject_id text check (length(subject_id) between 1 and 200);
 alter table ${t} add column if not exists secret_id uuid;
+alter table ${t} drop constraint if exists incoming_webhooks_verify_check;
+alter table ${t} add constraint incoming_webhooks_verify_check check (verify in (${verify}));
 alter table ${t} add column if not exists previous_secret text;
 alter table ${t} add column if not exists previous_secret_id uuid;
 alter table ${t} add column if not exists previous_secret_expires_at timestamptz;
@@ -236,7 +250,7 @@ begin
   end if;
   insert into ${t} (id, tenant, name, token_hash, verify, secret, secret_id, signature_header, metadata, subject_type, subject_id, created_by)
   values (v_id, tenant, name, encode(extensions.digest(token, 'sha256'), 'hex'), verify, ${plain("secret")}, ${stored("secret", "v_id")},
-    case when verify = 'hmac-sha256' then coalesce(signature_header, 'x-signature') end,
+    ${headerFor("verify", "signature_header", "null")},
     coalesce(metadata, '{}'), subject_type, subject_id, auth.uid())
   returning * into created;
   return jsonb_build_object('id', created.id, 'tenant', created.tenant, 'name', created.name,
@@ -369,8 +383,7 @@ begin
     previous_secret = case when v_verify = previous.verify then e.previous_secret end,
     previous_secret_id = case when v_verify = previous.verify then e.previous_secret_id end,
     previous_secret_expires_at = case when v_verify = previous.verify then e.previous_secret_expires_at end,
-    signature_header = case when v_verify = 'hmac-sha256'
-      then coalesce(update_incoming_webhook.signature_header, e.signature_header, 'x-signature') end
+    signature_header = ${headerFor("v_verify", "update_incoming_webhook.signature_header", "case when v_verify = previous.verify then e.signature_header end")}
   where e.id = endpoint
   returning * into updated;${
     vault

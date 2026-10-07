@@ -260,6 +260,50 @@ describe("createIncomingWebhooks", () => {
     expect(await broken.rotate("e1")).toMatchObject({ ok: false });
   });
 
+  it("checks a shared secret header in constant time and never stores it", async () => {
+    const fake = fakeSql([
+      [
+        "incoming_webhook_by_token",
+        (call) => [
+          endpoint({
+            verify: "shared-secret",
+            secret: "s3cret",
+            previous_secret: call.values[0] === "grace" ? "old" : null,
+            signature_header: call.values[0] === "custom" ? "x-token" : null,
+            max_body_bytes: 99,
+          }),
+        ],
+      ],
+      ["receive_webhook", [{ id: 1, duplicate: false }]],
+    ]);
+    const hooks = createIncomingWebhooks(fake.sql, {
+      keepHeaders: ["x-webhook-secret", "X-Token", "x-request-id"],
+    });
+    const status = async (token: string, headers: Record<string, string>) =>
+      (await hooks.receive(post("{}", headers), token)).status;
+    expect(
+      await status("tok", {
+        "x-webhook-secret": "s3cret",
+        "x-request-id": "r1",
+      }),
+    ).toBe(202);
+    expect(await status("tok", { "x-webhook-secret": "s3cre" })).toBe(401);
+    expect(await status("tok", {})).toBe(401);
+    expect(await status("custom", { "x-token": "s3cret" })).toBe(202);
+    expect(await status("custom", { "x-webhook-secret": "s3cret" })).toBe(401);
+    expect(await status("grace", { "x-webhook-secret": "old" })).toBe(202);
+    expect(await status("tok", { "x-webhook-secret": "old" })).toBe(401);
+    const stored = fake.calls
+      .filter((call) => call.text.includes("receive_webhook"))
+      .map((call) => JSON.parse(String(call.values[4])));
+    expect(stored[0]).toEqual({
+      "x-request-id": "r1",
+      "x-bs-endpoint-id": "e1",
+    });
+    expect(JSON.stringify(stored)).not.toContain("s3cret");
+    expect(JSON.stringify(stored)).not.toContain('"old"');
+  });
+
   it("rotates the secret and verifies with the previous one during the grace", async () => {
     const [oldStd, newStd] = [
       `whsec_${btoa("old-unit-secret")}`,

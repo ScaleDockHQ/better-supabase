@@ -22,7 +22,11 @@ import { timingSafeEqual, verifyWebhook } from "./verify.ts";
 // Incoming webhook endpoints (SQL module `webhooks-in`)
 
 /** How a delivery proves it came from the sender. */
-export type IncomingVerify = "none" | "standard-webhooks" | "hmac-sha256";
+export type IncomingVerify =
+  | "none"
+  | "standard-webhooks"
+  | "hmac-sha256"
+  | "shared-secret";
 
 export interface IncomingWebhooksOptions
   extends BlockProblemOptions, BlockTemporalOptions {
@@ -167,6 +171,7 @@ const VERIFY_MODES: readonly IncomingVerify[] = [
   "none",
   "standard-webhooks",
   "hmac-sha256",
+  "shared-secret",
 ];
 
 function verifyOf(value: unknown): IncomingVerify {
@@ -313,6 +318,25 @@ export function createIncomingWebhooks(
           }
           if (!verified.ok) return await problem(verified.error, endpoint.id);
           messageId = verified.data.id;
+        } else if (endpoint.verify === "shared-secret") {
+          const given =
+            request.headers.get(
+              endpoint.signature_header ?? "x-webhook-secret",
+            ) ?? "";
+          const matches =
+            (endpoint.secret !== null &&
+              timingSafeEqual(given, endpoint.secret)) ||
+            (endpoint.previous_secret !== null &&
+              endpoint.previous_secret !== undefined &&
+              timingSafeEqual(given, endpoint.previous_secret));
+          if (given === "" || !matches) {
+            return await problem(
+              dbError("unauthorized", "Invalid webhook secret", {
+                code: "WEBHOOK_INVALID_SIGNATURE",
+              }),
+              endpoint.id,
+            );
+          }
         } else if (endpoint.verify === "hmac-sha256") {
           const given =
             request.headers.get(endpoint.signature_header ?? "x-signature") ??
@@ -346,8 +370,13 @@ export function createIncomingWebhooks(
         } catch {
           payload = { body };
         }
+        const secretHeader =
+          endpoint.verify === "shared-secret"
+            ? (endpoint.signature_header ?? "x-webhook-secret").toLowerCase()
+            : undefined;
         const kept: [string, string][] = (options.keepHeaders ?? []).flatMap(
           (name): [string, string][] => {
+            if (name.toLowerCase() === secretHeader) return [];
             const header = request.headers.get(name);
             return header === null ? [] : [[name.toLowerCase(), header]];
           },

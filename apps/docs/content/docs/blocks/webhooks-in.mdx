@@ -47,6 +47,7 @@ await hooks.remove(endpoint.id);
 | `none` (default)    | only the token in the URL                                                                                       |
 | `standard-webhooks` | a [Standard Webhooks](/docs/standards) signature with the endpoint's `whsec_` secret                            |
 | `hmac-sha256`       | the hex HMAC-SHA256 of the body, optionally prefixed `sha256=`, in `signatureHeader` (`x-signature` by default) |
+| `shared-secret`     | the endpoint's secret itself in `signatureHeader` (`x-webhook-secret` by default), for senders that cannot sign |
 
 ### Rotating the secret
 
@@ -113,6 +114,12 @@ members add endpoints while only admins remove them:
 | `update` | `update_incoming_webhook`, `rotate_incoming_webhook`, `rotate_incoming_webhook_secret` and `set_incoming_webhook_enabled` |
 | `delete` | `delete_incoming_webhook`                                                                                                 |
 | `view`   | the read policy and `list_incoming_webhooks` (`webhooks.read`)                                                            |
+
+Use `shared-secret` only for a sender that can set a fixed header but
+cannot compute a signature, such as a form tool or an older CRM. The secret
+travels with every request, so it protects against a leaked URL but not
+against someone who can read the traffic. `receive` compares it in constant
+time and never stores that header, even when `keepHeaders` names it.
 
 Members with `webhooks.read` read their tenant's endpoints, including
 `receive_count`, `last_received_at` and `last_status`. `hooks.list(tenant)`

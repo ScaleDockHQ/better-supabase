@@ -446,6 +446,71 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     }
   });
 
+  it("verifies senders that cannot sign with a shared secret header", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "webhooks-in"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      const hooks = createIncomingWebhooks(s.sql, {
+        source: `shared-${organization.slice(0, 8)}`,
+        keepHeaders: ["x-api-key"],
+      });
+      await s.as(owner);
+      const created = await hooks
+        .create({
+          tenant: organization,
+          name: "Legacy CRM",
+          verify: "shared-secret",
+          signatureHeader: "x-api-key",
+        })
+        .orThrow();
+      expect(created).toMatchObject({
+        verify: "shared-secret",
+        signatureHeader: "x-api-key",
+      });
+      expect(created.secret).toMatch(/^[0-9a-f]{64}$/);
+      const plain = await hooks
+        .create({ tenant: organization, name: "Other" })
+        .orThrow();
+      expect(
+        await hooks.update(plain.id, { verify: "shared-secret" }).orThrow(),
+      ).toMatchObject({ signatureHeader: "x-webhook-secret" });
+
+      const post = async (headers: Record<string, string>) =>
+        (
+          await hooks.receive(
+            new Request(`https://api.test/hooks/${created.token}`, {
+              method: "POST",
+              headers,
+              body: "{}",
+            }),
+            created.token,
+          )
+        ).status;
+      await s.service();
+      expect(await post({ "x-api-key": created.secret! })).toBe(202);
+      expect(await post({ "x-api-key": "wrong" })).toBe(401);
+      expect(await post({ "x-webhook-secret": created.secret! })).toBe(401);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.webhook_inbox where headers::text like '%' || $1 || '%')",
+          [created.secret],
+        ),
+      ).toBe(0);
+
+      await s.as(owner);
+      const rotated = await hooks
+        .rotateSecret(created.id, { grace: "1 hour" })
+        .orThrow();
+      await s.service();
+      expect(await post({ "x-api-key": created.secret! })).toBe(202);
+      expect(await post({ "x-api-key": rotated.secret })).toBe(202);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("ties endpoints to readable subjects and cascades their deletes", async () => {
     const s = await BlockSession.open(pool);
     try {
