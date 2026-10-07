@@ -20,6 +20,7 @@ import {
   createJobs,
   createRateLimit,
   sqlQueueBackend,
+  withLease,
 } from "../../src/blocks/jobs/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -2191,6 +2192,92 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     expect(
       (await idempotency.handle(request("{}", "order-2"), handler)).status,
     ).toBe(201);
+  });
+
+  it("refuses a former holder's complete and release after a takeover", async () => {
+    const idempotency = createIdempotency(postgres.admin, { scope: RUN });
+    const first = await idempotency.begin("takeover", "fp", RUN).orThrow();
+    expect(first.state).toBe("started");
+    expect(
+      (await idempotency.begin("takeover", "fp", RUN).orThrow()).state,
+    ).toBe("running");
+    await pool.query(
+      "update better_supabase.idempotency_keys set locked_until = now() - interval '1 second' where scope = $1 and key = 'takeover'",
+      [RUN],
+    );
+    const second = await idempotency.begin("takeover", "fp", RUN).orThrow();
+    expect(second.state).toBe("started");
+    expect(second.holder).not.toBe(first.holder);
+    expect(
+      await idempotency
+        .complete("takeover", first.holder!, 200, { late: true }, RUN)
+        .orThrow(),
+    ).toBe(false);
+    expect(
+      await idempotency.release("takeover", first.holder!, RUN).orThrow(),
+    ).toBe(false);
+    expect(
+      await idempotency
+        .complete("takeover", second.holder!, 201, { ok: true }, RUN)
+        .orThrow(),
+    ).toBe(true);
+    expect(
+      await idempotency.begin("takeover", "fp", RUN).orThrow(),
+    ).toMatchObject({ state: "replay", status: 201, body: { ok: true } });
+  });
+
+  it("holds a lease for one holder until it is released or expires", async () => {
+    const key = `lease-${RUN}`;
+    const order: string[] = [];
+    const outer = await withLease(
+      postgres.admin,
+      key,
+      async (lease) => {
+        order.push("outer");
+        const inner = await withLease(postgres.admin, key, () => {
+          order.push("inner");
+        }).orThrow();
+        expect(inner).toEqual({ acquired: false });
+        expect(await lease.extend(30).orThrow()).toBe(true);
+        return lease.holder;
+      },
+      { seconds: 5 },
+    ).orThrow();
+    expect(outer.acquired).toBe(true);
+    expect(order).toEqual(["outer"]);
+    const after = await withLease(postgres.admin, key, () => "again").orThrow();
+    expect(after).toEqual({ acquired: true, value: "again" });
+
+    const { rows } = await pool.query<{ holder: string }>(
+      "select better_supabase.acquire_lease($1, 60) as holder",
+      [key],
+    );
+    const stale = rows[0]!.holder;
+    expect(
+      (
+        await pool.query("select better_supabase.acquire_lease($1, 60) as h", [
+          key,
+        ])
+      ).rows[0].h,
+    ).toBeNull();
+    await pool.query(
+      "update better_supabase.leases set expires_at = now() - interval '1 second' where key = $1",
+      [key],
+    );
+    const taken = await pool.query<{ h: string }>(
+      "select better_supabase.acquire_lease($1, 60) as h",
+      [key],
+    );
+    expect(taken.rows[0]!.h).not.toBeNull();
+    const lost = await pool.query<{ extended: boolean; released: boolean }>(
+      "select better_supabase.extend_lease($1, $2) as extended, better_supabase.release_lease($1, $2) as released",
+      [key, stale],
+    );
+    expect(lost.rows[0]).toEqual({ extended: false, released: false });
+    await pool.query("select better_supabase.release_lease($1, $2)", [
+      key,
+      taken.rows[0]!.h,
+    ]);
   });
 
   it("runs blocks on @supabase/server's Postgres pool", async () => {

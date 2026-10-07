@@ -828,7 +828,8 @@
       "nextCronRun",
       "pgmqPublicBackend",
       "rateLimited",
-      "sqlQueueBackend"
+      "sqlQueueBackend",
+      "withLease"
     ],
     "types": [
       "ClaimOptions",
@@ -859,6 +860,9 @@
       "JobContext",
       "JobHandler",
       "Jobs",
+      "Lease",
+      "LeaseOptions",
+      "LeaseOutcome",
       "ListDeadOptions",
       "QueueBackend",
       "QueueMessageBody",

@@ -6,6 +6,7 @@ import type { Executor } from "../../../src/core/executor.ts";
 
 import {
   createIdempotency,
+  withLease,
   createInbox,
   createJobs,
   type Job,
@@ -1843,6 +1844,57 @@ describe("drain and work", () => {
   });
 });
 
+describe("withLease", () => {
+  it("runs while holding the lease, extends it and releases it after a throw", async () => {
+    const fake = fakeSql([
+      ["acquire_lease", [{ holder: "h1" }]],
+      ["extend_lease", [{ done: true }]],
+      ["release_lease", []],
+    ]);
+    const outcome = await withLease(
+      fake.sql,
+      "conversation:1",
+      async (lease) => {
+        expect(await lease.extend().orThrow()).toBe(true);
+        expect(await lease.extend(5).orThrow()).toBe(true);
+        return lease.holder;
+      },
+      { seconds: 30, scope: "inbox" },
+    ).orThrow();
+    expect(outcome).toEqual({ acquired: true, value: "h1" });
+    expect(fake.calls.map((call) => [call.text, call.values])).toEqual([
+      [
+        "select better_supabase.acquire_lease($1, $2, $3) as holder",
+        ["conversation:1", 30, "inbox"],
+      ],
+      [
+        "select better_supabase.extend_lease($1, $2, $3, $4) as done",
+        ["conversation:1", "h1", 30, "inbox"],
+      ],
+      [
+        "select better_supabase.extend_lease($1, $2, $3, $4) as done",
+        ["conversation:1", "h1", 5, "inbox"],
+      ],
+      [
+        "select better_supabase.release_lease($1, $2, $3)",
+        ["conversation:1", "h1", "inbox"],
+      ],
+    ]);
+    const failing = await withLease(fake.sql, "k", () => {
+      throw new Error("boom");
+    });
+    expect(failing.ok).toBe(false);
+    expect(fake.calls.at(-1)!.text).toContain("release_lease");
+    const held = fakeSql([["acquire_lease", [{ holder: null }]]]);
+    const fn = vi.fn();
+    expect(await withLease(held.sql, "k", fn).orThrow()).toEqual({
+      acquired: false,
+    });
+    expect(fn).not.toHaveBeenCalled();
+    expect(held.calls[0]!.values).toEqual(["k", 60, ""]);
+  });
+});
+
 describe("createIdempotency", () => {
   it("calls the block functions with the scope, key and intervals", async () => {
     const fake = fakeSql([
@@ -1862,21 +1914,26 @@ describe("createIdempotency", () => {
       state: "replay",
       status: 201,
       body: { body: "{}", contentType: null },
+      holder: undefined,
     });
-    await idempotency.complete("k1", 200, { ok: 1 }, "tenant").orThrow();
-    await idempotency.release("k1").orThrow();
+    expect(
+      await idempotency
+        .complete("k1", "h1", 200, { ok: 1 }, "tenant")
+        .orThrow(),
+    ).toBe(false);
+    expect(await idempotency.release("k1", "h1").orThrow()).toBe(false);
     expect(fake.calls).toEqual([
       {
         text: "select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)",
         values: ["", "k1", "fp", "24 hours", "1 minute"],
       },
       {
-        text: "select better_supabase.complete_idempotent($1, $2, $3, $4)",
-        values: ["tenant", "k1", 200, '{"ok":1}'],
+        text: "select better_supabase.complete_idempotent($1, $2, $3, $4, $5) as done",
+        values: ["tenant", "k1", "h1", 200, '{"ok":1}'],
       },
       {
-        text: "select better_supabase.release_idempotent($1, $2)",
-        values: ["", "k1"],
+        text: "select better_supabase.release_idempotent($1, $2, $3) as done",
+        values: ["", "k1", "h1"],
       },
     ]);
   });
@@ -1921,7 +1978,7 @@ describe("createIdempotency", () => {
     const fake = fakeSql([
       [
         "begin_idempotent",
-        [{ state: "started", status_code: null, response: null }],
+        [{ state: "started", status_code: null, response: null, holder: "h1" }],
       ],
     ]);
     const idempotency = createIdempotency(fake.sql, { scope: "acme" });
@@ -1945,6 +2002,7 @@ describe("createIdempotency", () => {
     expect(fake.calls[1]!.values).toEqual([
       "acme",
       "k1",
+      "h1",
       201,
       JSON.stringify({
         body: "created",
