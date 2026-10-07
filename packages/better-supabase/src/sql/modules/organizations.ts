@@ -406,13 +406,18 @@ $$;
 }
 
 /**
- * `permissions.updatePlatform` and `permissions.deletePlatform`: a platform
- * key (`is_platform`) that lets platform staff edit or delete any tenant
- * without the service role. Nothing when unset.
+ * `permissions.updatePlatform`, `deletePlatform`, `updateRolePlatform` and
+ * `removeMemberPlatform`: a platform key (`is_platform`) that lets platform
+ * staff edit or delete any tenant, or manage its members, without the
+ * service role. Nothing when unset.
  */
 function platformOverride(
   ctx: ModuleContext,
-  action: "updatePlatform" | "deletePlatform",
+  action:
+    | "updatePlatform"
+    | "deletePlatform"
+    | "updateRolePlatform"
+    | "removeMemberPlatform",
 ): string {
   const key = ctx.permissionKey(action, "");
   return key === ""
@@ -713,7 +718,7 @@ declare
   previous text;
   previous_assignable text;
 begin
-  if not ${can("updateRole")} then
+  if not ${can("updateRole")}${platformOverride(ctx, "updateRolePlatform")} then
     raise exception 'Not allowed to change roles' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;${active}${checkRole(ctx, "role")}
   select ${roleNameOf(ctx.of("tenant"), "m")}, ${assignableRole(ctx, `m.${n.role}`)} into previous, previous_assignable
@@ -751,7 +756,7 @@ begin
   if member = auth.uid() then
     raise exception 'Leave the organization instead' using errcode = '22023', hint = 'ORGANIZATION_SELF';
   end if;
-  if not ${can("removeMember")} then
+  if not ${can("removeMember")}${platformOverride(ctx, "removeMemberPlatform")} then
     raise exception 'Not allowed to remove members' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   select ${assignableRole(ctx, `m.${n.role}`)} into current_role_value from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = member;

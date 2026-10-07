@@ -358,4 +358,87 @@ describe.skipIf(!live)("organizations member guards", () => {
       await s.close();
     }
   });
+
+  it("lets platform staff change roles and remove members with platform keys, under can_assign", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const schema = await teamSchema(s);
+      const owner = await s.user("owner");
+      const staff = await s.user("staff");
+      const member = await s.user("member");
+      await s.client.query(`
+        create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+          language sql stable as $$
+            select m.organization_id from ${schema}.team_members m
+            where m.user_id = auth.uid() and m.role = 'owner' $$;
+        create function ${schema}.permdock_has(permission text) returns boolean
+          language sql stable as $$
+            select auth.uid() = '${staff.id}' and permission in ('platform.members.update_role', 'platform.members.remove') $$;
+      `);
+      const layout = (permissions: Record<string, string>): ModuleLayout => ({
+        accessPermdock: { schema, scope: "organization", idType: "uuid" },
+        modules: {
+          ...adopted(schema).modules,
+          access: {
+            model: "permdock",
+            // Staff may assign every role but owner; members follow ownership.
+            functions: { canAssign: `{role} <> 'owner'` },
+          },
+          organizations: { schema, permissions },
+        },
+      });
+      await s.install(["organizations"], layout({}));
+      await s.as(owner);
+      const organization = await s.value<string>(
+        `${schema}.create_organization($1)`,
+        [{ name: "Staffed", slug: `staffed-${owner.id.slice(0, 8)}` }],
+      );
+      await s.client.query(
+        `insert into ${schema}.team_members values ($1, $2, 'member')`,
+        [organization, member.id],
+      );
+      await s.as(staff);
+      expect(
+        await s.hint(`${schema}.update_member_role($1, $2, 'admin')`, [
+          organization,
+          member.id,
+        ]),
+      ).toBe("ORGANIZATION_FORBIDDEN");
+
+      await s.install(
+        ["organizations"],
+        layout({
+          updateRolePlatform: "platform.members.update_role",
+          removeMemberPlatform: "platform.members.remove",
+        }),
+      );
+      await s.as(staff);
+      expect(
+        await s.value(`${schema}.update_member_role($1, $2, 'admin')`, [
+          organization,
+          member.id,
+        ]),
+      ).toBe(true);
+      expect(
+        await s.hint(`${schema}.update_member_role($1, $2, 'owner')`, [
+          organization,
+          member.id,
+        ]),
+      ).toBe("ORGANIZATION_ROLE_CEILING");
+      expect(
+        await s.value(`${schema}.remove_member($1, $2)`, [
+          organization,
+          member.id,
+        ]),
+      ).toBe(true);
+      expect(
+        await s.hint(`${schema}.remove_member($1, $2)`, [
+          organization,
+          owner.id,
+        ]),
+      ).toBe("ORGANIZATION_ROLE_CEILING");
+    } finally {
+      await s.close();
+    }
+  });
 });

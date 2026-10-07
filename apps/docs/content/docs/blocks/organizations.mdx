@@ -195,6 +195,11 @@ checked with `is_platform()`. Without it every signed-in user can create one.
 `permissions.updatePlatform` and `permissions.deletePlatform` name platform
 keys that let platform staff update or delete any organization without the
 service role, next to the members who hold `update` or `delete` in it.
+`permissions.updateRolePlatform` and `permissions.removeMemberPlatform` do the
+same for `update_member_role` and `remove_member`: platform staff with that
+key pass the permission check, and the role ceiling still applies, so the
+access model's `can_assign` must allow them the roles they change (PermDock's
+assignment rules can grant platform roles that).
 
 `sql.modules.invitations.options` (`tokenStorage: "plain"` is migration-only: the
 config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):

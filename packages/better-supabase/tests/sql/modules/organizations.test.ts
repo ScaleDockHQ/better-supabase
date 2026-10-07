@@ -41,6 +41,23 @@ const body = (modules: ModulesConfig) =>
   moduleBody("organizations", { modules })!;
 
 describe("organizations module", () => {
+  it("lets platform keys change roles and remove members", () => {
+    const sql = body({
+      organizations: {
+        permissions: {
+          updateRolePlatform: "platform.members.update_role",
+          removeMemberPlatform: "platform.members.remove",
+        },
+      },
+    });
+    expect(sql).toContain(
+      "and not coalesce(better_supabase.is_platform('platform.members.update_role'), false) then\n    raise exception 'Not allowed to change roles'",
+    );
+    expect(sql).toContain(
+      "and not coalesce(better_supabase.is_platform('platform.members.remove'), false) then\n    raise exception 'Not allowed to remove members'",
+    );
+  });
+
   it("names the deletion's audit category with auditCategory", () => {
     const audited = (options: Record<string, unknown>) =>
       renderModules(["organizations", "audit"], {

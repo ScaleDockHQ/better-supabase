@@ -2895,6 +2895,8 @@ const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     create: "platform",
     updatePlatform: "platform",
     deletePlatform: "platform",
+    updateRolePlatform: "platform",
+    removeMemberPlatform: "platform",
   },
   audit: { reveal: "tenant" },
   "data-lifecycle": { deletePlatform: "platform" },
