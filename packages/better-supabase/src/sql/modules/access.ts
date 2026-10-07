@@ -846,6 +846,7 @@ export const ACCESS: ModuleDefinition = {
       },
       overrides: {
         name: "permission_overrides",
+        lifecycle: { tenant: "tenant" },
         columns: {
           tenant: "organization_id",
           role: "role_id",

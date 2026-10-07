@@ -86,44 +86,24 @@ function unquoted(ctx: ModuleContext, logical: string): string {
 /** The tables each installed module contributes, then `options.tables`. */
 function entries(ctx: ModuleContext): readonly Entry[] {
   const list: Entry[] = [];
-  const add = (
-    module: string,
-    logical: string,
-    subject: Entry["subject"],
-    column: string,
-    purge = true,
-  ): void => {
-    if (!ctx.installed(module)) return;
-    const of = ctx.of(module);
-    if (!of.hasTable(logical) || !of.has(logical, column)) return;
-    const name = unquoted(of, logical);
-    list.push({
-      subject,
-      name,
-      table: of.table(logical),
-      column: of.col(logical, column).replaceAll('"', ""),
-      purge,
-    });
-  };
-  add("profiles", "profiles", "user", "key");
-  add("tenant", "memberships", "user", "user");
-  add("settings", "user", "user", "user");
-  add("comments", "comments", "user", "author");
-  add("attachments", "attachments", "user", "uploadedBy");
-  add("audit", "log", "user", "actor", false);
-  add("tenant", "memberships", "organization", "tenant");
-  add("settings", "organization", "organization", "tenant");
-  add("comments", "comments", "organization", "tenant");
-  add("comments", "activity", "organization", "tenant");
-  add("attachments", "attachments", "organization", "tenant");
-  add("api-keys", "keys", "organization", "tenant");
-  add("usage", "counters", "organization", "tenant");
-  add("usage", "events", "organization", "tenant");
-  add("usage", "quotas", "organization", "tenant");
-  add("notifications", "recipients", "organization", "tenant");
-  add("notifications", "events", "organization", "tenant");
-  // The audit trail is append-only; its retention purges it.
-  add("audit", "log", "organization", "tenant", false);
+  const modules = ctx.installedModules.map((module) => ctx.of(module));
+  for (const subject of ["user", "organization"] as const) {
+    for (const of of modules) {
+      for (const [logical, spec] of Object.entries(of.names.tables)) {
+        const column =
+          subject === "user" ? spec.lifecycle?.user : spec.lifecycle?.tenant;
+        if (column === undefined) continue;
+        if (!of.hasTable(logical) || !of.has(logical, column)) continue;
+        list.push({
+          subject,
+          name: unquoted(of, logical),
+          table: of.table(logical),
+          column: of.col(logical, column).replaceAll('"', ""),
+          purge: spec.lifecycle?.purge !== false,
+        });
+      }
+    }
+  }
 
   const where = "sql.modules.data-lifecycle.options.tables";
   const option = ctx.option("tables");

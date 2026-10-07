@@ -19,6 +19,7 @@ const NAMES: ModuleNames = {
   tables: {
     customers: {
       name: "billing_customers",
+      lifecycle: { tenant: "tenant" },
       columns: {
         tenant: "organization_id",
         customer: "stripe_customer_id",

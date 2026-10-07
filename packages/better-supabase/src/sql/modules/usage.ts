@@ -15,6 +15,7 @@ const NAMES: ModuleNames = {
   tables: {
     counters: {
       name: "usage_counters",
+      lifecycle: { tenant: "tenant" },
       columns: {
         tenant: "organization_id",
         meter: "meter",
@@ -26,6 +27,7 @@ const NAMES: ModuleNames = {
     },
     events: {
       name: "usage_events",
+      lifecycle: { tenant: "tenant" },
       columns: {
         tenant: "organization_id",
         meter: "meter",
@@ -36,6 +38,7 @@ const NAMES: ModuleNames = {
     },
     history: {
       name: "usage_history",
+      lifecycle: { user: "actor", tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -49,6 +52,7 @@ const NAMES: ModuleNames = {
     },
     quotas: {
       name: "usage_quotas",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",

@@ -20,6 +20,7 @@ const NAMES: ModuleNames = {
   tables: {
     comments: {
       name: "comments",
+      lifecycle: { user: "author", tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -37,6 +38,7 @@ const NAMES: ModuleNames = {
     },
     activity: {
       name: "activity_entries",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",

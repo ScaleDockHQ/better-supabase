@@ -15,6 +15,7 @@ const NAMES: ModuleNames = {
   tables: {
     entries: {
       name: "waitlist_entries",
+      lifecycle: { user: "user" },
       columns: {
         id: "id",
         email: "email",
@@ -30,6 +31,7 @@ const NAMES: ModuleNames = {
     },
     codes: {
       name: "invite_codes",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         hash: "code_hash",

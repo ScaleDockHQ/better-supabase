@@ -47,6 +47,13 @@ export interface ModuleTableSpec {
   readonly optional?: readonly string[];
   /** The app may lack the whole table (`sql.modules.<name>.tables.<table>: null`). */
   readonly optionalTable?: boolean;
+  readonly lifecycle?: ModuleTableLifecycle;
+}
+
+export interface ModuleTableLifecycle {
+  readonly user?: string;
+  readonly tenant?: string;
+  readonly purge?: boolean;
 }
 
 export interface ModuleNames {
@@ -107,6 +114,8 @@ export interface ModuleContext {
   hasTable(table: string): boolean;
   /** Whether the module owns `table` (managed mode). */
   readonly manages: boolean;
+  readonly names: ModuleNames;
+  readonly installedModules: readonly string[];
   /** The permission key for a module action, as a SQL literal. */
   permission(action: string, fallback: string): string;
   /** The permission key for a module action. */
@@ -331,6 +340,8 @@ export function createModuleContext(
     claims: source.claims ?? DEFAULT_CLAIMS,
     modules,
     manages: config.mode === "managed",
+    names,
+    installedModules: [...installed],
     fn: (name) => `${schema}.${sqlIdent(name)}`,
     tableName,
     table(logical) {

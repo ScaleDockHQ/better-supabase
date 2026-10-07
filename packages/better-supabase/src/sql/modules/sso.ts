@@ -18,6 +18,7 @@ const NAMES: ModuleNames = {
   tables: {
     domains: {
       name: "organization_domains",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -32,6 +33,7 @@ const NAMES: ModuleNames = {
     },
     providers: {
       name: "organization_sso_providers",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -43,6 +45,7 @@ const NAMES: ModuleNames = {
     },
     scimUsers: {
       name: "scim_users",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -62,6 +65,7 @@ const NAMES: ModuleNames = {
     },
     scimGroups: {
       name: "scim_groups",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",

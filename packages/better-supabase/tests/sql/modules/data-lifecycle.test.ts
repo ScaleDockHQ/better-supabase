@@ -115,6 +115,35 @@ describe("data-lifecycle module", () => {
     expect(sql).toMatch(/emit_event\('data_export\.ready'/);
   });
 
+  it("reads the tables from each module's lifecycle declarations", () => {
+    const sql = sqlOf([
+      "usage",
+      "sso",
+      "webhooks-out",
+      "notifications",
+      "data-lifecycle",
+    ]);
+    for (const row of [
+      `('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'organization_id', true)`,
+      `('user', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'actor_id', true)`,
+      `('organization', 'better_supabase.organization_sso_providers', '"better_supabase"."organization_sso_providers"', 'organization_id', true)`,
+      `('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true)`,
+      `('user', 'better_supabase.notification_preferences', '"better_supabase"."notification_preferences"', 'user_id', true)`,
+    ]) {
+      expect(sql).toContain(row);
+    }
+    expect(sql).not.toContain("'better_supabase.webhook_endpoint_secrets'");
+    expect(sql).not.toContain("'better_supabase.data_exports'");
+    expect(
+      renderModules(["usage", "data-lifecycle"], {
+        modules: { usage: { tables: { history: "app.usage_log" } } },
+      })
+        .filter((file) => file.module === "data-lifecycle")
+        .map((file) => file.contents)
+        .join("\n"),
+    ).toContain(`'app.usage_log', '"app"."usage_log"', 'organization_id'`);
+  });
+
   it("disables the tenant through access.disabled.tenant when set", () => {
     const sql = sqlOf(["data-lifecycle"], undefined, {
       access: { disabled: { tenant: "public.teams.archived_at" } },
@@ -149,7 +178,7 @@ describe("data-lifecycle module", () => {
     expect(sql).toContain("a.attname = 'organization_id'");
     expect(sql).toContain("a.attname = 'owner_id'");
     expect(sql).toContain(
-      "not in ('better_supabase.memberships', 'app.notes')",
+      "not in ('better_supabase.memberships', 'better_supabase.permission_overrides', 'app.notes')",
     );
     expect(sql).toContain("like 'public.%\\_log'");
     expect(sql).toMatch(/returns table \(subject text[^$]*\nstable\n/);

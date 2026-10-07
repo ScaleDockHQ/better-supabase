@@ -18,6 +18,7 @@ const NAMES: ModuleNames = {
   tables: {
     user: {
       name: "user_settings",
+      lifecycle: { user: "user" },
       columns: {
         user: "user_id",
         key: "key",
@@ -28,6 +29,7 @@ const NAMES: ModuleNames = {
     },
     organization: {
       name: "organization_settings",
+      lifecycle: { tenant: "tenant" },
       columns: {
         tenant: "organization_id",
         key: "key",

@@ -310,9 +310,10 @@ describe.skipIf(!live)("data lifecycle", () => {
          returns void language sql as $$ insert into public.bs_test_purges values (tenant) $$;`,
       );
       await s.install(
-        ["organizations", "outbox", "settings", "data-lifecycle"],
+        ["organizations", "outbox", "settings", "usage", "data-lifecycle"],
         {
           modules: {
+            usage: { options: { history: true } },
             "data-lifecycle": {
               options: {
                 tables: {
@@ -331,6 +332,11 @@ describe.skipIf(!live)("data lifecycle", () => {
       await s.rows(
         "insert into public.bs_test_lifecycle (organization_id, name) values ($1, 'a'), ($1, 'b')",
         [organization],
+      );
+      await s.service();
+      await s.rows(
+        "select better_supabase.record_usage($1, 'api_calls', 2, null, 'test', null, $2)",
+        [organization, owner.id],
       );
       const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
       const disabled = async (): Promise<boolean> => {
@@ -422,6 +428,8 @@ describe.skipIf(!live)("data lifecycle", () => {
         deleted: {
           "public.bs_test_lifecycle": 2,
           "better_supabase.memberships": 3,
+          "better_supabase.usage_counters": 1,
+          "better_supabase.usage_history": 1,
         },
       });
       expect(cancelled).toEqual([organization]);

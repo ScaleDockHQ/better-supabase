@@ -21,6 +21,10 @@ better_supabase.tenant_ids_with(key))` in policies. Add the module's keys to
   `MODULE_PERMISSIONS` and `MODULE_PERMISSION_SCOPES` in
   `src/sql/modules/access-model.ts`, and to `DEFAULT_ROLES` when a default
   role should hold them.
+- A table that holds a user's or a tenant's rows declares `lifecycle: {
+user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
+  `data-lifecycle` module exports and purges it. Leave it out for secrets
+  and for rows the purge must not touch.
 - Events go through `ctx.emit({ type, payload, subject, tenant })`, which is
   empty without the `outbox` module.
 - Raise errors with an `errcode` and a `hint` such as `API_KEY_FORBIDDEN`;

@@ -14,6 +14,7 @@ const NAMES: ModuleNames = {
   tables: {
     keys: {
       name: "api_keys",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",

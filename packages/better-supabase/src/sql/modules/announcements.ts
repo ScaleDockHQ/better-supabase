@@ -32,6 +32,7 @@ const NAMES: ModuleNames = {
     },
     dismissals: {
       name: "announcement_dismissals",
+      lifecycle: { user: "user" },
       columns: {
         announcement: "announcement_id",
         user: "user_id",

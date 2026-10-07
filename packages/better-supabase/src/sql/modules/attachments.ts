@@ -28,6 +28,7 @@ const NAMES: ModuleNames = {
   tables: {
     attachments: {
       name: "attachments",
+      lifecycle: { user: "uploadedBy", tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",

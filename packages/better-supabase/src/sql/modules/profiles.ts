@@ -28,6 +28,7 @@ const NAMES: ModuleNames = {
   tables: {
     profiles: {
       name: "profiles",
+      lifecycle: { user: "key" },
       columns: {
         key: "id",
         email: "email",

@@ -32,6 +32,7 @@ const NAMES: ModuleNames = {
   tables: {
     log: {
       name: "audit_events",
+      lifecycle: { user: "actor", tenant: "tenant", purge: false },
       columns: {
         id: "id",
         table: "table_name",

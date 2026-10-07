@@ -28,9 +28,19 @@ Every signed-in user can export their own data.
 
 ## Tables
 
-The module knows the tables of the other modules: memberships, profiles,
-settings, comments and activity, attachments, API keys, usage, notifications
-and the audit trail. Add your own tables with their user column (for user
+The module reads the tables of every other installed module from the module
+registry: each module declares which of its tables hold a user's rows, which
+hold a tenant's rows, and which the purge keeps. That covers memberships and
+permission overrides, profiles, settings, comments and activity,
+attachments, API keys, usage counters, events, quotas and history,
+notifications with their deliveries, subscriptions and preferences,
+onboarding progress, flag overrides, invitations, billing customers, SSO
+domains, providers and SCIM rows, support sessions, invite codes, webhook
+endpoints and deliveries, announcement dismissals, waitlist entries and the
+audit trail. A module added in a later release joins exports and purges
+when you run `sql sync`, and a table you map to another name in
+`sql.modules.<name>.tables` is read under that name. Webhook secrets and the
+module's own export and deletion records stay out. Add your own tables with their user column (for user
 exports) and tenant column (for organization exports and the purge):
 
 ```ts title="better-supabase.config.ts"

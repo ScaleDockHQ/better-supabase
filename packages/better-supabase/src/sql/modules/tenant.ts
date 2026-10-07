@@ -324,6 +324,7 @@ export const TENANT: ModuleDefinition = {
     tables: {
       memberships: {
         name: "memberships",
+        lifecycle: { user: "user", tenant: "tenant" },
         columns: {
           tenant: "organization_id",
           user: "user_id",
