@@ -369,6 +369,9 @@ function usernameRules(ctx: ModuleContext): {
 /**
  * The username's length, characters and reserved names, as a check on the
  * managed table. Existing rows that break it leave the check unvalidated.
+ * No `between`: Postgres expands it after flattening the `and` chain, so the
+ * stored expression nests differently from the one pg-delta writes back, and
+ * a declarative sync would drop and re-add the check every time.
  */
 function usernameCheck(ctx: ModuleContext): string {
   const t = ctx.table("profiles");
@@ -377,7 +380,8 @@ function usernameCheck(ctx: ModuleContext): string {
   return `alter table ${t} drop constraint if exists profiles_username_check;
 alter table ${t} add constraint profiles_username_check check (
   ${u} is null or (
-    length(${u}) between ${String(min)} and ${String(max)}
+    length(${u}) >= ${String(min)}
+    and length(${u}) <= ${String(max)}
     and ${u} ~* '^[a-z][a-z0-9_${usernameExtras(ctx)}]*$'
     and lower(${u}) <> all (${reserved})
   )
