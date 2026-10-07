@@ -1917,9 +1917,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         tenant: "tenant-r",
       });
       expect(written.rows[0]!.first_after).toBeInstanceOf(Date);
-      await new Promise((done) => {
-        setTimeout(done, 1100);
-      });
+      await pool.query(
+        "update better_supabase.job_schedules set first_after = first_after - interval '1 minute' where job_name = $1",
+        [`reminder:${RUN}`],
+      );
 
       const jobs = createJobs(postgres.admin, {
         [queue]: v.object({ id: v.string() }),

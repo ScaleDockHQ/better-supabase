@@ -2443,6 +2443,75 @@ uri = "https://example.com/hook"
     });
   });
 
+  describe("shared roles table (BS324)", () => {
+    const only = RULES.filter((rule) => rule.code === "BS324");
+    const project: PermdockProject = {
+      ...PERMDOCK,
+      manifest: parseManifest(manifest),
+    };
+    const through = { table: "public.roles", id: "id", column: "key" };
+    const run = (tenantWhere?: string, platformWhere?: string) =>
+      runRules(
+        context(base, {
+          permdock: project,
+          config: resolveConfig(
+            {
+              sql: {
+                modules: {
+                  access: { model: "permdock" },
+                  tenant: {
+                    mode: "adopt",
+                    tables: { memberships: "public.team_members" },
+                    columns: { memberships: { role: "role_id" } },
+                    options: {
+                      roleThrough: tenantWhere
+                        ? { ...through, where: tenantWhere }
+                        : through,
+                    },
+                  },
+                  invitations: {
+                    options: {
+                      platformRoles: {
+                        table: "public.user_roles",
+                        user: "user_id",
+                        role: "role_id",
+                        through: platformWhere
+                          ? { ...through, where: platformWhere }
+                          : through,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            "/project",
+          ),
+        }),
+        only,
+      );
+
+    it("reports the side of a shared roles table without where", async () => {
+      expect(await run()).toMatchObject([
+        {
+          severity: "error",
+          target: "sql.modules.tenant.options.roleThrough.where",
+          message: expect.stringContaining("can resolve a platform role"),
+        },
+        {
+          severity: "error",
+          target: "sql.modules.invitations.options.platformRoles.through.where",
+          message: expect.stringContaining("can resolve a tenant role"),
+        },
+      ]);
+      expect(await run(undefined, "{row}.scope = 'system'")).toMatchObject([
+        { target: "sql.modules.tenant.options.roleThrough.where" },
+      ]);
+      expect(
+        await run("{row}.scope = 'organization'", "{row}.scope = 'system'"),
+      ).toEqual([]);
+    });
+  });
+
   it("flags soft delete hidden by a select policy and bucket drift", async () => {
     const snap = snapshot((tables) => {
       edit(table(tables, "customers").policies).push({

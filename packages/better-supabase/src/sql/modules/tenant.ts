@@ -14,7 +14,11 @@ import {
   schemaPreamble,
   updatedAt,
 } from "../shared.ts";
-import { accessModel, roleNames } from "./access-model.ts";
+import {
+  accessModel,
+  permdockPlatformRoles,
+  roleNames,
+} from "./access-model.ts";
 
 /**
  * `sql.modules.tenant.options.roleThrough`: the membership role column holds
@@ -28,6 +32,8 @@ export interface RoleThrough {
   readonly column: string;
   /** The tenant column of tenant custom roles (null for shared roles), quoted. */
   readonly tenant?: string;
+  /** A condition on the roles row `{row}` that holds for tenant roles only. */
+  readonly where?: string;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -43,10 +49,12 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
     typeof value["table"] !== "string" ||
     typeof value["id"] !== "string" ||
     typeof value["column"] !== "string" ||
-    (value["tenant"] !== undefined && typeof value["tenant"] !== "string")
+    (value["tenant"] !== undefined && typeof value["tenant"] !== "string") ||
+    (value["where"] !== undefined &&
+      (typeof value["where"] !== "string" || !value["where"].includes("{row}")))
   ) {
     throw new TypeError(
-      `${where} must be { table: "schema.table", id: "<key column>", column: "<role name column>", tenant?: "<tenant column>" }`,
+      `${where} must be { table: "schema.table", id: "<key column>", column: "<role name column>", tenant?: "<tenant column>", where?: "<condition on {row}>" }`,
     );
   }
   if (tenant.manages) {
@@ -55,6 +63,8 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
     );
   }
   const ref = columnRef(`${where}.table`, `${value["table"]}.${value["id"]}`);
+  const problem = sharedRolesProblem(tenant);
+  if (problem) throw new TypeError(problem);
   return {
     table: ref.table,
     id: ref.column,
@@ -65,7 +75,46 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
             .column,
         }
       : {}),
+    ...(typeof value["where"] === "string" ? { where: value["where"] } : {}),
   };
+}
+
+/**
+ * The quoted table of `sql.modules.tenant.options.roleThrough` and whether
+ * it sets `where`; `undefined` when unset or malformed.
+ */
+export function roleThroughTable(
+  tenant: ModuleContext,
+): { readonly table: string; readonly where: boolean } | undefined {
+  const value = tenant.option("roleThrough");
+  if (
+    !isRecord(value) ||
+    typeof value["table"] !== "string" ||
+    typeof value["id"] !== "string"
+  )
+    return undefined;
+  try {
+    return {
+      table: columnRef("roleThrough", `${value["table"]}.${value["id"]}`).table,
+      where: value["where"] !== undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Why `sql.modules.tenant.options.roleThrough` needs `where`: its table also
+ * holds the platform roles of
+ * `sql.modules.invitations.options.platformRoles.through`. `undefined` when
+ * it doesn't.
+ */
+export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
+  const own = roleThroughTable(tenant);
+  if (!own || own.where) return undefined;
+  if (permdockPlatformRoles(tenant)?.through?.table !== own.table)
+    return undefined;
+  return `sql.modules.tenant.options.roleThrough.where: ${own.table} also holds the platform roles (sql.modules.invitations.options.platformRoles.through), so name the tenant roles with a condition such as "{row}.scope = 'organization'". A roleThrough read from PermDock's manifest has no where; set sql.modules.tenant.options.roleThrough in the config.`;
 }
 
 /** A stored role value (a key or a role id) as the role name. */
