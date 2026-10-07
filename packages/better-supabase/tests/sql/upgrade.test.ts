@@ -4,6 +4,7 @@ import { createModuleContext } from "../../src/sql/context.ts";
 import {
   deprecationWrappers,
   moduleDeprecations,
+  SQL_MODULES,
   type SqlModule,
   upgradePlan,
 } from "../../src/sql/registry.ts";
@@ -180,5 +181,22 @@ describe("deprecations", () => {
         removed: "0.2.0",
       }),
     );
+  });
+});
+
+describe("module upgrade steps", () => {
+  it.each(
+    Object.values(SQL_MODULES).filter((module) => (module.version ?? 1) > 1),
+  )("lists a described step for each version $name moved past", (module) => {
+    const to = module.version ?? 1;
+    const [plan] = upgradePlan([{ module: module.name, version: 1 }], {
+      modules: {},
+    });
+    expect(plan).toMatchObject({ from: 1, to });
+    for (const step of plan!.steps) {
+      expect(step.from).toBeLessThan(to);
+      expect(step.description).not.toBe("");
+      expect(typeof step.sql).toBe("string");
+    }
   });
 });
