@@ -56,6 +56,24 @@ export function pascal(name: string): string {
     .replace(/^[a-z]/, (char) => char.toUpperCase());
 }
 
+/** A valid TypeScript identifier: other characters become `_`, a leading digit gets one. */
+export function identifier(name: string): string {
+  const safe = name.replaceAll(/[^\w$]/g, "_");
+  return /^\d/.test(safe) ? `_${safe}` : safe;
+}
+
+/**
+ * The config entry for a database object, keyed `schema.name` or `name`.
+ * The qualified key wins.
+ */
+export function configFor<T>(
+  entries: Readonly<Record<string, T>>,
+  schema: string,
+  name: string,
+): T | undefined {
+  return entries[`${schema}.${name}`] ?? entries[name];
+}
+
 export function isJsonUdt(udt: string): boolean {
   return udt === "json" || udt === "jsonb";
 }

@@ -1,8 +1,11 @@
 import type { Casing } from "../schema/types.ts";
 
-/** `first_name` to `firstName`. Leaves already camel-cased names untouched. */
+/**
+ * `first_name` to `firstName`. Leaves already camel-cased names and leading
+ * underscores (`_internal`) untouched.
+ */
 export function toCamel(name: string): string {
-  return name.replaceAll(/_+([a-z0-9])/g, (_, char: string) =>
+  return name.replaceAll(/(?<=[^_])_+([a-z0-9])/g, (_, char: string) =>
     char.toUpperCase(),
   );
 }

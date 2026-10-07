@@ -45,12 +45,36 @@ import type {
   Update,
 } from "../schema/types.ts";
 
+import { isPlainObject } from "../core/clone.ts";
 import { type DbError, DbException } from "../core/errors.ts";
 import { invalidationTargets } from "../ir/tables.ts";
 import { type BetterQueryMeta, invalidateTables } from "./invalidate.ts";
 
 /** Query errors stay `DbException`s, even for an `betterSupabase` with `mapError()`. */
 const asException = (error: DbError) => new DbException(error);
+
+/**
+ * A query key part TanStack Query can hash: `JSON.stringify` throws on a
+ * `bigint`, so each becomes `{ $bigint: "<digits>" }`, which no string or
+ * number argument can collide with. Values without one are returned as is.
+ */
+function keyPart(value: unknown): unknown {
+  if (typeof value === "bigint") return { $bigint: value.toString() };
+  if (Array.isArray(value)) {
+    const items = value.map(keyPart);
+    return items.some((item, index) => item !== value[index]) ? items : value;
+  }
+  if (isPlainObject(value)) {
+    let copy: Record<string, unknown> | undefined;
+    for (const [key, item] of Object.entries(value)) {
+      const part = keyPart(item);
+      if (part !== item) copy ??= { ...value };
+      if (copy) copy[key] = part;
+    }
+    return copy ?? value;
+  }
+  return value;
+}
 
 export { invalidateTables };
 export type { BetterQueryMeta };
@@ -254,7 +278,7 @@ function specQuery(
     };
   }
   return {
-    queryKey: key ?? ["bs", spec.table, spec.method, ...spec.args],
+    queryKey: key ?? ["bs", spec.table, spec.method, ...spec.args.map(keyPart)],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       runtime.db().$run(spec, { signal }).orThrow(asException),
     meta: { bsTables: runtime.betterSupabase.tablesOf(spec) },
@@ -332,7 +356,7 @@ function tableQueries(
       // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as object;
       return {
-        queryKey: [...key, "infinite", base],
+        queryKey: [...key, "infinite", keyPart(base)],
         queryFn: ({
           signal,
           pageParam,
@@ -359,7 +383,7 @@ function tableQueries(
       // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as { page?: number };
       return {
-        queryKey: [...key, "infinitePages", base],
+        queryKey: [...key, "infinitePages", keyPart(base)],
         queryFn: ({
           signal,
           pageParam,
@@ -426,8 +450,7 @@ export function createQueries<
   const runtime: Runtime = {
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `BetterQueries<M, E, F>` restores them.
     betterSupabase: betterSupabase as unknown as Runtime["betterSupabase"],
-    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the runtime erases schema generics and `BetterQueries<M, E, F>` restores them.
-    db: (typeof db === "function" ? db : () => db) as unknown as () => AnyDb,
+    db: typeof db === "function" ? db : () => db,
     staleTime: options.staleTime,
   };
   const stale =
@@ -445,7 +468,12 @@ export function createQueries<
       args?: unknown,
       rpcOptions: { tables?: readonly string[] } = {},
     ) => ({
-      queryKey: ["bs", "$rpc", name, isSkip(args) ? "$skip" : (args ?? {})],
+      queryKey: [
+        "bs",
+        "$rpc",
+        name,
+        isSkip(args) ? "$skip" : keyPart(args ?? {}),
+      ],
       queryFn: isSkip(args)
         ? args
         : ({ signal }: { signal: AbortSignal }) =>

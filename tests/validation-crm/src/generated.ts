@@ -17069,30 +17069,105 @@ export type Functions = {
     };
     Returns: undefined;
   };
-  array_to_halfvec: {
-    Args: {
-      arg1: number[] | null;
-      arg2: number | null;
-      arg3: boolean | null;
+  array_to_halfvec:
+    | {
+      Args: {
+        arg1: number[] | null;
+        arg2: number | null;
+        arg3: boolean | null;
+      };
+      Returns: unknown;
+    }
+    | {
+      Args: {
+        arg1: number | null;
+        arg2: boolean | null;
+        arg3: number[] | null;
+      };
+      Returns: unknown;
+    }
+    | {
+      Args: {
+        arg1: number[] | null;
+        arg2: boolean | null;
+        arg3: number | null;
+      };
+      Returns: unknown;
+    }
+    | {
+      Args: {
+        arg1: number | null;
+        arg2: boolean | null;
+        arg3: number[] | null;
+      };
+      Returns: unknown;
     };
-    Returns: unknown;
-  };
-  array_to_sparsevec: {
-    Args: {
-      arg1: number | null;
-      arg2: boolean | null;
-      arg3: number[] | null;
+  array_to_sparsevec:
+    | {
+      Args: {
+        arg1: number | null;
+        arg2: boolean | null;
+        arg3: number[] | null;
+      };
+      Returns: unknown;
+    }
+    | {
+      Args: {
+        arg1: number | null;
+        arg2: boolean | null;
+        arg3: number[] | null;
+      };
+      Returns: unknown;
+    }
+    | {
+      Args: {
+        arg1: number[] | null;
+        arg2: boolean | null;
+        arg3: number | null;
+      };
+      Returns: unknown;
+    }
+    | {
+      Args: {
+        arg1: number[] | null;
+        arg2: number | null;
+        arg3: boolean | null;
+      };
+      Returns: unknown;
     };
-    Returns: unknown;
-  };
-  array_to_vector: {
-    Args: {
-      arg1: number[] | null;
-      arg2: number | null;
-      arg3: boolean | null;
+  array_to_vector:
+    | {
+      Args: {
+        arg1: number[] | null;
+        arg2: number | null;
+        arg3: boolean | null;
+      };
+      Returns: string | null;
+    }
+    | {
+      Args: {
+        arg1: number[] | null;
+        arg2: number | null;
+        arg3: boolean | null;
+      };
+      Returns: string | null;
+    }
+    | {
+      Args: {
+        arg1: number[] | null;
+        arg2: number | null;
+        arg3: boolean | null;
+      };
+      Returns: string | null;
+    }
+    | {
+      Args: {
+        arg1: number[] | null;
+        arg2: number | null;
+        arg3: boolean | null;
+      };
+      Returns: string | null;
     };
-    Returns: string | null;
-  };
   assign_task_agenda_projection: {
     Args: {
       p_calendar_id: string | null;
@@ -17151,12 +17226,19 @@ export type Functions = {
     };
     Returns: Json;
   };
-  binary_quantize: {
-    Args: {
-      arg1: unknown | null;
+  binary_quantize:
+    | {
+      Args: {
+        arg1: unknown | null;
+      };
+      Returns: unknown;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+      };
+      Returns: unknown;
     };
-    Returns: unknown;
-  };
   can_access_agent_run: {
     Args: {
       p_run_id: string | null;
@@ -17239,12 +17321,25 @@ export type Functions = {
     };
     Returns: undefined;
   };
-  citext: {
-    Args: {
-      arg1: boolean | null;
+  citext:
+    | {
+      Args: {
+        arg1: boolean | null;
+      };
+      Returns: string | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+      };
+      Returns: string | null;
+    }
+    | {
+      Args: {
+        arg1: unknown | null;
+      };
+      Returns: string | null;
     };
-    Returns: string | null;
-  };
   citext_cmp: {
     Args: {
       arg1: string | null;
@@ -17537,13 +17632,28 @@ export type Functions = {
     };
     Returns: undefined;
   };
-  cosine_distance: {
-    Args: {
-      arg1: unknown | null;
-      arg2: unknown | null;
+  cosine_distance:
+    | {
+      Args: {
+        arg1: unknown | null;
+        arg2: unknown | null;
+      };
+      Returns: number | null;
+    }
+    | {
+      Args: {
+        arg1: unknown | null;
+        arg2: unknown | null;
+      };
+      Returns: number | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: number | null;
     };
-    Returns: number | null;
-  };
   count_unread_inbox_threads: {
     Args: {
       p_organization_id: string | null;
@@ -18432,13 +18542,28 @@ export type Functions = {
     };
     Returns: Json;
   };
-  inner_product: {
-    Args: {
-      arg1: unknown | null;
-      arg2: unknown | null;
+  inner_product:
+    | {
+      Args: {
+        arg1: unknown | null;
+        arg2: unknown | null;
+      };
+      Returns: number | null;
+    }
+    | {
+      Args: {
+        arg1: unknown | null;
+        arg2: unknown | null;
+      };
+      Returns: number | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: number | null;
     };
-    Returns: number | null;
-  };
   inventory_reorder_suggestions: {
     Args: {
       p_organization_id: string | null;
@@ -18508,32 +18633,82 @@ export type Functions = {
     };
     Returns: number | null;
   };
-  l1_distance: {
-    Args: {
-      arg1: unknown | null;
-      arg2: unknown | null;
+  l1_distance:
+    | {
+      Args: {
+        arg1: unknown | null;
+        arg2: unknown | null;
+      };
+      Returns: number | null;
+    }
+    | {
+      Args: {
+        arg1: unknown | null;
+        arg2: unknown | null;
+      };
+      Returns: number | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: number | null;
     };
-    Returns: number | null;
-  };
-  l2_distance: {
-    Args: {
-      arg1: unknown | null;
-      arg2: unknown | null;
+  l2_distance:
+    | {
+      Args: {
+        arg1: unknown | null;
+        arg2: unknown | null;
+      };
+      Returns: number | null;
+    }
+    | {
+      Args: {
+        arg1: unknown | null;
+        arg2: unknown | null;
+      };
+      Returns: number | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: number | null;
     };
-    Returns: number | null;
-  };
-  l2_norm: {
-    Args: {
-      arg1: unknown | null;
+  l2_norm:
+    | {
+      Args: {
+        arg1: unknown | null;
+      };
+      Returns: number | null;
+    }
+    | {
+      Args: {
+        arg1: unknown | null;
+      };
+      Returns: number | null;
     };
-    Returns: number | null;
-  };
-  l2_normalize: {
-    Args: {
-      arg1: unknown | null;
+  l2_normalize:
+    | {
+      Args: {
+        arg1: unknown | null;
+      };
+      Returns: unknown;
+    }
+    | {
+      Args: {
+        arg1: unknown | null;
+      };
+      Returns: unknown;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+      };
+      Returns: string | null;
     };
-    Returns: unknown;
-  };
   lifecycle_subject_view_permission: {
     Args: {
       p_subject_type: string | null;
@@ -18983,42 +19158,88 @@ export type Functions = {
     };
     Returns: "draft" | "sent" | "partially_received" | "received" | "closed" | "cancelled" | null;
   };
-  regexp_match: {
-    Args: {
-      arg1: string | null;
-      arg2: string | null;
+  regexp_match:
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: string[] | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+        arg3: string | null;
+      };
+      Returns: string[] | null;
     };
-    Returns: string[] | null;
-  };
-  regexp_matches: {
-    Args: {
-      arg1: string | null;
-      arg2: string | null;
+  regexp_matches:
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: (string[] | null)[];
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+        arg3: string | null;
+      };
+      Returns: (string[] | null)[];
     };
-    Returns: (string[] | null)[];
-  };
-  regexp_replace: {
-    Args: {
-      arg1: string | null;
-      arg2: string | null;
-      arg3: string | null;
+  regexp_replace:
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+        arg3: string | null;
+      };
+      Returns: string | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+        arg3: string | null;
+        arg4: string | null;
+      };
+      Returns: string | null;
     };
-    Returns: string | null;
-  };
-  regexp_split_to_array: {
-    Args: {
-      arg1: string | null;
-      arg2: string | null;
+  regexp_split_to_array:
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: string[] | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+        arg3: string | null;
+      };
+      Returns: string[] | null;
     };
-    Returns: string[] | null;
-  };
-  regexp_split_to_table: {
-    Args: {
-      arg1: string | null;
-      arg2: string | null;
+  regexp_split_to_table:
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: (string | null)[];
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+        arg3: string | null;
+      };
+      Returns: (string | null)[];
     };
-    Returns: (string | null)[];
-  };
   reject_quote_for_portal: {
     Args: {
       p_ip?: string | null;
@@ -19550,14 +19771,23 @@ export type Functions = {
     };
     Returns: number | null;
   };
-  subvector: {
-    Args: {
-      arg1: unknown | null;
-      arg2: number | null;
-      arg3: number | null;
+  subvector:
+    | {
+      Args: {
+        arg1: unknown | null;
+        arg2: number | null;
+        arg3: number | null;
+      };
+      Returns: unknown;
+    }
+    | {
+      Args: {
+        arg1: number | null;
+        arg2: number | null;
+        arg3: string | null;
+      };
+      Returns: string | null;
     };
-    Returns: unknown;
-  };
   sweep_approval_requests: {
     Args: Record<never, never>;
     Returns: { "kind": string | null; "requestId": string | null }[];
@@ -19592,34 +19822,66 @@ export type Functions = {
     };
     Returns: undefined;
   };
-  texticlike: {
-    Args: {
-      arg1: string | null;
-      arg2: string | null;
+  texticlike:
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: boolean | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: boolean | null;
     };
-    Returns: boolean | null;
-  };
-  texticnlike: {
-    Args: {
-      arg1: string | null;
-      arg2: string | null;
+  texticnlike:
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: boolean | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: boolean | null;
     };
-    Returns: boolean | null;
-  };
-  texticregexeq: {
-    Args: {
-      arg1: string | null;
-      arg2: string | null;
+  texticregexeq:
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: boolean | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: boolean | null;
     };
-    Returns: boolean | null;
-  };
-  texticregexne: {
-    Args: {
-      arg1: string | null;
-      arg2: string | null;
+  texticregexne:
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: boolean | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+        arg2: string | null;
+      };
+      Returns: boolean | null;
     };
-    Returns: boolean | null;
-  };
   time_off_balance: {
     Args: {
       p_employee_id: string | null;
@@ -19816,12 +20078,19 @@ export type Functions = {
     };
     Returns: string | null;
   };
-  vector_dims: {
-    Args: {
-      arg1: unknown | null;
+  vector_dims:
+    | {
+      Args: {
+        arg1: unknown | null;
+      };
+      Returns: number | null;
+    }
+    | {
+      Args: {
+        arg1: string | null;
+      };
+      Returns: number | null;
     };
-    Returns: number | null;
-  };
   vector_eq: {
     Args: {
       arg1: string | null;

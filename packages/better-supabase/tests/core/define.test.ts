@@ -595,9 +595,45 @@ describe("$search", () => {
       ).error,
     ).toMatchObject({ kind: timeout.kind });
   });
+
+  it("reads scores with the connection's timeout and reports their errors", async () => {
+    const definition = defineSupabase(schema);
+    const errors: unknown[] = [];
+    definition.on("error", (event) => errors.push(event));
+    const failing = fake({
+      functionSources: true,
+      answer: () => err(dbError("unexpected", "boom", { table: "x$scores" })),
+    });
+    const result = await definition
+      .connect(failing, {}, { timeout: 1000 })
+      .$search("notes", { vector, score: true });
+    expect(result.error).toMatchObject({ message: "boom", table: "notes" });
+    expect(errors).toEqual([{ table: "notes", error: result.error }]);
+    expect(failing.contexts[0]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("rejects an invalid connection timeout before reading scores", async () => {
+    const executor = fake({ functionSources: true });
+    const result = await betterSupabase
+      .connect(executor, {}, { timeout: -1 })
+      .$search("notes", { vector, score: true });
+    expect(result.error?.kind).toBe("invalid_request");
+    expect(executor.ops).toHaveLength(0);
+  });
 });
 
 describe("$rpc", () => {
+  it("reports failed calls as error events", async () => {
+    const definition = defineSupabase(schema);
+    const errors: unknown[] = [];
+    definition.on("error", (event) => errors.push(event));
+    const result = await definition
+      .connect(fake({ rpc: () => err(timeout) }))
+      .$rpc("search_notes" as never, {} as never);
+    expect(result).toEqual(err(timeout));
+    expect(errors).toEqual([{ error: timeout }]);
+  });
+
   it("fails on an executor without rpc", async () => {
     expect(
       await betterSupabase

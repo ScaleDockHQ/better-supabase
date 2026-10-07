@@ -71,17 +71,49 @@ export interface RelayOptions {
   readonly budgetMs?: number;
   /** Identifies this worker in the lease. Defaults to a random id. */
   readonly owner?: string;
+  /**
+   * Failures in a row before the event that keeps failing goes to the dead
+   * letters and the cursor moves past it. Defaults to 10.
+   */
+  readonly maxAttempts?: number;
+  /** The longest wait between failed attempts. Defaults to `10 minutes`. */
+  readonly maxBackoff?: string;
 }
 
 export interface RelayResult {
   readonly delivered: number;
-  /** Set when the sink threw: the batch stays unacknowledged for the next run. */
+  /**
+   * Set when the sink threw: the consumer backs off and retries the batch
+   * one event at a time.
+   */
   readonly error?: DbError;
+  /** 1 when this run moved the failing event to the dead letters. */
+  readonly deadLettered?: number;
+}
+
+/** An event a consumer skipped after `maxAttempts` failures. */
+export interface OutboxDeadLetter {
+  readonly consumer: string;
+  readonly event: OutboxEvent;
+  readonly attempts: number;
+  readonly error: string | null;
+  readonly deadAt: Temporal.Instant;
+}
+
+export interface OutboxPurgeOptions {
+  /**
+   * A consumer that hasn't claimed for this long (a Postgres interval such
+   * as `30 days`) no longer holds events back. Defaults to waiting for
+   * every consumer.
+   */
+  readonly ignoreIdle?: string;
 }
 
 /**
  * Takes a batch of outbox rows, with the actor and tenant that CloudEvents
- * leave out. Throwing leaves the batch for the next run.
+ * leave out. Throwing counts a failed attempt: the consumer backs off, then
+ * retries one event at a time until the event that fails goes to the dead
+ * letters.
  */
 export type OutboxHandler = (events: readonly OutboxEvent[]) => unknown;
 
@@ -121,7 +153,9 @@ export interface Outbox {
   /**
    * Claims the consumer's next events, sends them to `sink` as CloudEvents and
    * moves the cursor, until none are left or the budget runs out. A sink that
-   * throws leaves the batch for the next run, so delivery is at least once.
+   * throws leaves the batch for a later run with backoff, so delivery is at
+   * least once; an event that fails `maxAttempts` times goes to the dead
+   * letters.
    */
   relay(
     consumer: string,
@@ -143,11 +177,21 @@ export interface Outbox {
     options: OutboxRouteOptions,
   ): (request: Request) => Promise<Response>;
   history(filter?: HistoryFilter): AsyncResult<readonly OutboxEvent[]>;
+  /** The consumer's dead letters, newest first (default 100, at most 1000). */
+  deadLetters(
+    consumer: string,
+    limit?: number,
+  ): AsyncResult<readonly OutboxDeadLetter[]>;
   /**
    * Deletes up to `batch` events (default 10,000) older than `olderThan` that
-   * every consumer has passed. Call it again while it returns `batch`.
+   * every consumer has passed, and dead letters older than `olderThan`. Call
+   * it again while it returns `batch`.
    */
-  purge(olderThan?: string, batch?: number): AsyncResult<number>;
+  purge(
+    olderThan?: string,
+    batch?: number,
+    options?: OutboxPurgeOptions,
+  ): AsyncResult<number>;
 }
 
 interface OutboxRow {
@@ -227,9 +271,37 @@ const PARAMS: Readonly<Record<string, readonly string[]>> = {
   outbox_unregister: ["consumer"],
   outbox_claim: ["consumer", "owner", "max_events", "lease"],
   outbox_ack: ["consumer", "owner", "upto"],
+  outbox_fail: [
+    "consumer",
+    "owner",
+    "failed",
+    "error",
+    "max_attempts",
+    "max_backoff",
+  ],
+  outbox_dead_letters: ["consumer", "max_rows"],
   outbox_history: ["subject", "event_type", "after", "max_events"],
-  purge_outbox: ["older_than", "batch"],
+  purge_outbox: ["older_than", "batch", "ignore_idle"],
 };
+
+function toDeadLetters(value: unknown): readonly OutboxDeadLetter[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry: unknown): OutboxDeadLetter[] => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const row: Record<string, unknown> = { ...entry };
+    const event = row["event"];
+    if (!isOutboxRow(event)) return [];
+    return [
+      {
+        consumer: String(row["consumer"]),
+        event: toEvent(event),
+        attempts: Number(row["attempts"] ?? 0),
+        error: typeof row["error"] === "string" ? row["error"] : null,
+        deadAt: toInstant(String(row["dead_at"])),
+      },
+    ];
+  });
+}
 
 const isTransport = (
   source: SqlClient | BlockTransport,
@@ -305,8 +377,18 @@ export function createOutbox(
       try {
         await handler(events);
       } catch (cause) {
-        await call("outbox_ack", [consumer, owner, null]).catch(() => null);
-        return { delivered, error: toDbError(cause) };
+        const error = toDbError(cause);
+        const state = await call("outbox_fail", [
+          consumer,
+          owner,
+          events.length === 1 ? last.position : null,
+          error.message,
+          relayOptions.maxAttempts ?? 10,
+          relayOptions.maxBackoff ?? "10 minutes",
+        ]).catch(() => null);
+        return state === "dead"
+          ? { delivered, error, deadLettered: 1 }
+          : { delivered, error };
       }
       try {
         await call("outbox_ack", [consumer, owner, last.position]);
@@ -408,9 +490,21 @@ export function createOutbox(
           ]),
         ),
       ),
-    purge: (olderThan, batch) =>
+    deadLetters: (consumer, limit) =>
       run(async () =>
-        Number(await call("purge_outbox", [olderThan ?? null, batch ?? null])),
+        toDeadLetters(
+          await call("outbox_dead_letters", [consumer, limit ?? 100]),
+        ),
+      ),
+    purge: (olderThan, batch, purgeOptions = {}) =>
+      run(async () =>
+        Number(
+          await call("purge_outbox", [
+            olderThan ?? null,
+            batch ?? null,
+            purgeOptions.ignoreIdle ?? null,
+          ]),
+        ),
       ),
   };
 }

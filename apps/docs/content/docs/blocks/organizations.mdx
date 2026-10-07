@@ -35,7 +35,7 @@ functions.
 | `mark_used(organization)`                                                    | sets `last_used_at` on the caller's membership                                                                                                                 |
 | `invite_member(tenant, invitee_email, invitee_role)`                         | creates an invitation and returns it with its token (`invite`)                                                                                                 |
 | `resend_invitation(invitation_id)`                                           | issues a new token and expiry; the old token stops working                                                                                                     |
-| `update_invitation(invitation_id, invitee_email, invitee_role, prefill)`     | changes an open invitation's email, role or prefill (null keeps the value) with the `invite` checks; the token and expiry stay                                 |
+| `update_invitation(invitation_id, invitee_email, invitee_role, prefill)`     | changes an open, unexpired invitation's email, role or prefill (null keeps the value) with the `invite` checks; the token and expiry stay                      |
 | `revoke_invitation(invitation_id)`                                           | revokes an open invitation (`revoke`)                                                                                                                          |
 | `invitation_preview(token)`                                                  | status, email, role and organization for the accept page; callable without a session                                                                           |
 | `accept_invitation(token)` and `decline_invitation(token)`                   | accepts for the signed-in user, or declines                                                                                                                    |
@@ -157,6 +157,28 @@ if (!result.ok && result.error.hint === "ORGANIZATION_SLUG_TAKEN") {
 The token is only in the `onInvite` argument and the `invite` result. It is
 never part of an event, and by default only its SHA-256 hash is stored.
 
+The invitation in `onInvite` carries what an email needs without another
+read. `organization` holds the id and `previewColumns`, `extra` holds the
+keys an `invitation_preview_extra` hook adds (a role label, say, see
+[existing tables](#existing-tables)), and, with the profiles module installed, `inviter`
+holds the inviter's `id` and public profile fields (`username`, `fullName`,
+`firstName`, `lastName` and `avatar`, as the profiles module maps them). An
+email template can say who invited the person to which role:
+
+```ts
+onInvite: ({ invitation, token }) =>
+  sendInvitationEmail(invitation.email, {
+    link: `/invite/${token}`,
+    inviter: String(invitation.inviter?.["fullName"] ?? "A teammate"),
+    role: String(invitation.extra["roleLabel"] ?? invitation.role),
+  }),
+```
+
+`invite_member`, `resend_invitation`, `update_invitation` and
+`my_invitations` return the same keys in SQL. Without the profiles module,
+`inviter` is `null`; return the inviter's name from the hook instead (it
+receives the invitation id, and `invited_by` is on the row).
+
 ## Switching organizations
 
 `switch_organization(organization)` checks the caller is a member and the organization
@@ -264,6 +286,9 @@ table, `where` is required there too (`roleThrough.where`, such as
 `"{row}.scope = 'organization'"`), so organization invitations, accept and
 `update_member_role` resolve only tenant roles; see
 [membership roles stored as ids](/docs/blocks/access#membership-roles-stored-as-ids).
+With `through.where`, a `bs_role_scope` trigger on `platformRoles.table` also
+refuses a direct write of any other role, from the service role too, with
+`PLATFORM_ROLE_SCOPE`.
 
 The inviter needs `invitePlatform` through `permdock_has`. Without
 `canAssign`, that permission alone lets them invite to any platform role.
@@ -290,10 +315,11 @@ else gets `INVITATION_EMAIL_MISMATCH` on accept and `false` on decline.
 `my_invitations()` lists the open invitations for the caller's confirmed
 email, tenant and platform ones, without their tokens, so the inbox knows
 what to show. Each one carries `created_at`, its `organization` (the id plus
-`previewColumns`, null for a platform invitation) and the keys an
-`invitation_preview_extra` hook adds, so the inbox needs no read policy on
-the invitations table. In TypeScript, `organizations.myInvitations()` returns
-them as `createdAt`, `organization` and `extra`, and
+`previewColumns`, null for a platform invitation), the `inviter` and the
+keys an `invitation_preview_extra` hook adds, so the inbox needs no read
+policy on the invitations table. In TypeScript,
+`organizations.myInvitations()` returns them as `createdAt`, `organization`,
+`inviter` and `extra`, and
 `acceptInvitationById(id)` and `declineInvitationById(id)` answer them.
 
 ### Editing an invitation
@@ -307,7 +333,9 @@ the current and the new role (`INVITATION_ROLE_FORBIDDEN`), and a new address
 must not belong to a member (`INVITATION_ALREADY_MEMBER`). Another open
 invitation for the new address is replaced. The token and expiry stay, so
 the link already sent keeps working: call `resend_invitation` to mail a new
-link to a changed address. It returns the invitation without its token and
+link to a changed address. An expired invitation is refused with
+`INVITATION_EXPIRED`, as accept refuses it; call `resend_invitation` first
+to renew its expiry, then edit it. It returns the invitation without its token and
 emits `invitation.updated`. In TypeScript:
 
 ```ts
@@ -365,7 +393,8 @@ run your own checks and side effects in the same transaction.
 
 `invitation_preview_extra(invitation uuid) returns jsonb` adds keys to what
 `invitation_preview` returns, such as the role's display name or branding
-from another table. Its keys are merged over the preview's, and it runs as
+from another table, and to every invitation `invite_member`,
+`resend_invitation`, `update_invitation` and `my_invitations` return. Its keys are merged over the preview's, and it runs as
 the module function's owner, since the preview is callable without a
 session:
 
@@ -398,9 +427,23 @@ In TypeScript, `previewInvitation(token)` returns the keys the hook added in
 | `ORGANIZATION_SLUG_INVALID`, `ORGANIZATION_SLUG_RESERVED`, `ORGANIZATION_SLUG_TAKEN` | the slug can't be used                             |
 | `INVITATION_FORBIDDEN`, `INVITATION_ROLE_FORBIDDEN`                                  | the caller may not invite, or not with that role   |
 | `INVITATION_ROLE_UNKNOWN`, `INVITATION_ALREADY_MEMBER`                               | no such role, or the address is already a member   |
-| `INVITATION_INVALID`                                                                 | unknown, used, revoked or expired token            |
+| `INVITATION_INVALID`                                                                 | unknown, accepted, declined or revoked invitation  |
+| `INVITATION_EXPIRED`                                                                 | an open invitation past its expiry: resend it      |
 | `INVITATION_VALIDITY`                                                                | `valid_for` is not positive or above `maxValidFor` |
 | `INVITATION_SIGN_IN`, `INVITATION_EMAIL_MISMATCH`                                    | not signed in, or signed in with another address   |
 | `INVITATION_EMAIL_UNCONFIRMED`                                                       | the address is not confirmed yet                   |
 | `INVITATION_SELF`, `INVITATION_INVITER_REVOKED`                                      | your own invitation, or the inviter lost the right |
 | `INVITATION_SCOPE_UNSUPPORTED`                                                       | a platform invitation without platform roles       |
+
+`INVITATION_EXPIRED` and `INVITATION_INVALID` share the SQLSTATE `P0002`, so
+code that checks only the SQLSTATE sees no change; check the `hint` to tell
+an expired invitation, which `resend_invitation` renews, from one that is
+gone. In TypeScript, `InvitationErrorHint` lists the invitation codes, and a
+failed call carries one as `error.hint`:
+
+```ts
+const accepted = await organizations.acceptInvitation(token);
+if (!accepted.ok && accepted.error.hint === "INVITATION_EXPIRED") {
+  // Ask the organization to resend the invitation.
+}
+```

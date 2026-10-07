@@ -218,4 +218,72 @@ describe("data-lifecycle module", () => {
     );
     expect(sql).toContain("ORGANIZATION_PURGE_BLOCKED");
   });
+
+  it("writes anonymize_due from options.anonymize", () => {
+    const empty = sqlOf(["data-lifecycle"]);
+    expect(empty).toContain(
+      '"better_supabase"."anonymize_due"(max_rows integer default 1000)',
+    );
+    expect(empty).not.toContain("v_max");
+    expect(empty).toContain("hint = 'DATA_ANONYMIZE_FORBIDDEN'");
+    const sql = sqlOf(["data-lifecycle"], {
+      anonymize: [
+        {
+          table: "candidates",
+          after: "180 days",
+          from: "process_ended_at",
+          unless: "{row}.pool_consent_until > now()",
+          set: {
+            first_name: "Anonymized",
+            email: null,
+            score: 0,
+            active: false,
+            phone_hash: { sql: "md5({row}.phone)" },
+          },
+          markedBy: "anonymized_at",
+        },
+      ],
+    });
+    expect(sql).toContain(`select r.ctid from "public"."candidates" r
+    where r."anonymized_at" is null
+      and r."process_ended_at" is not null
+      and r."process_ended_at" <= now() - '180 days'::interval
+      and not coalesce((r.pool_consent_until > now()), false)
+    limit v_max
+    for update skip locked`);
+    expect(sql).toContain(
+      `set "first_name" = 'Anonymized', "email" = null, "score" = 0, "active" = false, "phone_hash" = (md5(r.phone)), "anonymized_at" = now()`,
+    );
+    expect(sql).toContain(
+      "v_done := v_done || jsonb_build_object('public.candidates', v_count);",
+    );
+  });
+
+  it("checks the shape of options.anonymize", () => {
+    const rule = {
+      table: "candidates",
+      after: "1 year",
+      from: "ended_at",
+      set: { email: null },
+      markedBy: "anonymized_at",
+    };
+    const fails = (anonymize: unknown) => () =>
+      sqlOf(["data-lifecycle"], { anonymize });
+    expect(fails(rule)).toThrow(/must be a list/);
+    expect(fails([{ ...rule, set: undefined }])).toThrow(/markedBy/);
+    expect(fails([{ ...rule, set: {} }])).toThrow(/at least one column/);
+    expect(fails([{ ...rule, from: "Ended" }])).toThrow(
+      /anonymize\[0\]\.from must be a lowercase column name/,
+    );
+    expect(fails([{ ...rule, markedBy: undefined }])).toThrow(/markedBy/);
+    expect(fails([{ ...rule, unless: "consent" }])).toThrow(
+      /unless must be a condition on \{row\}/,
+    );
+    expect(fails([{ ...rule, set: { email: [1] } }])).toThrow(
+      /set\.email must be a string/,
+    );
+    expect(fails([{ ...rule, set: { email: Number.NaN } }])).toThrow(
+      /set\.email/,
+    );
+  });
 });

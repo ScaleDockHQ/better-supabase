@@ -321,6 +321,61 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
     }
   });
 
+  it("keeps every write to the memberships and platform roles tables within where", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const owner = await s.user("owner");
+      const staff = await s.user("staff");
+      const member = await s.user("member");
+      const organization = crypto.randomUUID();
+      const schema = await sharedSchema(s, organization, owner, staff);
+      await s.install(["invitations"], sharedLayout(schema));
+      const roleId = (key: string) =>
+        s.value<string>(`(select id from ${schema}.roles where key = $1)`, [
+          key,
+        ]);
+      const support = await roleId("support");
+      const admin = await roleId("admin");
+
+      await s.service();
+      expect(
+        await s.hint(`insert into ${schema}.team_members values ($1, $2, $3)`, [
+          organization,
+          member.id,
+          support,
+        ]),
+      ).toBe("MEMBERSHIP_ROLE_SCOPE");
+      expect(
+        await s.hint(
+          `update ${schema}.team_members set role_id = $2 where user_id = $1`,
+          [owner.id, support],
+        ),
+      ).toBe("MEMBERSHIP_ROLE_SCOPE");
+      expect(
+        await s.hint(`insert into ${schema}.team_members values ($1, $2, $3)`, [
+          organization,
+          member.id,
+          admin,
+        ]),
+      ).toBe("no error");
+
+      expect(
+        await s.hint(`insert into ${schema}.user_roles values ($1, $2)`, [
+          staff.id,
+          admin,
+        ]),
+      ).toBe("PLATFORM_ROLE_SCOPE");
+      expect(
+        await s.hint(`insert into ${schema}.user_roles values ($1, $2)`, [
+          staff.id,
+          support,
+        ]),
+      ).toBe("no error");
+    } finally {
+      await s.close();
+    }
+  });
+
   it("resolves a role key among the tenant's own custom roles", async () => {
     const s = await BlockSession.open(pool);
     try {

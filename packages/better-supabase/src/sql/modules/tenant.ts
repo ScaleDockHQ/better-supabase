@@ -19,6 +19,7 @@ import {
   permdockPlatformRoles,
   roleNames,
 } from "./access-model.ts";
+import { sameTenantSql } from "./tenant-same.ts";
 
 /**
  * `sql.modules.tenant.options.roleThrough`: the membership role column holds
@@ -115,6 +116,51 @@ export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
   if (permdockPlatformRoles(tenant)?.through?.table !== own.table)
     return undefined;
   return `sql.modules.tenant.options.roleThrough.where: ${own.table} also holds the platform roles (sql.modules.invitations.options.platformRoles.through), so name the tenant roles with a condition such as "{row}.scope = 'organization'". A roleThrough read from PermDock's manifest has no where; set sql.modules.tenant.options.roleThrough in the config.`;
+}
+
+/**
+ * The `bs_role_scope` trigger on the memberships table: with
+ * `roleThrough.where`, every write (the service role's too) stores a role
+ * that the condition names. Removed when `where` is unset.
+ */
+function roleScope(ctx: ModuleContext): string {
+  if (ctx.manages) return "";
+  const m = ctx.table("memberships");
+  const role = ctx.col("memberships", "role");
+  const through = roleThrough(ctx);
+  const fn = ctx.fn("membership_role_scope");
+  if (!through?.where) {
+    return `
+drop trigger if exists ${ctx.trigger("role_scope")} on ${m};
+drop function if exists ${fn}();
+`;
+  }
+  return `
+-- sql.modules.tenant.options.roleThrough.where names the tenant roles. Every
+-- write to ${m} stores one of them, whoever writes it: a client policy, the
+-- service role or an admin connection.
+create or replace function ${fn}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.${role} is not null and not exists (
+    select 1 from ${through.table} r
+    where r.${through.id}::text = new.${role}::text and (${through.where.replaceAll("{row}", "r")})
+  ) then
+    raise exception 'Role % is not a tenant role', new.${role}
+      using errcode = '23514', hint = 'MEMBERSHIP_ROLE_SCOPE';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function ${fn}() from public, anon, authenticated;
+drop trigger if exists ${ctx.trigger("role_scope")} on ${m};
+create trigger ${ctx.trigger("role_scope")} before insert or update of ${role} on ${m}
+  for each row execute function ${fn}();
+`;
 }
 
 /** A stored role value (a key or a role id) as the role name. */
@@ -284,7 +330,7 @@ create policy bs_memberships_read on ${m}
     model === "catalog" || accessHelpers || disabledHelpersNeedLaterTables(ctx);
   return `${schemaPreamble(ctx)}
 grant usage on schema better_supabase to supabase_auth_admin;
-${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${accessHelpers ? "" : disabledHelpers(ctx)}
+${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${roleScope(ctx)}${sameTenantSql(ctx)}${accessHelpers ? "" : disabledHelpers(ctx)}
 ${currentTenant(ctx)}
 
 -- Policies compare against the set once per statement:
@@ -379,7 +425,7 @@ export const TENANT: ModuleDefinition = {
   version: 2,
   modes: ["managed", "adopt", "custom"],
   names: {
-    options: ["claimFormat", "roleThrough"],
+    options: ["claimFormat", "roleThrough", "sameTenant"],
     tables: {
       memberships: {
         name: "memberships",

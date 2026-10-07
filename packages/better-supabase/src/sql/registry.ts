@@ -494,6 +494,41 @@ ${rows}
   ) r`;
 }
 
+/** `entitlement_value`: a member's read of `tenant_entitlement_value`. */
+const entitlementValueCheck = (id: string, member: string): string => `
+-- The value of a feature for a member of the tenant: a number or text from
+-- the plan catalog's value column, true for a feature without one, null
+-- when the tenant lacks it or the caller is not a member.
+create or replace function better_supabase.entitlement_value(tenant ${id}, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when ${member} then better_supabase.tenant_entitlement_value(tenant, key) end
+$$;
+
+revoke execute on function better_supabase.entitlement_value(${id}, text) from public, anon;
+grant execute on function better_supabase.entitlement_value(${id}, text) to authenticated, service_role;`;
+
+/** `tenant_entitlement_value` for sources without values: true when the tenant has the key. */
+const booleanEntitlementValue = (id: string): string => `
+-- The value of a feature for the tenant: true when it has the key, null
+-- otherwise. Numeric limits come from the plan catalog's value column.
+create or replace function better_supabase.tenant_entitlement_value(tenant ${id}, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when key = any (better_supabase.tenant_entitlements(tenant)) then 'true'::jsonb end
+$$;
+
+revoke execute on function better_supabase.tenant_entitlement_value(${id}, text) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlement_value(${id}, text) to service_role;`;
+
 /** `has_entitlement` and `feature_claims` on the tenant module's memberships. */
 const tenantEntitlementChecks = (
   claims: ClaimsMeta,
@@ -514,6 +549,7 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(${m.idType}, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(${m.idType}, text) to authenticated, service_role;
+${entitlementValueCheck(m.idType, "better_supabase.has_organization_role(tenant)")}
 
 -- Every tenant of the caller with \`key\`, for one set check per query instead of
 -- one call per row:
@@ -582,6 +618,7 @@ $$;
 
 revoke execute on function better_supabase.has_entitlement(${id}, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(${id}, text) to authenticated, service_role;
+${entitlementValueCheck(id, `tenant in (select ${member}())`)}
 
 -- Every tenant of the caller with \`key\`, for one set check per query instead of
 -- one call per row:
@@ -635,7 +672,9 @@ const entitlementsSql = (
 grant usage on schema better_supabase to supabase_auth_admin;
 
 -- entitlements.source is "custom": your better_supabase.tenant_entitlements(tenant ${id})
--- returns the tenant's feature keys (text[]); the checks below call it.
+-- returns the tenant's feature keys (text[]) and your
+-- better_supabase.tenant_entitlement_value(tenant ${id}, key text) a feature's
+-- value (jsonb); the checks below call them.
 set check_function_bodies = off;
 ${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
@@ -681,6 +720,7 @@ $$;
 
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
+${booleanEntitlementValue(id)}
 ${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
@@ -722,6 +762,7 @@ $$;
 
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
+${planEntitlementValue(plans, id, status, included)}
 
 -- The tenant's active plan keys, so other modules (usage quotas) can match a
 -- plan by its key as well as by its features.
@@ -740,6 +781,42 @@ $$;
 
 revoke execute on function better_supabase.tenant_plans(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_plans(${id}) to service_role;`;
+}
+
+/** `tenant_entitlement_value` over the plan catalog, from `features.value` when set. */
+function planEntitlementValue(
+  plans: EntitlementPlansSource["plans"],
+  id: string,
+  status: string,
+  included: string,
+): string {
+  const subs = plans.subscriptions;
+  const features = plans.features;
+  if (features.value === undefined) return booleanEntitlementValue(id);
+  const value = `to_jsonb(f.${sqlIdent(features.value)})`;
+  return `
+-- The value of a feature for the tenant (entitlements.source.plans.features.value):
+-- the largest number when several active plans set it, else the first
+-- plan's value; true for a feature whose value is null, null without it.
+create or replace function better_supabase.tenant_entitlement_value(tenant ${id}, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(${value}, 'true'::jsonb)
+    from ${qualified(subs.table)} s
+    join ${qualified(features.table)} f on f.${sqlIdent(features.plan)}::text = s.${sqlIdent(subs.plan)}::text
+    where s.${sqlIdent(subs.tenant)} = tenant_entitlement_value.tenant${status}${included}
+      and f.${sqlIdent(features.feature)}::text = tenant_entitlement_value.key
+    order by case when jsonb_typeof(${value}) = 'number' then (${value} #>> '{}')::numeric end desc nulls last,
+      s.${sqlIdent(subs.plan)}::text
+    limit 1
+$$;
+
+revoke execute on function better_supabase.tenant_entitlement_value(${id}, text) from public, anon, authenticated;
+grant execute on function better_supabase.tenant_entitlement_value(${id}, text) to service_role;`;
 }
 
 const ENTITLEMENTS: SqlModule = {
@@ -952,13 +1029,17 @@ create table if not exists better_supabase.idempotency_keys (
   primary key (scope, key)
 );
 create index if not exists idempotency_keys_expiry_idx on better_supabase.idempotency_keys (expires_at);
+-- The token of the request that holds the key while it runs.
+alter table better_supabase.idempotency_keys add column if not exists holder uuid;
 
 alter table better_supabase.idempotency_keys enable row level security;
 revoke all on better_supabase.idempotency_keys from anon, authenticated;
 grant all on better_supabase.idempotency_keys to service_role;
 
--- state: 'started' (run it), 'replay' (send the stored response),
--- 'running' (another request holds the key) or 'mismatch' (same key, different request).
+-- state: 'started' (run it, with holder as the token complete and release
+-- need), 'replay' (send the stored response), 'running' (another request
+-- holds the key) or 'mismatch' (same key, different request).
+drop function if exists better_supabase.begin_idempotent(text, text, text, interval, interval);
 create or replace function better_supabase.begin_idempotent(
   scope text,
   key text,
@@ -966,22 +1047,23 @@ create or replace function better_supabase.begin_idempotent(
   ttl interval default '24 hours',
   lock interval default '1 minute'
 )
-returns table (state text, status_code integer, response jsonb)
+returns table (state text, status_code integer, response jsonb, holder uuid)
 language plpgsql
 set search_path = ''
 as $$
 #variable_conflict use_column
 declare
   existing better_supabase.idempotency_keys;
+  token uuid := gen_random_uuid();
 begin
   delete from better_supabase.idempotency_keys k
   where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key and k.expires_at < now();
 
-  insert into better_supabase.idempotency_keys (scope, key, request_hash, locked_until, expires_at)
-  values (scope, key, request_hash, now() + lock, now() + ttl)
+  insert into better_supabase.idempotency_keys (scope, key, request_hash, locked_until, expires_at, holder)
+  values (scope, key, request_hash, now() + lock, now() + ttl, token)
   on conflict on constraint idempotency_keys_pkey do nothing;
   if found then
-    return query select 'started'::text, null::integer, null::jsonb;
+    return query select 'started'::text, null::integer, null::jsonb, token;
     return;
   end if;
 
@@ -989,43 +1071,124 @@ begin
   where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key
   for update;
   if existing.request_hash <> request_hash then
-    return query select 'mismatch'::text, null::integer, null::jsonb;
+    return query select 'mismatch'::text, null::integer, null::jsonb, null::uuid;
   elsif existing.status = 'completed' then
-    return query select 'replay'::text, existing.status_code, existing.response;
+    return query select 'replay'::text, existing.status_code, existing.response, null::uuid;
   elsif existing.locked_until < now() then
-    update better_supabase.idempotency_keys k set locked_until = now() + lock
+    -- The holder's lock ran out: this request takes the key over, and the
+    -- former holder's complete and release now return false.
+    update better_supabase.idempotency_keys k set locked_until = now() + lock, holder = token
     where k.scope = begin_idempotent.scope and k.key = begin_idempotent.key;
-    return query select 'started'::text, null::integer, null::jsonb;
+    return query select 'started'::text, null::integer, null::jsonb, token;
   else
-    return query select 'running'::text, null::integer, null::jsonb;
+    return query select 'running'::text, null::integer, null::jsonb, null::uuid;
   end if;
 end;
 $$;
 
+-- Stores the response for the holder that begin_idempotent returned; false
+-- when another request has taken the key over since.
+drop function if exists better_supabase.complete_idempotent(text, text, integer, jsonb);
 create or replace function better_supabase.complete_idempotent(
   scope text,
   key text,
+  holder uuid,
   status_code integer,
   response jsonb
 )
-returns void
+returns boolean
 language sql
 set search_path = ''
 as $$
-  update better_supabase.idempotency_keys k
-  set status = 'completed', status_code = complete_idempotent.status_code,
-      response = complete_idempotent.response, locked_until = null
-  where k.scope = complete_idempotent.scope and k.key = complete_idempotent.key
+  with done as (
+    update better_supabase.idempotency_keys k
+    set status = 'completed', status_code = complete_idempotent.status_code,
+        response = complete_idempotent.response, locked_until = null, holder = null
+    where k.scope = complete_idempotent.scope and k.key = complete_idempotent.key
+      and k.status = 'running' and k.holder = complete_idempotent.holder
+    returning 1
+  )
+  select exists (select 1 from done)
 $$;
 
--- On failure: forget the key so the client can retry.
-create or replace function better_supabase.release_idempotent(scope text, key text)
-returns void
+-- On failure: forget the key so the client can retry. False when another
+-- request holds it now.
+drop function if exists better_supabase.release_idempotent(text, text);
+create or replace function better_supabase.release_idempotent(scope text, key text, holder uuid)
+returns boolean
 language sql
 set search_path = ''
 as $$
-  delete from better_supabase.idempotency_keys k
-  where k.scope = release_idempotent.scope and k.key = release_idempotent.key and k.status = 'running'
+  with released as (
+    delete from better_supabase.idempotency_keys k
+    where k.scope = release_idempotent.scope and k.key = release_idempotent.key
+      and k.status = 'running' and k.holder = release_idempotent.holder
+    returning 1
+  )
+  select exists (select 1 from released)
+$$;
+
+-- Leases: one holder per (scope, key) until it expires, for work that must
+-- not run twice at once (one automation per conversation). acquire_lease
+-- returns the holder token, or null while someone else holds the lease.
+create table if not exists better_supabase.leases (
+  scope text not null default '',
+  key text not null,
+  holder uuid not null,
+  expires_at timestamptz not null,
+  primary key (scope, key)
+);
+alter table better_supabase.leases enable row level security;
+revoke all on better_supabase.leases from anon, authenticated;
+grant all on better_supabase.leases to service_role;
+
+create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  token uuid := gen_random_uuid();
+  taken uuid;
+begin
+  insert into better_supabase.leases as l (scope, key, holder, expires_at)
+  values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
+  on conflict on constraint leases_pkey do update
+    set holder = excluded.holder, expires_at = excluded.expires_at
+    where l.expires_at <= now()
+  returning l.holder into taken;
+  return taken;
+end;
+$$;
+
+-- Moves the expiry of a lease the holder still has; false once it is lost.
+create or replace function better_supabase.extend_lease(key text, holder uuid, seconds integer default 60, scope text default '')
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with extended as (
+    update better_supabase.leases l
+    set expires_at = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
+    where l.scope = extend_lease.scope and l.key = extend_lease.key
+      and l.holder = extend_lease.holder and l.expires_at > now()
+    returning 1
+  )
+  select exists (select 1 from extended)
+$$;
+
+create or replace function better_supabase.release_lease(key text, holder uuid, scope text default '')
+returns boolean
+language sql
+set search_path = ''
+as $$
+  with released as (
+    delete from better_supabase.leases l
+    where l.scope = release_lease.scope and l.key = release_lease.key and l.holder = release_lease.holder
+    returning 1
+  )
+  select exists (select 1 from released)
 $$;
 
 create or replace function better_supabase.purge_idempotency_keys()
@@ -1041,9 +1204,12 @@ $$;
 
 ${serviceOnly([
   "begin_idempotent(text, text, text, interval, interval)",
-  "complete_idempotent(text, text, integer, jsonb)",
-  "release_idempotent(text, text)",
+  "complete_idempotent(text, text, uuid, integer, jsonb)",
+  "release_idempotent(text, text, uuid)",
   "purge_idempotency_keys()",
+  "acquire_lease(text, integer, text)",
+  "extend_lease(text, uuid, integer, text)",
+  "release_lease(text, uuid, text)",
 ])}`,
 };
 
@@ -1054,7 +1220,7 @@ const WEBHOOK_INBOX: SqlModule = {
     "Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints.",
   requires: [],
   target: "schema",
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -1075,6 +1241,17 @@ const WEBHOOK_INBOX: SqlModule = {
       description:
         "Message ids are unique per source and tenant, so two tenants of one provider can send the same id.",
       sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "complete_webhook, fail_webhook and checkpoint_webhook take the claimed attempt as the lease token, extend_webhook renews a lease, and purge_webhooks has indexes.",
+      sql: () =>
+        [
+          "drop function if exists better_supabase.complete_webhook(bigint, text);",
+          "drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);",
+          "drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);",
+        ].join("\n"),
     },
   ],
   sql: `${SCHEMA}
@@ -1121,15 +1298,24 @@ create index if not exists webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
 create index if not exists webhook_inbox_tenant_idx
   on better_supabase.webhook_inbox (tenant, received_at) where tenant is not null;
+-- purge_webhooks: processed messages by processed_at, dead ones by received_at.
+create index if not exists webhook_inbox_processed_idx
+  on better_supabase.webhook_inbox (processed_at) where status = 'processed';
+create index if not exists webhook_inbox_dead_idx
+  on better_supabase.webhook_inbox (received_at) where status = 'dead';
 
 alter table better_supabase.webhook_inbox enable row level security;
 revoke all on better_supabase.webhook_inbox from anon, authenticated;
 grant all on better_supabase.webhook_inbox to service_role;
 
--- The signatures before messages had a tenant, and before a source set its attempts.
+-- The signatures before messages had a tenant, before a source set its
+-- attempts, and before the attempt was the lease token.
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
 drop function if exists better_supabase.purge_webhooks(interval, boolean, integer);
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text);
+drop function if exists better_supabase.complete_webhook(bigint, text);
+drop function if exists better_supabase.fail_webhook(bigint, text, text, interval);
+drop function if exists better_supabase.checkpoint_webhook(bigint, text, jsonb);
 
 -- duplicate = true when the source and tenant saw the message id before (the sender retried).
 -- max_attempts is the source's limit, 8 when null.
@@ -1200,7 +1386,11 @@ as $$
   returning w.*
 $$;
 
-create or replace function better_supabase.complete_webhook(inbox_id bigint, worker text)
+-- attempt is the attempts value the claim returned: it is the lease token,
+-- so a call that lost its lease (and the claim that took the message over,
+-- even under the same worker name) can't complete, fail or extend it.
+-- Without attempt, the worker name alone decides.
+create or replace function better_supabase.complete_webhook(inbox_id bigint, worker text, attempt integer default null)
 returns boolean
 language sql
 set search_path = ''
@@ -1209,6 +1399,7 @@ as $$
     update better_supabase.webhook_inbox
     set status = 'processed', processed_at = now(), locked_by = null, locked_until = null, last_error = null
     where id = inbox_id and locked_by = worker and status = 'processing'
+      and (attempt is null or attempts = attempt)
     returning 1
   )
   select exists (select 1 from done)
@@ -1218,7 +1409,8 @@ create or replace function better_supabase.fail_webhook(
   inbox_id bigint,
   worker text,
   error text,
-  retry_in interval default null
+  retry_in interval default null,
+  attempt integer default null
 )
 returns text
 language sql
@@ -1231,12 +1423,32 @@ as $$
       locked_by = null,
       locked_until = null
   where id = inbox_id and locked_by = worker and status = 'processing'
+    and (attempt is null or attempts = attempt)
   returning status
+$$;
+
+-- Renews the lease of a message the worker still holds for lease more, and
+-- returns the lease in seconds; no row when the lease was lost.
+create or replace function better_supabase.extend_webhook(
+  inbox_id bigint,
+  worker text,
+  attempt integer,
+  lease interval default '5 minutes'
+)
+returns double precision
+language sql
+set search_path = ''
+as $$
+  update better_supabase.webhook_inbox
+  set locked_until = now() + lease
+  where id = inbox_id and locked_by = worker and status = 'processing'
+    and attempts = attempt
+  returning extract(epoch from lease)::double precision
 $$;
 
 -- Saves progress for a message the worker still holds, merged into its
 -- checkpoint, so a retry resumes there. False when the lease was lost.
-create or replace function better_supabase.checkpoint_webhook(inbox_id bigint, worker text, fields jsonb)
+create or replace function better_supabase.checkpoint_webhook(inbox_id bigint, worker text, fields jsonb, attempt integer default null)
 returns boolean
 language sql
 set search_path = ''
@@ -1245,6 +1457,7 @@ as $$
     update better_supabase.webhook_inbox
     set checkpoint = checkpoint || coalesce(fields, '{}')
     where id = inbox_id and locked_by = worker and status = 'processing'
+      and (attempt is null or attempts = attempt)
     returning 1
   )
   select exists (select 1 from saved)
@@ -1304,9 +1517,10 @@ $$;
 ${serviceOnly([
   "receive_webhook(text, text, text, jsonb, jsonb, text, integer)",
   "claim_webhooks(text, text, integer, interval)",
-  "complete_webhook(bigint, text)",
-  "fail_webhook(bigint, text, text, interval)",
-  "checkpoint_webhook(bigint, text, jsonb)",
+  "complete_webhook(bigint, text, integer)",
+  "fail_webhook(bigint, text, text, interval, integer)",
+  "extend_webhook(bigint, text, integer, interval)",
+  "checkpoint_webhook(bigint, text, jsonb, integer)",
   "list_webhooks(text, text, text, integer)",
   "purge_webhooks(interval, boolean, integer, text)",
 ])}`,
@@ -1540,6 +1754,7 @@ $$;
 create or replace function tests.authenticate_as(user_id uuid, claims jsonb default '{}')
 returns void
 language plpgsql
+set search_path = ''
 as $$
 declare
   user_email text;
@@ -1557,6 +1772,7 @@ $$;
 create or replace function tests.authenticate_as_anon()
 returns void
 language plpgsql
+set search_path = ''
 as $$
 begin
   perform set_config('request.jwt.claims', '{"role": "anon"}', true);
@@ -1567,6 +1783,7 @@ $$;
 create or replace function tests.clear_authentication()
 returns void
 language plpgsql
+set search_path = ''
 as $$
 begin
   perform set_config('request.jwt.claims', '', true);
@@ -2745,17 +2962,19 @@ function moduleExtras(
   return "";
 }
 
-/** Whether an installed file matches, ignoring the version stamped in its header. */
+/** Whether an installed file matches, ignoring the version stamped in its header and line endings. */
 export function sameModuleFile(
   current: string | undefined,
   expected: string,
 ): boolean {
   if (current === undefined) return false;
   const strip = (text: string): string =>
-    text.replace(
-      /^(-- better-supabase module: [^\n(]*?)(?: \([^)]*\))?\n/,
-      "$1\n",
-    );
+    text
+      .replaceAll("\r\n", "\n")
+      .replace(
+        /^(-- better-supabase module: [^\n(]*?)(?: \([^)]*\))?\n/,
+        "$1\n",
+      );
   return strip(current) === strip(expected);
 }
 

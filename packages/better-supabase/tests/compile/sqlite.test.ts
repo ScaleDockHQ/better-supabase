@@ -323,6 +323,28 @@ describe("compileSqlite", () => {
       "raw",
     ]);
   });
+
+  it("orders groups by the row count and by measures like Postgres", () => {
+    const plan = selectPlan(
+      compileSqlite(
+        select({
+          selection: {
+            columns: [{ alias: "status", column: "status" }],
+            includes: [],
+            aggregate: { count: true, measures: [] },
+          },
+          orderBy: [
+            { column: "*", direction: "desc", aggregate: "count" },
+            { column: "name", direction: "asc", aggregate: "min" },
+            { column: "created_at", direction: "desc", aggregate: "max" },
+          ],
+        }),
+      ),
+    );
+    expect(plan.rows?.text).toBe(
+      'select t0."status" as "status", count(*) as "_count" from "customers" as t0 group by t0."status" order by count(*) desc nulls first, min(t0."name" collate nocase) asc nulls last, max(julianday(t0."created_at")) desc nulls first',
+    );
+  });
 });
 
 describe("SQLite semantics", () => {

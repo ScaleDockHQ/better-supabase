@@ -115,6 +115,51 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
   };
 }
 
+/**
+ * The `bs_role_scope` trigger on `platformRoles.table` under the `permdock`
+ * model: with `platformRoles.through.where`, every write (the service role's
+ * too) stores a role that the condition names. Removed when `where` is unset.
+ */
+export function platformRoleScope(ctx: ModuleContext): string {
+  const permdock = permdockPlatformRoles(ctx);
+  if (!permdock) return "";
+  const through = permdock.through;
+  const fn = ctx.fn("platform_role_scope");
+  const trigger = ctx.trigger("role_scope");
+  if (!through?.where) {
+    return `
+drop trigger if exists ${trigger} on ${permdock.table};
+drop function if exists ${fn}();
+`;
+  }
+  return `
+-- sql.modules.invitations.options.platformRoles.through.where names the
+-- platform roles. Every write to ${permdock.table} stores one of them,
+-- whoever writes it: a client policy, the service role or an admin connection.
+create or replace function ${fn}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.${permdock.role} is not null and not exists (
+    select 1 from ${through.table} r
+    where r.${through.id}::text = new.${permdock.role}::text and (${through.where.replaceAll("{row}", "r")})
+  ) then
+    raise exception 'Role % is not a platform role', new.${permdock.role}
+      using errcode = '23514', hint = 'PLATFORM_ROLE_SCOPE';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function ${fn}() from public, anon, authenticated;
+drop trigger if exists ${trigger} on ${permdock.table};
+create trigger ${trigger} before insert or update of ${permdock.role} on ${permdock.table}
+  for each row execute function ${fn}();
+`;
+}
+
 export const invitePlatform = (ctx: ModuleContext): string =>
   ctx.permission(
     "invitePlatform",

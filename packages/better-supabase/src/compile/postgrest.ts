@@ -120,6 +120,8 @@ export function listItem(value: unknown): string {
   return BARE.test(text) && text.toLowerCase() !== "null" ? text : quote(text);
 }
 
+const BRACES = /[{}]/;
+
 function list(values: readonly unknown[], open: string, close: string): string {
   return `${open}${values.map(quote).join(",")}${close}`;
 }
@@ -198,7 +200,10 @@ function operatorAndValue(
       const operator =
         op === "contains" ? "cs" : op === "containedBy" ? "cd" : "ov";
       if (Array.isArray(value) && !condition.json) {
-        return { operator, value: list(value, "{", "}") };
+        // A logic tree reads `{...}` up to the next brace, even a quoted one.
+        const literal = list(value, "{", "}");
+        const braced = inLogic && BRACES.test(literal.slice(1, -1));
+        return { operator, value: braced ? quote(literal) : literal };
       }
       const json = JSON.stringify(value);
       return { operator, value: inLogic ? quote(json) : json };
@@ -579,6 +584,31 @@ function renderSelect(
   return parts.length > 0 ? parts.join(",") : "*";
 }
 
+/**
+ * PostgREST orders by columns only. `order=count` still sorts groups by
+ * their row count: Postgres reads `customers.count` as `count(customers)`
+ * when the table has no `count` column. Measures have no such spelling.
+ */
+function aggregateOrder(
+  compiler: PostgrestCompiler,
+  term: OrderTerm,
+  table: TableMeta,
+): void {
+  if (term.aggregate !== "count") {
+    invalidRequest(
+      `PostgREST can't sort "${table.key}" by _${term.aggregate}; sort by _count or a groupBy column, or use the postgres adapter`,
+      table.key,
+    );
+  }
+  if (Object.values(table.columns).some((column) => column.db === "count")) {
+    invalidRequest(
+      `PostgREST can't sort "${table.key}" by _count because the table has a column named "count"; sort by a groupBy column or use the postgres adapter`,
+      table.key,
+    );
+  }
+  compiler.order({ ...term, column: "count" }, undefined);
+}
+
 function applyWhere(
   compiler: PostgrestCompiler,
   condition: Condition | undefined,
@@ -640,6 +670,7 @@ export function compilePostgrest(
   if (op.kind === "select") {
     for (const term of op.orderBy) {
       if (term.relation) compiler.relationOrder(term, embeds);
+      else if (term.aggregate) aggregateOrder(compiler, term, op.table);
       else compiler.order(term, undefined);
     }
     if (op.offset !== undefined) {

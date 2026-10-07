@@ -27,7 +27,9 @@ interface Profile {
   /**
    * CentraKit's shape: uuid keys, `unique (id, organization_id)` on every
    * table, composite foreign keys that repeat `organization_id`, and the
-   * `graphql_public` schema next to `public`.
+   * `graphql_public` schema next to `public`, plus one each of an enum column,
+   * a CHECK union, two foreign keys to one table, a view, a JSON override and
+   * a function the consumer calls.
    */
   readonly composite: boolean;
 }
@@ -76,15 +78,15 @@ const name = (i: number): string => `t${String(i).padStart(3, "0")}`;
 function column(
   columnName: string,
   udt: string,
-  options: { nullable?: boolean; default?: string } = {},
+  options: { nullable?: boolean; default?: string; enum?: boolean } = {},
 ): CatalogColumn {
   return {
     name: columnName,
     udt,
     format: udt,
-    typeSchema: "pg_catalog",
+    typeSchema: options.enum ? "public" : "pg_catalog",
     isArray: false,
-    isEnum: false,
+    isEnum: options.enum ?? false,
     nullable: options.nullable ?? false,
     hasDefault: options.default !== undefined,
     default: options.default ?? null,
@@ -118,23 +120,24 @@ function table(
   columns: CatalogColumn[],
   foreignKeys: CatalogForeignKey[],
   uniques: CatalogUnique[] = [],
+  options: { view?: boolean; checks?: CatalogTable["checks"] } = {},
 ): CatalogTable {
   return {
     id: 0,
     schema: "public",
     name: tableName,
-    kind: "table",
-    rls: true,
+    kind: options.view ? "view" : "table",
+    rls: !options.view,
     forceRls: false,
-    replicaIdentity: "DEFAULT",
-    insertable: true,
-    updatable: true,
+    replicaIdentity: options.view ? null : "DEFAULT",
+    insertable: !options.view,
+    updatable: !options.view,
     comment: null,
     columns,
-    primaryKey: ["id"],
+    primaryKey: options.view ? [] : ["id"],
     uniques,
     foreignKeys,
-    checks: [],
+    checks: options.checks ?? [],
     indexes: [],
     policies: [],
     triggers: [],
@@ -164,6 +167,34 @@ const GRAPHQL: CatalogFunction = {
   securityDefiner: false,
   language: "sql",
   searchPath: null,
+};
+
+const COUNT_ITEMS: CatalogFunction = {
+  schema: "public",
+  name: "count_items",
+  signature: "p_organization_id uuid",
+  args: [
+    {
+      name: "p_organization_id",
+      udt: "uuid",
+      isArray: false,
+      hasDefault: false,
+    },
+  ],
+  returnsTable: null,
+  returns: "int4",
+  returnsRelation: null,
+  returnsSet: false,
+  volatility: "stable",
+  securityDefiner: false,
+  language: "sql",
+  searchPath: "",
+};
+
+const KIND_CHECK = {
+  name: "kind_check",
+  definition:
+    "CHECK ((kind = ANY (ARRAY['task'::text, 'note'::text, 'call'::text])))",
 };
 
 /** `extraColumnOn` names a table that gets one more column, for incremental gen. */
@@ -196,6 +227,11 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
     ];
     for (let c = 0; c < 8; c++)
       columns.push(column(`field_${String(c)}`, "text", { nullable: true }));
+    if (profile.composite)
+      columns.push(
+        column("priority", "priority", { default: "'normal'", enum: true }),
+        column("kind", "text", { default: "'task'" }),
+      );
     if (tableName === extraColumnOn)
       columns.push(column("extra", "text", { nullable: true }));
     const keys = [foreignKey(tableName, ["organization_id"], "organizations")];
@@ -218,13 +254,54 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
           },
         ]
       : [];
-    tables.push(table(tableName, columns, keys, uniques));
+    tables.push(
+      table(tableName, columns, keys, uniques, {
+        checks: profile.composite ? [KIND_CHECK] : [],
+      }),
+    );
+  }
+  if (profile.composite) {
+    tables.push(
+      table(
+        "transfers",
+        [
+          column("id", "uuid", { default: "gen_random_uuid()" }),
+          column("from_organization_id", "uuid"),
+          column("to_organization_id", "uuid"),
+          column("amount", "numeric"),
+        ],
+        [
+          foreignKey("transfers", ["from_organization_id"], "organizations"),
+          foreignKey("transfers", ["to_organization_id"], "organizations"),
+        ],
+      ),
+      table(
+        "item_summaries",
+        [
+          column("id", "uuid", { nullable: true }),
+          column("organization_id", "uuid", { nullable: true }),
+          column("name", "text", { nullable: true }),
+          column("priority", "priority", { nullable: true, enum: true }),
+        ],
+        [],
+        [],
+        { view: true },
+      ),
+    );
   }
   return fromCatalog({
     schemas: profile.composite ? ["public", "graphql_public"] : ["public"],
     tables,
-    enums: [],
-    functions: profile.composite ? [GRAPHQL] : [],
+    enums: profile.composite
+      ? [
+          {
+            schema: "public",
+            name: "priority",
+            values: ["low", "normal", "high"],
+          },
+        ]
+      : [],
+    functions: profile.composite ? [GRAPHQL, COUNT_ITEMS] : [],
     buckets: [],
     realtime: [],
   });
@@ -232,7 +309,10 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
 
 function consumer(profile: Profile): string {
   const lines = [
-    "import type { SupabaseClient } from '@supabase/supabase-js';",
+    "import { createClient, type SupabaseClient } from '@supabase/supabase-js';",
+    ...(profile.composite
+      ? ["import type { Database } from './database.types.ts';"]
+      : []),
     "import { defineSupabase } from 'better-supabase';",
     "import { softDelete } from 'better-supabase/plugins/soft-delete';",
     "import { tenant } from 'better-supabase/plugins/tenant';",
@@ -242,6 +322,15 @@ function consumer(profile: Profile): string {
     "const db = defineSupabase(schema).use(timestamps()).use(softDelete()).use(tenant()).connect(client);",
     "export async function run(): Promise<void> {",
   ];
+  if (profile.composite)
+    lines.push(
+      "  const typed = createClient<Database>('https://x.supabase.co', 'key');",
+      "  await typed.from('item_summaries').select('id, priority');",
+      "  await db.$rpc('count_items', { p_organization_id: 'o' }).orThrow();",
+      "  await db.transfers.findMany({ include: { fromOrganization: { select: ['name'] }, toOrganization: { select: ['name'] } } }).orThrow();",
+      "  await db.itemSummaries.findMany({ where: { priority: 'high' } }).orThrow();",
+      `  await db.${name(1)}.update('id', { kind: 'note', priority: 'low', metadata: { tags: ['a'] } }).orThrow();`,
+    );
   for (let i = 1; i <= profile.queried; i++) {
     const key = name(i);
     const child = name(i + 1);
@@ -355,6 +444,9 @@ function run(profile: Profile): Run {
       schemas: profile.composite ? ["public", "graphql_public"] : undefined,
       casing: "camel",
       output: "generated.ts",
+      json: profile.composite
+        ? { [`${name(1)}.metadata`]: { type: "{ tags: string[] }" } }
+        : undefined,
       plugins: {
         timestamps: true,
         softDelete: { column: "archived_at" },

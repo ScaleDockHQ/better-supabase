@@ -20,6 +20,7 @@ import {
   createJobs,
   createRateLimit,
   sqlQueueBackend,
+  withLease,
 } from "../../src/blocks/jobs/index.ts";
 import { signWebhook } from "../../src/blocks/webhooks/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -166,6 +167,23 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("is idempotent", async () => {
     await installSchemaModules(pool);
+  });
+
+  it("indexes the columns of every foreign key", async () => {
+    const { rows } = await pool.query<{ constraint: string }>(
+      `select c.conrelid::regclass::text || ' ' || c.conname as constraint
+       from pg_constraint c
+       join pg_namespace n on n.oid = c.connamespace
+       where c.contype = 'f' and n.nspname = 'better_supabase'
+         and not exists (
+           select 1 from pg_index i
+           where i.indrelid = c.conrelid
+             and (string_to_array(i.indkey::text, ' ')::int2[])[1:cardinality(c.conkey)] @> c.conkey
+             and (i.indpred is null or pg_get_expr(i.indpred, i.indrelid) ilike '%is not null%')
+         )
+       order by 1`,
+    );
+    expect(rows.map((row) => row.constraint)).toEqual([]);
   });
 
   it("ensure-rls enables RLS on new tables outside the managed schemas", async () => {
@@ -1106,6 +1124,115 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("returns feature values from the plan catalog", async () => {
+    const client = await pool.connect();
+    const organization = crypto.randomUUID();
+    const member = crypto.randomUUID();
+    const outsider = crypto.randomUUID();
+    const as = async (user: string, key: string) => {
+      await client.query("savepoint values");
+      await client.query(
+        "select set_config('request.jwt.claims', $1, true), set_config('role', 'authenticated', true)",
+        [JSON.stringify({ sub: user, role: "authenticated" })],
+      );
+      const { rows } = await client.query<{ value: unknown }>(
+        "select better_supabase.entitlement_value($1, $2) as value",
+        [organization, key],
+      );
+      await client.query("rollback to savepoint values");
+      return rows[0]!.value;
+    };
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into auth.users (id, instance_id, aud, role, email)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)`,
+        [member, `values-${RUN}@example.com`],
+      );
+      await client.query(`
+        create table public.bs_value_subs_${RUN} (team_id uuid, plan_key text, status text);
+        create table public.bs_value_features_${RUN} (plan_key text, feature_key text, included boolean, value jsonb);
+        insert into public.bs_value_subs_${RUN} values
+          ('${organization}', 'pro', 'active'), ('${organization}', 'archive', 'active'),
+          ('${organization}', 'max', 'canceled');
+        insert into public.bs_value_features_${RUN} values
+          ('pro', 'file_history_days', true, '90'), ('archive', 'file_history_days', true, '365'),
+          ('max', 'file_history_days', true, '3650'), ('pro', 'support', true, '"email"'),
+          ('pro', 'exports', true, null), ('pro', 'sso', false, 'true');
+        insert into better_supabase.organizations (id, name, slug) values ('${organization}', 'Values', 'values-${organization.slice(0, 8)}');
+        insert into better_supabase.memberships (organization_id, user_id, role) values ('${organization}', '${member}', 'member');
+      `);
+      const source = {
+        plans: {
+          subscriptions: {
+            table: `public.bs_value_subs_${RUN}`,
+            tenant: "team_id",
+            plan: "plan_key",
+            status: "status",
+          },
+          features: {
+            table: `public.bs_value_features_${RUN}`,
+            plan: "plan_key",
+            feature: "feature_key",
+            included: "included",
+            value: "value",
+          },
+        },
+      };
+      await client.query(
+        renderModules(["entitlements"], {
+          entitlements: { key: "id", source },
+        }).find(
+          (file) => file.module === "entitlements" && file.kind === "schema",
+        )!.contents,
+      );
+      const { rows } = await client.query<Record<string, unknown>>(
+        `select better_supabase.tenant_entitlement_value($1, 'file_history_days') as days,
+           better_supabase.tenant_entitlement_value($1, 'support') as support,
+           better_supabase.tenant_entitlement_value($1, 'exports') as exports,
+           better_supabase.tenant_entitlement_value($1, 'sso') as sso`,
+        [organization],
+      );
+      expect(rows[0]).toEqual({
+        days: 365,
+        support: "email",
+        exports: true,
+        sso: null,
+      });
+      expect(await as(member, "file_history_days")).toBe(365);
+      expect(await as(outsider, "file_history_days")).toBeNull();
+      await client.query(
+        renderModules(["entitlements"], {
+          entitlements: {
+            key: "id",
+            source: {
+              plans: {
+                ...source.plans,
+                features: {
+                  table: source.plans.features.table,
+                  plan: "plan_key",
+                  feature: "feature_key",
+                  included: "included",
+                },
+              },
+            },
+          },
+        }).find(
+          (file) => file.module === "entitlements" && file.kind === "schema",
+        )!.contents,
+      );
+      const { rows: plain } = await client.query<Record<string, unknown>>(
+        `select better_supabase.tenant_entitlement_value($1, 'file_history_days') as days,
+           better_supabase.tenant_entitlement_value($1, 'sso') as sso`,
+        [organization],
+      );
+      expect(plain[0]).toEqual({ days: true, sso: null });
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("reads PermDock's member helpers in PermDock mode", async () => {
     const pd = `bs_pd_${RUN}`;
     const billing = `bs_billing_pd_${RUN}`;
@@ -1490,6 +1617,54 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     );
     expect(done.toSorted((a, b) => a - b)).toEqual([1, 2, 3, 4]);
     expect(result).toEqual({ succeeded: 4, failed: 0 });
+  });
+
+  it("coalesces only onto waiting jobs with dedupe waiting, on both backends", async () => {
+    const check = async (queue: string) => {
+      const jobs = createJobs(postgres.admin, {
+        [queue]: v.object({ id: v.string() }),
+      });
+      const waiting = { dedupeKey: "p1", dedupe: "waiting" } as const;
+      const first = await jobs.enqueue(queue, { id: "1" }, waiting).orThrow();
+      expect(await jobs.enqueue(queue, { id: "2" }, waiting).orThrow()).toBe(
+        first,
+      );
+      const [running] = await jobs.claim(queue).orThrow();
+      expect(running!.id).toBe(first);
+      const followUp = await jobs
+        .enqueue(queue, { id: "3" }, waiting)
+        .orThrow();
+      expect(followUp).not.toBe(first);
+      expect(await jobs.enqueue(queue, { id: "4" }, waiting).orThrow()).toBe(
+        followUp,
+      );
+      expect(
+        [first, followUp].includes(
+          await jobs.enqueue(queue, { id: "5" }, { dedupeKey: "p1" }).orThrow(),
+        ),
+      ).toBe(true);
+      await jobs.complete(running!).orThrow();
+      const [next] = await jobs.claim(queue).orThrow();
+      expect(next!.id).toBe(followUp);
+      await jobs.complete(next!).orThrow();
+    };
+    await check(`block_${RUN}_debounce`);
+    await pool.query(
+      moduleBody("jobs", {
+        modules: {
+          jobs: { options: { backend: "table", scheduler: "drain" } },
+        },
+      })!,
+    );
+    try {
+      await check(`block_${RUN}_debounce_table`);
+    } finally {
+      await pool.query(
+        "delete from better_supabase.job_messages where queue = $1",
+        [`block_${RUN}_debounce_table`],
+      );
+      await pool.query(SQL_MODULES["jobs"]!.sql);
+    }
   });
 
   it("passes the queue backend conformance kit on pgmq", async () => {
@@ -2084,6 +2259,92 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     ).toBe(201);
   });
 
+  it("refuses a former holder's complete and release after a takeover", async () => {
+    const idempotency = createIdempotency(postgres.admin, { scope: RUN });
+    const first = await idempotency.begin("takeover", "fp", RUN).orThrow();
+    expect(first.state).toBe("started");
+    expect(
+      (await idempotency.begin("takeover", "fp", RUN).orThrow()).state,
+    ).toBe("running");
+    await pool.query(
+      "update better_supabase.idempotency_keys set locked_until = now() - interval '1 second' where scope = $1 and key = 'takeover'",
+      [RUN],
+    );
+    const second = await idempotency.begin("takeover", "fp", RUN).orThrow();
+    expect(second.state).toBe("started");
+    expect(second.holder).not.toBe(first.holder);
+    expect(
+      await idempotency
+        .complete("takeover", first.holder!, 200, { late: true }, RUN)
+        .orThrow(),
+    ).toBe(false);
+    expect(
+      await idempotency.release("takeover", first.holder!, RUN).orThrow(),
+    ).toBe(false);
+    expect(
+      await idempotency
+        .complete("takeover", second.holder!, 201, { ok: true }, RUN)
+        .orThrow(),
+    ).toBe(true);
+    expect(
+      await idempotency.begin("takeover", "fp", RUN).orThrow(),
+    ).toMatchObject({ state: "replay", status: 201, body: { ok: true } });
+  });
+
+  it("holds a lease for one holder until it is released or expires", async () => {
+    const key = `lease-${RUN}`;
+    const order: string[] = [];
+    const outer = await withLease(
+      postgres.admin,
+      key,
+      async (lease) => {
+        order.push("outer");
+        const inner = await withLease(postgres.admin, key, () => {
+          order.push("inner");
+        }).orThrow();
+        expect(inner).toEqual({ acquired: false });
+        expect(await lease.extend(30).orThrow()).toBe(true);
+        return lease.holder;
+      },
+      { seconds: 5 },
+    ).orThrow();
+    expect(outer.acquired).toBe(true);
+    expect(order).toEqual(["outer"]);
+    const after = await withLease(postgres.admin, key, () => "again").orThrow();
+    expect(after).toEqual({ acquired: true, value: "again" });
+
+    const { rows } = await pool.query<{ holder: string }>(
+      "select better_supabase.acquire_lease($1, 60) as holder",
+      [key],
+    );
+    const stale = rows[0]!.holder;
+    expect(
+      (
+        await pool.query("select better_supabase.acquire_lease($1, 60) as h", [
+          key,
+        ])
+      ).rows[0].h,
+    ).toBeNull();
+    await pool.query(
+      "update better_supabase.leases set expires_at = now() - interval '1 second' where key = $1",
+      [key],
+    );
+    const taken = await pool.query<{ h: string }>(
+      "select better_supabase.acquire_lease($1, 60) as h",
+      [key],
+    );
+    expect(taken.rows[0]!.h).not.toBeNull();
+    const lost = await pool.query<{ extended: boolean; released: boolean }>(
+      "select better_supabase.extend_lease($1, $2) as extended, better_supabase.release_lease($1, $2) as released",
+      [key, stale],
+    );
+    expect(lost.rows[0]).toEqual({ extended: false, released: false });
+    await pool.query("select better_supabase.release_lease($1, $2)", [
+      key,
+      taken.rows[0]!.h,
+    ]);
+  });
+
   it("runs blocks on @supabase/server's Postgres pool", async () => {
     const queue = `block_${RUN}_server`;
     const handler = pipeline(
@@ -2290,6 +2551,63 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           last_error: "The lease ran out on the last attempt",
         },
       ]);
+    } finally {
+      await pool.query(
+        "delete from better_supabase.webhook_inbox where source = $1",
+        [source],
+      );
+    }
+  });
+
+  it("keeps an overlapping process() call on one worker from completing a message it lost", async () => {
+    const source = `overlap-${RUN}`;
+    const inbox = createInbox(postgres.admin, { source, worker: "same" });
+    const status = async () =>
+      (
+        await pool.query<{ status: string; attempts: number }>(
+          "select status, attempts from better_supabase.webhook_inbox where source = $1",
+          [source],
+        )
+      ).rows[0];
+    try {
+      await inbox.store({ id: "m1", payload: {} }).orThrow();
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let claimed!: () => void;
+      const started = new Promise<void>((resolve) => {
+        claimed = resolve;
+      });
+      const first = inbox.process(async () => {
+        claimed();
+        await gate;
+      });
+      await started;
+      await pool.query(
+        "update better_supabase.webhook_inbox set locked_until = now() - interval '1 second' where source = $1",
+        [source],
+      );
+      let releaseSecond!: () => void;
+      const secondGate = new Promise<void>((resolve) => {
+        releaseSecond = resolve;
+      });
+      let secondClaimed!: () => void;
+      const secondStarted = new Promise<void>((resolve) => {
+        secondClaimed = resolve;
+      });
+      const second = inbox.process(async (message) => {
+        expect(message.attempts).toBe(2);
+        secondClaimed();
+        await secondGate;
+      });
+      await secondStarted;
+      release();
+      expect(await first).toEqual({ succeeded: 0, failed: 0 });
+      expect(await status()).toEqual({ status: "processing", attempts: 2 });
+      releaseSecond();
+      expect(await second).toEqual({ succeeded: 1, failed: 0 });
+      expect(await status()).toEqual({ status: "processed", attempts: 2 });
     } finally {
       await pool.query(
         "delete from better_supabase.webhook_inbox where source = $1",
@@ -3353,6 +3671,58 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       });
     } finally {
       await pool.query(`drop function if exists public.rs_block_${RUN}(jsonb)`);
+    }
+  });
+
+  it("read sets count the caller's own rows through auth.uid", async () => {
+    const betterSupabase = defineSupabase(schema);
+    const mine = defineReadSet(
+      betterSupabase,
+      `mine_${RUN}`,
+      {},
+      (s, _p, auth) => ({
+        mine: s.customers.count({ where: { createdBy: auth.uid } }),
+      }),
+    );
+    const [file] = renderModules(["read-sets"], {
+      readSets: [await compileReadSet(mine)],
+    });
+    const alice = crypto.randomUUID();
+    const bob = crypto.randomUUID();
+    await pool.query(file!.contents);
+    await pool.query(
+      `insert into public.customers (organization_id, name, created_by)
+       values ($1, $2, $3), ($1, $4, $3), ($1, $5, $6)`,
+      [ACME, `Alice A ${RUN}`, alice, `Alice B ${RUN}`, `Bob ${RUN}`, bob],
+    );
+    await pool.query(`notify pgrst, 'reload schema'`);
+
+    try {
+      const counts = async (sub: string) => {
+        const user = await asUser(
+          betterSupabase,
+          { sub, tenant_id: ACME },
+          { url, publishableKey, postgres },
+        );
+        let rest = await user.db.$many(mine, {});
+        for (let attempt = 0; !rest.ok && attempt < 20; attempt += 1) {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          rest = await user.db.$many(mine, {});
+        }
+        expect(rest.error).toBeNull();
+        const sql = await user.sql!.$many(mine, {}).orThrow();
+        return { rest: rest.data!.mine, sql: sql.mine };
+      };
+      expect(await counts(alice)).toEqual({ rest: 2, sql: 2 });
+      expect(await counts(bob)).toEqual({ rest: 1, sql: 1 });
+    } finally {
+      await pool.query(
+        `delete from public.customers where created_by = any ($1)`,
+        [[alice, bob]],
+      );
+      await pool.query(`drop function if exists public.rs_mine_${RUN}(jsonb)`);
     }
   });
 

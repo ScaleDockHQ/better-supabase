@@ -115,7 +115,11 @@ await jobs.work(
   then twice as long each time. Any other claim error, or a fourth in a row,
   stops every lane, and `work` or `drain` rejects with a `TypeError` whose
   `cause` is the `DbError`.
-- A `dedupeKey` keeps one waiting or running job per key.
+- A `dedupeKey` keeps one waiting or running job per key. With
+  `dedupe: "waiting"` it coalesces only onto a job no worker has claimed
+  yet, so a change made while the job runs queues one follow-up instead of
+  being dropped: a debounce per entity. In SQL this is
+  `enqueue_job(..., dedupe_key => key, dedupe_running => false)`.
 - `drain(queue, handler)` works the queue until it is empty, which suits cron
   and Edge Functions. `claim`, `complete`, `fail` and `extend` are available
   when you want to drive the queue yourself.
@@ -472,6 +476,54 @@ The fingerprint is a SHA-256 of the method, path and body. Set
 are Problem Details; pass `problem` to answer in your app's error format
 instead (see [Problem Details](/docs/auth/problems#your-own-error-format)).
 
+Outside HTTP, `begin(key, fingerprint, scope)` returns a `holder` token with
+the `started` state, and `complete(key, holder, status, body, scope)` and
+`release(key, holder, scope)` need it. A caller whose lock ran out may find
+that another caller took the key over; its `complete` and `release` then
+return `false` and change nothing, so it can't store its late result over
+the new holder's or free a key someone else holds:
+
+```ts
+const started = await idempotency.begin(key, fingerprint).orThrow();
+if (started.state === "started") {
+  const stored = await idempotency
+    .complete(key, started.holder!, 200, result)
+    .orThrow();
+  if (!stored) console.warn("lost the key to another caller");
+}
+```
+
+### Leases
+
+`withLease(sql, key, fn)` runs `fn` while it holds the lease on `key`, so
+work that must not run twice at once (one automation per conversation, one
+mutation per agent run) runs once, and other callers get
+`{ acquired: false }`. The lease holds for `seconds` (60 by default) and is
+released when `fn` ends or throws; for long work, `lease.extend()` moves
+the expiry and returns `false` once the lease was lost:
+
+```ts
+import { withLease } from "better-supabase/blocks/jobs";
+
+const outcome = await withLease(
+  postgres.admin,
+  `conversation:${conversationId}`,
+  async (lease) => {
+    await step1();
+    await lease.extend();
+    return step2();
+  },
+  { seconds: 30 },
+).orThrow();
+if (!outcome.acquired) return; // another worker has it
+```
+
+In SQL the same lease is `better_supabase.acquire_lease(key, seconds,
+scope)`, which returns a holder token or null, `extend_lease(key, holder,
+seconds, scope)` and `release_lease(key, holder, scope)`, for the service
+role. An expired lease goes to the next caller, and the former holder's
+`extend_lease` and `release_lease` return false.
+
 ## Webhook inbox
 
 The inbox verifies a webhook, stores it once, and returns quickly. A
@@ -497,7 +549,8 @@ await inbox.process(async (message) => {
 `verify` to use a provider's own scheme instead. `receive` answers `202` for
 a new message and `200` for a duplicate. A message id is unique per source
 and tenant, so two tenants of one provider can send the same id. A failed
-verification gets a Problem Details response.
+verification gets a Problem Details response, and a body over `maxBodyBytes`
+(1 MiB by default) gets `413` before it is read in full.
 
 A failed message is retried with exponential backoff until `maxAttempts`
 (8 by default, set per source on `createInbox`), then marked dead. Each
@@ -529,7 +582,10 @@ next `process` instead of running again.
 stops claiming once the budget is spent, finishes the messages it already
 claimed, and the next call picks up the rest. `batch` (10) and `lease` (300
 seconds) set how many messages one claim takes and how long they stay with
-the worker.
+the worker. While a handler runs, a heartbeat renews its message's lease
+every half lease. A worker whose lease ran out and was taken by another
+claim can't complete, fail or checkpoint that message: the inbox checks the
+attempt it claimed, and skips a message whose lease it can't renew.
 
 ```ts title="app/api/inbox/route.ts"
 export const GET = async () =>

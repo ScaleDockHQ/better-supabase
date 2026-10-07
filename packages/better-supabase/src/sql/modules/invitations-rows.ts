@@ -41,7 +41,70 @@ export function organizationJson(ctx: ModuleContext, tenant: string): string {
       from ${organizations.table("organizations")} o where o.${id} = ${tenant})`;
 }
 
-/** The invitation as returned to the inviter; the token only right after creating it. */
+/**
+ * The inviter's id and public profile fields (as in `notification_actors`)
+ * when the profiles module is installed and the table has `invitedBy`;
+ * `undefined` otherwise.
+ */
+function inviterJson(
+  ctx: ModuleContext,
+  t: InviteTable,
+  row: string,
+): string | undefined {
+  if (!ctx.installed("profiles") || !t.has("invitedBy")) return undefined;
+  const profiles = ctx.of("profiles");
+  const p = (logical: string) => profiles.col("profiles", logical);
+  const fields = (
+    ["username", "fullName", "firstName", "lastName", "avatar"] as const
+  )
+    .filter((logical) => profiles.has("profiles", logical))
+    .map((logical) => `, '${logical}', pr.${p(logical)}`)
+    .join("");
+  return `(select jsonb_build_object('id', pr.${p("key")}${fields})
+      from ${profiles.table("profiles")} pr where pr.${p("key")} = ${row}.${t.col("invitedBy")})`;
+}
+
+/** The `invitation_preview_extra(uuid)` hook's signature, for `to_regprocedure`. */
+const extraHook = (ctx: ModuleContext): string =>
+  sqlString(`${ctx.hookTarget("invitation_preview_extra")}(uuid)`);
+
+/**
+ * `invitation_extra(invitation)`: the keys the app's
+ * `invitation_preview_extra` hook returns, or `{}` without the hook.
+ */
+export function invitationExtra(ctx: ModuleContext): string {
+  return `
+-- The keys an invitation_preview_extra(invitation uuid) hook returns for an
+-- invitation, such as a role's display name; {} without the hook. The
+-- module's functions merge them into every invitation they return.
+create or replace function ${ctx.fn("invitation_extra")}(invitation uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  hook regprocedure := to_regprocedure(${extraHook(ctx)});
+  extra jsonb;
+begin
+  if hook is null or invitation is null then
+    return '{}'::jsonb;
+  end if;
+  -- Not a literal name, so plpgsql_check passes without the hook.
+  execute format('select %s($1)', hook::oid::regproc) into extra using invitation;
+  return coalesce(extra, '{}'::jsonb);
+end;
+$$;
+revoke execute on function ${ctx.fn("invitation_extra")}(uuid) from public, anon, authenticated;
+`;
+}
+
+/**
+ * The invitation as returned to the inviter and the invitee, with the
+ * inviter's profile fields and the `invitation_preview_extra` keys; the
+ * token only right after creating it.
+ */
 export function inviteJson(
   ctx: ModuleContext,
   t: InviteTable,
@@ -50,7 +113,8 @@ export function inviteJson(
   tenant: string | null,
 ): string {
   const c = (logical: string) => `${row}.${t.col(logical)}`;
-  return `jsonb_build_object(
+  const inviter = inviterJson(ctx, t, row);
+  return `(jsonb_build_object(
     'id', ${c("id")},
     'tenant', ${tenant ?? "null"},
     'email', ${c("email")},
@@ -59,14 +123,15 @@ export function inviteJson(
     'created_at', ${optionalCol(t, row, "createdAt", "null")},
     'invited_by', ${optionalCol(t, row, "invitedBy", "null")},
     'organization', ${tenant === null ? "null" : organizationJson(ctx, tenant)},
-    'prefill', ${optionalCol(t, row, "prefill", "'{}'::jsonb")},
+    'prefill', ${optionalCol(t, row, "prefill", "'{}'::jsonb")},${
+      inviter
+        ? `
+    'inviter', ${inviter},`
+        : ""
+    }
     'token', ${token}
-  )`;
+  ) || ${ctx.fn("invitation_extra")}(${c("id")}))`;
 }
-
-/** The `invitation_preview_extra(uuid)` hook's signature, for `to_regprocedure`. */
-export const extraHook = (ctx: ModuleContext): string =>
-  sqlString(`${ctx.hookTarget("invitation_preview_extra")}(uuid)`);
 
 /**
  * `my_invitations()`: the caller's open invitations without their tokens,
@@ -98,9 +163,6 @@ set search_path = ''
 as $$
 declare
   invitee_email text;
-  hook regprocedure := to_regprocedure(${extraHook(ctx)});
-  entry record;
-  extra jsonb;
   result jsonb := '[]'::jsonb;
 begin
   select lower(u.email) into invitee_email
@@ -109,9 +171,9 @@ begin
   if invitee_email is null then
     return result;
   end if;
-  for entry in
-    select x.invitation, x.id
-    from (
+  select coalesce(jsonb_agg(x.invitation order by x.expires_at), '[]'::jsonb)
+  into result
+  from (
     ${rows(t, `i.${t.col("tenant")}`)}${
       p
         ? `
@@ -119,16 +181,7 @@ begin
     ${rows(p, null)}`
         : ""
     }
-    ) x
-    order by x.expires_at
-  loop
-    extra := null;
-    if hook is not null then
-      -- Not a literal name, so plpgsql_check passes without the hook.
-      execute format('select %s($1)', hook::oid::regproc) into extra using entry.id;
-    end if;
-    result := result || jsonb_build_array(entry.invitation || coalesce(extra, '{}'));
-  end loop;
+  ) x;
   return result;
 end;
 $$;
@@ -136,8 +189,9 @@ $$;
 }
 
 /**
- * `update_invitation`: a new email, role or prefill for an open invitation,
- * with the checks `invite_member` makes. The token and expiry stay.
+ * `update_invitation`: a new email, role or prefill for an open invitation
+ * that has not expired, with the checks `invite_member` makes. The token and
+ * expiry stay.
  */
 export function updateInvitation(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
@@ -200,6 +254,9 @@ export function updateInvitation(ctx: ModuleContext): string {
     where i.${pc("id")} = invitation_id${pOpen ? ` and ${pOpen}` : ""}${p.only("i")}
     for update;
     if platform_current.${pc("id")} is not null then
+      if platform_current.${pc("expiresAt")} < now() then
+        ${fail("INVITATION_EXPIRED", "The invitation has expired; resend it to renew it")}
+      end if;
       if not service and not better_supabase.is_platform(${invitePlatform(ctx)}) then
         ${fail("INVITATION_FORBIDDEN", "Not allowed to invite platform users")}
       end if;
@@ -224,8 +281,8 @@ export function updateInvitation(ctx: ModuleContext): string {
     end if;`;
   }
   return `
--- A new email, role or prefill for an open invitation; null keeps the
--- current value. The caller needs what invite_member needs, and may assign
+-- A new email, role or prefill for an open invitation that has not expired;
+-- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
 -- open invitation for the new email is replaced. Returns the invitation
 -- without its token.
@@ -255,6 +312,9 @@ begin
   for update;
   if current_invite.${c("id")} is null then${platformEdit}
     ${fail("INVITATION_INVALID", "No open invitation %", "invitation_id")}
+  end if;
+  if current_invite.${c("expiresAt")} < now() then
+    ${fail("INVITATION_EXPIRED", "The invitation has expired; resend it to renew it")}
   end if;
   tenant := current_invite.${c("tenant")};
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, ${ctx.permission("invite", MODULE_PERMISSIONS.invitations.invite)}), false) then

@@ -6,6 +6,7 @@ import { defineSupabase } from "../../src/core/define.ts";
 import { defineListQuery, UNSET } from "../../src/list/index.ts";
 import {
   type PowerSyncDatabaseLike,
+  type SqliteContextLike,
   checkSqlite,
   fromSqliteError,
   postgrestTimestamp,
@@ -91,6 +92,37 @@ describe("powersyncExecutor", () => {
       "not_found",
     );
     expect(await client.locations.count().orThrow()).toBe(0);
+  });
+
+  it("reads rows and their count in one read transaction", async () => {
+    const { db } = setup();
+    const inTransaction: string[] = [];
+    let transactions = 0;
+    const readTransaction = <T>(
+      callback: (tx: SqliteContextLike) => Promise<T>,
+    ): Promise<T> => {
+      transactions += 1;
+      return callback({
+        ...db,
+        getAll: <R>(sql: string, parameters?: unknown[]) => {
+          inTransaction.push(sql);
+          return db.getAll<R>(sql, parameters);
+        },
+      });
+    };
+    const client = betterSupabase.connect(
+      powersyncExecutor({ ...db, readTransaction }),
+    );
+    await client.tags.create({ organizationId: ORG, name: "a" }).orThrow();
+    const page = await client.tags
+      .paginate({ select: ["name"], page: 1, size: 10, count: "exact" })
+      .orThrow();
+    expect(page).toMatchObject({
+      items: [{ name: "a" }],
+      page: { total: 1 },
+    });
+    expect(transactions).toBe(1);
+    expect(inTransaction).toHaveLength(2);
   });
 
   it("refuses an update past maxAffected and rolls it back", async () => {
@@ -388,6 +420,33 @@ describe("watch", () => {
     await client.tags.create({ organizationId: ORG, name: "b" });
     await tick();
     expect(results).toEqual([0, 1]);
+  });
+
+  it("never starts with an aborted signal and detaches from it on stop", async () => {
+    const { db } = setup();
+    const query = vi.fn(() =>
+      Promise.resolve({ ok: true as const, data: 1, error: null }),
+    );
+    const onResult = vi.fn();
+    const onChange = vi.spyOn(db, "onChange");
+    const stop = watch(db, query, {
+      tables: [],
+      onResult,
+      signal: AbortSignal.abort(),
+    });
+    await tick();
+    expect(query).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+    stop();
+
+    const controller = new AbortController();
+    const remove = vi.spyOn(controller.signal, "removeEventListener");
+    watch(db, query, {
+      tables: [],
+      onResult,
+      signal: controller.signal,
+    })();
+    expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 
   it("needs onChange and known tables", () => {

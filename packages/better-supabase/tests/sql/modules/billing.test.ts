@@ -73,11 +73,47 @@ describe("billing module", () => {
   it("reads invoices, payment methods and the customer from the Sync Engine", () => {
     const sql = billing();
     expect(sql).toContain(
-      "'invoices', 'payment_methods', 'subscriptions', 'customers'",
+      "'invoices', 'payment_methods', 'subscriptions', 'customers', 'tax_ids'",
+    );
+    expect(sql).toContain(
+      `"billing_stripe_rows"(billing_tax_ids.tenant, 'tax_ids', 100)`,
+    );
+    expect(sql).toContain(
+      `grant execute on function "better_supabase"."billing_tax_ids"(uuid) to authenticated, service_role;`,
     );
     expect(sql).toContain(
       `"billing_stripe_rows"(billing_invoices.tenant, 'invoices'`,
     );
     expect(sql).toContain("BILLING_FORBIDDEN");
+  });
+
+  it("reads a tenant's subscription unchecked for the owner's functions only", () => {
+    const sql = billing();
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."billing_tenant_subscription"(tenant uuid)',
+    );
+    expect(sql).toContain(
+      'revoke execute on function "better_supabase"."billing_tenant_subscription"(uuid) from public, anon, authenticated, service_role;',
+    );
+    expect(sql).not.toMatch(
+      /grant execute on function "better_supabase"\."billing_tenant_subscription"/,
+    );
+    expect(sql).toContain(
+      'return "better_supabase"."billing_tenant_subscription"(billing_subscription.tenant);',
+    );
+  });
+
+  it("lists every linked customer for platform staff", () => {
+    const sql = billing();
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."billing_platform_customers"()',
+    );
+    expect(sql).toContain("Not allowed to read every tenant''s billing");
+    expect(sql).toContain(
+      'from "better_supabase"."billing_platform_customers"() c',
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."billing_all_customers"() to authenticated, service_role;',
+    );
   });
 });

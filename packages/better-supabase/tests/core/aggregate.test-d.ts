@@ -61,6 +61,36 @@ describe("aggregate types", () => {
     }>();
   });
 
+  it("sorts groups by _count, measures and columns without changing the row", async () => {
+    const groups = await db.notes
+      .aggregate({
+        groupBy: ["customerId"],
+        _count: true,
+        orderBy: [
+          { _count: "desc" },
+          { _sum: { id: { direction: "desc", nulls: "last" } } },
+          { _max: { createdAt: "desc" } },
+          { customerId: "asc" },
+        ],
+      })
+      .orThrow();
+    expectTypeOf(groups).toEqualTypeOf<
+      { customerId: string; _count: number }[]
+    >();
+  });
+
+  it("only sorts by sums and averages of numeric columns", () => {
+    void db.customers.aggregate({
+      _count: true,
+      // @ts-expect-error jsonb is not numeric
+      orderBy: { _avg: { metadata: "asc" } },
+    });
+    // @ts-expect-error a measure maps columns to a direction
+    void db.notes.aggregate({ _count: true, orderBy: { _max: "desc" } });
+    // @ts-expect-error _count takes a direction
+    void db.notes.aggregate({ _count: true, orderBy: { _count: true } });
+  });
+
   it("only sums numeric columns and only aggregates to-many relations", () => {
     // @ts-expect-error jsonb is not numeric
     void db.customers.aggregate({ _sum: { metadata: true } });

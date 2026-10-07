@@ -313,7 +313,7 @@ begin
   if not (${can("tenant", "read")} or ${viewAll}) then
     raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
-  if billing_stripe_rows.source not in ('invoices', 'payment_methods', 'subscriptions', 'customers') then
+  if billing_stripe_rows.source not in ('invoices', 'payment_methods', 'subscriptions', 'customers', 'tax_ids') then
     raise exception 'Unknown Stripe table %', billing_stripe_rows.source using errcode = '22023', hint = 'BILLING_SOURCE';
   end if;
   if customer is null or to_regclass('stripe.' || billing_stripe_rows.source) is null then
@@ -362,9 +362,34 @@ as $$
   select ${fn("billing_stripe_rows")}(billing_customer_details.tenant, 'customers', 1) -> 0
 $$;
 
+-- The customer's tax ids from the Sync Engine's stripe.tax_ids, newest
+-- first: [{ id, type, value, country, verification: { status } | null,
+-- created }], the shape of Stripe's tax id objects; [] without the table.
+create or replace function ${fn("billing_tax_ids")}(tenant ${id})
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', t ->> 'id',
+    'type', coalesce(t ->> 'type', t -> '_raw_data' ->> 'type'),
+    'value', coalesce(t ->> 'value', t -> '_raw_data' ->> 'value'),
+    'country', coalesce(t ->> 'country', t -> '_raw_data' ->> 'country'),
+    'verification', case
+      when jsonb_typeof(coalesce(t -> 'verification', t -> '_raw_data' -> 'verification')) = 'object'
+        then jsonb_build_object('status', coalesce(t -> 'verification', t -> '_raw_data' -> 'verification') ->> 'status')
+    end,
+    'created', t -> 'created'
+  ) order by ord), '[]'::jsonb)
+  from jsonb_array_elements(${fn("billing_stripe_rows")}(billing_tax_ids.tenant, 'tax_ids', 100)) with ordinality as r(t, ord)
+$$;
+
 -- The tenant's newest subscription as the Sync Engine stores it, with its
--- items, or null. For billing.read in the tenant, or platform staff.
-create or replace function ${fn("billing_subscription")}(tenant ${id})
+-- items, or null, without checking the caller: for the app's own security
+-- definer functions (resolving a member's plan), executable by its owner only.
+create or replace function ${fn("billing_tenant_subscription")}(tenant ${id})
 returns jsonb
 language plpgsql
 stable
@@ -372,12 +397,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  customer text := (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_subscription.tenant);
+  customer text := (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_tenant_subscription.tenant);
   found jsonb;
 begin
-  if not (${can("tenant", "read")} or ${viewAll}) then
-    raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
-  end if;
   if customer is null or to_regclass('stripe.subscriptions') is null then
     return null;
   end if;
@@ -392,6 +414,22 @@ begin
     limit 1
   $q$ into found using customer;
   return found;
+end;
+$$;
+
+-- billing_tenant_subscription for billing.read in the tenant, or platform staff.
+create or replace function ${fn("billing_subscription")}(tenant ${id})
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (${can("tenant", "read")} or ${viewAll}) then
+    raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
+  end if;
+  return ${fn("billing_tenant_subscription")}(billing_subscription.tenant);
 end;
 $$;
 
@@ -495,10 +533,12 @@ revoke execute on function ${fn("billing_stripe_rows")}(${id}, text, integer) fr
 revoke execute on function ${fn("billing_invoices")}(${id}, integer) from public, anon;
 revoke execute on function ${fn("billing_payment_methods")}(${id}) from public, anon;
 revoke execute on function ${fn("billing_customer_details")}(${id}) from public, anon;
+revoke execute on function ${fn("billing_tax_ids")}(${id}) from public, anon;
 grant execute on function ${fn("billing_stripe_rows")}(${id}, text, integer) to authenticated, service_role;
 grant execute on function ${fn("billing_invoices")}(${id}, integer) to authenticated, service_role;
 grant execute on function ${fn("billing_payment_methods")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("billing_customer_details")}(${id}) to authenticated, service_role;
+grant execute on function ${fn("billing_tax_ids")}(${id}) to authenticated, service_role;
 revoke execute on function ${fn("billing_customer")}(${id}) from public, anon;
 revoke execute on function ${fn("billing_customer_tenant")}(text) from public, anon, authenticated;
 revoke execute on function ${fn("link_billing_customer")}(${id}, text) from public, anon, authenticated;
@@ -506,6 +546,7 @@ revoke execute on function ${fn("billing_seat_count")}(${id}) from public, anon,
 revoke execute on function ${fn("billing_subscription_item")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("billing_status")}(${id}) from public, anon;
 revoke execute on function ${fn("billing_subscription")}(${id}) from public, anon;
+revoke execute on function ${fn("billing_tenant_subscription")}(${id}) from public, anon, authenticated, service_role;
 revoke execute on function ${fn("billing_all_subscriptions")}(text, integer, bigint) from public, anon;
 revoke execute on function ${fn("billing_all_invoices")}(text, integer, bigint) from public, anon;
 grant execute on function ${fn("billing_all_invoices")}(text, integer, bigint) to authenticated, service_role;
@@ -550,8 +591,11 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "billing_invoices", args: ["{id}", "integer"], returns: "jsonb" },
     { name: "billing_platform_subscriptions", args: [], returns: "record" },
     { name: "billing_platform_invoices", args: [], returns: "record" },
+    { name: "billing_platform_customers", args: [], returns: "record" },
+    { name: "billing_all_customers", args: [], returns: "jsonb" },
     { name: "billing_payment_methods", args: ["{id}"], returns: "jsonb" },
     { name: "billing_customer_details", args: ["{id}"], returns: "jsonb" },
+    { name: "billing_tax_ids", args: ["{id}"], returns: "jsonb" },
   ];
 }
 

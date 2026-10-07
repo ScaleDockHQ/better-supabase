@@ -1,7 +1,10 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
+import type { SchemaMeta } from "../../src/schema/types.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -292,5 +295,110 @@ describe("oversized in lists", () => {
       .connect(client)
       .customers.findMany({ where: { id: { in: ids } } });
     expect(result.error?.message).toBe("boom");
+  });
+});
+
+describe("oversized in lists on other key types", () => {
+  const column = (db: string, type: string, extra: object = {}) => ({
+    db,
+    type,
+    nullable: false,
+    hasDefault: false,
+    ...extra,
+  });
+  const meta: SchemaMeta = {
+    version: 1,
+    casing: "camel",
+    enums: {},
+    functions: {},
+    tables: {
+      countries: {
+        key: "countries",
+        name: "countries",
+        schema: "public",
+        kind: "table",
+        columns: { code: column("code", "text"), name: column("name", "text") },
+        primaryKey: ["code"],
+        uniqueKeys: {},
+        relations: {},
+        flags: {},
+      },
+      ledger: {
+        key: "ledger",
+        name: "ledger",
+        schema: "public",
+        kind: "table",
+        columns: {
+          id: column("id", "int8", { codec: "bigint" }),
+          seq: column("seq", "int8"),
+          memo: column("memo", "text"),
+        },
+        primaryKey: ["id"],
+        uniqueKeys: {},
+        relations: {},
+        flags: {},
+      },
+    },
+  };
+  const betterSupabase = defineSupabase(defineSchema(meta), {
+    urlLengthLimit: 4000,
+  });
+  interface Repository {
+    findMany(args: object): PromiseLike<{
+      readonly data: Record<string, unknown>[] | null;
+      readonly error: { readonly message: string } | null;
+    }> & { orThrow(): Promise<Record<string, unknown>[]> };
+  }
+  const connect = (client: SupabaseClient) =>
+    betterSupabase.connect(client) as never as {
+      countries: Repository;
+      ledger: Repository;
+    };
+  const codes = Array.from(
+    { length: 400 },
+    (_, index) => `code-${String(index).padStart(4, "0")}`,
+  );
+
+  it("splits a read on a text primary key without an orderBy", async () => {
+    const { client, requests } = capturingClient((request) => ({
+      body: listOf(request.params.get("code"))
+        .map((code) => ({ code, name: code }))
+        .reverse(),
+    }));
+    const rows = await connect(client)
+      .countries.findMany({ where: { code: { in: codes } } })
+      .orThrow();
+    expect(requests.length).toBeGreaterThan(1);
+    expect(rows.map((row) => row["code"])).toEqual(codes);
+  });
+
+  it("still refuses an orderBy on text the caller asked for", async () => {
+    const { client, requests } = capturingClient();
+    const result = await connect(client).countries.findMany({
+      where: { code: { in: codes } },
+      orderBy: { name: "asc" },
+    });
+    expect(result.error?.message).toContain("can't be re-applied");
+    expect(requests).toHaveLength(0);
+  });
+
+  it("sorts int8 values past 2^53 exactly", async () => {
+    const big = (index: number) => (2n ** 53n + BigInt(index)).toString();
+    const keys = Array.from({ length: 400 }, (_, index) => big(index));
+    const { client, requests } = capturingClient((request) => ({
+      body: listOf(request.params.get("id"))
+        .map((id) => ({ memo: id, _bs_order0: id }))
+        .reverse(),
+    }));
+    const rows = await connect(client)
+      .ledger.findMany({
+        select: ["memo"],
+        where: { id: { in: keys.map(BigInt) } },
+        orderBy: { seq: "asc" },
+      })
+      .orThrow();
+    expect(requests.length).toBeGreaterThan(1);
+    expect(requests[0]?.params.get("select")).toBe("memo,_bs_order0:seq::text");
+    expect(rows.map((row) => row["memo"])).toEqual(keys);
   });
 });

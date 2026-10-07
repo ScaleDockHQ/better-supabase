@@ -1,5 +1,7 @@
 import type { AllowUrl } from "./url-policy.ts";
 
+import { UrlCheckError } from "./safe-fetch.ts";
+
 export interface WebhookRequest {
   readonly url: string;
   readonly headers: Readonly<Record<string, string>>;
@@ -80,11 +82,17 @@ async function readCapped(response: Response, limit: number): Promise<string> {
   }
 }
 
+/**
+ * A check that threw (a DNS lookup that timed out) is not a refusal: it
+ * throws `UrlCheckError`, which the delivery retries.
+ */
 async function allowed(allowUrl: AllowUrl, url: URL): Promise<boolean> {
   try {
     return await allowUrl(url);
-  } catch {
-    return false;
+  } catch (cause) {
+    throw new UrlCheckError(`Could not check endpoint URL: ${url.host}`, {
+      cause,
+    });
   }
 }
 

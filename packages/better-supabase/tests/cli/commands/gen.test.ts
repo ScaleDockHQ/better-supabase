@@ -276,6 +276,25 @@ describe("gen", () => {
     ).toBe(0);
   });
 
+  it("treats files checked out with CRLF line endings as up to date", async () => {
+    const config = configure({});
+    await runGen({ config, env: {}, check: false, snapshot });
+    const files = await renderFiles(config, snapshot);
+    for (const file of files) {
+      await writeFile(
+        join(root, file.path),
+        file.contents.replaceAll("\n", "\r\n"),
+      );
+    }
+    const check = await runGen({ config, env: {}, check: true, snapshot });
+    expect(check.code).toBe(0);
+    const again = await runGen({ config, env: {}, check: false, snapshot });
+    expect(again.output).toMatch(/^No changes/);
+    expect(await readFile(join(root, files[1]!.path), "utf8")).toContain(
+      "\r\n",
+    );
+  });
+
   it("reports missing files with --check", async () => {
     const result = await runGen({
       config: configure({}),

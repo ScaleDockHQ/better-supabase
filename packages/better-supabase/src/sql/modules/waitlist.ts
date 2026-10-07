@@ -195,7 +195,10 @@ revoke all on ${r} from anon, authenticated;
 grant all on ${r} to service_role;
 
 -- { position, status } for an address; adding it again changes nothing.
--- Open to anon, so rate-limit the route that calls it.
+-- Open to anon, so rate-limit the route that calls it. Only the service role
+-- sees an entry's real status: everyone else reads 'waiting', and an entry that
+-- left the line gets the place a new address would, so the answer never tells
+-- whether someone was approved or signed up.
 create or replace function ${fn("join_waitlist")}(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -214,11 +217,21 @@ begin
   values (v_email, join_waitlist.referrer, coalesce(join_waitlist.metadata, '{}'::jsonb))
   on conflict (${ce("email")}) do update set ${ce("email")} = x.${ce("email")}
   returning * into v_row;
+  if ${SERVICE_CALLER} then
+    return jsonb_build_object(
+      'position', case when v_row.${ce("status")} = 'waiting' then (
+        select count(*) from ${e} w where w.${ce("status")} = 'waiting' and w.${ce("position")} <= v_row.${ce("position")}
+      ) end,
+      'status', case when v_row.${ce("status")} = 'rejected' then 'waiting' else v_row.${ce("status")} end
+    );
+  end if;
   return jsonb_build_object(
     'position', case when v_row.${ce("status")} = 'waiting' then (
       select count(*) from ${e} w where w.${ce("status")} = 'waiting' and w.${ce("position")} <= v_row.${ce("position")}
+    ) else (
+      select count(*) + 1 from ${e} w where w.${ce("status")} = 'waiting'
     ) end,
-    'status', case when v_row.${ce("status")} = 'rejected' then 'waiting' else v_row.${ce("status")} end
+    'status', 'waiting'
   );
 end;
 $$;

@@ -1,10 +1,13 @@
 export { assertCron, nextCronRun } from "./cron.ts";
-export { createIdempotency, createInbox } from "./jobs.ts";
+export { createIdempotency, createInbox, withLease } from "./jobs.ts";
 export type {
   Idempotency,
   IdempotencyOptions,
   IdempotencyState,
   Inbox,
+  Lease,
+  LeaseOptions,
+  LeaseOutcome,
   InboxEntry,
   InboxEvent,
   InboxListOptions,

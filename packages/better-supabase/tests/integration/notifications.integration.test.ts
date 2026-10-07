@@ -160,6 +160,40 @@ describe.skipIf(!live)("notifications", () => {
         ]),
       ).toBe("NOTIFICATION_FORBIDDEN");
 
+      // A sender may add a level for another member, only where none is set.
+      await client.query("savepoint follow");
+      const follow = (target: string, level: string, ifAbsent: boolean) =>
+        s.hint(
+          "select better_supabase.set_notification_subscription('task', 'f1', $1, $2, $3, $4)",
+          [level, organization, target, ifAbsent],
+        );
+      const levels = () =>
+        s.value<Record<string, string>>(
+          "(select coalesce(jsonb_object_agg(user_id, level), '{}') from better_supabase.notification_subscriptions where subject_id = 'f1')",
+        );
+      await s.as("member");
+      expect(await follow(USERS.watcher, "participating", true)).toBe(
+        "NOTIFICATION_FORBIDDEN",
+      );
+      expect(await follow(USERS.member, "ignore", false)).toBe("no error");
+      await s.as("owner");
+      expect(await follow(USERS.watcher, "participating", false)).toBe(
+        "NOTIFICATION_FORBIDDEN",
+      );
+      expect(await follow(USERS.outsider, "participating", true)).toBe(
+        "NOTIFICATION_FORBIDDEN",
+      );
+      expect(await follow(USERS.watcher, "participating", true)).toBe(
+        "no error",
+      );
+      expect(await follow(USERS.member, "all", true)).toBe("no error");
+      expect(await follow(USERS.watcher, "all", true)).toBe("no error");
+      expect(await levels()).toEqual({
+        [USERS.member]: "ignore",
+        [USERS.watcher]: "participating",
+      });
+      await client.query("rollback to savepoint follow");
+
       // The actor and non-members are left out; the key makes it idempotent.
       await s.as("owner");
       const first = await s.notify({
@@ -217,6 +251,31 @@ describe.skipIf(!live)("notifications", () => {
         [organization],
       );
       await s.as("owner");
+      await client.query("savepoint composers");
+      const named = await s.notify({
+        ...task,
+        type: "task.mentioned",
+        recipients: [USERS.member],
+        watchers: false,
+      });
+      expect(await s.recipients(named!)).toEqual([USERS.member]);
+      const skipping = await s.notify({
+        ...task,
+        type: "task.noted",
+        recipients: [USERS.member],
+        exclude: [USERS.member],
+      });
+      expect(await s.recipients(skipping!)).toEqual([USERS.watcher]);
+      expect(
+        await s.notify({
+          ...task,
+          type: "task.noted",
+          recipients: [USERS.member],
+          exclude: [USERS.member],
+          watchers: false,
+        }),
+      ).toBeNull();
+      await client.query("rollback to savepoint composers");
       const third = await s.notify({
         ...task,
         type: "approval.requested",

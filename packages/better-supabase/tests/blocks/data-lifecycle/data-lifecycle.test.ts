@@ -564,6 +564,35 @@ describe("createOrganizationPurger", () => {
     });
   });
 
+  it("anonymizes due rows, and in the job only when asked", async () => {
+    const signal = new AbortController().signal;
+    const { transport, calls } = fakeTransport({
+      anonymize_due: { "public.candidates": "3", "public.notes": 0 },
+      due_organization_deletions: [],
+    });
+    const purger = createOrganizationPurger({ transport, anonymize: true });
+    expect(await purger.anonymizeDue({ limit: 50 }).orThrow()).toEqual({
+      "public.candidates": 3,
+      "public.notes": 0,
+    });
+    await purger.job({ limit: 2 }, undefined as never, signal);
+    expect(calls.map(([fn, args]) => [fn, args["max_rows"]])).toEqual([
+      ["anonymize_due", 50],
+      ["due_organization_deletions", 2],
+      ["anonymize_due", undefined],
+    ]);
+    const quiet = fakeTransport({
+      anonymize_due: null,
+      due_organization_deletions: [],
+    });
+    const plain = createOrganizationPurger({ transport: quiet.transport });
+    await plain.job({}, undefined as never, signal);
+    expect(quiet.calls.map(([fn]) => fn)).toEqual([
+      "due_organization_deletions",
+    ]);
+    expect(await plain.anonymizeDue().orThrow()).toEqual({});
+  });
+
   it("stops at billing, storage and missing storage errors", async () => {
     const { transport, calls } = fakeTransport({ purge_organization: purged });
     const billingFails = await createOrganizationPurger({

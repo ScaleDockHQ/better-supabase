@@ -331,11 +331,83 @@ with `ORGANIZATION_ROLE_UNKNOWN`. When the table is
 also `platformRoles.through`'s, `where` is required on both, and
 [doctor BS324](/docs/cli/doctor#bs324) reports the side that lacks it.
 
+With `where` set, the tenant module also puts a `bs_role_scope` trigger on
+the memberships table, so a direct write can't store a role outside it
+either: an insert or a role update through a client policy, the service role
+or an admin connection fails with `MEMBERSHIP_ROLE_SCOPE` (SQLSTATE `23514`).
+The invitations module does the same on `platformRoles.table` with
+`platformRoles.through.where` (`PLATFORM_ROLE_SCOPE`). Both triggers check new
+writes only; rows stored before you set `where` stay until they change.
+Removing `where` drops the trigger.
+
 Under the permdock model, `sql add` reads the setting from the manifest: when
 a membership source of the tenant scope is the adopted memberships table and
 its role column reads `through` a roles table, the tenant module uses the same
 lookup. An explicit `roleThrough` wins; set one to add `where`, which the
 manifest doesn't carry.
+
+## References within one tenant
+
+A foreign key checks that a referenced row exists, not that it belongs to
+the same tenant, so a task could point at another organization's project.
+`sql.modules.tenant.options.sameTenant` lists the references that must stay
+inside the row's tenant, and the tenant module puts a
+`bs_same_tenant_<column>` trigger on each table. Every insert, and every
+update of the column or the tenant column, then needs a referenced row with
+the same tenant, whoever writes it (a client policy, the service role or an
+admin connection); otherwise it fails with `TENANT_MISMATCH` (SQLSTATE
+`23514`).
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    tenant: {
+      options: {
+        sameTenant: [
+          { table: "public.tasks", column: "project_id", references: "public.projects" },
+          {
+            table: "public.task_settings",
+            column: "template_id",
+            references: {
+              table: "public.templates",
+              column: "id",
+              tenant: "organization_id",
+              where: "{row}.type = 'task'",
+            },
+          },
+        ],
+      },
+    },
+  },
+},
+```
+
+| Field               | Default                       | Meaning                                                    |
+| ------------------- | ----------------------------- | ---------------------------------------------------------- |
+| `table`             | required                      | the table holding the reference, `table` or `schema.table` |
+| `column`            | required                      | the column holding the referenced row's key                |
+| `tenant`            | the memberships tenant column | the row's tenant column                                    |
+| `references.table`  | required                      | the referenced table; a string is the table alone          |
+| `references.column` | `id`                          | the referenced table's key column                          |
+| `references.tenant` | the row's tenant column       | the referenced table's tenant column                       |
+| `references.where`  | none                          | a condition the referenced row `{row}` must also meet      |
+
+Every trigger calls the one function `better_supabase.same_tenant()` with the
+entry as its arguments. A null reference passes, so a nullable column stays
+optional, and the foreign key still reports a row that does not exist. The
+check runs on the referencing table only: it does not stop a change to the
+tenant column of a referenced row. Rows stored before you add an entry are
+checked when they change. The triggers are written in managed and adopt
+mode; in custom mode the module writes no SQL.
+
+Composite foreign keys are the trigger-free alternative: a unique
+`(id, organization_id)` on the referenced table and a foreign key
+`(project_id, organization_id) references projects (id, organization_id)`
+on the referencing one. Postgres then checks both directions, including a
+referenced row moving tenants, at the cost of an extra unique index per
+table and a tenant column in every key. Use `sameTenant` when the tables
+already exist and their keys should stay as they are, or when the
+reference also needs a `where` condition.
 
 ## Disabled tenants and users
 
@@ -422,6 +494,25 @@ export const bs = createServer(betterSupabase, {
   },
 });
 ```
+
+Under `createNext`, `bs.context()`, `bs.session()` and `bs.cached()` take
+no request: they read the incoming headers, and the resolver gets a request
+whose URL is always `http://next.local/`. Read a header there instead,
+for example one your proxy sets from the path:
+
+```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createNext } from "better-supabase/next";
+
+import { betterSupabase } from "./index";
+
+export const bs = createNext(betterSupabase, {
+  tenant: (request) => request.headers.get("x-organization-slug") ?? undefined,
+});
+```
+
+`bs.route()` and `bs.context(request)` pass the real request, so the URL
+works there.
 
 A route that already knows the tenant passes it directly:
 `bs.context(request, { tenant })`. `contextFromResolution` runs only

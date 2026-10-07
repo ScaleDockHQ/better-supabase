@@ -3,6 +3,7 @@ import type { BlockEvent } from "./block-events.ts";
 import type { DbError } from "./errors.ts";
 import type { MutationIntent, MutationKind, RequestContext } from "./plugin.ts";
 
+import { cloneValue, isPlainObject } from "./clone.ts";
 import { consoleLogger, type Logger } from "./logger.ts";
 
 export interface QueryEvent {
@@ -43,6 +44,24 @@ export interface RpcNotice {
 export interface ErrorEvent {
   readonly table?: string;
   readonly error: DbError;
+}
+
+function deepFreeze<T>(value: T): T {
+  if (Array.isArray(value) || isPlainObject(value)) {
+    for (const item of Object.values(value)) deepFreeze(item);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+/**
+ * The `error` event for `error`: a frozen copy, so a handler can't change
+ * the `DbError` the caller gets back (invariant 5).
+ */
+export function errorEvent(error: DbError, table?: string): ErrorEvent {
+  // SAFETY: cloneValue keeps the shape of the plain DbError object.
+  const copy = deepFreeze(cloneValue(error) as DbError);
+  return table === undefined ? { error: copy } : { table, error: copy };
 }
 
 export interface AuthEvent {

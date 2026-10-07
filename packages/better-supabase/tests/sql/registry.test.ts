@@ -842,7 +842,7 @@ describe("entitlements in PermDock mode", () => {
       expect(sql).toContain("feature_claims(user_id uuid)");
       expect(
         sql.match(/\(tenant (\w+)/g)?.map((match) => match.slice(8)),
-      ).toEqual([idType, idType, idType]);
+      ).toEqual([idType, idType, idType, idType, idType]);
       expect(sql).toMatchSnapshot();
     },
   );

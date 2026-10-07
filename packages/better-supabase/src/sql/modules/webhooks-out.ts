@@ -214,7 +214,8 @@ create table if not exists ${n.table("deliveries")} (
 );
 create index if not exists webhook_deliveries_due_idx on ${n.table("deliveries")} (${v("availableAt")}, ${v("leasedUntil")}) where ${v("status")} in ('pending', 'retrying', 'delivering');
 create index if not exists webhook_deliveries_endpoint_idx on ${n.table("deliveries")} (${v("endpoint")}, ${v("createdAt")} desc);
-create index if not exists webhook_deliveries_open_idx on ${n.table("deliveries")} (${v("endpoint")}) where ${v("status")} in ('pending', 'retrying');${
+create index if not exists webhook_deliveries_open_idx on ${n.table("deliveries")} (${v("endpoint")}) where ${v("status")} in ('pending', 'retrying');
+create index if not exists webhook_deliveries_finished_idx on ${n.table("deliveries")} (${v("createdAt")}) where ${v("status")} in (${n.status("succeeded")}, ${n.status("canceled")}, ${n.status("dead")});${
     n.has("deliveries", "tenant")
       ? `
 create index if not exists webhook_deliveries_tenant_created_idx on ${n.table("deliveries")} (${v("tenant")}, ${v("createdAt")} desc);`

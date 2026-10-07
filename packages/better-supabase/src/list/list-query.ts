@@ -844,7 +844,7 @@ export function defineListQuery<
           ...(filter ? { where: filter } : {}),
           groupBy: [facet.column],
           _count: true,
-          orderBy: { [facet.column]: "asc" },
+          orderBy: [{ _count: "desc" }, { [facet.column]: "asc" }],
           limit: facetLimit + 1,
         });
       });

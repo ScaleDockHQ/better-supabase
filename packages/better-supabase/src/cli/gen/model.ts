@@ -6,6 +6,7 @@ import type {
   ColumnMeta,
   FunctionMeta,
   FunctionResult,
+  FunctionSignature,
   RealtimeTableMeta,
   RelationMeta,
   SchemaMeta,
@@ -19,7 +20,7 @@ import type {
 } from "../introspect/types.ts";
 
 import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../config/index.ts";
-import { toCamel, toSnake } from "../../index.ts";
+import { toCamel } from "../../index.ts";
 import { toCatalog } from "../introspect/catalog.ts";
 import {
   type GeneratorMetadata,
@@ -28,9 +29,12 @@ import {
 } from "../introspect/typegen.ts";
 import {
   arrayOf,
+  configFor,
+  identifier,
   isJsonUdt,
   parseCheckNotNull,
   parseCheckUnion,
+  pascal,
   sameColumns,
   singular,
 } from "./shared.ts";
@@ -64,6 +68,11 @@ export interface ColumnModel {
 
 interface RelationModel {
   readonly name: string;
+  /** The name before casing, from database names. */
+  readonly base: string;
+  /** Database names of the foreign key's columns and the ones it references. */
+  readonly fkColumns: readonly string[];
+  readonly refColumns: readonly string[];
   readonly meta: RelationMeta;
 }
 
@@ -79,8 +88,12 @@ interface TableModel {
 interface EnumModel {
   readonly schema: string;
   readonly name: string;
+  /** Key in `meta.enums`: the name, or `schema_name` when another schema has the same enum name. */
+  readonly key: string;
   /** Constant name for the value array, e.g. `noteKindValues`. */
   readonly constant: string;
+  /** Exported type name, e.g. `NoteKind`. */
+  readonly typeName: string;
   readonly values: readonly string[];
 }
 
@@ -89,6 +102,29 @@ export interface FunctionModel {
   readonly meta: FunctionMeta;
   readonly args: readonly { name: string; tsType: string; optional: boolean }[];
   readonly returns: string;
+}
+
+/** The overloads of each function name, in model order. */
+export function functionGroups(
+  functions: readonly FunctionModel[],
+): Map<string, FunctionModel[]> {
+  const groups = new Map<string, FunctionModel[]>();
+  for (const fn of functions) {
+    const group = groups.get(fn.key);
+    if (group) group.push(fn);
+    else groups.set(fn.key, [fn]);
+  }
+  return groups;
+}
+
+function signatureOf(fn: FunctionModel): FunctionSignature {
+  const { name: _name, schema: _schema, ...signature } = fn.meta;
+  return {
+    ...signature,
+    args: signature.args.map((arg, index) =>
+      fn.args[index]?.optional ? { ...arg, optional: true } : arg,
+    ),
+  };
 }
 
 interface JsonImport {
@@ -197,38 +233,53 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
 
   const jsonImports = new Map<string, JsonImport>();
   const unusedJson = new Set(Object.keys(config.json));
-  const jsonTypeFor = (table: string, column: string): string | undefined => {
-    const override = config.json[`${table}.${column}`];
-    if (!override) return undefined;
-    unusedJson.delete(`${table}.${column}`);
+  const jsonTypeFor = (
+    schema: string,
+    table: string,
+    column: string,
+  ): string | undefined => {
+    const key = [`${schema}.${table}.${column}`, `${table}.${column}`].find(
+      (candidate) => candidate in config.json,
+    );
+    const override = key === undefined ? undefined : config.json[key];
+    if (key === undefined || !override) return undefined;
+    unusedJson.delete(key);
     if ("type" in override) return override.type;
     const [from, name] = override.import.split("#");
     if (!from || !name) {
       throw new TypeError(
-        `json["${table}.${column}"].import must look like "./path.ts#TypeName"`,
+        `json["${key}"].import must look like "./path.ts#TypeName"`,
       );
     }
     jsonImports.set(name, { name, from });
     return name;
   };
+  const optionsOf = (table: CatalogTable) =>
+    configFor(config.tables, table.schema, table.name);
 
   const storagePaths = storagePathsOf(config);
   const included = catalog.tables.filter(
     (table) =>
-      config.schemas.includes(table.schema) &&
-      !config.tables[table.name]?.exclude,
+      config.schemas.includes(table.schema) && !optionsOf(table)?.exclude,
   );
 
   const keyOf = new Map<string, string>();
+  const ownerOf = new Map<string, string>();
   for (const table of included) {
-    keyOf.set(
-      `${table.schema}.${table.name}`,
-      tableKey(table, config.casing, config.schemas),
-    );
+    const id = `${table.schema}.${table.name}`;
+    const key = tableKey(table, config.casing, config.schemas);
+    const other = ownerOf.get(key);
+    if (other !== undefined) {
+      throw new TypeError(
+        `${other} and ${id} both generate the model key "${key}". Exclude one with \`tables["${id}"].exclude\`, or rename one of the tables.`,
+      );
+    }
+    ownerOf.set(key, id);
+    keyOf.set(id, key);
   }
 
   const tables = included.map((table) => {
-    const casing = config.tables[table.name]?.casing ?? config.casing;
+    const casing = optionsOf(table)?.casing ?? config.casing;
     const checks = new Map<string, string[]>();
     const checkedNotNull = new Set<string>();
     for (const check of table.checks) {
@@ -243,9 +294,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         trigger.level === "row" &&
         trigger.events.includes("insert"),
     );
-    const insertOptional = new Set(
-      config.tables[table.name]?.insertOptional ?? [],
-    );
+    const insertOptional = new Set(optionsOf(table)?.insertOptional ?? []);
     for (const name of insertOptional) {
       if (!table.columns.some((column) => column.name === name))
         throw new TypeError(
@@ -258,7 +307,9 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         : undefined;
       const values = enumValues ?? checks.get(column.name);
       const json = isJsonUdt(column.udt);
-      const override = json ? jsonTypeFor(table.name, column.name) : undefined;
+      const override = json
+        ? jsonTypeFor(table.schema, table.name, column.name)
+        : undefined;
       const storage = storagePaths.lookup(
         table.schema,
         table.name,
@@ -291,7 +342,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         column.hasDefault ||
         insertOptional.has(column.name) ||
         (narrowed && beforeInsert);
-      const insertable = !readonly && table.insertable;
+      // A view's computed columns are neither insertable nor updatable;
+      // Postgres reports both through is_updatable.
+      const insertable =
+        !readonly &&
+        table.insertable &&
+        (table.kind !== "view" || column.updatable);
       const updatable = !readonly && table.updatable && column.updatable;
       return {
         app: applyCasing(column.name, casing),
@@ -310,24 +366,55 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         updatable,
       };
     });
-    return { table, casing, columns };
+    const byApp = new Map<string, string>();
+    for (const column of columns) {
+      const other = byApp.get(column.app);
+      if (other !== undefined) {
+        throw new TypeError(
+          `${table.schema}.${table.name}: columns "${other}" and "${column.db}" both become "${column.app}". Rename one, or set \`tables["${table.schema}.${table.name}"].casing: "snake"\`.`,
+        );
+      }
+      byApp.set(column.app, column.db);
+    }
+    const byDb = new Map(columns.map((column) => [column.db, column]));
+    return { table, casing, columns, byDb };
   });
   storagePaths.assertUsed();
-  const known = new Set(
-    catalog.tables
-      .filter((table) => config.schemas.includes(table.schema))
-      .map((table) => table.name),
-  );
+  const schemasOf = new Map<string, string[]>();
+  for (const table of catalog.tables) {
+    if (!config.schemas.includes(table.schema)) continue;
+    schemasOf.set(table.name, [
+      ...(schemasOf.get(table.name) ?? []),
+      table.schema,
+    ]);
+  }
+  const known = (key: string): boolean => {
+    const dot = key.indexOf(".");
+    if (dot === -1) return schemasOf.has(key);
+    return (
+      schemasOf.get(key.slice(dot + 1))?.includes(key.slice(0, dot)) ?? false
+    );
+  };
   const warnings = [
     ...Object.keys(config.tables)
-      .filter((name) => !known.has(name))
+      .filter((name) => !known(name))
       .map(
         (name) =>
           `tables["${name}"]: no table by that name in ${config.schemas.join(", ")}, so the entry does nothing.`,
       ),
+    ...Object.keys(config.tables).flatMap((name) => {
+      const shared = (schemasOf.get(name) ?? [])
+        .filter((schema) => !(`${schema}.${name}` in config.tables))
+        .map((schema) => `${schema}.${name}`);
+      return shared.length > 1
+        ? [
+            `tables["${name}"]: ${shared.join(" and ")} share the name, so the entry applies to each. Key it \`schema.table\` to pick one.`,
+          ]
+        : [];
+    }),
     ...[...unusedJson].map(
       (key) =>
-        `json["${key}"]: no json or jsonb column by that name, so the type is not used. Keys are \`table.column\` with database names.`,
+        `json["${key}"]: no json or jsonb column by that name, so the type is not used. Keys are \`table.column\` or \`schema.table.column\` with database names.`,
     ),
   ];
 
@@ -337,7 +424,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   }
   const appName = (schema: string, table: string, column: string): string => {
     const entry = byKey.get(`${schema}.${table}`);
-    return entry?.columns.find((col) => col.db === column)?.app ?? column;
+    return entry?.byDb.get(column)?.app ?? column;
   };
 
   // Relations: forward from each FK, reverse on the referenced table.
@@ -348,7 +435,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     else relations.set(tableId, [relation]);
   };
 
-  for (const { table, casing, columns } of tables) {
+  for (const { table, casing, byDb: own } of tables) {
     const sourceId = `${table.schema}.${table.name}`;
     for (const fk of table.foreignKeys) {
       const targetId = `${fk.refSchema}.${fk.refTable}`;
@@ -364,10 +451,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       );
       const nullable =
         (config.relations.nullableUnderRls && target.table.rls) ||
-        fk.columns.some(
-          (column) =>
-            columns.find((col) => col.db === column)?.nullable ?? true,
-        );
+        fk.columns.some((column) => own.get(column)?.nullable ?? true);
       const onDelete =
         fk.onDelete === "cascade" ||
         fk.onDelete === "set null" ||
@@ -382,6 +466,9 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           : singular(fk.refTable);
       push(sourceId, {
         name: applyCasing(forwardBase, casing),
+        base: forwardBase,
+        fkColumns: fk.columns,
+        refColumns: fk.refColumns,
         meta: {
           table: targetKey,
           kind: "one",
@@ -398,11 +485,12 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         fk.oneToOne ||
         sameColumns(table.primaryKey, fk.columns) ||
         table.uniques.some((key) => sameColumns(key.columns, fk.columns));
+      const reverseBase = unique ? singular(table.name) : table.name;
       push(targetId, {
-        name: applyCasing(
-          unique ? singular(table.name) : table.name,
-          target.casing,
-        ),
+        name: applyCasing(reverseBase, target.casing),
+        base: reverseBase,
+        fkColumns: fk.columns,
+        refColumns: fk.refColumns,
         meta: {
           table: keyOf.get(sourceId) ?? table.name,
           kind: unique ? "one" : "many",
@@ -418,134 +506,148 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   }
 
   const flagsConfig = config.plugins;
-  const tableModels: TableModel[] = tables.map(({ table, casing, columns }) => {
-    const id = `${table.schema}.${table.name}`;
-    const renames = config.tables[table.name]?.relations ?? {};
-    const columnNames = new Set(columns.map((column) => column.app));
-    const list = dedupeRelations(
-      relations.get(id) ?? [],
-      columnNames,
-      casing,
-    ).map((relation) => ({
-      ...relation,
-      name: renames[relation.name] ?? relation.name,
-    }));
+  const tableModels: TableModel[] = tables.map(
+    ({ table, casing, columns, byDb }) => {
+      const id = `${table.schema}.${table.name}`;
+      const renames = optionsOf(table)?.relations ?? {};
+      const columnNames = new Set(columns.map((column) => column.app));
+      const list = dedupeRelations(
+        relations.get(id) ?? [],
+        columnNames,
+        casing,
+      ).map((relation) => ({
+        ...relation,
+        name: renames[relation.name] ?? relation.name,
+      }));
 
-    const has = (db: string): string | undefined =>
-      columns.find((col) => col.db === db)?.app;
-    const flags: {
-      softDelete?: string;
-      timestamps?: { createdAt?: string; updatedAt?: string };
-      tenant?: string;
-      actor?: {
-        createdBy?: string;
-        updatedBy?: string;
-        impersonatedBy?: string;
-      };
-    } = {};
-    if (flagsConfig.softDelete) {
-      const db = flagsConfig.softDelete.column;
-      const column = columns.find((col) => col.db === db);
-      if (column) {
-        const udt = column.snapshot.udt;
-        if (column.snapshot.isArray || !SOFT_DELETE_UDTS.has(udt)) {
-          throw new TypeError(
-            `plugins.softDelete.column: ${table.schema}.${table.name}.${db} is ${udt}, but softDelete() writes a timestamp. Use timestamptz or timestamp.`,
-          );
+      const has = (db: string): string | undefined => byDb.get(db)?.app;
+      const flags: {
+        softDelete?: string;
+        timestamps?: { createdAt?: string; updatedAt?: string };
+        tenant?: string;
+        actor?: {
+          createdBy?: string;
+          updatedBy?: string;
+          impersonatedBy?: string;
+        };
+      } = {};
+      if (flagsConfig.softDelete) {
+        const db = flagsConfig.softDelete.column;
+        const column = byDb.get(db);
+        if (column) {
+          const udt = column.snapshot.udt;
+          if (column.snapshot.isArray || !SOFT_DELETE_UDTS.has(udt)) {
+            throw new TypeError(
+              `plugins.softDelete.column: ${table.schema}.${table.name}.${db} is ${udt}, but softDelete() writes a timestamp. Use timestamptz or timestamp.`,
+            );
+          }
+          flags.softDelete = column.app;
         }
-        flags.softDelete = column.app;
       }
-    }
-    if (flagsConfig.timestamps) {
-      const createdAt = has(flagsConfig.timestamps.createdAt);
-      const updatedAt = has(flagsConfig.timestamps.updatedAt);
-      if (createdAt || updatedAt) {
-        flags.timestamps = {
-          ...(createdAt ? { createdAt } : {}),
-          ...(updatedAt ? { updatedAt } : {}),
-        };
+      if (flagsConfig.timestamps) {
+        const createdAt = has(flagsConfig.timestamps.createdAt);
+        const updatedAt = has(flagsConfig.timestamps.updatedAt);
+        if (createdAt || updatedAt) {
+          flags.timestamps = {
+            ...(createdAt ? { createdAt } : {}),
+            ...(updatedAt ? { updatedAt } : {}),
+          };
+        }
       }
-    }
-    if (flagsConfig.tenant) {
-      const column = has(flagsConfig.tenant.column);
-      if (column) flags.tenant = column;
-    }
-    if (flagsConfig.actor) {
-      const createdBy = has(flagsConfig.actor.createdBy);
-      const updatedBy = has(flagsConfig.actor.updatedBy);
-      const impersonatedBy = has(flagsConfig.actor.impersonatedBy);
-      if (createdBy || updatedBy || impersonatedBy) {
-        flags.actor = {
-          ...(createdBy ? { createdBy } : {}),
-          ...(updatedBy ? { updatedBy } : {}),
-          ...(impersonatedBy ? { impersonatedBy } : {}),
-        };
+      if (flagsConfig.tenant) {
+        const column = has(flagsConfig.tenant.column);
+        if (column) flags.tenant = column;
       }
-    }
+      if (flagsConfig.actor) {
+        const createdBy = has(flagsConfig.actor.createdBy);
+        const updatedBy = has(flagsConfig.actor.updatedBy);
+        const impersonatedBy = has(flagsConfig.actor.impersonatedBy);
+        if (createdBy || updatedBy || impersonatedBy) {
+          flags.actor = {
+            ...(createdBy ? { createdBy } : {}),
+            ...(updatedBy ? { updatedBy } : {}),
+            ...(impersonatedBy ? { impersonatedBy } : {}),
+          };
+        }
+      }
 
-    const key = keyOf.get(id) ?? table.name;
-    const columnMeta: Record<string, ColumnMeta> = {};
-    for (const column of columns) {
-      const meta: {
-        -readonly [K in keyof ColumnMeta]: ColumnMeta[K];
-      } = {
-        db: column.db,
-        type: column.snapshot.udt,
-        nullable: column.nullable,
-        hasDefault: column.filled,
-      };
-      if (column.readonly) meta.generated = true;
-      if (column.snapshot.identity) meta.identity = column.snapshot.identity;
-      if (!column.readonly && !column.insertable) meta.insertable = false;
-      if (!column.readonly && !column.updatable) meta.updatable = false;
-      if (column.snapshot.isArray) meta.array = true;
-      if (column.json) meta.json = true;
-      if (column.values) meta.enum = column.values;
-      if (column.codec) meta.codec = column.codec;
-      if (column.storage) meta.storage = column.storage;
-      if (
-        config.sensitive.includes(`${table.name}.${column.db}`) ||
-        config.sensitive.includes(`${table.schema}.${table.name}.${column.db}`)
-      )
-        meta.sensitive = true;
-      columnMeta[column.app] = meta;
-    }
-    const app = (db: string): string =>
-      columns.find((col) => col.db === db)?.app ?? db;
-    const uniqueKeys: Record<string, readonly string[]> = {};
-    for (const unique of table.uniques)
-      uniqueKeys[unique.name] = unique.columns.map(app);
-    const relationMeta: Record<string, RelationMeta> = {};
-    for (const relation of list) relationMeta[relation.name] = relation.meta;
+      const key = keyOf.get(id) ?? table.name;
+      const columnMeta: Record<string, ColumnMeta> = {};
+      for (const column of columns) {
+        const meta: {
+          -readonly [K in keyof ColumnMeta]: ColumnMeta[K];
+        } = {
+          db: column.db,
+          type: column.snapshot.udt,
+          nullable: column.nullable,
+          hasDefault: column.filled,
+        };
+        if (column.readonly) meta.generated = true;
+        if (column.snapshot.identity) meta.identity = column.snapshot.identity;
+        if (!column.readonly && !column.insertable) meta.insertable = false;
+        if (!column.readonly && !column.updatable) meta.updatable = false;
+        if (column.snapshot.isArray) meta.array = true;
+        if (column.json) meta.json = true;
+        if (column.values) meta.enum = column.values;
+        if (column.codec) meta.codec = column.codec;
+        if (column.storage) meta.storage = column.storage;
+        if (
+          config.sensitive.includes(`${table.name}.${column.db}`) ||
+          config.sensitive.includes(
+            `${table.schema}.${table.name}.${column.db}`,
+          )
+        )
+          meta.sensitive = true;
+        columnMeta[column.app] = meta;
+      }
+      const app = (db: string): string => byDb.get(db)?.app ?? db;
+      const uniqueKeys: Record<string, readonly string[]> = {};
+      for (const unique of table.uniques)
+        uniqueKeys[unique.name] = unique.columns.map(app);
+      const relationMeta: Record<string, RelationMeta> = {};
+      for (const relation of list) relationMeta[relation.name] = relation.meta;
 
-    return {
-      key,
-      snapshot: table,
-      casing,
-      columns,
-      relations: list,
-      meta: {
+      return {
         key,
-        name: table.name,
-        schema: table.schema,
-        kind: table.kind,
-        columns: columnMeta,
-        primaryKey: table.primaryKey.map(app),
-        uniqueKeys,
-        relations: relationMeta,
-        flags: flags,
-      },
-    };
-  });
+        snapshot: table,
+        casing,
+        columns,
+        relations: list,
+        meta: {
+          key,
+          name: table.name,
+          schema: table.schema,
+          kind: table.kind,
+          columns: columnMeta,
+          primaryKey: table.primaryKey.map(app),
+          uniqueKeys,
+          relations: relationMeta,
+          flags: flags,
+        },
+      };
+    },
+  );
 
-  const enums: EnumModel[] = catalog.enums
-    .filter((entry) => config.schemas.includes(entry.schema))
-    .map((entry) => ({
+  const includedEnums = catalog.enums.filter((entry) =>
+    config.schemas.includes(entry.schema),
+  );
+  const enumNameCount = new Map<string, number>();
+  for (const entry of includedEnums)
+    enumNameCount.set(entry.name, (enumNameCount.get(entry.name) ?? 0) + 1);
+  const enums: EnumModel[] = includedEnums.map((entry) => {
+    const key =
+      entry.schema !== "public" && (enumNameCount.get(entry.name) ?? 0) > 1
+        ? `${entry.schema}_${entry.name}`
+        : entry.name;
+    return {
       schema: entry.schema,
       name: entry.name,
-      constant: `${toCamel(entry.name)}Values`,
+      key,
+      constant: identifier(`${toCamel(key)}Values`),
+      typeName: identifier(pascal(key)),
       values: entry.values,
-    }));
+    };
+  });
 
   const tablesByName = new Map(
     tableModels.map((table) => [
@@ -553,28 +655,37 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
       table,
     ]),
   );
-  const seen = new Set<string>();
-  const functions: FunctionModel[] = catalog.functions
+  // `$rpc` calls a function by its name, so one schema owns each name: the
+  // first configured schema. Overloads in that schema stay, in signature order.
+  const callable = catalog.functions
     .filter((fn) => config.schemas.includes(fn.schema))
     .filter((fn) => fn.returns !== "trigger" && fn.returns !== "event_trigger")
-    .filter((fn) => !fn.args.some((arg) => arg.udt === "internal"))
+    .filter((fn) => !fn.args.some((arg) => arg.udt === "internal"));
+  const ownerSchema = new Map<string, string>();
+  for (const schema of config.schemas) {
+    for (const fn of callable) {
+      if (fn.schema === schema && !ownerSchema.has(fn.name))
+        ownerSchema.set(fn.name, schema);
+    }
+  }
+  const shadowed = new Set<string>();
+  const functions: FunctionModel[] = callable
     .filter((fn) => {
-      // Overloads share one entry; the first signature wins.
-      if (seen.has(fn.name)) return false;
-      seen.add(fn.name);
-      return true;
+      if (ownerSchema.get(fn.name) === fn.schema) return true;
+      shadowed.add(`${fn.schema}.${fn.name}`);
+      return false;
     })
     .map((fn) => {
-      const typeOf = (format: string): string => {
+      const typeOf = (format: string, typeSchema?: string): string => {
         const isArray = format.startsWith("_");
         const values = enumsByName.get(
-          `${fn.schema}.${isArray ? format.slice(1) : format}`,
+          `${typeSchema ?? fn.schema}.${isArray ? format.slice(1) : format}`,
         );
         if (values)
           return isArray ? arrayOf(enumType(values)) : enumType(values);
-        return tsType(fn.schema, format);
+        return tsType(fn.schema, format, typeSchema);
       };
-      const notNull = config.functions[fn.name]?.notNull;
+      const notNull = configFor(config.functions, fn.schema, fn.name)?.notNull;
       const notNullColumns = new Set(Array.isArray(notNull) ? notNull : []);
       if (Array.isArray(notNull)) {
         for (const name of notNullColumns) {
@@ -604,7 +715,9 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
             db: column.name,
             app: applyCasing(column.name, config.casing),
             codec,
-            tsType: codec ? CODEC_TYPE[codec] : typeOf(column.udt),
+            tsType: codec
+              ? CODEC_TYPE[codec]
+              : typeOf(column.udt, column.typeSchema),
           };
         });
         returns = `{ ${columns
@@ -637,7 +750,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           result = { table: rowTable.key };
         }
       } else {
-        returns = orNull(typeOf(fn.returns));
+        returns = orNull(typeOf(fn.returns, fn.returnsSchema));
         if (fn.returnsSet) returns = arrayOf(returns);
       }
       return {
@@ -653,7 +766,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
         },
         args: fn.args.map((arg) => ({
           name: arg.name,
-          tsType: typeOf(arg.isArray ? `_${arg.udt}` : arg.udt),
+          tsType: typeOf(arg.isArray ? `_${arg.udt}` : arg.udt, arg.typeSchema),
           optional: arg.hasDefault,
         })),
         returns,
@@ -661,17 +774,34 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
     });
 
   for (const name of Object.keys(config.functions)) {
-    if (!functions.some((fn) => fn.key === name))
+    if (
+      !functions.some(
+        (fn) => fn.key === name || `${fn.meta.schema}.${fn.key}` === name,
+      )
+    )
       throw new TypeError(
         `functions.${name}: no function "${name}" in ${config.schemas.join(", ")}`,
       );
   }
+  for (const id of shadowed) {
+    const name = id.slice(id.indexOf(".") + 1);
+    warnings.push(
+      `${id}: ${ownerSchema.get(name) ?? ""}.${name} has the same name and comes first in \`schemas\`, so ${id} gets no \`$rpc\` types.`,
+    );
+  }
   const tablesMeta: Record<string, TableMeta> = {};
   for (const table of tableModels) tablesMeta[table.key] = table.meta;
   const enumsMeta: Record<string, readonly string[]> = {};
-  for (const entry of enums) enumsMeta[entry.name] = entry.values;
+  for (const entry of enums) enumsMeta[entry.key] = entry.values;
   const functionsMeta: Record<string, FunctionMeta> = {};
-  for (const fn of functions) functionsMeta[fn.key] = fn.meta;
+  for (const [key, group] of functionGroups(functions)) {
+    const [first] = group;
+    if (!first) continue;
+    functionsMeta[key] =
+      group.length === 1
+        ? first.meta
+        : { ...first.meta, overloads: group.map(signatureOf) };
+  }
 
   const claimOverrides: Partial<Record<keyof ClaimsMeta, string>> = {};
   // SAFETY: DEFAULT_CLAIMS has one entry per ClaimsMeta key, and Object.keys
@@ -808,18 +938,15 @@ function dedupeRelations(
   columns: ReadonlySet<string>,
   casing: Casing,
 ): RelationModel[] {
-  const snake = (name: string): string =>
-    casing === "camel" ? toSnake(name) : name;
   const suffixed = (relation: RelationModel, suffix: string): string =>
-    applyCasing(`${snake(relation.name)}_by_${snake(suffix)}`, casing);
-  const keyColumns = (relation: RelationModel, all: boolean): string => {
-    const { columns: from, references: to, direction } = relation.meta;
-    const own = direction === "forward" ? from : to;
-    const other = direction === "forward" ? to : from;
-    return (all ? own : namingColumns(own, other))
+    applyCasing(`${relation.base}_by_${suffix}`, casing);
+  const keyColumns = (relation: RelationModel, all: boolean): string =>
+    (all
+      ? relation.fkColumns
+      : namingColumns(relation.fkColumns, relation.refColumns)
+    )
       .map((column) => column.replace(/_?[iI]d$/, ""))
       .join("_");
-  };
   const repeated = (names: readonly string[]): Set<string> => {
     const seen = new Set<string>();
     const twice = new Set<string>();

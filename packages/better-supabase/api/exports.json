@@ -160,6 +160,7 @@
       "RawDbError",
       "ReadMethod",
       "ReadSet",
+      "ReadSetAuth",
       "ReadSetOptions",
       "ReadSetParams",
       "ReadSetParamType",
@@ -641,6 +642,7 @@
       "Impersonator",
       "LiveCountSeed",
       "MembershipClaim",
+      "NextCacheOptions",
       "NextDebugOptions",
       "NextOptions",
       "ProxyOptions",
@@ -831,7 +833,8 @@
       "nextCronRun",
       "pgmqPublicBackend",
       "rateLimited",
-      "sqlQueueBackend"
+      "sqlQueueBackend",
+      "withLease"
     ],
     "types": [
       "ClaimOptions",
@@ -862,6 +865,9 @@
       "JobContext",
       "JobHandler",
       "Jobs",
+      "Lease",
+      "LeaseOptions",
+      "LeaseOutcome",
       "ListDeadOptions",
       "QueueBackend",
       "QueueMessageBody",
@@ -930,9 +936,11 @@
       "EmitOptions",
       "HistoryFilter",
       "Outbox",
+      "OutboxDeadLetter",
       "OutboxEvent",
       "OutboxHandler",
       "OutboxOptions",
+      "OutboxPurgeOptions",
       "OutboxRouteOptions",
       "OutboxRouteResult",
       "RegisterOptions",
@@ -952,6 +960,7 @@
       "CreateOrganizationOptions",
       "Invitation",
       "InvitationChanges",
+      "InvitationErrorHint",
       "InvitationPreview",
       "InvitationSent",
       "InvitationStatus",
@@ -1152,7 +1161,9 @@
       "TopicMessage",
       "TopicOptions",
       "TopicPayload",
-      "TriggerOptions"
+      "TriggerLookup",
+      "TriggerOptions",
+      "TriggerValue"
     ]
   },
   "./events": {
@@ -1373,6 +1384,7 @@
     ],
     "types": [
       "Billing",
+      "BillingCustomer",
       "BillingCustomerUpdate",
       "BillingEventData",
       "BillingOptions",

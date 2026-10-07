@@ -310,6 +310,17 @@ describe("compilePostgrest filters", () => {
       },
       'and(status.in.(lead),kvk.is.null),name.not.like."x%",not.and(id.eq."1",id.eq."2"),metadata.cs."{\\"a\\":1}",tags.ov.{"t"}',
     ],
+    [
+      "an or with array elements that hold braces",
+      {
+        kind: "or",
+        items: [
+          col("tags", "contains", ["a}", "b"]),
+          col("tags", "overlaps", ["{c"]),
+        ],
+      },
+      'tags.cs."{\\"a}\\",\\"b\\"}",tags.ov."{\\"{c\\"}"',
+    ],
   ])("renders %s as a logic tree", (_name, where, expression) => {
     expect(plan(select({ where })).filters).toEqual([orFilter(expression)]);
   });
@@ -699,6 +710,73 @@ describe("compilePostgrest paging", () => {
         referencedTable: undefined,
       },
     ]);
+  });
+
+  it("orders groups by the row count", () => {
+    expect(
+      plan(
+        select({
+          orderBy: [
+            { column: "*", direction: "desc", aggregate: "count" },
+            { column: "status", direction: "asc" },
+          ],
+        }),
+      ).orders,
+    ).toEqual([
+      {
+        column: "count",
+        ascending: false,
+        nullsFirst: undefined,
+        referencedTable: undefined,
+      },
+      {
+        column: "status",
+        ascending: true,
+        nullsFirst: undefined,
+        referencedTable: undefined,
+      },
+    ]);
+  });
+
+  it("rejects a count order on a table with a count column", () => {
+    const tallies: TableMeta = {
+      ...customers,
+      columns: {
+        ...customers.columns,
+        total: {
+          db: "count",
+          type: "int4",
+          nullable: false,
+          hasDefault: false,
+        },
+      },
+    };
+    expect(
+      invalid(() =>
+        plan(
+          select({
+            table: tallies,
+            orderBy: [{ column: "*", direction: "desc", aggregate: "count" }],
+          }),
+        ),
+      ),
+    ).toBe(
+      'PostgREST can\'t sort "customers" by _count because the table has a column named "count"; sort by a groupBy column or use the postgres adapter',
+    );
+  });
+
+  it("rejects a measure order", () => {
+    expect(
+      invalid(() =>
+        plan(
+          select({
+            orderBy: [{ column: "id", direction: "desc", aggregate: "sum" }],
+          }),
+        ),
+      ),
+    ).toBe(
+      'PostgREST can\'t sort "customers" by _sum; sort by _count or a groupBy column, or use the postgres adapter',
+    );
   });
 });
 

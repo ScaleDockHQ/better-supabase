@@ -6,7 +6,7 @@ import type { AnyCommand } from "../command.ts";
 import { defineCliCommand } from "../command.ts";
 import { fileDiff } from "../diff.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
-import { display, writeIfChanged } from "../io.ts";
+import { display, sameText, writeIfChanged } from "../io.ts";
 import { withSpinner } from "../prompts.ts";
 import { painter } from "../style.ts";
 import { SOURCE_ARGS, sourceArgs } from "./gen.ts";
@@ -68,7 +68,7 @@ export const introspectCommand: AnyCommand = defineCliCommand({
         () => undefined,
       );
       const file = display(config.root, out);
-      return current === contents
+      return sameText(current, contents)
         ? {
             code: 0,
             output: `${file} is up to date.`,

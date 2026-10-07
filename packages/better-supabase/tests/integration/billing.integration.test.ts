@@ -294,6 +294,38 @@ describe.skipIf(!live)("billing", () => {
       ).toContain("in_bs_1");
 
       await s.service();
+      await s.rows(`create table if not exists stripe.tax_ids (
+          id text primary key, customer text, type text, value text, country text,
+          verification jsonb, created bigint);
+        insert into stripe.tax_ids (id, customer, type, value, country, verification, created) values
+          ('txi_bs_1', 'cus_bs_plans', 'eu_vat', 'DE123456789', 'DE', '{"status": "verified"}', 1),
+          ('txi_bs_2', 'cus_bs_plans', 'gb_vat', 'GB123456789', 'GB', null, 2),
+          ('txi_bs_x', 'cus_someone_else', 'eu_vat', 'NL1', 'NL', null, 3)`);
+      await s.asRole(owner);
+      expect(
+        await billing.taxIds(organization, { from: "sync" }).orThrow(),
+      ).toEqual([
+        {
+          id: "txi_bs_2",
+          type: "gb_vat",
+          value: "GB123456789",
+          country: "GB",
+          verification: null,
+        },
+        {
+          id: "txi_bs_1",
+          type: "eu_vat",
+          value: "DE123456789",
+          country: "DE",
+          verification: { status: "verified" },
+        },
+      ]);
+      await s.asRole(member);
+      expect(
+        await billing.taxIds(organization, { from: "sync" }),
+      ).toMatchObject({ error: { hint: "BILLING_FORBIDDEN" } });
+
+      await s.service();
       for (const [table, columns] of [
         [
           "subscriptions",
@@ -425,6 +457,143 @@ describe.skipIf(!live)("billing", () => {
           "select * from better_supabase.billing_platform_invoices()",
         ),
       ).toBe("BILLING_FORBIDDEN");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("reads a tenant's subscription for the app's definer functions only", async () => {
+    const s = await BlockSession.open(pool);
+    const fn = `public.bs_plan_of_${crypto.randomUUID().slice(0, 8)}`;
+    try {
+      await s.install(["organizations", "billing"]);
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+      await s.service();
+      if (
+        !(await s.value<boolean>(
+          "to_regclass('stripe.subscription_items') is not null",
+        ))
+      ) {
+        await s.rows(`create schema if not exists stripe;
+          create table stripe.subscriptions (id text primary key, customer text, status text, created bigint);
+          create table stripe.subscription_items (id text primary key, subscription text, price text, quantity integer, created bigint)`);
+      }
+      await s.rows(
+        "select better_supabase.link_billing_customer($1, 'cus_bs_internal')",
+        [organization],
+      );
+      await s.rows(`insert into stripe.subscriptions (id, customer, status, created) values ('sub_bs_internal', 'cus_bs_internal', 'active', 1);
+        insert into stripe.subscription_items (id, subscription, price, quantity, created) values ('si_bs_internal', 'sub_bs_internal', 'price_team', 1, 1)`);
+      await s.client.query(`
+        create function ${fn}(tenant uuid) returns text
+        language sql stable security definer set search_path = '' as $$
+          select better_supabase.billing_tenant_subscription(tenant) -> 'items' -> 0 ->> 'price'
+        $$;
+        grant execute on function ${fn}(uuid) to authenticated;`);
+      await s.asRole(member);
+      expect(
+        await s.hint("better_supabase.billing_subscription($1)", [
+          organization,
+        ]),
+      ).toBe("BILLING_FORBIDDEN");
+      expect(await s.value(`${fn}($1)`, [organization])).toBe("price_team");
+      expect(
+        await s.hint("better_supabase.billing_tenant_subscription($1)", [
+          organization,
+        ]),
+      ).toMatch(/permission denied for function billing_tenant_subscription/);
+      await s.service();
+      await s.client.query("set local role service_role");
+      expect(
+        await s.hint("better_supabase.billing_tenant_subscription($1)", [
+          organization,
+        ]),
+      ).toMatch(/permission denied/);
+      await s.client.query("reset role");
+      await s.asRole(owner);
+      expect(
+        await s.value("better_supabase.billing_subscription($1) ->> 'id'", [
+          organization,
+        ]),
+      ).toBe("sub_bs_internal");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("lists every linked customer for platform staff", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "billing"]);
+      const owner = await s.user("owner");
+      const first = await s.organization(owner);
+      const second = await s.organization(owner);
+      await s.service();
+      if (
+        !(await s.value<boolean>("to_regclass('stripe.customers') is not null"))
+      ) {
+        await s.rows(`create schema if not exists stripe;
+          create table stripe.customers (id text primary key, email text, name text, created bigint)`);
+      }
+      await s.rows(
+        `select better_supabase.link_billing_customer($1, 'cus_bs_list_1'), better_supabase.link_billing_customer($2, 'cus_bs_list_2')`,
+        [first, second],
+      );
+      await s.rows(
+        "insert into stripe.customers (id, email, name, created) values ('cus_bs_list_1', 'billing@first.test', 'First', 1767225600)",
+      );
+      const billing = createBilling({
+        stripe: { secretKey: "sk_test_unused" },
+        transport: sqlTransport(s.sql),
+      });
+      await s.asRole(owner);
+      expect(await billing.allCustomers()).toMatchObject({
+        error: { hint: "BILLING_FORBIDDEN" },
+      });
+      await s.service();
+      const staff = await s.user("staff");
+      await s.asRole(staff, { platform_permissions: ["billing.read"] });
+      const listed = (await billing.allCustomers().orThrow()).filter(
+        (entry) =>
+          entry.organizationId === first || entry.organizationId === second,
+      );
+      expect(
+        listed.map((entry) => ({
+          ...entry,
+          created: entry.created?.toString(),
+        })),
+      ).toEqual(
+        [
+          {
+            organizationId: first,
+            customerId: "cus_bs_list_1",
+            email: "billing@first.test",
+            name: "First",
+            created: "2026-01-01T00:00:00Z",
+          },
+          {
+            organizationId: second,
+            customerId: "cus_bs_list_2",
+            email: undefined,
+            name: undefined,
+            created: undefined,
+          },
+        ].sort((a, b) => a.organizationId.localeCompare(b.organizationId)),
+      );
+      const rows = await s.rows<Record<string, unknown>>(
+        "select tenant::text, customer, email from better_supabase.billing_platform_customers() where tenant = any ($1::uuid[]) order by customer",
+        [[first, second]],
+      );
+      expect(rows).toEqual([
+        {
+          tenant: first,
+          customer: "cus_bs_list_1",
+          email: "billing@first.test",
+        },
+        { tenant: second, customer: "cus_bs_list_2", email: null },
+      ]);
     } finally {
       await s.close();
     }

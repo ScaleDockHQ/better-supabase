@@ -106,6 +106,41 @@ describe("createNotifications().send", () => {
     });
   });
 
+  it("subscribes another member only when absent", async () => {
+    const { transport, calls } = fakeTransport({
+      set_notification_subscription: () => null,
+    });
+    await createNotifications({ transport, types })
+      .subscribe({
+        subject: { type: "task", id: "42" },
+        level: "participating",
+        tenant: "organization_1",
+        userId: "u2",
+        ifAbsent: true,
+      })
+      .orThrow();
+    expect(calls[0]).toMatchObject({
+      fn: "set_notification_subscription",
+      args: { member: "u2", if_absent: true, level: "participating" },
+    });
+  });
+
+  it("passes watchers and exclude to notify", async () => {
+    const { transport, calls } = fakeTransport({ notify: () => "e2" });
+    await createNotifications({ transport, types })
+      .send("task.assigned", {
+        recipients: ["u1"],
+        subject: { type: "task", id: "42" },
+        data: { title: "Ship it" },
+        watchers: false,
+        exclude: ["u2"],
+      })
+      .orThrow();
+    expect(calls[0]).toMatchObject({
+      args: { notification: { watchers: false, exclude: ["u2"] } },
+    });
+  });
+
   it("rejects unknown types and invalid data without calling the database", async () => {
     const { transport, calls } = fakeTransport();
     const notifications = createNotifications({ transport, types });

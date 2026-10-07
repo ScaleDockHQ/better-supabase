@@ -21,6 +21,7 @@ import {
 import { defineBucket, parseSize } from "../../storage/index.ts";
 import { renderFiles } from "../commands/gen.ts";
 import { byCodePoint } from "../compare.ts";
+import { configFor } from "../gen/shared.ts";
 import {
   declarativeSchemasDir,
   diffEngine,
@@ -67,6 +68,8 @@ export interface SqlObject {
   readonly kind: "table" | "function" | "policy";
   readonly schema: string;
   readonly name: string;
+  /** The table a policy is on; policy names are only unique per table. */
+  readonly table?: string;
 }
 
 export interface Finding {
@@ -353,7 +356,11 @@ const OWN_RULES: readonly Rule[] = [
           ? " config.toml sets [api] auto_expose_new_tables = false, so new tables start without grants."
           : "";
       return exposed(context).flatMap((table) => {
-        const options = context.config.tables[table.name];
+        const options = configFor(
+          context.config.tables,
+          table.schema,
+          table.name,
+        );
         if (options?.exclude) return [];
         const granted = (role: string): Set<string> =>
           new Set(
@@ -427,7 +434,11 @@ const OWN_RULES: readonly Rule[] = [
       return tables.flatMap((table) => {
         if (table.kind !== "table" || !table.rls) return [];
         if (roots.has(qualified(table))) return [];
-        const options = context.config.tables[table.name];
+        const options = configFor(
+          context.config.tables,
+          table.schema,
+          table.name,
+        );
         if (options?.exclude || options?.serviceRole) return [];
         const granting = table.policies.filter(
           (policy) =>

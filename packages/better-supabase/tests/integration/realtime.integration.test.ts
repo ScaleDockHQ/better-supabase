@@ -110,6 +110,85 @@ describe.skipIf(!live)("Realtime module", async () => {
     await pool.end();
   });
 
+  it("fills a topic from parent rows and sends a custom event and payload", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const tagged = defineTopic(
+        "org:{organizationSlug}:customer:{customerId}",
+      );
+      await client.query(
+        tagged.triggerSql(betterSupabase, "customerTags", {
+          values: {
+            customerId: "customerId",
+            organizationSlug: {
+              from: "organizations",
+              select: "slug",
+              via: {
+                from: "customers",
+                select: "organizationId",
+                via: "customerId",
+              },
+            },
+          },
+          event: { insert: "tag_added" },
+          payload: {
+            tagId: "tagId",
+            customerName: {
+              from: "customers",
+              via: "customerId",
+              select: "name",
+            },
+            operation: { sql: "lower(tg_op)" },
+          },
+        }),
+      );
+      const { rows: inserted } = await client.query<{
+        customer: string;
+        tag: string;
+        slug: string;
+      }>(
+        `with c as (
+           insert into public.customers (organization_id, name) values ($1, 'Lookup Co') returning id
+         ), t as (
+           insert into public.tags (organization_id, name) values ($1, 'lookup') returning id
+         )
+         select c.id::text as customer, t.id::text as tag,
+           (select slug from public.organizations where id = $1) as slug
+         from c, t`,
+        [ACME],
+      );
+      const { customer, tag, slug } = inserted[0]!;
+      await client.query(
+        "insert into public.customer_tags (customer_id, tag_id, organization_id) values ($1, $2, $3)",
+        [customer, tag, ACME],
+      );
+      const { rows } = await client.query<{
+        event: string;
+        payload: Record<string, unknown>;
+        private: boolean;
+      }>(
+        "select event, payload, private from realtime.messages where topic = $1",
+        [`org:${slug}:customer:${customer}`],
+      );
+      expect(rows).toEqual([
+        {
+          event: "tag_added",
+          payload: {
+            id: expect.any(String),
+            tagId: tag,
+            customerName: "Lookup Co",
+            operation: "insert",
+          },
+          private: true,
+        },
+      ]);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("broadcasts row changes to the tenant topic", async () => {
     let retry: ReturnType<typeof setInterval> | undefined;
     let attempt = 0;

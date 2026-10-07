@@ -87,22 +87,25 @@ export async function handle<
     refresh: options.refresh ?? false,
   });
   const denied = guard(ctx.auth, options.allow, options.aal, options.scopes);
-  let response: Response;
   try {
-    response = denied
-      ? problemResponse(denied, { instance, expose })
-      : await respond(() => run(ctx), {
-          instance,
-          expose,
-          ...(options.status === undefined ? {} : { status: options.status }),
-        });
-  } catch (cause) {
-    options.rethrow?.(cause);
-    response = unexpectedResponse(cause, { instance, expose });
+    let response: Response;
+    try {
+      response = denied
+        ? problemResponse(denied, { instance, expose })
+        : await respond(() => run(ctx), {
+            instance,
+            expose,
+            ...(options.status === undefined ? {} : { status: options.status }),
+          });
+    } catch (cause) {
+      options.rethrow?.(cause);
+      response = unexpectedResponse(cause, { instance, expose });
+    }
+    return ctx.apply(response);
+  } finally {
+    // Also when `rethrow` throws control flow after a write.
+    flushEvents(server, options.waitUntil);
   }
-  response = ctx.apply(response);
-  flushEvents(server, options.waitUntil);
-  return response;
 }
 
 /** A request carrying only `token` as a bearer, for resolvers that read headers. */

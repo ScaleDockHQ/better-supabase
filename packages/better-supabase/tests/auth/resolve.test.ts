@@ -77,6 +77,26 @@ describe("verified token memo", () => {
     });
   });
 
+  it("keys a local JWKS memo by audience and issuer too", async () => {
+    const jwks = keys();
+    const token = await signer.sign({ sub: USER });
+    expect((await resolveAuth(bearer(token), { env, jwks })).auth.kind).toBe(
+      "user",
+    );
+    expect(
+      (await resolveAuth(bearer(token), { env, jwks, audience: "mcp" })).auth,
+    ).toMatchObject({ kind: "invalid", reason: "token" });
+    expect(
+      (
+        await resolveAuth(bearer(token), {
+          env,
+          jwks,
+          issuer: ["https://other.test"],
+        })
+      ).auth.kind,
+    ).toBe("invalid");
+  });
+
   it("forgets every token on clearVerifiedTokens", async () => {
     const jwks = keys();
     const options: ResolveAuthOptions = { env, jwks };

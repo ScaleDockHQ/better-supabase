@@ -410,6 +410,42 @@ begin
 end;
 $$;
 
+-- The first UTC day of the window of period that holds day, which can be
+-- in an earlier window than now. Earlier billing periods are assumed to be as
+-- long as the current one; past 120 of them it falls back to the month.
+create or replace function ${fn("usage_window_start")}(tenant ${id}, period text, day date)
+returns date
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_start timestamptz;
+  v_end timestamptz;
+  v_length interval;
+  v_steps integer := 0;
+begin
+  if usage_window_start.period is null then
+    return usage_window_start.day;
+  end if;
+  if usage_window_start.period <> 'billing' then
+    return date_trunc(usage_window_start.period, usage_window_start.day)::date;
+  end if;
+  select w.starts_at, w.ends_at into v_start, v_end
+  from ${fn("usage_window")}(usage_window_start.tenant, 'billing') w;
+  v_length := age(v_end, v_start);
+  while usage_window_start.day < (v_start at time zone 'utc')::date and v_steps < 120 loop
+    v_start := v_start - v_length;
+    v_steps := v_steps + 1;
+  end loop;
+  if usage_window_start.day < (v_start at time zone 'utc')::date then
+    return date_trunc('month', usage_window_start.day)::date;
+  end if;
+  return (v_start at time zone 'utc')::date;
+end;
+$$;
+
 -- Usage of meter in the current window of period, counted by UTC day.
 create or replace function ${fn("usage_used")}(tenant ${id}, meter text, period text default 'month')
 returns numeric
@@ -437,7 +473,8 @@ as $$
 $$;
 
 -- { meter, used, limit, remaining, unlimited, period, resets_at }; limit and
--- remaining are null without a quota and for an unlimited one.
+-- remaining are null without a quota and for an unlimited one. Needs usage.read,
+-- like usage_overview.
 create or replace function ${fn("usage_status")}(tenant ${id}, meter text)
 returns jsonb
 language plpgsql
@@ -450,7 +487,7 @@ declare
   used numeric;
   win record;
 begin
-  if not ${member("tenant")} then
+  if not ${canRead("tenant")} then
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   select * into quota from ${fn("usage_quota")}(tenant, meter);
@@ -477,7 +514,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ${member("tenant")} then
+  if not ${canRead("tenant")} then
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   return (
@@ -496,7 +533,8 @@ begin
 end;
 $$;
 
--- For policies: whether quantity more fits the tenant's quota.
+-- For policies: whether quantity more fits the tenant's quota. False for a
+-- caller outside the tenant, so it can't probe another tenant's usage.
 --   with check (better_supabase.within_quota(organization_id, 'projects'))
 create or replace function ${fn("within_quota")}(tenant ${id}, meter text, quantity bigint default 1)
 returns boolean
@@ -508,6 +546,9 @@ as $$
 declare
   quota record;
 begin
+  if not ${member("tenant")} then
+    return false;
+  end if;
   select * into quota from ${fn("usage_quota")}(tenant, meter);
   if quota.quota_limit is null then
     return true;
@@ -570,8 +611,9 @@ end;
 $$;
 
 -- Like record_usage, but first checks the quota and raises quota_exceeded
--- (SQLSTATE BSQ29) without recording when quantity does not fit. Today's
--- counter row is locked, so concurrent calls cannot both take the last unit.
+-- (SQLSTATE BSQ29) without recording when quantity does not fit. A transaction
+-- lock per tenant and meter, not today's counter row, serializes the calls, so
+-- calls on either side of UTC midnight cannot both take the last unit.
 create or replace function ${fn("consume_quota")}(
   tenant ${id},
   meter text,
@@ -588,7 +630,6 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  today date := (now() at time zone 'utc')::date;
   quota record;
   used numeric;
   win record;
@@ -596,12 +637,7 @@ begin
   if not ${canRecord("tenant")} then
     raise exception 'Not allowed to record usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;${meterCheck}
-  insert into ${counters} (${cc("tenant")}, ${cc("meter")}, ${cc("day")})
-  values (tenant, meter, today)
-  on conflict do nothing;
-  perform 1 from ${counters} c
-  where c.${cc("tenant")} = consume_quota.tenant and c.${cc("meter")} = consume_quota.meter and c.${cc("day")} = today
-  for update;
+  perform pg_advisory_xact_lock(hashtext('better_supabase.consume_quota'), hashtext(tenant::text || '/' || meter));
   if idempotency_key is not null and exists (
     select 1 from ${events} e
     where e.${ec("tenant")} = consume_quota.tenant and e.${ec("meter")} = consume_quota.meter and e.${ec("key")} = consume_quota.idempotency_key
@@ -710,14 +746,7 @@ as $$
       from ${counters} o
       where o.${cc("tenant")} = c.${cc("tenant")} and o.${cc("meter")} = c.${cc("meter")}
         and o.${cc("day")} < c.${cc("day")}
-        and o.${cc("day")} >= case
-          when q.period is null then c.${cc("day")}
-          when q.period = 'billing' then coalesce(
-            (select (w.starts_at at time zone 'utc')::date from ${fn("usage_window")}(c.${cc("tenant")}, 'billing') w
-             where c.${cc("day")} >= (w.starts_at at time zone 'utc')::date),
-            date_trunc('month', c.${cc("day")})::date)
-          else date_trunc(q.period, c.${cc("day")})::date
-        end
+        and o.${cc("day")} >= w.since
     )
   ) order by c.${cc("day")}, c.${cc("meter")}), '[]'::jsonb)
   from (
@@ -729,6 +758,9 @@ as $$
     limit max_rows
   ) c
   left join lateral ${fn("usage_quota")}(c.${cc("tenant")}, c.${cc("meter")}) q on true
+  cross join lateral (
+    select ${fn("usage_window_start")}(c.${cc("tenant")}, q.period, c.${cc("day")}) as since
+  ) w
 $$;
 
 -- Marks a counter as reported up to value; never moves it backwards.
@@ -879,6 +911,8 @@ grant execute on function ${fn("purge_usage_events")}(interval, integer) to serv
 revoke execute on function ${fn("usage_window")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_meters")}() from public;
 grant execute on function ${fn("usage_window")}(${id}, text) to service_role;
+revoke execute on function ${fn("usage_window_start")}(${id}, text, date) from public, anon, authenticated;
+grant execute on function ${fn("usage_window_start")}(${id}, text, date) to service_role;
 grant execute on function ${fn("usage_meters")}() to anon, authenticated, service_role;
 revoke execute on function ${fn("usage_quota")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_used")}(${id}, text, text) from public, anon, authenticated;
@@ -908,6 +942,11 @@ function contract(): readonly ModuleContractFunction[] {
     { name: "usage_overview", args: ["{id}"], returns: "jsonb" },
     { name: "usage_meters", args: [], returns: "jsonb" },
     { name: "usage_window", args: ["{id}", "text"], returns: "record" },
+    {
+      name: "usage_window_start",
+      args: ["{id}", "text", "date"],
+      returns: "date",
+    },
     {
       name: "within_quota",
       args: ["{id}", "text", "bigint"],

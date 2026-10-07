@@ -117,6 +117,47 @@ describe.skipIf(!live)("waitlist", () => {
     }
   });
 
+  it("tells a caller nothing about an address beyond a place in line", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "waitlist"]);
+      const tag = crypto.randomUUID().slice(0, 8);
+      const approved = `approved-${tag}@example.test`;
+      const joined = `joined-${tag}@example.test`;
+      const rejected = `rejected-${tag}@example.test`;
+      const waitlist = createWaitlist({ transport: sqlTransport(s.sql) });
+
+      await s.as("anon");
+      for (const email of [approved, joined, rejected]) {
+        await waitlist.join(email).orThrow();
+      }
+      await s.service();
+      const entries = await waitlist.entries({ limit: 500 }).orThrow();
+      const idOf = (email: string) =>
+        entries.find((entry) => entry.email === email)!.id;
+      await waitlist.approve(idOf(approved)).orThrow();
+      await waitlist.approve(idOf(joined)).orThrow();
+      await waitlist.reject(idOf(rejected)).orThrow();
+      await signUp(s, joined);
+      expect((await waitlist.join(joined).orThrow()).status).toBe("joined");
+
+      for (const caller of ["anon", await s.user("someone")] as const) {
+        await s.as(caller);
+        const fresh = await waitlist
+          .join(`fresh-${crypto.randomUUID().slice(0, 8)}@example.test`)
+          .orThrow();
+        for (const email of [approved, joined, rejected]) {
+          expect(await waitlist.join(email).orThrow()).toEqual({
+            status: "waiting",
+            position: (fresh.position ?? 0) + 1,
+          });
+        }
+      }
+    } finally {
+      await s.close();
+    }
+  });
+
   it("creates, redeems and limits invite codes", async () => {
     const s = await BlockSession.open(pool);
     try {

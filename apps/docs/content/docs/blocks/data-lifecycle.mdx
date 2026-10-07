@@ -229,6 +229,57 @@ buckets: [
 ],
 ```
 
+## Anonymizing
+
+Some records must lose their personal data a while after a process ends
+without being deleted, such as a candidate's details 180 days after the
+application closed. `options.anonymize` lists those rules, one per table:
+
+```ts title="better-supabase.config.ts"
+"data-lifecycle": {
+  options: {
+    anonymize: [
+      {
+        table: "public.candidates",
+        after: "180 days",
+        from: "process_ended_at",
+        unless: "{row}.talent_pool_consent_until > now()",
+        set: {
+          first_name: "Anonymized",
+          last_name: null,
+          email: null,
+          phone_hash: { sql: "md5({row}.phone)" },
+        },
+        markedBy: "anonymized_at",
+      },
+    ],
+  },
+},
+```
+
+| Field      | Meaning                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------- |
+| `table`    | `table` or `schema.table`                                                                               |
+| `after`    | an interval: a row is due once `from` is older than this                                                |
+| `from`     | the timestamp column the interval counts from; a row with no value is never due                         |
+| `unless`   | a condition on the row `{row}` that keeps a due row as it is while it holds                             |
+| `set`      | the new value per column: a string, number, boolean, `null`, or `{ sql }` with an expression on `{row}` |
+| `markedBy` | a nullable timestamp column the rule sets, so each row is anonymized once                               |
+
+`better_supabase.anonymize_due(max_rows)` applies every rule to at most
+`max_rows` (1000) due rows each and returns the rows changed per table. The
+service role calls it through the purger, and `createOrganizationPurger({
+anonymize: true })` also runs it in `job`, after the due purges:
+
+```ts
+const anonymized = await purger.anonymizeDue({ limit: 500 }).orThrow();
+// { "public.candidates": 12 }
+```
+
+The rule changes columns only. Files in Storage that belong to the row,
+such as a CV, stay where they are; remove them from an `after update`
+trigger on `markedBy` or in your own job.
+
 ## Events
 
 With the outbox installed, the module writes these events with the tenant as

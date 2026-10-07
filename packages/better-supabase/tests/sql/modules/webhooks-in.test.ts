@@ -29,6 +29,26 @@ describe("webhooks-in module", () => {
     );
   });
 
+  it("keeps signing secrets in Vault unless secretStorage is column", () => {
+    const vault = moduleBody("webhooks-in")!;
+    expect(vault).toContain("vault.create_secret(secret,");
+    expect(vault).toContain(
+      "left join vault.decrypted_secrets ds on ds.id = e.secret_id",
+    );
+    expect(vault).toContain(
+      "delete from vault.secrets vs where vs.id = old.secret_id;",
+    );
+    const column = moduleBody("webhooks-in", {
+      modules: { "webhooks-in": { options: { secretStorage: "column" } } },
+    })!;
+    expect(column).not.toContain("vault.");
+    expect(() =>
+      moduleBody("webhooks-in", {
+        modules: { "webhooks-in": { options: { secretStorage: "kms" } } },
+      }),
+    ).toThrow(/secretStorage/);
+  });
+
   it("installs after access and the webhook inbox and lists its keys", () => {
     expect(resolveModules(["webhooks-in"]).map((m) => m.name)).toEqual([
       "updated-at",

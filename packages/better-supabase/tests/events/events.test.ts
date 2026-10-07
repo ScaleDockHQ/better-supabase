@@ -274,6 +274,21 @@ describe("CloudEvents", () => {
     });
   });
 
+  it("writes bigint row values as decimal strings in every mode", () => {
+    const event: CloudEvent = {
+      specversion: "1.0",
+      id: "1",
+      source: "/s",
+      type: "t",
+      data: { table: "ledger", row: { id: 9007199254740993n } },
+      datacontenttype: "application/json",
+    };
+    for (const mode of ["structured", "binary", "batch"] as const) {
+      const [message] = toHttp([event], mode);
+      expect(message?.body).toContain('"id":"9007199254740993"');
+    }
+  });
+
   it("posts batches over HTTP", async () => {
     const fetch = vi.fn(
       async (_url: string | URL | Request, _init?: RequestInit) =>

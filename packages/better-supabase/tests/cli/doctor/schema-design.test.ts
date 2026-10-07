@@ -224,4 +224,45 @@ describe("schema design rules", () => {
     expect(findings[0]!.message).not.toContain("postgres:x@");
     expect(await run(context(base, { envFiles }), "BS221")).toEqual([]);
   });
+
+  it("flags int8 sequences and numeric columns decoded as number (BS222)", async () => {
+    const snap = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.columns = [
+        ...notes.columns,
+        column({
+          name: "seq",
+          udt: "int8",
+          format: "int8",
+          identity: "always",
+        }),
+        column({
+          name: "counter",
+          udt: "int8",
+          format: "int8",
+          default: "nextval('notes_counter_seq'::regclass)",
+        }),
+        column({ name: "views", udt: "int8", format: "int8" }),
+        column({ name: "amount", udt: "numeric", format: "numeric" }),
+      ];
+    });
+    expect(await run(context(snap), "BS222")).toMatchObject([
+      {
+        target: "public.notes",
+        message:
+          'public.notes id (int8), seq (int8), counter (int8), amount (numeric) decode as number and lose precision past 2^53. Set `int8: "bigint"` and `numeric: "string"` in `codecs`.',
+      },
+      { target: "public.notifications" },
+    ]);
+    const exact = context(snap, {
+      config: resolveConfig(
+        {
+          plugins: { tenant: true },
+          codecs: { int8: "bigint", numeric: "string" },
+        },
+        "/project",
+      ),
+    });
+    expect(await run(exact, "BS222")).toEqual([]);
+  });
 });

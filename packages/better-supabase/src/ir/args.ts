@@ -38,7 +38,11 @@ interface TextOps {
   readonly contains?: string;
   readonly startsWith?: string;
   readonly endsWith?: string;
-  /** Full-text search (`websearch_to_tsquery`). */
+  /**
+   * Full-text search (`websearch_to_tsquery`). `config` is a text search
+   * configuration name such as `english` or `pg_catalog.dutch`; anything else
+   * is an `invalid_request` error.
+   */
   readonly search?:
     | string
     | { readonly query: string; readonly config?: string };
@@ -340,11 +344,30 @@ export interface AggregateArgs<
   readonly _avg?: NumericMeasureArg<M, T>;
   readonly _min?: MeasureArg<M, T>;
   readonly _max?: MeasureArg<M, T>;
-  /** Sorts groups; only `groupBy` columns. */
-  readonly orderBy?: ColumnOrderByArg<M, T>;
+  /** Sorts groups by `groupBy` columns, `_count` and measures. */
+  readonly orderBy?: AggregateOrderByArg<M, T>;
   readonly limit?: number;
   readonly offset?: number;
 }
+
+/**
+ * Sorts `aggregate()` groups: `{ _count: "desc" }`,
+ * `{ _sum: { amount: "desc" } }` or a `groupBy` column.
+ */
+export type AggregateOrderBy<
+  M extends AnyModels,
+  T extends keyof M,
+> = ColumnOrderBy<M, T> & {
+  readonly _count?: SortSpec;
+  readonly _sum?: { readonly [K in NumericKey<M, T>]?: SortSpec };
+  readonly _avg?: { readonly [K in NumericKey<M, T>]?: SortSpec };
+  readonly _min?: ColumnOrderBy<M, T>;
+  readonly _max?: ColumnOrderBy<M, T>;
+};
+
+export type AggregateOrderByArg<M extends AnyModels, T extends keyof M> =
+  | AggregateOrderBy<M, T>
+  | readonly AggregateOrderBy<M, T>[];
 
 // ---------------------------------------------------------------------------
 // Result payloads

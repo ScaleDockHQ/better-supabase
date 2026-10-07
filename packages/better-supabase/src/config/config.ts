@@ -427,6 +427,11 @@ export interface EntitlementPlansSource {
       readonly feature: string;
       /** A boolean column; with it, only included features count. */
       readonly included?: string;
+      /**
+       * A column with the feature's value (a number, text or jsonb), such as
+       * a limit, that `tenant_entitlement_value` returns.
+       */
+      readonly value?: string;
     };
   };
 }

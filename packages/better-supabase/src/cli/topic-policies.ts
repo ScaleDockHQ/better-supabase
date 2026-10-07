@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import type { ResolvedConfig } from "../config/index.ts";
 import type { ModuleTopic } from "../sql/index.ts";
 
-import { importModule } from "./config.ts";
+import { importFresh } from "./fresh-import.ts";
 
 /** What the writer reads from a `defineTopic` result. */
 interface TopicLike {
@@ -40,7 +40,7 @@ export async function topicPolicyFile(
   if (policies === undefined) return undefined;
   const topics: TopicLike[] = [];
   for (const entry of policies.from) {
-    const loaded = await importModule(resolve(config.root, entry));
+    const loaded = await importFresh(resolve(config.root, entry));
     const found = Object.values(loaded).filter(isTopic);
     if (found.length === 0) {
       throw new Error(`${entry} exports no topic (defineTopic)`);

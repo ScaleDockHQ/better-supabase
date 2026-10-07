@@ -36,11 +36,13 @@ export function watch<T>(
       "better-supabase: watch() needs a PowerSync database with onChange()",
     );
   }
+  const signal = options.signal;
+  if (signal?.aborted) return () => undefined;
   const controller = new AbortController();
   const stop = (): void => {
     controller.abort();
   };
-  options.signal?.addEventListener("abort", stop, { once: true });
+  signal?.addEventListener("abort", stop, { once: true });
   let latest = 0;
   const rerun = async (): Promise<void> => {
     latest += 1;
@@ -65,6 +67,7 @@ export function watch<T>(
     },
   );
   return () => {
+    signal?.removeEventListener("abort", stop);
     stop();
     unsubscribe();
   };

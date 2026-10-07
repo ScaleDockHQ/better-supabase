@@ -8,6 +8,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
+import type { InvitationError } from "../../sql/modules/invitations-tables.ts";
 
 import { emitBlockEvent } from "../../core/block-events.ts";
 import { rawError } from "../../core/block-transport.ts";
@@ -57,7 +58,14 @@ export interface Invitation {
   /** The organization's id and `options.previewColumns`; `null` for a platform invitation. */
   readonly organization: Readonly<Record<string, unknown>> | null;
   readonly prefill: Readonly<Record<string, unknown>>;
-  /** From `myInvitations()`: the keys an `invitation_preview_extra` hook added. */
+  /**
+   * The inviter's `id` and public profile fields (`username`, `fullName`,
+   * `firstName`, `lastName`, `avatar`, as the profiles module maps them).
+   * `null` without the profiles module, an `invitedBy` column or the
+   * inviter's profile.
+   */
+  readonly inviter: Readonly<Record<string, unknown>> | null;
+  /** The keys an `invitation_preview_extra` hook added, such as a role label. */
   readonly extra: Readonly<Record<string, unknown>>;
 }
 
@@ -140,9 +148,16 @@ export interface OrganizationsOptions extends BlockTemporalOptions {
 }
 
 /**
+ * The `hint` of an invitation error: `INVITATION_EXPIRED` for an open
+ * invitation past its expiry, `INVITATION_INVALID` for one that is unknown,
+ * accepted, declined or revoked, and the other `INVITATION_*` codes.
+ */
+export type InvitationErrorHint = InvitationError;
+
+/**
  * The `organizations` and `invitations` SQL modules as typed calls. Each
  * method returns an `AsyncResult`; database errors carry the module's error
- * code (`ORGANIZATION_FORBIDDEN`, `INVITATION_INVALID`) as `hint`.
+ * code (`ORGANIZATION_FORBIDDEN`, `INVITATION_EXPIRED`) as `hint`.
  */
 export interface Organizations {
   create(
@@ -183,7 +198,8 @@ export interface Organizations {
   /**
    * A new email, role or prefill for an open invitation, with the checks
    * `invite` makes. The token and expiry stay, so the link already sent
-   * keeps working; call `resendInvitation` to mail the new address.
+   * keeps working; call `resendInvitation` to mail the new address. An
+   * expired invitation fails with `INVITATION_EXPIRED`; resend it first.
    */
   updateInvitation(
     invitationId: string,
@@ -232,6 +248,7 @@ const INVITATION_KEYS: ReadonlySet<string> = new Set([
   "invited_by",
   "organization",
   "prefill",
+  "inviter",
   "token",
 ]);
 
@@ -250,6 +267,7 @@ function invitationFrom(row: Record<string, unknown>): Invitation {
     ...(invitedBy === null ? {} : { invitedBy }),
     organization: isRecord(row["organization"]) ? row["organization"] : null,
     prefill: isRecord(row["prefill"]) ? row["prefill"] : {},
+    inviter: isRecord(row["inviter"]) ? row["inviter"] : null,
     extra: extraOf(row, INVITATION_KEYS),
   };
 }

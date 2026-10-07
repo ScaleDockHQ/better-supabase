@@ -96,6 +96,49 @@ export interface CallState {
 
 export const CALL: unique symbol = Symbol("better-supabase.call");
 
+const supportLookups = new WeakMap<
+  object,
+  Promise<ActiveSupport | undefined>
+>();
+
+/**
+ * Starts the support lookup for a signed-in caller, so `withTenant` can run
+ * the tenant resolver while the support store answers. Other callers never
+ * have a support session, so they skip it.
+ */
+export function startSupportLookup<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+>(
+  core: ServerCore<M, F, E, C, P>,
+  request: Request,
+  session: AuthResolution<C, P>,
+): void {
+  if (session.auth.kind !== "user" || supportLookups.has(session)) return;
+  const lookup = core.support(request, session.auth);
+  // withSupport awaits and reports a failure; a pipeline without it must not leave it unhandled.
+  lookup.catch(() => undefined);
+  supportLookups.set(session, lookup);
+}
+
+/** The support session of a resolved request: the started lookup, else a new one. */
+export function supportLookup<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+>(
+  core: ServerCore<M, F, E, C, P>,
+  request: Request,
+  session: AuthResolution<C, P>,
+): Promise<ActiveSupport | undefined> {
+  return supportLookups.get(session) ?? core.support(request, session.auth);
+}
+
 /** The call state on a context seeded by `server.context()`, if any. */
 export function callOf(ctx: object): CallState | undefined {
   // SAFETY: only server.context() writes this symbol, and always a CallState.

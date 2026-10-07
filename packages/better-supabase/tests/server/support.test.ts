@@ -319,6 +319,32 @@ describe("support sessions on the server", () => {
     expect(active?.claims["act"]).toMatchObject({ read_only: true });
   });
 
+  it("loads the support session while the tenant resolver runs", async () => {
+    let tenantDone = false;
+    let supportStartedFirst = false;
+    const { server, store } = setup({
+      tenant: async () => {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 20);
+        });
+        tenantDone = true;
+        return "t1";
+      },
+    });
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+    const get = store.get.bind(store);
+    vi.spyOn(store, "get").mockImplementation((...args) => {
+      supportStartedFirst = !tenantDone;
+      return get(...args);
+    });
+    const ctx = await server.context(await request(`bs-support=${session.id}`));
+    expect(supportStartedFirst).toBe(true);
+    expect(tenantDone).toBe(true);
+    expect(ctx.support?.session.id).toBe(session.id);
+  });
+
   it("loads the session every time but reuses the target's claims", async () => {
     const { server, store } = setup();
     const claims = vi.spyOn(store, "claims");

@@ -231,6 +231,7 @@ const ConfigSchema = v.strictObject({
                 plan: v.string(),
                 feature: v.string(),
                 included: v.optional(v.string()),
+                value: v.optional(v.string()),
               }),
             }),
           }),

@@ -100,10 +100,10 @@ lists the steps to move to pg-delta.
 | `support-sessions` | Support sessions: `start_support_session(target, reason)` checks `is_platform`, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                                                                                               |
 | `organizations`    | `create_organization(attrs)`, member roles, ownership transfer, `switch_organization(organization)` and an owner check on commit. See [Organizations](/docs/blocks/organizations)                                                                                                                 |
 | `profiles`         | A profile per user from sign-up metadata, with a unique username, an email mirror, column grants and service-owned columns. See [Profiles](/docs/blocks/profiles)                                                                                                                                 |
-| `outbox`           | `emit_event(type, payload)` in the writing transaction, named consumers with their own cursor, `track_events(table)` and a relay to any `EventSink`. Other modules emit to it once it's installed. See [Outbox](/docs/blocks/outbox)                                                              |
+| `outbox`           | `emit_event(type, payload)` in the writing transaction, named consumers with their own cursor, backoff and dead letters, `track_events(table)` and a relay to any `EventSink`. Other modules emit to it once it's installed. See [Outbox](/docs/blocks/outbox)                                    |
 | `notifications`    | `notify(jsonb)` as a `security definer` sender, per-recipient read, dismissed and resolved state, subject subscriptions, channel preferences, email and push deliveries, and a private realtime topic. See [Notifications](/docs/blocks/notifications)                                            |
 | `webhooks-out`     | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/blocks/webhooks-out)                                  |
-| `webhooks-in`      | Per-tenant trigger URLs with hashed tokens, optional Standard Webhooks or HMAC verification, a body limit, receive counters and a rate limit; deliveries go to the webhook inbox. See [Incoming webhooks](/docs/blocks/webhooks-in)                                                               |
+| `webhooks-in`      | Per-tenant trigger URLs with hashed tokens, optional Standard Webhooks or HMAC verification with secrets in Vault, a body limit, receive counters and a rate limit; deliveries go to the webhook inbox. See [Incoming webhooks](/docs/blocks/webhooks-in)                                         |
 | `api-keys`         | `api_keys` with only the SHA-256 of each secret, `create_api_key`, `rotate_api_key`, `revoke_api_key`, `verify_api_key(public_id, secret_hash)` for the server and `has_scope(scope)` for policies. See [API keys](/docs/blocks/api-keys)                                                         |
 | `settings`         | Per-user and per-organization settings with defaults, `get_user_settings()`, `set_organization_setting(tenant, key, value)` and the reset functions. See [Settings](/docs/blocks/settings)                                                                                                        |
 | `usage`            | Usage counters per tenant, meter and period, `record_usage` with idempotency keys, quotas per tenant or plan, and `within_quota(tenant, meter)` and `consume_quota` for RLS and RPCs. See [Usage and quotas](/docs/blocks/usage)                                                                  |
@@ -163,7 +163,7 @@ hosted Supabase runs Postgres 18
 ([supabase/postgres#2051](https://github.com/supabase/postgres/pull/2051)).
 
 Errors raised by the modules carry a stable code in the `hint` field, for example
-`SLUG_RESERVED`, `SLUG_INVALID`, `INVITATION_INVALID`,
+`SLUG_RESERVED`, `SLUG_INVALID`, `INVITATION_INVALID`, `INVITATION_EXPIRED`,
 `INVITATION_ROLE_FORBIDDEN` or `INVITATION_EMAIL_UNCONFIRMED`. They come back as
 typed `DbError`s through the repository.
 
@@ -358,6 +358,31 @@ select better_supabase.audit_event(
 );
 ```
 
+An app's own `security definer` function that acts for a client, such as a
+role editor saving permissions, runs as its owner but still carries the
+client's JWT, so `audit_event` would replace its actor context with the
+client's. Such a function calls `better_supabase.audit_event_trusted`
+instead: it takes the same arguments and honours `actor_id`, `actor_kind`,
+`actor_label`, `scope` and the request details from its caller, with
+`actor_id` defaulting to `auth.uid()`. Only its owner, the service role and
+the roles in `trustedRoles` may execute it, so a client can't call it to
+forge an actor, and the module writes no Data API entry point for it:
+
+```sql
+create function public.save_role_permissions(role_id uuid, keys text[])
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  -- write the permissions, then:
+  perform better_supabase.audit_event_trusted(
+    event_type => 'role.permissions_saved',
+    record_id => role_id::text,
+    actor_kind => case when better_supabase.is_platform('roles.manage') then 'support' else 'user' end,
+    scope => 'platform'
+  );
+end;
+$$;
+```
+
 The module options (`sql.modules.audit.options`):
 
 | Option               | Default                  | What it does                                                                                                                                                                                                                                                                                        |
@@ -368,6 +393,7 @@ The module options (`sql.modules.audit.options`):
 | `impersonators`      | `show`                   | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                                                                                                                         |
 | `restricted`         | `false`                  | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023`                                                                                           |
 | `eventRoles`         | `['service_role']`       | the roles that can call `audit_event`                                                                                                                                                                                                                                                               |
+| `trustedRoles`       | `[]`                     | roles besides the owner and `service_role` that can call `audit_event_trusted`, such as the owner role of your definer functions when it isn't the module's owner                                                                                                                                   |
 | `eventCategory`      | `system`                 | the category of an `audit_event` call without one                                                                                                                                                                                                                                                   |
 | `eventSource`        | `app`                    | the source of an `audit_event` call without one                                                                                                                                                                                                                                                     |
 | `exempt`             | `[]`                     | `schema.table` globs (`public.*_archive`) that [doctor BS315](/docs/cli/doctor#bs315) doesn't expect an audit trigger on                                                                                                                                                                            |

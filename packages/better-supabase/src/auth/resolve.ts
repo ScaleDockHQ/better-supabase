@@ -215,25 +215,33 @@ type VerifiedUser = Omit<
 
 const MEMO_SIZE = 256;
 const memoByUrl = new Map<string, Map<string, VerifiedUser>>();
-let memoByJwks = new WeakMap<object, Map<string, VerifiedUser>>();
+let memoByJwks = new WeakMap<object, Map<string, Map<string, VerifiedUser>>>();
 
 /**
  * Tokens that already verified, until they expire. Every private-cache scope
  * and island resolves the same token again; this skips the signature check.
+ * A hit skips the audience and issuer checks too, so both are part of the key.
  */
 function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
   const jwks = options.jwks ?? options.env.jwks;
-  if (jwks && typeof jwks === "object" && !(jwks instanceof URL)) {
-    let memo = memoByJwks.get(jwks);
-    if (!memo) memoByJwks.set(jwks, (memo = new Map<string, VerifiedUser>()));
-    return memo;
-  }
+  const inline = jwks && typeof jwks === "object" && !(jwks instanceof URL);
   const key = JSON.stringify([
-    String(jwks ?? options.env.jwksUrl),
+    inline ? null : String(jwks ?? options.env.jwksUrl),
     options.env.url,
     options.audience ?? null,
     options.issuer ?? null,
   ]);
+  if (inline) {
+    let byKey = memoByJwks.get(jwks);
+    if (!byKey)
+      memoByJwks.set(
+        jwks,
+        (byKey = new Map<string, Map<string, VerifiedUser>>()),
+      );
+    let memo = byKey.get(key);
+    if (!memo) byKey.set(key, (memo = new Map<string, VerifiedUser>()));
+    return memo;
+  }
   let memo = memoByUrl.get(key);
   if (!memo) memoByUrl.set(key, (memo = new Map<string, VerifiedUser>()));
   return memo;

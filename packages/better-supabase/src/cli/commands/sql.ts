@@ -35,7 +35,7 @@ import {
 } from "../../sql/index.ts";
 import { defineCliCommand } from "../command.ts";
 import { fileDiff } from "../diff.ts";
-import { display, writeIfChanged } from "../io.ts";
+import { display, sameText, writeIfChanged } from "../io.ts";
 import {
   accessPermdockMode,
   entitlementsMode,
@@ -823,7 +823,7 @@ export async function runSql(
         ).catch(() => undefined);
         if (
           file.topics
-            ? current !== file.contents
+            ? !sameText(current, file.contents)
             : !sameModuleFile(current, file.contents)
         ) {
           const shown = display(config.root, file.path);

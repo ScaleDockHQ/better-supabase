@@ -140,11 +140,11 @@ const catalog = (present: { buckets?: boolean } = {}) =>
       ],
     ],
     [
-      "from information_schema.role_table_grants",
+      "aclexplode(coalesce(c.relacl",
       [{ table_id: 10, role: "authenticated", privileges: ["SELECT"] }],
     ],
     [
-      "cross join lateral aclexplode",
+      "aclexplode(a.attacl)",
       [
         {
           table_id: 10,

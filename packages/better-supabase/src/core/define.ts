@@ -26,7 +26,12 @@ import {
   type ErrorMapper,
   dbError,
 } from "./errors.ts";
-import { type EventHandler, EventHub, type EventName } from "./events.ts";
+import {
+  errorEvent,
+  type EventHandler,
+  EventHub,
+  type EventName,
+} from "./events.ts";
 import {
   type AnyPlugin,
   type ExtensionOf,
@@ -55,7 +60,7 @@ import {
   type ThrowMapper,
   withErrorMapper,
 } from "./result.ts";
-import { decodeRpcResult } from "./rpc-result.ts";
+import { decodeRpcResult, rpcFunction } from "./rpc-result.ts";
 import { type SearchInput, vectorLiteral } from "./search.ts";
 import {
   createSpecs,
@@ -590,7 +595,7 @@ export class BetterSupabase<
         relations: {},
         flags: {},
       };
-      const scored = await executor.execute(
+      const scored = await runner.runInternal(
         {
           kind: "select",
           table: scoresTable,
@@ -608,9 +613,10 @@ export class BetterSupabase<
             args: fnArgs,
           },
         },
-        { errorMappers, ...(args.signal ? { signal: args.signal } : {}) },
+        table,
+        args.signal,
       );
-      if (!scored.ok) return err(hint({ ...scored.error, table: table.key }));
+      if (!scored.ok) return err(hint(scored.error));
       const ranked = scored.data.rows.flatMap((row) =>
         row["score"] === undefined || row["score"] === null
           ? []
@@ -656,8 +662,8 @@ export class BetterSupabase<
       $executor: executor,
       $context: context,
       $rpc: (name: string, ...rest: unknown[]) =>
-        rpc(this.schema.meta, executor, errorMappers, tuning, name, rest).map(
-          (data) => {
+        rpc(this.schema.meta, executor, errorMappers, tuning, name, rest)
+          .map((data) => {
             const registered = this.options.rpc?.[name];
             if (registered) {
               this.events.emit("rpc", {
@@ -667,8 +673,11 @@ export class BetterSupabase<
               });
             }
             return data;
-          },
-        ),
+          })
+          .mapError((error) => {
+            if (events.has("error")) events.emit("error", errorEvent(error));
+            return error;
+          }),
       $with: (extra: RequestContext) =>
         this.#db(
           client,
@@ -864,8 +873,9 @@ export class BetterSupabase<
           );
         }
         const keys = Object.keys(set.specs);
-        const bound = bindParams(set, values ?? {});
+        const { specs: bound, noCaller } = bindParams(set, values, context);
         if (base.batch || !executor.rpc) {
+          if (noCaller) return err(noCaller);
           const result = await many(
             keys.map((key) => bound[key]),
             signal,
@@ -1151,13 +1161,13 @@ function rpc(
     if (invalid) return err(dbError("invalid_request", invalid));
     const limit = deadline(options?.signal, tuning.timeout);
     const schema = options?.schema ?? "public";
-    const fn = meta.functions[name];
+    const fn = rpcFunction(meta, name, schema, args ?? {});
     const context = {
       schema,
       errorMappers,
       ...(limit.signal ? { signal: limit.signal } : {}),
       ...(tuning.retry === undefined ? {} : { retry: tuning.retry }),
-      ...(fn?.schema === schema ? { function: fn } : {}),
+      ...(fn ? { function: fn } : {}),
     };
     let result: Result<unknown>;
     try {
@@ -1173,7 +1183,7 @@ function rpc(
     let data = result.data;
     if (options?.raw !== true) {
       try {
-        data = decodeRpcResult(meta, name, context.schema, data);
+        data = decodeRpcResult(meta, fn, data);
       } catch (cause) {
         if (cause instanceof DbException) return err(cause.error);
         throw cause;

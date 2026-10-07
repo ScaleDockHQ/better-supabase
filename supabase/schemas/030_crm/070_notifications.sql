@@ -12,7 +12,7 @@ create table public.notifications (
 );
 
 create index notifications_organization_id_idx on public.notifications (organization_id);
-create index notifications_user_id_idx on public.notifications (user_id);
+create index notifications_user_id_created_at_idx on public.notifications (user_id, created_at desc);
 create index notifications_unread_idx on public.notifications (user_id, created_at desc)
   where read_at is null;
 

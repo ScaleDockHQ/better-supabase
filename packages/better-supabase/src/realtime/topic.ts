@@ -141,17 +141,53 @@ export type RealtimeClient = Pick<
   "channel" | "getChannels" | "removeChannel" | "realtime"
 >;
 
+/**
+ * A value read from another table: the `select` column of the `from` row
+ * whose `key` (its primary key by default) equals `via`, a column of the
+ * changed row or another lookup.
+ */
+export interface TriggerLookup<M extends AnyModels> {
+  readonly from: TableKey<M>;
+  readonly via: string | TriggerLookup<M>;
+  readonly select: string;
+  readonly key?: string;
+}
+
+/** A trigger value: a column of the changed row, or a lookup through it. */
+export type TriggerValue<M extends AnyModels, T extends keyof M> =
+  | Extract<keyof Row<M, T>, string>
+  | TriggerLookup<M>;
+
+type TriggerOperation = "insert" | "update" | "delete";
+
 export interface TriggerOptions<
   M extends AnyModels,
   T extends keyof M,
   P extends string,
 > {
-  /** Column that fills each placeholder. */
+  /**
+   * What fills each placeholder: a column of the changed row, or a lookup
+   * (`{ from, via, select }`) for a value on a parent row. A row whose
+   * topic comes out null is not sent.
+   */
   readonly values: {
-    readonly [K in TemplateParams<P>]: Extract<keyof Row<M, T>, string>;
+    readonly [K in TemplateParams<P>]: TriggerValue<M, T>;
   };
   /** Defaults to all three. */
-  readonly events?: readonly ("insert" | "update" | "delete")[];
+  readonly events?: readonly TriggerOperation[];
+  /**
+   * The broadcast event name, or one per operation. Defaults to the
+   * operation (`INSERT`, `UPDATE`, `DELETE`).
+   */
+  readonly event?: string | { readonly [O in TriggerOperation]?: string };
+  /**
+   * Send this payload with `realtime.send` instead of the row change from
+   * `realtime.broadcast_changes`: each key is a column, a lookup, or
+   * `{ sql }`, an expression on the row `{row}` (`tg_op` is the operation).
+   */
+  readonly payload?: Readonly<
+    Record<string, TriggerValue<M, T> | { readonly sql: string }>
+  >;
   /**
    * Schema for the generated function. Defaults to `better_supabase`, which
    * the Data API does not expose.
@@ -389,6 +425,67 @@ function sendError(status: number, message: string): DbError {
   return dbError("invalid_request", message, { status });
 }
 
+type AnyTriggerValue =
+  | string
+  | {
+      readonly from: string;
+      readonly via: AnyTriggerValue;
+      readonly select: string;
+      readonly key?: string;
+    };
+
+function columnSql(meta: TableMeta, column: string, where: string): string {
+  const db = meta.columns[column]?.db;
+  if (!db)
+    throw new TypeError(
+      `defineTopic: no column for ${where} on "${meta.key}" ("${column}")`,
+    );
+  return sqlIdent(db);
+}
+
+/** A trigger value as SQL on `rec`, with one subquery per lookup. */
+function triggerValueSql(
+  tables: Readonly<Record<string, TableMeta | undefined>>,
+  meta: TableMeta,
+  value: AnyTriggerValue,
+  where: string,
+  depth = 0,
+): string {
+  if (typeof value === "string") return `rec.${columnSql(meta, value, where)}`;
+  const joined = tables[value.from];
+  if (!joined)
+    throw new TypeError(
+      `defineTopic: unknown table "${value.from}" for ${where}`,
+    );
+  const key =
+    value.key ??
+    (joined.primaryKey.length === 1 ? joined.primaryKey[0] : undefined);
+  if (key === undefined)
+    throw new TypeError(
+      `defineTopic: "${value.from}" has no single-column primary key; name its key for ${where}`,
+    );
+  const alias = `j${String(depth)}`;
+  const via = triggerValueSql(tables, meta, value.via, where, depth + 1);
+  return `(select ${alias}.${columnSql(joined, value.select, where)} from ${sqlIdent(joined.schema)}.${sqlIdent(joined.name)} ${alias} where ${alias}.${columnSql(joined, key, where)} = ${via} limit 1)`;
+}
+
+/** The event name: one for every operation, one per operation, or the operation. */
+function eventSql(
+  event: string | Readonly<Record<string, string | undefined>> | undefined,
+): string {
+  if (event === undefined) return "tg_op";
+  if (typeof event === "string") return sqlString(event);
+  const cases = Object.entries(event)
+    .filter((entry): entry is [string, string] => entry[1] !== undefined)
+    .map(
+      ([operation, name]) =>
+        ` when ${sqlString(operation.toUpperCase())} then ${sqlString(name)}`,
+    );
+  return cases.length === 0
+    ? "tg_op"
+    : `case tg_op${cases.join("")} else tg_op end`;
+}
+
 /**
  * A typed Realtime broadcast topic: names from a template, RLS policies for
  * private channels, row-change triggers, and disposable subscriptions.
@@ -511,23 +608,24 @@ export function defineTopic<
     triggerSql(betterSupabase, table, trigger) {
       const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
       if (!meta) throw new TypeError(`defineTopic: unknown table "${table}"`);
-      // SAFETY: trigger values name table columns by topic parameter, and
-      // templates hold strings.
-      const values = trigger.values as Readonly<Record<string, string>>;
+      // SAFETY: trigger values name table columns or lookups by topic
+      // parameter, and templates hold strings.
+      const values = trigger.values as Readonly<
+        Record<string, AnyTriggerValue | undefined>
+      >;
+      const tables = betterSupabase.meta.tables;
       const parts = template
         .split(/(\{[^}]+\})/)
         .filter(Boolean)
         .map((part) => {
           const param = /^\{(.+)\}$/.exec(part)?.[1];
           if (param === undefined) return sqlString(part);
-          const column = values[param];
-          const db =
-            column === undefined ? undefined : meta.columns[column]?.db;
-          if (!db)
+          const value = values[param];
+          if (value === undefined)
             throw new TypeError(
               `defineTopic: no column for {${param}} on "${table}"`,
             );
-          return `rec.${sqlIdent(db)}::text`;
+          return `${triggerValueSql(tables, meta, value, `{${param}}`)}::text`;
         });
       const schema = trigger.functionSchema ?? "better_supabase";
       const fn = `${sqlIdent(schema)}.${sqlIdent(`bs_broadcast_${name}_${slug(meta.name)}`)}`;
@@ -536,6 +634,32 @@ export function defineTopic<
       const events = (trigger.events ?? ["insert", "update", "delete"]).join(
         " or ",
       );
+      const event = eventSql(trigger.event);
+      // SAFETY: payload values are columns, lookups or `{ sql }`.
+      const payload = trigger.payload as
+        | Readonly<Record<string, AnyTriggerValue | { readonly sql: string }>>
+        | undefined;
+      const send = payload
+        ? [
+            "  perform realtime.send(",
+            `    jsonb_build_object(${Object.entries(payload)
+              .map(
+                ([key, value]) =>
+                  `${sqlString(key)}, ${
+                    typeof value === "object" && "sql" in value
+                      ? `(${value.sql.replaceAll("{row}", "rec")})`
+                      : triggerValueSql(tables, meta, value, `payload.${key}`)
+                  }`,
+              )
+              .join(", ")}),`,
+            `    ${event}, topic, ${String(isPrivate)}`,
+            "  );",
+          ]
+        : [
+            "  perform realtime.broadcast_changes(",
+            `    topic, ${event}, tg_op, tg_table_name, tg_table_schema, new, old`,
+            "  );",
+          ];
       return [
         `-- better-supabase: broadcast ${meta.name} changes to ${template}`,
         `create schema if not exists ${sqlIdent(schema)};`,
@@ -547,12 +671,14 @@ export function defineTopic<
         "as $$",
         "declare",
         "  rec record;",
+        "  topic text;",
         "begin",
         "  if tg_op = 'DELETE' then rec := old; else rec := new; end if;",
-        "  perform realtime.broadcast_changes(",
-        `    ${parts.join(" || ")},`,
-        "    tg_op, tg_op, tg_table_name, tg_table_schema, new, old",
-        "  );",
+        `  topic := ${parts.join(" || ")};`,
+        "  if topic is null then",
+        "    return null;",
+        "  end if;",
+        ...send,
         "  return null;",
         "end;",
         "$$;",
