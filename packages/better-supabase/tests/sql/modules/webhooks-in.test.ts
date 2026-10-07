@@ -62,12 +62,12 @@ describe("webhooks-in module", () => {
         (entry) => entry.module === "webhooks-in",
       ),
     ).toEqual([
-      {
+      ...["create", "update", "delete"].map((action) => ({
         module: "webhooks-in",
-        action: "manage",
+        action,
         key: "webhooks.manage",
         scope: "tenant",
-      },
+      })),
       {
         module: "webhooks-in",
         action: "view",
@@ -75,5 +75,38 @@ describe("webhooks-in module", () => {
         scope: "tenant",
       },
     ]);
+  });
+
+  it("checks create, update and delete keys, with manage as their shorthand", () => {
+    const keys = (permissions: Record<string, string>) =>
+      modulePermissionKeys({ "webhooks-in": { permissions } }, ["webhooks-in"])
+        .filter((entry) => entry.module === "webhooks-in")
+        .map((entry) => [entry.action, entry.key]);
+    expect(keys({ manage: "hooks.admin", delete: "hooks.delete" })).toEqual([
+      ["create", "hooks.admin"],
+      ["update", "hooks.admin"],
+      ["delete", "hooks.delete"],
+      ["view", "webhooks.read"],
+    ]);
+    const sql = moduleBody("webhooks-in", {
+      modules: {
+        "webhooks-in": {
+          permissions: {
+            create: "hooks.create",
+            update: "hooks.update",
+            delete: "hooks.delete",
+          },
+        },
+      },
+    })!;
+    const fn = (name: string) =>
+      sql
+        .slice(sql.indexOf(`function "better_supabase"."${name}"(`))
+        .split("\n$$;")[0]!;
+    expect(fn("create_incoming_webhook")).toContain("'hooks.create'");
+    expect(fn("rotate_incoming_webhook")).toContain("'hooks.update'");
+    expect(fn("set_incoming_webhook_enabled")).toContain("'hooks.update'");
+    expect(fn("delete_incoming_webhook")).toContain("'hooks.delete'");
+    expect(sql).not.toContain("'webhooks.manage'");
   });
 });

@@ -24,6 +24,7 @@ import {
   hasPlatformRoles,
   MODULE_PERMISSION_SCOPES,
   MODULE_PERMISSIONS,
+  modulePermissionKey,
 } from "./modules/access-model.ts";
 import { ACCESS } from "./modules/access.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
@@ -3240,7 +3241,7 @@ export function modulePermissionKeys(
                 {
                   module: name,
                   action,
-                  key: ctx.permissionKey(action, fallback),
+                  key: modulePermissionKey(ctx, action, fallback),
                   scope: scopes[action]!,
                 },
               ],

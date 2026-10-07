@@ -10,7 +10,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { MODULE_PERMISSIONS, modulePermissionKey } from "./access-model.ts";
 
 /** How a delivery to an endpoint proves it came from the sender. */
 const INCOMING_VERIFY = ["none", "standard-webhooks", "hmac-sha256"] as const;
@@ -36,7 +36,8 @@ function webhooksInSql(ctx: ModuleContext): string {
   const id = ctx.idType;
   const t = ctx.table("endpoints");
   const p = MODULE_PERMISSIONS["webhooks-in"];
-  const manage = ctx.permission("manage", p.manage);
+  const key = (action: "create" | "update" | "delete") =>
+    sqlString(modulePermissionKey(ctx, action, p[action]));
   const view = ctx.permission("view", p.view);
   const verify = INCOMING_VERIFY.map((mode) => `'${mode}'`).join(", ");
   const maxBody = ctx.number("maxBodyBytes", 1_048_576);
@@ -65,8 +66,8 @@ create trigger ${cleanupTrigger} after delete on ${t}
   for each row when (old.secret_id is not null) execute function ${ctx.fn("drop_incoming_webhook_secret")}();`
     : `
 drop trigger if exists ${cleanupTrigger} on ${t};`;
-  const can = (tenant: string) =>
-    `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${manage}), false))`;
+  const can = (tenant: string, action: "create" | "update" | "delete") =>
+    `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${key(action)}), false))`;
   const subjects = subjectsOption(ctx);
   const readable = subjectReadable(subjects, {
     type: "subject_type",
@@ -216,7 +217,7 @@ declare
   end;
   created ${t};
 begin
-  if not ${can("tenant")} then
+  if not ${can("tenant", "create")} then
     ${fail("WEBHOOK_IN_FORBIDDEN", "Not allowed to manage incoming webhooks")}
   end if;
   if (subject_type is null) <> (subject_id is null) then
@@ -251,7 +252,7 @@ declare
   previous ${t};
 begin
   select * into previous from ${t} e where e.id = endpoint for update;
-  if previous.id is null or not ${can("previous.tenant")} then
+  if previous.id is null or not ${can("previous.tenant", "update")} then
     raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
   end if;
   if rotate_secret then
@@ -287,7 +288,7 @@ declare
   tenant ${id};
 begin
   select e.tenant into tenant from ${t} e where e.id = endpoint;
-  if tenant is null or not ${can("tenant")} then
+  if tenant is null or not ${can("tenant", "update")} then
     return false;
   end if;
   update ${t} e set enabled = set_incoming_webhook_enabled.enabled where e.id = endpoint;
@@ -306,7 +307,7 @@ declare
   tenant ${id};
 begin
   select e.tenant into tenant from ${t} e where e.id = endpoint;
-  if tenant is null or not ${can("tenant")} then
+  if tenant is null or not ${can("tenant", "delete")} then
     return false;
   end if;
   delete from ${t} e where e.id = endpoint;

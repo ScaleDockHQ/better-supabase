@@ -16,8 +16,7 @@ better-supabase sql add webhooks-in   # adds access, tenant and webhook-inbox
 
 ## Endpoints
 
-A member with `webhooks.manage` (`sql.modules.webhooks-in.permissions.manage`)
-creates an endpoint for their tenant. The token, which goes in the URL, and
+A member with `webhooks.manage` (see Permissions below) creates an endpoint for their tenant. The token, which goes in the URL, and
 the signing secret are returned once. Only the token's hash is stored, and
 the secret is a [Vault](https://supabase.com/docs/guides/database/vault)
 secret that only the receiving route decrypts. Set
@@ -48,6 +47,26 @@ await hooks.remove(endpoint.id);
 | `none` (default)    | only the token in the URL                                                                                       |
 | `standard-webhooks` | a [Standard Webhooks](/docs/standards) signature with the endpoint's `whsec_` secret                            |
 | `hmac-sha256`       | the hex HMAC-SHA256 of the body, optionally prefixed `sha256=`, in `signatureHeader` (`x-signature` by default) |
+
+### Permissions
+
+Creating, changing and deleting an endpoint check three keys, each
+`webhooks.manage` by default. `permissions.manage` sets all three at once,
+and `create`, `update` or `delete` override one of them, so an app can let
+members add endpoints while only admins remove them:
+
+```ts title="better-supabase.config.ts"
+"webhooks-in": {
+  permissions: { manage: "integrations.manage", delete: "integrations.delete" },
+},
+```
+
+| Action   | Checked by                                                     |
+| -------- | -------------------------------------------------------------- |
+| `create` | `create_incoming_webhook`                                      |
+| `update` | `rotate_incoming_webhook` and `set_incoming_webhook_enabled`   |
+| `delete` | `delete_incoming_webhook`                                      |
+| `view`   | the read policy and `list_incoming_webhooks` (`webhooks.read`) |
 
 Members with `webhooks.read` read their tenant's endpoints, including
 `receive_count`, `last_received_at` and `last_status`. `hooks.list(tenant)`
