@@ -419,9 +419,63 @@ function platformOverride(
     : `\n    and not coalesce(better_supabase.is_platform(${sqlString(key)}), false)`;
 }
 
+type DeleteMode = "hard" | "soft" | "lifecycle" | "none";
+
+/** `sql.modules.organizations.options.deleteMode`. */
+function deleteMode(ctx: ModuleContext): DeleteMode {
+  const mode = ctx.text("deleteMode", "hard");
+  if (
+    mode !== "hard" &&
+    mode !== "soft" &&
+    mode !== "lifecycle" &&
+    mode !== "none"
+  ) {
+    throw new TypeError(
+      `sql.modules.organizations.options.deleteMode must be "hard", "soft", "lifecycle" or "none", not "${mode}"`,
+    );
+  }
+  if (mode === "lifecycle" && !ctx.installed("data-lifecycle")) {
+    throw new TypeError(
+      'sql.modules.organizations.options.deleteMode "lifecycle" schedules the deletion with request_organization_deletion, so it needs the data-lifecycle module in sql.modules',
+    );
+  }
+  return mode;
+}
+
+/** `delete_organization(organization)`: requests the purge through data-lifecycle. */
+function requestDeletion(ctx: ModuleContext): string {
+  return `
+-- Deletes an organization through data-lifecycle (modules.organizations.options.deleteMode
+-- "lifecycle"): schedules the purge after the grace period and disables it.
+create or replace function ${ctx.fn("delete_organization")}(organization ${ctx.idType})
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", MODULE_PERMISSIONS.organizations.delete)}), false)${platformOverride(ctx, "deletePlatform")} then
+    raise exception 'Not allowed to delete the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  perform ${ctx.of("data-lifecycle").fn("request_organization_deletion")}(organization);
+  return true;
+end;
+$$;
+`;
+}
+
 function remove(ctx: ModuleContext, n: OrganizationNames): string {
   const id = ctx.idType;
-  const soft = ctx.text("deleteMode", "hard") === "soft";
+  const mode = deleteMode(ctx);
+  if (mode === "none") {
+    return `
+-- modules.organizations.options.deleteMode is "none": no delete function.
+drop function if exists ${ctx.fn("delete_organization")}(${id});
+`;
+  }
+  if (mode === "lifecycle") return requestDeletion(ctx);
+  const soft = mode === "soft";
   if (soft && !ctx.has("organizations", "deletedAt")) {
     throw new TypeError(
       "sql.modules.organizations.options.deleteMode 'soft' needs the deletedAt column",
@@ -855,9 +909,18 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["switch_organization", id],
 ];
 
+/** The module's functions, without delete_organization under deleteMode "none". */
+const functionsOf = (
+  ctx: ModuleContext,
+  id: string,
+): readonly (readonly [string, string])[] =>
+  FUNCTIONS(id).filter(
+    ([name]) => name !== "delete_organization" || deleteMode(ctx) !== "none",
+  );
+
 function organizationsSql(ctx: ModuleContext): string {
   const n = namesOf(ctx);
-  const grants = FUNCTIONS(ctx.idType)
+  const grants = functionsOf(ctx, ctx.idType)
     .map(
       ([
         name,
@@ -880,8 +943,8 @@ export const ORGANIZATIONS: ModuleDefinition = {
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   names: NAMES,
-  contract: () =>
-    FUNCTIONS("{id}").map(([name, args]) => ({
+  contract: (ctx) =>
+    functionsOf(ctx, "{id}").map(([name, args]) => ({
       name,
       args: args.split(", "),
       returns:

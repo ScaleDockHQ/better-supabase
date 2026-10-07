@@ -251,4 +251,45 @@ describe.skipIf(!live)("organizations member guards", () => {
       await s.close();
     }
   });
+
+  it("deletes through data-lifecycle, or not at all, with deleteMode", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "data-lifecycle"], {
+        modules: { organizations: { options: { deleteMode: "lifecycle" } } },
+      });
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      await s.as(owner);
+      expect(
+        await s.value("better_supabase.delete_organization($1)", [
+          organization,
+        ]),
+      ).toBe(true);
+      await s.service();
+      expect(
+        await s.value<{ purge_after: string } | null>(
+          "better_supabase.organization_deletion($1)",
+          [organization],
+        ),
+      ).toMatchObject({ purge_after: expect.any(String) });
+      expect(
+        await s.value(
+          "(select count(*)::int from better_supabase.organizations where id = $1)",
+          [organization],
+        ),
+      ).toBe(1);
+
+      await s.install(["organizations"], {
+        modules: { organizations: { options: { deleteMode: "none" } } },
+      });
+      expect(
+        await s.value(
+          "to_regprocedure('better_supabase.delete_organization(uuid)') is null",
+        ),
+      ).toBe(true);
+    } finally {
+      await s.close();
+    }
+  });
 });

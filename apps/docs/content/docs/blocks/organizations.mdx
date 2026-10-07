@@ -22,23 +22,23 @@ functions.
 
 ## Functions
 
-| Function                                                                     | What it does                                                                                          |
-| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `create_organization(attrs)`                                                 | creates the organization from `name`, `slug` and the `attributes` columns, and makes the caller owner |
-| `update_organization(organization, attrs)`                                   | updates the columns present in `attrs` (`update`)                                                     |
-| `delete_organization(organization)`                                          | deletes it, or sets `deleted_at` with `deleteMode: 'soft'` (`delete`)                                 |
-| `organization_slug_problem(value, except_organization)`                      | `invalid`, `reserved`, `taken` or null, for form validation                                           |
-| `update_member_role(organization, member, role)`                             | changes a member's role, up to the caller's own (`updateRole`)                                        |
-| `remove_member(organization, member)` and `leave_organization(organization)` | removes a member (`removeMember`), or the caller                                                      |
-| `transfer_ownership(organization, new_owner, former_role)`                   | makes another member owner and gives the caller `former_role` (`transferOwnership`)                   |
-| `switch_organization(organization)`                                          | makes it the caller's active organization (see [Switching](#switching-organizations))                 |
-| `mark_used(organization)`                                                    | sets `last_used_at` on the caller's membership                                                        |
-| `invite_member(tenant, invitee_email, invitee_role)`                         | creates an invitation and returns it with its token (`invite`)                                        |
-| `resend_invitation(invitation_id)`                                           | issues a new token and expiry; the old token stops working                                            |
-| `revoke_invitation(invitation_id)`                                           | revokes an open invitation (`revoke`)                                                                 |
-| `invitation_preview(token)`                                                  | status, email, role and organization for the accept page; callable without a session                  |
-| `accept_invitation(token)` and `decline_invitation(token)`                   | accepts for the signed-in user, or declines                                                           |
-| `accept_invitation_by_id(id)` and `decline_invitation_by_id(id)`             | the same by invitation id, for the invitee's signed-in session (an in-app inbox)                      |
+| Function                                                                     | What it does                                                                                                                                                   |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_organization(attrs)`                                                 | creates the organization from `name`, `slug` and the `attributes` columns, and makes the caller owner                                                          |
+| `update_organization(organization, attrs)`                                   | updates the columns present in `attrs` (`update`)                                                                                                              |
+| `delete_organization(organization)`                                          | deletes it, sets `deleted_at` with `deleteMode: 'soft'`, or requests the deletion with `deleteMode: 'lifecycle'` (`delete`); missing with `deleteMode: 'none'` |
+| `organization_slug_problem(value, except_organization)`                      | `invalid`, `reserved`, `taken` or null, for form validation                                                                                                    |
+| `update_member_role(organization, member, role)`                             | changes a member's role, up to the caller's own (`updateRole`)                                                                                                 |
+| `remove_member(organization, member)` and `leave_organization(organization)` | removes a member (`removeMember`), or the caller                                                                                                               |
+| `transfer_ownership(organization, new_owner, former_role)`                   | makes another member owner and gives the caller `former_role` (`transferOwnership`)                                                                            |
+| `switch_organization(organization)`                                          | makes it the caller's active organization (see [Switching](#switching-organizations))                                                                          |
+| `mark_used(organization)`                                                    | sets `last_used_at` on the caller's membership                                                                                                                 |
+| `invite_member(tenant, invitee_email, invitee_role)`                         | creates an invitation and returns it with its token (`invite`)                                                                                                 |
+| `resend_invitation(invitation_id)`                                           | issues a new token and expiry; the old token stops working                                                                                                     |
+| `revoke_invitation(invitation_id)`                                           | revokes an open invitation (`revoke`)                                                                                                                          |
+| `invitation_preview(token)`                                                  | status, email, role and organization for the accept page; callable without a session                                                                           |
+| `accept_invitation(token)` and `decline_invitation(token)`                   | accepts for the signed-in user, or declines                                                                                                                    |
+| `accept_invitation_by_id(id)` and `decline_invitation_by_id(id)`             | the same by invitation id, for the invitee's signed-in session (an in-app inbox)                                                                               |
 
 The name in parentheses is the block action whose permission the function
 checks. `create_invitation(organization, email, role)` from 0.4 still works and
@@ -175,19 +175,19 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 
 `sql.modules.organizations.options`:
 
-| Option            | Default                             | What it does                                                                                                 |
-| ----------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `attributes`      | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default |
-| `ownerRole`       | `owner`                             | the creator's role                                                                                           |
-| `formerOwnerRole` | `admin`                             | the previous owner's role after a transfer                                                                   |
-| `deleteMode`      | `hard`                              | `soft` sets `deleted_at` and keeps the memberships                                                           |
-| `ownerInvariant`  | `true`                              | an organization always keeps an owner                                                                        |
-| `assignmentGuard` | `module`                            | `external` leaves role checks on an adopted memberships table to another trigger                             |
-| `slugPattern`     | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                                              |
-| `slugMinLength`   | `2`                                 | the shortest slug                                                                                            |
-| `slugMaxLength`   | `48`                                | the longest slug                                                                                             |
-| `reservedSlugs`   | `[]`                                | slugs nobody can take, checked with the `reserved-slugs` table when that module is installed                 |
-| `slugCitext`      | `false`                             | a `citext` slug column on a managed table                                                                    |
+| Option            | Default                             | What it does                                                                                                                                                                                                                                                          |
+| ----------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `attributes`      | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default                                                                                                                                                          |
+| `ownerRole`       | `owner`                             | the creator's role                                                                                                                                                                                                                                                    |
+| `formerOwnerRole` | `admin`                             | the previous owner's role after a transfer                                                                                                                                                                                                                            |
+| `deleteMode`      | `hard`                              | `soft` sets `deleted_at` and keeps the memberships; `lifecycle` schedules the deletion with the data-lifecycle module's `request_organization_deletion` (grace period, then the purge job); `none` writes no `delete_organization`, so no entry point deletes at once |
+| `ownerInvariant`  | `true`                              | an organization always keeps an owner                                                                                                                                                                                                                                 |
+| `assignmentGuard` | `module`                            | `external` leaves role checks on an adopted memberships table to another trigger                                                                                                                                                                                      |
+| `slugPattern`     | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                                                                                                                                                                                                       |
+| `slugMinLength`   | `2`                                 | the shortest slug                                                                                                                                                                                                                                                     |
+| `slugMaxLength`   | `48`                                | the longest slug                                                                                                                                                                                                                                                      |
+| `reservedSlugs`   | `[]`                                | slugs nobody can take, checked with the `reserved-slugs` table when that module is installed                                                                                                                                                                          |
+| `slugCitext`      | `false`                             | a `citext` slug column on a managed table                                                                                                                                                                                                                             |
 
 `permissions.create` makes creating an organization a platform permission,
 checked with `is_platform()`. Without it every signed-in user can create one.

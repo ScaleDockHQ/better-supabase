@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
-import { moduleBody, resolveModules } from "../../../src/sql/registry.ts";
+import {
+  moduleBody,
+  renderModules,
+  resolveModules,
+} from "../../../src/sql/registry.ts";
 
 const CENTRAKIT: ModulesConfig = {
   access: { model: "catalog", platformClaim: "system_permissions" },
@@ -37,6 +41,30 @@ const body = (modules: ModulesConfig) =>
   moduleBody("organizations", { modules })!;
 
 describe("organizations module", () => {
+  it("deletes through data-lifecycle or not at all with deleteMode", () => {
+    const lifecycle = renderModules(["organizations", "data-lifecycle"], {
+      modules: { organizations: { options: { deleteMode: "lifecycle" } } },
+    }).find(
+      (file) => file.module === "organizations" && file.kind === "schema",
+    )!.contents;
+    expect(lifecycle).toContain(
+      'perform "better_supabase"."request_organization_deletion"(organization);',
+    );
+    const none = body({ organizations: { options: { deleteMode: "none" } } });
+    expect(none).toContain(
+      'drop function if exists "better_supabase"."delete_organization"(uuid);',
+    );
+    expect(none).not.toContain(
+      'create or replace function "better_supabase"."delete_organization"',
+    );
+    expect(() =>
+      body({ organizations: { options: { deleteMode: "lifecycle" } } }),
+    ).toThrow(/needs the data-lifecycle module/);
+    expect(() =>
+      body({ organizations: { options: { deleteMode: "archive" } } }),
+    ).toThrow(/must be "hard", "soft", "lifecycle" or "none"/);
+  });
+
   it("transfers ownership in one update and refuses a disabled new owner", () => {
     const sql = body({});
     expect(sql).toContain(
