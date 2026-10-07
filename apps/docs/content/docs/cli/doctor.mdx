@@ -766,6 +766,19 @@ get no RLS. Run `better-supabase sql sync`, then `better-supabase sql data`:
 the module's data file repeats its event triggers, so the data migration
 creates them. Run the declarative sync without `-s` from then on.
 
+### BS324
+
+**Error: shared roles table without a role condition.** Under the
+`permdock` model, the tenant module's `roleThrough` and the invitations
+module's `platformRoles.through` name the same roles table, and one of them
+has no `where`. That side then resolves a role id or key of the other kind:
+an organization invitation, its accept or `update_member_role` can grant a
+platform role, or a platform invitation a tenant role. `better-supabase sql
+sync` refuses the config. Set `where` on both, a condition on the roles row
+`{row}` such as `{row}.scope = 'organization'` and `{row}.scope = 'system'`.
+A `roleThrough` read from PermDock's manifest has no `where`, so set
+`sql.modules.tenant.options.roleThrough` in the config.
+
 ## Auth config
 
 ### BS401

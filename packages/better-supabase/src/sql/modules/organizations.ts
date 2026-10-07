@@ -128,18 +128,24 @@ export function tenantRoleScope(
 /**
  * A role argument as the membership role column stores it: the name for the
  * roles model, the catalog role id (looked up by id or key) for `catalog`.
- * With `tenant`, a key resolves among that tenant's roles.
+ * With `tenant`, a key resolves among that tenant's roles. A `roleThrough`
+ * lookup keeps to the rows its `where` accepts unless `tenantRoles` is false.
  */
 export function roleValue(
   ctx: ModuleContext,
   expr: string,
   tenant?: string,
+  tenantRoles = true,
 ): string {
   const scope = tenantRoleScope(ctx, tenant);
   const through = roleThrough(ctx.of("tenant"));
   if (through) {
     const text = `(${expr})::text`;
-    return `(select r.${through.id} from ${through.table} r where (r.${through.id}::text = ${text} or r.${through.column}::text = ${text})${scope.where} order by (r.${through.id}::text = ${text}) desc${scope.order} limit 1)`;
+    const only =
+      tenantRoles && through.where
+        ? ` and (${through.where.replaceAll("{row}", "r")})`
+        : "";
+    return `(select r.${through.id} from ${through.table} r where (r.${through.id}::text = ${text} or r.${through.column}::text = ${text})${only}${scope.where} order by (r.${through.id}::text = ${text}) desc${scope.order} limit 1)`;
   }
   if (accessModel(ctx) !== "catalog") return expr;
   const access = ctx.of("access");

@@ -240,6 +240,87 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
     }
   });
 
+  it("resolves tenant roles only among the roles roleThrough.where names", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const owner = await s.user("owner");
+      const staff = await s.user("staff");
+      const member = await s.user("member");
+      const schema = await sharedSchema(s, crypto.randomUUID(), owner, staff);
+      const layout = sharedLayout(schema);
+      await s.install(["organizations", "invitations"], {
+        ...layout,
+        modules: { ...layout.modules, organizations: { schema } },
+      });
+      const supportId = await s.value<string>(
+        `(select id::text from ${schema}.roles where key = 'support')`,
+      );
+      await s.as(owner);
+      const organization = await s.value<string>(
+        `${schema}.create_organization($1)`,
+        [{ name: "Shared", slug: `shared-${owner.id.slice(0, 8)}` }],
+      );
+      for (const platformRole of ["support", supportId]) {
+        expect(
+          await s.hint(`${schema}.invite_member($1, $2, $3)`, [
+            organization,
+            member.email,
+            platformRole,
+          ]),
+        ).toBe("INVITATION_ROLE_UNKNOWN");
+      }
+      const invite = await s.value<{ id: string; token: string }>(
+        `${schema}.invite_member($1, $2, 'member')`,
+        [organization, member.email],
+      );
+      expect(
+        await s.hint(`${schema}.update_invitation($1, null, $2)`, [
+          invite.id,
+          supportId,
+        ]),
+      ).toBe("INVITATION_ROLE_UNKNOWN");
+
+      await s.client.query(
+        `update ${schema}.invitations set role_id = $2 where id = $1`,
+        [invite.id, supportId],
+      );
+      await s.as(member);
+      expect(
+        await s.hint(`${schema}.accept_invitation($1)`, [invite.token]),
+      ).toBe("INVITATION_ROLE_UNKNOWN");
+      await s.client.query(
+        `update ${schema}.invitations set role_id = (select id from ${schema}.roles where key = 'member') where id = $1`,
+        [invite.id],
+      );
+      expect(
+        await s.value(`${schema}.accept_invitation($1)`, [invite.token]),
+      ).toBe(organization);
+
+      await s.as(owner);
+      for (const platformRole of ["support", supportId]) {
+        expect(
+          await s.hint(`${schema}.update_member_role($1, $2, $3)`, [
+            organization,
+            member.id,
+            platformRole,
+          ]),
+        ).toBe("ORGANIZATION_ROLE_UNKNOWN");
+      }
+      await s.value(`${schema}.update_member_role($1, $2, 'admin')`, [
+        organization,
+        member.id,
+      ]);
+      expect(
+        await s.value<string>(
+          `(select r.key from ${schema}.team_members m join ${schema}.roles r on r.id = m.role_id where m.organization_id = $1 and m.user_id = $2)`,
+          [organization, member.id],
+        ),
+      ).toBe("admin");
+    } finally {
+      await s.close();
+    }
+  });
+
   it("resolves a role key among the tenant's own custom roles", async () => {
     const s = await BlockSession.open(pool);
     try {
@@ -261,6 +342,7 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
                 id: "id",
                 column: "key",
                 tenant: "organization_id",
+                where: "{row}.scope = 'organization'",
               },
             },
           },
@@ -399,7 +481,9 @@ function sharedLayout(schema: string): ModuleLayout {
         columns: {
           memberships: { role: "role_id", updatedAt: null, lastUsedAt: null },
         },
-        options: { roleThrough: roles },
+        options: {
+          roleThrough: { ...roles, where: "{row}.scope = 'organization'" },
+        },
       },
       invitations: {
         schema,

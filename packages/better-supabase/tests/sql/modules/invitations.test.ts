@@ -229,21 +229,21 @@ describe("platform invitations under the permdock model", () => {
   });
 
   it("resolves platform roles only among the roles through.where names", () => {
-    const shared = {
-      ...PERMDOCK,
-      tenant: {
-        mode: "adopt" as const,
-        tables: { memberships: "public.team_members" },
-        columns: { memberships: { role: "role_id" } },
-        options: {
-          roleThrough: { table: "public.roles", id: "id", column: "key" },
-        },
-      },
-    };
     const through = { table: "public.roles", id: "id", column: "key" };
-    const sql = (where?: string) =>
+    const sql = (where?: string, tenantWhere?: string) =>
       body({
-        ...shared,
+        ...PERMDOCK,
+        tenant: {
+          mode: "adopt" as const,
+          tables: { memberships: "public.team_members" },
+          columns: { memberships: { role: "role_id" } },
+          options: {
+            roleThrough:
+              tenantWhere === undefined
+                ? through
+                : { ...through, where: tenantWhere },
+          },
+        },
         invitations: {
           options: {
             platformRoles: {
@@ -253,17 +253,65 @@ describe("platform invitations under the permdock model", () => {
           },
         },
       });
-    expect(() => sql()).toThrow(/through\.where/);
-    expect(() => sql("scope = 'system'")).toThrow(
+    const tenantScope = "{row}.scope = 'organization'";
+    expect(() => sql(undefined, tenantScope)).toThrow(
+      /platformRoles\.through\.where/,
+    );
+    expect(() => sql("scope = 'system'", tenantScope)).toThrow(
       /where\?: "<condition on \{row\}>"/,
     );
-    const scoped = sql("{row}.scope = 'system'");
+    const scoped = sql("{row}.scope = 'system'", tenantScope);
     expect(scoped).toContain(
       `(select r."id" from "public"."roles" r where (r."id"::text = (invitee_role)::text or r."key"::text = (invitee_role)::text) and (r.scope = 'system') order by`,
     );
     expect(scoped).toMatch(
       /if \(select r\."id" from "public"\."roles" r where \(r\."id"::text = \(pinvite\."role"\)::text[^\n]* is null then\n\s*raise exception 'Unknown platform role %'/,
     );
+  });
+
+  it("resolves tenant roles only among the roles roleThrough.where names", () => {
+    const through = { table: "public.roles", id: "id", column: "key" };
+    const modules = (tenantWhere?: string): ModulesConfig => ({
+      ...PERMDOCK,
+      tenant: {
+        mode: "adopt" as const,
+        tables: { memberships: "public.team_members" },
+        columns: { memberships: { role: "role_id" } },
+        options: {
+          roleThrough:
+            tenantWhere === undefined
+              ? through
+              : { ...through, where: tenantWhere },
+        },
+      },
+      organizations: {},
+      invitations: {
+        options: {
+          platformRoles: {
+            ...roles,
+            through: { ...through, where: "{row}.scope = 'system'" },
+          },
+        },
+      },
+    });
+    expect(() => body(modules())).toThrow(
+      /roleThrough\.where: "public"\."roles" also holds the platform roles/,
+    );
+    expect(() => body(modules("scope = 'organization'"))).toThrow(
+      /where\?: "<condition on \{row\}>"/,
+    );
+    const scoped = modules("{row}.scope = 'organization'");
+    const tenantOnly = `or r."key"::text = (invitee_role)::text) and (r.scope = 'organization') order by`;
+    expect(body(scoped)).toContain(tenantOnly);
+    expect(body(scoped)).toMatch(
+      /if \(select r\."id" from "public"\."roles" r where \(r\."id"::text = \(invite\."role"\)::text or r\."key"::text = \(invite\."role"\)::text\) and \(r\.scope = 'organization'\)[^\n]* is null then\n\s*raise exception 'Unknown role %'/,
+    );
+    expect(moduleBody("organizations", { modules: scoped })).toContain(
+      `or r."key"::text = (role)::text) and (r.scope = 'organization')`,
+    );
+    expect(
+      body({ ...scoped, invitations: { options: { platformRoles: roles } } }),
+    ).toContain(tenantOnly);
   });
 
   it("refuses platform invitations without platformRoles and checks its shape", () => {

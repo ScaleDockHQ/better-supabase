@@ -9,7 +9,7 @@ import {
   roleScopeIs,
 } from "./access-model.ts";
 import { roleValue, tenantRoleScope } from "./organizations.ts";
-import { roleThrough } from "./tenant.ts";
+import { roleThrough, roleThroughTable } from "./tenant.ts";
 
 /**
  * The catalog role id for a key or id, in `scope`, among `tenant`'s roles
@@ -48,16 +48,25 @@ export interface PlatformAssignment {
   readonly recheck: boolean;
 }
 
+/**
+ * Why `sql.modules.invitations.options.platformRoles.through` needs `where`:
+ * its table also holds the tenant roles of
+ * `sql.modules.tenant.options.roleThrough`. `undefined` when it doesn't.
+ */
+export function platformRolesProblem(ctx: ModuleContext): string | undefined {
+  const through = permdockPlatformRoles(ctx)?.through;
+  if (!through || through.where) return undefined;
+  if (roleThroughTable(ctx.of("tenant"))?.table !== through.table)
+    return undefined;
+  return `sql.modules.invitations.options.platformRoles.through.where: ${through.table} also holds the tenant roles (sql.modules.tenant.options.roleThrough), so name the platform roles with a condition such as "{row}.scope = 'platform'"`;
+}
+
 export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
   const permdock = permdockPlatformRoles(ctx);
   if (permdock) {
     const through = permdock.through;
-    const shared = roleThrough(ctx.of("tenant"));
-    if (through && !through.where && shared?.table === through.table) {
-      throw new TypeError(
-        `sql.modules.invitations.options.platformRoles.through.where: ${through.table} also holds the tenant roles (sql.modules.tenant.options.roleThrough), so name the platform roles with a condition such as "{row}.scope = 'platform'"`,
-      );
-    }
+    const problem = platformRolesProblem(ctx);
+    if (problem) throw new TypeError(problem);
     const platformOnly = through?.where
       ? ` and (${through.where.replaceAll("{row}", "r")})`
       : "";
@@ -94,7 +103,7 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
   const access = ctx.of("access");
   return {
     value: (expr) => roleIn(ctx, expr, "platform"),
-    assign: (stored) => roleValue(ctx, stored),
+    assign: (stored) => roleValue(ctx, stored, undefined, false),
     canAssign: (member, stored) =>
       `better_supabase.platform_can_assign(${member}, ${stored}::text)`,
     inviterCanAssign: (member, stored) =>

@@ -50,8 +50,10 @@ BS307 to BS314 (custom block contracts, the tenant claim, deprecated block
 symbols, duplicate block triggers, SQL modules behind their version, exposed
 block schemas, rate limits not wired to PostgREST and migration-only block
 options), BS315 (tables without an audit trigger), BS320 (tables without
-the session policy), BS322 (audit registrations of dropped tables) and
-BS323 (module event triggers missing from the database or the migrations).
+the session policy), BS322 (audit registrations of dropped tables),
+BS323 (module event triggers missing from the database or the migrations)
+and BS324 (a roles table shared by tenant and platform roles without a
+`where` on both sides).
 
 ## SQL module objects and claims
 

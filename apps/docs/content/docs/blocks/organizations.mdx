@@ -260,7 +260,10 @@ A platform invitation's role resolves only among the roles
 `through.where` accepts (`{row}` is the roles row), so a tenant role's id or
 key is refused with `INVITATION_ROLE_UNKNOWN`, when inviting and again at
 accept. When `through.table` is also the tenant module's `roleThrough`
-table, `where` is required.
+table, `where` is required there too (`roleThrough.where`, such as
+`"{row}.scope = 'organization'"`), so organization invitations, accept and
+`update_member_role` resolve only tenant roles; see
+[membership roles stored as ids](/docs/blocks/access#membership-roles-stored-as-ids).
 
 The inviter needs `invitePlatform` through `permdock_has`. Without
 `canAssign`, that permission alone lets them invite to any platform role.

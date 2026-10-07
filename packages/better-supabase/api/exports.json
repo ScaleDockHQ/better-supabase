@@ -1756,6 +1756,7 @@
       "renderModules",
       "resolveModules",
       "sameModuleFile",
+      "sharedRolesProblems",
       "SQL_MODULES",
       "upgradePlan"
     ],

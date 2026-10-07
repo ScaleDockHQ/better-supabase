@@ -319,10 +319,23 @@ id, column, tenant: "organization_id" }`); under the catalog model, map
 the tenant's own roles and the shared ones (no tenant), the tenant's first,
 and an id of another tenant's role is unknown in this one.
 
+When the roles table also holds roles of another kind, such as the platform
+roles the invitations module's `platformRoles.through` points at, name the
+tenant roles with `where`, a condition on the roles row `{row}`
+(`roleThrough: { table, id, column, where: "{row}.scope = 'organization'" }`).
+Every lookup of a role name or id for a membership keeps to those rows,
+including SSO and waitlist joins: organization invitations,
+`update_invitation` and accept refuse any other role with
+`INVITATION_ROLE_UNKNOWN`, and `update_member_role` and ownership transfer
+with `ORGANIZATION_ROLE_UNKNOWN`. When the table is
+also `platformRoles.through`'s, `where` is required on both, and
+[doctor BS324](/docs/cli/doctor#bs324) reports the side that lacks it.
+
 Under the permdock model, `sql add` reads the setting from the manifest: when
 a membership source of the tenant scope is the adopted memberships table and
 its role column reads `through` a roles table, the tenant module uses the same
-lookup. An explicit `roleThrough` wins.
+lookup. An explicit `roleThrough` wins; set one to add `where`, which the
+manifest doesn't carry.
 
 ## Disabled tenants and users
 

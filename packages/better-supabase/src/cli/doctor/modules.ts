@@ -11,9 +11,11 @@ import {
   moduleFileVersion,
   moduleLayout,
   migrationOptionUses,
+  sharedRolesProblems,
 } from "../../sql/index.ts";
 import { configuredHooks, hookClaims, isRecord, signatureOf } from "./hooks.ts";
 import { errorText, literal } from "./live.ts";
+import { accessModule, entitlementsModule } from "./permdock.ts";
 import {
   catalogOf,
   exposedSchemas,
@@ -676,6 +678,33 @@ function migrationOptions(context: DoctorContext): FindingInput[] {
     }));
 }
 
+/** A roles table shared by tenant and platform roles without `where` on both sides. */
+function sharedRoleTables(context: DoctorContext): FindingInput[] {
+  if (context.config.sql.moduleNames.length === 0) return [];
+  const access = accessModule(context);
+  if (access.kind !== "permdock") return [];
+  let problems: ReturnType<typeof sharedRolesProblems>;
+  try {
+    problems = sharedRolesProblems(
+      context.config.sql.moduleNames,
+      moduleLayout(
+        context.config,
+        context.config.sql.testsDir,
+        [],
+        entitlementsModule(context),
+        access.access,
+        permissionCatalogKeys(context),
+      ),
+    );
+  } catch {
+    return [];
+  }
+  return problems.map(({ setting, message }) => ({
+    message: `${message} Without it, ${setting.startsWith("sql.modules.tenant.") ? "an organization invitation, accept or role change can resolve a platform role" : "a platform invitation can resolve a tenant role"}.`,
+    target: setting,
+  }));
+}
+
 export const MODULE_RULES: readonly Rule[] = [
   {
     code: "BS307",
@@ -772,5 +801,13 @@ export const MODULE_RULES: readonly Rule[] = [
     description:
       "A module in `sql.modules` creates an event trigger (`bs_audit_forget_dropped` for `audit`, `bs_ensure_rls` for `ensure-rls`) that the live database lacks, or, without a database, that no migration creates. Event triggers belong to no schema, so a schema diff limited to some schemas leaves them out; the module's data migration creates them.",
     check: missingEventTriggers,
+  },
+  {
+    code: "BS324",
+    severity: "error",
+    title: "Shared roles table without a role condition",
+    description:
+      "Under the `permdock` model, the tenant module's `roleThrough` and the invitations module's `platformRoles.through` name the same roles table, and one of them has no `where` condition on `{row}`. That side then resolves a role id or key of the other kind: an organization invitation, accept or `update_member_role` can grant a platform role, or a platform invitation a tenant role. `sql sync` refuses the config; set `where` on both, such as `{row}.scope = 'organization'` and `{row}.scope = 'system'`.",
+    check: sharedRoleTables,
   },
 ];

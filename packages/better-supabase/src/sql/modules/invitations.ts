@@ -607,8 +607,14 @@ function accept(
     "invite",
     MODULE_PERMISSIONS.invitations.invite,
   );
-  const roleOf = (expr: string) =>
-    roleValue(ctx, expr, `invite.${t.col("tenant")}`);
+  const storedRole = `invite.${t.col("role")}`;
+  const role = roleValue(ctx, storedRole, `invite.${t.col("tenant")}`);
+  const roleKnown = roleThrough(tenantCtx)
+    ? `
+  if ${role} is null then
+    ${fail("INVITATION_ROLE_UNKNOWN", "Unknown role %", storedRole)}
+  end if;`
+    : "";
   /** Checks shared by both kinds of invitation in row `row`. */
   const invitee = (table: InviteTable, row: string) => {
     const col = (logical: string) => `${row}.${table.col(logical)}`;
@@ -736,9 +742,9 @@ begin
   end if;
   if exists (select 1 from ${m} m where m.${mt} = invite.${c("tenant")} and m.${mu} = me) then
     ${fail("INVITATION_ALREADY_MEMBER", "You are already a member")}
-  end if;${recheck}
+  end if;${recheck}${roleKnown}
   insert into ${m} (${mt}, ${mu}, ${mr})
-  values (invite.${c("tenant")}, me, ${roleOf(`invite.${c("role")}`)});
+  values (invite.${c("tenant")}, me, ${role});
   update ${t.table}
   set ${c("acceptedAt")} = now()${t.has("acceptedBy") ? `, ${c("acceptedBy")} = me` : ""}
   where ${c("id")} = invite.${c("id")};
