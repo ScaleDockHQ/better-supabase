@@ -228,6 +228,44 @@ describe("platform invitations under the permdock model", () => {
     );
   });
 
+  it("resolves platform roles only among the roles through.where names", () => {
+    const shared = {
+      ...PERMDOCK,
+      tenant: {
+        mode: "adopt" as const,
+        tables: { memberships: "public.team_members" },
+        columns: { memberships: { role: "role_id" } },
+        options: {
+          roleThrough: { table: "public.roles", id: "id", column: "key" },
+        },
+      },
+    };
+    const through = { table: "public.roles", id: "id", column: "key" };
+    const sql = (where?: string) =>
+      body({
+        ...shared,
+        invitations: {
+          options: {
+            platformRoles: {
+              ...roles,
+              through: where === undefined ? through : { ...through, where },
+            },
+          },
+        },
+      });
+    expect(() => sql()).toThrow(/through\.where/);
+    expect(() => sql("scope = 'system'")).toThrow(
+      /where\?: "<condition on \{row\}>"/,
+    );
+    const scoped = sql("{row}.scope = 'system'");
+    expect(scoped).toContain(
+      `(select r."id" from "public"."roles" r where (r."id"::text = (invitee_role)::text or r."key"::text = (invitee_role)::text) and (r.scope = 'system') order by`,
+    );
+    expect(scoped).toMatch(
+      /if \(select r\."id" from "public"\."roles" r where \(r\."id"::text = \(pinvite\."role"\)::text[^\n]* is null then\n\s*raise exception 'Unknown platform role %'/,
+    );
+  });
+
   it("refuses platform invitations without platformRoles and checks its shape", () => {
     expect(body(PERMDOCK)).toContain("INVITATION_SCOPE_UNSUPPORTED");
     const plain = body({

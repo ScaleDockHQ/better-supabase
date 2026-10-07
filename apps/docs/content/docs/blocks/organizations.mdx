@@ -242,13 +242,25 @@ invitations: {
       user: "user_id",
       role: "role_id",
       // The role column holds a roles table id; the role name is its key.
-      through: { table: "public.roles", id: "id", column: "key" },
+      // where names the platform roles when the table holds tenant roles too.
+      through: {
+        table: "public.roles",
+        id: "id",
+        column: "key",
+        where: "{row}.scope = 'system'",
+      },
       // Optional: who may assign which platform role. {role} is the name.
       canAssign: "authz.can_assign_platform_role({user}, {role})",
     },
   },
 },
 ```
+
+A platform invitation's role resolves only among the roles
+`through.where` accepts (`{row}` is the roles row), so a tenant role's id or
+key is refused with `INVITATION_ROLE_UNKNOWN`, when inviting and again at
+accept. When `through.table` is also the tenant module's `roleThrough`
+table, `where` is required.
 
 The inviter needs `invitePlatform` through `permdock_has`. Without
 `canAssign`, that permission alone lets them invite to any platform role.

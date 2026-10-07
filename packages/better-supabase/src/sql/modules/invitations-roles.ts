@@ -52,6 +52,15 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
   const permdock = permdockPlatformRoles(ctx);
   if (permdock) {
     const through = permdock.through;
+    const shared = roleThrough(ctx.of("tenant"));
+    if (through && !through.where && shared?.table === through.table) {
+      throw new TypeError(
+        `sql.modules.invitations.options.platformRoles.through.where: ${through.table} also holds the tenant roles (sql.modules.tenant.options.roleThrough), so name the platform roles with a condition such as "{row}.scope = 'platform'"`,
+      );
+    }
+    const platformOnly = through?.where
+      ? ` and (${through.where.replaceAll("{row}", "r")})`
+      : "";
     const name = (stored: string) =>
       through
         ? `(select r.${through.column}::text from ${through.table} r where r.${through.id}::text = (${stored})::text)`
@@ -59,7 +68,7 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
     return {
       value: (expr) =>
         through
-          ? `(select r.${through.id} from ${through.table} r where r.${through.id}::text = (${expr})::text or r.${through.column}::text = (${expr})::text order by (r.${through.id}::text = (${expr})::text) desc limit 1)`
+          ? `(select r.${through.id} from ${through.table} r where (r.${through.id}::text = (${expr})::text or r.${through.column}::text = (${expr})::text)${platformOnly} order by (r.${through.id}::text = (${expr})::text) desc limit 1)`
           : expr,
       assign(stored) {
         return this.value(stored);

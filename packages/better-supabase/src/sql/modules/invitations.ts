@@ -684,6 +684,9 @@ function accept(
   for update;
   if pinvite.${pc("id")} is not null then
   ${invitee(p, "pinvite")}${platformInviter}
+  if ${assignment.assign(`pinvite.${pc("role")}`)} is null then
+    ${fail("INVITATION_ROLE_UNKNOWN", "Unknown platform role %", `pinvite.${pc("role")}`)}
+  end if;
   insert into ${assignment.table} (${assignment.user}, ${assignment.role})
   values (me, ${assignment.assign(`pinvite.${pc("role")}`)})
   on conflict do nothing;
