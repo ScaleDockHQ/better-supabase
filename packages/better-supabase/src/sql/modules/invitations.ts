@@ -17,7 +17,7 @@ import {
   roleScopeIs,
   tenantScope,
 } from "./access-model.ts";
-import { permdockForUser } from "./access.ts";
+import { hasCanAssignAs, permdockForUser } from "./access.ts";
 import {
   PLATFORM_COLUMNS,
   openFilter,
@@ -806,19 +806,18 @@ function accept(
   const inviter = t.has("invitedBy") ? `invite.${c("invitedBy")}` : undefined;
   const forUser =
     model === "permdock" ? permdockForUser(ctx, layout) : undefined;
-  const assignAs =
-    model === "roles" || model === "catalog" || forUser?.canAssign
-      ? `
+  const assignAs = hasCanAssignAs(ctx, layout)
+    ? `
     if ${inviter} is not null
       and not better_supabase.can_assign_as(${inviter}, invite.${c("tenant")}, ${assignableRole(ctx, `invite.${c("role")}`)}) then
       ${fail("INVITATION_INVITER_REVOKED", "The person who invited you can no longer assign that role")}
     end if;`
-      : "";
+    : "";
   const recheck =
     inviter && model === "permdock" && !(forUser?.permitted && forUser.has)
       ? `
     -- The permdock model answers for the caller only, so the inviter's
-    -- authority was checked when they invited, not here.`
+    -- invite permission was checked when they invited, not here.${assignAs}`
       : inviter
         ? `
     if ${inviter} is not null

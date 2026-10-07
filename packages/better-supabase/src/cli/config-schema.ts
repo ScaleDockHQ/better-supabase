@@ -77,6 +77,7 @@ const accessModule = v.strictObject({
       isPlatform: v.optional(v.string()),
       canUser: v.optional(v.string()),
       canAssign: v.optional(v.string()),
+      canAssignFor: v.optional(v.string()),
       permissionClaims: v.optional(v.string()),
     }),
   ),

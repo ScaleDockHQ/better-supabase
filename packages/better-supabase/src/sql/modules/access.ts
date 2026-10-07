@@ -446,17 +446,83 @@ export function permdockForUser(
   readonly has: boolean;
   readonly permitted: boolean;
   readonly canAssign: boolean;
+  readonly canAssignAny: boolean;
 } {
   if (ctx.modules.access?.permdock?.forUser) {
-    return { has: true, permitted: true, canAssign: true };
+    return { has: true, permitted: true, canAssign: true, canAssignAny: false };
   }
+  const manifest = layout.accessPermdock?.forUser;
+  return {
+    has: manifest?.has ?? false,
+    permitted: manifest?.permitted ?? false,
+    canAssign: manifest?.canAssign ?? false,
+    canAssignAny: manifest?.canAssignAny ?? false,
+  };
+}
+
+/**
+ * The body of `can_assign_as(member, tenant, role)` under the permdock and
+ * custom models: `sql.modules.access.functions.canAssignFor`, else
+ * PermDock's `permdock_can_assign_any_for` (declared and custom roles) or
+ * `permdock_can_assign_for` when the manifest lists them. Undefined when
+ * there is none, so nothing can check a stored user's authority.
+ */
+function assignAsCheck(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+): string | undefined {
+  const template = ctx.modules.access?.functions?.canAssignFor;
+  if (template) {
+    return fill(template, {
+      user: "can_assign_as.member",
+      tenant: "can_assign_as.tenant",
+      role: "can_assign_as.role",
+    });
+  }
+  if (accessModel(ctx) !== "permdock") return undefined;
+  const forUser = permdockForUser(ctx, layout);
+  const schema = sqlIdent(permdockTarget(ctx, layout).schema);
+  if (forUser.canAssignAny) {
+    return `${schema}.permdock_can_assign_any_for(can_assign_as.member, can_assign_as.role, can_assign_as.tenant, ${sqlString(permdockTarget(ctx, layout).scope)}, can_assign_as.tenant::text)`;
+  }
+  return forUser.canAssign
+    ? `${schema}.permdock_can_assign_for(can_assign_as.member, can_assign_as.role, can_assign_as.tenant::text)`
+    : undefined;
+}
+
+/** Whether `can_assign_as` exists for this access model and layout. */
+export function hasCanAssignAs(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+): boolean {
+  const model = accessModel(ctx);
   return (
-    layout.accessPermdock?.forUser ?? {
-      has: false,
-      permitted: false,
-      canAssign: false,
-    }
+    model === "roles" ||
+    model === "catalog" ||
+    assignAsCheck(ctx.of("access"), layout) !== undefined
   );
+}
+
+/** `can_assign_as` for the permdock and custom models, when it has a body. */
+function assignAsFunction(ctx: ModuleContext, layout: ModuleLayout): string {
+  const check = assignAsCheck(ctx, layout);
+  if (check === undefined) return "";
+  return `
+
+-- Whether member may assign role in tenant, for trusted SQL that acts later
+-- for a stored user, such as accepting an invitation the inviter sent.
+create or replace function better_supabase.can_assign_as(member uuid, tenant ${ctx.idType}, role text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select member is not null
+    and not better_supabase.user_disabled(member)
+    and coalesce((${check}), false)
+$$;
+revoke execute on function better_supabase.can_assign_as(uuid, ${ctx.idType}, text) from public, anon, authenticated;`;
 }
 
 function permdockTarget(
@@ -498,24 +564,7 @@ function permdockFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
   const platformOther = forUser.has
     ? `when member is not null then ${NOT_ACTING} and not better_supabase.user_disabled(member) and ${schema}.permdock_has_for(member, permission)`
     : "";
-  const assignFor = forUser.canAssign
-    ? `
-
--- Whether member may assign role in tenant, for trusted SQL that acts later
--- for a stored user, such as accepting an invitation the inviter sent.
-create or replace function better_supabase.can_assign_as(member uuid, tenant ${id}, role text)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select member is not null
-    and not better_supabase.user_disabled(member)
-    and coalesce(${schema}.permdock_can_assign_for(member, role, tenant::text), false)
-$$;
-revoke execute on function better_supabase.can_assign_as(uuid, ${id}, text) from public, anon, authenticated;`
-    : "";
+  const assignFor = assignAsFunction(ctx, layout);
   return `
 -- The permdock model: PermDock's ${permitted}() and ${schema}.permdock_has(),
 -- from \`permdock rls generate\`. They read auth.uid(), so member_can() and
@@ -703,7 +752,7 @@ function accessSql(ctx: ModuleContext, layout: ModuleLayout): string {
       body = permdockFunctions(ctx, layout);
       break;
     case "custom":
-      body = customFunctions(ctx);
+      body = `${customFunctions(ctx)}${assignAsFunction(ctx, layout)}`;
       break;
     default: {
       const unreachable: never = model;

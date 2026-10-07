@@ -215,8 +215,25 @@ helpers for a named user exist. PermDock writes them in `database` mode:
 manifest lists under `rls.helpers`; set
 `sql.modules.access.permdock.forUser: true` when your helpers exist but the
 manifest doesn't list them. With them, `can_user()`, `member_can()` and
-`platform_can()` answer for any user, and `can_assign_as(user, tenant, role)`
-calls `permdock_can_assign_for`.
+`platform_can()` answer for any user.
+
+`can_assign_as(user, tenant, role)` checks a stored user's authority, such as
+the inviter's when an invitation is accepted. Under the permdock model it
+calls `permdock_can_assign_any_for(user, role, tenant, '<scope>', tenant::text)`
+when the manifest lists it, which covers declared and tenant custom roles,
+else `permdock_can_assign_for(user, role, scope_id)`, which knows only the
+declared roles, so an invitation to a custom role would be refused at
+accept. `sql.modules.access.functions.canAssignFor` replaces both with your
+own template (`{user}`, `{tenant}` and `{role}`), under the permdock and
+custom models:
+
+```ts title="better-supabase.config.ts"
+functions: {
+  canAssign: "permdock.permdock_can_assign_any({role}, {tenant}, 'organization', {tenant}::text)",
+  canAssignFor:
+    "permdock.permdock_can_assign_any_for({user}, {role}, {tenant}, 'organization', {tenant}::text)",
+},
+```
 
 ### Blocks next to PermDock
 
@@ -228,7 +245,7 @@ some module checks change under the permdock model:
 | `organizations` | Role ceiling trigger on memberships          | Kept, or dropped with `assignmentGuard: "external"` when PermDock's assignment rules guard the table          |
 | `organizations` | Owner check (`ownerInvariant`)               | Kept; turn it off when PermDock's `transferOnly` ownership rule already keeps an owner                        |
 | `invitations`   | Inviter still holds the permission at accept | Runs with `permitted_<scope>_ids_for` and `permdock_has_for`; skipped without them                            |
-| `invitations`   | Inviter may still assign the role at accept  | Runs with `permdock_can_assign_for`; skipped without it                                                       |
+| `invitations`   | Inviter may still assign the role at accept  | Runs with `canAssignFor`, `permdock_can_assign_any_for` or `permdock_can_assign_for`; skipped without them    |
 | `invitations`   | Platform invitations                         | Need `invitations.options.platformRoles` (PermDock's `rls.roles` table); the inviter is checked when inviting |
 | `notifications` | Each recipient may read the notification     | Runs with `permitted_<scope>_ids_for`; without it, the sender and `notification_audience` decide              |
 | `tenant`        | Role names on memberships                    | Read through the manifest's `through` roles table                                                             |
@@ -238,7 +255,9 @@ some module checks change under the permdock model:
 
 Your app already has the functions. Give the contract as SQL templates with
 `{scope}`, `{id}`, `{permission}`, `{user}`, `{tenant}` and `{role}`
-placeholders. `can`, `tenantIdsWith`, `isPlatform` and `canAssign` are required.
+placeholders. `can`, `tenantIdsWith`, `isPlatform` and `canAssign` are required;
+`canAssignFor` (`{user}`, `{tenant}`, `{role}`) adds `can_assign_as`, which
+lets an invitation accept check the inviter again.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
