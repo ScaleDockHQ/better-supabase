@@ -1,0 +1,75 @@
+---
+title: Agents
+description: Saved assistants with their own instructions, model, tools, connectors and knowledge, shared in an organization or a public store with installs and ratings.
+---
+
+The `agents` block stores assistants that users build and share. An agent
+has a slug, instructions, an optional model, the tools and connectors it
+may use, the knowledge scopes it searches and starter prompts.
+
+```bash
+better-supabase sql add agents   # adds tenant and access as well
+```
+
+| Table            | Holds                                                    |
+| ---------------- | -------------------------------------------------------- |
+| `agents`         | One agent per organization and slug, with its visibility |
+| `agent_installs` | Which users installed an agent                           |
+| `agent_ratings`  | One rating (1 to 5) and comment per agent and user       |
+| `agent_skills`   | Skill references an agent loads from a provider          |
+
+An agent starts private: only its owner sees it. Publishing it makes it
+visible to the organization's members (`organization`) or to every
+signed-in user (`public`). Moderators see and change every agent in the
+organization.
+
+| Permission         | Lets a member                 | Default roles              |
+| ------------------ | ----------------------------- | -------------------------- |
+| `ai_chat.read`     | see the organization's agents | `owner`, `admin`, `member` |
+| `ai_chat.create`   | create agents                 | `owner`, `admin`, `member` |
+| `ai_chat.share`    | publish an agent              | `owner`, `admin`, `member` |
+| `ai_chat.moderate` | change or delete any agent    | `owner`, `admin`           |
+
+Rename the keys with `sql.modules.agents.permissions.read`, `.create`,
+`.publish` and `.moderate`. The `maxInstructions` option (100,000
+characters by default) limits the instructions.
+
+## Server
+
+```ts title="lib/agents.ts"
+import { createAgents, rpcTransport } from "better-supabase/blocks/agents";
+
+export const agentsFor = (supabase: SupabaseClient) =>
+  createAgents({ transport: rpcTransport(supabase) });
+```
+
+```ts
+const agent = await agents
+  .create(organizationId, {
+    slug: "release-notes",
+    name: "Release notes",
+    instructions: "Write release notes from the merged pull requests.",
+    tools: ["search_knowledge"],
+    knowledgeScopes: [{ scope: "agent" }],
+  })
+  .orThrow();
+await agents.publish(agent.id, "organization").orThrow();
+```
+
+| Method                         | Does                                                      |
+| ------------------------------ | --------------------------------------------------------- |
+| `create`, `update`, `remove`   | Change the caller's agents                                |
+| `get`, `bySlug`                | Read one agent the caller can see                         |
+| `list(organizationId, filter)` | `store` (published), `mine` (owned) or `installed`        |
+| `publish(id, visibility)`      | Set `private`, `organization` or `public`                 |
+| `install`, `rate`              | Install or uninstall, and rate from 1 to 5 with a comment |
+| `setSkills`                    | Replace the skill references                              |
+
+Each agent carries `installCount`, `ratingCount`, the average `rating`,
+and for the caller `installed` and `myRating`. A slug that is taken in the
+organization fails with a `conflict` error.
+
+## AI SDK
+
+[`better-supabase/ai-sdk/agents`](/docs/ai-sdk/agents) turns an agent into
+a `ToolLoopAgent` with its tools, approvals and knowledge search.

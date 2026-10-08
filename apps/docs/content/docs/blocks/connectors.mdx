@@ -1,0 +1,80 @@
+---
+title: Connectors
+description: MCP servers an organization connects, each user's OAuth grant behind a credential reference, MCP sessions per chat and tool list fingerprints an admin approves.
+---
+
+The `connectors` block stores the MCP servers an organization lets its
+assistants call. Tokens never sit in these tables: a grant holds a
+`credential_ref` that a [credential provider](/docs/extending/credentials)
+resolves, and removing a grant or its server revokes the credential.
+
+```bash
+better-supabase sql add connectors   # adds tenant and access as well
+```
+
+| Table                         | Holds                                                                 |
+| ----------------------------- | --------------------------------------------------------------------- |
+| `connector_servers`           | The server URL, transport (`http` or `sse`), auth type and scopes     |
+| `connector_grants`            | One active grant per user and server, with its `credential_ref`       |
+| `connector_sessions`          | The MCP session id and initialize result per user, server and chat    |
+| `connector_tool_fingerprints` | A digest of each tool list the server returned, and its review status |
+
+A server's auth type is `none`, `header` (an app credential sent as
+headers) or `oauth` (one grant per user). Server URLs must use `https`
+unless `allowHttp` is on, and sessions expire after `sessionTtl` (`1 hour`
+by default).
+
+| Permission       | Lets a member                      | Default roles              |
+| ---------------- | ---------------------------------- | -------------------------- |
+| `ai_chat.read`   | see the organization's servers     | `owner`, `admin`, `member` |
+| `ai_chat.create` | connect and call a server          | `owner`, `admin`, `member` |
+| `ai_chat.admin`  | add servers and approve tool lists | `owner`, `admin`           |
+
+Rename the keys with `sql.modules.connectors.permissions.read`, `.use` and
+`.manage`.
+
+## Server
+
+```ts title="lib/connectors.ts"
+import { vaultCredentials } from "better-supabase/credentials";
+import {
+  createConnectors,
+  rpcTransport,
+} from "better-supabase/blocks/connectors";
+
+export const connectorsFor = (
+  supabase: SupabaseClient,
+  admin: SupabaseClient,
+) =>
+  createConnectors({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    credentials: vaultCredentials({ transport: rpcTransport(admin) }),
+  });
+```
+
+| Group          | Methods                                     |
+| -------------- | ------------------------------------------- |
+| `servers`      | `list`, `get`, `create`, `update`, `remove` |
+| `grants`       | `record`, `revoke`, `expiring`, `renew`     |
+| `sessions`     | `get`, `save`, `forget`, `purge`            |
+| `fingerprints` | `check`, `approve`, `reject`                |
+
+`servers.get(id)` returns the caller's active grant with the server.
+`grants.record` runs as the service role after the provider stored the
+credential, and revokes the grant it replaces. `grants.expiring(before)`
+lists grants to renew.
+
+## Tool list changes
+
+A server can change its tools at any time. `fingerprints.check` records the
+digest of the tool list and returns its status: the first list of a server
+is approved, a later different list waits as `pending` until an admin
+approves or rejects it. With `trustFirstUse: false` the first list waits
+too. Until then the assistant gets none of the server's
+tools.
+
+## AI SDK
+
+[`better-supabase/ai-sdk/mcp`](/docs/ai-sdk/mcp) runs the OAuth flow,
+connects to a server with the stored session and returns its tools.
