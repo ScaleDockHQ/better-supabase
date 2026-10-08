@@ -70,7 +70,7 @@ function run(over: Partial<AiRun> = {}): AiRun {
     engine: "workflow",
     externalRunId: "wrun",
     model: "openai/gpt-5",
-    status: "streaming",
+    status: "running",
     usage: {},
     costMicroUsd: undefined,
     error: undefined,
