@@ -1,10 +1,12 @@
 import "server-only";
-import { streamText, type LanguageModel } from "ai";
+import { stepCountIs, streamText, type LanguageModel, type ToolSet } from "ai";
 import {
   type AssistantContext,
   createAssistant,
 } from "better-supabase/ai-sdk/chat";
+import { searchTool } from "better-supabase/ai-sdk/embeddings";
 import { aiFileDownload } from "better-supabase/ai-sdk/files";
+import { memoryTool, withMemory } from "better-supabase/ai-sdk/memory";
 import { createAiChat, type AiChat } from "better-supabase/blocks/ai-chat";
 import {
   type AiFiles,
@@ -18,6 +20,7 @@ import {
 import { postgresStreamStore } from "better-supabase/streams";
 import { after } from "next/server";
 
+import { knowledge, memory } from "@/features/knowledge/knowledge-server";
 import { bs } from "@/lib/supabase/server";
 
 import { demoModel } from "./demo-model";
@@ -62,8 +65,18 @@ export function aiFiles(supabase: UserClient): AiFiles {
   });
 }
 
-/** The caller's files per request, so `run` reads attachments as the caller. */
-const requestFiles = new WeakMap<AssistantContext, AiFiles>();
+interface RequestScope {
+  readonly files: AiFiles;
+  readonly tools: ToolSet;
+  /** The caller's core memory appended to the instructions. */
+  readonly instructions: (base: string) => Promise<string>;
+}
+
+/** Per request, so `run` reads files, documents and memory as the caller. */
+const requestScopes = new WeakMap<AssistantContext, RequestScope>();
+
+const INSTRUCTIONS =
+  "You are a concise assistant inside a CRM sample app. Search the knowledge base before you answer a question about the organization, and keep notes about the user in your memory.";
 
 let assistantInstance: ReturnType<typeof createAssistant> | undefined;
 
@@ -76,15 +89,19 @@ export function assistant(): ReturnType<typeof createAssistant> {
       wake: "poll",
     }),
     defaultModel: DEFAULT_MODEL,
-    run: ({ model, messages, abortSignal, providerOptions, context }) => {
-      const files = requestFiles.get(context);
+    run: async ({ model, messages, abortSignal, providerOptions, context }) => {
+      const scope = requestScopes.get(context);
       return streamText({
         model: languageModel(model),
-        instructions: "You are a concise assistant inside a CRM sample app.",
+        instructions: scope
+          ? await scope.instructions(INSTRUCTIONS)
+          : INSTRUCTIONS,
         messages,
         abortSignal,
         providerOptions,
-        experimental_download: files ? aiFileDownload(files) : undefined,
+        tools: scope?.tools ?? {},
+        stopWhen: stepCountIs(5),
+        experimental_download: scope ? aiFileDownload(scope.files) : undefined,
       });
     },
   });
@@ -103,6 +120,14 @@ export function assistantContext(
     organizationId,
     waitUntil: after,
   };
-  requestFiles.set(context, aiFiles(supabase));
+  const memories = memory(supabase);
+  requestScopes.set(context, {
+    files: aiFiles(supabase),
+    tools: {
+      searchKnowledge: searchTool(knowledge(supabase), organizationId),
+      memory: memoryTool(memories, organizationId),
+    },
+    instructions: (base) => withMemory(base, memories, organizationId),
+  });
   return context;
 }

@@ -20,6 +20,7 @@ export const SPEC_PINS: {
   readonly supabaseSdkCapabilities: "1.14.0";
   readonly aiMessage: "1";
   readonly aiSdkUiMessageStream: "v1";
+  readonly anthropicMemoryTool: "20250818";
 } = {
   otelSemconv: "1.37.0",
   mcp: "2026-07-28",
@@ -38,4 +39,5 @@ export const SPEC_PINS: {
   supabaseSdkCapabilities: "1.14.0",
   aiMessage: "1",
   aiSdkUiMessageStream: "v1",
+  anthropicMemoryTool: "20250818",
 };

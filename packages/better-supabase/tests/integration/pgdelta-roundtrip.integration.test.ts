@@ -33,6 +33,8 @@ const DB_PORT = 56422;
 const NAMES = Object.keys(SQL_MODULES).filter(
   (name) => !["pgtap", "read-sets", "vector-search"].includes(name),
 );
+/** Knowledge and memory require vector-search, which registers itself. */
+const INSTALLED = [...NAMES, "vector-search"].toSorted();
 
 const available =
   existsSync(SUPABASE) &&
@@ -159,7 +161,7 @@ declarative_schema_path = "./schemas"
         const { rows: modules } = await client.query<{ name: string }>(
           "select name from better_supabase.modules order by name",
         );
-        expect(modules.map((row) => row.name)).toEqual(NAMES.toSorted());
+        expect(modules.map((row) => row.name)).toEqual(INSTALLED);
         const { rows: slugs } = await client.query<{ n: number }>(
           "select count(*)::int as n from better_supabase.reserved_slugs",
         );
