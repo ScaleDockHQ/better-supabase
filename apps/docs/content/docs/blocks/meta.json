@@ -31,6 +31,9 @@
     "ai-chat",
     "ai-files",
     "knowledge",
-    "memory"
+    "memory",
+    "agents",
+    "connectors",
+    "ai-tasks"
   ]
 }
