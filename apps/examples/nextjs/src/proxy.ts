@@ -71,6 +71,8 @@ export const proxy = (request: NextRequest) =>
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp|ico|txt)$).*)",
+    // The workflow routes authenticate deliveries themselves; the proxy would
+    // redirect them to a locale or the sign-in page.
+    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|.*\\.(?:svg|png|jpg|webp|ico|txt)$).*)",
   ],
 };

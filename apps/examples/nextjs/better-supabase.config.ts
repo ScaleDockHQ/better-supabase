@@ -129,6 +129,10 @@ export default defineConfig({
       // In-app notifications behind the unread badge and /notifications,
       // on the recipient's private topic `notifications:<user id>`.
       notifications: { api: "api" },
+      // Durable workflow runs behind /workflows, run by the Workflow SDK on
+      // the Supabase World (`WORKFLOW_TARGET_WORLD`), which polls in dev.
+      workflows: { api: "api" },
+      "workflow-sdk-world": {},
     },
   },
 });

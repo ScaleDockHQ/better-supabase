@@ -119,6 +119,26 @@ msgctxt "app.SQJto2"
 msgid "Sign in"
 msgstr "Sign in"
 
+#: src/app/[locale]/(app)/workflows/[run]/page.tsx
+msgctxt "workflows.lPyu8U"
+msgid "All runs"
+msgstr "All runs"
+
+#: src/app/[locale]/(app)/workflows/page.tsx
+msgctxt "workflows.6La3aS"
+msgid "Workflows"
+msgstr "Workflows"
+
+#: src/app/[locale]/(app)/workflows/page.tsx
+msgctxt "workflows.O9538F"
+msgid "Durable runs on the Workflow SDK with the Supabase World. The list stays live over Realtime."
+msgstr "Durable runs on the Workflow SDK with the Supabase World. The list stays live over Realtime."
+
+#: src/app/[locale]/(app)/workflows/page.tsx
+msgctxt "workflows.F42bEw"
+msgid "Schedules"
+msgstr "Schedules"
+
 #: src/app/[locale]/layout.tsx
 msgctxt "app.pZg_tf"
 msgid "A multi-tenant SaaS example built on better-supabase."
@@ -922,6 +942,11 @@ msgstr "Customers"
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Notifications"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.6La3aS"
+msgid "Workflows"
+msgstr "Workflows"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.riw_yc"
@@ -1747,6 +1772,137 @@ msgstr "Weekly digest"
 msgctxt "user.pY7RRr"
 msgid "A Monday summary of your customers. Saved by the settings module."
 msgstr "A Monday summary of your customers. Saved by the settings module."
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.3y9DGg"
+msgid "Resume"
+msgstr "Resume"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.tFFMkF"
+msgid "Pause"
+msgstr "Pause"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.G_yZLu"
+msgid "Remove"
+msgstr "Remove"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.Upmxtt"
+msgid "Schedule saved"
+msgstr "Schedule saved"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.OGhQzA"
+msgid "Daily drip"
+msgstr "Daily drip"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.3Wq8aM"
+msgid "Cron"
+msgstr "Cron"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.L7eGvd"
+msgid "Save schedule"
+msgstr "Save schedule"
+
+#: src/features/workflows/components/schedule-list.tsx
+msgctxt "workflows.ge2zXh"
+msgid "No schedules. Admins can add one below."
+msgstr "No schedules. Admins can add one below."
+
+#: src/features/workflows/components/schedule-list.tsx
+msgctxt "workflows.C2iTEH"
+msgid "Paused"
+msgstr "Paused"
+
+#: src/features/workflows/components/schedule-list.tsx
+msgctxt "workflows.4tIA7p"
+msgid "Next: {time}"
+msgstr "Next: {time}"
+
+#: src/features/workflows/components/workflow-actions.tsx
+msgctxt "workflows.5AgvJf"
+msgid "Workflow started"
+msgstr "Workflow started"
+
+#: src/features/workflows/components/workflow-actions.tsx
+msgctxt "workflows.VBmGyS"
+msgid "Onboarding drip"
+msgstr "Onboarding drip"
+
+#: src/features/workflows/components/workflow-actions.tsx
+msgctxt "workflows.pN3nYG"
+msgid "Workflows survive restarts. Each step runs once. Runs show up here."
+msgstr "Workflows survive restarts. Each step runs once. Runs show up here."
+
+#: src/features/workflows/components/workflow-actions.tsx
+msgctxt "workflows.7-VYtK"
+msgid "Ingest a document"
+msgstr "Ingest a document"
+
+#: src/features/workflows/components/workflow-actions.tsx
+msgctxt "workflows.0JzFLp"
+msgid "Request approval"
+msgstr "Request approval"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.ORGv1Q"
+msgid "Created"
+msgstr "Created"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.TDUfVk"
+msgid "Started"
+msgstr "Started"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.EQpfkS"
+msgid "Finished"
+msgstr "Finished"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.WCaf5C"
+msgid "Approve"
+msgstr "Approve"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.VzIOKf"
+msgid "Reject"
+msgstr "Reject"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.lsX7TX"
+msgid "Cancel run"
+msgstr "Cancel run"
+
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.x3qvaC"
+msgid "No runs yet"
+msgstr "No runs yet"
+
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.G5eG81"
+msgid "Start a sample workflow to see its run here."
+msgstr "Start a sample workflow to see its run here."
+
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.pv1lF7"
+msgid "Workflow"
+msgstr "Workflow"
+
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.tzMNF3"
+msgid "Status"
+msgstr "Status"
 
 #: src/lib/use-error-message.ts
 msgctxt "errors.JI3eca"
