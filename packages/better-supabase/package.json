@@ -299,6 +299,27 @@
       "types": "./dist/blocks/waitlist/index.d.ts",
       "default": "./dist/blocks/waitlist/index.js"
     },
+    "./blocks/workflows": {
+      "@better-supabase/source": "./src/blocks/workflows/index.ts",
+      "types": "./dist/blocks/workflows/index.d.ts",
+      "default": "./dist/blocks/workflows/index.js"
+    },
+    "./blocks/workflows/react": {
+      "@better-supabase/source": "./src/blocks/workflows/react/index.ts",
+      "types": "./dist/blocks/workflows/react/index.d.ts",
+      "react-server": "./dist/blocks/workflows/react/server.js",
+      "default": "./dist/blocks/workflows/react/index.js"
+    },
+    "./workflow-sdk": {
+      "@better-supabase/source": "./src/workflow-sdk/index.ts",
+      "types": "./dist/workflow-sdk/index.d.ts",
+      "default": "./dist/workflow-sdk/index.js"
+    },
+    "./workflow-sdk/world": {
+      "@better-supabase/source": "./src/workflow-sdk/world/index.ts",
+      "types": "./dist/workflow-sdk/world/index.d.ts",
+      "default": "./dist/workflow-sdk/world/index.js"
+    },
     "./streams": {
       "@better-supabase/source": "./src/streams/index.ts",
       "types": "./dist/streams/index.d.ts",
@@ -602,6 +623,23 @@
         "types": "./dist/blocks/waitlist/index.d.ts",
         "default": "./dist/blocks/waitlist/index.js"
       },
+      "./blocks/workflows": {
+        "types": "./dist/blocks/workflows/index.d.ts",
+        "default": "./dist/blocks/workflows/index.js"
+      },
+      "./blocks/workflows/react": {
+        "types": "./dist/blocks/workflows/react/index.d.ts",
+        "react-server": "./dist/blocks/workflows/react/server.js",
+        "default": "./dist/blocks/workflows/react/index.js"
+      },
+      "./workflow-sdk": {
+        "types": "./dist/workflow-sdk/index.d.ts",
+        "default": "./dist/workflow-sdk/index.js"
+      },
+      "./workflow-sdk/world": {
+        "types": "./dist/workflow-sdk/world/index.d.ts",
+        "default": "./dist/workflow-sdk/world/index.js"
+      },
       "./streams": {
         "types": "./dist/streams/index.d.ts",
         "default": "./dist/streams/index.js"
@@ -725,6 +763,9 @@
     "@types/react-dom": "catalog:",
     "@valibot/to-json-schema": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "@workflow/world": "catalog:",
+    "@workflow/world-postgres": "catalog:",
+    "@workflow/world-testing": "catalog:",
     "ajv": "catalog:",
     "ajv-formats": "catalog:",
     "c12": "catalog:",
@@ -750,6 +791,7 @@
     "typescript": "catalog:",
     "valibot": "catalog:",
     "vitest": "catalog:",
+    "workflow": "catalog:",
     "zod": "catalog:"
   },
   "peerDependencies": {
@@ -761,6 +803,8 @@
     "@supabase/postgrest-typegen": "catalog:peers",
     "@supabase/supabase-js": "catalog:peers",
     "@tanstack/query-core": "catalog:peers",
+    "@workflow/world": "catalog:peers",
+    "@workflow/world-postgres": "catalog:peers",
     "expo-server": "catalog:peers",
     "hono": "catalog:peers",
     "next": "catalog:peers",
@@ -769,7 +813,8 @@
     "react": "catalog:peers",
     "redis": "catalog:peers",
     "stripe": "catalog:peers",
-    "temporal-polyfill": "catalog:peers"
+    "temporal-polyfill": "catalog:peers",
+    "workflow": "catalog:peers"
   },
   "peerDependenciesMeta": {
     "@modelcontextprotocol/server": {
@@ -791,6 +836,12 @@
       "optional": true
     },
     "@tanstack/query-core": {
+      "optional": true
+    },
+    "@workflow/world": {
+      "optional": true
+    },
+    "@workflow/world-postgres": {
       "optional": true
     },
     "expo-server": {
@@ -818,6 +869,9 @@
       "optional": true
     },
     "temporal-polyfill": {
+      "optional": true
+    },
+    "workflow": {
       "optional": true
     }
   },

@@ -111,6 +111,11 @@ export const MODULE_PERMISSIONS = {
   announcements: { manage: "announcements.manage" },
   waitlist: { manage: "waitlist.manage", invite: "members.invite" },
   flags: { manage: "flags.manage" },
+  workflows: {
+    read: "workflow.read",
+    run: "workflow.run",
+    admin: "workflow.admin",
+  },
 } as const;
 
 /**
@@ -168,6 +173,7 @@ export const MODULE_PERMISSION_SCOPES: {
   announcements: { manage: "platform" },
   waitlist: { manage: "platform", invite: "tenant" },
   flags: { manage: "platform" },
+  workflows: { read: "tenant", run: "tenant", admin: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

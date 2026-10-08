@@ -8,6 +8,7 @@ import {
   rpcTransport,
 } from "better-supabase/blocks/organizations";
 import { createUsage } from "better-supabase/blocks/usage";
+import { createWorkflows } from "better-supabase/blocks/workflows";
 
 import {
   notificationTypes,
@@ -37,6 +38,7 @@ export function blocks(supabase: RpcClient) {
       render: renderNotification,
     }),
     usage: createUsage(options),
+    workflows: createWorkflows(options),
     onboarding: gettingStarted.connect(options),
     settings: settings.connect(options),
     /** A module function without a typed client, such as `flag_enabled`. */

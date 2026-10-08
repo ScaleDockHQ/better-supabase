@@ -44,6 +44,8 @@ const PURE_BARRELS = [
   "streams/redis",
   "credentials",
   "vercel-connect",
+  "blocks/workflows",
+  "workflow-sdk",
 ];
 
 describe("subpath entries", () => {

@@ -1707,6 +1707,83 @@
       "WaitlistStatus"
     ]
   },
+  "./blocks/workflows": {
+    "values": [
+      "createWorkflows",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "WorkflowRun",
+      "WorkflowRunRecord",
+      "WorkflowRunsQuery",
+      "WorkflowRunStatus",
+      "Workflows",
+      "WorkflowSchedule",
+      "WorkflowScheduleInput",
+      "WorkflowsOptions",
+      "WorkflowStartCall",
+      "WorkflowStarter",
+      "WorkflowStartRequest",
+      "WorkflowStartTicket",
+      "WorkflowTickOptions",
+      "WorkflowTickResult"
+    ]
+  },
+  "./blocks/workflows/react": {
+    "values": [
+      "useWorkflowRun",
+      "useWorkflowRuns"
+    ],
+    "types": [
+      "UseWorkflowRunOptions",
+      "UseWorkflowRunsOptions",
+      "WorkflowRunsState",
+      "WorkflowRunState"
+    ]
+  },
+  "./workflow-sdk": {
+    "values": [
+      "authorizeHook",
+      "contextAttributes",
+      "HookForbiddenError",
+      "hookMetadata",
+      "protectWebHandler",
+      "startFor",
+      "startOnEvent",
+      "WORKFLOW_ATTRIBUTES",
+      "workflowContext",
+      "workflowStarter"
+    ],
+    "types": [
+      "AuthorizeHookOptions",
+      "ProtectWebHandlerOptions",
+      "StartForOptions",
+      "StartOnEventOptions",
+      "WorkflowFn"
+    ]
+  },
+  "./workflow-sdk/world": {
+    "values": [
+      "createSupabaseWorld",
+      "createWorld",
+      "default",
+      "deriveRunKey",
+      "parseMasterKey",
+      "resolveFlowUrl",
+      "signDelivery",
+      "verifyDelivery",
+      "WORKFLOW_WORLD_PROTOCOL",
+      "WORLD_POSTGRES_VERSION",
+      "worldOptionsFromEnv"
+    ],
+    "types": [
+      "SupabaseWorld",
+      "SupabaseWorldOptions",
+      "WorkflowDeliveryMode"
+    ]
+  },
   "./streams": {
     "values": [
       "postgresStreamStore",
