@@ -710,6 +710,7 @@
     "@supabase/ssr": "catalog:deps"
   },
   "devDependencies": {
+    "@ai-sdk/react": "catalog:",
     "@arethetypeswrong/cli": "catalog:",
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
@@ -736,6 +737,7 @@
     "@types/react-dom": "catalog:",
     "@valibot/to-json-schema": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "ai": "catalog:",
     "ajv": "catalog:",
     "ajv-formats": "catalog:",
     "c12": "catalog:",
@@ -764,6 +766,7 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@ai-sdk/react": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
     "@next/playwright": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
@@ -772,6 +775,7 @@
     "@supabase/postgrest-typegen": "catalog:peers",
     "@supabase/supabase-js": "catalog:peers",
     "@tanstack/query-core": "catalog:peers",
+    "ai": "catalog:peers",
     "expo-server": "catalog:peers",
     "hono": "catalog:peers",
     "next": "catalog:peers",
@@ -783,6 +787,9 @@
     "temporal-polyfill": "catalog:peers"
   },
   "peerDependenciesMeta": {
+    "@ai-sdk/react": {
+      "optional": true
+    },
     "@modelcontextprotocol/server": {
       "optional": true
     },
@@ -802,6 +809,9 @@
       "optional": true
     },
     "@tanstack/query-core": {
+      "optional": true
+    },
+    "ai": {
       "optional": true
     },
     "expo-server": {
