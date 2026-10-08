@@ -1379,6 +1379,9 @@ importers:
         specifier: catalog:deps
         version: 0.12.7(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))
     devDependencies:
+      '@ai-sdk/react':
+        specifier: 'catalog:'
+        version: 4.0.130(react@19.3.0)(zod@4.6.5)
       '@arethetypeswrong/cli':
         specifier: 'catalog:'
         version: 0.18.5
@@ -1469,6 +1472,9 @@ importers:
       '@workflow/world-testing':
         specifier: 'catalog:'
         version: 5.0.2(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.1.2(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.1)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0)(supports-color@7.2.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.5)(next@16.3.8(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(supports-color@7.2.0)(typescript@7.0.2)(vitest@5.0.3)(ws@8.22.0)
+      ai:
+        specifier: 'catalog:'
+        version: 7.0.127(zod@4.6.5)
       ajv:
         specifier: 'catalog:'
         version: 8.20.0

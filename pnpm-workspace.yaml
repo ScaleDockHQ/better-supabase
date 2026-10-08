@@ -161,6 +161,8 @@ catalogs:
   # Ranges the published packages declare as peers, so consumers pick the
   # version. They are deliberately not exact pins.
   peers:
+    # 4.0 is the useChat that ships with ai 7.
+    "@ai-sdk/react": ">=4 <5"
     # 2.3.0 is the first release with createMcpHandler and the web-standard bearer helpers.
     "@modelcontextprotocol/server": ">=2.3.0 <3"
     # 4.41.0 is the first Chat SDK with the StateAdapter queue and list methods better-supabase/chat-sdk implements.
@@ -176,6 +178,8 @@ catalogs:
     "@supabase/supabase-js": "^2.116.0"
     # 5.62.0 added the error parameter of DataTag (dataTagErrorSymbol) the query keys use.
     "@tanstack/query-core": "^5.62.0"
+    # 7.0 is the UI message stream protocol and the approval parts the AI SDK adapters convert.
+    ai: ">=7 <8"
     # 55.0.0 added setResponseHeaders, which the Expo adapter writes cookies through.
     expo-server: ">=55 <59"
     hono: ">=4 <5"

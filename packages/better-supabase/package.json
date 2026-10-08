@@ -817,6 +817,7 @@
     "@supabase/ssr": "catalog:deps"
   },
   "devDependencies": {
+    "@ai-sdk/react": "catalog:",
     "@arethetypeswrong/cli": "catalog:",
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
@@ -847,6 +848,7 @@
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
     "@workflow/world-testing": "catalog:",
+    "ai": "catalog:",
     "ajv": "catalog:",
     "ajv-formats": "catalog:",
     "c12": "catalog:",
@@ -877,6 +879,7 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@ai-sdk/react": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
     "@next/playwright": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
@@ -887,6 +890,7 @@
     "@tanstack/query-core": "catalog:peers",
     "@workflow/world": "catalog:peers",
     "@workflow/world-postgres": "catalog:peers",
+    "ai": "catalog:peers",
     "chat": "catalog:peers",
     "expo-server": "catalog:peers",
     "hono": "catalog:peers",
@@ -900,6 +904,9 @@
     "workflow": "catalog:peers"
   },
   "peerDependenciesMeta": {
+    "@ai-sdk/react": {
+      "optional": true
+    },
     "@modelcontextprotocol/server": {
       "optional": true
     },
@@ -925,6 +932,9 @@
       "optional": true
     },
     "@workflow/world-postgres": {
+      "optional": true
+    },
+    "ai": {
       "optional": true
     },
     "chat": {
