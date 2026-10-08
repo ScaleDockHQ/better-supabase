@@ -11,6 +11,19 @@ const KNOWN = new Set([
   '"better_supabase"."organization_domains".verification_token',
 ]);
 
+/** Columns named like a token that hold no third-party credential, per module. */
+const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
+  // Hook tokens address a Workflow SDK hook; the DDL is @workflow/world-postgres's.
+  "workflow-sdk-world": [
+    "workflow.workflow_hooks.token",
+    "workflow.workflow_hooks.token_retention_until",
+    "?.token",
+    "?.token_retention_until",
+  ],
+  // A lock token proves who holds a Chat SDK thread lock when it is released.
+  "chat-sdk-state": ['"better_supabase"."chat_state_locks".token'],
+};
+
 const SENSITIVE = /token|secret|api_?key/;
 const CREATE_TABLE =
   /create table(?: if not exists)?\s+([\w."]+)\s*\(([\s\S]*?)\n\);/gi;
@@ -62,6 +75,9 @@ alter table public.grants add column if not exists api_key text;`),
     ),
   )("%s stores credentials as a credential_ref", (name) => {
     const sql = moduleBody(name) ?? "";
-    expect(credentialColumns(sql)).toEqual([]);
+    const allowed = NOT_CREDENTIALS[name] ?? [];
+    expect(
+      credentialColumns(sql).filter((column) => !allowed.includes(column)),
+    ).toEqual([]);
   });
 });
