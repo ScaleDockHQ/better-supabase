@@ -330,6 +330,11 @@
       "react-server": "./dist/blocks/ai-chat/react/server.js",
       "default": "./dist/blocks/ai-chat/react/index.js"
     },
+    "./blocks/ai-files": {
+      "@better-supabase/source": "./src/blocks/ai-files/index.ts",
+      "types": "./dist/blocks/ai-files/index.d.ts",
+      "default": "./dist/blocks/ai-files/index.js"
+    },
     "./ai-sdk": {
       "@better-supabase/source": "./src/ai-sdk/index.ts",
       "types": "./dist/ai-sdk/index.d.ts",
@@ -339,6 +344,11 @@
       "@better-supabase/source": "./src/ai-sdk/chat/index.ts",
       "types": "./dist/ai-sdk/chat/index.d.ts",
       "default": "./dist/ai-sdk/chat/index.js"
+    },
+    "./ai-sdk/files": {
+      "@better-supabase/source": "./src/ai-sdk/files/index.ts",
+      "types": "./dist/ai-sdk/files/index.d.ts",
+      "default": "./dist/ai-sdk/files/index.js"
     },
     "./ai-sdk/react": {
       "@better-supabase/source": "./src/ai-sdk/react/index.ts",
@@ -649,6 +659,10 @@
         "react-server": "./dist/blocks/ai-chat/react/server.js",
         "default": "./dist/blocks/ai-chat/react/index.js"
       },
+      "./blocks/ai-files": {
+        "types": "./dist/blocks/ai-files/index.d.ts",
+        "default": "./dist/blocks/ai-files/index.js"
+      },
       "./ai-sdk": {
         "types": "./dist/ai-sdk/index.d.ts",
         "default": "./dist/ai-sdk/index.js"
@@ -656,6 +670,10 @@
       "./ai-sdk/chat": {
         "types": "./dist/ai-sdk/chat/index.d.ts",
         "default": "./dist/ai-sdk/chat/index.js"
+      },
+      "./ai-sdk/files": {
+        "types": "./dist/ai-sdk/files/index.d.ts",
+        "default": "./dist/ai-sdk/files/index.js"
       },
       "./ai-sdk/react": {
         "types": "./dist/ai-sdk/react/index.d.ts",

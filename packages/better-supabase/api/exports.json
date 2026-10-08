@@ -1855,6 +1855,36 @@
       "UseAiChatTreeOptions"
     ]
   },
+  "./blocks/ai-files": {
+    "values": [
+      "aiFileUrl",
+      "createAiFiles",
+      "parseAiFileUrl",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "AiDocument",
+      "AiDocumentEdit",
+      "AiDocumentKind",
+      "AiDocumentVersion",
+      "AiDocumentWithContent",
+      "AiFile",
+      "AiFileBucket",
+      "AiFiles",
+      "AiFilesOptions",
+      "AiFileSource",
+      "AiFileStatus",
+      "AiFileStorage",
+      "AiFileUpload",
+      "AiProviderFile",
+      "AiSuggestion",
+      "BlockTransport",
+      "NewAiDocument",
+      "NewAiFile",
+      "StoredAiFile"
+    ]
+  },
   "./ai-sdk": {
     "values": [
       "AI_SDK_UI_FORMAT",
@@ -1898,6 +1928,20 @@
       "AssistantRequestBody",
       "AssistantRunArgs",
       "AssistantRunResult"
+    ]
+  },
+  "./ai-sdk/files": {
+    "values": [
+      "aiFileDownload",
+      "AiFileDownloadError",
+      "providerFile",
+      "saveGeneratedFiles"
+    ],
+    "types": [
+      "AiFileDownloadOptions",
+      "GeneratedFileLike",
+      "ProviderFileUpload",
+      "SaveGeneratedOptions"
     ]
   },
   "./ai-sdk/react": {
