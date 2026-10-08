@@ -1,0 +1,97 @@
+---
+title: Vue
+description: A Vue plugin, typed composables, live queries, presence and actions from better-supabase/vue.
+---
+
+`better-supabase/vue` binds the [browser client](/docs/frontend/client) to
+Vue 3. Install the plugin next to TanStack Vue Query:
+
+```ts title="src/main.ts"
+import { QueryClient, VueQueryPlugin } from "@tanstack/vue-query";
+import { betterSupabase } from "better-supabase/vue";
+import { createApp } from "vue";
+import App from "./App.vue";
+import { bs } from "./lib/supabase/client";
+
+const queryClient = new QueryClient();
+
+createApp(App)
+  .use(VueQueryPlugin, { queryClient })
+  .use(betterSupabase(bs, { queryClient }))
+  .mount("#app");
+```
+
+With `queryClient`, the plugin removes all better-supabase queries when the
+user signs out or switches accounts, and refetches them when the token's
+tenant or role changes. It uses
+[`clearOnUserChange`](/docs/frontend/query#clearing-on-sign-out).
+
+Create composables typed for your schema once:
+
+```ts title="src/lib/composables.ts"
+import { createBindings } from "better-supabase/vue";
+import type { bs } from "./supabase/client";
+
+export const { useDb, useQueries, useAuth, useSession } =
+  createBindings<typeof bs>();
+```
+
+```vue title="src/components/CustomerList.vue"
+<script setup lang="ts">
+import { useQuery } from "@tanstack/vue-query";
+import { useAuth, useQueries } from "../lib/composables";
+
+const auth = useAuth();
+const q = useQueries();
+const { data } = useQuery(q.customers.findMany({ select: ["id", "name"] }));
+</script>
+
+<template>
+  <SignIn v-if="auth.status === 'signed-out'" />
+  <ul v-else>
+    <li v-for="c in data" :key="c.id">{{ c.name }}</li>
+  </ul>
+</template>
+```
+
+## Composables
+
+| Composable                                | Returns                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| `useAuth()`                               | a ref with `loading`, `signed-out` or `signed-in`                |
+| `useSupabase()`                           | the supabase-js client                                           |
+| `useLiveQuery(spec, options)`             | a ref with the subscription status                               |
+| `useLiveCount(source, options)`           | a reactive `{ count, status, error }`                            |
+| `useBroadcast(topic, values, handlers)`   | a ref with the subscription status                               |
+| `usePresence(topic, values, { state })`   | a reactive `{ members, status, track, untrack }`                 |
+| `useAction(action, { onSuccess })`        | a reactive `{ pending, pendingInputs, data, error, run, reset }` |
+| `provideSession(session)`, `useSession()` | a server-verified session shared with the components below       |
+
+Inputs accept a value, a ref or a getter, so a subscription follows the
+props and refs it reads. A `null` spec or `null` values pause it:
+
+```vue title="src/components/OrgCustomers.vue"
+<script setup lang="ts">
+import { useLiveCount, useLiveQuery } from "better-supabase/vue";
+import { betterSupabase } from "../lib/supabase";
+
+const props = defineProps<{ orgId: string | null }>();
+
+useLiveQuery(() =>
+  props.orgId
+    ? betterSupabase.spec.customers.findMany({ where: { orgId: props.orgId } })
+    : null,
+);
+const unread = useLiveCount(() =>
+  betterSupabase.spec.messages.count({ where: { read: false } }),
+);
+</script>
+
+<template>
+  <span>{{ unread.count ?? "..." }}</span>
+</template>
+```
+
+Subscriptions start on mount, never during server rendering, and stop when
+the component unmounts. The same composables work in Nuxt, where the
+[Nuxt module](/docs/frameworks/nuxt) auto-imports them.

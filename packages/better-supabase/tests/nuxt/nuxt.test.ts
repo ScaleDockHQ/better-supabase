@@ -6,6 +6,7 @@ import betterSupabaseNuxt, {
   type NuxtLike,
   VUE_COMPOSABLES,
 } from "../../src/nuxt/index.ts";
+import * as vue from "../../src/vue/index.ts";
 
 function fakeNuxt(betterSupabase?: NuxtLike["options"]["betterSupabase"]) {
   const hooks: ((imports: NuxtImportLike[]) => void)[] = [];
@@ -34,6 +35,10 @@ describe("better-supabase/nuxt", () => {
       middlewareSource("~~/server/better-supabase"),
     );
     expect(imports().map((entry) => entry.name)).toEqual([...VUE_COMPOSABLES]);
+  });
+
+  it("auto-imports only names better-supabase/vue exports", () => {
+    for (const name of VUE_COMPOSABLES) expect(vue).toHaveProperty(name);
   });
 
   it("prefers inline options and can skip the composables", () => {

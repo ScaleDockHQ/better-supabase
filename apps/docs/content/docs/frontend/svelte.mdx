@@ -1,0 +1,74 @@
+---
+title: Svelte
+description: Svelte 5 bindings for live queries, presence, actions and the session from better-supabase/svelte.
+---
+
+`better-supabase/svelte` binds the [browser client](/docs/frontend/client)
+to Svelte 5. Bind it once in the root layout, next to TanStack Svelte Query:
+
+```svelte title="src/routes/+layout.svelte"
+<script lang="ts">
+  import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
+  import { setBetterSupabase, setSession } from "better-supabase/svelte";
+  import { bs } from "$lib/supabase/client";
+
+  let { data, children } = $props();
+  const queryClient = new QueryClient();
+
+  setBetterSupabase(bs, { queryClient });
+  setSession(() => data.session);
+</script>
+
+<QueryClientProvider client={queryClient}>
+  {@render children()}
+</QueryClientProvider>
+```
+
+With `queryClient`, better-supabase queries are removed when the user signs
+out or switches accounts, and refetched when the token's tenant or role
+changes. `setSession` shares the server-verified session from
+`+layout.server.ts` with `useSession()` below it.
+
+## Reading state
+
+Each binding returns an object whose fields are reactive. A subscription
+starts when a template, `$derived` or `$effect` reads one of its fields, and
+stops when nothing reads it any more, so nothing runs during server
+rendering. Inputs are getters, so a subscription follows the `$state` and
+`$props` it reads:
+
+```svelte title="src/lib/components/OrgCustomers.svelte"
+<script lang="ts">
+  import { useAuth, useLiveCount, useLiveQuery } from "better-supabase/svelte";
+  import { betterSupabase } from "$lib/supabase";
+
+  let { orgId }: { orgId: string | null } = $props();
+
+  const auth = useAuth();
+  const live = useLiveQuery(() =>
+    orgId ? betterSupabase.spec.customers.findMany({ where: { orgId } }) : null,
+  );
+  const unread = useLiveCount(() =>
+    betterSupabase.spec.messages.count({ where: { read: false } }),
+  );
+</script>
+
+{#if auth.current.status === "signed-in"}
+  <span data-status={live.current}>{unread.count ?? "..."}</span>
+{/if}
+```
+
+| Binding                                 | Returns                                                |
+| --------------------------------------- | ------------------------------------------------------ |
+| `useAuth()`                             | `current`: `loading`, `signed-out` or `signed-in`      |
+| `useLiveQuery(spec, options)`           | `current`: the subscription status                     |
+| `useLiveCount(source, options)`         | `{ count, status, error }`                             |
+| `useBroadcast(topic, values, handlers)` | `current`: the subscription status                     |
+| `usePresence(topic, values, { state })` | `{ members, status, track, untrack }`                  |
+| `useAction(action, { onSuccess })`      | `{ pending, pendingInputs, data, error, run, reset }`  |
+| `useSession()`                          | `current`: the session from the nearest `setSession()` |
+
+`getBetterSupabase<typeof bs>()` returns the bound client typed for your
+schema, with `db`, `queries` and `supabase`. Outside a component (a module
+or a test), `createBetterSvelte(bs)` returns the same object without a
+context. For the server hook, see [SvelteKit](/docs/frameworks/sveltekit).

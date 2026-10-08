@@ -4,27 +4,20 @@ import type { SubmitEvent } from "react";
 
 import { useCallback, useRef, useState, useTransition } from "react";
 
+import type {
+  ActionInputOf,
+  ActionResultOf,
+  UseActionOptions,
+} from "../bindings/client.ts";
 import type { DbError } from "../core/errors.ts";
 
 import { fieldErrorsOf } from "./field-errors.ts";
 
-/** What a `bs.action()` Server Action resolves to. */
-export type ActionResultOf<T> =
-  | { readonly ok: true; readonly data: T; readonly error: null }
-  | { readonly ok: false; readonly data: null; readonly error: DbError };
-
-/**
- * The input `useAction` passes: a `bs.action()` with an `input` schema also
- * accepts `FormData`, which belongs to `useActionForm`.
- */
-export type ActionInputOf<I> = [Exclude<I, FormData>] extends [never]
-  ? I
-  : Exclude<I, FormData>;
-
-export interface UseActionOptions<I, T> {
-  readonly onSuccess?: (data: T, input: I) => void;
-  readonly onError?: (error: DbError, input: I) => void;
-}
+export type {
+  ActionInputOf,
+  ActionResultOf,
+  UseActionOptions,
+} from "../bindings/client.ts";
 
 export interface ActionHandle<I, T> {
   /** Runs the action in a transition; resolves with its result. */

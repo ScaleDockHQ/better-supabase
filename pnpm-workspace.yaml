@@ -134,10 +134,12 @@ catalog:
   shadcn: 4.21.1
   shiki: 4.5.0
   smol-toml: 1.9.0
+  solid-js: 1.9.17
   sonner: 2.0.8
   stripe: 23.0.0
   # Keep on the SUPABASE_CLI_VERSION that CI installs.
   supabase: 2.119.0
+  svelte: 5.57.2
   tailwind-merge: 3.7.0
   tailwindcss: 4.3.3
   temporal-polyfill: 1.0.5
@@ -149,6 +151,7 @@ catalog:
   valibot: 1.5.0
   vite: 8.3.2
   vitest: 5.0.3
+  vue: 3.5.43
   workflow: 5.1.0
   # Only the core package's zod generator fixture imports Zod, and `ai` needs it
   # as a peer (docs/decisions/0002). Lint rejects `zod` imports everywhere else.
@@ -204,6 +207,11 @@ catalogs:
     oxfmt: ">=0.66.0 <1"
     pg: ">=8.15 <9"
     react: "^19"
+    solid-js: "^1.8"
+    # 5.7.0 added createSubscriber, which the Svelte bindings read through.
+    svelte: "^5.7"
+    # 3.3 added the generic `toValue` and `MaybeRefOrGetter` the Vue composables accept.
+    vue: "^3.3"
     # 5.0.0 is the first node-redis with the camelCase commands the Redis stream store sends.
     redis: ">=5 <7"
     # 17 is the first release with createFetchHttpClient and billing.meterEvents.

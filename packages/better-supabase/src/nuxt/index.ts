@@ -38,8 +38,10 @@ export interface NuxtLike {
 /** The composables `better-supabase/vue` exports, auto-imported in components. */
 export const VUE_COMPOSABLES: readonly string[] = [
   "useAuth",
+  "useSupabase",
   "useSession",
-  "useDb",
+  "useSupportSession",
+  "provideSession",
   "useLiveQuery",
   "useLiveCount",
   "useBroadcast",

@@ -182,6 +182,21 @@
       "types": "./dist/solid-start/index.d.ts",
       "default": "./dist/solid-start/index.js"
     },
+    "./vue": {
+      "@better-supabase/source": "./src/vue/index.ts",
+      "types": "./dist/vue/index.d.ts",
+      "default": "./dist/vue/index.js"
+    },
+    "./solid": {
+      "@better-supabase/source": "./src/solid/index.ts",
+      "types": "./dist/solid/index.d.ts",
+      "default": "./dist/solid/index.js"
+    },
+    "./svelte": {
+      "@better-supabase/source": "./src/svelte/index.ts",
+      "types": "./dist/svelte/index.d.ts",
+      "default": "./dist/svelte/index.js"
+    },
     "./orpc": {
       "@better-supabase/source": "./src/orpc/index.ts",
       "types": "./dist/orpc/index.d.ts",
@@ -689,6 +704,18 @@
         "types": "./dist/solid-start/index.d.ts",
         "default": "./dist/solid-start/index.js"
       },
+      "./vue": {
+        "types": "./dist/vue/index.d.ts",
+        "default": "./dist/vue/index.js"
+      },
+      "./solid": {
+        "types": "./dist/solid/index.d.ts",
+        "default": "./dist/solid/index.js"
+      },
+      "./svelte": {
+        "types": "./dist/svelte/index.d.ts",
+        "default": "./dist/svelte/index.js"
+      },
       "./orpc": {
         "types": "./dist/orpc/index.d.ts",
         "default": "./dist/orpc/index.js"
@@ -1082,13 +1109,16 @@
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
     "smol-toml": "catalog:",
+    "solid-js": "catalog:",
     "stripe": "catalog:",
+    "svelte": "catalog:",
     "temporal-polyfill": "catalog:",
     "tinyexec": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "valibot": "catalog:",
     "vitest": "catalog:",
+    "vue": "catalog:",
     "workflow": "catalog:",
     "zod": "catalog:"
   },
@@ -1116,8 +1146,11 @@
     "pg": "catalog:peers",
     "react": "catalog:peers",
     "redis": "catalog:peers",
+    "solid-js": "catalog:peers",
     "stripe": "catalog:peers",
+    "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
+    "vue": "catalog:peers",
     "workflow": "catalog:peers"
   },
   "peerDependenciesMeta": {
@@ -1187,10 +1220,19 @@
     "redis": {
       "optional": true
     },
+    "solid-js": {
+      "optional": true
+    },
     "stripe": {
       "optional": true
     },
+    "svelte": {
+      "optional": true
+    },
     "temporal-polyfill": {
+      "optional": true
+    },
+    "vue": {
       "optional": true
     },
     "workflow": {
