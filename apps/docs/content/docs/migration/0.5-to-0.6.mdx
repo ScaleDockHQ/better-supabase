@@ -98,14 +98,21 @@ the files through the diff rather than by running them on the database.
 better-supabase no longer reads `permdock.config.ts`, `permdock.manifest.json`
 or `permissions.catalog.json`. The `authorization` key takes a provider
 object instead, and PermDock builds it from those files with
-`authorizationProvider()` from `permdock/better-supabase`:
+`authorizationProvider({ manifest, catalog })` from `permdock/better-supabase`:
 
 ```ts title="better-supabase.config.ts"
+import { readFileSync } from "node:fs";
 import { defineConfig } from "better-supabase/config";
 import { authorizationProvider } from "permdock/better-supabase";
 
+const read = (file: string) =>
+  readFileSync(new URL(file, import.meta.url), "utf8");
+
 export default defineConfig({
-  authorization: authorizationProvider(),
+  authorization: authorizationProvider({
+    manifest: read("permdock.manifest.json"),
+    catalog: read("permissions.catalog.json"),
+  }),
   sql: { modules: { access: { model: "provider" } } },
 });
 ```
@@ -121,7 +128,7 @@ export default defineConfig({
 | `permdock: { receive, send }` on a topic                           | `access: { receive, send, scope, sql }`, with `topicPolicy()` from `permdock/better-supabase`            |
 | `catalog` on `defineBucket` and `defineTopic`                      | the provider's `permissions` (`sqlComplete`), checked by `gen` and doctor BS214                          |
 | `permdockVerifier` from `better-supabase/blocks/api-keys`          | `apiKeyVerifier` from `permdock/better-supabase`                                                         |
-| `permdock` on `apiKeyResolver` and `apiKeyClaims`                  | `claim`, or `apiKeyClaim()` from `permdock/better-supabase`                                              |
+| `permdock` on `apiKeyResolver` and `apiKeyClaims`                  | `claim`, or `apiKeyClaimOptions(manifest)` from `permdock/better-supabase`                               |
 | `options.scopes: "catalog"` on the api-keys module                 | unchanged; it reads the provider's `permissions`                                                         |
 | `PermdockBucketPolicy`, `PermdockTopicPolicy`, `PermdockCatalog`   | `AccessBucketPolicy`, `AccessTopicPolicy`, `AuthorizationProvider`                                       |
 | `ModuleAccessPermdock`, `ModulePermdock`                           | `ModuleAccessProvider`, `ModuleEntitlementsProvider`                                                     |
