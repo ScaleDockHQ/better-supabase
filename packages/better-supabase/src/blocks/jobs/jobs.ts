@@ -762,7 +762,10 @@ export function createWebhookInbox(
   };
 }
 
-/** @deprecated Use `createWebhookInbox`; `createInbox` is removed in the next minor. */
+/**
+ * @deprecated Use `createWebhookInbox`; `createInbox` is removed in the next minor.
+ * @alias
+ */
 export const createInbox: typeof createWebhookInbox = createWebhookInbox;
 /** @deprecated Use `WebhookInbox`. */
 export type Inbox = WebhookInbox;
