@@ -1,0 +1,132 @@
+---
+title: Node, Express, Fastify and Koa
+description: Run withBetterSupabase on node:http, Express, Fastify or Koa, with route guards and Problem Details errors.
+---
+
+`better-supabase/node` bridges Node's `IncomingMessage` and `ServerResponse`
+to the Web `Request` and `Response` the entries run on. It types Express,
+Fastify and Koa structurally, so it adds no dependency.
+
+## node:http
+
+`toNodeHandler(entries, handler)` returns a request listener. The entries run
+around the handler, so refreshed session cookies, `withDbStats` totals and
+`Server-Timing` reach the client. The handler's value becomes the response (a
+plain value as JSON):
+
+```ts title="server.ts"
+import { createServer } from "node:http";
+import { toNodeHandler } from "better-supabase/node";
+import {
+  createServer as createBetterServer,
+  withBetterSupabase,
+} from "better-supabase/server";
+import { betterSupabase } from "./lib/supabase";
+
+const bs = createBetterServer(betterSupabase);
+
+createServer(
+  toNodeHandler(
+    [withBetterSupabase(bs, { allow: ["user"] })],
+    (request, { db }) =>
+      db.notes.findMany({ select: ["id", "title"] }).orThrow(),
+  ),
+).listen(3000);
+```
+
+## Express
+
+`toExpress(entries)` is middleware that runs before the routes. A refusal from
+the entries (a 401, a CORS preflight) is the answer; otherwise the entries'
+cookies and headers go on the response and every contribution lands on
+`res.locals`. `guard(options)` refuses callers per route, and
+`problemErrorHandler()` answers errors thrown by `.orThrow()` with Problem
+Details:
+
+```ts title="app.ts"
+import express from "express";
+import { guard, problemErrorHandler, toExpress } from "better-supabase/node";
+import { withBetterSupabase } from "better-supabase/server";
+import { bs } from "./lib/server";
+
+const app = express();
+app.use(
+  toExpress([
+    withBetterSupabase(bs, { refresh: true, allow: ["user", "anon"] }),
+  ]),
+);
+
+app.get("/notes", async (req, res) => {
+  res.json(await res.locals.db.notes.findMany().orThrow());
+});
+app.get("/admin/members", guard({ roles: ["admin"] }), async (req, res) => {
+  res.json(await res.locals.db.members.findMany().orThrow());
+});
+
+app.use(problemErrorHandler());
+```
+
+Guards take the same options as every adapter: `allow`, `aal`, `scopes`,
+`roles` and `roleClaim`, `requireTenant`, `authorize`, and the `signIn` and
+`mfa` redirects for browser routes.
+
+## Fastify
+
+`toFastify(entries)` is an `onRequest` hook that puts the contributions on
+`request.locals`, and `fastifyGuard(options)` is a `preHandler`:
+
+```ts title="app.ts"
+import Fastify from "fastify";
+import { fastifyGuard, toFastify } from "better-supabase/node";
+import { withBetterSupabase } from "better-supabase/server";
+import { bs } from "./lib/server";
+
+const app = Fastify();
+app.decorateRequest("locals", null);
+app.addHook(
+  "onRequest",
+  toFastify([withBetterSupabase(bs, { allow: ["user"] })]),
+);
+
+app.get("/notes", (request) => request.locals.db.notes.findMany().orThrow());
+app.get(
+  "/admin/members",
+  { preHandler: fastifyGuard({ roles: ["admin"] }) },
+  (request) => request.locals.db.members.findMany().orThrow(),
+);
+```
+
+## Koa
+
+`toKoa(entries)` puts the contributions on `ctx.state`, awaits the rest of the
+chain and answers thrown `DbException`s with Problem Details. `koaGuard(options)`
+refuses callers on the routes it guards:
+
+```ts title="app.ts"
+import Koa from "koa";
+import { koaGuard, toKoa } from "better-supabase/node";
+import { withBetterSupabase } from "better-supabase/server";
+import { bs } from "./lib/server";
+
+const app = new Koa();
+app.use(toKoa([withBetterSupabase(bs, { allow: ["user"] })]));
+app.use(koaGuard({ roles: ["admin"] }));
+app.use(async (ctx) => {
+  ctx.body = await ctx.state.db.members.findMany().orThrow();
+});
+```
+
+## What runs where
+
+Express, Fastify and Koa own the response, so their middleware runs the
+entries before the route and copies the entries' headers onto the framework's
+response. Entries that read the final response (`withDbStats`,
+`withServerTiming`) see an empty one there; serve those routes with
+`toNodeHandler` to measure them.
+
+The bridge reads the URL from Express's `originalUrl`, so a router mounted at a
+path still sees the full path. Pass `trustProxy: true` behind a proxy you
+control to read the protocol and host from `x-forwarded-proto` and
+`x-forwarded-host`. The middleware leaves the request body unread, so body
+parsers run as usual. `toWebRequest` and `sendWebResponse` are exported for
+other Node frameworks.

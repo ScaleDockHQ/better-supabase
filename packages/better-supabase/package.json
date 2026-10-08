@@ -152,6 +152,36 @@
       "types": "./dist/elysia/index.d.ts",
       "default": "./dist/elysia/index.js"
     },
+    "./node": {
+      "@better-supabase/source": "./src/node/index.ts",
+      "types": "./dist/node/index.d.ts",
+      "default": "./dist/node/index.js"
+    },
+    "./nestjs": {
+      "@better-supabase/source": "./src/nestjs/index.ts",
+      "types": "./dist/nestjs/index.d.ts",
+      "default": "./dist/nestjs/index.js"
+    },
+    "./astro": {
+      "@better-supabase/source": "./src/astro/index.ts",
+      "types": "./dist/astro/index.d.ts",
+      "default": "./dist/astro/index.js"
+    },
+    "./h3/v1": {
+      "@better-supabase/source": "./src/h3/v1/index.ts",
+      "types": "./dist/h3/v1/index.d.ts",
+      "default": "./dist/h3/v1/index.js"
+    },
+    "./nuxt": {
+      "@better-supabase/source": "./src/nuxt/index.ts",
+      "types": "./dist/nuxt/index.d.ts",
+      "default": "./dist/nuxt/index.js"
+    },
+    "./solid-start": {
+      "@better-supabase/source": "./src/solid-start/index.ts",
+      "types": "./dist/solid-start/index.d.ts",
+      "default": "./dist/solid-start/index.js"
+    },
     "./orpc": {
       "@better-supabase/source": "./src/orpc/index.ts",
       "types": "./dist/orpc/index.d.ts",
@@ -635,6 +665,30 @@
         "types": "./dist/elysia/index.d.ts",
         "default": "./dist/elysia/index.js"
       },
+      "./node": {
+        "types": "./dist/node/index.d.ts",
+        "default": "./dist/node/index.js"
+      },
+      "./nestjs": {
+        "types": "./dist/nestjs/index.d.ts",
+        "default": "./dist/nestjs/index.js"
+      },
+      "./astro": {
+        "types": "./dist/astro/index.d.ts",
+        "default": "./dist/astro/index.js"
+      },
+      "./h3/v1": {
+        "types": "./dist/h3/v1/index.d.ts",
+        "default": "./dist/h3/v1/index.js"
+      },
+      "./nuxt": {
+        "types": "./dist/nuxt/index.d.ts",
+        "default": "./dist/nuxt/index.js"
+      },
+      "./solid-start": {
+        "types": "./dist/solid-start/index.d.ts",
+        "default": "./dist/solid-start/index.js"
+      },
       "./orpc": {
         "types": "./dist/orpc/index.d.ts",
         "default": "./dist/orpc/index.js"
@@ -982,6 +1036,7 @@
     "@effect/platform-node": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
+    "@nestjs/common": "catalog:",
     "@next/playwright": "catalog:",
     "@openfeature/server-sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
@@ -1024,6 +1079,8 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "redis": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
     "smol-toml": "catalog:",
     "stripe": "catalog:",
     "temporal-polyfill": "catalog:",
@@ -1039,6 +1096,7 @@
     "@ai-sdk/mcp": "catalog:peers",
     "@ai-sdk/react": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
+    "@nestjs/common": "catalog:peers",
     "@next/playwright": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
     "@orpc/server": "catalog:peers",
@@ -1070,6 +1128,9 @@
       "optional": true
     },
     "@modelcontextprotocol/server": {
+      "optional": true
+    },
+    "@nestjs/common": {
       "optional": true
     },
     "@next/playwright": {

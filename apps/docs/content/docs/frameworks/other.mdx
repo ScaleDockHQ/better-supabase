@@ -9,21 +9,26 @@ better-supabase ships a bridge for each framework below. A bridge runs an
 middleware slot and returns the framework's response back through the
 entries.
 
-| Framework       | Import                                                  | Docs                                              |
-| --------------- | ------------------------------------------------------- | ------------------------------------------------- |
-| TanStack Start  | `toTanStackStart` from `better-supabase/tanstack-start` | [TanStack Start](/docs/frameworks/tanstack-start) |
-| SvelteKit       | `toSvelteKit` from `better-supabase/sveltekit`          | [SvelteKit](/docs/frameworks/sveltekit)           |
-| React Router    | `toReactRouter` from `better-supabase/react-router`     | [React Router](/docs/frameworks/react-router)     |
-| H3, Nitro, Nuxt | `toH3` from `better-supabase/h3`                        | [H3](/docs/frameworks/h3)                         |
-| Elysia          | `toElysia` from `better-supabase/elysia`                | [Elysia](/docs/frameworks/elysia)                 |
+| Framework      | Import                                                   | Docs                                              |
+| -------------- | -------------------------------------------------------- | ------------------------------------------------- |
+| TanStack Start | `toTanStackStart` from `better-supabase/tanstack-start`  | [TanStack Start](/docs/frameworks/tanstack-start) |
+| SvelteKit      | `toSvelteKit` from `better-supabase/sveltekit`           | [SvelteKit](/docs/frameworks/sveltekit)           |
+| React Router   | `toReactRouter` from `better-supabase/react-router`      | [React Router](/docs/frameworks/react-router)     |
+| H3 2, Nitro 3  | `toH3` from `better-supabase/h3`                         | [H3](/docs/frameworks/h3)                         |
+| Nitro 2, Nuxt  | `toH3V1` from `better-supabase/h3/v1`                    | [Nuxt](/docs/frameworks/nuxt)                     |
+| Elysia         | `toElysia` from `better-supabase/elysia`                 | [Elysia](/docs/frameworks/elysia)                 |
+| Node, Express  | `toNodeHandler`, `toExpress` from `better-supabase/node` | [Node](/docs/frameworks/node)                     |
+| Fastify, Koa   | `toFastify`, `toKoa` from `better-supabase/node`         | [Node](/docs/frameworks/node)                     |
+| NestJS         | `toNestMiddleware` from `better-supabase/nestjs`         | [NestJS](/docs/frameworks/nestjs)                 |
+| Astro          | `createAstro` from `better-supabase/astro`               | [Astro](/docs/frameworks/astro)                   |
+| SolidStart     | `createSolidStart` from `better-supabase/solid-start`    | [SolidStart](/docs/frameworks/solid-start)        |
 
 The bridges are typed structurally: none of them imports its framework, so
 installing better-supabase adds no framework dependency.
 
 The `@supabase/server` adapters (`adapters/hono`, `/h3`, `/elysia` and
 `/nestjs`) are deprecated upstream and removed on 2026-12-01. Move to the
-bridge for your framework. For NestJS, call
-`createServer(betterSupabase).context(request)` in a guard or interceptor.
+bridge for your framework; NestJS apps move to `better-supabase/nestjs`.
 
 ## Write a bridge
 

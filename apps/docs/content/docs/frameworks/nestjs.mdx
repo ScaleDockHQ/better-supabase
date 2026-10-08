@@ -1,0 +1,68 @@
+---
+title: NestJS
+description: Run withBetterSupabase as NestJS middleware, read the caller with @Ctx(), and guard routes by role.
+---
+
+`better-supabase/nestjs` works on both of Nest's HTTP platforms (Express and
+Fastify). Install `@nestjs/common` (version 11 or 12) in the app; the package
+loads it the first time `@Ctx()` or a guard needs it.
+
+Apply `toNestMiddleware(entries)` to the routes. A refusal from the entries (a
+401, a CORS preflight) is the answer; otherwise the entries' cookies go on the
+response and the contributions are kept for the request:
+
+```ts title="src/app.module.ts"
+import {
+  type MiddlewareConsumer,
+  Module,
+  type NestModule,
+} from "@nestjs/common";
+import { toNestMiddleware } from "better-supabase/nestjs";
+import { withBetterSupabase } from "better-supabase/server";
+import { NotesController } from "./notes.controller";
+import { bs } from "./supabase";
+
+@Module({ controllers: [NotesController] })
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(toNestMiddleware([withBetterSupabase(bs, { allow: ["user"] })]))
+      .forRoutes("*");
+  }
+}
+```
+
+`@Ctx()` injects every contribution, and `@Ctx('db')` one of them. `guard(options)`
+is a guard instance for `@UseGuards`, with the options every adapter takes
+(`allow`, `aal`, `scopes`, `roles`, `requireTenant`, `authorize`, `signIn`):
+
+```ts title="src/notes.controller.ts"
+import { Controller, Get, UseFilters, UseGuards } from "@nestjs/common";
+import { Ctx, guard, problemFilter } from "better-supabase/nestjs";
+import type { Db } from "./supabase";
+
+@Controller("notes")
+@UseFilters(problemFilter())
+export class NotesController {
+  @Get()
+  list(@Ctx("db") db: Db) {
+    return db.notes.findMany({ select: ["id", "title"] }).orThrow();
+  }
+
+  @Get("all")
+  @UseGuards(guard({ roles: ["admin"] }))
+  all(@Ctx("db") db: Db) {
+    return db.notes.findMany().orThrow();
+  }
+}
+```
+
+A refused caller gets an `HttpException` with the Problem Details body and
+status (403 for a missing role), or a 303 to `signIn` or `mfa` when you set
+them. `problemFilter()` answers errors thrown by `.orThrow()` with
+`application/problem+json` and other exceptions the way Nest's base filter
+does; register it per controller or with `app.useGlobalFilters(problemFilter())`.
+
+The middleware runs before the route, so entries that read the final response
+(`withDbStats`, `withServerTiming`) see an empty one. `contextOf(request)`
+reads the contributions outside a handler, for example in your own guards.

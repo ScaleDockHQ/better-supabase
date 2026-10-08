@@ -28,6 +28,7 @@ catalog:
   "@manypkg/get-packages": 3.1.0
   "@modelcontextprotocol/client": 2.3.0
   "@modelcontextprotocol/server": 2.3.0
+  "@nestjs/common": 12.1.2
   "@next/playwright": 16.3.8
   "@op-engineering/op-sqlite": 18.2.5
   "@openfeature/server-sdk": 1.23.0
@@ -118,7 +119,9 @@ catalog:
   postcss: 8.5.28
   publint: 0.3.25
   react: 19.3.0
+  reflect-metadata: 0.2.2
   redis: 6.3.0
+  rxjs: 7.8.2
   react-dom: 19.3.0
   # The versions in expo@57 bundledNativeModules.json; Expo SDK 57 supports
   # React Native 0.86 only.
@@ -174,6 +177,8 @@ catalogs:
     "@modelcontextprotocol/server": ">=2.3.0 <3"
     # 4.41.0 is the first Chat SDK with the StateAdapter queue and list methods better-supabase/chat-sdk implements.
     chat: ">=4.41 <5"
+    # 11 is the oldest major that runs on Node 24; @Ctx() requires it synchronously.
+    "@nestjs/common": ">=11 <13"
     # 16.2.0 ships instant() with the baseURL option; expectInstant loads it on demand.
     "@next/playwright": ">=16.2 <17"
     "@opentelemetry/api": ">=1.9 <2"

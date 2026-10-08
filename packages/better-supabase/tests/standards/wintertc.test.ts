@@ -9,6 +9,8 @@ import { describe, expect, it } from "vitest";
 // and edge runtimes. Node-only entries are listed in AGENTS.md invariant 6.
 const SRC = resolve(import.meta.dirname, "../../src");
 const NODE_ENTRIES = new Set([
+  "nestjs/index",
+  "node/index",
   "postgres/index",
   "testing/index",
   "workflow-sdk/world/index",

@@ -76,6 +76,24 @@ describe("requireCaller", () => {
       await requireCaller(user, { authorize: () => false }, "acme"),
     ).toMatchObject({ kind: "forbidden", code: "NOT_AUTHORIZED" });
   });
+
+  it("admits only the listed roles, at roleClaim when given", async () => {
+    const member = await authAs({ role: "member" });
+    expect(
+      await requireCaller(member, { roles: ["admin"] }, undefined),
+    ).toMatchObject({ kind: "forbidden", code: "MISSING_ROLE" });
+    expect(
+      await requireCaller(member, { roles: ["admin", "member"] }, undefined),
+    ).toMatchObject({ tenant: undefined });
+    const support = await authAs({ roles: ["support"] });
+    expect(
+      await requireCaller(
+        support,
+        { roles: ["support"], roleClaim: "app_metadata.roles" },
+        undefined,
+      ),
+    ).not.toHaveProperty("kind");
+  });
 });
 
 describe("runAction", () => {

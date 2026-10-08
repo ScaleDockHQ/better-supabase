@@ -1,0 +1,76 @@
+---
+title: SolidStart
+description: Run better-supabase as SolidStart middleware and read the caller in queries, actions and API routes.
+---
+
+`createSolidStart(betterSupabase, options)` from `better-supabase/solid-start`
+returns the server with SolidStart helpers. Pass `getRequestEvent` from
+`solid-js/web` so the helpers find the request inside server functions:
+
+```ts title="src/lib/server.ts"
+import { createSolidStart } from "better-supabase/solid-start";
+import { getRequestEvent } from "solid-js/web";
+import { betterSupabase } from "./supabase";
+
+export const bs = createSolidStart(betterSupabase, {
+  getRequestEvent,
+  signIn: "/sign-in",
+});
+```
+
+```ts title="src/middleware.ts"
+import { createMiddleware } from "@solidjs/start/middleware";
+import { bs } from "./lib/server";
+
+export default createMiddleware(bs.middleware);
+```
+
+Register the file as `middleware: "src/middleware.ts"` in `app.config.ts`. The
+middleware verifies the caller, refreshes the session cookie on navigations and
+form posts, and puts `db`, `bs`, `auth`, `tenant` and `session` on
+`event.locals`.
+
+## Queries
+
+`bs.require(options)` returns the caller and its repositories inside a
+`"use server"` function, or throws the refusal: a redirect to `signIn` or
+`mfa`, else Problem Details:
+
+```ts title="src/lib/notes.ts"
+import { query } from "@solidjs/router";
+import { bs } from "./server";
+
+export const getNotes = query(async () => {
+  "use server";
+  const { db } = await bs.require();
+  return db.notes.findMany({ select: ["id", "title"] }).orThrow();
+}, "notes");
+```
+
+`bs.locals()` returns the request's locals without a check.
+
+## Actions
+
+`bs.action(options, fn)` returns a server function that takes `FormData` or a
+plain object, validates it with any Standard Schema, and returns an
+`ActionResult`:
+
+```ts title="src/lib/notes.ts"
+import { action } from "@solidjs/router";
+import { bs } from "./server";
+import { NoteInput } from "./schemas";
+
+const createNote = bs.action({ input: NoteInput }, (input, { db }) =>
+  db.notes.create(input),
+);
+
+export const addNote = action(async (form: FormData) => {
+  "use server";
+  return createNote(form);
+});
+```
+
+The middleware runs before the route, so entries that read the final response
+(`withDbStats`, `withServerTiming`) see an empty one. On Nitro's Cloudflare
+presets the bindings seed `getEnv`; pass `platformEnv` to read the env
+elsewhere.

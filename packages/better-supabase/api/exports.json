@@ -962,6 +962,107 @@
       "RouteGuardOptions"
     ]
   },
+  "./node": {
+    "values": [
+      "applyWebHeaders",
+      "fastifyGuard",
+      "guard",
+      "koaGuard",
+      "problemErrorHandler",
+      "sendWebResponse",
+      "toExpress",
+      "toFastify",
+      "toKoa",
+      "toNodeHandler",
+      "toWebHeaders",
+      "toWebRequest"
+    ],
+    "types": [
+      "ExpressErrorHandler",
+      "ExpressMiddleware",
+      "ExpressResponse",
+      "FastifyHook",
+      "FastifyReplyLike",
+      "FastifyRequestLike",
+      "KoaContextLike",
+      "KoaMiddleware",
+      "NodeHeaderTarget",
+      "RouteGuardOptions",
+      "ToNodeOptions",
+      "WebRequestOptions"
+    ]
+  },
+  "./nestjs": {
+    "values": [
+      "contextOf",
+      "Ctx",
+      "guard",
+      "problemFilter",
+      "toNestMiddleware"
+    ],
+    "types": [
+      "CanActivateLike",
+      "ExceptionFilterLike",
+      "ExecutionContextLike",
+      "NestMiddleware",
+      "RouteGuardOptions"
+    ]
+  },
+  "./astro": {
+    "values": [
+      "createAstro",
+      "createImageService"
+    ],
+    "types": [
+      "ActionResult",
+      "AstroContextLike",
+      "AstroImageService",
+      "AstroImageTransform",
+      "AstroOptions",
+      "BetterAstro",
+      "RefusalRedirects"
+    ]
+  },
+  "./h3/v1": {
+    "values": [
+      "guard",
+      "problemOnError",
+      "toH3V1"
+    ],
+    "types": [
+      "H3V1Event",
+      "H3V1Handler",
+      "RouteGuardOptions",
+      "ToH3V1Options"
+    ]
+  },
+  "./nuxt": {
+    "values": [
+      "default",
+      "middlewareSource",
+      "VUE_COMPOSABLES"
+    ],
+    "types": [
+      "BetterSupabaseNuxtModule",
+      "NitroHandlerLike",
+      "NuxtImportLike",
+      "NuxtLike",
+      "NuxtModuleOptions"
+    ]
+  },
+  "./solid-start": {
+    "values": [
+      "createSolidStart"
+    ],
+    "types": [
+      "ActionResult",
+      "BetterSolidStart",
+      "RefusalRedirects",
+      "SolidFetchEvent",
+      "SolidStartMiddleware",
+      "SolidStartOptions"
+    ]
+  },
   "./orpc": {
     "values": [
       "createOrpc",
@@ -1347,6 +1448,7 @@
       "IMAGE_TYPES",
       "organizationLogoBucket",
       "parseSize",
+      "storageImageUrl",
       "TTL"
     ],
     "types": [
@@ -1385,6 +1487,8 @@
       "Reservation",
       "ResolvedRef",
       "StorageClient",
+      "StorageImageOptions",
+      "StorageImageSize",
       "StoragePath",
       "StoredObject",
       "StoredRef",

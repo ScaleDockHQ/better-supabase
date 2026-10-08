@@ -57,6 +57,8 @@ const TOLERANCE = { ratio: 0.05, bytes: 256 };
 /** Entries that may use Node built-ins. Everything else must run on any WinterTC runtime. */
 const NODE_ENTRIES = new Set([
   "./cli",
+  "./nestjs",
+  "./node",
   "./postgres",
   "./testing",
   "./workflow-sdk/world",

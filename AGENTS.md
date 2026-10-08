@@ -136,8 +136,10 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     `redis` through a variable specifier in `src/streams/redis/redis.ts`
     (an install message, or pass a client), `@vercel/connect` through a
     variable specifier in `src/vercel-connect/vercel-connect.ts` (an
-    install message), and `@next/playwright` through a variable specifier in
-    `src/testing/instant.ts` (an install message). CLI startup work also loads on
+    install message), `@next/playwright` through a variable specifier in
+    `src/testing/instant.ts` (an install message), and `@nestjs/common`
+    through a synchronous `createRequire` in `src/nestjs/index.ts`, because
+    `@Ctx()` runs while the class is defined (an install message). CLI startup work also loads on
     demand, each with a comment: the commands, config loading and env
     validation in `src/cli/run.ts`, the prompts in `src/cli/bin.ts`, and
     the arktype-backed typegen entries in `src/cli/introspect/typegen.ts`.

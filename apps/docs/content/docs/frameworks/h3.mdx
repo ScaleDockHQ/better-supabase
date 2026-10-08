@@ -1,5 +1,5 @@
 ---
-title: H3, Nitro and Nuxt
+title: H3 and Nitro 3
 description: Run withBetterSupabase as H3 2 middleware, with the caller's repositories on event.context.
 ---
 
@@ -27,7 +27,9 @@ JSON, `undefined` as 204), so the entries can add refreshed cookies and
 `bs-primary-until` to it. A guard refusal answers 401 or 403 Problem Details
 before the handler runs.
 
-In Nitro and Nuxt, register the same middleware in `server/middleware`:
+In Nitro 3, register the same middleware in `server/middleware`. Nuxt 3 and 4
+serve through Nitro 2 on H3 1; use [`better-supabase/nuxt`](/docs/frameworks/nuxt)
+there.
 
 ```ts title="server/middleware/supabase.ts"
 import { defineMiddleware } from "h3";

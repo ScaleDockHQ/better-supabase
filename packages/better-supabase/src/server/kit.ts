@@ -22,6 +22,10 @@ export type ActionResult<T> =
 export interface AuthorizeOptions<I, C, P, R extends boolean> {
   /** Refuse callers without an active tenant, so `ctx.tenant` is a string. */
   readonly requireTenant?: R;
+  /** Admit only users holding one of these roles at `roleClaim`. */
+  readonly roles?: readonly string[];
+  /** The dotted claim path `roles` reads: one string or an array. Defaults to `app_metadata.role`. */
+  readonly roleClaim?: string;
   /** Return `false` to refuse the caller, e.g. `(session) => can(session, 'members.invite')`. */
   readonly authorize?: (
     session: AuthSession<C, P>,
@@ -109,6 +113,11 @@ export async function authorizeCaller<I, C, P>(
   if (checks.requireTenant && tenant === undefined) {
     return dbError("forbidden", "Choose an organization first", {
       code: "NO_TENANT",
+    });
+  }
+  if (checks.roles && !hasRole(auth, checks.roles, checks.roleClaim)) {
+    return dbError("forbidden", "You do not have the role this needs", {
+      code: "MISSING_ROLE",
     });
   }
   if (checks.authorize && !(await checks.authorize(session, input))) {
