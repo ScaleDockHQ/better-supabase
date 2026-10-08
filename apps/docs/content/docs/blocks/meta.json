@@ -11,6 +11,7 @@
     "outbox",
     "workflows",
     "workflow-sdk",
+    "workflow-builder",
     "streams",
     "notifications",
     "webhooks-out",
