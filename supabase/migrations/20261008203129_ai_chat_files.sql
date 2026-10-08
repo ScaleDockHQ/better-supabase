@@ -46,6 +46,70 @@ CREATE TABLE "better_supabase"."ai_chats" (
 ALTER TABLE "better_supabase"."ai_chats"
   ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE "better_supabase"."ai_document_versions" (
+  "document_id"           uuid                     NOT NULL,
+  "version"               integer                  NOT NULL,
+  "content"               text,
+  "storage_path"          text,
+  "created_by_message_id" text,
+  "created_by"            uuid,
+  "created_at"            timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT "ai_document_versions_check" CHECK (((content IS NOT NULL) OR (storage_path IS NOT NULL))),
+  CONSTRAINT "ai_document_versions_pkey" PRIMARY KEY (document_id, VERSION),
+  CONSTRAINT "ai_document_versions_version_check" CHECK ((version >= 1))
+);
+
+ALTER TABLE "better_supabase"."ai_document_versions"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE "better_supabase"."ai_documents" (
+  "id"              uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "organization_id" uuid                     NOT NULL,
+  "owner_id"        uuid                     NOT NULL,
+  "chat_id"         uuid,
+  "kind"            text                     NOT NULL,
+  "title"           text                     NOT NULL,
+  "current_version" integer                  NOT NULL DEFAULT 1,
+  "created_at"      timestamp with time zone NOT NULL DEFAULT now(),
+  "updated_at"      timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT "ai_documents_current_version_check" CHECK ((current_version >= 1)),
+  CONSTRAINT "ai_documents_kind_check" CHECK ((kind = ANY (ARRAY['text'::text, 'code'::text, 'sheet'::text, 'image'::text]))),
+  CONSTRAINT "ai_documents_pkey" PRIMARY KEY (id),
+  CONSTRAINT "ai_documents_title_check" CHECK (((length(title) >= 1) AND (length(title) <= 500)))
+);
+
+ALTER TABLE "better_supabase"."ai_documents"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE "better_supabase"."ai_files" (
+  "id"              uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "organization_id" uuid                     NOT NULL,
+  "owner_id"        uuid                     NOT NULL,
+  "chat_id"         uuid,
+  "project_id"      uuid,
+  "bucket"          text                     NOT NULL,
+  "filename"        text                     NOT NULL,
+  "media_type"      text                     NOT NULL,
+  "byte_size"       bigint                   NOT NULL,
+  "sha256"          text,
+  "status"          text                     NOT NULL DEFAULT 'pending'::text,
+  "source"          text                     NOT NULL DEFAULT 'upload'::text,
+  "created_at"      timestamp with time zone NOT NULL DEFAULT now(),
+  "uploaded_at"     timestamp with time zone,
+  "expires_at"      timestamp with time zone,
+  CONSTRAINT "ai_files_byte_size_check" CHECK (((byte_size >= 0) AND (byte_size <= 52428800))),
+  CONSTRAINT "ai_files_filename_check"
+    CHECK ((((length(filename) >= 1) AND (length(filename) <= 255)) AND (filename !~ '[/\\]'::text) AND (filename <> ALL (ARRAY['.'::text, '..'::text])))),
+  CONSTRAINT "ai_files_media_type_check" CHECK ((media_type ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'::text)),
+  CONSTRAINT "ai_files_pkey" PRIMARY KEY (id),
+  CONSTRAINT "ai_files_sha256_check" CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text)),
+  CONSTRAINT "ai_files_source_check" CHECK ((source = ANY (ARRAY['upload'::text, 'generated'::text, 'provider'::text]))),
+  CONSTRAINT "ai_files_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text])))
+);
+
+ALTER TABLE "better_supabase"."ai_files"
+  ENABLE ROW LEVEL SECURITY;
+
 CREATE TABLE "better_supabase"."ai_message_feedback" (
   "chat_id"    uuid                     NOT NULL,
   "message_id" text                     NOT NULL,
@@ -182,6 +246,20 @@ CREATE TABLE "better_supabase"."ai_projects" (
 ALTER TABLE "better_supabase"."ai_projects"
   ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE "better_supabase"."ai_provider_files" (
+  "file_id"    uuid                     NOT NULL,
+  "provider"   text                     NOT NULL,
+  "reference"  text                     NOT NULL,
+  "expires_at" timestamp with time zone,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT "ai_provider_files_pkey" PRIMARY KEY (file_id, PROVIDER),
+  CONSTRAINT "ai_provider_files_provider_check" CHECK (((length(provider) >= 1) AND (length(provider) <= 100))),
+  CONSTRAINT "ai_provider_files_reference_check" CHECK (((length(reference) >= 1) AND (length(reference) <= 2000)))
+);
+
+ALTER TABLE "better_supabase"."ai_provider_files"
+  ENABLE ROW LEVEL SECURITY;
+
 CREATE TABLE "better_supabase"."ai_runs" (
   "id"                     uuid                     NOT NULL DEFAULT gen_random_uuid(),
   "chat_id"                uuid                     NOT NULL,
@@ -205,6 +283,23 @@ CREATE TABLE "better_supabase"."ai_runs" (
 );
 
 ALTER TABLE "better_supabase"."ai_runs"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE "better_supabase"."ai_suggestions" (
+  "id"             uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "document_id"    uuid                     NOT NULL,
+  "version"        integer                  NOT NULL,
+  "original_text"  text                     NOT NULL,
+  "suggested_text" text                     NOT NULL,
+  "description"    text,
+  "created_by"     uuid,
+  "created_at"     timestamp with time zone NOT NULL DEFAULT now(),
+  "resolved_at"    timestamp with time zone,
+  "accepted"       boolean,
+  CONSTRAINT "ai_suggestions_pkey" PRIMARY KEY (id)
+);
+
+ALTER TABLE "better_supabase"."ai_suggestions"
   ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE "better_supabase"."ai_tool_approvals" (
@@ -245,37 +340,11 @@ CREATE TABLE "better_supabase"."ai_tool_policies" (
 ALTER TABLE "better_supabase"."ai_tool_policies"
   ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE "better_supabase"."stream_chunks" (
-  "stream_id" text    NOT NULL,
-  "idx"       integer NOT NULL,
-  "data"      text    NOT NULL,
-  CONSTRAINT "stream_chunks_idx_check" CHECK ((idx >= 0)),
-  CONSTRAINT "stream_chunks_pkey" PRIMARY KEY (stream_id, idx)
-);
-
-ALTER TABLE "better_supabase"."stream_chunks"
-  ENABLE ROW LEVEL SECURITY;
-
-CREATE TABLE "better_supabase"."streams" (
-  "id"                  text                     NOT NULL,
-  "tenant_id"           uuid,
-  "owner_id"            uuid,
-  "kind"                text                     NOT NULL DEFAULT 'default'::text,
-  "wake"                boolean                  NOT NULL DEFAULT true,
-  "created_at"          timestamp with time zone NOT NULL DEFAULT now(),
-  "closed_at"           timestamp with time zone,
-  "cancel_requested_at" timestamp with time zone,
-  "expires_at"          timestamp with time zone NOT NULL DEFAULT (now() + '1 day'::interval),
-  CONSTRAINT "streams_id_check" CHECK (((length(id) >= 1) AND (length(id) <= 200))),
-  CONSTRAINT "streams_kind_check" CHECK (((length(kind) >= 1) AND (length(kind) <= 100))),
-  CONSTRAINT "streams_pkey" PRIMARY KEY (id)
-);
-
-ALTER TABLE "better_supabase"."streams"
-  ENABLE ROW LEVEL SECURITY;
-
 ALTER TABLE "better_supabase"."ai_chats"
   ADD COLUMN "search_tsv" tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, title)) STORED;
+
+ALTER TABLE "better_supabase"."ai_files"
+  ADD COLUMN "path" text GENERATED ALWAYS AS ((((((((organization_id)::text || '/'::text) || (owner_id)::text) || '/'::text) || (id)::text) || '/'::text) || filename)) STORED;
 
 ALTER TABLE "better_supabase"."ai_messages"
   ADD COLUMN "search_tsv" tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, jsonb_path_query_array(parts, '$[*]?(@."type" == "text")."text"'::jsonpath))) STORED;
@@ -355,6 +424,15 @@ CREATE OR REPLACE FUNCTION api.claim_ai_chat_stream (
   SET search_path TO ''
   AS $function$ select "better_supabase"."claim_ai_chat_stream"($1, $2, $3, $4, $5) $function$;
 
+CREATE OR REPLACE FUNCTION api.confirm_ai_file (
+  file_id uuid,
+  sha256  text DEFAULT NULL::text
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."confirm_ai_file"($1, $2) $function$;
+
 CREATE OR REPLACE FUNCTION api.create_ai_chat (
   tenant uuid,
   fields jsonb DEFAULT '{}'::jsonb
@@ -363,6 +441,21 @@ CREATE OR REPLACE FUNCTION api.create_ai_chat (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."create_ai_chat"($1, $2) $function$;
+
+CREATE OR REPLACE FUNCTION api.create_ai_document (
+  tenant       uuid,
+  kind         text,
+  title        text,
+  content      text DEFAULT NULL::text,
+  chat_id      uuid DEFAULT NULL::uuid,
+  message_id   text DEFAULT NULL::text,
+  owner        uuid DEFAULT NULL::uuid,
+  storage_path text DEFAULT NULL::text
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."create_ai_document"($1, $2, $3, $4, $5, $6, $7, $8) $function$;
 
 CREATE OR REPLACE FUNCTION api.decide_ai_tool_approval (
   approval_id text,
@@ -382,6 +475,22 @@ CREATE OR REPLACE FUNCTION api.delete_ai_chat (
   SET search_path TO ''
   AS $function$ select "better_supabase"."delete_ai_chat"($1) $function$;
 
+CREATE OR REPLACE FUNCTION api.delete_ai_document (
+  document_id uuid
+)
+  RETURNS boolean
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."delete_ai_document"($1) $function$;
+
+CREATE OR REPLACE FUNCTION api.delete_ai_file (
+  file_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."delete_ai_file"($1) $function$;
+
 CREATE OR REPLACE FUNCTION api.delete_ai_project (
   id uuid
 )
@@ -390,6 +499,15 @@ CREATE OR REPLACE FUNCTION api.delete_ai_project (
   SET search_path TO ''
   AS $function$ select "better_supabase"."delete_ai_project"($1) $function$;
 
+CREATE OR REPLACE FUNCTION api.expiring_ai_provider_files (
+  horizon interval DEFAULT '1 day'::interval,
+  batch   integer  DEFAULT 100
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."expiring_ai_provider_files"($1, $2) $function$;
+
 CREATE OR REPLACE FUNCTION api.get_ai_chat (
   chat uuid
 )
@@ -397,6 +515,40 @@ CREATE OR REPLACE FUNCTION api.get_ai_chat (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."get_ai_chat"($1) $function$;
+
+CREATE OR REPLACE FUNCTION api.get_ai_document (
+  document_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."get_ai_document"($1) $function$;
+
+CREATE OR REPLACE FUNCTION api.get_ai_file (
+  file_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."get_ai_file"($1) $function$;
+
+CREATE OR REPLACE FUNCTION api.get_ai_file_by_path (
+  bucket text,
+  path   text
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."get_ai_file_by_path"($1, $2) $function$;
+
+CREATE OR REPLACE FUNCTION api.get_ai_provider_file (
+  file_id  uuid,
+  provider text
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."get_ai_provider_file"($1, $2) $function$;
 
 CREATE OR REPLACE FUNCTION api.get_ai_tool_approvals (
   chat uuid,
@@ -437,6 +589,22 @@ CREATE OR REPLACE FUNCTION api.list_ai_chats (
   SET search_path TO ''
   AS $function$ select "better_supabase"."list_ai_chats"($1, $2, $3, $4, $5, $6, $7) $function$;
 
+CREATE OR REPLACE FUNCTION api.list_ai_document_versions (
+  document_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."list_ai_document_versions"($1) $function$;
+
+CREATE OR REPLACE FUNCTION api.list_ai_files (
+  chat_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."list_ai_files"($1) $function$;
+
 CREATE OR REPLACE FUNCTION api.list_ai_moderation_events (
   tenant uuid,
   size   integer DEFAULT 100
@@ -454,6 +622,15 @@ CREATE OR REPLACE FUNCTION api.list_ai_projects (
   SET search_path TO ''
   AS $function$ select "better_supabase"."list_ai_projects"($1) $function$;
 
+CREATE OR REPLACE FUNCTION api.list_ai_suggestions (
+  document_id uuid,
+  open_only   boolean DEFAULT true
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."list_ai_suggestions"($1, $2) $function$;
+
 CREATE OR REPLACE FUNCTION api.open_ai_pending_input (
   chat  uuid,
   input jsonb
@@ -470,6 +647,15 @@ CREATE OR REPLACE FUNCTION api.purge_ai_chats (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."purge_ai_chats"($1) $function$;
+
+CREATE OR REPLACE FUNCTION api.purge_ai_files (
+  older_than interval DEFAULT '1 day'::interval,
+  batch      integer  DEFAULT 500
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."purge_ai_files"($1, $2) $function$;
 
 CREATE OR REPLACE FUNCTION api.purge_streams (
   older_than interval DEFAULT '1 day'::interval,
@@ -531,6 +717,28 @@ CREATE OR REPLACE FUNCTION api.request_ai_chat_stop (
   SET search_path TO ''
   AS $function$ select "better_supabase"."request_ai_chat_stop"($1) $function$;
 
+CREATE OR REPLACE FUNCTION api.reserve_ai_file (
+  tenant     uuid,
+  filename   text,
+  media_type text,
+  byte_size  bigint,
+  chat_id    uuid   DEFAULT NULL::uuid,
+  project_id uuid   DEFAULT NULL::uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."reserve_ai_file"($1, $2, $3, $4, $5, $6) $function$;
+
+CREATE OR REPLACE FUNCTION api.resolve_ai_suggestion (
+  suggestion_id uuid,
+  accepted      boolean
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."resolve_ai_suggestion"($1, $2) $function$;
+
 CREATE OR REPLACE FUNCTION api.revoke_ai_chat_share (
   id uuid
 )
@@ -538,6 +746,15 @@ CREATE OR REPLACE FUNCTION api.revoke_ai_chat_share (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."revoke_ai_chat_share"($1) $function$;
+
+CREATE OR REPLACE FUNCTION api.rollback_ai_document (
+  document_id uuid,
+  version     integer
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."rollback_ai_document"($1, $2) $function$;
 
 CREATE OR REPLACE FUNCTION api.save_ai_assistant_message (
   chat      uuid,
@@ -563,6 +780,17 @@ CREATE OR REPLACE FUNCTION api.save_ai_project (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."save_ai_project"($1, $2, $3) $function$;
+
+CREATE OR REPLACE FUNCTION api.set_ai_provider_file (
+  file_id    uuid,
+  provider   text,
+  reference  text,
+  expires_at timestamp with time zone DEFAULT NULL::timestamp WITH time zone
+)
+  RETURNS boolean
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."set_ai_provider_file"($1, $2, $3, $4) $function$;
 
 CREATE OR REPLACE FUNCTION api.set_ai_run_cost (
   generation_id  text,
@@ -592,6 +820,21 @@ CREATE OR REPLACE FUNCTION api.share_ai_chat (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."share_ai_chat"($1, $2) $function$;
+
+CREATE OR REPLACE FUNCTION api.store_ai_file (
+  tenant     uuid,
+  owner      uuid,
+  filename   text,
+  media_type text,
+  byte_size  bigint,
+  chat_id    uuid   DEFAULT NULL::uuid,
+  source     text   DEFAULT 'generated'::text,
+  sha256     text   DEFAULT NULL::text
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."store_ai_file"($1, $2, $3, $4, $5, $6, $7, $8) $function$;
 
 CREATE OR REPLACE FUNCTION api.stream_append (
   stream_id text,
@@ -650,6 +893,17 @@ CREATE OR REPLACE FUNCTION api.stream_status (
   SET search_path TO ''
   AS $function$ select "better_supabase"."stream_status"($1) $function$;
 
+CREATE OR REPLACE FUNCTION api.suggest_ai_document_edit (
+  document_id    uuid,
+  original_text  text,
+  suggested_text text,
+  description    text DEFAULT NULL::text
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."suggest_ai_document_edit"($1, $2, $3, $4) $function$;
+
 CREATE OR REPLACE FUNCTION api.switch_ai_branch (
   chat       uuid,
   message_id text
@@ -667,6 +921,19 @@ CREATE OR REPLACE FUNCTION api.update_ai_chat (
   LANGUAGE sql
   SET search_path TO ''
   AS $function$ select "better_supabase"."update_ai_chat"($1, $2) $function$;
+
+CREATE OR REPLACE FUNCTION api.update_ai_document (
+  document_id      uuid,
+  content          text    DEFAULT NULL::text,
+  title            text    DEFAULT NULL::text,
+  message_id       text    DEFAULT NULL::text,
+  expected_version integer DEFAULT NULL::integer,
+  storage_path     text    DEFAULT NULL::text
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."update_ai_document"($1, $2, $3, $4, $5, $6) $function$;
 
 CREATE OR REPLACE FUNCTION api.upsert_ai_models (
   models jsonb,
@@ -720,6 +987,29 @@ begin
     perform realtime.send(v_payload, event, 'ai-chats:' || owner::text, true);
   end if;
 end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.ai_file_object_allowed (
+  bucket text,
+  path   text,
+  action text
+)
+  RETURNS boolean
+  LANGUAGE sql
+  STABLE
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+  select exists (
+    select 1 from "better_supabase"."ai_files" a
+    where a."bucket" = ai_file_object_allowed.bucket and a."path" = ai_file_object_allowed.path
+      and case ai_file_object_allowed.action
+        when 'insert' then a."status" = 'pending' and a."owner_id" = auth.uid()
+        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_chat.admin'), false) or (a."chat_id" is not null and "better_supabase"."ai_chat_can_read"(a."chat_id"))
+        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_chat.admin'), false)
+        else false
+      end
+  )
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.ai_message_path (
@@ -997,6 +1287,42 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.confirm_ai_file (
+  file_id uuid,
+  sha256  text DEFAULT NULL::text
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_row "better_supabase"."ai_files"%rowtype;
+  v_size bigint;
+begin
+  select * into v_row from "better_supabase"."ai_files" x where x."id" = confirm_ai_file.file_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid()) then
+    raise exception 'file % not found', file_id using errcode = 'P0002', hint = 'AI_FILE_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'pending' then
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
+  end if;
+  select (o.metadata ->> 'size')::bigint into v_size
+  from storage.objects o where o.bucket_id = v_row."bucket" and o.name = v_row."path";
+  if not found then
+    raise exception 'file % has no uploaded object yet', file_id using errcode = 'P0001', hint = 'AI_FILE_NOT_UPLOADED';
+  end if;
+  update "better_supabase"."ai_files" x set
+    "status" = 'ready',
+    "uploaded_at" = now(),
+    "byte_size" = coalesce(v_size, x."byte_size"),
+    "sha256" = coalesce(lower(confirm_ai_file.sha256), x."sha256")
+  where x."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
+end;
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.create_ai_chat (
   tenant uuid,
   fields jsonb DEFAULT '{}'::jsonb
@@ -1049,6 +1375,37 @@ begin
     perform "better_supabase"."ai_chat_notify"(v_id, v_owner, 'chat.created', '{}'::jsonb, true);
   end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.create_ai_document (
+  tenant       uuid,
+  kind         text,
+  title        text,
+  content      text DEFAULT NULL::text,
+  chat_id      uuid DEFAULT NULL::uuid,
+  message_id   text DEFAULT NULL::text,
+  owner        uuid DEFAULT NULL::uuid,
+  storage_path text DEFAULT NULL::text
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_owner uuid := case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then create_ai_document.owner else auth.uid() end;
+  v_row "better_supabase"."ai_documents"%rowtype;
+begin
+  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai_chat.create'), false)) then
+    raise exception 'you may not create documents here' using errcode = '42501', hint = 'AI_DOCUMENT_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
+  values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, create_ai_document.kind, create_ai_document.title)
+  returning * into v_row;
+  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
+  values (v_row."id", 1, create_ai_document.content, create_ai_document.storage_path, create_ai_document.message_id, v_owner);
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $function$;
 
@@ -1116,6 +1473,46 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.delete_ai_document (
+  document_id uuid
+)
+  RETURNS boolean
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = delete_ai_document.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.admin'), false)) then
+    return false;
+  end if;
+  delete from "better_supabase"."ai_documents" x where x."id" = v_row."id";
+  return true;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.delete_ai_file (
+  file_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_row "better_supabase"."ai_files"%rowtype;
+begin
+  select * into v_row from "better_supabase"."ai_files" x where x."id" = delete_ai_file.file_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.admin'), false)) then
+    return null;
+  end if;
+  delete from "better_supabase"."ai_files" x where x."id" = v_row."id";
+  return jsonb_build_object('bucket', v_row."bucket", 'path', v_row."path");
+end;
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.delete_ai_project (
   id uuid
 )
@@ -1131,6 +1528,24 @@ begin
   get diagnostics v_count = row_count;
   return v_count > 0;
 end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.expiring_ai_provider_files (
+  horizon interval DEFAULT '1 day'::interval,
+  batch   integer  DEFAULT 100
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  STABLE
+  SET search_path TO ''
+  AS $function$
+  select coalesce(jsonb_agg(jsonb_build_object('file_id', p."file_id", 'provider', p."provider", 'reference', p."reference", 'expires_at', p."expires_at")), '[]'::jsonb)
+  from (
+    select * from "better_supabase"."ai_provider_files"
+    where "expires_at" is not null and "expires_at" <= now() + coalesce(horizon, interval '1 day')
+    order by "expires_at"
+    limit greatest(coalesce(batch, 100), 1)
+  ) p
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.get_ai_chat (
@@ -1151,6 +1566,59 @@ begin
   select * into v_row from "better_supabase"."ai_chats" x where x."id" = get_ai_chat.chat;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'project_id', v_row."project_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'model', v_row."model", 'visibility', v_row."visibility", 'pinned', v_row."pinned", 'archived_at', v_row."archived_at", 'is_temporary', v_row."is_temporary", 'expires_at', v_row."expires_at", 'current_leaf_id', v_row."current_leaf_id", 'active_stream_id', v_row."active_stream_id", 'active_run_id', v_row."active_run_id", 'last_message_at', v_row."last_message_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.get_ai_document (
+  document_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  STABLE
+  SET search_path TO ''
+  AS $function$
+  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'kind', x."kind", 'title', x."title", 'current_version', x."current_version", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('content', vv."content", 'storage_path', vv."storage_path")
+  from "better_supabase"."ai_documents" x
+  join "better_supabase"."ai_document_versions" vv on vv."document_id" = x."id" and vv."version" = x."current_version"
+  where x."id" = get_ai_document.document_id
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.get_ai_file (
+  file_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  STABLE
+  SET search_path TO ''
+  AS $function$
+  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") from "better_supabase"."ai_files" x where x."id" = get_ai_file.file_id
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.get_ai_file_by_path (
+  bucket text,
+  path   text
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  STABLE
+  SET search_path TO ''
+  AS $function$
+  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") from "better_supabase"."ai_files" x
+  where x."bucket" = get_ai_file_by_path.bucket and x."path" = get_ai_file_by_path.path
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.get_ai_provider_file (
+  file_id  uuid,
+  provider text
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  STABLE
+  SET search_path TO ''
+  AS $function$
+  select jsonb_build_object('file_id', p."file_id", 'provider', p."provider", 'reference', p."reference", 'expires_at', p."expires_at")
+  from "better_supabase"."ai_provider_files" p
+  where p."file_id" = get_ai_provider_file.file_id and p."provider" = get_ai_provider_file.provider
+    and (p."expires_at" is null or p."expires_at" > now())
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.get_ai_tool_approvals (
@@ -1287,6 +1755,30 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.list_ai_document_versions (
+  document_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  STABLE
+  SET search_path TO ''
+  AS $function$
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."document_id", 'version', x."version", 'content', x."content", 'storage_path', x."storage_path", 'created_by_message_id', x."created_by_message_id", 'created_by', x."created_by", 'created_at', x."created_at") order by x."version" desc), '[]'::jsonb)
+  from "better_supabase"."ai_document_versions" x where x."document_id" = list_ai_document_versions.document_id
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.list_ai_files (
+  chat_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  STABLE
+  SET search_path TO ''
+  AS $function$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") order by x."created_at"), '[]'::jsonb)
+  from "better_supabase"."ai_files" x where x."chat_id" = list_ai_files.chat_id
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.list_ai_moderation_events (
   tenant uuid,
   size   integer DEFAULT 100
@@ -1325,6 +1817,21 @@ CREATE OR REPLACE FUNCTION better_supabase.list_ai_projects (
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."pinned" desc, x."updated_at" desc), '[]'::jsonb)
   from "better_supabase"."ai_projects" x
   where x."owner_id" = (select auth.uid()) and x."organization_id" = list_ai_projects.tenant;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.list_ai_suggestions (
+  document_id uuid,
+  open_only   boolean DEFAULT true
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  STABLE
+  SET search_path TO ''
+  AS $function$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'document_id', x."document_id", 'version', x."version", 'original_text', x."original_text", 'suggested_text', x."suggested_text", 'description', x."description", 'created_by', x."created_by", 'created_at', x."created_at", 'resolved_at', x."resolved_at", 'accepted', x."accepted") order by x."created_at"), '[]'::jsonb)
+  from "better_supabase"."ai_suggestions" x
+  where x."document_id" = list_ai_suggestions.document_id
+    and (not coalesce(open_only, true) or x."resolved_at" is null)
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.open_ai_pending_input (
@@ -1384,27 +1891,30 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.purge_streams (
+CREATE OR REPLACE FUNCTION better_supabase.purge_ai_files (
   older_than interval DEFAULT '1 day'::interval,
-  batch      integer  DEFAULT 1000
+  batch      integer  DEFAULT 500
 )
-  RETURNS integer
+  RETURNS jsonb
   LANGUAGE plpgsql
   SET search_path TO ''
   AS $function$
-#variable_conflict use_column
 declare
-  v_count integer;
+  v_removed jsonb;
 begin
   with doomed as (
-    select "id" from "better_supabase"."streams"
-    where "expires_at" <= now()
-      or "closed_at" <= now() - coalesce(older_than, interval '1 day')
-    limit greatest(coalesce(batch, 1000), 1)
+    select x."id" from "better_supabase"."ai_files" x
+    where (x."status" = 'pending' and x."created_at" <= now() - coalesce(older_than, interval '1 day'))
+      or x."expires_at" <= now()
+      or (x."chat_id" is not null and not exists (select 1 from "better_supabase"."ai_chats" ch where ch."id" = x."chat_id"))
+    limit greatest(coalesce(batch, 500), 1)
+  ),
+  gone as (
+    delete from "better_supabase"."ai_files" x using doomed where x."id" = doomed."id"
+    returning x."bucket" as bucket, x."path" as path
   )
-  delete from "better_supabase"."streams" st using doomed where st."id" = doomed."id";
-  get diagnostics v_count = row_count;
-  return v_count;
+  select coalesce(jsonb_agg(jsonb_build_object('bucket', gone.bucket, 'path', gone.path)), '[]'::jsonb) into v_removed from gone;
+  return v_removed;
 end;
 $function$;
 
@@ -1578,6 +2088,62 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.reserve_ai_file (
+  tenant     uuid,
+  filename   text,
+  media_type text,
+  byte_size  bigint,
+  chat_id    uuid   DEFAULT NULL::uuid,
+  project_id uuid   DEFAULT NULL::uuid
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_row "better_supabase"."ai_files"%rowtype;
+begin
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai_chat.create'), false) then
+    raise exception 'you may not upload files here' using errcode = '42501', hint = 'AI_FILE_FORBIDDEN';
+  end if;
+  if byte_size < 0 or byte_size > 52428800 then
+    raise exception 'files are limited to % bytes', 52428800 using errcode = '22023', hint = 'AI_FILE_TOO_LARGE';
+  end if;
+  insert into "better_supabase"."ai_files" ("organization_id", "owner_id", "chat_id", "project_id", "bucket", "filename", "media_type", "byte_size")
+  values (reserve_ai_file.tenant, auth.uid(), reserve_ai_file.chat_id, reserve_ai_file.project_id, 'ai-files', reserve_ai_file.filename, lower(reserve_ai_file.media_type), reserve_ai_file.byte_size)
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.resolve_ai_suggestion (
+  suggestion_id uuid,
+  accepted      boolean
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_row "better_supabase"."ai_suggestions"%rowtype;
+  v_doc "better_supabase"."ai_documents"%rowtype;
+begin
+  select * into v_row from "better_supabase"."ai_suggestions" x where x."id" = resolve_ai_suggestion.suggestion_id for update;
+  if found then
+    select * into v_doc from "better_supabase"."ai_documents" x where x."id" = v_row."document_id";
+  end if;
+  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_doc."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_chat.admin'), false)) then
+    raise exception 'suggestion % not found', suggestion_id using errcode = 'P0002', hint = 'AI_SUGGESTION_NOT_FOUND';
+  end if;
+  update "better_supabase"."ai_suggestions" x set "resolved_at" = now(), "accepted" = resolve_ai_suggestion.accepted
+  where x."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'document_id', v_row."document_id", 'version', v_row."version", 'original_text', v_row."original_text", 'suggested_text', v_row."suggested_text", 'description', v_row."description", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'resolved_at', v_row."resolved_at", 'accepted', v_row."accepted");
+end;
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.revoke_ai_chat_share (
   id uuid
 )
@@ -1599,6 +2165,72 @@ begin
     );
   get diagnostics v_count = row_count;
   return v_count > 0;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.role_permissions (
+  role text
+)
+  RETURNS text[]
+  LANGUAGE sql
+  IMMUTABLE
+  SET search_path TO ''
+  AS $function$
+  select case role
+    when 'owner' then array['*']
+    when 'admin' then array[
+      'customers.read', 'customers.write', 'reports.read',
+      'organization.read', 'organization.update',
+      'members.read', 'members.invite', 'members.remove', 'members.update_role',
+      'billing.read', 'billing.manage', 'audit.read',
+      'settings.read', 'settings.update', 'settings.manage',
+      'api_keys.manage', 'api_keys.own',
+      'comments.read', 'comments.create', 'comments.moderate', 'activity.read',
+      'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record',
+      'notifications.send', 'notifications.read',
+      'workflow.read', 'workflow.run', 'workflow.edit', 'workflow.publish', 'workflow.admin',
+      'inbox.read', 'inbox.reply', 'inbox.assign', 'inbox.manage',
+      'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai_chat.admin'
+    ]
+    when 'member' then array[
+      'customers.read', 'organization.read', 'members.read', 'billing.read',
+      'settings.read', 'api_keys.own', 'comments.read', 'comments.create', 'activity.read',
+      'onboarding.read', 'usage.read', 'usage.record',
+      'notifications.send', 'notifications.read',
+      'workflow.read', 'workflow.run', 'inbox.read', 'inbox.reply',
+      'ai_chat.read', 'ai_chat.create', 'ai_chat.share'
+    ]
+    else array[]::text[]
+  end
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.rollback_ai_document (
+  document_id uuid,
+  version     integer
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_old "better_supabase"."ai_document_versions"%rowtype;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = rollback_ai_document.document_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.admin'), false)) then
+    raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
+  end if;
+  select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
+  if not found then
+    raise exception 'document % has no version %', document_id, rollback_ai_document.version using errcode = 'P0002', hint = 'AI_DOCUMENT_VERSION_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
+  values (v_row."id", v_row."current_version" + 1, v_old."content", v_old."storage_path", null, auth.uid());
+  update "better_supabase"."ai_documents" x set "current_version" = v_row."current_version" + 1, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $function$;
 
@@ -1721,6 +2353,23 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.set_ai_provider_file (
+  file_id    uuid,
+  provider   text,
+  reference  text,
+  expires_at timestamp with time zone DEFAULT NULL::timestamp WITH time zone
+)
+  RETURNS boolean
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$
+  insert into "better_supabase"."ai_provider_files" ("file_id", "provider", "reference", "expires_at")
+  values (set_ai_provider_file.file_id, set_ai_provider_file.provider, set_ai_provider_file.reference, set_ai_provider_file.expires_at)
+  on conflict ("file_id", "provider") do update
+    set "reference" = excluded."reference", "expires_at" = excluded."expires_at", "created_at" = now()
+  returning true
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.set_ai_run_cost (
   generation_id  text,
   cost_micro_usd bigint,
@@ -1807,184 +2456,54 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.stream_append (
-  stream_id text,
-  from_idx  integer,
-  chunks    text[]
+CREATE OR REPLACE FUNCTION better_supabase.store_ai_file (
+  tenant     uuid,
+  owner      uuid,
+  filename   text,
+  media_type text,
+  byte_size  bigint,
+  chat_id    uuid   DEFAULT NULL::uuid,
+  source     text   DEFAULT 'generated'::text,
+  sha256     text   DEFAULT NULL::text
 )
   RETURNS jsonb
   LANGUAGE plpgsql
   SET search_path TO ''
   AS $function$
-#variable_conflict use_column
 declare
-  v_stream "better_supabase"."streams"%rowtype;
-  v_next integer;
-  v_wake boolean;
+  v_row "better_supabase"."ai_files"%rowtype;
 begin
-  select * into v_stream from "better_supabase"."streams" where "id" = stream_append.stream_id;
-  if not found then
-    raise exception 'stream % does not exist', stream_append.stream_id
-      using errcode = 'P0002', hint = 'STREAM_NOT_FOUND';
-  end if;
-  if v_stream."closed_at" is not null then
-    raise exception 'stream % is closed', stream_append.stream_id
-      using errcode = 'P0001', hint = 'STREAM_CLOSED';
-  end if;
-  select coalesce(max("idx") + 1, 0) into v_next from "better_supabase"."stream_chunks" where "stream_id" = stream_append.stream_id;
-  if from_idx < 0 or from_idx > v_next then
-    raise exception 'stream % is at chunk %, not %', stream_append.stream_id, v_next, from_idx
-      using errcode = 'P0001', hint = 'STREAM_GAP';
-  end if;
-  insert into "better_supabase"."stream_chunks" ("stream_id", "idx", "data")
-  select stream_append.stream_id, from_idx + (n.ord - 1)::integer, n.chunk
-  from unnest(coalesce(chunks, '{}'::text[])) with ordinality as n(chunk, ord)
-  on conflict do nothing;
-  v_next := greatest(v_next, from_idx + coalesce(cardinality(chunks), 0));
-  v_wake := v_stream."wake" and coalesce(cardinality(chunks), 0) > 0;
-  
-  if v_wake and to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
-    perform realtime.send('{}'::jsonb, 'append', 'stream:' || stream_append.stream_id, true);
-  end if;
-  return jsonb_build_object('next', v_next, 'cancelled', v_stream."cancel_requested_at" is not null);
+  insert into "better_supabase"."ai_files" ("organization_id", "owner_id", "chat_id", "bucket", "filename", "media_type", "byte_size", "status", "source", "sha256", "uploaded_at")
+  values (store_ai_file.tenant, store_ai_file.owner, store_ai_file.chat_id, 'ai-files', store_ai_file.filename, lower(store_ai_file.media_type), store_ai_file.byte_size, 'ready', coalesce(store_ai_file.source, 'generated'), lower(store_ai_file.sha256), now())
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.stream_cancel (
-  stream_id text
+CREATE OR REPLACE FUNCTION better_supabase.suggest_ai_document_edit (
+  document_id    uuid,
+  original_text  text,
+  suggested_text text,
+  description    text DEFAULT NULL::text
 )
-  RETURNS boolean
+  RETURNS jsonb
   LANGUAGE plpgsql
   SECURITY DEFINER
   SET search_path TO ''
   AS $function$
-#variable_conflict use_column
 declare
-  v_wake boolean;
+  v_doc "better_supabase"."ai_documents"%rowtype;
+  v_row "better_supabase"."ai_suggestions"%rowtype;
 begin
-  update "better_supabase"."streams" set "cancel_requested_at" = now()
-  where "id" = stream_cancel.stream_id
-    and "cancel_requested_at" is null
-    and "closed_at" is null
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "owner_id" = (select auth.uid()))
-  returning "wake" into v_wake;
-  if not found then
-    return false;
+  select * into v_doc from "better_supabase"."ai_documents" x where x."id" = suggest_ai_document_edit.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_chat.admin'), false) or (v_doc."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_doc."chat_id")))) then
+    raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
-  
-  if v_wake and to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
-    perform realtime.send('{}'::jsonb, 'cancel', 'stream:' || stream_cancel.stream_id, true);
-  end if;
-  return true;
+  insert into "better_supabase"."ai_suggestions" ("document_id", "version", "original_text", "suggested_text", "description", "created_by")
+  values (v_doc."id", v_doc."current_version", suggest_ai_document_edit.original_text, suggest_ai_document_edit.suggested_text, suggest_ai_document_edit.description, auth.uid())
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'document_id', v_row."document_id", 'version', v_row."version", 'original_text', v_row."original_text", 'suggested_text', v_row."suggested_text", 'description', v_row."description", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'resolved_at', v_row."resolved_at", 'accepted', v_row."accepted");
 end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.stream_close (
-  stream_id text
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SET search_path TO ''
-  AS $function$
-#variable_conflict use_column
-declare
-  v_wake boolean;
-begin
-  update "better_supabase"."streams" set "closed_at" = now()
-  where "id" = stream_close.stream_id and "closed_at" is null
-  returning "wake" into v_wake;
-  if not found then
-    return false;
-  end if;
-  
-  if v_wake and to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
-    perform realtime.send('{}'::jsonb, 'close', 'stream:' || stream_close.stream_id, true);
-  end if;
-  return true;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.stream_open (
-  stream_id text,
-  owner     uuid     DEFAULT NULL::uuid,
-  tenant    uuid     DEFAULT NULL::uuid,
-  kind      text     DEFAULT 'default'::text,
-  ttl       interval DEFAULT '1 day'::interval,
-  wake      boolean  DEFAULT true
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SET search_path TO ''
-  AS $function$
-#variable_conflict use_column
-declare
-  v_created boolean;
-begin
-  insert into "better_supabase"."streams" ("id", "owner_id", "tenant_id", "kind", "wake", "expires_at")
-  values (stream_id, owner, tenant, coalesce(kind, 'default'), coalesce(wake, true), now() + coalesce(ttl, interval '1 day'))
-  on conflict ("id") do nothing
-  returning true into v_created;
-  return coalesce(v_created, false);
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.stream_read (
-  stream_id text,
-  from_idx  integer DEFAULT 0,
-  max       integer DEFAULT 1000
-)
-  RETURNS jsonb
-  LANGUAGE plpgsql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-#variable_conflict use_column
-declare
-  v_stream "better_supabase"."streams"%rowtype;
-  v_chunks text[];
-  v_next integer;
-  v_last integer;
-begin
-  select * into v_stream from "better_supabase"."streams" where "id" = stream_read.stream_id;
-  if not found then
-    return jsonb_build_object('found', false, 'chunks', '[]'::jsonb, 'next', greatest(coalesce(from_idx, 0), 0), 'done', true, 'cancelled', false);
-  end if;
-  select coalesce(array_agg(r."data" order by r."idx"), '{}'::text[]) into v_chunks
-  from (
-    select "data", "idx" from "better_supabase"."stream_chunks"
-    where "stream_id" = stream_read.stream_id and "idx" >= greatest(coalesce(from_idx, 0), 0)
-    order by "idx"
-    limit least(greatest(coalesce(max, 1000), 0), 10000)
-  ) r;
-  v_next := greatest(coalesce(from_idx, 0), 0) + cardinality(v_chunks);
-  select coalesce(max("idx") + 1, 0) into v_last from "better_supabase"."stream_chunks" where "stream_id" = stream_read.stream_id;
-  return jsonb_build_object(
-    'found', true,
-    'chunks', to_jsonb(v_chunks),
-    'next', v_next,
-    'done', v_stream."closed_at" is not null and v_next >= v_last,
-    'cancelled', v_stream."cancel_requested_at" is not null
-  );
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.stream_status (
-  stream_id text
-)
-  RETURNS jsonb
-  LANGUAGE sql
-  STABLE
-  SET search_path TO ''
-  AS $function$
-  select jsonb_build_object(
-    'next', (select coalesce(max(ch."idx") + 1, 0) from "better_supabase"."stream_chunks" ch where ch."stream_id" = st."id"),
-    'closed', st."closed_at" is not null,
-    'cancelled', st."cancel_requested_at" is not null,
-    'kind', st."kind",
-    'expires_at', st."expires_at"
-  )
-  from "better_supabase"."streams" st
-  where st."id" = stream_status.stream_id;
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.switch_ai_branch (
@@ -2072,6 +2591,41 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.update_ai_document (
+  document_id      uuid,
+  content          text    DEFAULT NULL::text,
+  title            text    DEFAULT NULL::text,
+  message_id       text    DEFAULT NULL::text,
+  expected_version integer DEFAULT NULL::integer,
+  storage_path     text    DEFAULT NULL::text
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = update_ai_document.document_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.admin'), false)) then
+    raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
+  end if;
+  if expected_version is not null and expected_version <> v_row."current_version" then
+    raise exception 'document % is at version %', document_id, v_row."current_version" using errcode = '40001', hint = 'AI_DOCUMENT_CONFLICT';
+  end if;
+  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
+  values (v_row."id", v_row."current_version" + 1, update_ai_document.content, update_ai_document.storage_path, update_ai_document.message_id, auth.uid());
+  update "better_supabase"."ai_documents" x set
+    "current_version" = v_row."current_version" + 1,
+    "title" = coalesce(update_ai_document.title, x."title"),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+end;
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.upsert_ai_models (
   models jsonb,
   prune  boolean DEFAULT false
@@ -2127,6 +2681,18 @@ ALTER TABLE "better_supabase"."ai_chats"
 ALTER TABLE "better_supabase"."ai_chat_shares"
   ADD CONSTRAINT "ai_chat_shares_chat_id_fkey" FOREIGN KEY (chat_id) REFERENCES better_supabase.ai_chats(id) ON DELETE CASCADE;
 
+ALTER TABLE "better_supabase"."ai_document_versions"
+  ADD CONSTRAINT "ai_document_versions_created_by_fkey" FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+ALTER TABLE "better_supabase"."ai_documents"
+  ADD CONSTRAINT "ai_documents_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+ALTER TABLE "better_supabase"."ai_document_versions"
+  ADD CONSTRAINT "ai_document_versions_document_id_fkey" FOREIGN KEY (document_id) REFERENCES better_supabase.ai_documents(id) ON DELETE CASCADE;
+
+ALTER TABLE "better_supabase"."ai_files"
+  ADD CONSTRAINT "ai_files_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
 ALTER TABLE "better_supabase"."ai_message_feedback"
   ADD CONSTRAINT "ai_message_feedback_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
@@ -2157,23 +2723,26 @@ ALTER TABLE "better_supabase"."ai_projects"
 ALTER TABLE "better_supabase"."ai_chats"
   ADD CONSTRAINT "ai_chats_project_id_fkey" FOREIGN KEY (project_id) REFERENCES better_supabase.ai_projects(id) ON DELETE SET NULL;
 
+ALTER TABLE "better_supabase"."ai_provider_files"
+  ADD CONSTRAINT "ai_provider_files_file_id_fkey" FOREIGN KEY (file_id) REFERENCES better_supabase.ai_files(id) ON DELETE CASCADE;
+
 ALTER TABLE "better_supabase"."ai_runs"
   ADD CONSTRAINT "ai_runs_chat_id_fkey" FOREIGN KEY (chat_id) REFERENCES better_supabase.ai_chats(id) ON DELETE CASCADE;
 
 ALTER TABLE "better_supabase"."ai_pending_inputs"
   ADD CONSTRAINT "ai_pending_inputs_run_id_fkey" FOREIGN KEY (run_id) REFERENCES better_supabase.ai_runs(id) ON DELETE SET NULL;
 
+ALTER TABLE "better_supabase"."ai_suggestions"
+  ADD CONSTRAINT "ai_suggestions_created_by_fkey" FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+ALTER TABLE "better_supabase"."ai_suggestions"
+  ADD CONSTRAINT "ai_suggestions_document_id_fkey" FOREIGN KEY (document_id) REFERENCES better_supabase.ai_documents(id) ON DELETE CASCADE;
+
 ALTER TABLE "better_supabase"."ai_tool_approvals"
   ADD CONSTRAINT "ai_tool_approvals_chat_id_fkey" FOREIGN KEY (chat_id) REFERENCES better_supabase.ai_chats(id) ON DELETE CASCADE;
 
 ALTER TABLE "better_supabase"."ai_tool_approvals"
   ADD CONSTRAINT "ai_tool_approvals_run_id_fkey" FOREIGN KEY (run_id) REFERENCES better_supabase.ai_runs(id) ON DELETE SET NULL;
-
-ALTER TABLE "better_supabase"."streams"
-  ADD CONSTRAINT "streams_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
-ALTER TABLE "better_supabase"."stream_chunks"
-  ADD CONSTRAINT "stream_chunks_stream_id_fkey" FOREIGN KEY (stream_id) REFERENCES better_supabase.streams(id) ON DELETE CASCADE;
 
 CREATE INDEX ai_chat_shares_chat_idx ON better_supabase.ai_chat_shares USING btree (chat_id);
 
@@ -2189,6 +2758,28 @@ CREATE INDEX ai_chats_project_idx ON better_supabase.ai_chats USING btree (proje
 CREATE INDEX ai_chats_search_idx ON better_supabase.ai_chats USING gin (search_tsv);
 
 CREATE INDEX ai_chats_tenant_idx ON better_supabase.ai_chats USING btree (organization_id);
+
+CREATE INDEX ai_document_versions_created_by_idx ON better_supabase.ai_document_versions USING btree (created_by)
+  WHERE (created_by IS NOT NULL);
+
+CREATE INDEX ai_documents_chat_idx ON better_supabase.ai_documents USING btree (chat_id)
+  WHERE (chat_id IS NOT NULL);
+
+CREATE INDEX ai_documents_owner_idx ON better_supabase.ai_documents USING btree (owner_id);
+
+CREATE INDEX ai_documents_tenant_idx ON better_supabase.ai_documents USING btree (organization_id);
+
+CREATE INDEX ai_files_chat_idx ON better_supabase.ai_files USING btree (chat_id)
+  WHERE (chat_id IS NOT NULL);
+
+CREATE UNIQUE INDEX ai_files_object_idx ON better_supabase.ai_files USING btree (bucket, path);
+
+CREATE INDEX ai_files_owner_idx ON better_supabase.ai_files USING btree (owner_id);
+
+CREATE INDEX ai_files_pending_idx ON better_supabase.ai_files USING btree (created_at)
+  WHERE (status = 'pending'::text);
+
+CREATE INDEX ai_files_tenant_idx ON better_supabase.ai_files USING btree (organization_id);
 
 CREATE INDEX ai_message_feedback_user_idx ON better_supabase.ai_message_feedback USING btree (user_id);
 
@@ -2212,6 +2803,9 @@ CREATE INDEX ai_pending_inputs_run_idx ON better_supabase.ai_pending_inputs USIN
 
 CREATE INDEX ai_projects_owner_idx ON better_supabase.ai_projects USING btree (owner_id, organization_id);
 
+CREATE INDEX ai_provider_files_expires_idx ON better_supabase.ai_provider_files USING btree (expires_at)
+  WHERE (expires_at IS NOT NULL);
+
 CREATE INDEX ai_runs_chat_idx ON better_supabase.ai_runs USING btree (chat_id, started_at DESC);
 
 CREATE INDEX ai_runs_generation_idx ON better_supabase.ai_runs USING btree (provider_generation_id)
@@ -2219,17 +2813,16 @@ CREATE INDEX ai_runs_generation_idx ON better_supabase.ai_runs USING btree (prov
 
 CREATE INDEX ai_runs_owner_idx ON better_supabase.ai_runs USING btree (owner_id);
 
+CREATE INDEX ai_suggestions_created_by_idx ON better_supabase.ai_suggestions USING btree (created_by)
+  WHERE (created_by IS NOT NULL);
+
+CREATE INDEX ai_suggestions_document_idx ON better_supabase.ai_suggestions USING btree (document_id);
+
 CREATE INDEX ai_tool_approvals_chat_idx ON better_supabase.ai_tool_approvals USING btree (chat_id);
 
 CREATE INDEX ai_tool_approvals_owner_idx ON better_supabase.ai_tool_approvals USING btree (owner_id);
 
 CREATE INDEX ai_tool_approvals_run_idx ON better_supabase.ai_tool_approvals USING btree (run_id);
-
-CREATE INDEX streams_expires_idx ON better_supabase.streams USING btree (expires_at);
-
-CREATE INDEX streams_owner_idx ON better_supabase.streams USING btree (owner_id);
-
-CREATE INDEX streams_tenant_idx ON better_supabase.streams USING btree (tenant_id);
 
 CREATE POLICY "ai_chats_read" ON "better_supabase"."ai_chats"
   FOR SELECT
@@ -2237,6 +2830,25 @@ CREATE POLICY "ai_chats_read" ON "better_supabase"."ai_chats"
   USING
     (((owner_id = ( SELECT auth.uid() AS uid)) OR ((visibility = 'organization'::text) AND (organization_id IN ( SELECT better_supabase.tenant_ids_with('ai_chat.read'::text) AS
     tenant_ids_with)))));
+
+CREATE POLICY "ai_document_versions_read" ON "better_supabase"."ai_document_versions"
+  FOR SELECT
+  TO "authenticated"
+  USING ((EXISTS ( SELECT 1
+   FROM better_supabase.ai_documents doc
+  WHERE (doc.id = ai_document_versions.document_id))));
+
+CREATE POLICY "ai_documents_read" ON "better_supabase"."ai_documents"
+  FOR SELECT
+  TO "authenticated"
+  USING (((owner_id = ( SELECT auth.uid() AS uid)) OR (organization_id IN ( SELECT better_supabase.tenant_ids_with('ai_chat.admin'::text) AS tenant_ids_with)) OR ((chat_id IS
+    NOT NULL) AND better_supabase.ai_chat_can_read(chat_id))));
+
+CREATE POLICY "ai_files_read" ON "better_supabase"."ai_files"
+  FOR SELECT
+  TO "authenticated"
+  USING (((owner_id = ( SELECT auth.uid() AS uid)) OR (organization_id IN ( SELECT better_supabase.tenant_ids_with('ai_chat.admin'::text) AS tenant_ids_with)) OR ((chat_id IS
+    NOT NULL) AND better_supabase.ai_chat_can_read(chat_id))));
 
 CREATE POLICY "ai_message_feedback_own_read" ON "better_supabase"."ai_message_feedback"
   FOR SELECT
@@ -2270,19 +2882,14 @@ CREATE POLICY "ai_runs_owner_read" ON "better_supabase"."ai_runs"
   TO "authenticated"
   USING ((owner_id = ( SELECT auth.uid() AS uid)));
 
-CREATE POLICY "ai_tool_approvals_owner_read" ON "better_supabase"."ai_tool_approvals"
-  FOR SELECT
-  TO "authenticated"
-  USING ((owner_id = ( SELECT auth.uid() AS uid)));
-
-CREATE POLICY "stream_chunks_owner_read" ON "better_supabase"."stream_chunks"
+CREATE POLICY "ai_suggestions_read" ON "better_supabase"."ai_suggestions"
   FOR SELECT
   TO "authenticated"
   USING ((EXISTS ( SELECT 1
-   FROM better_supabase.streams st
-  WHERE ((st.id = stream_chunks.stream_id) AND (st.owner_id = ( SELECT auth.uid() AS uid))))));
+   FROM better_supabase.ai_documents doc
+  WHERE (doc.id = ai_suggestions.document_id))));
 
-CREATE POLICY "streams_owner_read" ON "better_supabase"."streams"
+CREATE POLICY "ai_tool_approvals_owner_read" ON "better_supabase"."ai_tool_approvals"
   FOR SELECT
   TO "authenticated"
   USING ((owner_id = ( SELECT auth.uid() AS uid)));
@@ -2299,12 +2906,20 @@ CREATE POLICY "bs_ai_chats_receive" ON "realtime"."messages"
   TO "authenticated"
   USING (((EXTENSION = 'broadcast'::text) AND (( SELECT realtime.topic() AS topic) = ('ai-chats:'::text || (( SELECT auth.uid() AS uid))::text))));
 
-CREATE POLICY "bs_streams_receive" ON "realtime"."messages"
+CREATE POLICY "bs_ai_files_delete" ON "storage"."objects"
+  FOR DELETE
+  TO "authenticated"
+  USING (((bucket_id = 'ai-files'::text) AND better_supabase.ai_file_object_allowed(bucket_id, name, 'delete'::text)));
+
+CREATE POLICY "bs_ai_files_insert" ON "storage"."objects"
+  FOR INSERT
+  TO "authenticated"
+  WITH CHECK (((bucket_id = 'ai-files'::text) AND better_supabase.ai_file_object_allowed(bucket_id, name, 'insert'::text)));
+
+CREATE POLICY "bs_ai_files_select" ON "storage"."objects"
   FOR SELECT
   TO "authenticated"
-  USING (((EXTENSION = 'broadcast'::text) AND (( SELECT realtime.topic() AS topic) ~~ 'stream:%'::text) AND (EXISTS ( SELECT 1
-   FROM better_supabase.streams st
-  WHERE ((st.id = substr(( SELECT realtime.topic() AS topic), 8)) AND (st.owner_id = ( SELECT auth.uid() AS uid)))))));
+  USING (((bucket_id = 'ai-files'::text) AND better_supabase.ai_file_object_allowed(bucket_id, name, 'select'::text)));
 
 REVOKE ALL ON FUNCTION "api"."ai_chat_can_read"(uuid) FROM PUBLIC;
 
@@ -2338,9 +2953,17 @@ REVOKE ALL ON FUNCTION "api"."claim_ai_chat_stream"(uuid, text, text, text, text
 
 GRANT EXECUTE ON FUNCTION "api"."claim_ai_chat_stream"(uuid, text, text, text, text) TO "service_role";
 
+REVOKE ALL ON FUNCTION "api"."confirm_ai_file"(uuid, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."confirm_ai_file"(uuid, text) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "api"."create_ai_chat"(uuid, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."create_ai_chat"(uuid, jsonb) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."create_ai_document"(uuid, text, text, text, uuid, text, uuid, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."create_ai_document"(uuid, text, text, text, uuid, text, uuid, text) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "api"."decide_ai_tool_approval"(text, boolean, text) FROM PUBLIC;
 
@@ -2350,13 +2973,41 @@ REVOKE ALL ON FUNCTION "api"."delete_ai_chat"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."delete_ai_chat"(uuid) TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "api"."delete_ai_document"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."delete_ai_document"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."delete_ai_file"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."delete_ai_file"(uuid) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "api"."delete_ai_project"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."delete_ai_project"(uuid) TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "api"."expiring_ai_provider_files"(interval, integer) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."expiring_ai_provider_files"(interval, integer) TO "service_role";
+
 REVOKE ALL ON FUNCTION "api"."get_ai_chat"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."get_ai_chat"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."get_ai_document"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."get_ai_document"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."get_ai_file"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."get_ai_file"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."get_ai_file_by_path"(text, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."get_ai_file_by_path"(text, text) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."get_ai_provider_file"(uuid, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."get_ai_provider_file"(uuid, text) TO "service_role";
 
 REVOKE ALL ON FUNCTION "api"."get_ai_tool_approvals"(uuid, text[]) FROM PUBLIC;
 
@@ -2374,6 +3025,14 @@ REVOKE ALL ON FUNCTION "api"."list_ai_chats"(uuid, text, uuid, boolean, boolean,
 
 GRANT EXECUTE ON FUNCTION "api"."list_ai_chats"(uuid, text, uuid, boolean, boolean, text, integer) TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "api"."list_ai_document_versions"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."list_ai_document_versions"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."list_ai_files"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."list_ai_files"(uuid) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "api"."list_ai_moderation_events"(uuid, integer) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."list_ai_moderation_events"(uuid, integer) TO "authenticated", "service_role";
@@ -2382,6 +3041,10 @@ REVOKE ALL ON FUNCTION "api"."list_ai_projects"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."list_ai_projects"(uuid) TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "api"."list_ai_suggestions"(uuid, boolean) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."list_ai_suggestions"(uuid, boolean) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "api"."open_ai_pending_input"(uuid, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."open_ai_pending_input"(uuid, jsonb) TO "service_role";
@@ -2389,6 +3052,10 @@ GRANT EXECUTE ON FUNCTION "api"."open_ai_pending_input"(uuid, jsonb) TO "service
 REVOKE ALL ON FUNCTION "api"."purge_ai_chats"(integer) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."purge_ai_chats"(integer) TO "service_role";
+
+REVOKE ALL ON FUNCTION "api"."purge_ai_files"(interval, integer) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."purge_ai_files"(interval, integer) TO "service_role";
 
 REVOKE ALL ON FUNCTION "api"."purge_streams"(interval, integer) FROM PUBLIC;
 
@@ -2414,9 +3081,21 @@ REVOKE ALL ON FUNCTION "api"."request_ai_chat_stop"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."request_ai_chat_stop"(uuid) TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "api"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."resolve_ai_suggestion"(uuid, boolean) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."resolve_ai_suggestion"(uuid, boolean) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "api"."revoke_ai_chat_share"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."revoke_ai_chat_share"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."rollback_ai_document"(uuid, integer) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."rollback_ai_document"(uuid, integer) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "api"."save_ai_assistant_message"(uuid, jsonb, text, text, text, text, jsonb, uuid) FROM PUBLIC;
 
@@ -2425,6 +3104,10 @@ GRANT EXECUTE ON FUNCTION "api"."save_ai_assistant_message"(uuid, jsonb, text, t
 REVOKE ALL ON FUNCTION "api"."save_ai_project"(uuid, uuid, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."save_ai_project"(uuid, uuid, jsonb) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."set_ai_provider_file"(uuid, text, text, timestamp WITH time zone) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."set_ai_provider_file"(uuid, text, text, timestamp WITH time zone) TO "service_role";
 
 REVOKE ALL ON FUNCTION "api"."set_ai_run_cost"(text, bigint, jsonb) FROM PUBLIC;
 
@@ -2437,6 +3120,10 @@ GRANT EXECUTE ON FUNCTION "api"."set_ai_tool_policy"(uuid, text, text) TO "authe
 REVOKE ALL ON FUNCTION "api"."share_ai_chat"(uuid, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."share_ai_chat"(uuid, text) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text) TO "service_role";
 
 REVOKE ALL ON FUNCTION "api"."stream_append"(text, integer, text[]) FROM PUBLIC;
 
@@ -2462,6 +3149,10 @@ REVOKE ALL ON FUNCTION "api"."stream_status"(text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."stream_status"(text) TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "api"."suggest_ai_document_edit"(uuid, text, text, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."suggest_ai_document_edit"(uuid, text, text, text) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "api"."switch_ai_branch"(uuid, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."switch_ai_branch"(uuid, text) TO "authenticated", "service_role";
@@ -2469,6 +3160,10 @@ GRANT EXECUTE ON FUNCTION "api"."switch_ai_branch"(uuid, text) TO "authenticated
 REVOKE ALL ON FUNCTION "api"."update_ai_chat"(uuid, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."update_ai_chat"(uuid, jsonb) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."update_ai_document"(uuid, text, text, text, integer, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."update_ai_document"(uuid, text, text, text, integer, text) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "api"."upsert_ai_models"(jsonb, boolean) FROM PUBLIC;
 
@@ -2479,6 +3174,10 @@ REVOKE ALL ON FUNCTION "better_supabase"."ai_chat_can_read"(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION "better_supabase"."ai_chat_can_read"(uuid) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."ai_chat_notify"(uuid, uuid, text, jsonb, boolean) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION "better_supabase"."ai_file_object_allowed"(text, text, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."ai_file_object_allowed"(text, text, text) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."ai_message_path"(uuid, text, boolean) FROM PUBLIC;
 
@@ -2510,9 +3209,17 @@ REVOKE ALL ON FUNCTION "better_supabase"."claim_ai_chat_stream"(uuid, text, text
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text) TO "service_role";
 
+REVOKE ALL ON FUNCTION "better_supabase"."confirm_ai_file"(uuid, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."confirm_ai_file"(uuid, text) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "better_supabase"."create_ai_chat"(uuid, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."create_ai_chat"(uuid, jsonb) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."create_ai_document"(uuid, text, text, text, uuid, text, uuid, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."create_ai_document"(uuid, text, text, text, uuid, text, uuid, text) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."decide_ai_tool_approval"(text, boolean, text) FROM PUBLIC;
 
@@ -2522,13 +3229,41 @@ REVOKE ALL ON FUNCTION "better_supabase"."delete_ai_chat"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."delete_ai_chat"(uuid) TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "better_supabase"."delete_ai_document"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."delete_ai_document"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."delete_ai_file"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."delete_ai_file"(uuid) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "better_supabase"."delete_ai_project"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."delete_ai_project"(uuid) TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "better_supabase"."expiring_ai_provider_files"(interval, integer) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."expiring_ai_provider_files"(interval, integer) TO "service_role";
+
 REVOKE ALL ON FUNCTION "better_supabase"."get_ai_chat"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."get_ai_chat"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."get_ai_document"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."get_ai_document"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."get_ai_file"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."get_ai_file"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."get_ai_file_by_path"(text, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."get_ai_file_by_path"(text, text) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."get_ai_provider_file"(uuid, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."get_ai_provider_file"(uuid, text) TO "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."get_ai_tool_approvals"(uuid, text[]) FROM PUBLIC;
 
@@ -2546,6 +3281,14 @@ REVOKE ALL ON FUNCTION "better_supabase"."list_ai_chats"(uuid, text, uuid, boole
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."list_ai_chats"(uuid, text, uuid, boolean, boolean, text, integer) TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "better_supabase"."list_ai_document_versions"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."list_ai_document_versions"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."list_ai_files"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."list_ai_files"(uuid) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "better_supabase"."list_ai_moderation_events"(uuid, integer) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."list_ai_moderation_events"(uuid, integer) TO "authenticated", "service_role";
@@ -2553,6 +3296,10 @@ GRANT EXECUTE ON FUNCTION "better_supabase"."list_ai_moderation_events"(uuid, in
 REVOKE ALL ON FUNCTION "better_supabase"."list_ai_projects"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."list_ai_projects"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."list_ai_suggestions"(uuid, boolean) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."list_ai_suggestions"(uuid, boolean) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."open_ai_pending_input"(uuid, jsonb) FROM PUBLIC;
 
@@ -2562,9 +3309,9 @@ REVOKE ALL ON FUNCTION "better_supabase"."purge_ai_chats"(integer) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."purge_ai_chats"(integer) TO "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."purge_streams"(interval, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION "better_supabase"."purge_ai_files"(interval, integer) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION "better_supabase"."purge_streams"(interval, integer) TO "service_role";
+GRANT EXECUTE ON FUNCTION "better_supabase"."purge_ai_files"(interval, integer) TO "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."rate_ai_message"(uuid, text, integer, text, text) FROM PUBLIC;
 
@@ -2586,9 +3333,21 @@ REVOKE ALL ON FUNCTION "better_supabase"."request_ai_chat_stop"(uuid) FROM PUBLI
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."request_ai_chat_stop"(uuid) TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "better_supabase"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."resolve_ai_suggestion"(uuid, boolean) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."resolve_ai_suggestion"(uuid, boolean) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "better_supabase"."revoke_ai_chat_share"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."revoke_ai_chat_share"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."rollback_ai_document"(uuid, integer) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."rollback_ai_document"(uuid, integer) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."save_ai_assistant_message"(uuid, jsonb, text, text, text, text, jsonb, uuid) FROM PUBLIC;
 
@@ -2597,6 +3356,10 @@ GRANT EXECUTE ON FUNCTION "better_supabase"."save_ai_assistant_message"(uuid, js
 REVOKE ALL ON FUNCTION "better_supabase"."save_ai_project"(uuid, uuid, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."save_ai_project"(uuid, uuid, jsonb) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."set_ai_provider_file"(uuid, text, text, timestamp WITH time zone) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."set_ai_provider_file"(uuid, text, text, timestamp WITH time zone) TO "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."set_ai_run_cost"(text, bigint, jsonb) FROM PUBLIC;
 
@@ -2610,29 +3373,13 @@ REVOKE ALL ON FUNCTION "better_supabase"."share_ai_chat"(uuid, text) FROM PUBLIC
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."share_ai_chat"(uuid, text) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."stream_append"(text, integer, text[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION "better_supabase"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION "better_supabase"."stream_append"(text, integer, text[]) TO "service_role";
+GRANT EXECUTE ON FUNCTION "better_supabase"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text) TO "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."stream_cancel"(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION "better_supabase"."suggest_ai_document_edit"(uuid, text, text, text) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION "better_supabase"."stream_cancel"(text) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."stream_close"(text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."stream_close"(text) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."stream_open"(text, uuid, uuid, text, interval, boolean) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."stream_open"(text, uuid, uuid, text, interval, boolean) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."stream_read"(text, integer, integer) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."stream_read"(text, integer, integer) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."stream_status"(text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."stream_status"(text) TO "authenticated", "service_role";
+GRANT EXECUTE ON FUNCTION "better_supabase"."suggest_ai_document_edit"(uuid, text, text, text) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."switch_ai_branch"(uuid, text) FROM PUBLIC;
 
@@ -2641,6 +3388,10 @@ GRANT EXECUTE ON FUNCTION "better_supabase"."switch_ai_branch"(uuid, text) TO "a
 REVOKE ALL ON FUNCTION "better_supabase"."update_ai_chat"(uuid, jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."update_ai_chat"(uuid, jsonb) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "better_supabase"."update_ai_document"(uuid, text, text, text, integer, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."update_ai_document"(uuid, text, text, text, integer, text) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."upsert_ai_models"(jsonb, boolean) FROM PUBLIC;
 
@@ -2651,6 +3402,18 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 GRANT SELECT ON TABLE "better_supabase"."ai_chats" TO "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."ai_chats" TO "service_role";
+
+GRANT SELECT ON TABLE "better_supabase"."ai_document_versions" TO "authenticated";
+
+GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."ai_document_versions" TO "service_role";
+
+GRANT SELECT ON TABLE "better_supabase"."ai_documents" TO "authenticated";
+
+GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."ai_documents" TO "service_role";
+
+GRANT SELECT ON TABLE "better_supabase"."ai_files" TO "authenticated";
+
+GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."ai_files" TO "service_role";
 
 GRANT SELECT ON TABLE "better_supabase"."ai_message_feedback" TO "authenticated";
 
@@ -2676,20 +3439,18 @@ GRANT SELECT ON TABLE "better_supabase"."ai_projects" TO "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."ai_projects" TO "service_role";
 
+GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."ai_provider_files" TO "service_role";
+
 GRANT SELECT ON TABLE "better_supabase"."ai_runs" TO "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."ai_runs" TO "service_role";
+
+GRANT SELECT ON TABLE "better_supabase"."ai_suggestions" TO "authenticated";
+
+GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."ai_suggestions" TO "service_role";
 
 GRANT SELECT ON TABLE "better_supabase"."ai_tool_approvals" TO "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."ai_tool_approvals" TO "service_role";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."ai_tool_policies" TO "service_role";
-
-GRANT SELECT ON TABLE "better_supabase"."stream_chunks" TO "authenticated";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."stream_chunks" TO "service_role";
-
-GRANT SELECT ON TABLE "better_supabase"."streams" TO "authenticated";
-
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."streams" TO "service_role";
