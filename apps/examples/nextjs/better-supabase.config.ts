@@ -130,9 +130,11 @@ export default defineConfig({
       // on the recipient's private topic `notifications:<user id>`.
       notifications: { api: "api" },
       // The /assistant sample: resumable answers in `streams`, chats in
-      // `ai-chat`, both on private Realtime topics.
+      // `ai-chat`, both on private Realtime topics, and attachments in
+      // `ai-files`.
       streams: { api: "api" },
       "ai-chat": { api: "api" },
+      "ai-files": { api: "api" },
     },
   },
 });

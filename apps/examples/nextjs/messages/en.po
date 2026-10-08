@@ -286,6 +286,26 @@ msgid "The answer failed. Try again."
 msgstr "The answer failed. Try again."
 
 #: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.w_8N9S"
+msgid "The file could not be attached."
+msgstr "The file could not be attached."
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.Vlx13n"
+msgid "Attachments"
+msgstr "Attachments"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.T0e6Lh"
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.ydgifD"
+msgid "Attach a file"
+msgstr "Attach a file"
+
+#: src/features/assistant/components/assistant-chat.tsx
 msgctxt "assistant.zf_3aa"
 msgid "Ask anything"
 msgstr "Ask anything"
