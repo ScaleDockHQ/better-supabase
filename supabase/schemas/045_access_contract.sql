@@ -26,7 +26,7 @@ as $$
       'comments.read', 'comments.create', 'comments.moderate', 'activity.read',
       'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record',
       'notifications.send', 'notifications.read',
-      'workflow.read', 'workflow.run', 'workflow.admin'
+      'workflow.read', 'workflow.run', 'workflow.edit', 'workflow.publish', 'workflow.admin'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',

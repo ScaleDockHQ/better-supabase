@@ -23,6 +23,10 @@ export const WORKFLOW_ATTRIBUTES = {
   tenant: "bs.tenant",
   actor: "bs.actor",
   key: "bs.key",
+  /** The builder definition a run started from; its alerts match on it. */
+  definition: "bs.definition",
+  /** The builder version number a run started from. */
+  version: "bs.version",
 } as const;
 
 /** A workflow function (a `"use workflow"` export), typed structurally. */
@@ -69,7 +73,8 @@ export interface StartForOptions {
   readonly world?: World;
 }
 
-async function runForKey(
+/** The run a start with idempotency `key` created, while it is in the World. */
+export async function runForKey(
   key: string,
   world: World | undefined,
 ): Promise<string | undefined> {
