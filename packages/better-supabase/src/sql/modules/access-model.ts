@@ -162,6 +162,7 @@ export const MODULE_PERMISSIONS = {
     manage: "ai_chat.admin",
   },
   "ai-tasks": { create: "ai_chat.create", manage: "ai_chat.admin" },
+  "ai-providers": { use: "ai_chat.create", manage: "ai_chat.admin" },
 } as const;
 
 /**
@@ -251,6 +252,7 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   connectors: { read: "tenant", use: "tenant", manage: "tenant" },
   "ai-tasks": { create: "tenant", manage: "tenant" },
+  "ai-providers": { use: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {
