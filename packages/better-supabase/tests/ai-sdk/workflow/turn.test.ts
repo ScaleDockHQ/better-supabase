@@ -172,6 +172,8 @@ describe("durableTurn", () => {
     });
     expect(h.namespaces).toEqual(["s1"]);
     expect(h.agentArgs[0]).toMatchObject({
+      chatId: "c1",
+      runId: "run1",
       messages: [user],
       model: "openai/gpt-5",
       providerOptions: { gateway: { user: "user" } },
@@ -265,6 +267,7 @@ describe("durableTurn", () => {
       segments: 2,
     });
     expect(h.namespaces).toEqual(["s1", "s2"]);
+    expect(h.agentArgs[1]?.runId).toBe("run2");
     expect(h.agentArgs[1]?.messages.at(-1)).toEqual({
       role: "tool",
       content: [

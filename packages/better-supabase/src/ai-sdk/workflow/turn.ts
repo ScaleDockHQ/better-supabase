@@ -48,6 +48,9 @@ export interface DurableStop {
 
 /** What the agent function gets for one segment. */
 export interface DurableAgentArgs {
+  readonly chatId: string;
+  /** The segment's `ai_runs` row, for progress in `ai_run_steps`. */
+  readonly runId: string;
   readonly messages: ModelMessage[];
   /** The segment's World stream: pass it to `agent.stream({ writable })`. */
   readonly writable: WritableStream<ModelCallStreamPart>;
@@ -272,6 +275,8 @@ export async function durableTurn(
     let requests: DurableApprovalRequest[] = [];
     try {
       const result = await deps.agent({
+        chatId: input.chatId,
+        runId: segment.runId,
         messages: conversation,
         writable: deps.getWritable({ namespace: segment.streamId }),
         abortSignal: abort.signal,
