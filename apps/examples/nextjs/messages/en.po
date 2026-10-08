@@ -124,6 +124,21 @@ msgctxt "workflows.lPyu8U"
 msgid "All runs"
 msgstr "All runs"
 
+#: src/app/[locale]/(app)/workflows/builder/[definition]/page.tsx
+msgctxt "workflows.hR2s7I"
+msgid "All workflows"
+msgstr "All workflows"
+
+#: src/app/[locale]/(app)/workflows/builder/page.tsx
+msgctxt "workflows.Rm3xgH"
+msgid "Workflow builder"
+msgstr "Workflow builder"
+
+#: src/app/[locale]/(app)/workflows/builder/page.tsx
+msgctxt "workflows.DQVRjW"
+msgid "Workflows the organization draws on a canvas, published in versions and run on the Workflow SDK."
+msgstr "Workflows the organization draws on a canvas, published in versions and run on the Workflow SDK."
+
 #: src/app/[locale]/(app)/workflows/page.tsx
 msgctxt "workflows.6La3aS"
 msgid "Workflows"
@@ -947,6 +962,11 @@ msgstr "Notifications"
 msgctxt "navigation.6La3aS"
 msgid "Workflows"
 msgstr "Workflows"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Rm3xgH"
+msgid "Workflow builder"
+msgstr "Workflow builder"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.riw_yc"
@@ -1773,6 +1793,286 @@ msgctxt "user.pY7RRr"
 msgid "A Monday summary of your customers. Saved by the settings module."
 msgstr "A Monday summary of your customers. Saved by the settings module."
 
+#: src/features/workflows/builder/components/create-definition-form.tsx
+msgctxt "workflows.OX3pPf"
+msgid "Workflow name"
+msgstr "Workflow name"
+
+#: src/features/workflows/builder/components/create-definition-form.tsx
+msgctxt "workflows.GIHRKG"
+msgid "New workflow"
+msgstr "New workflow"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.pla3j2"
+msgid "Credential saved"
+msgstr "Credential saved"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.HLZ9CC"
+msgid "Credentials"
+msgstr "Credentials"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.5JrXWi"
+msgid "Slack bot tokens for the Post to Slack step. The token is stored in Vault and never shown again."
+msgstr "Slack bot tokens for the Post to Slack step. The token is stored in Vault and never shown again."
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.tnRDuU"
+msgid "Revoke"
+msgstr "Revoke"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.YXi-kI"
+msgid "Bot token"
+msgstr "Bot token"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.o3mPr9"
+msgid "Add credential"
+msgstr "Add credential"
+
+#: src/features/workflows/builder/components/definition-list.tsx
+msgctxt "workflows.yW1OYL"
+msgid "No workflows yet. Members who can edit create one above."
+msgstr "No workflows yet. Members who can edit create one above."
+
+#: src/features/workflows/builder/components/definition-list.tsx
+msgctxt "workflows.4hC_e1"
+msgid "v{version}"
+msgstr "v{version}"
+
+#: src/features/workflows/builder/components/definition-list.tsx
+msgctxt "workflows.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.753yX5"
+msgid "Label"
+msgstr "Label"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.Sa3kyT"
+msgid "Pick a credential"
+msgstr "Pick a credential"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.IuFETn"
+msgid "Duration"
+msgstr "Duration"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.Qp1beM"
+msgid "Path"
+msgstr "Path"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.3yf2ND"
+msgid "Operator"
+msgstr "Operator"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.GufXy5"
+msgid "Value"
+msgstr "Value"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.WCaf5C"
+msgid "Approve"
+msgstr "Approve"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.VzIOKf"
+msgid "Reject"
+msgstr "Reject"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.D6C3H7"
+msgid "Remove node"
+msgstr "Remove node"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.xm3F7A"
+msgid "Nodes added"
+msgstr "Nodes added"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.kMH7dy"
+msgid "Nodes removed"
+msgstr "Nodes removed"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.mWq4c6"
+msgid "Nodes changed"
+msgstr "Nodes changed"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.AFN2jr"
+msgid "Edges added"
+msgstr "Edges added"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.FCmWxO"
+msgid "Edges removed"
+msgstr "Edges removed"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.syEQFE"
+msgid "Publish"
+msgstr "Publish"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.dqOScS"
+msgid "Publish the first version"
+msgstr "Publish the first version"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.cT2_An"
+msgid "Publish over version {version}"
+msgstr "Publish over version {version}"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.QcsPQj"
+msgid "New runs start on the published version. Runs in progress finish on the version they started on."
+msgstr "New runs start on the published version. Runs in progress finish on the version they started on."
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.VKCWKe"
+msgid "Trigger saved"
+msgstr "Trigger saved"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.GnZZHN"
+msgid "Webhook"
+msgstr "Webhook"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.hGQqkW"
+msgid "Schedule"
+msgstr "Schedule"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.m1czzY"
+msgid "Event"
+msgstr "Event"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.M59JhX"
+msgid "Manual"
+msgstr "Manual"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.GnWmca"
+msgid "Triggers"
+msgstr "Triggers"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.f1FufG"
+msgid "What starts the published version besides the Run button. A webhook's URL is shown once."
+msgstr "What starts the published version besides the Run button. A webhook's URL is shown once."
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.VscMsQ"
+msgid "New webhook URL"
+msgstr "New webhook URL"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.G_yZLu"
+msgid "Remove"
+msgstr "Remove"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.LO-gev"
+msgid "Webhook URL"
+msgstr "Webhook URL"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.e5x8FT"
+msgid "Kind"
+msgstr "Kind"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.3Wq8aM"
+msgid "Cron"
+msgstr "Cron"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.9a3g8c"
+msgid "Event type"
+msgstr "Event type"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.qE1eug"
+msgid "Add trigger"
+msgstr "Add trigger"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.JLulyJ"
+msgid "Draft saved"
+msgstr "Draft saved"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.7KALUt"
+msgid "Version {version} published"
+msgstr "Version {version} published"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.R2zJFp"
+msgid "Save draft"
+msgstr "Save draft"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.Z-RXZI"
+msgid "Input text"
+msgstr "Input text"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.KiXNvz"
+msgid "Run"
+msgstr "Run"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.alUnC1"
+msgid "Show a run"
+msgstr "Show a run"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.eA7dRH"
+msgid "Palette"
+msgstr "Palette"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.Mmft-L"
+msgid "Wait"
+msgstr "Wait"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.Kl6x-n"
+msgid "Approval"
+msgstr "Approval"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.XMpO69"
+msgid "Condition"
+msgstr "Condition"
+
 #: src/features/workflows/components/schedule-controls.tsx
 msgctxt "workflows.3y9DGg"
 msgid "Resume"
@@ -1784,29 +2084,14 @@ msgid "Pause"
 msgstr "Pause"
 
 #: src/features/workflows/components/schedule-controls.tsx
-msgctxt "workflows.G_yZLu"
-msgid "Remove"
-msgstr "Remove"
-
-#: src/features/workflows/components/schedule-controls.tsx
 msgctxt "workflows.Upmxtt"
 msgid "Schedule saved"
 msgstr "Schedule saved"
 
 #: src/features/workflows/components/schedule-controls.tsx
-msgctxt "workflows.HAlOn1"
-msgid "Name"
-msgstr "Name"
-
-#: src/features/workflows/components/schedule-controls.tsx
 msgctxt "workflows.OGhQzA"
 msgid "Daily drip"
 msgstr "Daily drip"
-
-#: src/features/workflows/components/schedule-controls.tsx
-msgctxt "workflows.3Wq8aM"
-msgid "Cron"
-msgstr "Cron"
 
 #: src/features/workflows/components/schedule-controls.tsx
 msgctxt "workflows.L7eGvd"
@@ -1868,16 +2153,6 @@ msgstr "Started"
 msgctxt "workflows.EQpfkS"
 msgid "Finished"
 msgstr "Finished"
-
-#: src/features/workflows/components/workflow-run-detail.tsx
-msgctxt "workflows.WCaf5C"
-msgid "Approve"
-msgstr "Approve"
-
-#: src/features/workflows/components/workflow-run-detail.tsx
-msgctxt "workflows.VzIOKf"
-msgid "Reject"
-msgstr "Reject"
 
 #: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.lsX7TX"

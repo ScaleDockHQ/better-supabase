@@ -16,7 +16,7 @@ import {
  * context the run was started with (`workflowContext`), never from input.
  * The step bundle doesn't load `@/lib/supabase`, so it passes Temporal itself.
  */
-function serviceNotifications() {
+export function serviceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env["SUPABASE_SECRET_KEY"];
   if (!url || !key) {
@@ -24,11 +24,14 @@ function serviceNotifications() {
       "Workflow steps need NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY",
     );
   }
-  const supabase = createClient(url, key, {
+  return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+export function serviceNotifications() {
   return createNotifications({
-    transport: rpcTransport(supabase, { schema: "api" }),
+    transport: rpcTransport(serviceSupabase(), { schema: "api" }),
     schema: "api",
     types: notificationTypes,
     render: renderNotification,

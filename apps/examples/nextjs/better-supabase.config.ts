@@ -135,6 +135,8 @@ export default defineConfig({
       "workflow-sdk-world": {},
       // Workflows tenants build on a canvas at /workflows/builder.
       "workflow-builder": { api: "api" },
+      // Vault-backed secrets behind the builder's credential references.
+      credentials: { api: "api" },
     },
   },
 });
