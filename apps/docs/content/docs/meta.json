@@ -12,6 +12,7 @@
     "frontend",
     "platform",
     "blocks",
+    "ai-sdk",
     "plugins",
     "testing",
     "examples",

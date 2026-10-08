@@ -1,0 +1,151 @@
+---
+title: Assistant
+description: A chat route over the AI chat block with createAssistant, and useAssistant on the client, with resumable answers, stop, model checks, moderation and quotas.
+---
+
+`createAssistant` is the server half of a chat: it stores the user's
+message in the [AI chat block](/docs/blocks/ai-chat), checks the model,
+the moderation hook and the quota, claims the chat's run, streams the
+answer in the AI SDK's UI message stream protocol and stores the answer
+with its usage when it ends. The answer also goes to a
+[stream store](/docs/blocks/streams), so a reload or a second tab picks it
+up where it is. `useAssistant` is the client half.
+
+## Server
+
+```ts title="lib/assistant.ts"
+import { streamText } from "ai";
+import { createAssistant } from "better-supabase/ai-sdk/chat";
+import { usageQuota } from "better-supabase/ai-sdk";
+import { postgresStreamStore, sqlTransport } from "better-supabase/streams";
+
+export const assistant = createAssistant({
+  streams: postgresStreamStore({
+    transport: sqlTransport(postgres.asService()),
+  }),
+  defaultModel: "anthropic/claude-sonnet-4.5",
+  quota: usageQuota(usage, "ai.input_tokens"),
+  run: ({ model, messages, abortSignal, providerOptions }) =>
+    streamText({
+      model,
+      system: "You are the Acme assistant.",
+      messages,
+      abortSignal,
+      providerOptions,
+    }),
+  enqueueCostBackfill: (payload) => jobs.enqueue("ai.cost_backfill", payload),
+});
+```
+
+`run` gets the model the request may use, the history as model messages,
+the abort signal `stop` triggers and the [gateway options](/docs/ai-sdk#ai-gateway)
+for the user, tenant and chat. Return `streamText(...)` or
+`agent.stream(...)`.
+
+Three routes serve it. Each builds the per-request context: the chat block
+with the user's transport and a service transport, the user and the tenant.
+
+```ts title="app/api/chat/route.ts"
+import { after } from "next/server";
+
+export async function POST(request: Request) {
+  const context = await assistantContext(); // { chats, userId, organizationId }
+  return assistant.respond(request, { ...context, waitUntil: after });
+}
+```
+
+```ts title="app/api/chat/[id]/stream/route.ts"
+export async function GET(
+  request: Request,
+  { params }: RouteContext<"/api/chat/[id]/stream">,
+) {
+  const { id } = await params;
+  return assistant.resume(id, await assistantContext(), {
+    signal: request.signal,
+  });
+}
+```
+
+```ts title="app/api/chat/[id]/stop/route.ts"
+export async function POST(
+  _: Request,
+  { params }: RouteContext<"/api/chat/[id]/stop">,
+) {
+  const { id } = await params;
+  return assistant.stop(id, await assistantContext());
+}
+```
+
+`waitUntil` keeps the function running until the answer is stored after the
+response is sent: `after` in Next.js, `ctx.waitUntil` on Workers.
+
+## What a request does
+
+1. Reads `{ id, message, trigger, messageId, model }`. The chat is created
+   on first use with the id the client made.
+2. Picks the model: the requested one when the tenant's plans allow it
+   (`403 AI_MODEL_NOT_ALLOWED` otherwise), then the chat's model, then
+   `defaultModel`, then the first allowed model.
+3. Runs `moderate` on the user's message, when set. `block` answers
+   `403 AI_MODERATION_BLOCKED`; every verdict other than `allow` is recorded.
+4. Runs `quota`, when set. An error answers 429 with `Retry-After`.
+5. Stores the message (`appendUser`), reads the active branch and repairs
+   tool calls that never got a result.
+6. Claims the run. While another answer runs it answers
+   `409 AI_CHAT_BUSY`.
+7. Streams the answer. When it ends, the answer is stored (`complete`, or
+   `aborted` after a stop), the run is released with its token usage and
+   the gateway's generation id and cost, and `onFinish` runs.
+
+Errors are RFC 9457 problem details responses with a `code` (see [Results](/docs/concepts/results)).
+
+| Option                | Does                                                                    |
+| --------------------- | ----------------------------------------------------------------------- |
+| `streams`             | The stream store: `postgresStreamStore` or `redisStreamStore`           |
+| `run`                 | Starts the generation                                                   |
+| `defaultModel`        | The model when the request and the chat name none that is allowed       |
+| `quota`               | The quota check, such as `usageQuota(usage, meter)`                     |
+| `moderate`            | Checks the user's message: `allow`, `flag`, `redact` or `block`         |
+| `enqueueCostBackfill` | Called when the gateway hasn't reported the cost yet                    |
+| `onFinish`            | Called after the answer is stored, with its status and usage            |
+| `streamTtl`           | How long the stream is kept, seconds or an interval; one day by default |
+| `feature`             | The gateway's `feature:` tag, `chat` by default                         |
+| `onError`             | The message the client sees for a stream error                          |
+| `generateId`          | Message and stream ids, `crypto.randomUUID()` by default                |
+
+## Client
+
+```tsx title="app/chat/[id]/chat.tsx"
+"use client";
+
+import { useAssistant } from "better-supabase/ai-sdk/react";
+import type { UIMessage } from "ai";
+
+export function Chat({ id, initial }: { id: string; initial: UIMessage[] }) {
+  const { messages, sendMessage, stop, status, regenerate } = useAssistant({
+    id,
+    messages: initial,
+    model: "anthropic/claude-sonnet-4.5",
+  });
+  // ...
+}
+```
+
+`useAssistant` is `useChat` with a transport for these routes. It sends
+only the new message, since the server keeps the history, reconnects to
+`/api/chat/{id}/stream` after a reload (`resume`, on by default) and makes
+`stop()` also stop the answer on the server, so it is stored as stopped.
+`api`, `body`, `headers`, `onError`, `onFinish` and `throttle` work as in
+`useChat`.
+
+Load the history in a Server Component and pass it as `messages`:
+
+```tsx title="app/chat/[id]/page.tsx"
+import { toUIMessages } from "better-supabase/ai-sdk";
+
+const path = await aiChat.messages.path(id, { native: true }).orThrow();
+return <Chat id={id} initial={toUIMessages(path)} />;
+```
+
+The UI message stream protocol version is pinned as
+`SPEC_PINS.aiSdkUiMessageStream`; see [Standards](/docs/standards).

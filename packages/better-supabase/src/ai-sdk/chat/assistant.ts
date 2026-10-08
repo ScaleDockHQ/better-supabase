@@ -158,7 +158,7 @@ export interface Assistant {
     context: AssistantContext,
     options?: { readonly fromIdx?: number; readonly signal?: AbortSignal },
   ): Promise<Response>;
-  /** Asks the running answer to stop; 204 either way. */
+  /** Asks the running answer to stop: 204 whether or not one runs, a problem when the user may not. */
   stop(chatId: string, context: AssistantContext): Promise<Response>;
 }
 

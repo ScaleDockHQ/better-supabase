@@ -1,6 +1,6 @@
 ---
 name: better-supabase-api
-description: Build HTTP APIs, Edge Functions and MCP servers on Supabase with better-supabase adapters. Use when adding a route, REST resource, oRPC procedure, Edge Function, MCP tool, OAuth or agent scopes, webhook, background job, cleanup cron or idempotent endpoint.
+description: Build HTTP APIs, Edge Functions and MCP servers on Supabase with better-supabase adapters. Use when adding a route, REST resource, oRPC procedure, Edge Function, MCP tool, AI chat route, OAuth or agent scopes, webhook, background job, cleanup cron or idempotent endpoint.
 ---
 
 # APIs with better-supabase
@@ -91,6 +91,14 @@ for lists that clients read page by page: the list takes `after` instead of
 - Set `allowedOrigins` and `allowedHosts` (every host the server answers on, previews and local included) against DNS rebinding, and `resourceDocumentation` to a page that explains how to connect.
 - On the official MCP SDK, keep its `McpServer`: `createMcpAuth(betterSupabase, { resource })` from `better-supabase/mcp/sdk` verifies the token and serves the metadata (`auth.serve(createMcpHandler(factory))`), and `withBetterSupabaseMcp(server, auth)` gives every `registerTool` callback `db`, `auth` and `bs`. With a permission library that wraps `McpServer`, wrap with it first, then `withBetterSupabaseMcp`.
 
+## AI chat (`sql add ai-chat`, `ai` and `@ai-sdk/react` as optional peers)
+
+- Store chats with `createAiChat({ transport, service })` from `better-supabase/blocks/ai-chat`: `transport` calls as the user, `service` as the service role for assistant messages, runs and the model catalog. Never write assistant messages from the client.
+- Serve the chat with `createAssistant({ streams, run, defaultModel, quota })` from `better-supabase/ai-sdk/chat`: `respond` on `POST /api/chat`, `resume` on `GET /api/chat/[id]/stream`, `stop` on `POST /api/chat/[id]/stop`. Return `streamText(...)` from `run` with the `messages`, `abortSignal` and `providerOptions` it receives, and pass `waitUntil` (`after` in Next.js) so the answer is stored after the response.
+- On the client use `useAssistant({ id, messages })` from `better-supabase/ai-sdk/react`; load `messages` on the server with `toUIMessages(await aiChat.messages.path(id, { native: true }).orThrow())`.
+- Models are AI Gateway `provider/model` strings checked against `ai_model_catalog`; refresh it with the `modelCatalogRefresh` job and backfill costs with `costBackfill` from `better-supabase/ai-sdk`.
+- Blocks never import an AI SDK. Put SDK code in the app or an adapter subpath, and store third-party tokens as a `credential_ref`, never in a column.
+
 ## Native and offline apps
 
 For Expo and React Native, follow [references/expo.md](references/expo.md):
@@ -135,5 +143,6 @@ the adapter verifies them against the local JWKS. See the `better-supabase-testi
 Docs: https://bettersupabase.com/docs/frameworks/hono.md (and `next`,
 `orpc`, `expo`, `edge`, `mcp` under `/docs/frameworks/`),
 https://bettersupabase.com/docs/repository/powersync.md,
-https://bettersupabase.com/docs/blocks/jobs.md and
+https://bettersupabase.com/docs/blocks/jobs.md,
+https://bettersupabase.com/docs/ai-sdk/chat.md and
 https://bettersupabase.com/docs/auth/postgres.md.
