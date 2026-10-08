@@ -122,6 +122,12 @@ export const MODULE_PERMISSIONS = {
     admin: "ai_chat.admin",
   },
   "ai-files": { upload: "ai_chat.create", manage: "ai_chat.admin" },
+  knowledge: {
+    read: "ai_chat.read",
+    write: "ai_chat.create",
+    manage: "ai_chat.admin",
+  },
+  memory: { read: "ai_chat.read", manage: "ai_chat.admin" },
 } as const;
 
 /**
@@ -186,6 +192,8 @@ export const MODULE_PERMISSION_SCOPES: {
     admin: "tenant",
   },
   "ai-files": { upload: "tenant", manage: "tenant" },
+  knowledge: { read: "tenant", write: "tenant", manage: "tenant" },
+  memory: { read: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {
