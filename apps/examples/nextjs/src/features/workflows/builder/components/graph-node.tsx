@@ -58,7 +58,7 @@ const STATUS_RING = {
 const branches = (kind: WorkflowNodeKind): boolean =>
   kind === "condition" || kind === "approval";
 
-export function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
+function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
   const Icon = ICONS[data.kind];
   return (
     <div

@@ -16,6 +16,10 @@ import { useNotifications } from "../../src/blocks/notifications/react/index.ts"
 import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
 import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
 import {
+  useWorkflowBuilder,
+  useWorkflowCanvasRun,
+} from "../../src/blocks/workflow-builder/react/index.ts";
+import {
   useWorkflowRun,
   useWorkflowRuns,
 } from "../../src/blocks/workflows/react/index.ts";
@@ -1331,6 +1335,168 @@ describe("workflow run hooks", () => {
     });
     await flush();
     expect(view.result.error?.message).toBe("denied");
+    view.unmount();
+  });
+});
+
+describe("workflow builder hooks", () => {
+  const definition = {
+    id: "d1",
+    tenant: "t1",
+    slug: "welcome",
+    name: "Welcome",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+    published: 2,
+    draft: true,
+  };
+  const step = {
+    name: "email.send",
+    title: "Send an email",
+    inputSchema: { type: "object" },
+  };
+  const runRow = (status: string) => ({
+    id: "r1",
+    engine: "workflow-sdk",
+    externalId: "wrun_r1",
+    definition: "builder:d1",
+    tenant: "t1",
+    actor: USER,
+    status,
+    attributes: {},
+    error: null,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  });
+  const nodeRow = (node: string, status: string) => ({
+    run: "r1",
+    node,
+    status,
+    attempts: 1,
+  });
+
+  it("lists a tenant's definitions and the step library after sign-in", async () => {
+    const signedOut = fakeBrowser(SIGNED_OUT);
+    const idle = withRpc(signedOut.client, () => []);
+    const waiting = renderHook(() => useWorkflowBuilder(), undefined, {
+      client: signedOut.browser,
+    });
+    await flush();
+    expect(idle).not.toHaveBeenCalled();
+    expect(waiting.result.definitions).toBeUndefined();
+    waiting.unmount();
+
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    let failSteps = false;
+    const rpc = withRpc(client, (fn) => {
+      if (fn === "workflow_steps_list") {
+        if (failSteps) throw new Error("no steps");
+        return [step];
+      }
+      return [definition];
+    });
+    const view = renderHook(
+      () => useWorkflowBuilder({ tenant: "t1", schema: "app" }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.definitions?.map((entry) => entry.slug)).toEqual([
+      "welcome",
+    ]);
+    expect(view.result.definitions?.[0]?.published).toBe(2);
+    expect(view.result.steps?.map((entry) => entry.name)).toEqual([
+      "email.send",
+    ]);
+    expect(view.result.error).toBeUndefined();
+    expect(rpc).toHaveBeenCalledWith("workflow_definitions_list", {
+      tenant: "t1",
+    });
+    expect(typeof view.result.builder.definitions.save).toBe("function");
+
+    failSteps = true;
+    await view.result.refresh();
+    expect(view.result.error?.message).toBe("no steps");
+    expect(view.result.steps).toHaveLength(1);
+    view.unmount();
+  });
+
+  it("keeps the definitions error first", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    withRpc(client, () => {
+      throw new Error("denied");
+    });
+    const view = renderHook(() => useWorkflowBuilder(), undefined, {
+      client: browser,
+    });
+    await flush();
+    expect(view.result.error?.message).toBe("denied");
+    expect(view.result.definitions).toBeUndefined();
+    view.unmount();
+  });
+
+  it("maps a run's node records by node and reloads on its topic", async () => {
+    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    let nodes = [nodeRow("lookup", "running")];
+    let failNodes = false;
+    const rpc = withRpc(client, (fn) => {
+      if (fn === "workflow_node_runs_list") {
+        if (failNodes) throw new Error("no nodes");
+        return nodes;
+      }
+      return runRow("running");
+    });
+    const view = renderHook(
+      () => useWorkflowCanvasRun("wrun_r1", { schema: "app" }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.run?.id).toBe("r1");
+    expect(view.result.nodes["lookup"]?.status).toBe("running");
+    expect(view.result.status).toBe("subscribed");
+    expect(client.channel.mock.calls[0]?.[0]).toBe("workflow-run:r1");
+    expect(rpc).toHaveBeenCalledWith("workflow_node_runs_list", {
+      run: "wrun_r1",
+    });
+
+    nodes = [nodeRow("lookup", "completed"), nodeRow("welcome", "failed")];
+    emit("workflow-run:r1", "workflow_run_changed");
+    await flush();
+    expect(view.result.nodes["lookup"]?.status).toBe("completed");
+    expect(view.result.nodes["welcome"]?.status).toBe("failed");
+
+    failNodes = true;
+    await view.result.refresh();
+    expect(view.result.error?.message).toBe("no nodes");
+    view.unmount();
+    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing for a null run and keeps a read error", async () => {
+    const idle = fakeBrowser(signedIn(USER));
+    const unused = withRpc(idle.client, () => null);
+    const empty = renderHook(() => useWorkflowCanvasRun(null), undefined, {
+      client: idle.browser,
+    });
+    await flush();
+    await empty.result.refresh();
+    expect(unused).not.toHaveBeenCalled();
+    expect(empty.result.nodes).toEqual({});
+    expect(empty.result.status).toBe("closed");
+    empty.unmount();
+
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    withRpc(client, () => {
+      throw new Error("denied");
+    });
+    const view = renderHook(() => useWorkflowCanvasRun("r1"), undefined, {
+      client: browser,
+    });
+    await flush();
+    expect(view.result.error?.message).toBe("denied");
+    expect(view.result.run).toBeUndefined();
     view.unmount();
   });
 });

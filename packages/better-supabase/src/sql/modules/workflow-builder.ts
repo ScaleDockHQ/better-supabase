@@ -120,7 +120,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-export const WORKFLOW_NODE_KINDS = [
+const WORKFLOW_NODE_KINDS = [
   "trigger",
   "step",
   "sleep",
@@ -128,7 +128,7 @@ export const WORKFLOW_NODE_KINDS = [
   "condition",
 ] as const;
 
-export const WORKFLOW_TRIGGER_KINDS = [
+const WORKFLOW_TRIGGER_KINDS = [
   "manual",
   "webhook",
   "schedule",

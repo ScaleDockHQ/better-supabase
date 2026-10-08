@@ -48,7 +48,7 @@ async function runOwner() {
   return { tenant: run?.tenant, actor: run?.actor };
 }
 
-export async function notifyMember(call: GraphStepCall): Promise<boolean> {
+async function notifyMember(call: GraphStepCall): Promise<boolean> {
   "use step";
   return report(call, async () => {
     const { tenant, actor } = await runOwner();
@@ -65,7 +65,7 @@ export async function notifyMember(call: GraphStepCall): Promise<boolean> {
   });
 }
 
-export async function summarizeText(call: GraphStepCall) {
+async function summarizeText(call: GraphStepCall) {
   "use step";
   return report(call, () => {
     const trimmed = v.parse(SummaryInput, call.input).text.trim();
@@ -78,7 +78,7 @@ export async function summarizeText(call: GraphStepCall) {
 }
 
 /** Posts to Slack's API only, so a graph can't point the server at another host. */
-export async function postToSlack(call: GraphStepCall): Promise<boolean> {
+async function postToSlack(call: GraphStepCall): Promise<boolean> {
   "use step";
   return report(call, async () => {
     const token = await stepBuilder()
