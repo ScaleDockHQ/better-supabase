@@ -1,6 +1,7 @@
 import { createApiKeys } from "better-supabase/blocks/api-keys";
 import { createAuditLog } from "better-supabase/blocks/audit";
 import { createComments } from "better-supabase/blocks/comments";
+import { createInbox } from "better-supabase/blocks/inbox";
 import { createNotifications } from "better-supabase/blocks/notifications";
 import {
   type RpcClient,
@@ -37,6 +38,7 @@ export function blocks(supabase: RpcClient) {
       types: notificationTypes,
       render: renderNotification,
     }),
+    inbox: createInbox(options),
     usage: createUsage(options),
     workflows: createWorkflows(options),
     onboarding: gettingStarted.connect(options),

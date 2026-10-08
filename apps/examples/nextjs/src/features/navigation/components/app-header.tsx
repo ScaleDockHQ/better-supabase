@@ -2,6 +2,7 @@ import { useExtracted } from "next-intl";
 
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { HelpSheet } from "@/features/inbox/components/help-sheet";
 import { UnreadBadge } from "@/features/notifications/components/unread-badge";
 
 /** Synchronous, so it is part of the static shell of every page. */
@@ -15,6 +16,7 @@ export function AppHeader() {
         Acme Cloud
       </span>
       <div className="ml-auto flex items-center gap-1">
+        <HelpSheet />
         <UnreadBadge />
       </div>
     </header>
