@@ -1278,6 +1278,7 @@
       "toHttp"
     ],
     "types": [
+      "AiChatEventData",
       "AttachmentEventData",
       "BillingEventData",
       "BlockEvent",
@@ -2056,23 +2057,140 @@
     "values": [
       "AI_MESSAGE_PART_TYPES",
       "AI_MESSAGE_SCHEMA_ID",
+      "aiChatListTopic",
+      "aiChatTopic",
       "aiMessageSchema",
-      "isAiMessage"
+      "createAiChat",
+      "INTERRUPTED_TOOL_OUTPUT",
+      "isAiMessage",
+      "pathToHistory",
+      "repairDanglingToolCalls",
+      "rpcTransport",
+      "sqlTransport",
+      "validateMessage"
     ],
     "types": [
+      "AiAppendResult",
+      "AiApprovalDecision",
+      "AiAssistantMessageOptions",
+      "AiChat",
+      "AiChatInput",
+      "AiChatOptions",
+      "AiChatPage",
+      "AiChatPatch",
+      "AiChatQuery",
+      "AiChatRecord",
+      "AiChatShare",
+      "AiChatVisibility",
       "AiDataPart",
+      "AiFeedback",
       "AiFilePart",
       "AiMessage",
+      "AiMessageCheck",
       "AiMessagePart",
       "AiMessagePartType",
       "AiMessageRole",
+      "AiMessageSibling",
+      "AiModel",
+      "AiModelInput",
+      "AiModerationAction",
+      "AiModerationEvent",
+      "AiModerationInput",
+      "AiModerationStage",
+      "AiPendingInput",
+      "AiPendingInputRequest",
+      "AiProject",
+      "AiProjectInput",
       "AiReasoningPart",
+      "AiRunRelease",
+      "AiRunStatus",
+      "AiSaveResult",
+      "AiShareLink",
       "AiSourcePart",
       "AiStepPart",
+      "AiStoredMessage",
+      "AiStoredMessageStatus",
+      "AiStreamClaim",
       "AiTextPart",
+      "AiToolApproval",
       "AiToolApprovalPart",
+      "AiToolApprovalRequest",
       "AiToolCallPart",
-      "AiToolResultPart"
+      "AiToolPolicy",
+      "AiToolResultPart",
+      "AiUserMessageTrigger",
+      "BlockTransport",
+      "SharedAiChat"
+    ]
+  },
+  "./blocks/ai-chat/react": {
+    "values": [
+      "useAiChats",
+      "useAiChatTree",
+      "useAiModels",
+      "useAiShare"
+    ],
+    "types": [
+      "AiChatsState",
+      "AiChatTreeState",
+      "AiModelsState",
+      "AiShareState",
+      "UseAiChatsOptions",
+      "UseAiChatTreeOptions"
+    ]
+  },
+  "./ai-sdk": {
+    "values": [
+      "AI_SDK_UI_FORMAT",
+      "costBackfill",
+      "DENIED_TOOL_OUTPUT",
+      "fromUIMessage",
+      "gatewayOptions",
+      "isUIMessage",
+      "modelCatalogRefresh",
+      "modelInputOf",
+      "problem429",
+      "toUIMessage",
+      "toUIMessages",
+      "usageEntries",
+      "usageOf",
+      "usageQuota"
+    ],
+    "types": [
+      "AiUsage",
+      "AiUsageMeters",
+      "CostBackfillOptions",
+      "CostBackfillPayload",
+      "GatewayClient",
+      "GatewayContext",
+      "GatewayModelEntry",
+      "GatewayOptions",
+      "ModelCatalogRefreshOptions",
+      "UsageSource"
+    ]
+  },
+  "./ai-sdk/chat": {
+    "values": [
+      "createAssistant"
+    ],
+    "types": [
+      "Assistant",
+      "AssistantContext",
+      "AssistantFinish",
+      "AssistantModeration",
+      "AssistantOptions",
+      "AssistantRequestBody",
+      "AssistantRunArgs",
+      "AssistantRunResult"
+    ]
+  },
+  "./ai-sdk/react": {
+    "values": [
+      "useAssistant"
+    ],
+    "types": [
+      "AssistantState",
+      "UseAssistantOptions"
     ]
   },
   "./blocks/announcements": {

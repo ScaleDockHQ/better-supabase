@@ -185,7 +185,6 @@ await organizations.invite({ organizationId, email, role: "member" });
 
 | Block                                                                                                                                                                              | Import                                                                                     | SQL modules                            |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------           | ------------------------------------------------------------------------------------------ | -------------------------------------- |
 | [Access contract](https://bettersupabase.com/docs/blocks/access): `can()` for policies, over fixed roles, your own permission catalog or an authorization provider                 | SQL only                                                                                   | `access`, `tenant`                     |
 | [Organizations](https://bettersupabase.com/docs/blocks/organizations): members, invitations, roles and switching                                                                   | `better-supabase/blocks/organizations`                                                     | `organizations`, `invitations`         |
 | [Profiles](https://bettersupabase.com/docs/blocks/profiles): a profile row per user, synced from Auth                                                                              | `better-supabase/blocks/profiles`                                                          | `profiles`                             |
@@ -207,9 +206,9 @@ await organizations.invite({ organizationId, email, role: "member" });
 | [Onboarding](https://bettersupabase.com/docs/blocks/onboarding): checklists per user or organization, and `useOnboarding`                                                          | `better-supabase/blocks/onboarding`, `better-supabase/blocks/onboarding/react`             | `onboarding`                           |
 | [Waitlist](https://bettersupabase.com/docs/blocks/waitlist): a waitlist with approvals, hashed invite codes and an invite-only sign-up hook                                        | `better-supabase/blocks/waitlist`                                                          | `waitlist`                             |
 | [Announcements](https://bettersupabase.com/docs/blocks/announcements): in-app announcements by audience and time window, and `useAnnouncements`                                    | `better-supabase/blocks/announcements`, `better-supabase/blocks/announcements/react`       | `announcements`                        |
+| [AI chat](https://bettersupabase.com/docs/blocks/ai-chat): chats with branches, shares, a model catalog, moderation and runs, in the canonical message format, and `useAiChats`    | `better-supabase/blocks/ai-chat`, `better-supabase/blocks/ai-chat/react`                   | `ai-chat`                              |
 | [Workflows](https://bettersupabase.com/docs/blocks/workflows): a run registry for any engine, schedules, semaphores, admission control, and `useWorkflowRuns`                      | `better-supabase/blocks/workflows`, `better-supabase/blocks/workflows/react`               | `workflows`, `workflow-sdk-world`      |
 | [Workflow builder](https://bettersupabase.com/docs/blocks/workflow-builder): graph workflows members edit and publish, triggers, credentials, node run status and alerts           | `better-supabase/blocks/workflow-builder`, `better-supabase/blocks/workflow-builder/react` | `workflow-builder`                     |
-| [AI messages](https://bettersupabase.com/docs/blocks/ai-chat): the canonical message format, a Standard Schema validator and its JSON Schema                                       | `better-supabase/blocks/ai-chat`                                                           | none                                   |
 | [Entitlements](https://bettersupabase.com/docs/blocks/entitlements): Stripe entitlements per tenant, `hasEntitlement` and the members of a plan change                             | `better-supabase/blocks/entitlements`                                                      | `entitlements`                         |
 | [Vector search](https://bettersupabase.com/docs/blocks/vector-search): `search_<table>` functions over embedding columns, called with `db.$search`                                 | SQL only                                                                                   | `vector-search`                        |
 
@@ -235,39 +234,40 @@ The other SQL modules (`updated-at`, `actor`, `rate-limit`, `support-sessions` a
 
 ## Subpaths
 
-| Import                                                | What it gives you                                                             |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `better-supabase`                                     | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS`              |
-| `better-supabase/config`                              | `defineConfig` and generators for `better-supabase.config.ts`                 |
-| `better-supabase/cli`                                 | `run`, `registerCommand` and codegen for scripts that drive the CLI           |
-| `better-supabase/client`                              | Browser repositories that follow the session                                  |
-| `better-supabase/client/native`                       | The same for React Native, without `@supabase/ssr`, and keychain storage      |
-| `better-supabase/react`                               | Provider, typed hooks and the server session                                  |
-| `better-supabase/query`                               | TanStack Query options with table-based invalidation                          |
-| `better-supabase/server`                              | Repositories bound to the caller, admin and acting-as identities              |
-| `better-supabase/postgres`                            | The same repositories over direct Postgres                                    |
-| `better-supabase/powersync`                           | The same repositories over PowerSync's local SQLite, with live queries        |
-| `better-supabase/ssr`                                 | The `@supabase/ssr` cookie format for any framework                           |
-| `better-supabase/next`, `/next/image`, `/next/client` | Proxy, Server Components, route handlers, Storage images, session-change hook |
-| `better-supabase/hono`, `/orpc`, `/edge`, `/expo`     | Framework adapters                                                            |
-| `better-supabase/tanstack-start`, `/sveltekit`        | The middleware entries as TanStack Start middleware and a SvelteKit hook      |
-| `better-supabase/react-router`, `/h3`, `/elysia`      | The middleware entries for React Router, H3 (Nitro, Nuxt) and Elysia          |
-| `better-supabase/mcp`                                 | MCP servers whose tools run as the signed-in user                             |
-| `better-supabase/mcp/sdk`                             | Bearer auth and caller-bound `db` for the official MCP SDK                    |
-| `better-supabase/list`                                | Search, facets, sorting and pagination from one definition                    |
-| `better-supabase/storage`, `/realtime`                | Typed buckets (paths, versions, vector, analytics) and broadcast topics       |
-| `better-supabase/env`                                 | Validated Supabase settings                                                   |
-| `better-supabase/events`, `/openapi`, `/otel`         | CloudEvents, OpenAPI 3.1 and OpenTelemetry                                    |
-| `better-supabase/plugins/*`                           | Timestamps, soft delete, tenant, actor, validation and runtime rules          |
-| `better-supabase/streams`, `/streams/redis`           | Resumable output for chats and workflows, in Postgres or Redis                |
-| `better-supabase/credentials`                         | Third-party tokens behind a `credential_ref`, over Supabase Vault             |
-| `better-supabase/chat-sdk`, `/chat-sdk/react`         | Chat SDK state in Postgres, the inbox adapter and channel webhooks            |
-| `better-supabase/vercel-connect`                      | A credential provider over Vercel Connect connectors                          |
-| `better-supabase/workflow-sdk`, `/workflow-sdk/world` | Workflow SDK helpers bound to the caller, and a World on Supabase (Node)      |
-| `better-supabase/workflow-sdk/builder`                | Compiles builder graphs to Workflow SDK workflows and starts them             |
-| `better-supabase/sql`                                 | The SQL modules and read-set compiler behind `better-supabase sql`            |
-| `better-supabase/lint`                                | Editor rules for unbounded reads and unscoped deletes                         |
-| `better-supabase/testing`                             | `asUser`, `localAuth`, typed seeds and conformance kits                       |
+| Import                                                    | What it gives you                                                                           |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `better-supabase`                                         | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS`                            |
+| `better-supabase/config`                                  | `defineConfig` and generators for `better-supabase.config.ts`                               |
+| `better-supabase/cli`                                     | `run`, `registerCommand` and codegen for scripts that drive the CLI                         |
+| `better-supabase/client`                                  | Browser repositories that follow the session                                                |
+| `better-supabase/client/native`                           | The same for React Native, without `@supabase/ssr`, and keychain storage                    |
+| `better-supabase/react`                                   | Provider, typed hooks and the server session                                                |
+| `better-supabase/query`                                   | TanStack Query options with table-based invalidation                                        |
+| `better-supabase/server`                                  | Repositories bound to the caller, admin and acting-as identities                            |
+| `better-supabase/postgres`                                | The same repositories over direct Postgres                                                  |
+| `better-supabase/powersync`                               | The same repositories over PowerSync's local SQLite, with live queries                      |
+| `better-supabase/ssr`                                     | The `@supabase/ssr` cookie format for any framework                                         |
+| `better-supabase/next`, `/next/image`, `/next/client`     | Proxy, Server Components, route handlers, Storage images, session-change hook               |
+| `better-supabase/hono`, `/orpc`, `/edge`, `/expo`         | Framework adapters                                                                          |
+| `better-supabase/tanstack-start`, `/sveltekit`            | The middleware entries as TanStack Start middleware and a SvelteKit hook                    |
+| `better-supabase/react-router`, `/h3`, `/elysia`          | The middleware entries for React Router, H3 (Nitro, Nuxt) and Elysia                        |
+| `better-supabase/mcp`                                     | MCP servers whose tools run as the signed-in user                                           |
+| `better-supabase/mcp/sdk`                                 | Bearer auth and caller-bound `db` for the official MCP SDK                                  |
+| `better-supabase/list`                                    | Search, facets, sorting and pagination from one definition                                  |
+| `better-supabase/storage`, `/realtime`                    | Typed buckets (paths, versions, vector, analytics) and broadcast topics                     |
+| `better-supabase/env`                                     | Validated Supabase settings                                                                 |
+| `better-supabase/events`, `/openapi`, `/otel`             | CloudEvents, OpenAPI 3.1 and OpenTelemetry                                                  |
+| `better-supabase/plugins/*`                               | Timestamps, soft delete, tenant, actor, validation and runtime rules                        |
+| `better-supabase/streams`, `/streams/redis`               | Resumable output for chats and workflows, in Postgres or Redis                              |
+| `better-supabase/credentials`                             | Third-party tokens behind a `credential_ref`, over Supabase Vault                           |
+| `better-supabase/chat-sdk`, `/chat-sdk/react`             | Chat SDK state in Postgres, the inbox adapter and channel webhooks                          |
+| `better-supabase/vercel-connect`                          | A credential provider over Vercel Connect connectors                                        |
+| `better-supabase/ai-sdk`, `/ai-sdk/chat`, `/ai-sdk/react` | The AI SDK adapter: message converters, gateway usage, `createAssistant` and `useAssistant` |
+| `better-supabase/workflow-sdk`, `/workflow-sdk/world`     | Workflow SDK helpers bound to the caller, and a World on Supabase (Node)                    |
+| `better-supabase/workflow-sdk/builder`                    | Compiles builder graphs to Workflow SDK workflows and starts them                           |
+| `better-supabase/sql`                                     | The SQL modules and read-set compiler behind `better-supabase sql`                          |
+| `better-supabase/lint`                                    | Editor rules for unbounded reads and unscoped deletes                                       |
+| `better-supabase/testing`                                 | `asUser`, `localAuth`, typed seeds and conformance kits                                     |
 
 The `better-supabase/blocks/*` subpaths are listed under [Blocks](#blocks).
 
