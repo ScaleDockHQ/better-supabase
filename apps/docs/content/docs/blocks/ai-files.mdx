@@ -1,0 +1,131 @@
+---
+title: AI files
+description: Attachments and generated files for AI chats in a private bucket, provider file references with expiry, and versioned documents with suggested edits.
+---
+
+The `ai-files` block stores the files of an AI assistant: what a user
+attaches to a message, what a model generates (images, speech), the
+reference a provider's file API returned for a file, and documents the
+assistant writes beside the chat, with every version kept. Messages point
+at a file with a `supabase-storage://` URL, so a stored chat never holds a
+signed URL that expires or a file someone else owns.
+
+```bash
+better-supabase sql add ai-files   # adds tenant and access as well
+```
+
+| Table                  | Holds                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `ai_files`             | One row per object: owner, tenant, chat, `media_type`, `byte_size`, `sha256`, `status`, `source` |
+| `ai_provider_files`    | A provider's file id or file URI per file, with `expires_at`                                     |
+| `ai_documents`         | Documents per owner and chat: `kind` (`text`, `code`, `sheet`, `image`), `title`, the version    |
+| `ai_document_versions` | Every version: `content` or a `storage_path`, the message that wrote it                          |
+| `ai_suggestions`       | Suggested edits on a version, and whether the owner accepted them                                |
+
+Objects live in the private `ai-files` bucket at
+`{organization_id}/{owner_id}/{file_id}/{filename}`. The storage policies
+accept an upload only to the path of a pending record the caller reserved,
+and allow a read to the owner, an `ai_chat.admin` of the tenant and, with
+the [`ai-chat`](/docs/blocks/ai-chat) module installed, anyone who can read
+the file's chat.
+
+| Permission       | Lets a member                                         | Default roles              |
+| ---------------- | ----------------------------------------------------- | -------------------------- |
+| `ai_chat.create` | upload files and create documents in the tenant       | `owner`, `admin`, `member` |
+| `ai_chat.admin`  | read and delete every file and document in the tenant | `owner`, `admin`           |
+
+The keys are the `ai-chat` keys by default; rename them with
+`sql.modules["ai-files"].permissions.upload` and `.manage`.
+
+| Option             | Default    | Sets                                                            |
+| ------------------ | ---------- | --------------------------------------------------------------- |
+| `bucket`           | `ai-files` | The bucket id                                                   |
+| `maxSize`          | 50 MB      | The largest file in bytes, in the table and the bucket          |
+| `allowedMimeTypes` | any        | Media types the bucket and `reserve_ai_file` accept (`image/*`) |
+| `pendingTtl`       | `1 day`    | How long `purge` keeps an upload that never finished            |
+
+## Server
+
+```ts title="lib/ai-files.ts"
+import { createAiFiles, rpcTransport } from "better-supabase/blocks/ai-files";
+
+export const aiFilesFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createAiFiles({
+    transport: rpcTransport(supabase),
+    storage: supabase.storage,
+    service: rpcTransport(admin),
+    serviceStorage: admin.storage,
+  });
+```
+
+`transport` and `storage` act as the user, so the table and bucket
+policies apply. `service` and `serviceStorage` act as the service role for
+what only the server writes: generated files, provider references and the
+purge.
+
+| Group           | Methods                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| `files`         | `upload`, `confirm`, `get`, `resolve`, `list`, `sign`, `read`, `remove`, `store`, `purge`        |
+| `providerFiles` | `get`, `set`, `expiring`                                                                         |
+| `documents`     | `create`, `get`, `update`, `rollback`, `versions`, `remove`, `suggest`, `suggestions`, `resolve` |
+
+Every method returns a `Result`. A file the caller can't see is
+`not_found`, the same as a file that doesn't exist.
+
+## Uploads
+
+```ts
+const { file, token } = await files.files
+  .upload(organizationId, {
+    filename: "plan.pdf",
+    mediaType: "application/pdf",
+    size: blob.size,
+    chatId,
+  })
+  .orThrow();
+await supabase.storage
+  .from(file.bucket)
+  .uploadToSignedUrl(file.path, token, blob);
+await files.files.confirm(file.id).orThrow();
+const part = { type: "file", mediaType: file.mediaType, url: aiFileUrl(file) };
+```
+
+`upload` reserves the record and returns a signed upload URL for its path.
+For files over 6 MB, upload to the same path with TUS
+(`/storage/v1/upload/resumable`) instead; the policies are the same.
+`confirm` checks that the object exists and takes its stored size. Run
+`purge` from a job: it deletes pending uploads older than `pendingTtl`,
+expired files and the files of deleted chats, then removes their objects.
+
+## Reading files
+
+`resolve(url)` looks a `supabase-storage://` URL up as the caller and fails
+for a file they can't read, so a user can't send a model another user's
+file by pasting its URL. `read` returns the bytes and refuses files over
+`maxBytes` (50 MB by default). `sign(messages)` replaces the storage URLs of
+file parts with signed URLs that expire after `downloadTtl` seconds (300 by
+default), for a browser or a provider that fetches URLs itself.
+
+## Documents
+
+```ts
+const doc = await files.documents
+  .create(organizationId, { kind: "code", title: "main.ts", content, chatId })
+  .orThrow();
+await files.documents
+  .update(doc.id, { content: next, expectedVersion: doc.version })
+  .orThrow();
+```
+
+`update` writes a new version; with `expectedVersion` it fails with
+`conflict` (`AI_DOCUMENT_CONFLICT`) when another writer got there first.
+`rollback(id, version)` writes an old version as the newest one, so the
+history stays linear. `suggest` records an edit on the current version and
+`resolve` accepts or rejects it; accepting doesn't change the document, the
+client writes the new version.
+
+## AI SDK
+
+[`better-supabase/ai-sdk/files`](/docs/ai-sdk/files) reads these files in
+`experimental_download`, stores generated files and caches provider file
+references.

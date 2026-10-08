@@ -1,0 +1,72 @@
+---
+title: Files
+description: Read supabase-storage file parts in the AI SDK's experimental_download, store generated files and cache provider file references.
+---
+
+`better-supabase/ai-sdk/files` connects the [AI files](/docs/blocks/ai-files)
+block to the AI SDK. Messages keep `supabase-storage://` URLs; the adapter
+reads them as the caller when a model needs the bytes.
+
+```bash
+pnpm add ai
+```
+
+## Downloads
+
+```ts title="app/api/chat/route.ts"
+import { aiFileDownload } from "better-supabase/ai-sdk/files";
+import { streamText } from "ai";
+
+const result = streamText({
+  model,
+  messages,
+  experimental_download: aiFileDownload(files),
+});
+```
+
+`aiFileDownload(files)` returns the SDK's download function. For a
+`supabase-storage://` URL it calls `files.resolve` and `files.read` as the
+caller, so the storage policies decide what the model may see and the
+`maxBytes` limit holds. A file the caller can't read throws an
+`AiFileDownloadError` that carries the `DbError`. URLs the model fetches
+itself are left to the model. Other URLs go to the SDK's `createDownload()`,
+or fail with `fallback: false`.
+
+## Generated files
+
+```ts
+import { saveGeneratedFiles } from "better-supabase/ai-sdk/files";
+
+const { images } = await generateImage({ model, prompt });
+const parts = await saveGeneratedFiles(files, images, {
+  organizationId,
+  ownerId: userId,
+  chatId,
+}).orThrow();
+```
+
+`saveGeneratedFiles` stores each file as the service role (`files.store`)
+and returns file parts with `supabase-storage://` URLs to put in the
+assistant message. It takes anything with `uint8Array` and `mediaType`, so
+the results of `generateImage`, `generateSpeech` and a model's file output
+all fit.
+
+## Provider files
+
+```ts
+import { providerFile } from "better-supabase/ai-sdk/files";
+
+const reference = await providerFile(files, fileId, "openai", async (file) => {
+  const uploaded = await openai.files.create({
+    file: new File([file.data], file.filename, { type: file.mediaType }),
+    purpose: "user_data",
+  });
+  return { reference: uploaded.id };
+}).orThrow();
+```
+
+`providerFile` returns the reference a provider's file API gave for the
+file, and uploads the file once through your callback when there is none
+or it expired. Pass `expiresAt` for providers whose files expire, such as
+Gemini's 48 hours, and refresh them from a job with
+`files.providerFiles.expiring()`.
