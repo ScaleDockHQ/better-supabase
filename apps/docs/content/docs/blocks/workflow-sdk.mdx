@@ -186,8 +186,8 @@ calls its own step, sleep nodes call `sleep` and approval nodes wait on
 import {
   executeGraph,
   type GraphStepCall,
-} from "better-supabase/workflow-sdk/builder";
-import type { WorkflowGraph } from "better-supabase/blocks/workflow-builder";
+  type WorkflowGraph,
+} from "better-supabase/blocks/workflow-builder";
 import { createHook, sleep } from "workflow";
 
 import { steps } from "./steps";
@@ -206,6 +206,10 @@ export async function graphExecutor(
   });
 }
 ```
+
+The executor imports `executeGraph` from the block rather than from
+`workflow-sdk/builder`, so the workflow bundle doesn't load `workflow/api`,
+which the workflow sandbox can't run.
 
 ```ts title="workflows/steps.ts"
 import {

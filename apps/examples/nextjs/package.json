@@ -30,6 +30,7 @@
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
     "@wrksz/themes": "catalog:",
+    "@xyflow/react": "catalog:",
     "better-result": "catalog:",
     "better-supabase": "workspace:*",
     "class-variance-authority": "catalog:",
