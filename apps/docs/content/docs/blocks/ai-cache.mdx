@@ -1,0 +1,91 @@
+---
+title: AI cache
+description: Model responses cached by a hash of the request, with a TTL, a size cap, per-tenant clearing and an hourly purge job.
+---
+
+The `ai-cache` block keeps model responses so a repeated request is answered
+from Postgres instead of the provider. The key is a SHA-256 of whatever the
+application decides makes two requests equal, usually the model, the prompt
+and the settings. The [AI SDK cache middleware](/docs/ai-sdk/cache) builds
+the key and replays a cached stream; this page covers the block itself.
+
+```bash
+better-supabase sql add ai-cache   # adds tenant as well
+```
+
+| Table              | Holds                                                                          |
+| ------------------ | ------------------------------------------------------------------------------ |
+| `ai_cache_entries` | The key, the tenant, `kind`, `model`, the JSON value, hits and the expiry time |
+
+Entries hold prompts and answers, so only the service role reads or writes
+them: no member sees another member's cached answer through the Data API.
+Create the block with a service transport.
+
+| Option     | Default           | Sets                                                         |
+| ---------- | ----------------- | ------------------------------------------------------------ |
+| `maxTtl`   | 604,800 (7 days)  | The longest TTL in seconds; a longer `ttl` is cut to it      |
+| `maxBytes` | 1,048,576 (1 MiB) | The largest value; `set` fails with `invalid_input` above it |
+
+## Server
+
+```ts title="lib/ai-cache.ts"
+import "server-only";
+
+import {
+  cacheKey,
+  createAiCache,
+  rpcTransport,
+} from "better-supabase/blocks/ai-cache";
+
+export const aiCache = createAiCache({
+  transport: rpcTransport(bs.admin().$client, { schema: "api" }),
+  schema: "api",
+});
+```
+
+```ts
+const key = await cacheKey({
+  model: "openai/gpt-5-mini",
+  prompt,
+  temperature: 0,
+});
+const cached = await aiCache.get<string>(key).orThrow();
+if (cached === undefined) {
+  const answer = await summarize(prompt);
+  await aiCache
+    .set(key, answer, {
+      ttl: 3600,
+      organizationId,
+      kind: "generate",
+      model: "openai/gpt-5-mini",
+    })
+    .orThrow();
+}
+```
+
+`cacheKey(parts)` sorts object keys before hashing, so `{ a, b }` and
+`{ b, a }` give the same key. `get` counts a hit and returns `undefined` for
+a missing or expired entry. `clear({ organizationId })` or
+`clear({ model })` deletes a tenant's or a model's entries, and the tenant
+lifecycle deletes a tenant's entries with its other rows.
+
+## Purge job
+
+Expired entries are never returned, but they stay in the table until the
+purge job deletes them. Schedule it hourly through the
+[jobs block](/docs/blocks/jobs):
+
+```ts
+handlers: {
+  ai_cache_purge: aiCache.purgeJob({ batch: 5000 });
+}
+```
+
+## Functions
+
+| Function                                             | Who     |
+| ---------------------------------------------------- | ------- |
+| `ai_cache_get(key)`                                  | service |
+| `ai_cache_set(key, value, ttl, tenant, kind, model)` | service |
+| `ai_cache_delete(key, tenant, model)`                | service |
+| `purge_ai_cache(batch)`                              | service |

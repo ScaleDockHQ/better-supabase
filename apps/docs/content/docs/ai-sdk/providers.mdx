@@ -1,0 +1,90 @@
+---
+title: Tenant keys and sandboxes
+description: Send each tenant's own provider keys to the AI Gateway as BYOK, and keep the sandbox registry current while a sandbox runs.
+---
+
+Two helpers in `better-supabase/ai-sdk` connect the
+[AI providers block](/docs/blocks/ai-providers) to model calls: one turns a
+tenant's saved keys into the AI Gateway's `byok` option, the other marks a
+sandbox used so the idle-stop job leaves it running.
+
+## Bring your own key
+
+`tenantGatewayOptions(providers, context, extra)` returns the same
+`providerOptions` as [`gatewayOptions`](/docs/ai-sdk#ai-gateway), with the
+tenant's enabled keys under `byok`. The keys are read through the service
+role for this request only and never stored outside the credential
+provider:
+
+```ts
+import { streamText } from "ai";
+import { tenantGatewayOptions } from "better-supabase/ai-sdk";
+
+const providerOptions = await tenantGatewayOptions(providers, {
+  userId,
+  organizationId,
+  chatId,
+  feature: "chat",
+}).orThrow();
+
+const result = streamText({
+  model: "anthropic/claude-sonnet-4.5",
+  messages,
+  providerOptions,
+});
+```
+
+The gateway tries the tenant's key first and falls back to the app's
+credentials when it fails. A tenant without keys gets plain
+`gatewayOptions`, so the same code serves both.
+
+With [`createAssistant`](/docs/ai-sdk/chat), merge the keys into the
+options `run` receives:
+
+```ts
+run: async ({ model, messages, providerOptions, context }) => {
+  const keys = await providers.keys.resolve(context.organizationId).orThrow();
+  return streamText({
+    model,
+    messages,
+    providerOptions: {
+      ...providerOptions,
+      gateway: { ...providerOptions.gateway, ...byokOptions(keys) },
+    },
+  });
+},
+```
+
+`byokOptions(keys)` maps each key to `{ apiKey: token, ...settings }`
+under its provider, in order, so a tenant can save a second key as a
+fallback. A provider whose credential field isn't `apiKey` names it in the
+key's `settings.credentialField`; other settings, such as a region, go to
+the gateway as they are.
+
+| Spend                       | Who pays | `spendReconciliation` with |
+| --------------------------- | -------- | -------------------------- |
+| calls with the tenant's key | tenant   | `credentialType: "byok"`   |
+| calls with the app's key    | the app  | `credentialType: "system"` |
+
+## Sandboxes
+
+`trackedSandbox(session, { sandboxes, id })` wraps an AI SDK
+`experimental_sandbox` session. Every method call marks the registry row
+used, at most every 30 seconds (`every`), so a sandbox in use is never
+stopped as idle:
+
+```ts
+import { trackedSandbox } from "better-supabase/ai-sdk";
+
+const row = await providers.sandboxes
+  .register(organizationId, { provider: "vercel", sandboxId, chatId, userId })
+  .orThrow();
+const sandbox = trackedSandbox(session, {
+  sandboxes: providers.sandboxes,
+  id: row.id,
+});
+```
+
+Before starting a sandbox for a chat, `providers.sandboxes.forChat(chatId,
+"vercel")` returns the one still running, so the next message reuses it.
+The [idle-stop job](/docs/blocks/ai-providers#sandboxes) stops the rest.

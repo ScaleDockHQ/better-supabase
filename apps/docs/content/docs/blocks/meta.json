@@ -39,6 +39,8 @@
     "memory",
     "agents",
     "connectors",
-    "ai-tasks"
+    "ai-tasks",
+    "ai-cache",
+    "ai-providers"
   ]
 }

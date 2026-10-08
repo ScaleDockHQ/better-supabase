@@ -6,6 +6,8 @@
     "interfaces",
     "authorization-providers",
     "credentials",
+    "credential-providers",
+    "add-an-sdk",
     "events",
     "conformance",
     "stability"

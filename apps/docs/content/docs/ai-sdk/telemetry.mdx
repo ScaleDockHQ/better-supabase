@@ -1,0 +1,67 @@
+---
+title: Metering
+description: Meter every model call on the tenant's usage meters through registerTelemetry, and reconcile each tenant's AI Gateway spend nightly.
+---
+
+`meterTelemetry` from `better-supabase/ai-sdk` is an AI SDK telemetry
+integration that records the tokens of every model call on the
+[usage block](/docs/blocks/usage). Register it once, and calls made
+anywhere in the app (the assistant, agents, a job, a batch) are metered on
+the tenant without passing usage around.
+
+```ts title="instrumentation.ts"
+import { registerTelemetry } from "ai";
+import { meterTelemetry } from "better-supabase/ai-sdk";
+
+import { serviceUsage } from "@/lib/usage";
+
+export function register() {
+  registerTelemetry(meterTelemetry({ usage: serviceUsage }));
+}
+```
+
+| Call                     | Meter                 | Quantity         |
+| ------------------------ | --------------------- | ---------------- |
+| each language model call | `ai.input_tokens`     | input tokens     |
+| each language model call | `ai.output_tokens`    | output tokens    |
+| `embed`, `embedMany`     | `ai.embedding_tokens` | embedding tokens |
+| `rerank`                 | `ai.rerank_calls`     | 1                |
+
+An agent with several steps records each step. The tenant comes from the
+`org:` tag that [`gatewayOptions`](/docs/ai-sdk#ai-gateway) puts in
+`providerOptions.gateway.tags`, then from `runtimeContext.organizationId`;
+a call without either isn't metered. Pass `tenant(event)` to read it from
+somewhere else, and `meters` to rename the meters.
+
+Each row carries an idempotency key per call and step, so a retried event
+is counted once. Don't also record the same tokens with `usageEntries`, or
+they count twice. A failed write goes to `onError`; it never fails the
+model call.
+
+## Nightly spend reconciliation
+
+The per-call cost in the usage block comes from each response. The AI
+Gateway's spend report is the figure you are billed, and the two drift when
+a response arrives without a cost or a call fails after it was charged.
+`spendReconciliation` is a job handler that reads yesterday's report grouped
+by tag and records each tenant's cost, in micro-dollars, on its own meter:
+
+```ts title="jobs.ts"
+import { gateway } from "ai";
+import { spendReconciliation } from "better-supabase/ai-sdk";
+
+export const handlers = {
+  "ai.spend_reconcile": spendReconciliation({
+    gateway,
+    usage: serviceUsage,
+    credentialType: "system",
+  }),
+};
+```
+
+Schedule it once a day after midnight UTC. The payload can name a `day`
+(`YYYY-MM-DD`) to reconcile another one. Each tenant's day is recorded once
+on `ai.gateway_cost` (set `meter` to change it), so running the job twice
+changes nothing. `credentialType: "system"` counts only the spend the app
+pays, leaving out calls made with a tenant's own key. Compare
+`ai.gateway_cost` with the per-call cost meter to find the drift.

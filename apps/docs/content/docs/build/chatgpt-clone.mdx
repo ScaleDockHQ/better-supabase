@@ -1,0 +1,112 @@
+---
+title: Build a ChatGPT clone
+description: The modules, routes and components behind the example's /assistant and /knowledge pages, from a stored chat to tenant keys and metering.
+---
+
+The Next.js example's `/assistant` page is a chat app on the
+[AI chat block](/docs/blocks/ai-chat) and the [AI SDK](/docs/ai-sdk): a chat
+list, branching messages, resumable streams with stop, file uploads, a
+knowledge search tool and memory. This guide walks through it in the order
+you would build it. Run it with `pnpm dev:portless` and sign in as
+`member@acme.test` (password `password123`); without `AI_GATEWAY_API_KEY`
+a scripted model answers, so it runs offline.
+
+## The modules
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    streams: { api: "api" },
+    "ai-chat": { api: "api" },
+    "ai-files": { api: "api" },
+    knowledge: { api: "api" },
+    memory: { api: "api" },
+    agents: { api: "api" },
+    connectors: { api: "api" },
+    "ai-tasks": { api: "api" },
+    "ai-providers": { api: "api" },
+    "ai-cache": { api: "api" },
+  },
+},
+```
+
+| Module         | Gives the clone                                                       | Page                                      |
+| -------------- | --------------------------------------------------------------------- | ----------------------------------------- |
+| `ai-chat`      | chats, folders, pins, the message tree, runs, sharing and the catalog | [AI chat](/docs/blocks/ai-chat)           |
+| `streams`      | resumable answers that survive a reload                               | [Streams](/docs/blocks/streams)           |
+| `ai-files`     | uploads read as the caller, and generated files                       | [AI files](/docs/blocks/ai-files)         |
+| `knowledge`    | documents chunked and embedded for the search tool                    | [Knowledge](/docs/blocks/knowledge)       |
+| `memory`       | facts and core memory per user                                        | [Memory](/docs/blocks/memory)             |
+| `agents`       | custom assistants with their own instructions and tools               | [Agents](/docs/blocks/agents)             |
+| `connectors`   | MCP servers with per-user OAuth                                       | [Connectors](/docs/blocks/connectors)     |
+| `ai-tasks`     | prompts on a schedule                                                 | [AI tasks](/docs/blocks/ai-tasks)         |
+| `ai-providers` | tenant keys, batches and sandboxes                                    | [AI providers](/docs/blocks/ai-providers) |
+| `ai-cache`     | repeated model calls answered from Postgres                           | [AI cache](/docs/blocks/ai-cache)         |
+
+Run `better-supabase sql sync`, generate a migration with
+`supabase db schema declarative sync`, then `better-supabase sql data`.
+
+<Steps>
+
+### The chat route
+
+`createAssistant` from `better-supabase/ai-sdk/chat` is the whole server
+side: it stores the user's message, runs the model, streams the answer
+through the stream store and saves it when it ends. The example builds one
+per process in `src/features/assistant/assistant-server.ts` and mounts it
+on three routes:
+
+| Route                       | Does                                      |
+| --------------------------- | ----------------------------------------- |
+| `POST /api/chat`            | stores the message and streams the answer |
+| `GET /api/chat/[id]/stream` | resumes the answer after a reload         |
+| `POST /api/chat/[id]/stop`  | stops the answer                          |
+
+`assistantContext` builds the per-request context: the caller's chat block,
+their files, the knowledge search tool and their memory, all read through
+RLS as the signed-in member.
+
+### The client
+
+`useAssistant` from `better-supabase/ai-sdk/react` is `useChat` wired to
+those routes. The chat list, the new-chat form and the
+stored chat live in `src/features/assistant/components`. Edit and
+regenerate create sibling messages; `messages.siblings` and
+`messages.switchBranch` move between them.
+
+### Files and knowledge
+
+Uploads go to Storage as the caller, and `aiFileDownload` reads them back for
+the model, so a member never reads another member's file. `/knowledge`
+ingests documents into the knowledge block; `searchTool` gives the model a
+tool that searches them with the tenant's embeddings.
+
+### Memory
+
+`withMemory` adds the user's core memory to the instructions, and
+`memoryTool` lets the model save and recall facts. Memory is per user and
+per organization.
+
+### Tenant keys, metering and caching
+
+The example's `run` adds the organization's own provider keys with
+`byokOptions`, so a tenant that saved an Anthropic key pays for its own
+calls ([tenant keys](/docs/ai-sdk/providers)). Register
+[`meterTelemetry`](/docs/ai-sdk/telemetry) in `instrumentation.ts` to meter
+every call on the usage block, and wrap deterministic calls such as titles
+or summaries with [`cacheMiddleware`](/docs/ai-sdk/cache).
+
+</Steps>
+
+## Beyond the example
+
+The blocks hold more than the example shows:
+
+- Plans gate models through `ai_model_catalog` and `usageQuota`; an empty
+  quota answers with a 429 and `Retry-After`.
+- [Agents](/docs/ai-sdk/agents) run as a `ToolLoopAgent` with tool approvals,
+  and [MCP connectors](/docs/ai-sdk/mcp) keep each user's tokens in Vault.
+- [AI tasks](/docs/blocks/ai-tasks) run a prompt on a cron, and
+  [batches](/docs/ai-sdk/batches) run thousands at the batch price.
+- Sharing by link (`shares.create`), temporary chats that `chats.purge`
+  removes, feedback and moderation events are chat block calls.

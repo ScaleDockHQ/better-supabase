@@ -1,0 +1,123 @@
+---
+title: Add another SDK
+description: The converter, stream and engine contracts an adapter for TanStack AI, LangChain, the OpenAI SDK or Temporal implements to use the AI and workflow blocks.
+---
+
+The AI and workflow blocks don't import an SDK. Chats store a canonical
+message, streams store strings, and the run registry stores what any
+engine reports. The AI SDK, Chat SDK and Workflow SDK adapters are one
+implementation of these contracts; an adapter for another SDK implements
+the same ones in its own subpath or package.
+
+## The rules
+
+These come from [ADR 0010](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0010-neutral-blocks-and-sdk-adapters.md):
+
+- An adapter owns no tables and no SQL. It calls the blocks.
+- An engine that needs its own storage gets a SQL module named after the
+  engine, such as `workflow-sdk-world` or `chat-sdk-state`.
+- The SDK is an optional peer: load it lazily or type it structurally, so
+  apps that don't use the adapter never install it.
+- Tokens live behind a `credential_ref` and a
+  [credential provider](/docs/extending/credential-providers), never in an
+  adapter's options or rows.
+
+## Chat: the message converter
+
+The [AI chat block](/docs/blocks/ai-chat) stores every message as an
+`AiMessage`: an `id`, a `role` (`system`, `user`, `assistant` or `tool`),
+`parts` and optional `metadata`. A part is `text`, `reasoning`, `file`,
+`tool-call`, `tool-result`, `tool-approval`, `source`, `data` or `step`.
+The JSON Schema is `schemas/ai-message-v1.json`, and `aiMessageSchema` is
+the same check as a Standard Schema.
+
+An adapter writes two functions, one in each direction:
+
+| SDK              | From the SDK                                               | Back to the SDK                      |
+| ---------------- | ---------------------------------------------------------- | ------------------------------------ |
+| AI SDK (shipped) | `fromUIMessage(message)`                                   | `toUIMessage(message)`               |
+| TanStack AI      | its UI message, parts and tool calls                       | the same shape for `useChat`         |
+| LangChain        | `BaseMessage` (`HumanMessage`, `AIMessage`, `ToolMessage`) | the `BaseMessage` subclasses         |
+| OpenAI SDK       | Responses API input and output items                       | the input items for the next request |
+
+Keep anything the canonical form can't hold in `native`. `saveAssistant`
+stores the SDK's own message next to the canonical one, with a `format`
+name; `path(chatId, { native: true })` returns it, and the adapter uses it
+when the format matches and converts the canonical message when it doesn't:
+
+```ts
+const appended = await chats.messages
+  .appendUser(chatId, fromSdkMessage(userMessage))
+  .orThrow();
+const history = await chats.messages
+  .path(chatId, { leafId: appended.messageId, native: true })
+  .orThrow();
+const input = history.map((stored) =>
+  stored.format === FORMAT ? stored.native : toSdkMessage(stored),
+);
+
+// ...run the model, then:
+await chats.messages
+  .saveAssistant(chatId, fromSdkMessage(answer), {
+    parentId: appended.messageId,
+    format: FORMAT,
+    native: answer,
+    runId,
+  })
+  .orThrow();
+```
+
+Wrap the model call in `runs.claim` and `runs.release`, so one answer
+streams per chat, stop requests reach it and usage is recorded. Test both
+converters with every message in your SDK's fixtures: each converted message
+must pass the JSON Schema, and a round trip must keep the parts.
+
+## Streams: the stream store
+
+Resumable output goes through a `StreamStore` from
+[streams](/docs/blocks/streams): `open(id)`, `append(id, fromIdx, chunks)`,
+`read(id, fromIdx)`, `status`, `isCancelled` and `close`. Chunks are
+strings, so the adapter serializes the SDK's stream parts and parses them
+on the way out. Writing at an index that is already stored is a no-op, so a
+retried batch is harmless. A new backend (another database, a message
+broker) implements the interface and passes `testStreamStore` from
+`better-supabase/testing`.
+
+## Workflows: the engine contract
+
+The [workflows block](/docs/blocks/workflows) keeps a run registry that any
+engine fills, so `/workflows` lists Workflow SDK and Temporal runs side by
+side:
+
+| Contract           | An adapter provides                                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `runs.record(run)` | a call on each status change: `engine`, `externalId`, `definition`, `status`, `tenant`, `actor`, `error` and times |
+| `WorkflowStarter`  | `(call) => Promise<runId>` for schedules, admission and semaphores; pass `idempotencyKey` to the engine            |
+| cancellation       | honor `runs.requestCancel` by cancelling the engine's run, then record `cancelled`                                 |
+
+Statuses are `queued`, `running`, `waiting`, `completed`, `failed` and
+`cancelled`. A Temporal adapter maps `WorkflowExecutionStatus` onto them,
+uses `idempotencyKey` as the workflow id, and records from an interceptor
+or a completion activity.
+
+The [workflow builder](/docs/blocks/workflow-builder) adds two more:
+
+| Contract         | An adapter provides                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| `GraphCompiler`  | `(graph) => compiled`, stored with each published version                                            |
+| `BuilderStarter` | `(call) => Promise<runId>` that starts a published version with its input                            |
+| `GraphRuntime`   | `runKey`, `step(call)`, `sleep(ms)` and `approval(token, node)` for `executeGraph` inside the engine |
+
+`executeGraph(graph, input, runtime)` walks the graph; the adapter's
+runtime maps `step` to a durable step (a Temporal activity), `sleep` to a
+durable timer and `approval` to a signal named by the token.
+`better-supabase/workflow-sdk/builder` is the reference implementation.
+
+## Where to put it
+
+An adapter inside this repository is a subpath such as
+`better-supabase/langchain`, with its own docs page and the SDK as an
+optional peer. An adapter outside it is a package that depends on
+`better-supabase` and uses only its public exports. In both cases, run the
+conformance kits from `better-supabase/testing` for every interface it
+implements.

@@ -1,0 +1,100 @@
+---
+title: Build a unibox inbox
+description: The modules, routes and components behind the example's /inbox page and Help sheet, where the assistant answers first and staff take over, plus the channel adapters that bring Slack and WhatsApp into the same list.
+---
+
+The Next.js example has a staff inbox at `/inbox` and a Help sheet in the
+header. A signed-in user asks a question in the sheet, the assistant from
+[Build a ChatGPT clone](/docs/build/chatgpt-clone) answers, and staff see
+the conversation in `/inbox`, where a reply takes it over. Conversations
+from Slack, WhatsApp or SMS land in the same list through the
+[Chat SDK channel helpers](/docs/chat-sdk/channels). Sign in as
+`member@acme.test` to ask, and as `admin@acme.test` in another browser to
+answer (password `password123`).
+
+## The modules
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    jobs: {},
+    streams: { api: "api" },
+    inbox: { api: "api" },
+    "chat-sdk-state": {},
+    "ai-chat": { api: "api" },
+  },
+},
+```
+
+| Module           | Gives the inbox                                                               | Page                                  |
+| ---------------- | ----------------------------------------------------------------------------- | ------------------------------------- |
+| `inbox`          | inboxes, contacts, conversations, messages, notes, receipts and the bot mode  | [Inbox](/docs/blocks/inbox)           |
+| `jobs`           | the `inbox_bot` and `inbox_outbound` queues                                   | [Jobs](/docs/blocks/jobs)             |
+| `streams`        | resumable bot output                                                          | [Streams](/docs/blocks/streams)       |
+| `chat-sdk-state` | Chat SDK's subscriptions, locks and cache on Postgres                         | [State adapter](/docs/chat-sdk/state) |
+| `ai-chat`        | the assistant's chats; the Help conversation's chat has the conversation's id | [AI chat](/docs/blocks/ai-chat)       |
+
+The example's access contract gives `member` `inbox.read` and
+`inbox.reply`, and `admin` also `inbox.assign` and `inbox.manage`.
+
+<Steps>
+
+### The staff inbox
+
+`/inbox` loads conversations with `conversations.list` and keeps them live
+with `useInbox`. The conversation panel shows messages, internal notes,
+read receipts and typing; the composer sends replies and notes. Assigning,
+snoozing and resolving go through `src/features/inbox/inbox-actions.ts`.
+
+### The Help sheet
+
+`useInboxWidget` in `help-sheet.tsx` opens a conversation for the signed-in
+user on the first question. `askForHelp` opens it with `botMode: "bot"`, so
+the assistant answers until a staff member replies.
+
+### The assistant answers
+
+`answerHelp` in `src/features/inbox/help-bot.ts` runs inside `after()`,
+with the user's session, once the message is saved:
+
+1. It loads the conversation and returns when `botMode` is no longer `bot`.
+2. It shows the bot as typing and sends the question to the assistant's
+   `respond` with the conversation id as the chat id, so the assistant keeps
+   the thread's history.
+3. It collects the text deltas, checks `botMode` again, and posts the answer
+   as a Markdown message with the author type `bot`.
+
+A staff reply switches the conversation to `human`, so the next question
+goes to staff only.
+
+### Channels
+
+To add Slack or WhatsApp, record the installation with
+`createChatInstallations`, receive the platform's webhooks with
+`webhook()`, replay them into your Chat SDK instance with `inboundHandler`,
+and deliver staff replies with `deliver()`. The token stays in the
+credential provider; the installation row keeps its `credential_ref`.
+
+### Bots on a queue
+
+The module also queues an `inbox_bot` job for each contact message in bot
+mode. A bot that runs without the user's session, for example a Chat SDK
+bot behind [`inboxAdapter`](/docs/chat-sdk/inbox-adapter), drains that
+queue:
+
+```ts title="app/api/jobs/drain/route.ts"
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: {
+    inbox_bot: (payload) => inboxBot.dispatch(payload),
+    inbox_outbound: (payload) => send(payload),
+  },
+});
+```
+
+The example answers inline instead, so it has no drain route and the
+queued `inbox_bot` jobs stay unclaimed. In production, either drain the
+queue with a handler that does nothing, or move the answer into a handler
+that loads the conversation's contact through the service role.
+
+</Steps>

@@ -1,0 +1,91 @@
+---
+title: Build a workflow builder
+description: The modules, routes and components behind the example's /workflows pages, where members draw a graph, publish it and watch each run on the canvas.
+---
+
+The Next.js example's `/workflows/builder` page lets members of a tenant
+draw a workflow as a graph, publish it, and start it by hand, from a
+webhook, on a schedule or on an event. Each run shows on the canvas node by
+node. The graph lives in the [workflow builder block](/docs/blocks/workflow-builder);
+the [Workflow SDK](/docs/blocks/workflow-sdk) runs it. Sign in as
+`admin@acme.test` (password `password123`) to edit and publish.
+
+## The modules
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    jobs: {},
+    credentials: { api: "api" },
+    workflows: { api: "api" },
+    "workflow-sdk-world": {},
+    "workflow-builder": { api: "api" },
+  },
+},
+```
+
+| Module               | Gives the builder                                                    | Page                                              |
+| -------------------- | -------------------------------------------------------------------- | ------------------------------------------------- |
+| `workflows`          | the engine-neutral run registry, schedules, semaphores and admission | [Workflows](/docs/blocks/workflows)               |
+| `workflow-sdk-world` | the Workflow SDK's storage and queue on Postgres                     | [Workflow SDK](/docs/blocks/workflow-sdk)         |
+| `workflow-builder`   | definitions, versions, triggers, credentials, node runs and alerts   | [Workflow builder](/docs/blocks/workflow-builder) |
+| `credentials`        | the Vault functions credential rows resolve through                  | [Credentials](/docs/extending/credentials)        |
+
+Grant the `workflow.*` keys to your roles. The example's access contract
+(`supabase/schemas/045_access_contract.sql`) gives `owner` and `admin` all
+of them, and `member` `workflow.read` and `workflow.run`.
+
+<Steps>
+
+### The server
+
+`builderFor(supabase)` in `src/features/workflows/builder/builder-server.ts`
+creates the block as the caller, with a service transport for webhooks,
+events and secrets. Three options connect it to the Workflow SDK:
+
+| Option    | Example value                       | Does                                                    |
+| --------- | ----------------------------------- | ------------------------------------------------------- |
+| `steps`   | `stepLibrary`                       | the steps the canvas offers, synced to the step library |
+| `compile` | `compileGraph`                      | turns a published graph into the engine's form          |
+| `start`   | `graphStarter({ steps, executor })` | starts a run of a published version                     |
+
+`graph-steps.ts` holds the step functions, keyed by the names in the step
+library, and `graph-workflow.ts` the `"use workflow"` executor that walks a
+compiled graph.
+
+### The canvas
+
+The editor in `src/features/workflows/builder/components` draws nodes and
+edges with React Flow. Saving writes a draft version; `validateGraph` checks
+it for cycles, missing steps and unreachable nodes before the publish dialog
+lets a member publish. `diffGraphs` shows what changed since the published
+version.
+
+### Triggers
+
+The trigger sheet adds a manual, webhook, schedule or event trigger.
+Webhook calls arrive on `/api/workflows/hooks/[token]`; the token's SHA-256
+is all the table keeps. `/api/workflows/tick` runs every minute from a cron
+and starts due schedules and queued admission requests through
+`triggers.starter`.
+
+### Credentials
+
+The credential sheet stores a secret in Vault and saves only the
+`credential_ref` on the tenant's row. Steps read it at run time through
+`credentials.resolve`, so a rotated secret takes effect on the next run.
+
+### Run status
+
+Each step records its node run, so `/workflows/[run]` and the canvas show
+which node is running, waiting for an approval, done or failed, with its
+output and error. Alerts on a definition fire once per failed or slow run.
+
+</Steps>
+
+## Another engine
+
+The graph and the run registry don't depend on the Workflow SDK. An engine
+provides a `GraphCompiler` and a `BuilderStarter`, and reports its runs with
+`workflows.runs.record`. [Add another SDK](/docs/extending/add-an-sdk)
+describes the contract for a Temporal adapter.
