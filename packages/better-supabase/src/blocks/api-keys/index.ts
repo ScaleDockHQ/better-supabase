@@ -4,6 +4,7 @@ export type {
   ApiKeyClaimsOptions,
   ApiKeyCredential,
   ApiKeyResolverOptions,
+  ApiKeyState,
   ApiKeys,
   ApiKeysOptions,
   CreateApiKeyInput,

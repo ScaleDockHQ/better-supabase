@@ -344,7 +344,10 @@ describe.skipIf(!live)("notifications", () => {
         await s.value("better_supabase.mark_notifications_read($1)", [
           [latest!.id],
         ]),
-      ).toBe(1);
+      ).toMatchObject({
+        count: 1,
+        items: [{ id: latest!.id, read_at: expect.any(String) }],
+      });
       expect(
         await s.value("better_supabase.list_notifications($1, 'unread')", [
           organization,
@@ -354,7 +357,10 @@ describe.skipIf(!live)("notifications", () => {
         await s.value("better_supabase.dismiss_notifications($1)", [
           [latest!.id],
         ]),
-      ).toBe(1);
+      ).toMatchObject({ count: 1, items: [{ id: latest!.id }] });
+      expect(
+        await s.value("better_supabase.get_notification($1)", [latest!.id]),
+      ).toMatchObject({ id: latest!.id, type: "approval.requested" });
       expect(
         await s.value("better_supabase.list_notifications($1)", [organization]),
       ).toHaveLength(1);
@@ -452,7 +458,7 @@ describe.skipIf(!live)("notifications", () => {
           "better_supabase.resolve_notifications('approval.requested', 'task', 't1', $1)",
           [organization],
         ),
-      ).toBe(1);
+      ).toEqual({ count: 1, items: [] });
 
       // Broadcasts reach the private topic, and the outbox has the event.
       expect(
@@ -480,6 +486,66 @@ describe.skipIf(!live)("notifications", () => {
           "(select count(*)::int from better_supabase.notification_deliveries)",
         ),
       ).toBe(0);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("derives UUIDv8 event ids from the key without a key column", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+    try {
+      await client.query("begin");
+      for (const who of ["owner", "member"] as const) {
+        await client.query(
+          `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+           values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+          [USERS[who], email(who)],
+        );
+      }
+      for (const file of renderModules(["organizations", "notifications"], {
+        modules: {
+          notifications: { columns: { events: { key: null } } },
+        },
+      }))
+        await client.query(file.contents);
+      await s.as("owner");
+      const organization = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Acme", slug: `acme-v8-${USERS.owner.slice(0, 8)}` }],
+      );
+      await client.query(
+        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
+        [organization, USERS.member],
+      );
+      const keyed = {
+        type: "task.assigned",
+        tenant: organization,
+        recipients: [USERS.member],
+        key: "task-1",
+      };
+      const first = await s.notify(keyed);
+      expect(first).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      expect(await s.notify(keyed)).toBe(first);
+      expect(
+        await s.value("better_supabase.send_notification($1)", [keyed]),
+      ).toEqual({ id: first, recipients: [USERS.member] });
+
+      const legacy = await s.value<string>(
+        "md5(coalesce($1::text, '') || ':' || 'task-2')::uuid",
+        [organization],
+      );
+      await s.as("service");
+      await client.query(
+        "insert into better_supabase.notification_events (id, organization_id, type) values ($1, $2, 'task.assigned')",
+        [legacy, organization],
+      );
+      await s.as("owner");
+      expect(await s.notify({ ...keyed, key: "task-2" })).toBe(legacy);
+      expect(await s.recipients(legacy)).toEqual([USERS.member]);
     } finally {
       await client.query("rollback");
       client.release();
@@ -557,15 +623,17 @@ describe.skipIf(!live)("notifications", () => {
         [USERS.member],
       );
 
-      const id = await notifications
+      const stored = await notifications
         .send("task.assigned", {
           tenant: organization,
-          recipients: [USERS.member],
+          recipients: [USERS.member, USERS.owner],
           subject: { type: "task", id: "t9", label: "Paint" },
           data: { title: "Paint" },
           channels: ["in_app", "email"],
         })
         .orThrow();
+      expect(stored!.recipients).toEqual([USERS.member]);
+      const id = stored!.id;
       expect(id).toMatch(/^[0-9a-f-]{36}$/);
 
       await s.as("member");
@@ -595,9 +663,21 @@ describe.skipIf(!live)("notifications", () => {
         actionable: 0,
         actionableSubjects: 0,
       });
+      const read = await notifications
+        .markRead({ tenant: organization })
+        .orThrow();
+      expect(read.count).toBe(1);
+      expect(read.items[0]).toMatchObject({ id: item!.id, eventId: id });
+      expect(read.items[0]!.readAt).not.toBeNull();
       expect(
-        await notifications.markRead({ tenant: organization }).orThrow(),
-      ).toBe(1);
+        await notifications.get(item!.id, { include: ["actor"] }).orThrow(),
+      ).toMatchObject({
+        id: item!.id,
+        text: { title: "Assigned: Paint" },
+        actor: { id: USERS.owner },
+      });
+      await s.as("owner");
+      expect(await notifications.get(item!.id).orThrow()).toBeNull();
 
       await s.as("service");
       expect(await notifications.deliver()).toEqual({
@@ -741,25 +821,36 @@ describe.skipIf(!live)("notifications", () => {
 
       const fence = second.items[0]!;
       expect(fence.summary).toBe("Fence");
-      expect(await notifications.markRead({ ids: [fence.id] }).orThrow()).toBe(
-        1,
-      );
+      expect(
+        await notifications.markRead({ ids: [fence.id] }).orThrow(),
+      ).toMatchObject({ count: 1, items: [{ id: fence.id }] });
+      expect(
+        (
+          await notifications
+            .list({ tenant: organization, read: true })
+            .orThrow()
+        ).map((item) => item.summary),
+      ).toEqual(["Fence"]);
       expect(
         await notifications.markUnread({ ids: [fence.id] }).orThrow(),
-      ).toBe(1);
+      ).toMatchObject({ count: 1, items: [{ id: fence.id, readAt: null }] });
       expect(
         await notifications.markUnread({ ids: [fence.id] }).orThrow(),
-      ).toBe(0);
+      ).toEqual({ count: 0, items: [] });
       await s.as("outsider");
       expect(
         await notifications.markUnread({ ids: [fence.id] }).orThrow(),
-      ).toBe(0);
+      ).toEqual({ count: 0, items: [] });
+      expect(await notifications.get(fence.id).orThrow()).toBeNull();
       expect(
         await notifications.page({ tenant: organization }).orThrow(),
       ).toEqual({ items: [], total: 0 });
 
       await s.as("member");
-      expect(await notifications.dismiss([fence.id]).orThrow()).toBe(1);
+      expect(await notifications.dismiss([fence.id]).orThrow()).toMatchObject({
+        count: 1,
+        items: [{ id: fence.id }],
+      });
       await s.as("owner");
       expect(
         await notifications
@@ -769,7 +860,7 @@ describe.skipIf(!live)("notifications", () => {
             tenant: organization,
           })
           .orThrow(),
-      ).toBe(2);
+      ).toEqual({ count: 2, items: [] });
       await s.as("member");
       const settled = await notifications
         .page({ tenant: organization, status: "settled" })
@@ -779,6 +870,33 @@ describe.skipIf(!live)("notifications", () => {
         "Approve invoice",
         "Fence",
       ]);
+      const summaries = async (options: {
+        readonly read?: boolean;
+        readonly resolved?: boolean;
+        readonly dismissed?: boolean | null;
+      }) =>
+        (
+          await notifications
+            .list({ tenant: organization, ...options })
+            .orThrow()
+        ).map((item) => item.summary);
+      expect(await summaries({ resolved: true })).toEqual([
+        "Approve invoice again",
+        "Approve invoice",
+      ]);
+      expect(await summaries({ resolved: true, read: false })).toEqual([]);
+      expect(await summaries({ resolved: false, read: false })).toEqual([
+        "Roof 100% done",
+      ]);
+      expect(await summaries({ dismissed: true })).toEqual(["Fence"]);
+      expect(await summaries({ dismissed: null })).toHaveLength(4);
+      expect(
+        (
+          await notifications
+            .page({ tenant: organization, resolved: false, dismissed: null })
+            .orThrow()
+        ).items.map((item) => item.summary),
+      ).toEqual(["Fence", "Roof 100% done"]);
       expect(
         (await notifications.list({ tenant: organization }).orThrow()).map(
           (item) => item.summary,

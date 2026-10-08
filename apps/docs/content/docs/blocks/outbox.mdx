@@ -194,7 +194,8 @@ pg_cron.
 ## Existing tables
 
 Adopt an events table you already have and rename its columns. Adopt mode
-adds the `xid` column (and its index) when the table lacks it. Map `xid` to
+adds the `xid` column (and its index) when the table lacks it, so `sql sync`
+and `sql upgrade` don't ask you to declare it first. Map `xid` to
 `null` to keep the table as it is: the claim then orders by position alone
 and waits `settle` (5 seconds by default, and never zero) after an event's
 `created_at`, which skips an event whose transaction commits later than

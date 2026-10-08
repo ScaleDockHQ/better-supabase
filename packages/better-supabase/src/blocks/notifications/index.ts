@@ -17,11 +17,13 @@ export type {
   NotificationPreference,
   NotificationSubscription,
   NotificationTypes,
+  NotificationUpdate,
   Notifications,
   NotificationsOptions,
   PageOptions,
   Rendered,
   SendInput,
+  SentNotification,
   SubscriptionLevel,
 } from "./notifications.ts";
 export type {

@@ -103,8 +103,9 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
 5. Event handlers (`sb.on`) and sinks can never change a result.
 6. Runtime entries (everything except `cli`, `postgres` and `testing`) import no
    Node built-ins, so they run on every WinterTC runtime. The CLI is Node-only.
-7. Auth never calls the Auth server when the access token is still valid.
-   Refresh happens only in the proxy, never in Server Components.
+7. Auth never calls the Auth server when the access token is still valid,
+   unless the app turns on the proxy's `endedSession` check. Refresh happens
+   only in the proxy, never in Server Components.
 8. Every draft or versioned spec the code follows is pinned in `SPEC_PINS`
    (`src/core/spec-pins.ts`) and listed on the docs standards page.
 9. Every public API has a docs page and an example. When you add a subpath,

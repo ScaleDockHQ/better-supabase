@@ -108,6 +108,7 @@ describe("apiKeyClaims", () => {
       publicId: "0123456789abcdef",
       scopes: ["task.read", "*"],
       createdAt: Temporal.Instant.from("2026-10-06T09:00:00Z"),
+      state: "active",
       ...extra,
     }) as Parameters<typeof apiKeyClaims>[0];
 
@@ -304,6 +305,7 @@ describe("createApiKeys", () => {
     const keys = createApiKeys({ transport });
     const listed = await keys.list(ORG).orThrow();
     expect(listed[1]).toMatchObject({ userId: USER, rotatedFrom: "x" });
+    expect(listed.map((key) => key.state)).toEqual(["active", "revoked"]);
     expect(await keys.list().orThrow()).toHaveLength(2);
     expect(await keys.revoke("k").orThrow()).toBe(true);
     const rotated = await keys
@@ -313,6 +315,28 @@ describe("createApiKeys", () => {
     expect(calls.at(-1)?.[2]).toMatchObject({ key: "k", grace: "PT2H" });
     await keys.rotate("k");
     expect(calls.at(-1)?.[2]).toMatchObject({ grace: "P1D" });
+  });
+
+  it("reads the state and successor the database computed", async () => {
+    const future = Temporal.Now.instant().add({ hours: 1 }).toString();
+    const past = "2020-01-01T00:00:00Z";
+    const { transport } = fakeTransport(() => [
+      row({ state: "grace", successor_id: "next", revoked_at: future }),
+      row({ state: "expired", expires_at: past }),
+      row({ revoked_at: future }),
+      row({ expires_at: past }),
+      row({ state: "unknown" }),
+    ]);
+    const listed = await createApiKeys({ transport }).list(ORG).orThrow();
+    expect(listed.map((key) => key.state)).toEqual([
+      "grace",
+      "expired",
+      "grace",
+      "expired",
+      "active",
+    ]);
+    expect(listed[0]?.successorId).toBe("next");
+    expect(listed[1]).not.toHaveProperty("successorId");
   });
 
   it("verifies tokens and maps each status", async () => {

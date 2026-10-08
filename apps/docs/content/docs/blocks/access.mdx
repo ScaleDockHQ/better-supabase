@@ -396,6 +396,7 @@ sql: {
 | `references.tenant` | the row's tenant column       | the referenced table's tenant column                       |
 | `references.where`  | none                          | a condition the referenced row `{row}` must also meet      |
 | `match`             | none                          | `{ <column>: <referenced column> }` pairs that must match  |
+| `through`           | none                          | the tables that dotted `match` keys read through           |
 
 `match` ties the reference to other columns of the row being written. An
 asset on a job must belong to the job's customer, and a material on a quote
@@ -417,6 +418,30 @@ row, and the two must hold the same value. The comparison is `is not
 distinct from`, so a job without a customer accepts only an asset without
 one. An update of a `match` column runs the check again, so moving the job
 to another customer fails while its asset still belongs to the first one.
+
+A `match` key can also read a column through another reference of the row,
+written `<reference column>.<column>`. A quote asset must belong to the
+quote's customer, and the asset row holds `quote_id`, not the customer:
+
+```ts
+sameTenant: [
+  {
+    table: "public.quote_assets",
+    column: "asset_id",
+    references: "public.assets",
+    match: { "quote_id.customer_id": "customer_id" },
+    through: { quote_id: "public.quotes" },
+  },
+],
+```
+
+`through` names the table each dotted key's reference column points at, as
+`"schema.table"` or `{ table, column }` when its key is not `id`. The check
+reads `customer_id` from the quote that `quote_id` points at and compares it
+with the asset's `customer_id`, with `is not distinct from` as above, so a
+row without a quote accepts only an asset without a customer. An update of
+`quote_id` runs the check again. A later change to the quote's customer is
+not checked here; give that table its own entry or trigger if it can change.
 
 Every trigger calls the one function `better_supabase.same_tenant()` with the
 entry as its arguments. A null reference passes, so a nullable column stays

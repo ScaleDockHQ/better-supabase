@@ -102,6 +102,12 @@ if (ended) return err(ended); // unauthorized, code SESSION_REVOKED
 It needs a connection that can read `auth.sessions` (`createPostgres().admin`).
 Nothing calls it by default; keep it to the actions that need it.
 
+When RLS checks the session (so an ended session sees no rows), sign the
+browser out on page loads instead of showing an empty app. Next.js:
+`bs.proxy(request, { endedSession: { redirect: "/login" } })` asks Auth on
+document loads (and on `paths`), clears the cookies and redirects with
+`?reason=session_ended`.
+
 Done when the irreversible action returns `SESSION_REVOKED` for a signed-out
 session in a test.
 

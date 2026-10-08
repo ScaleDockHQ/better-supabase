@@ -80,7 +80,7 @@ describe.skipIf(!live)(
           .setPreference({ type: "*", channel: "email", enabled: true })
           .orThrow();
         await s.as("member");
-        const id = await notifications
+        const stored = await notifications
           .send("task.assigned", {
             tenant: organization,
             recipients: [USERS.owner],
@@ -89,6 +89,8 @@ describe.skipIf(!live)(
             channels: ["in_app", "email"],
           })
           .orThrow();
+        expect(stored?.recipients).toEqual([USERS.owner]);
+        const id = stored?.id;
         expect(
           await s.rows(
             "select type, organization_id from centrakit.notification_events where id = $1",
@@ -117,7 +119,7 @@ describe.skipIf(!live)(
         });
         expect(
           await notifications.markRead({ tenant: organization }).orThrow(),
-        ).toBe(1);
+        ).toMatchObject({ count: 1, items: [{ eventId: id }] });
 
         await s.as("service");
         expect(await notifications.deliver()).toEqual({

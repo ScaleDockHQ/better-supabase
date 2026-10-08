@@ -1,4 +1,6 @@
 export { assertCron, nextCronRun } from "./cron.ts";
+export { devDrain, devDrainSecret } from "./dev.ts";
+export type { DevDrain, DevDrainOptions } from "./dev.ts";
 export { createIdempotency, createInbox, withLease } from "./jobs.ts";
 export type {
   Idempotency,

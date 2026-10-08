@@ -113,7 +113,18 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     ${fail("API_KEY_SCOPE_UNKNOWN", "A scope is not one of sql.modules.api-keys.options.scopes", "22023")}
   end if;`
     : "";
-  const json = (alias: string): string => `jsonb_build_object(
+  const state = (alias: string): string => `case
+      when ${alias}.${c("revokedAt")} is not null and ${alias}.${c("revokedAt")} <= now() then 'revoked'
+      when ${alias}.${c("expiresAt")} is not null and ${alias}.${c("expiresAt")} <= now() then 'expired'
+      when ${alias}.${c("revokedAt")} is not null then 'grace'
+      else 'active'
+    end`;
+  const successor = (alias: string): string =>
+    `(select s.${c("id")} from ${t} s where s.${c("rotatedFrom")} = ${alias}.${c("id")} order by s.${c("createdAt")} desc limit 1)`;
+  const json = (
+    alias: string,
+    withSuccessor = true,
+  ): string => `jsonb_build_object(
     'id', ${alias}.${c("id")},
     'organization_id', ${alias}.${c("tenant")},
     'user_id', ${alias}.${c("user")},
@@ -127,7 +138,8 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     'revoked_at', ${alias}.${c("revokedAt")},
     'rotated_from', ${alias}.${c("rotatedFrom")},
     'created_by', ${alias}.${c("createdBy")},
-    'created_at', ${alias}.${c("createdAt")}
+    'created_at', ${alias}.${c("createdAt")},
+    'state', ${state(alias)}${withSuccessor ? `,\n    'successor_id', ${successor(alias)}` : ""}
   )`;
   // Who may change a key: a manager of its tenant, or the user it acts as.
   const mayChange = (alias: string): string =>
@@ -338,7 +350,7 @@ begin
   elsif ${due("found")} then
     update ${t} k set ${c("lastUsedAt")} = now() where k.${c("id")} = found.${c("id")};
   end if;
-  return jsonb_build_object('status', 'ok', 'key', ${json("found")});
+  return jsonb_build_object('status', 'ok', 'key', ${json("found", false)});
 end;
 $$;
 

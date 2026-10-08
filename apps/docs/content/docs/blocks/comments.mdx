@@ -184,9 +184,38 @@ is notified only when they hold the subject type's read key
 tenant, and `readableBy` holds for them (`{user}` is their id). The others
 stay in the comment's `mentions` but get nothing.
 
+### Group mentions
+
+`options.mentionGroups` expands a mention of a group, such as `@team`, into
+its members. It names a table with one row per member of a group, the group
+and member columns, and optionally a tenant column that must match the
+comment's tenant:
+
+```ts title="better-supabase.config.ts"
+comments: {
+  options: {
+    mentionGroups: {
+      table: "public.team_members",
+      group: "team_id",
+      member: "user_id",
+      tenant: "organization_id",
+    },
+  },
+},
+```
+
+The app writes the group id into `mentions` like a user id, for example as
+`@[Support](<team id>)`. The trigger adds the members of every mentioned
+group to the mentioned users, leaves out the author, and then applies the
+read check above to each of them, so a group member who can't read the
+subject gets nothing. On an edit, only members who were not already reached
+through the old mentions are notified, and `comment.mentioned` carries the
+expanded user ids in `mentionIds`. Both columns hold `uuid`s, and the
+comment's `mentions` keep the group id as written.
+
 `options.notify: false` sends no notification at all, for an app that sends
-its own mention notifications (resolving team mentions, say). The outbox
-still gets `comment.mentioned`, so that app can send from the event.
+its own mention notifications. The outbox still gets `comment.mentioned`,
+so that app can send from the event.
 
 ## Events
 

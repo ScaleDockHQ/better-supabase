@@ -665,6 +665,7 @@ export const OUTBOX: ModuleDefinition = {
   modes: ["managed", "adopt", "custom"],
   version: 3,
   names: NAMES,
+  adoptOptional: () => ({ events: ["xid"] }),
   upgrades: [
     {
       from: 1,

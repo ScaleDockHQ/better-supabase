@@ -93,7 +93,7 @@ export function ApiKeyTable({ keys }: { keys: readonly ApiKeyRow[] }) {
               {date(key.lastUsedAt)}
             </TableCell>
             <TableCell className="text-right">
-              {key.revokedAt ? (
+              {key.revoked ? (
                 <Badge variant="secondary">{t("Revoked")}</Badge>
               ) : (
                 <Button

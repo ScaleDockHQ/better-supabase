@@ -177,3 +177,23 @@ export function refreshSession(
   inflight.set(key, promise);
   return promise;
 }
+
+export async function sessionEnded(
+  accessToken: string,
+  options: Omit<RefreshOptions, "forwardedFor" | "now">,
+): Promise<boolean> {
+  const doFetch = options.fetch ?? fetch;
+  try {
+    const response = await doFetch(`${options.url}/auth/v1/user`, {
+      headers: {
+        apikey: options.publishableKey,
+        authorization: `Bearer ${accessToken}`,
+      },
+      signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+    });
+    await response.body?.cancel();
+    return response.status === 401 || response.status === 403;
+  } catch {
+    return false;
+  }
+}

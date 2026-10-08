@@ -240,7 +240,11 @@ export interface BetterServer<
   readonly events: EventHub;
   resolve(
     request: Request,
-    options?: { readonly refresh?: boolean; readonly cookies?: boolean },
+    options?: {
+      readonly refresh?: boolean;
+      readonly cookies?: boolean;
+      readonly checkSession?: boolean;
+    },
   ): Promise<AuthResolution<C, P>>;
   /**
    * Resolves auth and binds repositories to the caller. Refreshes an expired
@@ -876,6 +880,7 @@ export function createServer<
       readonly refresh?: boolean;
       readonly cookies?: boolean;
       readonly encode?: SessionEncoding;
+      readonly checkSession?: boolean;
     } = {},
   ): Promise<AuthResolution<C, P>> => {
     const claims = options.auth?.claims ?? betterSupabase.claimsSchema;
@@ -892,6 +897,7 @@ export function createServer<
       ...(resolveOptions.cookies === undefined
         ? {}
         : { cookies: resolveOptions.cookies }),
+      ...(resolveOptions.checkSession ? { checkSession: true } : {}),
       ...(resolveOptions.encode === undefined
         ? {}
         : {

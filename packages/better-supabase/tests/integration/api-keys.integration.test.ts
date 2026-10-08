@@ -120,6 +120,12 @@ describe.skipIf(!live)("api-keys", () => {
         })
         .orThrow();
       expect(rotated.key.rotatedFrom).toBe(personal.key.id);
+      expect(rotated.key.state).toBe("active");
+      const during = await keys.list(organization).orThrow();
+      expect(during.find((k) => k.id === personal.key.id)).toMatchObject({
+        state: "grace",
+        successorId: rotated.key.id,
+      });
       await s.service();
       expect(await keys.verify(personal.token).orThrow()).toMatchObject({
         status: "ok",
@@ -129,6 +135,11 @@ describe.skipIf(!live)("api-keys", () => {
       });
       await s.as(owner);
       expect(await keys.revoke(personal.key.id).orThrow()).toBe(true);
+      expect(
+        (await keys.list(organization).orThrow()).find(
+          (k) => k.id === personal.key.id,
+        )?.state,
+      ).toBe("revoked");
       await s.service();
       expect(await keys.verify(personal.token).orThrow()).toEqual({
         status: "invalid",

@@ -299,6 +299,8 @@ create trigger "bs_profile_email" after update of email on auth.users
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."my_profile"();
+
 create or replace function "api"."allocate_username"(base text, user_id uuid default null)
 returns text
 language sql

@@ -66,9 +66,15 @@ await notifications
   .orThrow();
 ```
 
-`send` returns the notification id, or `null` when nobody was left to notify.
+`send` returns `{ id, recipients }`, the notification id and the user ids
+that hold it after the watchers, the audience hook, preferences and the read
+filter are applied, or `null` when nobody was left to notify. A composer
+can report how many people it reached from `recipients.length`, and
+`onSent` and the `notification.created` block event get the same list.
 With a `key`, sending again in the same organization returns the first id,
-so a retried request never notifies twice. `rpcTransport(supabase)` calls the
+so a retried request never notifies twice. In SQL, `send_notification(jsonb)`
+returns the same `{ "id", "recipients" }` object and `notify(jsonb)` returns
+only the id. `rpcTransport(supabase)` calls the
 same functions over the Data API instead, when the block schema is exposed.
 
 | Input          | Meaning                                                                                                                                   |
@@ -96,7 +102,10 @@ const items = await notifications
 const { unread, actionable } = await notifications
   .counts({ tenant: organizationId })
   .orThrow();
-await notifications.markRead({ ids: [items[0].id] });
+const one = await notifications.get(items[0].id).orThrow();
+const { count, items: changed } = await notifications
+  .markRead({ ids: [items[0].id] })
+  .orThrow();
 await notifications.dismiss([items[0].id]);
 await notifications.resolve({
   type: "approval.requested",
@@ -104,10 +113,23 @@ await notifications.resolve({
 });
 ```
 
+`get(id, { locale?, include? })` reads one of the caller's notifications by
+its recipient row id, dismissed ones included, rendered like a list item, or
+`null` when the caller has no such notification. It calls
+`get_notification(id)`.
+
+`markRead`, `markUnread`, `dismiss` and `resolve` return `{ count, items }`:
+how many rows changed, and the caller's own notifications as they are after
+the change, so an app can update its state without reading them back. For
+`resolve`, `count` covers every recipient and `items` holds only the
+caller's own copies, which is empty for the service. The SQL functions
+return the same object as `jsonb`, with each item in the shape that
+`list_notifications` returns.
+
 `list` pages with `before` and `limit` (50 by default, at most 200). Pass the
 last item of the previous page as `before`: the block orders by `created_at`
 and then `id`, so items created at the same instant are not skipped. It filters with `status` (`all`, `unread`, `read`, `unresolved`, `settled`),
-`types`, `subjectTypes` and `search`. `resolve` marks every recipient's copy of a type about one subject
+`read`, `resolved`, `dismissed`, `types`, `subjectTypes` and `search`. `resolve` marks every recipient's copy of a type about one subject
 as handled, for example when someone approves the invoice.
 
 `search` matches text in the summary, the subject label and the type,
@@ -115,6 +137,23 @@ ignoring case; `%` and `_` in it are plain characters. `subjectTypes` keeps
 notifications about subjects of the listed types. Every status except
 `settled` leaves dismissed notifications out, and `settled` lists the
 resolved and the dismissed ones, for an archive view.
+
+`read`, `resolved` and `dismissed` are independent booleans that combine
+with each other and with `status`. `read: false` keeps unread ones, and
+`resolved: true` keeps resolved ones. `dismissed` defaults to `false`;
+`true` lists only dismissed notifications and `null` lists both. `settled`
+keeps its meaning and ignores `dismissed`.
+
+| View              | Filters                            |
+| ----------------- | ---------------------------------- |
+| Unread and open   | `{ read: false, resolved: false }` |
+| Handled           | `{ resolved: true }`               |
+| Dismissed         | `{ dismissed: true }`              |
+| Everything        | `{ dismissed: null }`              |
+| Archive (settled) | `{ status: "settled" }`            |
+
+Without a `resolved_at` column, `resolved: true` matches nothing and
+`resolved: false` matches everything.
 
 ### Pages with a total
 
@@ -129,14 +168,16 @@ const { items, total } = await notifications
 ```
 
 It calls `notification_page(tenant, status, types, subject_types, search,
-max_items, skip)`, which counts the matches in the same query. `list` stays
+max_items, skip, read, resolved, dismissed)`, which counts the matches in
+the same query. `list_notifications` takes the same three filters after
+`search`. `list` stays
 the cheaper choice for an infinite scroll.
 
 ### Unread again and counts
 
 `markUnread({ ids, tenant? })` clears the read time of the caller's own
-notifications, so a reader can keep one for later. It returns how many
-changed and leaves dismissed notifications alone.
+notifications, so a reader can keep one for later. It returns the count and
+the changed notifications and leaves dismissed notifications alone.
 
 `counts()` returns `unread`, `actionable` (unresolved notifications of the
 `actionable` types) and `actionableSubjects`, which counts each subject
@@ -366,7 +407,10 @@ export default defineConfig({
 ```
 
 Without a key column, keyed sends derive the event id from the organization
-and key instead. A recipient with in-app off for a type still gets a row,
+and key instead: a UUIDv8 (RFC 9562) built from the MD5 of both, so the id
+stays deterministic and passes strict validators such as `z.uuid()`. Events
+stored by an earlier version under the plain MD5 id keep that id, and a
+keyed send that matches one still returns it instead of notifying twice. A recipient with in-app off for a type still gets a row,
 stored as dismissed, so other channels can deliver it.
 
 ## Error codes

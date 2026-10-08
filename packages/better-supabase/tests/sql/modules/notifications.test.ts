@@ -86,6 +86,11 @@ describe("notifications module", () => {
     expect(sql).not.toContain('"idempotency_key"');
     expect(sql).not.toContain("realtime.send(");
     expect(sql).toContain("drop trigger if exists");
+    expect(sql).toContain(
+      `overlay(overlay(v_hash placing '8' from 13 for 1) placing to_hex(8 | (('x' || substr(v_hash, 17, 1))::bit(4)::integer & 3)) from 17 for 1)::uuid`,
+    );
+    expect(sql).toContain(`where ev."id" = v_hash::uuid;`);
+    expect(sql).not.toMatch(/md5\([^;]*\)::uuid/);
   });
 
   it("adds the recipients table to the publication in changes mode", () => {
@@ -179,6 +184,8 @@ describe("notifications module", () => {
     const [contract] = customContracts(["notifications"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "notify",
+      "send_notification",
+      "get_notification",
       "notification_enabled",
       "list_notifications",
       "notification_page",
@@ -204,7 +211,43 @@ describe("notifications module", () => {
         },
       },
     });
-    expect(minimal!.functions).toHaveLength(9);
+    expect(minimal!.functions).toHaveLength(11);
+  });
+
+  it("reads one notification and returns the changed ones from each update", () => {
+    const sql = body();
+    expect(sql).toContain(
+      `create or replace function "better_supabase"."get_notification"(id uuid)`,
+    );
+    expect(sql).toContain(
+      `where rc."id" = get_notification.id\n    and rc."user_id" = auth.uid()`,
+    );
+    expect(sql).toMatch(
+      /function "better_supabase"\."send_notification"\(notification jsonb\)\nreturns jsonb/,
+    );
+    expect(sql).toContain(
+      `return jsonb_build_object('id', v_event, 'recipients', to_jsonb(v_recipients));`,
+    );
+    expect(sql).toContain(
+      `select ("better_supabase"."send_notification"(notification) ->> 'id')::uuid`,
+    );
+    for (const fn of [
+      "mark_notifications_read",
+      "mark_notifications_unread",
+      "dismiss_notifications",
+      "resolve_notifications",
+    ]) {
+      expect(sql).toMatch(
+        new RegExp(
+          `function "better_supabase"\\."${fn}"\\([^)]*\\)\\nreturns jsonb`,
+        ),
+      );
+      expect(sql).toContain(
+        `drop function if exists "better_supabase"."${fn}"(`,
+      );
+    }
+    expect(sql).toContain(`filter (where rc."user_id" = auth.uid()), '[]')`);
+    expect(sql).toContain(`rc."event_id" into v_changed;`);
   });
 
   it("pages, searches, filters by subject type and reads the caller's settings", () => {
@@ -217,7 +260,16 @@ describe("notifications module", () => {
       "offset greatest(coalesce(notification_page.skip, 0), 0)",
     );
     expect(sql).toContain(
-      `case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) else rc."dismissed_at" is null end`,
+      `case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when list_notifications.dismissed is null then true else (rc."dismissed_at" is not null) = list_notifications.dismissed end`,
+    );
+    expect(sql).toContain(
+      `and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)`,
+    );
+    expect(sql).toContain(
+      `and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)`,
+    );
+    expect(sql).toContain(
+      `drop function if exists "better_supabase"."notification_page"(uuid, text, text[], text[], text, integer, integer);`,
     );
     expect(sql).toContain(
       `or ev."subject_type" = any(list_notifications.subject_types)`,
@@ -253,7 +305,10 @@ describe("notifications module", () => {
     expect(bare).toContain("(list_notifications.subject_types is null)");
     expect(bare).toContain(`'actionable_subjects', 0`);
     expect(bare).toContain(
-      `then rc."dismissed_at" is not null else rc."dismissed_at" is null end`,
+      `then rc."dismissed_at" is not null when list_notifications.dismissed is null then true`,
+    );
+    expect(bare).toContain(
+      "and (list_notifications.resolved is null or not list_notifications.resolved)",
     );
   });
 

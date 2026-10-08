@@ -9,6 +9,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble, tenantIn, updatedAt } from "../shared.ts";
 import { accessModel } from "./access-model.ts";
 import { permdockForUser } from "./access.ts";
+import { integerMutations } from "./notifications-items.ts";
 import {
   functions,
   type NotifyNames,
@@ -485,6 +486,8 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const fns: ModuleContractFunction[] = [
     { name: "notify", args: ["jsonb"], returns: "uuid" },
+    { name: "send_notification", args: ["jsonb"], returns: "jsonb" },
+    { name: "get_notification", args: ["uuid"], returns: "jsonb" },
     {
       name: "notification_enabled",
       args: ["uuid", "{id}", "text", "text"],
@@ -501,12 +504,26 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         "uuid",
         "text[]",
         "text",
+        "boolean",
+        "boolean",
+        "boolean",
       ],
       returns: "jsonb",
     },
     {
       name: "notification_page",
-      args: ["{id}", "text", "text[]", "text[]", "text", "integer", "integer"],
+      args: [
+        "{id}",
+        "text",
+        "text[]",
+        "text[]",
+        "text",
+        "integer",
+        "integer",
+        "boolean",
+        "boolean",
+        "boolean",
+      ],
       returns: "jsonb",
     },
     {
@@ -517,14 +534,14 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     {
       name: "mark_notifications_read",
       args: ["uuid[]", "{id}"],
-      returns: "integer",
+      returns: "jsonb",
     },
     {
       name: "mark_notifications_unread",
       args: ["uuid[]", "{id}"],
-      returns: "integer",
+      returns: "jsonb",
     },
-    { name: "dismiss_notifications", args: ["uuid[]"], returns: "integer" },
+    { name: "dismiss_notifications", args: ["uuid[]"], returns: "jsonb" },
     {
       name: "purge_notifications",
       args: ["interval", "integer"],
@@ -535,7 +552,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     fns.push({
       name: "resolve_notifications",
       args: ["text", "text", "text", "{id}"],
-      returns: "integer",
+      returns: "jsonb",
     });
   }
   if (ctx.hasTable("subscriptions")) {
@@ -591,7 +608,7 @@ export const NOTIFICATIONS: ModuleDefinition = {
   requires: ["updated-at"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 3,
+  version: 4,
   names: NAMES,
   contract,
   upgrades: [
@@ -607,6 +624,17 @@ export const NOTIFICATIONS: ModuleDefinition = {
         "list_notifications takes subject_types and search and a settled status; notification_page pages with an offset and a total; mark_notifications_unread and the subscription and preference readers are new.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("list_notifications")}(${ctx.idType}, text, text[], timestamptz, integer, uuid);`,
+    },
+    {
+      from: 3,
+      description:
+        "list_notifications and notification_page filter on read, resolved and dismissed; mark_notifications_read, mark_notifications_unread, dismiss_notifications and resolve_notifications return the count and the caller's changed notifications; get_notification and send_notification are new.",
+      sql: (ctx) =>
+        [
+          `drop function if exists ${ctx.fn("list_notifications")}(${ctx.idType}, text, text[], timestamptz, integer, uuid, text[], text);`,
+          `drop function if exists ${ctx.fn("notification_page")}(${ctx.idType}, text, text[], text[], text, integer, integer);`,
+          integerMutations(ctx),
+        ].join("\n"),
     },
   ],
   build,

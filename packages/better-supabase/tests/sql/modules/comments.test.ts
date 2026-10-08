@@ -46,6 +46,52 @@ describe("comments module", () => {
     expect(sql).toMatch(/emit_event\('comment\.created'/);
   });
 
+  it("expands group mentions before the read check with options.mentionGroups", () => {
+    const plain = sqlOf(["organizations", "notifications", "comments"]);
+    expect(plain).toContain(
+      `select x from unnest(new."mentions") x\n    where (tg_op = 'INSERT' or not x = any(old."mentions"))`,
+    );
+    const sql = sqlOf(["organizations", "notifications", "comments"], {
+      mentionGroups: {
+        table: "app.team_members",
+        group: "team_id",
+        member: "user_id",
+        tenant: "organization_id",
+      },
+    });
+    expect(sql).toContain(
+      `select e.x from (select m.x from unnest(new."mentions") m(x) union select g."user_id" from "app"."team_members" g where g."team_id" = any(new."mentions") and g."organization_id" = new."organization_id") e(x)`,
+    );
+    expect(sql).toContain(`where e.x is distinct from new."author_id"`);
+    expect(sql).toContain(
+      `not e.x = any(array(select o.x from (select m.x from unnest(old."mentions") m(x) union select g."user_id" from "app"."team_members" g where g."team_id" = any(old."mentions")`,
+    );
+    expect(sql).toContain(`better_supabase.can_user(e.x, 'tenant',`);
+    expect(
+      sqlOf(["organizations", "notifications", "comments"], {
+        mentionGroups: { table: "teams", group: "id", member: "user_id" },
+      }),
+    ).toContain(
+      `union select g."user_id" from "public"."teams" g where g."id" = any(new."mentions")) e(x)`,
+    );
+    expect(() =>
+      sqlOf(["comments"], { mentionGroups: { table: "teams" } }),
+    ).toThrow("needs table, group and member");
+    expect(() => sqlOf(["comments"], { mentionGroups: "teams" })).toThrow(
+      "must be { table, group, member, tenant? }",
+    );
+    expect(() =>
+      sqlOf(["comments"], {
+        mentionGroups: { table: "t", group: "g", member: "m", kind: "x" },
+      }),
+    ).toThrow("mentionGroups.kind is not an option");
+    expect(() =>
+      sqlOf(["comments"], {
+        mentionGroups: { table: "t", group: "g", member: 1 },
+      }),
+    ).toThrow("member must be a non-empty string");
+  });
+
   it("checks a subject type's own permission per action", () => {
     const sql = sqlOf(["comments"], {
       subjects: {

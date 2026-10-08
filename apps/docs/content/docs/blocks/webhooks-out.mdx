@@ -303,6 +303,12 @@ createWebhooks({
 });
 ```
 
+With the default `secretStorage: "vault"`, an adopted secrets table needs
+the `vault_secret_id` column (map `columns.secrets.vaultId` when yours has
+another name) and no `secret` column: the module never reads it, so `sql
+sync` doesn't ask you to map it to `null`. With `secretStorage: "column"` it
+is the other way round.
+
 Without `failingSince`, endpoints are never disabled automatically.
 Without `expiresAt`, rotating replaces the secret at once instead of
 overlapping. With `secretStorage: "column"` the secret is stored as plain

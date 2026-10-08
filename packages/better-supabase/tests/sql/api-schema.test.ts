@@ -35,6 +35,28 @@ describe("sql.modules.<module>.api", () => {
     }
   });
 
+  it("drops the wrappers of signatures the module itself drops", () => {
+    const notifications = schemaFile("notifications", "api");
+    const drop = `drop function if exists "api"."mark_notifications_read"(uuid[], uuid);`;
+    expect(notifications).toContain(drop);
+    expect(notifications.indexOf(drop)).toBeLessThan(
+      notifications.indexOf(
+        `create or replace function "api"."mark_notifications_read"`,
+      ),
+    );
+    expect(notifications).toContain(
+      `drop function if exists "api"."notification_page"(uuid, text, text[], text[], text, integer, integer);`,
+    );
+    const listed = renderModules(["notifications"], {
+      modules: {
+        notifications: {
+          api: { schema: "api", functions: ["notification_counts"] },
+        },
+      },
+    }).find((file) => file.module === "notifications")!.contents;
+    expect(listed).not.toContain(`drop function if exists "api".`);
+  });
+
   it("writes no entry point for the helpers policies and triggers call", () => {
     const organizations = schemaFile("organizations", "api");
     expect(organizations).not.toContain(

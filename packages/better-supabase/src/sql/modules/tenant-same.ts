@@ -12,6 +12,15 @@ interface SameTenant {
   readonly parentTenant: string;
   readonly where: string | undefined;
   readonly match: readonly (readonly [string, string])[];
+  readonly hops: readonly Hop[];
+}
+
+interface Hop {
+  readonly via: string;
+  readonly table: string;
+  readonly key: string;
+  readonly column: string;
+  readonly referenced: string;
 }
 
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
@@ -25,7 +34,7 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) {
     throw new TypeError(
-      `${where} must be a list of { table, column, references, tenant?, match? }`,
+      `${where} must be a list of { table, column, references, tenant?, match?, through? }`,
     );
   }
   const fallback = ctx.col("memberships", "tenant").replaceAll('"', "");
@@ -45,7 +54,7 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
         !isRecord(entry["references"]))
     ) {
       throw new TypeError(
-        `${at} must be { table: "schema.table", column: "<column>", references: "schema.table" | { table, column?, tenant?, where? }, tenant?, match? }`,
+        `${at} must be { table: "schema.table", column: "<column>", references: "schema.table" | { table, column?, tenant?, where? }, tenant?, match?, through? }`,
       );
     }
     const references: Record<string, unknown> =
@@ -70,6 +79,45 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
         `${at}.match must be { <column>: "<referenced column>" }`,
       );
     }
+    const through = entry["through"] ?? {};
+    if (!isRecord(through)) {
+      throw new TypeError(
+        `${at}.through must be { <column>: "schema.table" | { table, column? } }`,
+      );
+    }
+    const pairs: (readonly [string, string])[] = [];
+    const hops: Hop[] = [];
+    for (const [own, referenced] of Object.entries(match)) {
+      const dot = own.indexOf(".");
+      if (dot === -1) {
+        pairs.push([
+          ident(`${at}.match`, own),
+          ident(`${at}.match.${own}`, referenced),
+        ]);
+        continue;
+      }
+      const via = ident(`${at}.match`, own.slice(0, dot));
+      const column = ident(`${at}.match`, own.slice(dot + 1));
+      const target = through[via];
+      const hop: Record<string, unknown> | undefined =
+        typeof target === "string"
+          ? { table: target }
+          : isRecord(target)
+            ? target
+            : undefined;
+      if (hop === undefined || typeof hop["table"] !== "string") {
+        throw new TypeError(
+          `${at}.match.${own} reads ${via}, so ${at}.through.${via} must name the table ${via} references`,
+        );
+      }
+      hops.push({
+        via,
+        table: quotedTable(hop["table"]),
+        key: ident(`${at}.through.${via}.column`, hop["column"], "id"),
+        column,
+        referenced: ident(`${at}.match.${own}`, referenced),
+      });
+    }
     const tenant = ident(`${at}.tenant`, entry["tenant"], fallback);
     return {
       table: quotedTable(entry["table"]),
@@ -83,13 +131,8 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
         tenant,
       ),
       where: condition,
-      match: Object.entries(match).map(
-        ([own, referenced]) =>
-          [
-            ident(`${at}.match`, own),
-            ident(`${at}.match.${own}`, referenced),
-          ] as const,
-      ),
+      match: pairs,
+      hops,
     };
   });
 }
@@ -108,15 +151,28 @@ export function sameTenantSql(ctx: ModuleContext): string {
   const entries = entriesOf(ctx);
   if (entries.length === 0) return "";
   const triggers = entries.map((entry) => {
+    const conditions = [
+      ...(entry.where === undefined
+        ? []
+        : [entry.where.replaceAll("{row}", "p")]),
+      ...entry.hops.map(
+        (hop) =>
+          `p.${sqlIdent(hop.referenced)} is not distinct from (select h.${sqlIdent(hop.column)} from ${hop.table} h where h.${sqlIdent(hop.key)} = ($1).${sqlIdent(hop.via)})`,
+      ),
+    ];
+    const condition =
+      conditions.length > 1
+        ? conditions.map((part) => `(${part})`).join(" and ")
+        : conditions[0];
     const args = [
       entry.column,
       entry.tenant,
       entry.parent,
       entry.key,
       entry.parentTenant,
-      ...(entry.where === undefined && entry.match.length === 0
+      ...(condition === undefined && entry.match.length === 0
         ? []
-        : [entry.where?.replaceAll("{row}", "p") ?? ""]),
+        : [condition ?? ""]),
       ...entry.match.flat(),
     ].map(sqlString);
     const name = triggerName(entry.column);
@@ -125,6 +181,7 @@ export function sameTenantSql(ctx: ModuleContext): string {
         entry.column,
         entry.tenant,
         ...entry.match.map(([own]) => own),
+        ...entry.hops.map((hop) => hop.via),
       ]),
     ]
       .map(sqlIdent)

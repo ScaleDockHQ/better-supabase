@@ -606,6 +606,15 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."usage_quota"(uuid, text);
+drop function if exists "api"."usage_used"(uuid, text, text);
+drop function if exists "api"."record_usage"(uuid, text, bigint, text);
+drop function if exists "api"."consume_quota"(uuid, text, bigint, text);
+drop function if exists "api"."mark_usage_reported"(uuid, text, date, bigint);
+drop function if exists "api"."record_usage"(uuid, text, numeric, text);
+drop function if exists "api"."consume_quota"(uuid, text, numeric, text);
+drop function if exists "api"."unreported_usage"(integer);
+
 create or replace function "api"."usage_history"(tenant uuid, meter text default null, max_rows integer default 100, before_id bigint default null)
 returns jsonb
 language sql

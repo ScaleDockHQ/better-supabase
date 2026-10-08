@@ -5,9 +5,10 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   jsonSchemaChecks,
+  quotedTable,
   SERVICE_CALLER,
   schemaPreamble,
   tenantIn,
@@ -23,7 +24,13 @@ import {
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
-  options: ["subjects", "maxBodyLength", "documentSchema", "notify"],
+  options: [
+    "subjects",
+    "maxBodyLength",
+    "documentSchema",
+    "notify",
+    "mentionGroups",
+  ],
   tables: {
     comments: {
       name: "comments",
@@ -85,6 +92,47 @@ function documentSchemaOf(
     );
   }
   return option;
+}
+
+interface MentionGroups {
+  readonly table: string;
+  readonly group: string;
+  readonly member: string;
+  readonly tenant?: string;
+}
+
+const MENTION_GROUP_KEYS = new Set(["table", "group", "member", "tenant"]);
+
+function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
+  const option = ctx.option("mentionGroups");
+  if (option === undefined) return undefined;
+  const where = "sql.modules.comments.options.mentionGroups";
+  if (!isObject(option)) {
+    throw new TypeError(`${where} must be { table, group, member, tenant? }`);
+  }
+  for (const key of Object.keys(option)) {
+    if (!MENTION_GROUP_KEYS.has(key)) {
+      throw new TypeError(
+        `${where}.${key} is not an option. Options: table, group, member, tenant`,
+      );
+    }
+  }
+  const text = (key: string): string | undefined => {
+    const value = option[key];
+    if (value === undefined) return undefined;
+    if (typeof value !== "string" || value.length === 0) {
+      throw new TypeError(`${where}.${key} must be a non-empty string`);
+    }
+    return value;
+  };
+  const table = text("table");
+  const group = text("group");
+  const member = text("member");
+  if (table === undefined || group === undefined || member === undefined) {
+    throw new TypeError(`${where} needs table, group and member`);
+  }
+  const tenant = text("tenant");
+  return { table, group, member, ...(tenant !== undefined && { tenant }) };
 }
 
 function build(ctx: ModuleContext): string {
@@ -265,6 +313,20 @@ function build(ctx: ModuleContext): string {
       and case new.${c("subjectType")} ${subjectCases.join(" ")} else true end`
     }`;
   };
+  const groups = mentionGroupsOf(ctx);
+  const expand = (mentions: string): string =>
+    groups === undefined
+      ? `unnest(${mentions})`
+      : `(select m.x from unnest(${mentions}) m(x) union select g.${sqlIdent(groups.member)} from ${quotedTable(groups.table)} g where g.${sqlIdent(groups.group)} = any(${mentions})${groups.tenant === undefined ? "" : ` and g.${sqlIdent(groups.tenant)} = new.${c("tenant")}`})`;
+  const newMentions =
+    groups === undefined
+      ? `select x from unnest(new.${c("mentions")}) x
+    where (tg_op = 'INSERT' or not x = any(old.${c("mentions")}))
+      and ${mentionable("x")}`
+      : `select e.x from ${expand(`new.${c("mentions")}`)} e(x)
+    where e.x is distinct from new.${c("author")}
+      and (tg_op = 'INSERT' or not e.x = any(array(select o.x from ${expand(`old.${c("mentions")}`)} o(x))))
+      and ${mentionable("e.x")}`;
   const notify = ctx.flag("notify", true);
   const notifications =
     ctx.installed("notifications") && notify
@@ -436,9 +498,7 @@ begin
     return null;
   end if;
   v_new := array(
-    select x from unnest(new.${c("mentions")}) x
-    where (tg_op = 'INSERT' or not x = any(old.${c("mentions")}))
-      and ${mentionable("x")}
+    ${newMentions}
   );
   if tg_op = 'INSERT' then
     ${created || "null;"}

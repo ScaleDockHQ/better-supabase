@@ -116,6 +116,21 @@ function signatures(sql: string, schema: string): Signature[] {
   return found;
 }
 
+function sourceDrops(
+  sql: string,
+  schema: string,
+): { readonly name: string; readonly types: string }[] {
+  const ident = `(?:"${schema}"|${schema})`;
+  const drop = new RegExp(
+    `drop\\s+function\\s+if\\s+exists\\s+${ident}\\.(?:"([^"]+)"|([a-z_][a-z0-9_]*))\\s*\\(([^)]*)\\)\\s*;`,
+    "gi",
+  );
+  return [...sql.matchAll(drop)].map((match) => ({
+    name: (match[1] ?? match[2])!,
+    types: splitTopLevel(match[3]!).map(normalize).join(", "),
+  }));
+}
+
 interface Grant {
   readonly name: string;
   readonly types: readonly string[];
@@ -228,6 +243,17 @@ export function apiWrappers(
       ]),
     ).values(),
   ];
+  const wrapped = new Set(grants.map((grant) => grant.name));
+  const replaced = [
+    ...new Set(
+      sourceDrops(sql, source)
+        .filter((entry) => wrapped.has(entry.name))
+        .map(
+          (entry) =>
+            `drop function if exists ${schema}.${sqlIdent(entry.name)}(${entry.types});`,
+        ),
+    ),
+  ];
   if (grants.length === 0 && dropped.length === 0) return "";
   const statements = grants.map((grant) => {
     const signature = defined.find(
@@ -249,7 +275,7 @@ export function apiWrappers(
 -- sql.modules.${module}.api: entry points for the Data API.
 create schema if not exists ${schema};
 grant usage on schema ${schema} to anon, authenticated, service_role;
-${dropped.length > 0 ? `\n-- Helpers for the module's policies and triggers have no entry point.\n${dropped.join("\n")}\n` : ""}
+${dropped.length > 0 ? `\n-- Helpers for the module's policies and triggers have no entry point.\n${dropped.join("\n")}\n` : ""}${replaced.length > 0 ? `\n${replaced.join("\n")}\n` : ""}
 ${statements.join("\n\n")}
 `;
 }

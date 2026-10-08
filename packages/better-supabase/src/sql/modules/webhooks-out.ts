@@ -357,6 +357,11 @@ export const WEBHOOKS_OUT: ModuleDefinition = {
   modes: ["managed", "adopt", "custom"],
   version: 2,
   names: NAMES,
+  adoptOptional: (ctx) => ({
+    secrets: [
+      ctx.text("secretStorage", "vault") === "column" ? "vaultId" : "secret",
+    ],
+  }),
   contract,
   upgrades: [
     {
