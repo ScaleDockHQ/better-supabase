@@ -26,6 +26,8 @@ import type { JobHandler } from "../../blocks/jobs/queue.ts";
 import { errorText } from "../../blocks/shared.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { temporal } from "../../core/temporal-required.ts";
+import { nowInstant } from "../../core/temporal.ts";
 
 /** The AI SDK batch calls, replaceable in tests. */
 export interface BatchApi {
@@ -180,7 +182,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
     return chosen === undefined ? {} : { provider: chosen };
   };
   const nextPoll = (): Temporal.Instant =>
-    Temporal.Now.instant().add({ seconds: pollEvery });
+    nowInstant().add({ seconds: pollEvery });
 
   const call = <T>(run: () => PromiseLike<T>): AsyncResult<T> =>
     AsyncResult.from(async () => {
@@ -223,7 +225,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
             : { error: status.error.message }),
           ...(status.expiresAt === undefined
             ? {}
-            : { expiresAt: Temporal.Instant.from(status.expiresAt) }),
+            : { expiresAt: temporal().Instant.from(status.expiresAt) }),
           nextPollAt: nextPoll(),
         });
       }),
@@ -326,7 +328,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
             : { counts: { ...started.requestCounts } }),
           ...(started.expiresAt === undefined
             ? {}
-            : { expiresAt: Temporal.Instant.from(started.expiresAt) }),
+            : { expiresAt: temporal().Instant.from(started.expiresAt) }),
         }),
       );
     },
