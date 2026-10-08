@@ -26,7 +26,7 @@ export {
 // Component layout can render it and pass the session promise across.
 export { SessionProvider } from "./session.js";
 export { fieldErrorsOf } from "./field-errors.ts";
-export { tenantOf } from "../auth/view.ts";
+export { tenantOf } from "../auth/tenant.ts";
 export type {
   ActionForm,
   ActionHandle,

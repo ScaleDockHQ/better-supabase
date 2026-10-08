@@ -3,7 +3,6 @@ import type { JWTClaims, UserClaims } from "@supabase/server";
 import type { DbError } from "../core/errors.ts";
 import type { AuthState, InvalidReason } from "./resolve.ts";
 
-import { claimAt, tenantClaimPaths } from "../core/claims.ts";
 import {
   actorOf,
   delegationOf,
@@ -12,6 +11,8 @@ import {
 } from "./actor.ts";
 import { type Impersonator, impersonatorOf } from "./impersonation.ts";
 import { type Aal, aalOf, type AmrEntry, amrOf } from "./mfa.ts";
+
+export { tenantOf } from "./tenant.ts";
 
 /**
  * The verified caller as plain data: no token, no clients. Safe to return
@@ -88,27 +89,6 @@ type AnonReason = Extract<AuthState, { kind: "anon" }>["reason"];
 /** Whether the token belongs to an anonymous user (`signInAnonymously()`). */
 export function isAnonymousUser(claims: Readonly<object>): boolean {
   return "is_anonymous" in claims && claims.is_anonymous === true;
-}
-
-/**
- * The active tenant of a user session: the `claim` claim (`tenant_id` by
- * default, as `config.claims.tenant`) at the top level of the token, then in
- * `app_metadata`. `undefined` for every other session.
- *
- * ```ts
- * const organizationId = tenantOf(await bs.session());
- * ```
- */
-export function tenantOf<C, P>(
-  session: AuthSession<C, P>,
-  claim?: string,
-): string | undefined {
-  if (session.kind !== "user") return undefined;
-  for (const path of tenantClaimPaths(claim)) {
-    const value = claimAt(session.claims, path);
-    if (value !== undefined) return value;
-  }
-  return undefined;
 }
 
 /** Drops the token from an `AuthState`, leaving only serializable fields. */
