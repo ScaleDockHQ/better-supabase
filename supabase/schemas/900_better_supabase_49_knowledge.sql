@@ -166,7 +166,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   if v_row."status" = 'pending' then
-    null;
+  perform "better_supabase"."enqueue_job"(queue => 'knowledge_embed', payload => jsonb_build_object('document_id', v_row."id"), dedupe_key => 'knowledge:' || v_row."id"::text, dedupe_running => false);
   end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'scope_id', v_row."scope_id", 'file_id', v_row."file_id", 'title', v_row."title", 'source', v_row."source", 'metadata', v_row."metadata", 'status', v_row."status", 'error', v_row."error", 'chunk_count', v_row."chunk_count", 'embedding_model', v_row."embedding_model", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
@@ -413,6 +413,7 @@ begin
     returning x."id"
   loop
     update "better_supabase"."knowledge_chunks" t set "embedding" = null, "embedding_hash" = null where t."document_id" = v_id;
+  perform "better_supabase"."enqueue_job"(queue => 'knowledge_embed', payload => jsonb_build_object('document_id', v_id), dedupe_key => 'knowledge:' || v_id::text, dedupe_running => false);
     v_count := v_count + 1;
   end loop;
   return v_count;
