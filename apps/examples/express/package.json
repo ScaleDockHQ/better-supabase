@@ -1,0 +1,33 @@
+{
+  "name": "@better-supabase/example-express",
+  "version": "0.0.0",
+  "private": true,
+  "description": "An Express API on better-supabase/node with RLS-scoped repositories, role guards and Problem Details.",
+  "type": "module",
+  "exports": {
+    "./app": "./src/app.ts"
+  },
+  "scripts": {
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
+    "lint": "oxlint",
+    "start": "node src/main.ts",
+    "test": "vitest run",
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "catalog:",
+    "better-supabase": "workspace:*",
+    "express": "catalog:"
+  },
+  "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/express": "catalog:",
+    "@types/node": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

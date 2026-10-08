@@ -7,16 +7,17 @@ Each example in [`apps/examples`](https://github.com/ScaleDockHQ/better-supabase
 was set up with `better-supabase init`, generates its types from the same
 schema, and runs against the local stack from `supabase/config.toml`.
 
-| Example          | Shows                                                                                                                    |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `nextjs`         | A multi-tenant SaaS app on Cache Components, with every page proved instant by `instant()` tests                         |
-| `hono-api`       | `createHono`, `bs.resource` with a list query, and a custom route                                                        |
-| `orpc-api`       | An oRPC router with valibot inputs and `bs.unwrap`, and a contract-first OpenAPI server on Hono                          |
-| `expo-powersync` | An Expo Router app: web reads in server loaders, iOS and Android read a PowerSync database with the same list definition |
-| `edge`           | An Edge Function with `createEdge` and `bs.resources`                                                                    |
-| `mcp`            | An MCP server as an Edge Function, exposing tables as tools                                                              |
+| Example          | Shows                                                                                                                                                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nextjs`         | A multi-tenant SaaS app on Cache Components, with every page proved instant by `instant()` tests                                                                                                |
+| `hono-api`       | `createHono`, `bs.resource` with a list query, a custom route, and an admin route behind `bs.require`                                                                                           |
+| `express`        | Express 5 on `better-supabase/node`: `toExpress`, a role `guard`, `problemErrorHandler`, and a smoke test against the local stack                                                               |
+| `orpc-api`       | An oRPC router with valibot inputs, `bs.authed` with roles, and a contract-first OpenAPI server on Hono                                                                                         |
+| `expo-powersync` | An Expo Router app: web reads in server loaders; iOS and Android read PowerSync with `useWatch`, upload with `createUploadConnector`, sign in with a magic link or OAuth, and register for push |
+| `edge`           | An Edge Function with `bs.routes`, typed route params and role guards                                                                                                                           |
+| `mcp`            | An MCP server as an Edge Function, exposing tables as tools, with `requiredRoles`                                                                                                               |
 | `eve`            | An [eve](/docs/eve) agent on Next.js with the Supabase World, sign-in, Vault connections, memory and the inbox channel   |
-| `vite-react`     | An SPA with `createClient`, TanStack Query and sign-in                                                                   |
+| `vite-react`     | An SPA with `createClient`, `useSignIn`, `useLiveQuery`, debounced search and an optimistic create                                                                                              |
 
 ## Run them
 

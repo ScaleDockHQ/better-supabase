@@ -70,6 +70,30 @@ Guards take the same options as every adapter: `allow`, `aal`, `scopes`,
 `roles` and `roleClaim`, `requireTenant`, `authorize`, and the `signIn` and
 `mfa` redirects for browser routes.
 
+Express types `res.locals` as a record of `any`. Extend its `Locals`
+interface with `BetterSupabaseContributions` once, and `res.locals.db` is
+typed by your schema:
+
+```ts title="src/express.d.ts"
+import type { BetterSupabaseContributions } from "better-supabase/server";
+import type { Functions, Models } from "./lib/supabase/index.ts";
+
+declare global {
+  namespace Express {
+    interface Locals extends BetterSupabaseContributions<
+      Models,
+      Functions,
+      unknown
+    > {}
+  }
+}
+```
+
+Express 5 sends a rejected promise from an `async` route to the error
+handler, so `problemErrorHandler()` answers `.orThrow()` failures without a
+wrapper. The [Express example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/express)
+puts these together, with a smoke test against the local stack.
+
 ## Fastify
 
 `toFastify(entries)` is an `onRequest` hook that puts the contributions on
