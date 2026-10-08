@@ -1,6 +1,6 @@
 ---
 title: Account deletion
-description: Delete a user with their Storage objects and cached sessions, and keep foreign keys from blocking it.
+description: Delete or suspend a user, end their sessions, remove their Storage objects, and keep foreign keys from blocking a delete.
 ---
 
 Deleting an account touches three systems: Storage objects the user
@@ -112,6 +112,55 @@ export default defineConfig({
 Doctor reports every RLS table in `schemas` without a restrictive
 `session_active()` policy as [BS320](/docs/cli/doctor#bs320), skipping the
 `exclude` globs and the tables SQL modules own.
+
+## Suspending an account
+
+Banning a user in Supabase Auth refuses sign-in and refresh, but the user's
+`auth.sessions` rows and refresh tokens stay, so lifting the ban revives
+every refresh token that wasn't used during it. `suspendAccount` bans the
+user and ends every session in one call, and `endSessions` ends them without
+a ban, for a forced sign-out everywhere:
+
+```ts title="src/features/admin/user-actions.ts"
+"use server";
+
+import { bs } from "@/lib/supabase/server";
+
+export async function suspendUser(userId: string, suspended: boolean) {
+  return bs.suspendAccount(userId, { suspended });
+}
+
+export async function signOutEverywhere(userId: string) {
+  return bs.endSessions(userId);
+}
+```
+
+```ts
+// { ok: true, data: { userId, suspended: true, ended: 3 } }
+```
+
+`suspendAccount` sets the Auth ban (`duration` takes a Go duration such as
+`"24h"`, and defaults to 100 years), then deletes the user's rows from
+`auth.sessions` and `auth.refresh_tokens`. Resuming deletes any sessions left
+from before the ban first, then lifts it. `ended` counts the sessions it
+deleted. Both need `SUPABASE_SECRET_KEY` and the server's `postgres`, since
+the Data API roles can't write `auth.sessions`; without `postgres` they
+return an `invalid_request` error. `bs` from `createNext` also drops the
+user's cached sessions.
+
+Access tokens already issued stay valid until they expire. Add the
+`session_active()` policy from [Ended sessions](#ended-sessions) to refuse
+them at once. Apps without a better-supabase server import both from
+`better-supabase/server`:
+
+```ts
+import { endSessions, suspendAccount } from "better-supabase/server";
+
+await suspendAccount(supabaseAdmin, postgres.admin, userId, {
+  suspended: true,
+});
+await endSessions(postgres.admin, userId);
+```
 
 ## What it does
 

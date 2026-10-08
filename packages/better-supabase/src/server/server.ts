@@ -73,6 +73,13 @@ import {
 } from "./replicas.ts";
 import { defaultPrefetchJwks } from "./respond.ts";
 import { supportOff } from "./support-off.ts";
+import {
+  endSessions,
+  type EndSessionsResult,
+  suspendAccount,
+  type SuspendAccountOptions,
+  type SuspendAccountResult,
+} from "./suspend-account.ts";
 
 /**
  * PostgREST request settings for the caller's repositories and the shared
@@ -287,6 +294,11 @@ export interface BetterServer<
     userId: string,
     options?: DeleteAccountOptions,
   ): AsyncResult<DeleteAccountResult>;
+  endSessions(userId: string): AsyncResult<EndSessionsResult>;
+  suspendAccount(
+    userId: string,
+    options: SuspendAccountOptions,
+  ): AsyncResult<SuspendAccountResult>;
   /**
    * Repositories running as a user, with RLS, over direct Postgres. With
    * `impersonation`, the claims carry `act: { kind: "impersonation", sub, reason }`, which
@@ -318,6 +330,12 @@ const RUNTIME_ENV: EnvSource = new Proxy<EnvSource>(
     get: (_target, key) => (typeof key === "string" ? getEnv(key) : undefined),
   },
 );
+
+const needsPostgres = (method: string) =>
+  dbError(
+    "invalid_request",
+    `${method} needs createServer(betterSupabase, { postgres: createPostgres() })`,
+  );
 
 const STATELESS = {
   persistSession: false,
@@ -1019,6 +1037,19 @@ export function createServer<
         ...(options.postgres ? { sql: options.postgres.admin } : {}),
         ...deleteOptions,
       }),
+    endSessions: (userId) =>
+      options.postgres
+        ? endSessions(options.postgres.admin, userId)
+        : AsyncResult.err(needsPostgres("endSessions")),
+    suspendAccount: (userId, suspendOptions) =>
+      options.postgres
+        ? suspendAccount(
+            serviceClient,
+            options.postgres.admin,
+            userId,
+            suspendOptions,
+          )
+        : AsyncResult.err(needsPostgres("suspendAccount")),
     actingAs: (userId, claims = {}, impersonation) => {
       const full: SqlClaims = {
         role: "authenticated",

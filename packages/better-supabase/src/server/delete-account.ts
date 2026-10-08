@@ -57,7 +57,7 @@ interface AuthFailure {
 }
 
 /** Maps an `AuthApiError` from `auth.admin.deleteUser` to a `DbError`. */
-function fromAuthError(raw: unknown): DbError {
+export function fromAuthError(raw: unknown): DbError {
   if (isDbError(raw)) return raw;
   // SAFETY: every AuthFailure field is optional and read with a fallback, so
   // any object fits.

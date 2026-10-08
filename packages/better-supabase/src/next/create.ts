@@ -914,6 +914,16 @@ export function createNext<
         invalidateAll([sessionTag(userId)]);
         return result;
       })) satisfies BetterServer<M, F, E, C, P>["deleteAccount"],
+    endSessions: ((userId) =>
+      base.endSessions(userId).map((result) => {
+        invalidateAll([sessionTag(userId)]);
+        return result;
+      })) satisfies BetterServer<M, F, E, C, P>["endSessions"],
+    suspendAccount: ((userId, suspendOptions) =>
+      base.suspendAccount(userId, suspendOptions).map((result) => {
+        invalidateAll([sessionTag(userId)]);
+        return result;
+      })) satisfies BetterServer<M, F, E, C, P>["suspendAccount"],
   });
 
   return extendServer<BetterNext<M, F, E, C, P>>(withAccounts, {
