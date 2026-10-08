@@ -7469,6 +7469,198 @@
       {
         "id": 3000005,
         "schema": "better_supabase",
+        "name": "app_my_organizations",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  return query\n  select o.id, o.name, o.slug, m.role, s.plan_key, m.last_used_at\n  from public.memberships m\n  join public.organizations o on o.id = m.organization_id\n  left join public.subscriptions s on s.organization_id = o.id\n  where m.user_id = (select auth.uid())\n  order by o.name;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.app_my_organizations()\n RETURNS TABLE(id uuid, name text, slug text, role text, plan text, last_used_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  return query\n  select o.id, o.name, o.slug, m.role, s.plan_key, m.last_used_at\n  from public.memberships m\n  join public.organizations o on o.id = m.organization_id\n  left join public.subscriptions s on s.organization_id = o.id\n  where m.user_id = (select auth.uid())\n  order by o.name;\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "table",
+            "name": "id",
+            "type_id": 2950,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "last_used_at",
+            "type_id": 1184,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "name",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "plan",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "role",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "slug",
+            "type_id": 25,
+            "has_default": null
+          }
+        ],
+        "argument_types": "",
+        "identity_argument_types": "",
+        "return_type_id": 2249,
+        "return_type": "TABLE(id uuid, name text, slug text, role text, plan text, last_used_at timestamp with time zone)",
+        "return_type_relation_id": null,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "STABLE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000006,
+        "schema": "better_supabase",
+        "name": "app_organization_invitations",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  if not better_supabase.member_can((select auth.uid()), organization, 'members.invite') then\n    raise exception 'Not allowed to list invitations' using errcode = '42501';\n  end if;\n  return query\n  select i.id, i.email, i.role, coalesce(p.full_name, p.email), i.created_at, i.expires_at\n  from better_supabase.invitations i\n  left join better_supabase.profiles p on p.id = i.invited_by\n  where i.organization_id = organization\n    and i.accepted_at is null and i.declined_at is null and i.revoked_at is null\n    and i.expires_at >= now()\n  order by i.created_at desc;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.app_organization_invitations(organization uuid)\n RETURNS TABLE(id uuid, email text, role text, invited_by text, created_at timestamp with time zone, expires_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not better_supabase.member_can((select auth.uid()), organization, 'members.invite') then\n    raise exception 'Not allowed to list invitations' using errcode = '42501';\n  end if;\n  return query\n  select i.id, i.email, i.role, coalesce(p.full_name, p.email), i.created_at, i.expires_at\n  from better_supabase.invitations i\n  left join better_supabase.profiles p on p.id = i.invited_by\n  where i.organization_id = organization\n    and i.accepted_at is null and i.declined_at is null and i.revoked_at is null\n    and i.expires_at >= now()\n  order by i.created_at desc;\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "table",
+            "name": "created_at",
+            "type_id": 1184,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "email",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "expires_at",
+            "type_id": 1184,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "id",
+            "type_id": 2950,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "invited_by",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "in",
+            "name": "organization",
+            "type_id": 2950,
+            "has_default": false
+          },
+          {
+            "mode": "table",
+            "name": "role",
+            "type_id": 25,
+            "has_default": null
+          }
+        ],
+        "argument_types": "organization uuid",
+        "identity_argument_types": "organization uuid",
+        "return_type_id": 2249,
+        "return_type": "TABLE(id uuid, email text, role text, invited_by text, created_at timestamp with time zone, expires_at timestamp with time zone)",
+        "return_type_relation_id": null,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "STABLE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000007,
+        "schema": "better_supabase",
+        "name": "app_organization_members",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  if not better_supabase.member_can((select auth.uid()), organization, 'members.read') then\n    raise exception 'Not allowed to list members' using errcode = '42501';\n  end if;\n  return query\n  select m.user_id, m.role, p.full_name, coalesce(p.email, u.email::text), p.avatar_url, p.avatar_path, m.created_at\n  from public.memberships m\n  join auth.users u on u.id = m.user_id\n  left join better_supabase.profiles p on p.id = m.user_id\n  where m.organization_id = organization\n  order by better_supabase.role_rank(m.role) desc, coalesce(p.full_name, u.email::text);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.app_organization_members(organization uuid)\n RETURNS TABLE(user_id uuid, role text, full_name text, email text, avatar_url text, avatar_path text, joined_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not better_supabase.member_can((select auth.uid()), organization, 'members.read') then\n    raise exception 'Not allowed to list members' using errcode = '42501';\n  end if;\n  return query\n  select m.user_id, m.role, p.full_name, coalesce(p.email, u.email::text), p.avatar_url, p.avatar_path, m.created_at\n  from public.memberships m\n  join auth.users u on u.id = m.user_id\n  left join better_supabase.profiles p on p.id = m.user_id\n  where m.organization_id = organization\n  order by better_supabase.role_rank(m.role) desc, coalesce(p.full_name, u.email::text);\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "table",
+            "name": "avatar_path",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "avatar_url",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "email",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "full_name",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "joined_at",
+            "type_id": 1184,
+            "has_default": null
+          },
+          {
+            "mode": "in",
+            "name": "organization",
+            "type_id": 2950,
+            "has_default": false
+          },
+          {
+            "mode": "table",
+            "name": "role",
+            "type_id": 25,
+            "has_default": null
+          },
+          {
+            "mode": "table",
+            "name": "user_id",
+            "type_id": 2950,
+            "has_default": null
+          }
+        ],
+        "argument_types": "organization uuid",
+        "identity_argument_types": "organization uuid",
+        "return_type_id": 2249,
+        "return_type": "TABLE(user_id uuid, role text, full_name text, email text, avatar_url text, avatar_path text, joined_at timestamp with time zone)",
+        "return_type_relation_id": null,
+        "is_set_returning_function": true,
+        "prorows": 1000,
+        "behavior": "STABLE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000008,
+        "schema": "better_supabase",
         "name": "audit",
         "language": "plpgsql",
         "definition": "\ndeclare\n  keys text[];\nbegin\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bs_audit', 'audit', replace_trigger\n  );\n  select array_agg(c.attname::text order by k.ord) into keys\n  from pg_catalog.pg_index i\n  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)\n  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum\n  where i.indrelid = audit.target and i.indisprimary;\n  delete from better_supabase.audited_tables a where a.target = audit.target;\n  execute format('drop trigger if exists bs_audit on %s', target);\n  execute format(\n    'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change(%L)',\n    target,\n    jsonb_strip_nulls(jsonb_build_object(\n      'ignore', to_jsonb(coalesce(audit.ignore, '{}')),\n      'redact', to_jsonb(coalesce(audit.redact, '{}')),\n      'key_columns', to_jsonb(keys),\n      'category', audit.category,\n      'event_prefix', audit.event_prefix,\n      'target_type', audit.target_type,\n      'tenant_column', audit.tenant_column,\n      'label_column', audit.label_column\n    ))::text\n  );\nend;\n",
@@ -7543,7 +7735,7 @@
         }
       },
       {
-        "id": 3000006,
+        "id": 3000009,
         "schema": "better_supabase",
         "name": "audit_event",
         "language": "plpgsql",
@@ -7691,7 +7883,7 @@
         }
       },
       {
-        "id": 3000007,
+        "id": 3000010,
         "schema": "better_supabase",
         "name": "audit_event_trusted",
         "language": "plpgsql",
@@ -7839,7 +8031,7 @@
         }
       },
       {
-        "id": 3000008,
+        "id": 3000011,
         "schema": "better_supabase",
         "name": "audit_events_tenants",
         "language": "sql",
@@ -7867,7 +8059,7 @@
         }
       },
       {
-        "id": 3000009,
+        "id": 3000012,
         "schema": "better_supabase",
         "name": "audit_read_tenants",
         "language": "plpgsql",
@@ -7888,7 +8080,7 @@
         }
       },
       {
-        "id": 3000010,
+        "id": 3000013,
         "schema": "better_supabase",
         "name": "audit_reads_all",
         "language": "plpgsql",
@@ -7909,7 +8101,7 @@
         }
       },
       {
-        "id": 3000011,
+        "id": 3000014,
         "schema": "better_supabase",
         "name": "audit_schema",
         "language": "plpgsql",
@@ -7949,7 +8141,7 @@
         }
       },
       {
-        "id": 3000012,
+        "id": 3000015,
         "schema": "better_supabase",
         "name": "audit_schema_calls",
         "language": "sql",
@@ -7989,7 +8181,7 @@
         }
       },
       {
-        "id": 3000013,
+        "id": 3000016,
         "schema": "better_supabase",
         "name": "audit_settings",
         "language": "sql",
@@ -8017,7 +8209,7 @@
         }
       },
       {
-        "id": 3000014,
+        "id": 3000017,
         "schema": "better_supabase",
         "name": "backfill_profiles",
         "language": "sql",
@@ -8038,7 +8230,7 @@
         }
       },
       {
-        "id": 3000015,
+        "id": 3000018,
         "schema": "better_supabase",
         "name": "can",
         "language": "sql",
@@ -8078,7 +8270,7 @@
         }
       },
       {
-        "id": 3000016,
+        "id": 3000019,
         "schema": "better_supabase",
         "name": "can_assign",
         "language": "sql",
@@ -8112,7 +8304,7 @@
         }
       },
       {
-        "id": 3000017,
+        "id": 3000020,
         "schema": "better_supabase",
         "name": "can_assign_as",
         "language": "sql",
@@ -8152,7 +8344,7 @@
         }
       },
       {
-        "id": 3000018,
+        "id": 3000021,
         "schema": "better_supabase",
         "name": "can_user",
         "language": "sql",
@@ -8198,7 +8390,7 @@
         }
       },
       {
-        "id": 3000019,
+        "id": 3000022,
         "schema": "better_supabase",
         "name": "check_rate_limit",
         "language": "sql",
@@ -8244,7 +8436,7 @@
         }
       },
       {
-        "id": 3000020,
+        "id": 3000023,
         "schema": "better_supabase",
         "name": "check_request",
         "language": "plpgsql",
@@ -8265,7 +8457,7 @@
         }
       },
       {
-        "id": 3000021,
+        "id": 3000024,
         "schema": "better_supabase",
         "name": "comment_counts",
         "language": "sql",
@@ -8305,7 +8497,7 @@
         }
       },
       {
-        "id": 3000022,
+        "id": 3000025,
         "schema": "better_supabase",
         "name": "comment_subject_readable",
         "language": "sql",
@@ -8345,7 +8537,7 @@
         }
       },
       {
-        "id": 3000023,
+        "id": 3000026,
         "schema": "better_supabase",
         "name": "complete_onboarding_step",
         "language": "plpgsql",
@@ -8385,7 +8577,7 @@
         }
       },
       {
-        "id": 3000024,
+        "id": 3000027,
         "schema": "better_supabase",
         "name": "consume_quota",
         "language": "plpgsql",
@@ -8449,7 +8641,7 @@
         }
       },
       {
-        "id": 3000025,
+        "id": 3000028,
         "schema": "better_supabase",
         "name": "copy_comments",
         "language": "plpgsql",
@@ -8501,7 +8693,7 @@
         }
       },
       {
-        "id": 3000026,
+        "id": 3000029,
         "schema": "better_supabase",
         "name": "count_audit_events",
         "language": "plpgsql",
@@ -8601,7 +8793,7 @@
         }
       },
       {
-        "id": 3000027,
+        "id": 3000030,
         "schema": "better_supabase",
         "name": "create_api_key",
         "language": "plpgsql",
@@ -8677,7 +8869,7 @@
         }
       },
       {
-        "id": 3000028,
+        "id": 3000031,
         "schema": "better_supabase",
         "name": "create_comment",
         "language": "sql",
@@ -8741,7 +8933,7 @@
         }
       },
       {
-        "id": 3000029,
+        "id": 3000032,
         "schema": "better_supabase",
         "name": "create_invitation",
         "language": "sql",
@@ -8787,7 +8979,7 @@
         }
       },
       {
-        "id": 3000030,
+        "id": 3000033,
         "schema": "better_supabase",
         "name": "create_organization",
         "language": "plpgsql",
@@ -8815,7 +9007,7 @@
         }
       },
       {
-        "id": 3000031,
+        "id": 3000034,
         "schema": "better_supabase",
         "name": "current_tenant_id",
         "language": "sql",
@@ -8836,7 +9028,7 @@
         }
       },
       {
-        "id": 3000032,
+        "id": 3000035,
         "schema": "better_supabase",
         "name": "decline_invitation",
         "language": "plpgsql",
@@ -8864,7 +9056,7 @@
         }
       },
       {
-        "id": 3000033,
+        "id": 3000036,
         "schema": "better_supabase",
         "name": "decline_invitation_by_id",
         "language": "plpgsql",
@@ -8892,7 +9084,7 @@
         }
       },
       {
-        "id": 3000034,
+        "id": 3000037,
         "schema": "better_supabase",
         "name": "delete_announcement",
         "language": "plpgsql",
@@ -8920,7 +9112,7 @@
         }
       },
       {
-        "id": 3000035,
+        "id": 3000038,
         "schema": "better_supabase",
         "name": "delete_comment",
         "language": "sql",
@@ -8948,7 +9140,7 @@
         }
       },
       {
-        "id": 3000036,
+        "id": 3000039,
         "schema": "better_supabase",
         "name": "delete_flag",
         "language": "plpgsql",
@@ -8976,7 +9168,7 @@
         }
       },
       {
-        "id": 3000037,
+        "id": 3000040,
         "schema": "better_supabase",
         "name": "delete_organization",
         "language": "plpgsql",
@@ -9004,7 +9196,7 @@
         }
       },
       {
-        "id": 3000038,
+        "id": 3000041,
         "schema": "better_supabase",
         "name": "dismiss_announcement",
         "language": "plpgsql",
@@ -9032,7 +9224,7 @@
         }
       },
       {
-        "id": 3000039,
+        "id": 3000042,
         "schema": "better_supabase",
         "name": "edit_comment",
         "language": "sql",
@@ -9084,7 +9276,7 @@
         }
       },
       {
-        "id": 3000040,
+        "id": 3000043,
         "schema": "better_supabase",
         "name": "entitlement_value",
         "language": "sql",
@@ -9118,7 +9310,7 @@
         }
       },
       {
-        "id": 3000041,
+        "id": 3000044,
         "schema": "better_supabase",
         "name": "feature_claims",
         "language": "sql",
@@ -9146,7 +9338,7 @@
         }
       },
       {
-        "id": 3000042,
+        "id": 3000045,
         "schema": "better_supabase",
         "name": "flag_bucket",
         "language": "sql",
@@ -9180,7 +9372,7 @@
         }
       },
       {
-        "id": 3000043,
+        "id": 3000046,
         "schema": "better_supabase",
         "name": "flag_definitions",
         "language": "sql",
@@ -9201,7 +9393,7 @@
         }
       },
       {
-        "id": 3000044,
+        "id": 3000047,
         "schema": "better_supabase",
         "name": "flag_enabled",
         "language": "sql",
@@ -9235,7 +9427,7 @@
         }
       },
       {
-        "id": 3000045,
+        "id": 3000048,
         "schema": "better_supabase",
         "name": "flag_evaluation",
         "language": "plpgsql",
@@ -9275,7 +9467,7 @@
         }
       },
       {
-        "id": 3000046,
+        "id": 3000049,
         "schema": "better_supabase",
         "name": "get_organization_settings",
         "language": "sql",
@@ -9303,7 +9495,7 @@
         }
       },
       {
-        "id": 3000047,
+        "id": 3000050,
         "schema": "better_supabase",
         "name": "get_platform_settings",
         "language": "sql",
@@ -9324,7 +9516,7 @@
         }
       },
       {
-        "id": 3000048,
+        "id": 3000051,
         "schema": "better_supabase",
         "name": "get_user_settings",
         "language": "sql",
@@ -9345,7 +9537,7 @@
         }
       },
       {
-        "id": 3000049,
+        "id": 3000052,
         "schema": "better_supabase",
         "name": "guard_membership_role",
         "language": "plpgsql",
@@ -9397,7 +9589,7 @@
         }
       },
       {
-        "id": 3000050,
+        "id": 3000053,
         "schema": "better_supabase",
         "name": "has_entitlement",
         "language": "sql",
@@ -9431,7 +9623,7 @@
         }
       },
       {
-        "id": 3000051,
+        "id": 3000054,
         "schema": "better_supabase",
         "name": "has_organization_role",
         "language": "sql",
@@ -9465,7 +9657,7 @@
         }
       },
       {
-        "id": 3000052,
+        "id": 3000055,
         "schema": "better_supabase",
         "name": "has_scope",
         "language": "sql",
@@ -9493,7 +9685,7 @@
         }
       },
       {
-        "id": 3000053,
+        "id": 3000056,
         "schema": "better_supabase",
         "name": "hit_rate_limit",
         "language": "plpgsql",
@@ -9557,7 +9749,7 @@
         }
       },
       {
-        "id": 3000054,
+        "id": 3000057,
         "schema": "better_supabase",
         "name": "invitation_extra",
         "language": "plpgsql",
@@ -9585,7 +9777,7 @@
         }
       },
       {
-        "id": 3000055,
+        "id": 3000058,
         "schema": "better_supabase",
         "name": "invitation_preview",
         "language": "plpgsql",
@@ -9613,7 +9805,7 @@
         }
       },
       {
-        "id": 3000056,
+        "id": 3000059,
         "schema": "better_supabase",
         "name": "invitation_tenant_ids",
         "language": "plpgsql",
@@ -9634,7 +9826,7 @@
         }
       },
       {
-        "id": 3000057,
+        "id": 3000060,
         "schema": "better_supabase",
         "name": "invite_member",
         "language": "plpgsql",
@@ -9686,7 +9878,7 @@
         }
       },
       {
-        "id": 3000058,
+        "id": 3000061,
         "schema": "better_supabase",
         "name": "is_platform",
         "language": "sql",
@@ -9714,7 +9906,7 @@
         }
       },
       {
-        "id": 3000059,
+        "id": 3000062,
         "schema": "better_supabase",
         "name": "leave_organization",
         "language": "plpgsql",
@@ -9742,7 +9934,7 @@
         }
       },
       {
-        "id": 3000060,
+        "id": 3000063,
         "schema": "better_supabase",
         "name": "list_activity",
         "language": "sql",
@@ -9794,7 +9986,7 @@
         }
       },
       {
-        "id": 3000061,
+        "id": 3000064,
         "schema": "better_supabase",
         "name": "list_announcements",
         "language": "plpgsql",
@@ -9815,7 +10007,7 @@
         }
       },
       {
-        "id": 3000062,
+        "id": 3000065,
         "schema": "better_supabase",
         "name": "list_api_keys",
         "language": "plpgsql",
@@ -9843,7 +10035,7 @@
         }
       },
       {
-        "id": 3000063,
+        "id": 3000066,
         "schema": "better_supabase",
         "name": "list_audit_events",
         "language": "plpgsql",
@@ -9973,7 +10165,7 @@
         }
       },
       {
-        "id": 3000064,
+        "id": 3000067,
         "schema": "better_supabase",
         "name": "list_comments",
         "language": "sql",
@@ -10031,7 +10223,7 @@
         }
       },
       {
-        "id": 3000065,
+        "id": 3000068,
         "schema": "better_supabase",
         "name": "list_flags",
         "language": "plpgsql",
@@ -10052,7 +10244,7 @@
         }
       },
       {
-        "id": 3000066,
+        "id": 3000069,
         "schema": "better_supabase",
         "name": "list_members",
         "language": "plpgsql",
@@ -10092,7 +10284,7 @@
         }
       },
       {
-        "id": 3000067,
+        "id": 3000070,
         "schema": "better_supabase",
         "name": "list_my_organizations",
         "language": "sql",
@@ -10138,7 +10330,7 @@
         }
       },
       {
-        "id": 3000068,
+        "id": 3000071,
         "schema": "better_supabase",
         "name": "list_organization_invitations",
         "language": "plpgsql",
@@ -10190,7 +10382,7 @@
         }
       },
       {
-        "id": 3000069,
+        "id": 3000072,
         "schema": "better_supabase",
         "name": "mark_usage_reported",
         "language": "sql",
@@ -10236,7 +10428,7 @@
         }
       },
       {
-        "id": 3000070,
+        "id": 3000073,
         "schema": "better_supabase",
         "name": "mark_used",
         "language": "plpgsql",
@@ -10264,7 +10456,7 @@
         }
       },
       {
-        "id": 3000071,
+        "id": 3000074,
         "schema": "better_supabase",
         "name": "member_can",
         "language": "sql",
@@ -10304,7 +10496,7 @@
         }
       },
       {
-        "id": 3000072,
+        "id": 3000075,
         "schema": "better_supabase",
         "name": "member_organization_ids",
         "language": "sql",
@@ -10332,7 +10524,7 @@
         }
       },
       {
-        "id": 3000073,
+        "id": 3000076,
         "schema": "better_supabase",
         "name": "membership_claims",
         "language": "sql",
@@ -10360,7 +10552,7 @@
         }
       },
       {
-        "id": 3000074,
+        "id": 3000077,
         "schema": "better_supabase",
         "name": "my_invitations",
         "language": "plpgsql",
@@ -10381,12 +10573,12 @@
         }
       },
       {
-        "id": 3000075,
+        "id": 3000078,
         "schema": "better_supabase",
         "name": "my_profile",
         "language": "sql",
         "definition": "\n  select to_jsonb(p) from \"better_supabase\".\"profiles\" p where p.\"id\" = (select auth.uid())\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.my_profile()\n RETURNS jsonb\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select to_jsonb(p) from \"better_supabase\".\"profiles\" p where p.\"id\" = (select auth.uid())\n$function$\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.my_profile()\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select to_jsonb(p) from \"better_supabase\".\"profiles\" p where p.\"id\" = (select auth.uid())\n$function$\n",
         "args": [],
         "argument_types": "",
         "identity_argument_types": "",
@@ -10396,13 +10588,13 @@
         "is_set_returning_function": false,
         "prorows": null,
         "behavior": "STABLE",
-        "security_definer": false,
+        "security_definer": true,
         "config_params": {
           "search_path": "\"\""
         }
       },
       {
-        "id": 3000076,
+        "id": 3000079,
         "schema": "better_supabase",
         "name": "onboarding_progress",
         "language": "plpgsql",
@@ -10436,7 +10628,7 @@
         }
       },
       {
-        "id": 3000077,
+        "id": 3000080,
         "schema": "better_supabase",
         "name": "organization_member_role",
         "language": "sql",
@@ -10470,7 +10662,7 @@
         }
       },
       {
-        "id": 3000078,
+        "id": 3000081,
         "schema": "better_supabase",
         "name": "organization_slug_problem",
         "language": "sql",
@@ -10504,7 +10696,7 @@
         }
       },
       {
-        "id": 3000079,
+        "id": 3000082,
         "schema": "better_supabase",
         "name": "permission_claims",
         "language": "sql",
@@ -10532,7 +10724,7 @@
         }
       },
       {
-        "id": 3000080,
+        "id": 3000083,
         "schema": "better_supabase",
         "name": "purge_audit_log",
         "language": "plpgsql",
@@ -10578,7 +10770,7 @@
         }
       },
       {
-        "id": 3000081,
+        "id": 3000084,
         "schema": "better_supabase",
         "name": "purge_rate_limits",
         "language": "sql",
@@ -10606,7 +10798,7 @@
         }
       },
       {
-        "id": 3000082,
+        "id": 3000085,
         "schema": "better_supabase",
         "name": "purge_usage_events",
         "language": "sql",
@@ -10640,7 +10832,7 @@
         }
       },
       {
-        "id": 3000083,
+        "id": 3000086,
         "schema": "better_supabase",
         "name": "purge_usage_history",
         "language": "plpgsql",
@@ -10674,7 +10866,7 @@
         }
       },
       {
-        "id": 3000084,
+        "id": 3000087,
         "schema": "better_supabase",
         "name": "record_activity",
         "language": "plpgsql",
@@ -10702,7 +10894,7 @@
         }
       },
       {
-        "id": 3000085,
+        "id": 3000088,
         "schema": "better_supabase",
         "name": "record_usage",
         "language": "plpgsql",
@@ -10766,7 +10958,7 @@
         }
       },
       {
-        "id": 3000086,
+        "id": 3000089,
         "schema": "better_supabase",
         "name": "record_usage_batch",
         "language": "plpgsql",
@@ -10830,7 +11022,7 @@
         }
       },
       {
-        "id": 3000087,
+        "id": 3000090,
         "schema": "better_supabase",
         "name": "remove_member",
         "language": "plpgsql",
@@ -10864,7 +11056,7 @@
         }
       },
       {
-        "id": 3000088,
+        "id": 3000091,
         "schema": "better_supabase",
         "name": "replace_equivalent_triggers",
         "language": "plpgsql",
@@ -10910,7 +11102,7 @@
         }
       },
       {
-        "id": 3000089,
+        "id": 3000092,
         "schema": "better_supabase",
         "name": "request_header",
         "language": "plpgsql",
@@ -10938,7 +11130,7 @@
         }
       },
       {
-        "id": 3000090,
+        "id": 3000093,
         "schema": "better_supabase",
         "name": "request_headers",
         "language": "plpgsql",
@@ -10959,7 +11151,7 @@
         }
       },
       {
-        "id": 3000091,
+        "id": 3000094,
         "schema": "better_supabase",
         "name": "request_ip",
         "language": "plpgsql",
@@ -10980,7 +11172,7 @@
         }
       },
       {
-        "id": 3000092,
+        "id": 3000095,
         "schema": "better_supabase",
         "name": "resend_invitation",
         "language": "plpgsql",
@@ -11014,7 +11206,7 @@
         }
       },
       {
-        "id": 3000093,
+        "id": 3000096,
         "schema": "better_supabase",
         "name": "reset_onboarding_step",
         "language": "plpgsql",
@@ -11054,7 +11246,7 @@
         }
       },
       {
-        "id": 3000094,
+        "id": 3000097,
         "schema": "better_supabase",
         "name": "reset_organization_setting",
         "language": "sql",
@@ -11088,7 +11280,7 @@
         }
       },
       {
-        "id": 3000095,
+        "id": 3000098,
         "schema": "better_supabase",
         "name": "reset_platform_setting",
         "language": "sql",
@@ -11116,7 +11308,7 @@
         }
       },
       {
-        "id": 3000096,
+        "id": 3000099,
         "schema": "better_supabase",
         "name": "reset_user_setting",
         "language": "sql",
@@ -11144,7 +11336,7 @@
         }
       },
       {
-        "id": 3000097,
+        "id": 3000100,
         "schema": "better_supabase",
         "name": "revoke_api_key",
         "language": "plpgsql",
@@ -11172,7 +11364,7 @@
         }
       },
       {
-        "id": 3000098,
+        "id": 3000101,
         "schema": "better_supabase",
         "name": "revoke_invitation",
         "language": "plpgsql",
@@ -11200,7 +11392,7 @@
         }
       },
       {
-        "id": 3000099,
+        "id": 3000102,
         "schema": "better_supabase",
         "name": "role_permissions",
         "language": "sql",
@@ -11228,7 +11420,7 @@
         }
       },
       {
-        "id": 3000100,
+        "id": 3000103,
         "schema": "better_supabase",
         "name": "role_rank",
         "language": "sql",
@@ -11256,7 +11448,7 @@
         }
       },
       {
-        "id": 3000101,
+        "id": 3000104,
         "schema": "better_supabase",
         "name": "rotate_api_key",
         "language": "plpgsql",
@@ -11302,7 +11494,7 @@
         }
       },
       {
-        "id": 3000102,
+        "id": 3000105,
         "schema": "better_supabase",
         "name": "save_announcement",
         "language": "plpgsql",
@@ -11336,7 +11528,7 @@
         }
       },
       {
-        "id": 3000103,
+        "id": 3000106,
         "schema": "better_supabase",
         "name": "save_flag",
         "language": "plpgsql",
@@ -11370,7 +11562,7 @@
         }
       },
       {
-        "id": 3000104,
+        "id": 3000107,
         "schema": "better_supabase",
         "name": "set_flag_override",
         "language": "plpgsql",
@@ -11416,7 +11608,7 @@
         }
       },
       {
-        "id": 3000105,
+        "id": 3000108,
         "schema": "better_supabase",
         "name": "set_organization_setting",
         "language": "sql",
@@ -11456,7 +11648,7 @@
         }
       },
       {
-        "id": 3000106,
+        "id": 3000109,
         "schema": "better_supabase",
         "name": "set_platform_setting",
         "language": "sql",
@@ -11490,7 +11682,7 @@
         }
       },
       {
-        "id": 3000107,
+        "id": 3000110,
         "schema": "better_supabase",
         "name": "set_rate_limit",
         "language": "plpgsql",
@@ -11536,7 +11728,7 @@
         }
       },
       {
-        "id": 3000108,
+        "id": 3000111,
         "schema": "better_supabase",
         "name": "set_user_setting",
         "language": "sql",
@@ -11570,7 +11762,7 @@
         }
       },
       {
-        "id": 3000109,
+        "id": 3000112,
         "schema": "better_supabase",
         "name": "switch_organization",
         "language": "plpgsql",
@@ -11598,7 +11790,7 @@
         }
       },
       {
-        "id": 3000110,
+        "id": 3000113,
         "schema": "better_supabase",
         "name": "sync_profile",
         "language": "plpgsql",
@@ -11626,7 +11818,7 @@
         }
       },
       {
-        "id": 3000111,
+        "id": 3000114,
         "schema": "better_supabase",
         "name": "tenant_disabled",
         "language": "sql",
@@ -11654,7 +11846,7 @@
         }
       },
       {
-        "id": 3000112,
+        "id": 3000115,
         "schema": "better_supabase",
         "name": "tenant_entitlement_value",
         "language": "sql",
@@ -11688,7 +11880,7 @@
         }
       },
       {
-        "id": 3000113,
+        "id": 3000116,
         "schema": "better_supabase",
         "name": "tenant_entitlements",
         "language": "sql",
@@ -11716,7 +11908,7 @@
         }
       },
       {
-        "id": 3000114,
+        "id": 3000117,
         "schema": "better_supabase",
         "name": "tenant_ids_with",
         "language": "sql",
@@ -11744,7 +11936,7 @@
         }
       },
       {
-        "id": 3000115,
+        "id": 3000118,
         "schema": "better_supabase",
         "name": "tenant_ids_with_entitlement",
         "language": "sql",
@@ -11772,7 +11964,7 @@
         }
       },
       {
-        "id": 3000116,
+        "id": 3000119,
         "schema": "better_supabase",
         "name": "tenant_ids_with_flag",
         "language": "sql",
@@ -11800,7 +11992,7 @@
         }
       },
       {
-        "id": 3000117,
+        "id": 3000120,
         "schema": "better_supabase",
         "name": "tenant_plans",
         "language": "sql",
@@ -11828,7 +12020,7 @@
         }
       },
       {
-        "id": 3000118,
+        "id": 3000121,
         "schema": "better_supabase",
         "name": "track_realtime",
         "language": "plpgsql",
@@ -11868,7 +12060,7 @@
         }
       },
       {
-        "id": 3000119,
+        "id": 3000122,
         "schema": "better_supabase",
         "name": "track_updated_at",
         "language": "plpgsql",
@@ -11908,7 +12100,7 @@
         }
       },
       {
-        "id": 3000120,
+        "id": 3000123,
         "schema": "better_supabase",
         "name": "transfer_ownership",
         "language": "plpgsql",
@@ -11948,7 +12140,7 @@
         }
       },
       {
-        "id": 3000121,
+        "id": 3000124,
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
@@ -11976,7 +12168,7 @@
         }
       },
       {
-        "id": 3000122,
+        "id": 3000125,
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
@@ -12004,7 +12196,7 @@
         }
       },
       {
-        "id": 3000123,
+        "id": 3000126,
         "schema": "better_supabase",
         "name": "unreported_usage",
         "language": "sql",
@@ -12044,7 +12236,7 @@
         }
       },
       {
-        "id": 3000124,
+        "id": 3000127,
         "schema": "better_supabase",
         "name": "untrack_realtime",
         "language": "plpgsql",
@@ -12072,7 +12264,7 @@
         }
       },
       {
-        "id": 3000125,
+        "id": 3000128,
         "schema": "better_supabase",
         "name": "update_invitation",
         "language": "plpgsql",
@@ -12118,7 +12310,7 @@
         }
       },
       {
-        "id": 3000126,
+        "id": 3000129,
         "schema": "better_supabase",
         "name": "update_member_role",
         "language": "plpgsql",
@@ -12158,12 +12350,12 @@
         }
       },
       {
-        "id": 3000127,
+        "id": 3000130,
         "schema": "better_supabase",
         "name": "update_my_profile",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  updated integer;\nbegin\n  update \"better_supabase\".\"profiles\" p\n  set \"full_name\" = case when update_my_profile.attrs ? 'full_name' then update_my_profile.attrs ->> 'full_name' else p.\"full_name\" end,\n    \"first_name\" = case when update_my_profile.attrs ? 'first_name' then update_my_profile.attrs ->> 'first_name' else p.\"first_name\" end,\n    \"last_name\" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p.\"last_name\" end,\n    \"avatar_url\" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p.\"avatar_url\" end,\n    \"username\" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p.\"username\" end,\n    \"onboarding\" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs ->> 'onboarding' else p.\"onboarding\" end,\n    \"updated_at\" = now()\n  where p.\"id\" = (select auth.uid());\n  get diagnostics updated = row_count;\n  return updated > 0;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.update_my_profile(attrs jsonb)\n RETURNS boolean\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  updated integer;\nbegin\n  update \"better_supabase\".\"profiles\" p\n  set \"full_name\" = case when update_my_profile.attrs ? 'full_name' then update_my_profile.attrs ->> 'full_name' else p.\"full_name\" end,\n    \"first_name\" = case when update_my_profile.attrs ? 'first_name' then update_my_profile.attrs ->> 'first_name' else p.\"first_name\" end,\n    \"last_name\" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p.\"last_name\" end,\n    \"avatar_url\" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p.\"avatar_url\" end,\n    \"username\" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p.\"username\" end,\n    \"onboarding\" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs ->> 'onboarding' else p.\"onboarding\" end,\n    \"updated_at\" = now()\n  where p.\"id\" = (select auth.uid());\n  get diagnostics updated = row_count;\n  return updated > 0;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  updated integer;\nbegin\n  update \"better_supabase\".\"profiles\" p\n  set \"full_name\" = case when update_my_profile.attrs ? 'full_name' then update_my_profile.attrs ->> 'full_name' else p.\"full_name\" end,\n    \"first_name\" = case when update_my_profile.attrs ? 'first_name' then update_my_profile.attrs ->> 'first_name' else p.\"first_name\" end,\n    \"last_name\" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p.\"last_name\" end,\n    \"avatar_url\" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p.\"avatar_url\" end,\n    \"avatar_path\" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p.\"avatar_path\" end,\n    \"username\" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p.\"username\" end,\n    \"onboarding\" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs -> 'onboarding' else p.\"onboarding\" end,\n    \"updated_at\" = now()\n  where p.\"id\" = (select auth.uid());\n  get diagnostics updated = row_count;\n  return updated > 0;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.update_my_profile(attrs jsonb)\n RETURNS boolean\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  updated integer;\nbegin\n  update \"better_supabase\".\"profiles\" p\n  set \"full_name\" = case when update_my_profile.attrs ? 'full_name' then update_my_profile.attrs ->> 'full_name' else p.\"full_name\" end,\n    \"first_name\" = case when update_my_profile.attrs ? 'first_name' then update_my_profile.attrs ->> 'first_name' else p.\"first_name\" end,\n    \"last_name\" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p.\"last_name\" end,\n    \"avatar_url\" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p.\"avatar_url\" end,\n    \"avatar_path\" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p.\"avatar_path\" end,\n    \"username\" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p.\"username\" end,\n    \"onboarding\" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs -> 'onboarding' else p.\"onboarding\" end,\n    \"updated_at\" = now()\n  where p.\"id\" = (select auth.uid());\n  get diagnostics updated = row_count;\n  return updated > 0;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -12186,7 +12378,7 @@
         }
       },
       {
-        "id": 3000128,
+        "id": 3000131,
         "schema": "better_supabase",
         "name": "update_organization",
         "language": "plpgsql",
@@ -12220,7 +12412,7 @@
         }
       },
       {
-        "id": 3000129,
+        "id": 3000132,
         "schema": "better_supabase",
         "name": "usage_breakdown",
         "language": "plpgsql",
@@ -12254,7 +12446,7 @@
         }
       },
       {
-        "id": 3000130,
+        "id": 3000133,
         "schema": "better_supabase",
         "name": "usage_history",
         "language": "plpgsql",
@@ -12300,7 +12492,7 @@
         }
       },
       {
-        "id": 3000131,
+        "id": 3000134,
         "schema": "better_supabase",
         "name": "usage_meters",
         "language": "sql",
@@ -12321,7 +12513,7 @@
         }
       },
       {
-        "id": 3000132,
+        "id": 3000135,
         "schema": "better_supabase",
         "name": "usage_overview",
         "language": "plpgsql",
@@ -12349,7 +12541,7 @@
         }
       },
       {
-        "id": 3000133,
+        "id": 3000136,
         "schema": "better_supabase",
         "name": "usage_quota",
         "language": "sql",
@@ -12395,7 +12587,7 @@
         }
       },
       {
-        "id": 3000134,
+        "id": 3000137,
         "schema": "better_supabase",
         "name": "usage_status",
         "language": "plpgsql",
@@ -12429,7 +12621,7 @@
         }
       },
       {
-        "id": 3000135,
+        "id": 3000138,
         "schema": "better_supabase",
         "name": "usage_used",
         "language": "sql",
@@ -12469,7 +12661,7 @@
         }
       },
       {
-        "id": 3000136,
+        "id": 3000139,
         "schema": "better_supabase",
         "name": "usage_window",
         "language": "plpgsql",
@@ -12515,7 +12707,7 @@
         }
       },
       {
-        "id": 3000137,
+        "id": 3000140,
         "schema": "better_supabase",
         "name": "usage_window_start",
         "language": "plpgsql",
@@ -12555,7 +12747,7 @@
         }
       },
       {
-        "id": 3000138,
+        "id": 3000141,
         "schema": "better_supabase",
         "name": "user_disabled",
         "language": "sql",
@@ -12583,7 +12775,7 @@
         }
       },
       {
-        "id": 3000139,
+        "id": 3000142,
         "schema": "better_supabase",
         "name": "verify_api_key",
         "language": "plpgsql",
@@ -12617,7 +12809,7 @@
         }
       },
       {
-        "id": 3000140,
+        "id": 3000143,
         "schema": "better_supabase",
         "name": "within_quota",
         "language": "plpgsql",
@@ -12657,7 +12849,7 @@
         }
       },
       {
-        "id": 3000141,
+        "id": 3000144,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -12703,7 +12895,7 @@
         }
       },
       {
-        "id": 3000142,
+        "id": 3000145,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -12737,12 +12929,12 @@
         }
       },
       {
-        "id": 3000143,
+        "id": 3000146,
         "schema": "public",
         "name": "my_organizations",
-        "language": "plpgsql",
-        "definition": "\nbegin\n  return query\n  select o.id, o.name, o.slug, m.role, s.plan_key, m.last_used_at\n  from public.memberships m\n  join public.organizations o on o.id = m.organization_id\n  left join public.subscriptions s on s.organization_id = o.id\n  where m.user_id = (select auth.uid())\n  order by o.name;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION public.my_organizations()\n RETURNS TABLE(id uuid, name text, slug text, role text, plan text, last_used_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  return query\n  select o.id, o.name, o.slug, m.role, s.plan_key, m.last_used_at\n  from public.memberships m\n  join public.organizations o on o.id = m.organization_id\n  left join public.subscriptions s on s.organization_id = o.id\n  where m.user_id = (select auth.uid())\n  order by o.name;\nend;\n$function$\n",
+        "language": "sql",
+        "definition": "\n  select * from better_supabase.app_my_organizations()\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.my_organizations()\n RETURNS TABLE(id uuid, name text, slug text, role text, plan text, last_used_at timestamp with time zone)\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select * from better_supabase.app_my_organizations()\n$function$\n",
         "args": [
           {
             "mode": "table",
@@ -12789,19 +12981,25 @@
         "is_set_returning_function": true,
         "prorows": 1000,
         "behavior": "STABLE",
-        "security_definer": true,
+        "security_definer": false,
         "config_params": {
           "search_path": "\"\""
         }
       },
       {
-        "id": 3000144,
+        "id": 3000147,
         "schema": "public",
         "name": "my_profile",
         "language": "plpgsql",
-        "definition": "\nbegin\n  return query\n  select p.full_name, p.email, p.username, p.avatar_url\n  from better_supabase.profiles p\n  where p.id = (select auth.uid());\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION public.my_profile()\n RETURNS TABLE(full_name text, email text, username text, avatar_url text)\n LANGUAGE plpgsql\n STABLE\n SET search_path TO ''\nAS $function$\nbegin\n  return query\n  select p.full_name, p.email, p.username, p.avatar_url\n  from better_supabase.profiles p\n  where p.id = (select auth.uid());\nend;\n$function$\n",
+        "definition": "\nbegin\n  return query\n  select p.full_name, p.email, p.username, p.avatar_url, p.avatar_path\n  from better_supabase.profiles p\n  where p.id = (select auth.uid());\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.my_profile()\n RETURNS TABLE(full_name text, email text, username text, avatar_url text, avatar_path text)\n LANGUAGE plpgsql\n STABLE\n SET search_path TO ''\nAS $function$\nbegin\n  return query\n  select p.full_name, p.email, p.username, p.avatar_url, p.avatar_path\n  from better_supabase.profiles p\n  where p.id = (select auth.uid());\nend;\n$function$\n",
         "args": [
+          {
+            "mode": "table",
+            "name": "avatar_path",
+            "type_id": 25,
+            "has_default": null
+          },
           {
             "mode": "table",
             "name": "avatar_url",
@@ -12830,7 +13028,7 @@
         "argument_types": "",
         "identity_argument_types": "",
         "return_type_id": 2249,
-        "return_type": "TABLE(full_name text, email text, username text, avatar_url text)",
+        "return_type": "TABLE(full_name text, email text, username text, avatar_url text, avatar_path text)",
         "return_type_relation_id": null,
         "is_set_returning_function": true,
         "prorows": 1000,
@@ -12841,12 +13039,12 @@
         }
       },
       {
-        "id": 3000145,
+        "id": 3000148,
         "schema": "public",
         "name": "organization_invitations",
-        "language": "plpgsql",
-        "definition": "\nbegin\n  if not better_supabase.member_can((select auth.uid()), organization, 'members.invite') then\n    raise exception 'Not allowed to list invitations' using errcode = '42501';\n  end if;\n  return query\n  select i.id, i.email, i.role, coalesce(p.full_name, p.email), i.created_at, i.expires_at\n  from better_supabase.invitations i\n  left join better_supabase.profiles p on p.id = i.invited_by\n  where i.organization_id = organization\n    and i.accepted_at is null and i.declined_at is null and i.revoked_at is null\n    and i.expires_at >= now()\n  order by i.created_at desc;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION public.organization_invitations(organization uuid)\n RETURNS TABLE(id uuid, email text, role text, invited_by text, created_at timestamp with time zone, expires_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not better_supabase.member_can((select auth.uid()), organization, 'members.invite') then\n    raise exception 'Not allowed to list invitations' using errcode = '42501';\n  end if;\n  return query\n  select i.id, i.email, i.role, coalesce(p.full_name, p.email), i.created_at, i.expires_at\n  from better_supabase.invitations i\n  left join better_supabase.profiles p on p.id = i.invited_by\n  where i.organization_id = organization\n    and i.accepted_at is null and i.declined_at is null and i.revoked_at is null\n    and i.expires_at >= now()\n  order by i.created_at desc;\nend;\n$function$\n",
+        "language": "sql",
+        "definition": "\n  select * from better_supabase.app_organization_invitations(organization)\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.organization_invitations(organization uuid)\n RETURNS TABLE(id uuid, email text, role text, invited_by text, created_at timestamp with time zone, expires_at timestamp with time zone)\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select * from better_supabase.app_organization_invitations(organization)\n$function$\n",
         "args": [
           {
             "mode": "table",
@@ -12899,19 +13097,25 @@
         "is_set_returning_function": true,
         "prorows": 1000,
         "behavior": "STABLE",
-        "security_definer": true,
+        "security_definer": false,
         "config_params": {
           "search_path": "\"\""
         }
       },
       {
-        "id": 3000146,
+        "id": 3000149,
         "schema": "public",
         "name": "organization_members",
-        "language": "plpgsql",
-        "definition": "\nbegin\n  if not better_supabase.member_can((select auth.uid()), organization, 'members.read') then\n    raise exception 'Not allowed to list members' using errcode = '42501';\n  end if;\n  return query\n  select m.user_id, m.role, p.full_name, coalesce(p.email, u.email::text), p.avatar_url, m.created_at\n  from public.memberships m\n  join auth.users u on u.id = m.user_id\n  left join better_supabase.profiles p on p.id = m.user_id\n  where m.organization_id = organization\n  order by better_supabase.role_rank(m.role) desc, coalesce(p.full_name, u.email::text);\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION public.organization_members(organization uuid)\n RETURNS TABLE(user_id uuid, role text, full_name text, email text, avatar_url text, joined_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not better_supabase.member_can((select auth.uid()), organization, 'members.read') then\n    raise exception 'Not allowed to list members' using errcode = '42501';\n  end if;\n  return query\n  select m.user_id, m.role, p.full_name, coalesce(p.email, u.email::text), p.avatar_url, m.created_at\n  from public.memberships m\n  join auth.users u on u.id = m.user_id\n  left join better_supabase.profiles p on p.id = m.user_id\n  where m.organization_id = organization\n  order by better_supabase.role_rank(m.role) desc, coalesce(p.full_name, u.email::text);\nend;\n$function$\n",
+        "language": "sql",
+        "definition": "\n  select * from better_supabase.app_organization_members(organization)\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.organization_members(organization uuid)\n RETURNS TABLE(user_id uuid, role text, full_name text, email text, avatar_url text, avatar_path text, joined_at timestamp with time zone)\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select * from better_supabase.app_organization_members(organization)\n$function$\n",
         "args": [
+          {
+            "mode": "table",
+            "name": "avatar_path",
+            "type_id": 25,
+            "has_default": null
+          },
           {
             "mode": "table",
             "name": "avatar_url",
@@ -12958,18 +13162,18 @@
         "argument_types": "organization uuid",
         "identity_argument_types": "organization uuid",
         "return_type_id": 2249,
-        "return_type": "TABLE(user_id uuid, role text, full_name text, email text, avatar_url text, joined_at timestamp with time zone)",
+        "return_type": "TABLE(user_id uuid, role text, full_name text, email text, avatar_url text, avatar_path text, joined_at timestamp with time zone)",
         "return_type_relation_id": null,
         "is_set_returning_function": true,
         "prorows": 1000,
         "behavior": "STABLE",
-        "security_definer": true,
+        "security_definer": false,
         "config_params": {
           "search_path": "\"\""
         }
       },
       {
-        "id": 3000147,
+        "id": 3000150,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -12997,7 +13201,7 @@
         }
       },
       {
-        "id": 3000148,
+        "id": 3000151,
         "schema": "public",
         "name": "search_notes",
         "language": "plpgsql",
@@ -13031,7 +13235,7 @@
         }
       },
       {
-        "id": 3000149,
+        "id": 3000152,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "plpgsql",
@@ -13077,7 +13281,35 @@
         }
       },
       {
-        "id": 3000150,
+        "id": 3000153,
+        "schema": "public",
+        "name": "set_my_avatar_path",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  if set_my_avatar_path.avatar_path is not null\n    and split_part(set_my_avatar_path.avatar_path, '/', 1) <> (select auth.uid())::text then\n    raise exception 'The avatar must be in your own folder' using errcode = '42501', hint = 'AVATAR_PATH_FORBIDDEN';\n  end if;\n  update better_supabase.profiles p\n  set avatar_path = set_my_avatar_path.avatar_path, updated_at = now()\n  where p.id = (select auth.uid());\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.set_my_avatar_path(avatar_path text)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  if set_my_avatar_path.avatar_path is not null\n    and split_part(set_my_avatar_path.avatar_path, '/', 1) <> (select auth.uid())::text then\n    raise exception 'The avatar must be in your own folder' using errcode = '42501', hint = 'AVATAR_PATH_FORBIDDEN';\n  end if;\n  update better_supabase.profiles p\n  set avatar_path = set_my_avatar_path.avatar_path, updated_at = now()\n  where p.id = (select auth.uid());\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "avatar_path",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "avatar_path text",
+        "identity_argument_types": "avatar_path text",
+        "return_type_id": 2278,
+        "return_type": "void",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000154,
         "schema": "public",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -16320,12 +16552,8 @@
         ],
         "grants": [
           {
-            "role": "anon",
-            "privileges": ["REFERENCES", "TRIGGER", "TRUNCATE"]
-          },
-          {
             "role": "authenticated",
-            "privileges": ["REFERENCES", "SELECT", "TRIGGER", "TRUNCATE"]
+            "privileges": ["SELECT"]
           },
           {
             "role": "service_role",
@@ -16949,6 +17177,20 @@
     ],
     "buckets": [
       {
+        "id": "avatars",
+        "public": true,
+        "fileSizeLimit": 2097152,
+        "allowedMimeTypes": [
+          "image/png",
+          "image/jpeg",
+          "image/webp",
+          "image/gif",
+          "image/avif"
+        ],
+        "versioning": "DISABLED",
+        "lifecycle": null
+      },
+      {
         "id": "customer-logos",
         "public": true,
         "fileSizeLimit": 5242880,
@@ -17026,6 +17268,42 @@
         "signature": "base text, user_id uuid",
         "language": "plpgsql",
         "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": ["authenticated"]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "app_my_organizations",
+        "signature": "",
+        "language": "plpgsql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": ["authenticated"]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "app_organization_invitations",
+        "signature": "organization uuid",
+        "language": "plpgsql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": ["authenticated"]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "app_organization_members",
+        "signature": "organization uuid",
+        "language": "plpgsql",
+        "volatility": "stable",
         "securityDefiner": true,
         "settings": {
           "search_path": "\"\""
@@ -17646,6 +17924,18 @@
       },
       {
         "schema": "better_supabase",
+        "name": "my_profile",
+        "signature": "",
+        "language": "sql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": ["authenticated"]
+      },
+      {
+        "schema": "better_supabase",
         "name": "onboarding_progress",
         "signature": "checklist text, tenant uuid",
         "language": "plpgsql",
@@ -18140,42 +18430,6 @@
         "schema": "better_supabase",
         "name": "within_quota",
         "signature": "tenant uuid, meter text, quantity bigint",
-        "language": "plpgsql",
-        "volatility": "stable",
-        "securityDefiner": true,
-        "settings": {
-          "search_path": "\"\""
-        },
-        "execute": ["authenticated"]
-      },
-      {
-        "schema": "public",
-        "name": "my_organizations",
-        "signature": "",
-        "language": "plpgsql",
-        "volatility": "stable",
-        "securityDefiner": true,
-        "settings": {
-          "search_path": "\"\""
-        },
-        "execute": ["authenticated"]
-      },
-      {
-        "schema": "public",
-        "name": "organization_invitations",
-        "signature": "organization uuid",
-        "language": "plpgsql",
-        "volatility": "stable",
-        "securityDefiner": true,
-        "settings": {
-          "search_path": "\"\""
-        },
-        "execute": ["authenticated"]
-      },
-      {
-        "schema": "public",
-        "name": "organization_members",
-        "signature": "organization uuid",
         "language": "plpgsql",
         "volatility": "stable",
         "securityDefiner": true,

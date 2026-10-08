@@ -813,10 +813,15 @@ function selfUpdates(ctx: ModuleContext): string {
       "firstName",
       "lastName",
       "avatar",
+      "avatarPath",
       "username",
       "onboarding",
     ] as const
-  ).filter((logical) => ctx.has("profiles", logical));
+  ).filter((logical) =>
+    logical === "avatarPath"
+      ? hasAvatarPath(ctx)
+      : ctx.has("profiles", logical),
+  );
   if (columns.length === 0) {
     return `${ctx.col("profiles", "key")} = p.${ctx.col("profiles", "key")}`;
   }

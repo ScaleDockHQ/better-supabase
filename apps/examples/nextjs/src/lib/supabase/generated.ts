@@ -532,7 +532,7 @@ export type Functions = {
   };
   my_profile: {
     Args: Record<never, never>;
-    Returns: { "avatarUrl": string | null; "email": string | null; "fullName": string | null; "username": string | null }[];
+    Returns: { "avatarPath": string | null; "avatarUrl": string | null; "email": string | null; "fullName": string | null; "username": string | null }[];
   };
   organization_invitations: {
     Args: {
@@ -544,7 +544,7 @@ export type Functions = {
     Args: {
       organization: string | null;
     };
-    Returns: { "avatarUrl": string | null; "email": string | null; "fullName": string | null; "joinedAt": string | null; "role": string | null; "userId": string | null }[];
+    Returns: { "avatarPath": string | null; "avatarUrl": string | null; "email": string | null; "fullName": string | null; "joinedAt": string | null; "role": string | null; "userId": string | null }[];
   };
   rs_workspace_summary: {
     Args: {
@@ -565,6 +565,12 @@ export type Functions = {
       query: string | null;
     };
     Returns: { "id": Json; "score": number | null }[];
+  };
+  set_my_avatar_path: {
+    Args: {
+      avatar_path: string | null;
+    };
+    Returns: undefined;
   };
   update_my_profile: {
     Args: {
@@ -601,6 +607,20 @@ export const buckets = {
       "image/png",
       "image/jpeg",
       "image/webp"
+    ]
+  },
+  "avatars": {
+    "id": "avatars",
+    "public": true,
+    "path": "{userId}/avatar-{version}.{ext}",
+    "policy": "owner",
+    "fileSizeLimit": "2MiB",
+    "allowedMimeTypes": [
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+      "image/gif",
+      "image/avif"
     ]
   }
 } as const;

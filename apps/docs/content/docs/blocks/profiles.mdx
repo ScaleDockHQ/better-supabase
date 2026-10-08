@@ -31,7 +31,10 @@ user has no profile yet, it inserts one:
 `avatar_path` is never filled from metadata, and a `metadata` option that
 names it is refused. It holds the Storage object path of an avatar the user
 uploads (`<user id>/avatar.webp` in a public bucket), so a provider picture
-in `avatar_url` never overwrites it. Users update it like their name.
+in `avatar_url` never overwrites it. Users update it like their name, and
+`update_my_profile` writes it. The Next.js example uploads to an `avatars`
+bucket, saves the object path in `avatar_path` and shows `avatar_url` when
+the user has no upload.
 
 Usernames are lowercased, stripped to `a-z`, `0-9` and `_` (plus the `.`
 or `-` of a `usernameFrom` separator), start with a letter, and get a number suffix while the name is reserved or another

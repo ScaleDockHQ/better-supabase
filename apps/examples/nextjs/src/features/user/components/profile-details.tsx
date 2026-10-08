@@ -14,6 +14,7 @@ import { getUserSettings } from "@/features/settings/settings-queries";
 import { getPermissionSnapshot } from "../permission-snapshot";
 import { roleOf } from "../user-permissions";
 import { getMyProfile, getSession } from "../user-queries";
+import { AvatarForm } from "./avatar-form";
 import { ProfileForm } from "./profile-form";
 import { RoleBadge } from "./role-badge";
 import { WeeklyDigestSwitch } from "./weekly-digest-switch";
@@ -37,7 +38,12 @@ export async function ProfileDetails() {
           <CardTitle>{t("Profile")}</CardTitle>
           <CardDescription>{t("How your teammates see you.")}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          <AvatarForm
+            avatarUrl={profile?.avatarUrl ?? null}
+            name={profile?.fullName ?? null}
+            email={session.user.email ?? null}
+          />
           <ProfileForm
             fullName={profile?.fullName ?? null}
             email={session.user.email ?? null}

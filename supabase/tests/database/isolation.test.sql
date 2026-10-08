@@ -1,9 +1,9 @@
 -- Tenant isolation beyond the tables' own policies: realtime topics, every
 -- tenant table read from another tenant, storage objects, the access token
--- hook and the kit functions' grants. A Globex member (tenant …0002) aims at
+-- hook, the kit functions' grants and the avatars bucket. A Globex member (tenant …0002) aims at
 -- Acme (…0001), whose rows come from supabase/seed.sql.
 begin;
-select plan(22);
+select plan(26);
 
 -- The insert broadcasts on the recipient's topic through the realtime-tables
 -- trigger (realtime.users maps notifications to user_id).
@@ -35,6 +35,27 @@ select throws_ok(
   $$insert into storage.objects (bucket_id, name)
     values ('customer-logos', '00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-00000000a001/logo/2.png')$$,
   '42501', null, 'a logo outside the path template is rejected'
+);
+
+select lives_ok(
+  $$insert into storage.objects (bucket_id, name, owner_id)
+    values ('avatars', '00000000-0000-4000-8000-0000000000a2/avatar-1.png', '00000000-0000-4000-8000-0000000000a2')$$,
+  'a user uploads an avatar into their own folder'
+);
+select throws_ok(
+  $$insert into storage.objects (bucket_id, name, owner_id)
+    values ('avatars', '00000000-0000-4000-8000-0000000000a1/avatar-1.png', '00000000-0000-4000-8000-0000000000a2')$$,
+  '42501', null, 'a user cannot upload into another user''s avatar folder'
+);
+select throws_ok(
+  $$select public.set_my_avatar_path('00000000-0000-4000-8000-0000000000a1/avatar-1.png')$$,
+  '42501', null, 'a profile cannot point at another user''s avatar'
+);
+select public.set_my_avatar_path('00000000-0000-4000-8000-0000000000a2/avatar-1.png');
+select is(
+  (select avatar_path from public.my_profile()),
+  '00000000-0000-4000-8000-0000000000a2/avatar-1.png',
+  'a user sets their own avatar path'
 );
 
 -- Globex member.

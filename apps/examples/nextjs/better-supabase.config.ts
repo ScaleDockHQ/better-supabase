@@ -62,6 +62,20 @@ export default defineConfig({
       fileSizeLimit: "5MiB",
       allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
     },
+    // Profile pictures, with the settings of `avatarBucket()`.
+    avatars: {
+      path: "{userId}/avatar-{version}.{ext}",
+      public: true,
+      policy: "owner",
+      fileSizeLimit: "2MiB",
+      allowedMimeTypes: [
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/gif",
+        "image/avif",
+      ],
+    },
   },
   // Rows store the object path; URLs are built when rendering.
   storagePaths: { "customers.logo_path": "customerLogos" },

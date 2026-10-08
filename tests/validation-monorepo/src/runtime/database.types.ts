@@ -535,6 +535,7 @@ export type Database = {
       my_profile: {
         Args: Record<PropertyKey, never>
         Returns: {
+          avatar_path: string
           avatar_url: string
           email: string
           full_name: string
@@ -555,6 +556,7 @@ export type Database = {
       organization_members: {
         Args: { organization: string }
         Returns: {
+          avatar_path: string
           avatar_url: string
           email: string
           full_name: string
@@ -591,6 +593,7 @@ export type Database = {
           score: number
         }[]
       }
+      set_my_avatar_path: { Args: { avatar_path: string }; Returns: undefined }
       update_my_profile: { Args: { full_name: string }; Returns: undefined }
     }
     Enums: {

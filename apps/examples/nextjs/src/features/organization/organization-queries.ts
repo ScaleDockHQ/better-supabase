@@ -1,6 +1,7 @@
 import "server-only";
 import * as v from "valibot";
 
+import { avatars, avatarSrc } from "@/lib/buckets";
 import { Role } from "@/lib/claims";
 import { bs } from "@/lib/supabase/server";
 
@@ -62,10 +63,11 @@ export async function getMembers(
   organizationId: string,
 ): Promise<readonly Member[]> {
   "use cache: private";
-  const { db } = await bs.cached();
+  const { db, supabase } = await bs.cached();
   const rows = await db
     .$rpc("organization_members", { organization: organizationId })
     .orThrow();
+  const storage = avatars.connect(supabase);
   return rows.flatMap((row) =>
     row.userId
       ? [
@@ -74,7 +76,7 @@ export async function getMembers(
             role: roleOrMember(row.role),
             name: row.fullName,
             email: row.email,
-            avatarUrl: row.avatarUrl,
+            avatarUrl: avatarSrc(storage, row),
             joinedAt: row.joinedAt ?? "",
           },
         ]

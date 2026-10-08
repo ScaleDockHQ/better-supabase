@@ -43,6 +43,9 @@ describe("profiles module", () => {
       'alter table "better_supabase"."profiles" add column if not exists "avatar_path" text;',
     );
     expect(sql).not.toMatch(/insert into[^;]*"avatar_path"/);
+    expect(sql).toContain(
+      `"avatar_path" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p."avatar_path" end`,
+    );
     expect(() =>
       body({
         profiles: { options: { metadata: { picture: "avatar_path" } } },
@@ -71,6 +74,17 @@ describe("profiles module", () => {
         },
       }),
     ).toMatch(/grant update \([^)]*"avatar_object"/);
+    expect(
+      body({
+        profiles: {
+          mode: "adopt",
+          tables: { profiles: "public.profiles" },
+          columns: { profiles: { avatarPath: "avatar_object" } },
+        },
+      }),
+    ).toContain(
+      `"avatar_object" = case when update_my_profile.attrs ? 'avatar_object'`,
+    );
     expect(
       body({ profiles: { columns: { profiles: { avatarPath: null } } } }),
     ).not.toContain("avatar_path");

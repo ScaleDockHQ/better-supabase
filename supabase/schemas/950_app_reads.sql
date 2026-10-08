@@ -25,7 +25,7 @@ end;
 $$;
 
 create or replace function better_supabase.app_organization_members(organization uuid)
-returns table (user_id uuid, role text, full_name text, email text, avatar_url text, joined_at timestamptz)
+returns table (user_id uuid, role text, full_name text, email text, avatar_url text, avatar_path text, joined_at timestamptz)
 language plpgsql
 stable
 security definer
@@ -36,7 +36,7 @@ begin
     raise exception 'Not allowed to list members' using errcode = '42501';
   end if;
   return query
-  select m.user_id, m.role, p.full_name, coalesce(p.email, u.email::text), p.avatar_url, m.created_at
+  select m.user_id, m.role, p.full_name, coalesce(p.email, u.email::text), p.avatar_url, p.avatar_path, m.created_at
   from public.memberships m
   join auth.users u on u.id = m.user_id
   left join better_supabase.profiles p on p.id = m.user_id
@@ -78,7 +78,7 @@ as $$
 $$;
 
 create or replace function public.organization_members(organization uuid)
-returns table (user_id uuid, role text, full_name text, email text, avatar_url text, joined_at timestamptz)
+returns table (user_id uuid, role text, full_name text, email text, avatar_url text, avatar_path text, joined_at timestamptz)
 language sql
 stable
 security invoker
@@ -98,7 +98,7 @@ as $$
 $$;
 
 create or replace function public.my_profile()
-returns table (full_name text, email text, username text, avatar_url text)
+returns table (full_name text, email text, username text, avatar_url text, avatar_path text)
 language plpgsql
 stable
 security invoker
@@ -106,7 +106,7 @@ set search_path = ''
 as $$
 begin
   return query
-  select p.full_name, p.email, p.username, p.avatar_url
+  select p.full_name, p.email, p.username, p.avatar_url, p.avatar_path
   from better_supabase.profiles p
   where p.id = (select auth.uid());
 end;
@@ -128,6 +128,28 @@ begin
 end;
 $$;
 
+-- The caller's uploaded avatar, as an object path in the avatars bucket
+-- (`{userId}/avatar-{version}.{ext}`); null removes it. A path outside the
+-- caller's own folder is refused, so a profile never points at another
+-- user's picture.
+create or replace function public.set_my_avatar_path(avatar_path text)
+returns void
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+begin
+  if set_my_avatar_path.avatar_path is not null
+    and split_part(set_my_avatar_path.avatar_path, '/', 1) <> (select auth.uid())::text then
+    raise exception 'The avatar must be in your own folder' using errcode = '42501', hint = 'AVATAR_PATH_FORBIDDEN';
+  end if;
+  update better_supabase.profiles p
+  set avatar_path = set_my_avatar_path.avatar_path, updated_at = now()
+  where p.id = (select auth.uid());
+end;
+$$;
+
 revoke execute on function better_supabase.app_my_organizations() from public, anon;
 revoke execute on function better_supabase.app_organization_members(uuid) from public, anon;
 revoke execute on function better_supabase.app_organization_invitations(uuid) from public, anon;
@@ -140,8 +162,10 @@ revoke execute on function public.organization_members(uuid) from public, anon;
 revoke execute on function public.organization_invitations(uuid) from public, anon;
 revoke execute on function public.my_profile() from public, anon;
 revoke execute on function public.update_my_profile(text) from public, anon;
+revoke execute on function public.set_my_avatar_path(text) from public, anon;
 grant execute on function public.my_organizations() to authenticated, service_role;
 grant execute on function public.organization_members(uuid) to authenticated, service_role;
 grant execute on function public.organization_invitations(uuid) to authenticated, service_role;
 grant execute on function public.my_profile() to authenticated, service_role;
 grant execute on function public.update_my_profile(text) to authenticated, service_role;
+grant execute on function public.set_my_avatar_path(text) to authenticated, service_role;
