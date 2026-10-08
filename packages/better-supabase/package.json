@@ -1082,6 +1082,7 @@
   "devDependencies": {
     "@ai-sdk/mcp": "catalog:",
     "@ai-sdk/react": "catalog:",
+    "@ai-sdk/workflow": "catalog:",
     "@arethetypeswrong/cli": "catalog:",
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
@@ -1152,6 +1153,7 @@
   "peerDependencies": {
     "@ai-sdk/mcp": "catalog:peers",
     "@ai-sdk/react": "catalog:peers",
+    "@ai-sdk/workflow": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
     "@nestjs/common": "catalog:peers",
     "@next/playwright": "catalog:peers",
@@ -1185,6 +1187,9 @@
       "optional": true
     },
     "@ai-sdk/react": {
+      "optional": true
+    },
+    "@ai-sdk/workflow": {
       "optional": true
     },
     "@modelcontextprotocol/server": {

@@ -7,9 +7,10 @@ packages:
   - tests/types/*
 
 catalog:
-  # 2.0.66 is the last release on @ai-sdk/provider-utils 5.0.53, the copy ai 7.0.127 uses.
-  "@ai-sdk/mcp": 2.0.66
-  "@ai-sdk/react": 4.0.130
+  # 2.0.69 is on @ai-sdk/provider-utils 5.0.56, the copy ai 7.0.131 uses.
+  "@ai-sdk/mcp": 2.0.69
+  "@ai-sdk/react": 4.0.134
+  "@ai-sdk/workflow": 2.0.63
   "@arethetypeswrong/cli": 0.18.5
   "@base-ui/react": 1.8.0
   "@changesets/assemble-release-plan": 7.0.0
@@ -67,7 +68,7 @@ catalog:
   "@workflow/world-testing": 5.0.2
   "@wrksz/themes": 2.0.3
   "@xyflow/react": 12.12.0
-  ai: 7.0.127
+  ai: 7.0.131
   ajv: 8.20.0
   ajv-formats: 3.0.1
   babel-plugin-react-compiler: 1.0.0
@@ -180,6 +181,8 @@ catalogs:
     # 2.0 is the MCP client that ships with ai 7.
     "@ai-sdk/mcp": ">=2 <3"
     "@ai-sdk/react": ">=4 <5"
+    # 2.0 is the WorkflowAgent for ai 7; it pins ai exactly, so the AI set moves together.
+    "@ai-sdk/workflow": ">=2 <3"
     # 2.3.0 is the first release with createMcpHandler and the web-standard bearer helpers.
     "@modelcontextprotocol/server": ">=2.3.0 <3"
     # 4.41.0 is the first Chat SDK with the StateAdapter queue and list methods better-supabase/chat-sdk implements.

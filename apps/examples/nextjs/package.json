@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "catalog:",
+    "@ai-sdk/workflow": "catalog:",
     "@base-ui/react": "catalog:",
     "@supabase/server": "catalog:",
     "@supabase/ssr": "catalog:",
