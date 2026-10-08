@@ -1,0 +1,17 @@
+{
+  "$schema": "https://v2-11-6.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tags": ["example"],
+  "tasks": {
+    "dev": {
+      "passThroughEnv": [
+        "AI_GATEWAY_API_KEY",
+        "APP_URL",
+        "CRON_SECRET",
+        "INBOX_BOT_SECRET",
+        "SUPABASE_*",
+        "WORKFLOW_*"
+      ]
+    }
+  }
+}
