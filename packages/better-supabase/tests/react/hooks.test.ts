@@ -488,6 +488,39 @@ describe("useBroadcast", () => {
     expect(bare.error!.message).toMatch(/or \{ client: supabase \}/);
   });
 
+  it("reads the user from the token when tokens-only cookies leave a placeholder user", () => {
+    const realtime = fakeRealtime();
+    let callback: (event: string, session: unknown) => void = () => undefined;
+    const supabase = {
+      ...realtime.client,
+      auth: {
+        onAuthStateChange: (next: typeof callback) => {
+          callback = next;
+          return { data: { subscription: { unsubscribe: vi.fn() } } };
+        },
+      },
+    } as unknown as SupabaseClient;
+    const view = renderHook(
+      () => useBroadcast(room, { roomId: "r1" }, {}, { client: supabase }),
+      undefined,
+      null,
+    );
+    const payload = btoa(JSON.stringify({ sub: USER })).replace(/=+$/, "");
+    const placeholder = {
+      get id(): string {
+        throw new Error("tokens-only placeholder");
+      },
+    };
+    expect(() =>
+      callback("SIGNED_IN", {
+        access_token: `e30.${payload}.sig`,
+        user: placeholder,
+      }),
+    ).not.toThrow();
+    expect(realtime.client.channel).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+
   it("needs a query client to invalidate", () => {
     const { browser } = fakeBrowser(SIGNED_OUT);
     const view = renderHook(
@@ -1518,6 +1551,29 @@ describe("useAction", () => {
     });
     return { promise, resolve, reject };
   };
+
+  it("keeps run and reset stable and calls the latest callbacks", async () => {
+    const first = vi.fn();
+    const latest = vi.fn();
+    let onSuccess = first;
+    const action = vi.fn(() =>
+      Promise.resolve<Out>({ ok: true, data: { id: "a" }, error: null }),
+    );
+    const view = renderHook(
+      () => useAction(action, { onSuccess }),
+      undefined,
+      null,
+    );
+    const { run, reset } = view.result;
+    onSuccess = latest;
+    view.rerender(undefined);
+    expect(view.result.run).toBe(run);
+    expect(view.result.reset).toBe(reset);
+    await view.result.run({ id: "a" });
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledOnce();
+    view.unmount();
+  });
 
   it("tracks the inputs in flight and keeps the last data and error", async () => {
     const calls: ReturnType<typeof deferred>[] = [];

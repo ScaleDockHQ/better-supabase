@@ -18,6 +18,7 @@ export type {
   AuthSnapshot,
   AuthUser,
   BetterClient,
+  BindClientOptions,
   ClientAuth,
 } from "./bind.ts";
 
@@ -47,6 +48,11 @@ export interface ClientOptions {
     /** Where auth-js keeps the user object with `cookies.encode: 'tokens-only'`. */
     readonly userStorage?: UserStorage;
   };
+  /**
+   * `staleTime` for every query option in `bs.queries`. Above zero, a
+   * remount or a window focus reuses cached rows instead of refetching.
+   */
+  readonly staleTime?: number;
 }
 
 type UserStorage = NonNullable<
@@ -100,5 +106,9 @@ export function createClient<
   betterSupabase: BetterSupabase<M, D, F, E, C, P>,
   options: ClientOptions = {},
 ): BetterClient<M, F, E, C, P> {
-  return bindClient(betterSupabase, clientFor(options));
+  return bindClient(
+    betterSupabase,
+    clientFor(options),
+    options.staleTime === undefined ? {} : { staleTime: options.staleTime },
+  );
 }

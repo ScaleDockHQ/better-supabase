@@ -36,22 +36,55 @@ export function identityKey(
  * `BetterSupabaseProvider` calls it for React; call it yourself with Vue,
  * Solid, Svelte or Angular Query.
  *
+ * Queries that fetched while the session was still loading ran as anon, so
+ * they are reset when a user arrives. Data already in the cache when loading
+ * started (hydrated from the server) stays.
+ *
  * ```ts
  * const stop = clearOnUserChange(queryClient, bs.auth);
  * ```
  */
 export function clearOnUserChange(
-  queryClient: Pick<QueryClient, "resetQueries">,
+  queryClient: Pick<QueryClient, "resetQueries" | "getQueryCache">,
   auth: UserChangeSource,
 ): () => void {
   let identity: string | null | undefined;
+  let before: Map<string, number> | undefined;
+  const bsQueries = () =>
+    queryClient.getQueryCache().findAll({ queryKey: ["bs"] });
   const check = (): void => {
     const snapshot = auth.current();
-    if (snapshot.status === "loading") return;
+    if (snapshot.status === "loading") {
+      before ??= new Map(
+        bsQueries().map((query) => [
+          query.queryHash,
+          query.state.dataUpdatedAt,
+        ]),
+      );
+      return;
+    }
     const next = identityKey(snapshot);
     if (identity !== undefined && identity !== next) {
       void queryClient.resetQueries({ queryKey: ["bs"] });
+    } else if (identity === undefined && next !== null && before) {
+      const known = before;
+      const fetchedAsAnon = new Set(
+        bsQueries()
+          .filter(
+            (query) =>
+              query.state.dataUpdatedAt > 0 &&
+              known.get(query.queryHash) !== query.state.dataUpdatedAt,
+          )
+          .map((query) => query.queryHash),
+      );
+      if (fetchedAsAnon.size > 0) {
+        void queryClient.resetQueries({
+          queryKey: ["bs"],
+          predicate: (query) => fetchedAsAnon.has(query.queryHash),
+        });
+      }
     }
+    before = undefined;
     identity = next;
   };
   const stop = auth.subscribe(check);

@@ -225,6 +225,13 @@ export interface QueriesOptions {
    * the server so hydrated data isn't refetched on mount.
    */
   readonly staleTime?: number;
+  /**
+   * Appended to every query key. Give each executor its own scope (`'local'`
+   * for PowerSync, for instance) when several share one QueryClient, so their
+   * results never land in the same cache entry. Invalidation by table still
+   * reaches every scope.
+   */
+  readonly scope?: string;
 }
 
 type AnyRepository = Record<
@@ -260,6 +267,11 @@ interface Runtime {
   readonly betterSupabase: BetterSupabase;
   readonly db: () => AnyDb;
   readonly staleTime: number | undefined;
+  readonly scope: string | undefined;
+}
+
+function scoped(runtime: Runtime, key: readonly unknown[]): readonly unknown[] {
+  return runtime.scope === undefined ? key : [...key, { scope: runtime.scope }];
 }
 
 function specQuery(
@@ -271,14 +283,17 @@ function specQuery(
     runtime.staleTime === undefined ? {} : { staleTime: runtime.staleTime };
   if (isSkip(spec)) {
     return {
-      queryKey: key ?? ["bs", "$skip"],
+      queryKey: scoped(runtime, key ?? ["bs", "$skip"]),
       queryFn: spec,
       meta: { bsTables: [] },
       ...stale,
     };
   }
   return {
-    queryKey: key ?? ["bs", spec.table, spec.method, ...spec.args.map(keyPart)],
+    queryKey: scoped(
+      runtime,
+      key ?? ["bs", spec.table, spec.method, ...spec.args.map(keyPart)],
+    ),
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       runtime.db().$run(spec, { signal }).orThrow(asException),
     meta: { bsTables: runtime.betterSupabase.tablesOf(spec) },
@@ -356,7 +371,7 @@ function tableQueries(
       // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as object;
       return {
-        queryKey: [...key, "infinite", keyPart(base)],
+        queryKey: scoped(runtime, [...key, "infinite", keyPart(base)]),
         queryFn: ({
           signal,
           pageParam,
@@ -383,7 +398,7 @@ function tableQueries(
       // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as { page?: number };
       return {
-        queryKey: [...key, "infinitePages", keyPart(base)],
+        queryKey: scoped(runtime, [...key, "infinitePages", keyPart(base)]),
         queryFn: ({
           signal,
           pageParam,
@@ -452,6 +467,7 @@ export function createQueries<
     betterSupabase: betterSupabase as unknown as Runtime["betterSupabase"],
     db: typeof db === "function" ? db : () => db,
     staleTime: options.staleTime,
+    scope: options.scope,
   };
   const stale =
     options.staleTime === undefined ? {} : { staleTime: options.staleTime };
@@ -468,12 +484,12 @@ export function createQueries<
       args?: unknown,
       rpcOptions: { tables?: readonly string[] } = {},
     ) => ({
-      queryKey: [
+      queryKey: scoped(runtime, [
         "bs",
         "$rpc",
         name,
         isSkip(args) ? "$skip" : keyPart(args ?? {}),
-      ],
+      ]),
       queryFn: isSkip(args)
         ? args
         : ({ signal }: { signal: AbortSignal }) =>

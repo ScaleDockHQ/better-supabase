@@ -2,7 +2,7 @@
 
 import type { SubmitEvent } from "react";
 
-import { useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 
 import type { DbError } from "../core/errors.ts";
 
@@ -67,44 +67,56 @@ export function useAction<I, T>(
     readonly { readonly input: ActionInputOf<I> }[]
   >([]);
   const [settled, setSettled] = useState<Settled<T>>(IDLE);
+  const latest = useRef({ action, options });
+  // oxlint-disable-next-line react/refs -- latest-ref pattern so `run` stays stable; the react peer range predates useEffectEvent.
+  latest.current = { action, options };
 
-  const run = (input: ActionInputOf<I>): Promise<ActionResultOf<T>> => {
-    // Each run gets its own entry, so two runs with equal inputs stay apart.
-    const entry = { input };
-    setInFlight((current) => [...current, entry]);
-    setSettled((current) =>
-      current.error === undefined ? current : { ...current, error: undefined },
-    );
-    const settledRun = new Promise<ActionResultOf<T>>((resolve, reject) => {
-      const done = (): void => {
-        setInFlight((current) => current.filter((item) => item !== entry));
-      };
-      startTransition(async () => {
-        let result: ActionResultOf<T>;
-        try {
-          result = await action(input);
-        } catch (cause) {
+  const run = useCallback(
+    (input: ActionInputOf<I>): Promise<ActionResultOf<T>> => {
+      // Each run gets its own entry, so two runs with equal inputs stay apart.
+      const entry = { input };
+      setInFlight((current) => [...current, entry]);
+      setSettled((current) =>
+        current.error === undefined
+          ? current
+          : { ...current, error: undefined },
+      );
+      const settledRun = new Promise<ActionResultOf<T>>((resolve, reject) => {
+        const done = (): void => {
+          setInFlight((current) => current.filter((item) => item !== entry));
+        };
+        startTransition(async () => {
+          let result: ActionResultOf<T>;
+          try {
+            result = await latest.current.action(input);
+          } catch (cause) {
+            done();
+            reject(cause instanceof Error ? cause : new Error(String(cause)));
+            // A throw (not an `ActionResult` error) goes to the error boundary.
+            throw cause;
+          }
           done();
-          reject(cause instanceof Error ? cause : new Error(String(cause)));
-          // A throw (not an `ActionResult` error) goes to the error boundary.
-          throw cause;
-        }
-        done();
-        setSettled(
-          result.ok
-            ? { data: result.data, error: undefined }
-            : (current) => ({ data: current.data, error: result.error }),
-        );
-        if (result.ok) options.onSuccess?.(result.data, input);
-        else options.onError?.(result.error, input);
-        resolve(result);
+          setSettled(
+            result.ok
+              ? { data: result.data, error: undefined }
+              : (current) => ({ data: current.data, error: result.error }),
+          );
+          const { onSuccess, onError } = latest.current.options;
+          if (result.ok) onSuccess?.(result.data, input);
+          else onError?.(result.error, input);
+          resolve(result);
+        });
       });
-    });
-    // The error boundary reports a throw; callers that ignore the promise
-    // should not get an unhandled rejection on top.
-    settledRun.catch(() => undefined);
-    return settledRun;
-  };
+      // The error boundary reports a throw; callers that ignore the promise
+      // should not get an unhandled rejection on top.
+      settledRun.catch(() => undefined);
+      return settledRun;
+    },
+    [],
+  );
+  const reset = useCallback(() => {
+    setSettled(IDLE);
+  }, []);
 
   const pendingInputs = inFlight.map((item) => item.input);
   return {
@@ -114,9 +126,7 @@ export function useAction<I, T>(
     pendingInput: pendingInputs.at(-1),
     data: settled.data,
     error: settled.error,
-    reset: () => {
-      setSettled(IDLE);
-    },
+    reset,
   };
 }
 

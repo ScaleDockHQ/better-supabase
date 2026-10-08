@@ -3,6 +3,7 @@ export type {
   AuthSnapshot,
   AuthUser,
   BetterClient,
+  BindClientOptions,
   ClientAuth,
 } from "../bind.ts";
 export { autoRefreshOnForeground } from "./auto-refresh.ts";

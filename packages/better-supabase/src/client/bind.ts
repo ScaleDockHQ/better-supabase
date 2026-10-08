@@ -55,6 +55,19 @@ export interface BetterClient<
   /** TanStack Query option factories over `db`. */
   readonly queries: BetterQueries<M, E, F>;
   readonly auth: ClientAuth;
+  /**
+   * Stops following `supabase`'s session. Call it when the client goes away
+   * before the app does: Fast Refresh, tests, a client per account.
+   */
+  readonly dispose: () => void;
+}
+
+export interface BindClientOptions {
+  /**
+   * `staleTime` for every query option in `queries`. Above zero, a remount
+   * or a window focus reuses cached rows instead of refetching them.
+   */
+  readonly staleTime?: number;
 }
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
@@ -122,12 +135,13 @@ export function bindClient<
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P>,
   supabase: SupabaseClient,
+  options: BindClientOptions = {},
 ): BetterClient<M, F, E, C, P> {
   let snapshot: AuthSnapshot = LOADING;
   let db: Db<M, F, E, SupabaseClient> | undefined;
   const listeners = new Set<() => void>();
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     const next = snapshotOf(session);
     // A refresh only moves the time claims: keeping the snapshot keeps `db`
     // and spares every `useAuth` consumer a render once an hour.
@@ -148,7 +162,15 @@ export function bindClient<
       db ??= betterSupabase.connect(supabase, contextOf(snapshot));
       return db;
     },
-    queries: createQueries(betterSupabase, () => client.db),
+    queries: createQueries(
+      betterSupabase,
+      () => client.db,
+      options.staleTime === undefined ? {} : { staleTime: options.staleTime },
+    ),
+    dispose: () => {
+      data.subscription.unsubscribe();
+      listeners.clear();
+    },
     auth: {
       current: () => snapshot,
       subscribe: (listener) => {

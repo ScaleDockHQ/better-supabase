@@ -110,6 +110,27 @@ describe("clearOnUserChange", () => {
     expect(bsData(client)).toBeUndefined();
   });
 
+  it("resets rows fetched as anon while the session was loading", () => {
+    const client = new QueryClient();
+    const hydrated = ["bs", "customers", "findById", "c0"];
+    client.setQueryData(hydrated, { id: "c0" });
+    const { auth, set } = fakeAuth({ status: "loading", user: null });
+    clearOnUserChange(client, auth);
+    client.setQueryData(BS_KEY, [{ id: "anon" }]);
+    set(signedIn("u1"));
+    expect(bsData(client)).toBeUndefined();
+    expect(client.getQueryData(hydrated)).toEqual({ id: "c0" });
+  });
+
+  it("keeps rows fetched while loading when the session resolves signed out", () => {
+    const client = new QueryClient();
+    const { auth, set } = fakeAuth({ status: "loading", user: null });
+    clearOnUserChange(client, auth);
+    client.setQueryData(BS_KEY, [{ id: "anon" }]);
+    set(signedOut);
+    expect(bsData(client)).toEqual([{ id: "anon" }]);
+  });
+
   it("stops listening when the returned function runs", () => {
     const client = seeded();
     const { auth, set, listeners } = fakeAuth(signedIn("u1"));

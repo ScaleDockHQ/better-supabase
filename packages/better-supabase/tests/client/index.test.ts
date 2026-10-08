@@ -50,19 +50,20 @@ function session(
 
 type Listener = (event: AuthChangeEvent, session: Session | null) => void;
 
-function setup() {
+function setup(options: { staleTime?: number } = {}) {
   const { client, requests } = capturingClient();
   let emit: Listener = () => undefined;
+  const unsubscribe = vi.fn();
   vi.spyOn(client.auth, "onAuthStateChange").mockImplementation((callback) => {
     emit = (event, value) => void callback(event, value);
-    // SAFETY: createClient ignores the subscription it gets back.
-    return { data: { subscription: {} } } as never;
+    return { data: { subscription: { unsubscribe } } } as never;
   });
-  const browser = createClient(betterSupabase, { client });
+  const browser = createClient(betterSupabase, { client, ...options });
   return {
     browser,
     client,
     requests,
+    unsubscribe,
     emit: (value: Session | null) => {
       emit("SIGNED_IN", value);
     },
@@ -70,6 +71,24 @@ function setup() {
 }
 
 describe("createClient", () => {
+  it("stops following the session after dispose", () => {
+    const { browser, emit, unsubscribe } = setup();
+    const listener = vi.fn();
+    browser.auth.subscribe(listener);
+    browser.dispose();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    emit(session(token({ sub: "u1" }), { id: "u1" }));
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("passes staleTime to every query option", () => {
+    const { browser } = setup({ staleTime: 30_000 });
+    expect(browser.queries.customers.findMany({}).staleTime).toBe(30_000);
+    expect(setup().browser.queries.customers.findMany({})).not.toHaveProperty(
+      "staleTime",
+    );
+  });
+
   it("uses the given client and starts loading as anon", () => {
     const { browser, client } = setup();
     expect(browser.supabase).toBe(client);

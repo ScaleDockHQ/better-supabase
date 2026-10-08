@@ -1,7 +1,7 @@
 "use client";
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
 
 import {
@@ -36,6 +36,7 @@ import type {
 } from "../realtime/live.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 
+import { decodeJwtPayload } from "../core/base64.ts";
 import { claimAt, claimsOf, tenantClaimPaths } from "../core/claims.ts";
 import { invalidateTables } from "../query/invalidate.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
@@ -212,6 +213,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   latest.current = { handlers, options };
   const name = values ? topic.topic(values) : null;
   const userId = auth.userId;
+  const self = options?.self;
   if (options?.invalidate && !queryClient) {
     throw new Error(
       "better-supabase: useBroadcast({ invalidate }) needs <BetterSupabaseProvider queryClient={...}> or { queryClient }",
@@ -249,9 +251,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
       matched,
       { "*": forward },
       {
-        ...(latest.current.options?.self === undefined
-          ? {}
-          : { self: latest.current.options.self }),
+        ...(self === undefined ? {} : { self }),
         onStatus: setStatus,
         onInvalid: (message, issues) =>
           latest.current.options?.onInvalid?.(message, issues),
@@ -262,12 +262,27 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
       setStatus("closed");
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
-  }, [supabase, topic, name, userId, auth.status, queryClient]);
+  }, [supabase, topic, name, userId, auth.status, queryClient, self]);
 
   return status;
 }
 
 const NO_AUTH = (): (() => void) => () => undefined;
+
+/**
+ * The session's user id. With `tokens-only` cookies and no stored user,
+ * auth-js puts a placeholder in `session.user` whose getters throw, so the
+ * id falls back to the token's `sub`.
+ */
+function sessionUserId(session: Session): string | null {
+  try {
+    if (typeof session.user.id === "string") return session.user.id;
+  } catch {
+    // the tokens-only placeholder
+  }
+  const sub = decodeJwtPayload(session.access_token)?.["sub"];
+  return typeof sub === "string" ? sub : null;
+}
 
 /**
  * The user `useBroadcast` subscribes as: the provider's auth snapshot, or
@@ -291,7 +306,7 @@ function useBroadcastAuth(
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setPlain({
         status: session ? "signed-in" : "signed-out",
-        userId: session?.user.id ?? null,
+        userId: session ? sessionUserId(session) : null,
       });
     });
     return () => {
@@ -325,10 +340,18 @@ function claimedTenant(
   return undefined;
 }
 
+const specKeys = new WeakMap<QuerySpec, string>();
+
+/** Specs are immutable, so a memoized or module-level spec is serialized once. */
 function specKey(spec: QuerySpec): string {
-  return JSON.stringify(spec, (_key, value: unknown) =>
-    typeof value === "bigint" ? { $bigint: value.toString() } : value,
-  );
+  let key = specKeys.get(spec);
+  if (key === undefined) {
+    key = JSON.stringify(spec, (_key, value: unknown) =>
+      typeof value === "bigint" ? { $bigint: value.toString() } : value,
+    );
+    specKeys.set(spec, key);
+  }
+  return key;
 }
 
 /**

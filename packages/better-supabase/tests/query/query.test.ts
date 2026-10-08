@@ -56,6 +56,25 @@ describe("createQueries", () => {
     expect(last().params.get("status")).toBe("eq.active");
   });
 
+  it("keeps scoped keys apart and still invalidates them by table", async () => {
+    const db = betterSupabase.connect(capturingClient().client);
+    const remote = createQueries(betterSupabase, db);
+    const local = createQueries(betterSupabase, db, { scope: "local" });
+    const remoteKey = remote.customers.findMany({}).queryKey;
+    const localKey = local.customers.findMany({}).queryKey;
+    expect(localKey).toEqual([...remoteKey, { scope: "local" }]);
+    expect(local.$rpc("lookup" as never, {} as never).queryKey.at(-1)).toEqual({
+      scope: "local",
+    });
+    expect(hashKey(localKey)).not.toBe(hashKey(remoteKey));
+    const client = new QueryClient();
+    client.setQueryData(localKey, []);
+    client.setQueryData(remoteKey, []);
+    await invalidateTables(client, ["customers"]);
+    expect(isInvalid(client, localKey)).toBe(true);
+    expect(isInvalid(client, remoteKey)).toBe(true);
+  });
+
   it("rejects with DbException", async () => {
     const { client } = capturingClient(() => ({
       status: 403,
