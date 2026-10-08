@@ -119,4 +119,15 @@ describe("billing module", () => {
       'grant execute on function "better_supabase"."billing_all_customers"() to authenticated, service_role;',
     );
   });
+
+  it("checks viewAll with the read key unless viewAll is set", () => {
+    const sql = (permissions: Record<string, string>) =>
+      moduleBody("billing", { modules: { billing: { permissions } } })!;
+    expect(sql({ read: "billing.view" })).toContain(
+      "better_supabase.is_platform('billing.view')",
+    );
+    expect(
+      sql({ read: "billing.view", viewAll: "platform.billing" }),
+    ).toContain("better_supabase.is_platform('platform.billing')");
+  });
 });

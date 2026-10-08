@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { membershipDisabledAt } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 
 /** Columns `reads` needs from `namesOf`. */
 export interface OrganizationReadNames {
@@ -100,7 +100,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not coalesce(better_supabase.member_can((select auth.uid()), organization, ${ctx.of("invitations").permission("view", MODULE_PERMISSIONS.invitations.view)}), false) then
+  if not coalesce(better_supabase.member_can((select auth.uid()), organization, ${modulePermission(ctx.of("invitations"), "view", MODULE_PERMISSIONS.invitations.view)}), false) then
     raise exception 'Not allowed to list invitations' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   return query

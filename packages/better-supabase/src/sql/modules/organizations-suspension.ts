@@ -3,7 +3,7 @@ import type { OrganizationReadNames } from "./organizations-reads.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { membershipDisabledAt, SERVICE_CALLER } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 
 export interface SuspensionHelpers {
   readonly isOwner: (alias: string) => string;
@@ -26,7 +26,7 @@ drop function if exists ${ctx.fn("suspend_member")}(${id}, uuid);
 drop function if exists ${ctx.fn("resume_member")}(${id}, uuid);
 `;
   }
-  const allowed = `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("suspendMember", MODULE_PERMISSIONS.organizations.suspendMember)}), false))`;
+  const allowed = `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), organization, ${modulePermission(ctx, "suspendMember", MODULE_PERMISSIONS.organizations.suspendMember)}), false))`;
   const subject = "'organizations/' || organization::text";
   const audit = (type: string): string =>
     ctx.installed("audit")

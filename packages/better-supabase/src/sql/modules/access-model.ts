@@ -334,9 +334,18 @@ export function roleScopeIs(
   return `${alias}.${access.col("roles", "scope")}::text = ${sqlString(value)}`;
 }
 
+type PermissionShorthand =
+  | string
+  | { readonly module: string; readonly action: string };
+
 const MODULE_PERMISSION_SHORTHANDS: Readonly<
-  Record<string, Readonly<Record<string, string>>>
+  Record<string, Readonly<Record<string, PermissionShorthand>>>
 > = {
+  organizations: { suspendMember: "removeMember" },
+  invitations: { revoke: "invite", view: "invite" },
+  audit: { viewAll: "view" },
+  billing: { viewAll: "read" },
+  waitlist: { invite: { module: "invitations", action: "invite" } },
   "webhooks-in": { create: "manage", update: "manage", delete: "manage" },
 };
 
@@ -346,8 +355,20 @@ export function modulePermissionKey(
   fallback: string,
 ): string {
   const shorthand = MODULE_PERMISSION_SHORTHANDS[ctx.module]?.[action];
-  return ctx.permissionKey(
-    action,
-    shorthand === undefined ? fallback : ctx.permissionKey(shorthand, fallback),
-  );
+  if (shorthand === undefined) return ctx.permissionKey(action, fallback);
+  const target =
+    typeof shorthand === "string"
+      ? modulePermissionKey(ctx, shorthand, fallback)
+      : modulePermissionKey(
+          ctx.of(shorthand.module),
+          shorthand.action,
+          fallback,
+        );
+  return ctx.permissionKey(action, target);
 }
+
+export const modulePermission = (
+  ctx: ModuleContext,
+  action: string,
+  fallback: string,
+): string => sqlString(modulePermissionKey(ctx, action, fallback));

@@ -87,8 +87,10 @@ organization without removing them. They keep their role and their row, get
 no permissions there, and `resume_member` gives everything back.
 
 Both functions check the `suspendMember` action, which defaults to the
-`removeMember` key (`members.remove`), and the role ceiling: the caller must
-be able to assign the member's role (`ORGANIZATION_ROLE_CEILING`). They refuse
+`removeMember` key (`members.remove`, or what
+`sql.modules.organizations.permissions.removeMember` sets), and the role
+ceiling: the caller must be able to assign the member's role
+(`ORGANIZATION_ROLE_CEILING`). They refuse
 the caller's own membership (`ORGANIZATION_SELF`), and `suspend_member`
 refuses the last active owner (`ORGANIZATION_OWNER_REQUIRED`). A suspended
 owner doesn't count as one, so the deferred owner check also refuses a commit

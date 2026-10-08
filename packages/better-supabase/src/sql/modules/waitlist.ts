@@ -7,7 +7,12 @@ import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
-import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
+import {
+  accessModel,
+  MODULE_PERMISSIONS,
+  modulePermission,
+  roleNames,
+} from "./access-model.ts";
 import { roleValue } from "./organizations.ts";
 
 const NAMES: ModuleNames = {
@@ -97,7 +102,7 @@ function build(ctx: ModuleContext): string {
   const manage = ctx.permission("manage", permissions.manage);
   const staff = `(${SERVICE_CALLER} or coalesce(better_supabase.is_platform(${manage}), false))`;
   const inviter = (tenant: string): string =>
-    `(${staff} or (${tenant} is not null and coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission("invite", permissions.invite)}), false)))`;
+    `(${staff} or (${tenant} is not null and coalesce(better_supabase.can('tenant', ${tenant}, ${modulePermission(ctx, "invite", permissions.invite)}), false)))`;
   const assignable = assignableRoles(ctx);
   const roles = `array[${assignable.map(sqlString).join(", ")}]::text[]`;
   const defaultRole = ctx.text("defaultRole", "member");

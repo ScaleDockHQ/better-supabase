@@ -12,6 +12,7 @@ import {
 import {
   accessModel,
   MODULE_PERMISSIONS,
+  modulePermission,
   roleNames,
   tenantScope,
 } from "./access-model.ts";
@@ -147,7 +148,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return query select better_supabase.tenant_ids_with(${ctx.permission("view", MODULE_PERMISSIONS.invitations.view)});
+  return query select better_supabase.tenant_ids_with(${modulePermission(ctx, "view", MODULE_PERMISSIONS.invitations.view)});
 end;
 $$;
 revoke execute on function ${ctx.fn("invitation_tenant_ids")}() from public, anon;
@@ -411,7 +412,7 @@ $$;
 /** Whether the caller may manage tenant invitation row `alias` (revoke and resend). */
 function canManage(ctx: ModuleContext, alias: string): string {
   const tenant = `${alias}.${ctx.col("invitations", "tenant")}`;
-  return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${ctx.permission("revoke", MODULE_PERMISSIONS.invitations.revoke)}), false)`;
+  return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${modulePermission(ctx, "revoke", MODULE_PERMISSIONS.invitations.revoke)}), false)`;
 }
 
 function close(ctx: ModuleContext): string {

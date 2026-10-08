@@ -88,4 +88,18 @@ describe("waitlist module", () => {
       }),
     ).toThrow(/must not include the owner role/);
   });
+
+  it("checks invite codes with the invitations invite key", () => {
+    const sql = sqlOf(["waitlist"], {
+      invitations: { permissions: { invite: "member.invite" } },
+    });
+    expect(sql).toContain("'member.invite'");
+    expect(sql).not.toContain("'members.invite'");
+    expect(
+      sqlOf(["waitlist"], {
+        invitations: { permissions: { invite: "member.invite" } },
+        waitlist: { permissions: { invite: "codes.invite" } },
+      }),
+    ).toContain("'codes.invite'");
+  });
 });
