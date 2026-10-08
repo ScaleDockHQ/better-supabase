@@ -1932,6 +1932,126 @@
       "VercelConnectRef"
     ]
   },
+  "./blocks/inbox": {
+    "values": [
+      "createInbox",
+      "INBOX_CHANNELS",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "AuthorType",
+      "BlockTransport",
+      "BotMode",
+      "Contact",
+      "ContactInput",
+      "Conversation",
+      "ConversationEvent",
+      "ConversationFilter",
+      "ConversationPriority",
+      "ConversationStatus",
+      "CreateInboxInput",
+      "DeliveryStatus",
+      "InboundInput",
+      "InboundResult",
+      "Inbox",
+      "InboxChannel",
+      "InboxCounts",
+      "InboxMessage",
+      "InboxOptions",
+      "InboxPatch",
+      "InboxRow",
+      "MessageAttachment",
+      "MessageDelivery",
+      "MessageDirection",
+      "MessageInput",
+      "MessageKind",
+      "MessageTemplate",
+      "PurgedContact",
+      "RpcClient",
+      "StartConversationInput",
+      "StoredInboundEvent",
+      "TemplateInput"
+    ]
+  },
+  "./blocks/inbox/react": {
+    "values": [
+      "useConversation",
+      "useInbox",
+      "useInboxWidget"
+    ],
+    "types": [
+      "ConversationState",
+      "InboxListState",
+      "InboxSource",
+      "InboxWidgetState",
+      "UseConversationOptions",
+      "UseInboxOptions",
+      "UseInboxWidgetOptions"
+    ]
+  },
+  "./chat-sdk": {
+    "values": [
+      "channelAdapter",
+      "conversationIdOf",
+      "createChatInstallations",
+      "createSupabaseState",
+      "deliver",
+      "DELIVERY_PARSERS",
+      "inboundHandler",
+      "inboxAdapter",
+      "maintain",
+      "messengerDeliveries",
+      "rpcTransport",
+      "sqlTransport",
+      "twilioDeliveries",
+      "webhook",
+      "whatsappDeliveries",
+      "whatsappWindowOpen"
+    ],
+    "types": [
+      "BlockTransport",
+      "ChannelAdapterOptions",
+      "ChatInstallation",
+      "ChatInstallations",
+      "ChatInstallationsOptions",
+      "ChatLike",
+      "DeliverOptions",
+      "DeliveryParser",
+      "DeliveryUpdate",
+      "DrainResult",
+      "InboundHandler",
+      "InboundHandlerOptions",
+      "InboxAdapter",
+      "InboxAdapterOptions",
+      "InboxBotJob",
+      "InboxOutboundJob",
+      "InboxWebhookOptions",
+      "InstallInput",
+      "MaintainOptions",
+      "MaintainResult",
+      "MirrorThread",
+      "ParsedDeliveries",
+      "SupabaseState",
+      "SupabaseStateOptions"
+    ]
+  },
+  "./chat-sdk/react": {
+    "values": [
+      "useConversation",
+      "useInbox",
+      "useInboxWidget"
+    ],
+    "types": [
+      "ConversationState",
+      "InboxListState",
+      "InboxSource",
+      "InboxWidgetState",
+      "UseConversationOptions",
+      "UseInboxOptions",
+      "UseInboxWidgetOptions"
+    ]
+  },
   "./blocks/ai-chat": {
     "values": [
       "AI_MESSAGE_PART_TYPES",
@@ -2164,6 +2284,7 @@
       "testAuthorizationProvider",
       "testAuthResolver",
       "testCacheAdapter",
+      "testChatState",
       "testCredentialProvider",
       "testEventSink",
       "testExecutor",
@@ -2203,6 +2324,7 @@
       "TenantIsolationOptions",
       "TestAdapterOptions",
       "TestAuthResolverOptions",
+      "TestChatStateOptions",
       "TestCredentialProviderOptions",
       "TestEventSinkOptions",
       "TestExecutorOptions",

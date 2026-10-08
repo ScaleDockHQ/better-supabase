@@ -1,0 +1,368 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`createInbox > calls every function with snake_case arguments 1`] = `
+[
+  [
+    "create_inbox",
+    {
+      "address": undefined,
+      "bot_mode": undefined,
+      "channel": "whatsapp",
+      "name": "Support",
+      "settings": undefined,
+      "tenant": "org",
+    },
+  ],
+  [
+    "update_inbox",
+    {
+      "inbox": "i1",
+      "patch": {
+        "address": "+31",
+        "archived": true,
+        "bot_mode": "paused",
+        "name": "Help",
+      },
+    },
+  ],
+  [
+    "set_inbox_member",
+    {
+      "inbox": "i1",
+      "member": "u1",
+      "role": "lead",
+    },
+  ],
+  [
+    "set_inbox_member",
+    {
+      "inbox": "i1",
+      "member": "u1",
+      "role": null,
+    },
+  ],
+  [
+    "create_inbox_team",
+    {
+      "name": "Tier 1",
+      "tenant": "org",
+    },
+  ],
+  [
+    "set_inbox_team_member",
+    {
+      "member": "u1",
+      "present": true,
+      "team": "team1",
+    },
+  ],
+  [
+    "upsert_contact",
+    {
+      "input": {
+        "identity": {
+          "channel": "whatsapp",
+          "external_id": "+3199",
+        },
+        "name": "Ada",
+      },
+      "tenant": "org",
+    },
+  ],
+  [
+    "start_conversation",
+    {
+      "inbox": "i1",
+      "input": {
+        "contact": {
+          "email": "ada@example.test",
+        },
+        "message": "hi",
+      },
+    },
+  ],
+  [
+    "start_conversation",
+    {
+      "inbox": "i1",
+      "input": {
+        "contact": "ct1",
+        "message": {
+          "body": "hi",
+          "format": "markdown",
+        },
+      },
+    },
+  ],
+  [
+    "list_conversations",
+    {
+      "filter": {
+        "assignee": "me",
+        "before": {
+          "id": "c0",
+          "last_message_at": "2026-02-01T00:00:00Z",
+        },
+        "limit": 10,
+        "status": "all",
+      },
+      "tenant": "org",
+    },
+  ],
+  [
+    "get_conversation",
+    {
+      "conversation": "c1",
+    },
+  ],
+  [
+    "assign_conversation",
+    {
+      "assignee": "u1",
+      "conversation": "c1",
+      "team": null,
+    },
+  ],
+  [
+    "set_conversation_status",
+    {
+      "conversation": "c1",
+      "snoozed_until": "2026-02-01T00:00:00Z",
+      "status": "snoozed",
+    },
+  ],
+  [
+    "set_conversation_status",
+    {
+      "conversation": "c1",
+      "snoozed_until": undefined,
+      "status": "resolved",
+    },
+  ],
+  [
+    "set_conversation_status",
+    {
+      "conversation": "c1",
+      "snoozed_until": undefined,
+      "status": "open",
+    },
+  ],
+  [
+    "set_bot_mode",
+    {
+      "conversation": "c1",
+      "mode": "human",
+      "reason": "asked",
+    },
+  ],
+  [
+    "set_bot_mode",
+    {
+      "conversation": "c1",
+      "mode": "bot",
+      "reason": undefined,
+    },
+  ],
+  [
+    "mark_conversation_read",
+    {
+      "conversation": "c1",
+    },
+  ],
+  [
+    "set_typing",
+    {
+      "actor": undefined,
+      "conversation": "c1",
+      "typing": true,
+    },
+  ],
+  [
+    "list_conversation_events",
+    {
+      "conversation": "c1",
+    },
+  ],
+  [
+    "inbox_counts",
+    {
+      "tenant": "org",
+    },
+  ],
+  [
+    "send_message",
+    {
+      "conversation": "c1",
+      "input": {
+        "attachments": [
+          {
+            "content_type": "image/png",
+            "name": undefined,
+            "path": "a.png",
+            "size": 1,
+            "url": undefined,
+          },
+        ],
+        "author_type": "bot",
+        "body": "**hi**",
+        "delivered_by_caller": true,
+        "format": "markdown",
+        "mentions": [
+          "u2",
+        ],
+      },
+    },
+  ],
+  [
+    "send_message",
+    {
+      "conversation": "c1",
+      "input": {
+        "body": "internal",
+        "kind": "note",
+        "mentions": [
+          "u2",
+        ],
+      },
+    },
+  ],
+  [
+    "list_messages",
+    {
+      "before": "2026-02-01T00:00:00Z",
+      "conversation": "c1",
+      "max": 5,
+    },
+  ],
+  [
+    "get_message",
+    {
+      "message": "m1",
+    },
+  ],
+  [
+    "edit_message",
+    {
+      "body": "edited",
+      "message": "m1",
+    },
+  ],
+  [
+    "edit_message",
+    {
+      "message": "m1",
+      "remove": true,
+    },
+  ],
+  [
+    "react_to_message",
+    {
+      "actor": "bot",
+      "emoji": "👍",
+      "message": "m1",
+      "present": true,
+    },
+  ],
+  [
+    "record_delivery",
+    {
+      "channel": "whatsapp",
+      "error": undefined,
+      "external_id": "w1",
+      "message": "m1",
+      "status": undefined,
+    },
+  ],
+  [
+    "set_delivery_status",
+    {
+      "channel": "whatsapp",
+      "error": undefined,
+      "external_id": "w1",
+      "status": "read",
+    },
+  ],
+  [
+    "upsert_message_template",
+    {
+      "input": {
+        "body": "Hello {{1}}",
+        "channel": "whatsapp",
+        "name": "follow_up",
+        "variables": [
+          "1",
+        ],
+      },
+      "tenant": "org",
+    },
+  ],
+  [
+    "delete_message_template",
+    {
+      "template": "t1",
+    },
+  ],
+  [
+    "record_inbound",
+    {
+      "input": {
+        "contact": {
+          "external_id": "+3199",
+          "name": "Ada",
+        },
+        "inbox_id": "i1",
+        "message": {
+          "body": "hi",
+          "external_id": "wamid.2",
+        },
+        "thread_id": "whatsapp:+3100:+3199",
+      },
+    },
+  ],
+  [
+    "store_inbound_event",
+    {
+      "adapter": "whatsapp",
+      "body": "{}",
+      "external_id": undefined,
+      "headers": {
+        "a": "b",
+      },
+      "inbox": undefined,
+      "tenant": undefined,
+    },
+  ],
+  [
+    "set_inbound_event_status",
+    {
+      "error": "boom",
+      "event": "e1",
+      "status": "failed",
+    },
+  ],
+  [
+    "pending_inbound_events",
+    {
+      "max": 5,
+      "max_attempts": 3,
+    },
+  ],
+  [
+    "purge_inbound_events",
+    {
+      "batch": 10,
+      "older_than": "60 seconds",
+    },
+  ],
+  [
+    "wake_snoozed_conversations",
+    {},
+  ],
+  [
+    "purge_contact",
+    {
+      "contact": "ct1",
+    },
+  ],
+]
+`;

@@ -1,0 +1,170 @@
+---
+title: Channels
+description: Record Slack, WhatsApp, Messenger and SMS conversations in the inbox with Chat SDK adapters, deliver staff replies on their channel and keep the event store clean.
+---
+
+These helpers in `better-supabase/chat-sdk` put conversations from a
+Chat SDK platform adapter into the [inbox](/docs/blocks/inbox), and post
+staff replies back on the same platform. All of them take `createInbox` on
+a service transport.
+
+## Installations
+
+`createChatInstallations` records which workspace or number an adapter is
+installed on, per organization. The token stays in the
+[credential provider](/docs/extending/credentials); the row only keeps its
+`credential_ref`.
+
+```ts title="lib/installations.ts"
+import {
+  createChatInstallations,
+  sqlTransport,
+} from "better-supabase/chat-sdk";
+
+export const installations = createChatInstallations({
+  transport: sqlTransport(postgres.asService()),
+  credentials,
+});
+
+await installations
+  .install({
+    adapter: "slack",
+    externalId: teamId,
+    tenant: organizationId,
+    credentialRef,
+  })
+  .orThrow();
+```
+
+A reinstall revokes the credential it replaces, `uninstall(adapter, externalId)`
+revokes the current one, and `uninstallTenant(tenant)` removes every live
+install of an organization before it is deleted. `get` and `list` read
+them back.
+
+## Building an adapter with its token
+
+`channelAdapter` asks the credential provider for the install's token and
+hands it to the adapter factory:
+
+```ts
+import { createSlackAdapter } from "@chat-adapter/slack";
+import { channelAdapter } from "better-supabase/chat-sdk";
+
+const install = await installations.get("slack", teamId).orThrow();
+const slack = await channelAdapter({
+  credentials,
+  ref: install.credentialRef,
+  create: (token) => createSlackAdapter({ botToken: token.token }),
+});
+```
+
+## Receiving webhooks
+
+`webhook()` returns a route handler that verifies the request, stores the
+raw event in the inbox's event table and answers `200` at once. Platforms
+retry slow endpoints, so the processing happens afterwards:
+
+```ts title="app/api/chat/whatsapp/route.ts"
+import { after } from "next/server";
+import { webhook } from "better-supabase/chat-sdk";
+
+import { handler, inbox } from "@/lib/chat";
+
+export const POST = webhook({
+  inbox,
+  adapter: "whatsapp",
+  verify: (request, body) => verifyMetaSignature(request, body),
+  externalId: (body) => JSON.parse(body).entry?.[0]?.id,
+  after: () => after(() => handler.drain()),
+});
+export const GET = POST;
+```
+
+| Option                              | Meaning                                                                          |
+| ----------------------------------- | -------------------------------------------------------------------------------- |
+| `adapter`                           | The adapter name the event is replayed into                                      |
+| `credentials` and `ref`             | Verify the request with `credentials.verifyInbound` before storing it            |
+| `verify`                            | Verifies the request when no credential ref does                                 |
+| `externalId`                        | The platform's event id, so a retried delivery is stored once                    |
+| `passthrough`, `passthroughHandler` | Requests answered synchronously, by default `GET` and Slack's `url_verification` |
+| `after`                             | Runs after the event is stored                                                   |
+
+Without `credentials` or `verify`, every request is stored, so set one in
+production.
+
+## Replaying events into Chat SDK
+
+`inboundHandler` replays stored events into your `Chat` instance and
+records channel messages in the inbox:
+
+```ts title="lib/chat.ts"
+import { inboundHandler } from "better-supabase/chat-sdk";
+
+export const handler = inboundHandler({
+  chat: bot,
+  inbox,
+  inboxes: { whatsapp: whatsappInboxId, slack: slackInboxId },
+});
+
+bot.onNewMessage(/.*/, async (thread, message) => {
+  await handler.mirror(thread, message);
+});
+```
+
+`drain({ limit, maxAttempts })` processes pending events oldest first and
+returns `{ processed, failed }`. Delivery status callbacks from WhatsApp,
+Messenger, Instagram and Twilio update the matching delivery instead of
+reaching Chat SDK; pass `parsers` to add more. `mirror` finds or opens the
+conversation for the thread, upserts the contact from the message's author
+and skips bot messages and the echoes of replies `deliver` posted.
+
+Platform file URLs usually need the bot's token. Pass `copyFile` to copy
+each file into the `inbox-files` bucket; without it only files with a
+public URL are kept.
+
+## Delivering staff replies
+
+A staff reply on a channel inbox queues an `inbox_outbound` job.
+`deliver()` posts it with the conversation's adapter, records the delivery
+with the platform's message id and throws on failure, so the job retries:
+
+```ts title="app/api/jobs/drain/route.ts"
+import { deliver, whatsappWindowOpen } from "better-supabase/chat-sdk";
+
+const send = deliver({
+  chat: bot,
+  inbox,
+  template: async ({ conversation }) =>
+    conversation.inbox?.channel === "whatsapp" &&
+    !(await whatsappWindowOpen(inbox, conversation.id))
+      ? { markdown: "We replied to your question. Answer here to continue." }
+      : null,
+});
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: { inbox_outbound: (payload) => send(payload) },
+});
+```
+
+`template` replaces the message when the channel's reply window is closed,
+such as WhatsApp's 24 hours after the contact's last message. The adapter
+defaults to the inbox's channel (`sms` posts with `twilio`); `adapterFor`
+picks another.
+
+## Maintenance
+
+`maintain` runs the periodic work: it reopens snoozed conversations whose
+time came, replays events a crashed request left pending, deletes
+processed events after `keepEvents` (7 days by default) and purges expired
+[state](/docs/chat-sdk/state).
+
+```ts title="app/api/cron/inbox/route.ts"
+import { maintain } from "better-supabase/chat-sdk";
+
+export async function GET() {
+  return Response.json(await maintain({ inbox, handler, state }));
+}
+```
+
+Protect the route with your cron secret like the jobs drain route.

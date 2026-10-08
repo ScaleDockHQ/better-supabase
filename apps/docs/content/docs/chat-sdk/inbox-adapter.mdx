@@ -1,0 +1,70 @@
+---
+title: Inbox adapter
+description: inboxAdapter, a Chat SDK adapter whose threads are inbox conversations, so a bot answers visitors in the in-app widget and staff can take over.
+---
+
+`inboxAdapter` makes the [inbox](/docs/blocks/inbox) a Chat SDK platform.
+A thread is a conversation (`inbox:<conversationId>`), the bot's replies
+are messages with the author type `bot`, and reactions, edits, typing and
+read state go through the same `createInbox` client.
+
+```ts title="lib/bot.ts"
+import { createInbox, sqlTransport } from "better-supabase/blocks/inbox";
+import { inboxAdapter } from "better-supabase/chat-sdk";
+
+const inbox = createInbox({ transport: sqlTransport(postgres.asService()) });
+
+export const inboxBot = inboxAdapter({
+  inbox,
+  userName: "Acme bot",
+  streams,
+});
+```
+
+| Option     | Default  | Meaning                                                                         |
+| ---------- | -------- | ------------------------------------------------------------------------------- |
+| `inbox`    | required | `createInbox` on a service transport; the bot writes as the service             |
+| `userName` | `bot`    | The bot's name on its messages and reactions                                    |
+| `verify`   | none     | Checks requests to `handleWebhook`; without it `handleWebhook` answers 401      |
+| `streams`  | none     | A [stream store](/docs/blocks/streams) for streamed replies a reader can resume |
+
+## Running the bot
+
+The module queues an `inbox_bot` job when a contact writes in a
+conversation whose `botMode` is `bot`. Hand the job to `dispatch`, which
+loads the message and runs the bot's Chat SDK handlers. Messages from
+staff, notes and other bots are skipped, so the bot never answers itself:
+
+```ts
+await inboxBot.dispatch({ conversation_id, message_id });
+```
+
+When the bot can't help, hand the conversation to staff. `handoff` sets
+`botMode` to `human`, so later messages queue no bot job:
+
+```ts
+bot.onSubscribedMessage(async (thread, message) => {
+  if (/human|agent/i.test(message.text)) {
+    await inbox.conversations
+      .handoff(conversationIdOf(thread.id), "asked for a person")
+      .orThrow();
+    await thread.post("Someone from the team will reply here.");
+  }
+});
+```
+
+`conversationIdOf(threadId)` turns a thread id back into a conversation
+id. A staff reply in a bot conversation also switches it to `human`.
+
+## Streamed replies
+
+A streamed `thread.post` shows the bot as typing while it writes, then
+posts one message with the full text. With `streams`, the chunks also go
+to the stream store as they arrive, and the message's `metadata.stream_id`
+names the stream, so a client can replay the reply chunk by chunk.
+
+## Limits
+
+Cards and modals render as their fallback text, and `scheduleMessage`,
+`openModal` and `postEphemeral` aren't implemented: the in-app widget has
+no surface for them.

@@ -356,6 +356,28 @@
       "types": "./dist/vercel-connect/index.d.ts",
       "default": "./dist/vercel-connect/index.js"
     },
+    "./blocks/inbox": {
+      "@better-supabase/source": "./src/blocks/inbox/index.ts",
+      "types": "./dist/blocks/inbox/index.d.ts",
+      "default": "./dist/blocks/inbox/index.js"
+    },
+    "./blocks/inbox/react": {
+      "@better-supabase/source": "./src/blocks/inbox/react/index.ts",
+      "types": "./dist/blocks/inbox/react/index.d.ts",
+      "react-server": "./dist/blocks/inbox/react/server.js",
+      "default": "./dist/blocks/inbox/react/index.js"
+    },
+    "./chat-sdk": {
+      "@better-supabase/source": "./src/chat-sdk/index.ts",
+      "types": "./dist/chat-sdk/index.d.ts",
+      "default": "./dist/chat-sdk/index.js"
+    },
+    "./chat-sdk/react": {
+      "@better-supabase/source": "./src/chat-sdk/react/index.ts",
+      "types": "./dist/chat-sdk/react/index.d.ts",
+      "react-server": "./dist/chat-sdk/react/server.js",
+      "default": "./dist/chat-sdk/react/index.js"
+    },
     "./blocks/ai-chat": {
       "@better-supabase/source": "./src/blocks/ai-chat/index.ts",
       "types": "./dist/blocks/ai-chat/index.d.ts",
@@ -685,6 +707,24 @@
         "types": "./dist/vercel-connect/index.d.ts",
         "default": "./dist/vercel-connect/index.js"
       },
+      "./blocks/inbox": {
+        "types": "./dist/blocks/inbox/index.d.ts",
+        "default": "./dist/blocks/inbox/index.js"
+      },
+      "./blocks/inbox/react": {
+        "types": "./dist/blocks/inbox/react/index.d.ts",
+        "react-server": "./dist/blocks/inbox/react/server.js",
+        "default": "./dist/blocks/inbox/react/index.js"
+      },
+      "./chat-sdk": {
+        "types": "./dist/chat-sdk/index.d.ts",
+        "default": "./dist/chat-sdk/index.js"
+      },
+      "./chat-sdk/react": {
+        "types": "./dist/chat-sdk/react/index.d.ts",
+        "react-server": "./dist/chat-sdk/react/server.js",
+        "default": "./dist/chat-sdk/react/index.js"
+      },
       "./blocks/ai-chat": {
         "types": "./dist/blocks/ai-chat/index.d.ts",
         "default": "./dist/blocks/ai-chat/index.js"
@@ -769,6 +809,7 @@
     "@arethetypeswrong/cli": "catalog:",
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
+    "@chat-adapter/tests": "catalog:",
     "@clack/prompts": "catalog:",
     "@effect/platform-node": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
@@ -798,6 +839,7 @@
     "ajv": "catalog:",
     "ajv-formats": "catalog:",
     "c12": "catalog:",
+    "chat": "catalog:",
     "citty": "catalog:",
     "diff": "catalog:",
     "effect": "catalog:",
@@ -834,6 +876,7 @@
     "@tanstack/query-core": "catalog:peers",
     "@workflow/world": "catalog:peers",
     "@workflow/world-postgres": "catalog:peers",
+    "chat": "catalog:peers",
     "expo-server": "catalog:peers",
     "hono": "catalog:peers",
     "next": "catalog:peers",
@@ -871,6 +914,9 @@
       "optional": true
     },
     "@workflow/world-postgres": {
+      "optional": true
+    },
+    "chat": {
       "optional": true
     },
     "expo-server": {

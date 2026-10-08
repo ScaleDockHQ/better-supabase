@@ -38,10 +38,12 @@ import { API_KEYS } from "./modules/api-keys.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
+import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { FLAGS } from "./modules/flags.ts";
+import { INBOX } from "./modules/inbox.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
@@ -2238,6 +2240,8 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(WORKFLOWS),
       built(WORKFLOW_SDK_WORLD),
       built(WORKFLOW_BUILDER),
+      built(CHAT_SDK_STATE),
+      built(INBOX),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

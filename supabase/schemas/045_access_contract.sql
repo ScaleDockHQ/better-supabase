@@ -3,8 +3,10 @@
 -- A user can belong to several organizations (public.memberships);
 -- the active one is the `tenant_id` claim that switch_organization writes.
 -- Owners hold every permission, admins everything but deleting and handing
--- over the organization, members read, comment, keep their own API keys and
--- read the settings. There are no platform roles, and nobody is disabled.
+-- over the organization, members read, comment, keep their own API keys,
+-- read the settings and answer inbox conversations. Assigning conversations
+-- and managing inboxes is for admins. There are no platform roles, and
+-- nobody is disabled.
 -- `rolePermissions` in apps/examples/nextjs/src/features/user/user-permissions.ts
 -- mirrors the lists for the UI.
 
@@ -26,14 +28,15 @@ as $$
       'comments.read', 'comments.create', 'comments.moderate', 'activity.read',
       'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record',
       'notifications.send', 'notifications.read',
-      'workflow.read', 'workflow.run', 'workflow.edit', 'workflow.publish', 'workflow.admin'
+      'workflow.read', 'workflow.run', 'workflow.edit', 'workflow.publish', 'workflow.admin',
+      'inbox.read', 'inbox.reply', 'inbox.assign', 'inbox.manage'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
       'settings.read', 'api_keys.own', 'comments.read', 'comments.create', 'activity.read',
       'onboarding.read', 'usage.read', 'usage.record',
       'notifications.send', 'notifications.read',
-      'workflow.read', 'workflow.run'
+      'workflow.read', 'workflow.run', 'inbox.read', 'inbox.reply'
     ]
     else array[]::text[]
   end

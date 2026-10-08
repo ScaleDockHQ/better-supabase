@@ -12,6 +12,7 @@
     "frontend",
     "platform",
     "blocks",
+    "chat-sdk",
     "plugins",
     "testing",
     "examples",

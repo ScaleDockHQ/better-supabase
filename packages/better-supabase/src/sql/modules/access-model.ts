@@ -27,6 +27,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "attachments.*",
     "organization.export",
     "onboarding.*",
+    "inbox.*",
   ],
   member: [
     "organization.read",
@@ -40,6 +41,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "attachments.read",
     "attachments.upload",
     "onboarding.read",
+    "inbox.read",
+    "inbox.reply",
   ],
   viewer: ["organization.read"],
 };
@@ -123,6 +126,12 @@ export const MODULE_PERMISSIONS = {
     publish: "workflow.publish",
     admin: "workflow.admin",
   },
+  inbox: {
+    read: "inbox.read",
+    reply: "inbox.reply",
+    assign: "inbox.assign",
+    manage: "inbox.manage",
+  },
 } as const;
 
 /**
@@ -187,6 +196,12 @@ export const MODULE_PERMISSION_SCOPES: {
     edit: "tenant",
     publish: "tenant",
     admin: "tenant",
+  },
+  inbox: {
+    read: "tenant",
+    reply: "tenant",
+    assign: "tenant",
+    manage: "tenant",
   },
 };
 

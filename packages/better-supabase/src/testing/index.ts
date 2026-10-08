@@ -74,6 +74,8 @@ export type {
   TestWebhookSignerOptions,
   TestWebhookTransportOptions,
 } from "./webhooks.ts";
+export { testChatState } from "./chat-state.ts";
+export type { TestChatStateOptions } from "./chat-state.ts";
 export { testStreamStore } from "./streams.ts";
 export type { TestStreamStoreOptions } from "./streams.ts";
 export { testCredentialProvider } from "./credentials.ts";

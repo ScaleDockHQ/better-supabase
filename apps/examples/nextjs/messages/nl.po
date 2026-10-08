@@ -67,6 +67,16 @@ msgctxt "app.BFhud5"
 msgid "Back to the dashboard"
 msgstr "Terug naar het dashboard"
 
+#: src/app/[locale]/(app)/inbox/page.tsx
+msgctxt "inbox.VCMKbt"
+msgid "Inbox"
+msgstr "Inbox"
+
+#: src/app/[locale]/(app)/inbox/page.tsx
+msgctxt "inbox.DRlmpk"
+msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
+msgstr "Klantgesprekken uit de Help-widget en chatkanalen, live bijgewerkt via Realtime."
+
 #: src/app/[locale]/(app)/layout.tsx
 #: src/features/navigation/components/app-header.tsx
 msgctxt "navigation.6D4Ghb"
@@ -943,6 +953,227 @@ msgctxt "beta.2jXw4s"
 msgid "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh."
 msgstr "Zet hem uit met better_supabase.set_flag_override, en deze pagina en het menu-item verdwijnen bij de volgende sessievernieuwing."
 
+#: src/features/inbox/components/composer.tsx
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.qMePPG"
+msgid "Note"
+msgstr "Notitie"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.9HU8vw"
+msgid "Reply"
+msgstr "Antwoord"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.abUqS8"
+msgid "Write a note only staff see"
+msgstr "Schrijf een notitie die alleen medewerkers zien"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.3y8QCu"
+msgid "Write a reply"
+msgstr "Schrijf een antwoord"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.0kc5kM"
+msgid "Internal note"
+msgstr "Interne notitie"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.KgAlAZ"
+msgid "Add note"
+msgstr "Notitie toevoegen"
+
+#: src/features/inbox/components/composer.tsx
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.9WRlF4"
+msgid "Send"
+msgstr "Versturen"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.iHyFD4"
+msgid "This conversation is gone."
+msgstr "Dit gesprek bestaat niet meer."
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.gegfoA"
+msgid "Conversation"
+msgstr "Gesprek"
+
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.Zay6OH"
+msgid "No subject"
+msgstr "Geen onderwerp"
+
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.OGqTOQ"
+msgid "Visitor"
+msgstr "Bezoeker"
+
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.W6nSYE"
+msgid "Resolved"
+msgstr "Opgelost"
+
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.Vja_gq"
+msgid "Bot answers"
+msgstr "Bot antwoordt"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.seEgGq"
+msgid "Staff answer"
+msgstr "Medewerkers antwoorden"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.nrumgB"
+msgid "Unassign"
+msgstr "Niet meer toewijzen"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.4Zo524"
+msgid "Assign to me"
+msgstr "Aan mij toewijzen"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.vpzvF9"
+msgid "Take over from the bot"
+msgstr "Overnemen van de bot"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.8ujEro"
+msgid "Reopen"
+msgstr "Heropenen"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.UvYTan"
+msgid "Resolve"
+msgstr "Oplossen"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.1r7-tf"
+msgid "Message deleted"
+msgstr "Bericht verwijderd"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.d_fRcX"
+msgid "Seen"
+msgstr "Gezien"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.tzwHXE"
+msgid "Someone is typing…"
+msgstr "Iemand typt…"
+
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.SENRqu"
+msgid "Help"
+msgstr "Help"
+
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.T-R8HB"
+msgid "Ask a question. Acme's support team answers here."
+msgstr "Stel een vraag. Het supportteam van Acme antwoordt hier."
+
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.FL9tvT"
+msgid "No messages yet. Write below to start."
+msgstr "Nog geen berichten. Schrijf hieronder om te beginnen."
+
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.uFomFo"
+msgid "Support is typing…"
+msgstr "Support typt…"
+
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.DdsYAw"
+msgid "Could not send"
+msgstr "Versturen mislukt"
+
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.T7Ry38"
+msgid "Message"
+msgstr "Bericht"
+
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.zsMxWw"
+msgid "How can we help?"
+msgstr "Waarmee kunnen we helpen?"
+
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.PQ8A3I"
+msgid "New conversation"
+msgstr "Nieuw gesprek"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.TFJD82"
+msgid "Anyone"
+msgstr "Iedereen"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.snC7V6"
+msgid "Mine"
+msgstr "Van mij"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.a1eoKk"
+msgid "Unassigned"
+msgstr "Niet toegewezen"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.1udzha"
+msgid "Conversations"
+msgstr "Gesprekken"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.eKEL_g"
+msgid "Pending"
+msgstr "In afwachting"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.zQvVDJ"
+msgid "All"
+msgstr "Alle"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.vx8bv3"
+msgid "Assignee"
+msgstr "Toegewezen aan"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.SZLu0S"
+msgid "Pick a conversation"
+msgstr "Kies een gesprek"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.PjS425"
+msgid "Its messages, notes and actions show here."
+msgstr "De berichten, notities en acties verschijnen hier."
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.1NNSUY"
+msgid "No conversations"
+msgstr "Geen gesprekken"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.K_kIrH"
+msgid "Open Help in the header to start one as a customer."
+msgstr "Open Help in de kop om er als klant een te beginnen."
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.bW7B87"
+msgid "New"
+msgstr "Nieuw"
+
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.hzSNj4"
 msgid "Dashboard"
@@ -967,6 +1198,11 @@ msgstr "Workflows"
 msgctxt "navigation.Rm3xgH"
 msgid "Workflow builder"
 msgstr "Workflowbouwer"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.VCMKbt"
+msgid "Inbox"
+msgstr "Inbox"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.riw_yc"

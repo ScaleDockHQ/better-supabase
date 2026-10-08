@@ -73,6 +73,8 @@ catalog:
   # 4.0 is the `latest` dist-tag; it makes jiti optional, so .ts configs load
   # through Node's type stripping (docs/decisions/0003-cli-package.md).
   c12: 4.0.0-rc.2
+  "@chat-adapter/tests": 4.41.1
+  chat: 4.41.1
   citty: 0.2.2
   class-variance-authority: 0.7.1
   clsx: 2.1.1
@@ -161,6 +163,8 @@ catalogs:
   peers:
     # 2.3.0 is the first release with createMcpHandler and the web-standard bearer helpers.
     "@modelcontextprotocol/server": ">=2.3.0 <3"
+    # 4.41.0 is the first Chat SDK with the StateAdapter queue and list methods better-supabase/chat-sdk implements.
+    chat: ">=4.41 <5"
     # 16.2.0 ships instant() with the baseURL option; expectInstant loads it on demand.
     "@next/playwright": ">=16.2 <17"
     "@opentelemetry/api": ">=1.9 <2"
@@ -253,6 +257,9 @@ peerDependencyRules:
     # postgrest-typegen pins its optional oxfmt peer exactly; it formats the
     # generated types with whichever oxfmt the CLI installs.
     "@supabase/postgrest-typegen>oxfmt": "0.71.0"
+    # @chat-adapter/tests peers on vitest 4; its mock adapters and state helpers
+    # use only the vi.fn() API that vitest 5 keeps.
+    "@chat-adapter/tests>vitest": "5.0.3"
     # Expo SDK 57's @expo/ui depends on worklets 0.13 while expo-modules-core
     # still lists an optional peer range that ends at 0.10.
     "expo-modules-core>react-native-worklets": "0.13.0"
