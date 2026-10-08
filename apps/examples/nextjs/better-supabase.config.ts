@@ -146,11 +146,16 @@ export default defineConfig({
       // The /assistant sample: chats in `ai-chat` on private Realtime topics,
       // resumable answers in `streams` and attachments in `ai-files`.
       // /knowledge ingests documents into `knowledge` for the assistant's
-      // search tool, and `memory` keeps what it remembers.
+      // search tool, and `memory` keeps what it remembers. /agents builds and
+      // installs assistants (`agents`), `connectors` holds the MCP servers they
+      // call and `ai-tasks` their schedules.
       "ai-chat": { api: "api" },
       "ai-files": { api: "api" },
       knowledge: { api: "api" },
       memory: { api: "api" },
+      agents: { api: "api" },
+      connectors: { api: "api" },
+      "ai-tasks": { api: "api" },
     },
   },
 });
