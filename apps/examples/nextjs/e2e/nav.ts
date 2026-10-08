@@ -11,6 +11,33 @@ export function sidebarLink(page: Page, label: string): Locator {
     .getByRole("link", { name: label, exact: true });
 }
 
+/** A tab in the settings navigation, a `<Link>` styled as a tab. */
+export function settingsTab(page: Page, label: string): Locator {
+  return page
+    .getByRole("navigation", { name: /^(Settings|Instellingen)$/ })
+    .filter({ visible: true })
+    .getByRole("link", { name: label, exact: true });
+}
+
+/** Clicks a settings tab and waits for the URL: the navigation `expectInstant` holds. */
+export function clickSettingsTab(
+  page: Page,
+  label: string,
+  pathname: string,
+): () => Promise<void> {
+  return async () => {
+    await settingsTab(page, label).click();
+    await page.waitForURL((url) => url.pathname === pathname);
+  };
+}
+
+/** A card title on the visible page; a section renders it once its data has loaded. */
+export function cardTitle(page: Page, title: string): Locator {
+  return page
+    .locator('[data-slot="card-title"]')
+    .filter({ hasText: new RegExp(`^${title}$`), visible: true });
+}
+
 export function heading(page: Page, name: string): Locator {
   return page.getByRole("heading", { level: 1, name, exact: true });
 }

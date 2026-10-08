@@ -1,9 +1,8 @@
 "use client";
 
-import type { OAuthGrant } from "@supabase/supabase-js";
-
+import { useSessionChange } from "better-supabase/next/client";
 import { useExtracted, useFormatter } from "next-intl";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -14,32 +13,33 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useSupabase } from "@/lib/hooks";
 
-/** The OAuth clients (MCP servers, agents) this user approved on the consent page. */
-export function ConnectedAgentsCard() {
+import type { AuthRead, Grant } from "../security-queries";
+
+import { sessionChanged } from "../user-actions";
+
+/**
+ * The OAuth clients (MCP servers, agents) this user approved on the consent
+ * page. The server reads them (`getGrants`), so they are in the
+ * prefetched page; disconnecting runs in the browser.
+ */
+export function ConnectedAgentsCard({
+  initial,
+}: {
+  readonly initial: AuthRead<readonly Grant[]>;
+}) {
   const t = useExtracted("security");
   const format = useFormatter();
   const supabase = useSupabase();
-  // `undefined` while loading.
-  const [grants, setGrants] = useState<readonly OAuthGrant[]>();
-  const [error, setError] = useState<string | null>(null);
+  const changeSession = useSessionChange(sessionChanged);
+  const [grants, setGrants] = useState<readonly Grant[]>(
+    initial.ok ? initial.value : [],
+  );
+  const error = initial.ok ? null : initial.error;
   const [pending, startTransition] = useTransition();
 
-  useEffect(() => {
-    let active = true;
-    void supabase.auth.oauth.listGrants().then((result) => {
-      if (!active) return;
-      if (result.error) setError(result.error.message);
-      setGrants(result.data ?? []);
-    });
-    return () => {
-      active = false;
-    };
-  }, [supabase]);
-
-  const revoke = (grant: OAuthGrant) => {
+  const revoke = (grant: Grant) => {
     startTransition(async () => {
       const { error: revokeError } = await supabase.auth.oauth.revokeGrant({
         clientId: grant.client.id,
@@ -49,8 +49,9 @@ export function ConnectedAgentsCard() {
         return;
       }
       setGrants((current) =>
-        current?.filter((item) => item.client.id !== grant.client.id),
+        current.filter((item) => item.client.id !== grant.client.id),
       );
+      await changeSession();
       toast.success(
         t("{client} is disconnected.", { client: grant.client.name }),
       );
@@ -68,9 +69,7 @@ export function ConnectedAgentsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {grants === undefined ? (
-          <Skeleton className="h-10 w-full" />
-        ) : error ? (
+        {error ? (
           <p className="text-destructive text-sm">{error}</p>
         ) : grants.length === 0 ? (
           <p className="text-muted-foreground text-sm">
