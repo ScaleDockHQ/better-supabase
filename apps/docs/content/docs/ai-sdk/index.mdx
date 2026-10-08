@@ -13,15 +13,19 @@ It owns no tables.
 pnpm add ai @ai-sdk/react
 ```
 
-`ai` (7) and `@ai-sdk/react` (4) are optional peers: install them only in
+`ai` (7), `@ai-sdk/react` (4) and `@ai-sdk/mcp` (2) are optional peers: install them only in
 the apps that use these subpaths.
 
-| Subpath                        | What it gives you                                                                                                   |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `better-supabase/ai-sdk`       | Message converters and the AI Gateway helpers on this page                                                          |
-| `better-supabase/ai-sdk/chat`  | [`createAssistant`](/docs/ai-sdk/chat): the chat route over the block                                               |
-| `better-supabase/ai-sdk/files` | [`aiFileDownload`](/docs/ai-sdk/files): file parts read as the caller, generated files and provider file references |
-| `better-supabase/ai-sdk/react` | [`useAssistant`](/docs/ai-sdk/chat#client): `useChat` wired to that route                                           |
+| Subpath                             | What it gives you                                                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `better-supabase/ai-sdk`            | Message converters and the AI Gateway helpers on this page                                                          |
+| `better-supabase/ai-sdk/chat`       | [`createAssistant`](/docs/ai-sdk/chat): the chat route over the block                                               |
+| `better-supabase/ai-sdk/files`      | [`aiFileDownload`](/docs/ai-sdk/files): file parts read as the caller, generated files and provider file references |
+| `better-supabase/ai-sdk/embeddings` | [`embedWith`](/docs/ai-sdk/embeddings): embedders, a reranker and the knowledge search tool                         |
+| `better-supabase/ai-sdk/memory`     | [`memoryTool`](/docs/ai-sdk/memory): the memory tool, recall, core memory in the instructions and fact extraction   |
+| `better-supabase/ai-sdk/agents`     | [`createAgentRuntime`](/docs/ai-sdk/agents): a `ToolLoopAgent` from an agent, tool approvals and moderation         |
+| `better-supabase/ai-sdk/mcp`        | [`connectTools`](/docs/ai-sdk/mcp): OAuth for MCP servers with tokens in Vault, sessions and approved tools         |
+| `better-supabase/ai-sdk/react`      | [`useAssistant`](/docs/ai-sdk/chat#client): `useChat` wired to that route                                           |
 
 ## Messages
 

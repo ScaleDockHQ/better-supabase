@@ -7,6 +7,8 @@ packages:
   - tests/types/*
 
 catalog:
+  # 2.0.66 is the last release on @ai-sdk/provider-utils 5.0.53, the copy ai 7.0.127 uses.
+  "@ai-sdk/mcp": 2.0.66
   "@ai-sdk/react": 4.0.130
   "@arethetypeswrong/cli": 0.18.5
   "@base-ui/react": 1.8.0
@@ -162,6 +164,8 @@ catalogs:
   # version. They are deliberately not exact pins.
   peers:
     # 4.0 is the useChat that ships with ai 7.
+    # 2.0 is the MCP client that ships with ai 7.
+    "@ai-sdk/mcp": ">=2 <3"
     "@ai-sdk/react": ">=4 <5"
     # 2.3.0 is the first release with createMcpHandler and the web-standard bearer helpers.
     "@modelcontextprotocol/server": ">=2.3.0 <3"

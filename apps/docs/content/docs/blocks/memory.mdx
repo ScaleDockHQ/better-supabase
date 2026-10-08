@@ -1,0 +1,112 @@
+---
+title: Memory
+description: Core memory files the model edits with Anthropic's memory tool commands, archival facts found by similarity, and recall over a user's earlier messages.
+---
+
+The `memory` block keeps what an assistant should remember between chats.
+It has three parts:
+
+- Core memory: a few small files under `/memories` that go into every
+  prompt. The model reads and edits them with the commands of Anthropic's
+  memory tool (`view`, `create`, `str_replace`, `insert`, `delete`,
+  `rename`).
+- Archival memory: a list of facts with embeddings, searched when the
+  model asks.
+- Recall: one embedding per chat message, so the assistant can find what a
+  user said in an earlier chat. Temporary chats get none.
+
+```bash
+better-supabase sql add memory   # adds tenant, access and vector-search as well
+```
+
+| Table                   | Holds                                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `memories`              | Core files (`kind` `core`, with a `path`) and archival facts (`archival`), each with `version` |
+| `ai_message_embeddings` | One embedding per chat message and user                                                        |
+
+Every memory belongs to a namespace: the `user` (the default), an `agent`
+or a `chat` of that user, or the `organization`. A user reads only their
+own memories and the organization's; nobody else reads them, admins
+included. Changing organization memory needs the manage permission.
+
+| Permission      | Lets a member                    | Default roles              |
+| --------------- | -------------------------------- | -------------------------- |
+| `ai_chat.read`  | use memory in the tenant         | `owner`, `admin`, `member` |
+| `ai_chat.admin` | change the organization's memory | `owner`, `admin`           |
+
+Rename the keys with `sql.modules.memory.permissions.read` and `.manage`.
+The `maxContent` option (100,000 characters by default) limits one memory,
+and `dimensions` and `type` set the embedding column as in
+[knowledge](/docs/blocks/knowledge).
+
+## Server
+
+```ts title="lib/memory.ts"
+import { embedWith } from "better-supabase/ai-sdk/embeddings";
+import { createMemory, rpcTransport } from "better-supabase/blocks/memory";
+
+export const memoryFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createMemory({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    embedder: embedWith("openai/text-embedding-3-small"),
+  });
+```
+
+| Group       | Methods                                                             |
+| ----------- | ------------------------------------------------------------------- |
+| `core`      | `view`, `write`, `strReplace`, `insert`, `remove`, `rename`, `list` |
+| `archival`  | `save`, `search`, `list`, `forget`                                  |
+| `recall`    | `index`, `search`                                                   |
+| (top level) | `run`, `render`, `saveExtracted`, `embedPending`                    |
+
+Each method takes the organization and an optional namespace, such as
+`{ scope: "agent", agentId }`. The service role passes `ownerId` to act for
+a user.
+
+## Core memory
+
+```ts
+const reply = await memory
+  .run(organizationId, {
+    command: "create",
+    path: "/memories/preferences.md",
+    file_text: "Prefers metric units.\n",
+  })
+  .orThrow();
+```
+
+`run` takes one memory tool command and returns the text the model
+expects back, such as `File created successfully at: /memories/preferences.md`.
+Paths must stay under `/memories`. `str_replace` fails with
+`MEMORY_NO_MATCH` or `MEMORY_AMBIGUOUS` unless the old text appears once,
+and `write` with `expectedVersion` fails with `MEMORY_CONFLICT` when the
+file changed. `render(organizationId)` returns the core files as delimited
+text for the system prompt, cut at `maxRender` characters (8,000).
+
+## Archival memory and recall
+
+```ts
+await memory.archival
+  .save(organizationId, "Works in the Lisbon office")
+  .orThrow();
+const hits = await memory.archival
+  .search(organizationId, "where do they work")
+  .orThrow();
+```
+
+Search ranks by embedding similarity and full text together.
+`saveExtracted(organizationId, facts)` saves only facts that aren't close
+to one already saved (similarity 0.92 by default, `dedupeThreshold`);
+`forget(id, { supersededBy })` keeps the old fact but hides it.
+
+`recall.index(message)` runs as the service role after a message is
+stored; `recall.search(organizationId, query, { excludeChat })` returns the
+caller's closest earlier messages. Facts saved without an embedder wait
+for `embedPending()`.
+
+## AI SDK
+
+[`better-supabase/ai-sdk/memory`](/docs/ai-sdk/memory) gives the model the
+memory tool, a recall tool, core memory in its instructions and a job that
+extracts facts from a conversation.
