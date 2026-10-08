@@ -404,6 +404,21 @@
       "types": "./dist/blocks/memory/index.d.ts",
       "default": "./dist/blocks/memory/index.js"
     },
+    "./blocks/agents": {
+      "@better-supabase/source": "./src/blocks/agents/index.ts",
+      "types": "./dist/blocks/agents/index.d.ts",
+      "default": "./dist/blocks/agents/index.js"
+    },
+    "./blocks/connectors": {
+      "@better-supabase/source": "./src/blocks/connectors/index.ts",
+      "types": "./dist/blocks/connectors/index.d.ts",
+      "default": "./dist/blocks/connectors/index.js"
+    },
+    "./blocks/ai-tasks": {
+      "@better-supabase/source": "./src/blocks/ai-tasks/index.ts",
+      "types": "./dist/blocks/ai-tasks/index.d.ts",
+      "default": "./dist/blocks/ai-tasks/index.js"
+    },
     "./ai-sdk": {
       "@better-supabase/source": "./src/ai-sdk/index.ts",
       "types": "./dist/ai-sdk/index.d.ts",
@@ -428,6 +443,16 @@
       "@better-supabase/source": "./src/ai-sdk/memory/index.ts",
       "types": "./dist/ai-sdk/memory/index.d.ts",
       "default": "./dist/ai-sdk/memory/index.js"
+    },
+    "./ai-sdk/agents": {
+      "@better-supabase/source": "./src/ai-sdk/agents/index.ts",
+      "types": "./dist/ai-sdk/agents/index.d.ts",
+      "default": "./dist/ai-sdk/agents/index.js"
+    },
+    "./ai-sdk/mcp": {
+      "@better-supabase/source": "./src/ai-sdk/mcp/index.ts",
+      "types": "./dist/ai-sdk/mcp/index.d.ts",
+      "default": "./dist/ai-sdk/mcp/index.js"
     },
     "./ai-sdk/react": {
       "@better-supabase/source": "./src/ai-sdk/react/index.ts",
@@ -798,6 +823,18 @@
         "types": "./dist/blocks/memory/index.d.ts",
         "default": "./dist/blocks/memory/index.js"
       },
+      "./blocks/agents": {
+        "types": "./dist/blocks/agents/index.d.ts",
+        "default": "./dist/blocks/agents/index.js"
+      },
+      "./blocks/connectors": {
+        "types": "./dist/blocks/connectors/index.d.ts",
+        "default": "./dist/blocks/connectors/index.js"
+      },
+      "./blocks/ai-tasks": {
+        "types": "./dist/blocks/ai-tasks/index.d.ts",
+        "default": "./dist/blocks/ai-tasks/index.js"
+      },
       "./ai-sdk": {
         "types": "./dist/ai-sdk/index.d.ts",
         "default": "./dist/ai-sdk/index.js"
@@ -817,6 +854,14 @@
       "./ai-sdk/memory": {
         "types": "./dist/ai-sdk/memory/index.d.ts",
         "default": "./dist/ai-sdk/memory/index.js"
+      },
+      "./ai-sdk/agents": {
+        "types": "./dist/ai-sdk/agents/index.d.ts",
+        "default": "./dist/ai-sdk/agents/index.js"
+      },
+      "./ai-sdk/mcp": {
+        "types": "./dist/ai-sdk/mcp/index.d.ts",
+        "default": "./dist/ai-sdk/mcp/index.js"
       },
       "./ai-sdk/react": {
         "types": "./dist/ai-sdk/react/index.d.ts",
@@ -900,6 +945,7 @@
     "@supabase/ssr": "catalog:deps"
   },
   "devDependencies": {
+    "@ai-sdk/mcp": "catalog:",
     "@ai-sdk/react": "catalog:",
     "@arethetypeswrong/cli": "catalog:",
     "@better-supabase/ox-config": "workspace:*",
@@ -962,6 +1008,7 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@ai-sdk/mcp": "catalog:peers",
     "@ai-sdk/react": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
     "@next/playwright": "catalog:peers",
@@ -987,6 +1034,9 @@
     "workflow": "catalog:peers"
   },
   "peerDependenciesMeta": {
+    "@ai-sdk/mcp": {
+      "optional": true
+    },
     "@ai-sdk/react": {
       "optional": true
     },

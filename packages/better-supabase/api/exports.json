@@ -2214,6 +2214,63 @@
       "RecalledMessage"
     ]
   },
+  "./blocks/agents": {
+    "values": [
+      "createAgents",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "Agent",
+      "AgentFields",
+      "AgentFilter",
+      "AgentKnowledgeScope",
+      "Agents",
+      "AgentSkill",
+      "AgentsOptions",
+      "AgentVisibility",
+      "BlockTransport",
+      "NewAgent"
+    ]
+  },
+  "./blocks/connectors": {
+    "values": [
+      "createConnectors",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "ConnectorAuth",
+      "ConnectorGrant",
+      "Connectors",
+      "ConnectorServer",
+      "ConnectorServerFields",
+      "ConnectorSession",
+      "ConnectorsOptions",
+      "ConnectorTransport",
+      "FingerprintStatus"
+    ]
+  },
+  "./blocks/ai-tasks": {
+    "values": [
+      "createAiTasks",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "AiTask",
+      "AiTaskFields",
+      "AiTaskOutcome",
+      "AiTaskRun",
+      "AiTaskRunner",
+      "AiTaskRunStatus",
+      "AiTasks",
+      "AiTasksOptions",
+      "BlockTransport",
+      "NewAiTask"
+    ]
+  },
   "./ai-sdk": {
     "values": [
       "AI_SDK_UI_FORMAT",
@@ -2309,6 +2366,40 @@
       "MemoryNamespace",
       "RecallToolOptions",
       "RecallToolResult"
+    ]
+  },
+  "./ai-sdk/agents": {
+    "values": [
+      "agentScopes",
+      "agentToolApproval",
+      "agentTools",
+      "createAgentRuntime",
+      "ModerationBlockedError",
+      "moderationMiddleware"
+    ],
+    "types": [
+      "Agent",
+      "AgentRuntimeOptions",
+      "ModerationMiddlewareOptions",
+      "ModerationVerdict"
+    ]
+  },
+  "./ai-sdk/mcp": {
+    "values": [
+      "authorizeConnector",
+      "completeConnector",
+      "connectAll",
+      "connectTools",
+      "mcpOAuthRef",
+      "vaultOAuthProvider"
+    ],
+    "types": [
+      "AuthorizeConnectorOptions",
+      "ConnectAllResult",
+      "ConnectedTools",
+      "ConnectToolsOptions",
+      "VaultOAuthProvider",
+      "VaultOAuthProviderOptions"
     ]
   },
   "./ai-sdk/react": {
