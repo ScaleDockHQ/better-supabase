@@ -684,19 +684,6 @@ CREATE OR REPLACE FUNCTION api.wake_snoozed_conversations()
   SET search_path TO ''
   AS $function$ select "better_supabase"."wake_snoozed_conversations"() $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.advance_schedule (
-  job_name text,
-  ran      timestamp with time zone,
-  next_run timestamp with time zone
-)
-  RETURNS boolean
-  LANGUAGE sql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-  select false;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.assign_conversation (
   conversation uuid,
   assignee     uuid,
@@ -1135,85 +1122,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.claim_due_schedules (
-  lease integer DEFAULT 60,
-  batch integer DEFAULT 100
-)
-  RETURNS TABLE (
-    job_name    text,
-    schedule    text,
-    timezone    text,
-    queue       text,
-    payload     jsonb,
-    next_run    timestamp with time zone,
-    first_after timestamp with time zone
-  )
-  LANGUAGE sql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-  select null::text, null::text, null::text, null::text, null::jsonb, null::timestamptz, null::timestamptz where false;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.claim_jobs (
-  queue text,
-  lease integer DEFAULT 300,
-  batch integer DEFAULT 1
-)
-  RETURNS TABLE (
-    id            bigint,
-    attempts      integer,
-    enqueued_at   timestamp with time zone,
-    visible_until timestamp with time zone,
-    message       jsonb
-  )
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  r record;
-begin
-  perform better_supabase.ensure_job_queue(queue);
-  for r in select * from pgmq.read(queue, lease, batch) loop
-    if r.read_ct > coalesce((r.message ->> 'max_attempts')::integer, 5) then
-      execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', ''The lease ran out on the last attempt'', ''dead'', true) where msg_id = $1', 'q_' || queue)
-        using r.msg_id;
-      perform pgmq.archive(queue, r.msg_id);
-    else
-      id := r.msg_id;
-      attempts := r.read_ct;
-      enqueued_at := r.enqueued_at;
-      visible_until := r.vt;
-      message := r.message;
-      return next;
-    end if;
-  end loop;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.complete_job (
-  queue   text,
-  job_id  bigint,
-  attempt integer
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  hit bigint;
-begin
-  execute format('select msg_id from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)
-    into hit using job_id, attempt;
-  if hit is null then
-    return false;
-  end if;
-  return pgmq.archive(queue, job_id);
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.create_inbox (
   tenant   uuid,
   name     text,
@@ -1316,114 +1224,6 @@ begin
   where "id" = v_msg."id"
   returning * into v_msg;
   return to_jsonb(v_msg);
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.enqueue_job (
-  queue          text,
-  payload        jsonb   DEFAULT '{}'::jsonb,
-  delay          integer DEFAULT 0,
-  max_attempts   integer DEFAULT 5,
-  dedupe_key     text    DEFAULT NULL::text,
-  dedupe_running boolean DEFAULT true
-)
-  RETURNS bigint
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  existing bigint;
-begin
-  perform better_supabase.ensure_job_queue(queue);
-  if dedupe_key is not null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(queue), pg_catalog.hashtext(dedupe_key));
-    execute format('select msg_id from pgmq.%I where message ? ''dedupe_key'' and message ->> ''dedupe_key'' = $1 and ($2 or read_ct = 0) limit 1', 'q_' || queue)
-      into existing using dedupe_key, dedupe_running;
-    if existing is not null then
-      return existing;
-    end if;
-  end if;
-  return (
-    select pgmq.send(
-      queue,
-      jsonb_build_object('payload', payload, 'max_attempts', max_attempts)
-        || case when dedupe_key is null then '{}'::jsonb else jsonb_build_object('dedupe_key', dedupe_key) end,
-      greatest(delay, 0)
-    )
-  );
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.ensure_job_queue (
-  queue text
-)
-  RETURNS void
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-begin
-  if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
-    perform pgmq.create(queue);
-    perform better_supabase.index_job_queue(queue);
-  end if;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.extend_job_lease (
-  queue   text,
-  job_id  bigint,
-  attempt integer,
-  lease   integer
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  hit bigint;
-begin
-  execute format('select msg_id from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)
-    into hit using job_id, attempt;
-  if hit is null then
-    return false;
-  end if;
-  perform pgmq.set_vt(queue, job_id, lease);
-  return true;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.fail_job (
-  queue    text,
-  job_id   bigint,
-  attempt  integer,
-  error    text,
-  retry_in integer DEFAULT NULL::integer
-)
-  RETURNS text
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  msg jsonb;
-begin
-  execute format('select message from pgmq.%I where msg_id = $1 and read_ct = $2 for update', 'q_' || queue)
-    into msg using job_id, attempt;
-  if msg is null then
-    return null;
-  end if;
-  if attempt >= coalesce((msg ->> 'max_attempts')::integer, 5) then
-    execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text, ''dead'', true) where msg_id = $1', 'q_' || queue)
-      using job_id, left(error, 4000);
-    perform pgmq.archive(queue, job_id);
-    return 'dead';
-  end if;
-  execute format('update pgmq.%I set message = message || jsonb_build_object(''last_error'', $2::text), vt = clock_timestamp() + make_interval(secs => $3) where msg_id = $1', 'q_' || queue)
-    using job_id, left(error, 4000), coalesce(retry_in, 1 + floor(random() * least(3600, 10 * power(2, attempt - 1)))::integer);
-  return 'queued';
 end;
 $function$;
 
@@ -1811,55 +1611,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.index_job_queue (
-  queue text
-)
-  RETURNS void
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-begin
-  execute format(
-    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
-    'q_' || queue || '_dedupe_idx',
-    'q_' || queue
-  );
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.job_queue_stats (
-  queue text
-)
-  RETURNS TABLE (
-    ready              bigint,
-    in_flight          bigint,
-    delayed            bigint,
-    dead               bigint,
-    oldest_age_seconds double precision
-  )
-  LANGUAGE plpgsql
-  STABLE
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-begin
-  if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
-    return query select 0::bigint, 0::bigint, 0::bigint, 0::bigint, null::double precision;
-    return;
-  end if;
-  return query execute format(
-    'select count(*) filter (where q.vt <= clock_timestamp()),
-       count(*) filter (where q.vt > clock_timestamp() and q.read_ct > 0),
-       count(*) filter (where q.vt > clock_timestamp() and q.read_ct = 0),
-       (select count(*) from pgmq.%2$I a where a.message ? ''dead''),
-       extract(epoch from clock_timestamp() - min(q.enqueued_at))::double precision
-     from pgmq.%1$I q',
-    'q_' || queue, 'a_' || queue
-  );
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.list_chat_installations (
   tenant              uuid    DEFAULT NULL::uuid,
   adapter             text    DEFAULT NULL::text,
@@ -1925,36 +1676,6 @@ CREATE OR REPLACE FUNCTION better_supabase.list_conversations (
   ) page;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.list_dead_jobs (
-  queue     text,
-  max_rows  integer DEFAULT 100,
-  before_id bigint  DEFAULT NULL::bigint
-)
-  RETURNS TABLE (
-    id          bigint,
-    attempts    integer,
-    enqueued_at timestamp with time zone,
-    died_at     timestamp with time zone,
-    message     jsonb
-  )
-  LANGUAGE plpgsql
-  STABLE
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-begin
-  if pg_catalog.to_regclass(format('pgmq.%I', 'a_' || queue)) is null then
-    return;
-  end if;
-  return query execute format(
-    'select a.msg_id, a.read_ct, a.enqueued_at, a.archived_at, a.message from pgmq.%I a
-     where a.message ? ''dead'' and ($2 is null or a.msg_id < $2)
-     order by a.msg_id desc limit least(greatest($1, 1), 1000)',
-    'a_' || queue
-  ) using max_rows, before_id;
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.list_messages (
   conversation uuid,
   before       timestamp with time zone DEFAULT NULL::timestamp WITH time zone,
@@ -1979,37 +1700,6 @@ CREATE OR REPLACE FUNCTION better_supabase.list_messages (
     order by m."created_at" desc, m."id" desc
     limit least(greatest(coalesce(max, 50), 1), 200)
   ) page;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.list_schedules (
-  name_prefix text DEFAULT NULL::text,
-  for_tenant  text DEFAULT NULL::text
-)
-  RETURNS TABLE (
-    job_name     text,
-    schedule     text,
-    timezone     text,
-    queue        text,
-    tenant       text,
-    next_run     timestamp with time zone,
-    last_run     timestamp with time zone,
-    locked_until timestamp with time zone,
-    created_at   timestamp with time zone
-  )
-  LANGUAGE plpgsql
-  STABLE
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-begin
-  if pg_catalog.to_regnamespace('cron') is null or list_schedules.for_tenant is not null then
-    return;
-  end if;
-  return query execute
-    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz
-     from cron.job j where $1 is null or starts_with(j.jobname, $1) order by j.jobname'
-    using name_prefix;
-end;
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.mark_conversation_read (
@@ -2134,28 +1824,6 @@ begin
   );
   get diagnostics v_count = row_count;
   return v_count;
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.purge_job_archive (
-  queue           text,
-  older_than      interval DEFAULT '7 days'::interval,
-  batch           integer  DEFAULT 10000,
-  dead_older_than interval DEFAULT '30 days'::interval
-)
-  RETURNS integer
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  purged integer;
-begin
-  execute format(
-    'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - case when a.message ? ''dead'' then $3 else $1 end order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
-    'a_' || queue
-  ) into purged using older_than, batch, dead_older_than;
-  return purged;
 end;
 $function$;
 
@@ -2321,61 +1989,6 @@ begin
 end;
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.replay_dead_job (
-  queue  text,
-  job_id bigint
-)
-  RETURNS bigint
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  msg jsonb;
-begin
-  perform better_supabase.ensure_job_queue(queue);
-  execute format('delete from pgmq.%I where msg_id = $1 and message ? ''dead'' returning message', 'a_' || queue)
-    into msg using job_id;
-  if msg is null then
-    return null;
-  end if;
-  return better_supabase.enqueue_job(
-    queue,
-    coalesce(msg -> 'payload', '{}'),
-    0,
-    coalesce((msg ->> 'max_attempts')::integer, 5),
-    msg ->> 'dedupe_key'
-  );
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.retry_dead_jobs (
-  queue text,
-  ids   bigint[] DEFAULT NULL::bigint[],
-  batch integer  DEFAULT 1000
-)
-  RETURNS integer
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-declare
-  dead_id bigint;
-  retried integer := 0;
-begin
-  for dead_id in
-    select d.id from better_supabase.list_dead_jobs(queue, batch) d where ids is null
-    union all
-    select unnest(ids) where ids is not null
-  loop
-    if better_supabase.replay_dead_job(queue, dead_id) is not null then
-      retried := retried + 1;
-    end if;
-  end loop;
-  return retried;
-end;
-$function$;
-
 CREATE OR REPLACE FUNCTION better_supabase.role_permissions (
   role text
 )
@@ -2396,45 +2009,18 @@ CREATE OR REPLACE FUNCTION better_supabase.role_permissions (
       'comments.read', 'comments.create', 'comments.moderate', 'activity.read',
       'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record',
       'notifications.send', 'notifications.read',
+      'workflow.read', 'workflow.run', 'workflow.edit', 'workflow.publish', 'workflow.admin',
       'inbox.read', 'inbox.reply', 'inbox.assign', 'inbox.manage'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
       'settings.read', 'api_keys.own', 'comments.read', 'comments.create', 'activity.read',
       'onboarding.read', 'usage.read', 'usage.record',
-      'notifications.send', 'notifications.read', 'inbox.read', 'inbox.reply'
+      'notifications.send', 'notifications.read',
+      'workflow.read', 'workflow.run', 'inbox.read', 'inbox.reply'
     ]
     else array[]::text[]
   end
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.schedule_job (
-  job_name text,
-  schedule text,
-  queue    text,
-  payload  jsonb                    DEFAULT '{}'::jsonb,
-  timezone text                     DEFAULT 'UTC'::text,
-  next_run timestamp with time zone DEFAULT NULL::timestamp WITH time zone,
-  tenant   text                     DEFAULT NULL::text
-)
-  RETURNS bigint
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-begin
-  if tenant is not null then
-    raise exception 'pg_cron schedules have no tenant; set sql.modules.jobs.options.scheduler to "drain" to keep one per schedule';
-  end if;
-  if pg_catalog.to_regnamespace('cron') is null then
-    raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog, or set sql.modules.jobs.options.scheduler to "drain"';
-  end if;
-  if timezone <> 'UTC' then
-    raise exception 'pg_cron runs schedules in cron.timezone, not %; set sql.modules.jobs.options.scheduler to "drain" for per-schedule time zones', timezone;
-  end if;
-  perform better_supabase.ensure_job_queue(queue);
-  return cron.schedule(job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text));
-end;
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.send_message (
@@ -2991,33 +2577,6 @@ CREATE OR REPLACE FUNCTION better_supabase.stream_status (
   )
   from "better_supabase"."streams" st
   where st."id" = stream_status.stream_id;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.unschedule_job (
-  job_name text
-)
-  RETURNS boolean
-  LANGUAGE plpgsql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-begin
-  if pg_catalog.to_regnamespace('cron') is null then
-    return false;
-  end if;
-  return cron.unschedule(job_name);
-end;
-$function$;
-
-CREATE OR REPLACE FUNCTION better_supabase.unschedule_tenant (
-  tenant text
-)
-  RETURNS integer
-  LANGUAGE sql
-  SECURITY DEFINER
-  SET search_path TO ''
-  AS $function$
-  select 0;
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.update_inbox (
@@ -3586,10 +3145,6 @@ REVOKE ALL ON FUNCTION "api"."wake_snoozed_conversations"() FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."wake_snoozed_conversations"() TO "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."advance_schedule"(text, timestamp WITH time zone, timestamp WITH time zone) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."advance_schedule"(text, timestamp WITH time zone, timestamp WITH time zone) TO "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."assign_conversation"(uuid, uuid, uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."assign_conversation"(uuid, uuid, uuid) TO "authenticated", "service_role";
@@ -3670,18 +3225,6 @@ REVOKE ALL ON FUNCTION "better_supabase"."chat_uninstall"(text, text) FROM PUBLI
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."chat_uninstall"(text, text) TO "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."claim_due_schedules"(integer, integer) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."claim_due_schedules"(integer, integer) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."claim_jobs"(text, integer, integer) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."claim_jobs"(text, integer, integer) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."complete_job"(text, bigint, integer) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."complete_job"(text, bigint, integer) TO "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."create_inbox"(uuid, text, text, jsonb, text, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."create_inbox"(uuid, text, text, jsonb, text, text) TO "authenticated", "service_role";
@@ -3697,22 +3240,6 @@ GRANT EXECUTE ON FUNCTION "better_supabase"."delete_message_template"(uuid) TO "
 REVOKE ALL ON FUNCTION "better_supabase"."edit_message"(uuid, text, boolean) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."edit_message"(uuid, text, boolean) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."enqueue_job"(text, jsonb, integer, integer, text, boolean) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."enqueue_job"(text, jsonb, integer, integer, text, boolean) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."ensure_job_queue"(text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."ensure_job_queue"(text) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."extend_job_lease"(text, bigint, integer, integer) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."extend_job_lease"(text, bigint, integer, integer) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."fail_job"(text, bigint, integer, text, integer) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."fail_job"(text, bigint, integer, text, integer) TO "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."get_conversation"(uuid) FROM PUBLIC;
 
@@ -3762,14 +3289,6 @@ REVOKE ALL ON FUNCTION "better_supabase"."inbox_read_broadcast"() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION "better_supabase"."inbox_resolve_contact"(uuid, jsonb) FROM PUBLIC;
 
-REVOKE ALL ON FUNCTION "better_supabase"."index_job_queue"(text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."index_job_queue"(text) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."job_queue_stats"(text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."job_queue_stats"(text) TO "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."list_chat_installations"(uuid, text, boolean) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."list_chat_installations"(uuid, text, boolean) TO "service_role";
@@ -3782,17 +3301,9 @@ REVOKE ALL ON FUNCTION "better_supabase"."list_conversations"(uuid, jsonb) FROM 
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."list_conversations"(uuid, jsonb) TO "authenticated", "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."list_dead_jobs"(text, integer, bigint) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."list_dead_jobs"(text, integer, bigint) TO "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."list_messages"(uuid, timestamp WITH time zone, integer) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."list_messages"(uuid, timestamp WITH time zone, integer) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."list_schedules"(text, text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."list_schedules"(text, text) TO "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."mark_conversation_read"(uuid) FROM PUBLIC;
 
@@ -3814,10 +3325,6 @@ REVOKE ALL ON FUNCTION "better_supabase"."purge_inbound_events"(interval, intege
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."purge_inbound_events"(interval, integer) TO "service_role";
 
-REVOKE ALL ON FUNCTION "better_supabase"."purge_job_archive"(text, interval, integer, interval) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."purge_job_archive"(text, interval, integer, interval) TO "service_role";
-
 REVOKE ALL ON FUNCTION "better_supabase"."purge_streams"(interval, integer) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."purge_streams"(interval, integer) TO "service_role";
@@ -3833,18 +3340,6 @@ GRANT EXECUTE ON FUNCTION "better_supabase"."record_delivery"(uuid, text, text, 
 REVOKE ALL ON FUNCTION "better_supabase"."record_inbound"(jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."record_inbound"(jsonb) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."replay_dead_job"(text, bigint) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."replay_dead_job"(text, bigint) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."retry_dead_jobs"(text, bigint[], integer) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."retry_dead_jobs"(text, bigint[], integer) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."schedule_job"(text, text, text, jsonb, text, timestamp WITH time zone, text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."schedule_job"(text, text, text, jsonb, text, timestamp WITH time zone, text) TO "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."send_message"(uuid, jsonb) FROM PUBLIC;
 
@@ -3909,14 +3404,6 @@ GRANT EXECUTE ON FUNCTION "better_supabase"."stream_read"(text, integer, integer
 REVOKE ALL ON FUNCTION "better_supabase"."stream_status"(text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."stream_status"(text) TO "authenticated", "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."unschedule_job"(text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."unschedule_job"(text) TO "service_role";
-
-REVOKE ALL ON FUNCTION "better_supabase"."unschedule_tenant"(text) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION "better_supabase"."unschedule_tenant"(text) TO "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."update_inbox"(uuid, jsonb) FROM PUBLIC;
 
