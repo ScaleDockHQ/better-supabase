@@ -11,6 +11,16 @@ msgctxt "assistant.Ug9lgd"
 msgid "All chats"
 msgstr "All chats"
 
+#: src/app/[locale]/(app)/assistant/activity/page.tsx
+msgctxt "assistant.HF49ER"
+msgid "Agent activity"
+msgstr "Agent activity"
+
+#: src/app/[locale]/(app)/assistant/activity/page.tsx
+msgctxt "assistant.03R8p4"
+msgid "Runs from ai_runs with their steps, and the tool calls waiting for your approval."
+msgstr "Runs from ai_runs with their steps, and the tool calls waiting for your approval."
+
 #: src/app/[locale]/(app)/assistant/page.tsx
 msgctxt "assistant.wSAvhu"
 msgid "Assistant"
@@ -351,50 +361,95 @@ msgctxt "apiKeys.VzzYJk"
 msgid "Create"
 msgstr "Create"
 
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.kjUNOW"
+msgid "Waiting for approval"
+msgstr "Waiting for approval"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.E32-Bb"
+msgid "Nothing to approve"
+msgstr "Nothing to approve"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.OBHwMR"
+msgid "Tool calls that need your approval show up here."
+msgstr "Tool calls that need your approval show up here."
+
+#: src/features/assistant/components/agent-activity.tsx
+#: src/features/assistant/components/chat-list.tsx
+msgctxt "assistant.lfYALm"
+msgid "Untitled chat"
+msgstr "Untitled chat"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.6gnD8M"
+msgid "Latest runs"
+msgstr "Latest runs"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.x3qvaC"
+msgid "No runs yet"
+msgstr "No runs yet"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.Eu2ilY"
+msgid "Every answer the assistant writes is a run."
+msgstr "Every answer the assistant writes is a run."
+
+#: src/features/assistant/components/agent-activity.tsx
 #: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.ytL5Ck"
-msgid "The answer failed. Try again."
-msgstr "The answer failed. Try again."
+msgctxt "assistant.VpOehZ"
+msgid "Durable"
+msgstr "Durable"
+
+#: src/features/assistant/components/agent-activity.tsx
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.cb2kY6"
+msgid "Standard"
+msgstr "Standard"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.bV-Ymc"
+msgid "Default model"
+msgstr "Default model"
+
+#: src/features/assistant/components/approval-buttons.tsx
+msgctxt "assistant.6XFO_C"
+msgid "Approved"
+msgstr "Approved"
+
+#: src/features/assistant/components/approval-buttons.tsx
+msgctxt "assistant.5kp1Ie"
+msgid "Denied"
+msgstr "Denied"
+
+#: src/features/assistant/components/approval-buttons.tsx
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.WCaf5C"
+msgid "Approve"
+msgstr "Approve"
+
+#: src/features/assistant/components/approval-buttons.tsx
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.htvX-Z"
+msgid "Deny"
+msgstr "Deny"
 
 #: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.w_8N9S"
-msgid "The file could not be attached."
-msgstr "The file could not be attached."
+msgctxt "assistant.JEe7dV"
+msgid "Research"
+msgstr "Research"
 
 #: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.Vlx13n"
-msgid "Attachments"
-msgstr "Attachments"
+msgctxt "assistant.yhFm3Y"
+msgid "Answer mode"
+msgstr "Answer mode"
 
 #: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.T0e6Lh"
-msgid "Remove {name}"
-msgstr "Remove {name}"
-
-#: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.ydgifD"
-msgid "Attach a file"
-msgstr "Attach a file"
-
-#: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.zf_3aa"
-msgid "Ask anything"
-msgstr "Ask anything"
-
-#: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.T7Ry38"
-msgid "Message"
-msgstr "Message"
-
-#: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.q_uwLT"
-msgid "Stop"
-msgstr "Stop"
-
-#: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.9WRlF4"
-msgid "Send"
-msgstr "Send"
+msgctxt "assistant.LGXxOm"
+msgid "Durable answers need AI_GATEWAY_API_KEY."
+msgstr "Durable answers need AI_GATEWAY_API_KEY."
 
 #: src/features/assistant/components/chat-list.tsx
 msgctxt "assistant.YfXudL"
@@ -406,10 +461,75 @@ msgctxt "assistant.huX5LS"
 msgid "Your chats show up here after the first answer."
 msgstr "Your chats show up here after the first answer."
 
-#: src/features/assistant/components/chat-list.tsx
-msgctxt "assistant.lfYALm"
-msgid "Untitled chat"
-msgstr "Untitled chat"
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant._7Q2I5"
+msgid "{tool} needs your approval"
+msgstr "{tool} needs your approval"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.bpMkWa"
+msgid "{tool} was denied"
+msgstr "{tool} was denied"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.8zAQZ8"
+msgid "{tool} finished"
+msgstr "{tool} finished"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.E_7uNY"
+msgid "{tool} failed"
+msgstr "{tool} failed"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.aMB1-6"
+msgid "Running {tool}"
+msgstr "Running {tool}"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.ytL5Ck"
+msgid "The answer failed. Try again."
+msgstr "The answer failed. Try again."
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.w_8N9S"
+msgid "The file could not be attached."
+msgstr "The file could not be attached."
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.Vlx13n"
+msgid "Attachments"
+msgstr "Attachments"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.T0e6Lh"
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.ydgifD"
+msgid "Attach a file"
+msgstr "Attach a file"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.zf_3aa"
+msgid "Ask anything"
+msgstr "Ask anything"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.T7Ry38"
+msgid "Message"
+msgstr "Message"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.q_uwLT"
+msgid "Stop"
+msgstr "Stop"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.9WRlF4"
+msgid "Send"
+msgstr "Send"
 
 #: src/features/audit/components/audit-log.tsx
 msgctxt "audit.hE7RvK"
@@ -1390,6 +1510,11 @@ msgstr "Assistant"
 msgctxt "navigation.5OteMI"
 msgid "Knowledge"
 msgstr "Knowledge"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.HF49ER"
+msgid "Agent activity"
+msgstr "Agent activity"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.riw_yc"
