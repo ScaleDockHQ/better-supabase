@@ -20,6 +20,7 @@ import {
   EveAuthRejection,
   type EveChatMessage,
   type EveChatThread,
+  type EveConnectionPrincipal,
   type EveMemoryContext,
   type EveSessionAuth,
   type EveSessionContext,
@@ -165,9 +166,15 @@ function provider(
 
 describe("credentialAuth", () => {
   const ref = { provider: "vault", secret: "linear" };
-  const request = (principal: EveSessionAuth | null) => ({
+  const connected = {
+    type: "user",
+    id: USER,
+    issuer: `${PROJECT_URL}/auth/v1`,
+  } satisfies EveConnectionPrincipal;
+  const app = { type: "app" } satisfies EveConnectionPrincipal;
+  const request = (principal: EveConnectionPrincipal = app) => ({
     principal,
-    connection: { name: "linear" },
+    connection: { url: "https://mcp.linear.app/mcp" },
   });
 
   it("uses the app's credential for owner app", async () => {
@@ -180,7 +187,7 @@ describe("credentialAuth", () => {
       scopes: ["read"],
     });
     expect("startAuthorization" in auth).toBe(false);
-    expect(await auth.getToken(request(null))).toEqual({
+    expect(await auth.getToken(request())).toEqual({
       token: "app",
       expiresAt: at.epochMilliseconds,
     });
@@ -198,21 +205,15 @@ describe("credentialAuth", () => {
       owner: "user",
       interactive: false,
     });
+    expect(auth).toMatchObject({ credentialOwner: "user" });
     expect(auth.principalType).toBeUndefined();
-    expect(await auth.getToken(request(user))).toEqual({ token: "t1" });
+    expect(await auth.getToken(request(connected))).toEqual({ token: "t1" });
     expect(p.getToken).toHaveBeenCalledWith(ref, {
       subject: { type: "user", id: USER, issuer: user.issuer },
     });
-    await expect(
-      auth.getToken(
-        request({
-          authenticator: "inbox",
-          principalType: "contact",
-          principalId: "contact_1",
-          attributes: {},
-        }),
-      ),
-    ).rejects.toBeInstanceOf(ConnectionAuthorizationRequiredError);
+    await expect(auth.getToken(request())).rejects.toBeInstanceOf(
+      ConnectionAuthorizationRequiredError,
+    );
   });
 
   it("maps provider errors to eve's connection errors", async () => {
@@ -222,7 +223,7 @@ describe("credentialAuth", () => {
         ref,
         owner: "app",
         connection: "linear",
-      }).getToken(request(null));
+      }).getToken(request());
     await expect(failing(dbError("not_found", "none"))).rejects.toBeInstanceOf(
       ConnectionAuthorizationRequiredError,
     );
@@ -273,9 +274,9 @@ describe("credentialAuth", () => {
     expect(auth.principalType).toBe("user");
     const callbackUrl = "https://app.test/eve/v1/connections/linear/callback";
     expect(
-      await auth.startAuthorization?.({ ...request(user), callbackUrl }),
+      await auth.startAuthorization?.({ ...request(connected), callbackUrl }),
     ).toEqual({
-      challenge: { url: "https://linear.app/oauth", displayName: "vault" },
+      challenge: { url: "https://linear.app/oauth" },
     });
     expect(start).toHaveBeenCalledWith(ref, {
       subject: { type: "user", id: USER, issuer: user.issuer },
@@ -284,7 +285,7 @@ describe("credentialAuth", () => {
     });
     expect(
       await auth.completeAuthorization?.({
-        ...request(user),
+        ...request(connected),
         callbackUrl,
         callback: { params: { code: "c1", state: "s1" } },
       }),
@@ -306,11 +307,11 @@ describe("credentialAuth", () => {
       owner: "user",
     });
     await expect(
-      denied.startAuthorization?.({ ...request(user), callbackUrl }),
+      denied.startAuthorization?.({ ...request(connected), callbackUrl }),
     ).rejects.toBeInstanceOf(ConnectionAuthorizationFailedError);
     await expect(
       denied.completeAuthorization?.({
-        ...request(user),
+        ...request(connected),
         callbackUrl,
         callback: { params: {} },
       }),

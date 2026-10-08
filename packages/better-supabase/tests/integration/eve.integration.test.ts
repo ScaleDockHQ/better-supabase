@@ -184,35 +184,31 @@ describe.skipIf(!live)("better-supabase/eve", () => {
       const app = { provider: "vault", secret: `eve-${crypto.randomUUID()}` };
       await vault.set(app, "lin_app", { subject: { type: "app" } }).orThrow();
       const auth = credentialAuth({ provider: vault, ref: app, owner: "app" });
-      const request = { principal: null, connection: { name: "linear" } };
-      expect(await auth.getToken(request)).toEqual({ token: "lin_app" });
+      const connection = { url: "https://mcp.linear.app/mcp" };
+      expect(
+        await auth.getToken({ principal: { type: "app" }, connection }),
+      ).toEqual({ token: "lin_app" });
 
       const userRef = {
         provider: "vault",
         secret: `eve-user-${crypto.randomUUID()}`,
         scope: "user",
       };
-      const user: EveSessionAuth = {
-        authenticator: "supabase",
-        principalType: "user",
-        principalId: crypto.randomUUID(),
-        attributes: {},
-      };
+      const user = { type: "user", id: crypto.randomUUID() } as const;
       const perUser = credentialAuth({
         provider: vault,
         ref: userRef,
         owner: "user",
         connection: "linear",
       });
+      expect(perUser.credentialOwner).toBe("user");
       await expect(
-        perUser.getToken({ ...request, principal: user }),
+        perUser.getToken({ principal: user, connection }),
       ).rejects.toBeInstanceOf(ConnectionAuthorizationRequiredError);
       await vault
-        .set(userRef, "lin_user", {
-          subject: { type: "user", id: user.principalId },
-        })
+        .set(userRef, "lin_user", { subject: { type: "user", id: user.id } })
         .orThrow();
-      expect(await perUser.getToken({ ...request, principal: user })).toEqual({
+      expect(await perUser.getToken({ principal: user, connection })).toEqual({
         token: "lin_user",
       });
     } finally {

@@ -1869,6 +1869,7 @@
       "EveChatSdkBridge",
       "EveChatThread",
       "EveConnectionAuthorization",
+      "EveConnectionPrincipal",
       "EveConnectionRequest",
       "EveDocumentBackend",
       "EveMemoryContext",

@@ -18,6 +18,7 @@ export {
   type EveChatSdkBridge,
   type EveChatThread,
   type EveConnectionAuthorization,
+  type EveConnectionPrincipal,
   type EveConnectionRequest,
   type EveDocumentBackend,
   type EveMemoryContext,

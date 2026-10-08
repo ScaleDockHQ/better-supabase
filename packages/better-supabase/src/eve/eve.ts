@@ -182,9 +182,21 @@ export class ConnectionAuthorizationFailedError extends Error {
   }
 }
 
+/** The identity eve resolves for a connection callback. */
+export type EveConnectionPrincipal =
+  | { readonly type: "app" }
+  | {
+      readonly type: "user";
+      readonly id: string;
+      readonly issuer?: string;
+      readonly attributes?: Readonly<
+        Record<string, string | readonly string[]>
+      >;
+    };
+
 export interface EveConnectionRequest {
-  readonly principal: EveSessionAuth | null;
-  readonly connection: { readonly name?: string; readonly url?: string };
+  readonly principal: EveConnectionPrincipal;
+  readonly connection: { readonly url: string };
 }
 
 export interface EveTokenResult {
@@ -203,9 +215,13 @@ export interface EveAuthorizationChallenge {
   readonly resume?: Readonly<Record<string, string>>;
 }
 
-/** A connection `authorization` value for eve's `defineConnection`. */
+/** A connection `auth` value for eve's `defineMcpClientConnection`. */
 export interface EveConnectionAuthorization {
+  /** Set on the non-interactive form. */
+  readonly credentialOwner?: "app" | "user";
+  /** Set on the interactive form, which eve allows only for users. */
   readonly principalType?: "user";
+  readonly displayName?: string;
   getToken(request: EveConnectionRequest): Promise<EveTokenResult>;
   startAuthorization?(
     request: EveConnectionRequest & { readonly callbackUrl: string },
@@ -268,16 +284,18 @@ export function credentialAuth(
   options: CredentialAuthOptions,
 ): EveConnectionAuthorization {
   const name = options.connection ?? options.ref.provider;
-  const subjectOf = (principal: EveSessionAuth | null): CredentialSubject => {
+  const subjectOf = (principal: EveConnectionPrincipal): CredentialSubject => {
     if (options.owner === "app") return { type: "app" };
-    if (principal?.principalType !== "user")
+    if (principal.type !== "user")
       throw new ConnectionAuthorizationRequiredError(name, {
         message: `Connection "${name}" needs a signed-in user`,
       });
     return principal.issuer === undefined
-      ? { type: "user", id: principal.principalId }
-      : { type: "user", id: principal.principalId, issuer: principal.issuer };
+      ? { type: "user", id: principal.id }
+      : { type: "user", id: principal.id, issuer: principal.issuer };
   };
+  const displayName =
+    options.connection === undefined ? {} : { displayName: options.connection };
   const getToken = async ({
     principal,
   }: EveConnectionRequest): Promise<EveTokenResult> => {
@@ -300,11 +318,12 @@ export function credentialAuth(
     !provider.startAuthorization ||
     !provider.completeAuthorization
   )
-    return { getToken };
+    return { credentialOwner: options.owner, ...displayName, getToken };
   const start = provider.startAuthorization.bind(provider);
   const complete = provider.completeAuthorization.bind(provider);
   return {
     principalType: "user",
+    ...displayName,
     getToken,
     startAuthorization: async ({ principal, callbackUrl }) => {
       const result = await start(ref, {
@@ -313,7 +332,7 @@ export function credentialAuth(
         ...(options.scopes === undefined ? {} : { scopes: options.scopes }),
       });
       if (!result.ok) throw connectionError(name, result.error);
-      return { challenge: { url: result.data.url, displayName: name } };
+      return { challenge: { url: result.data.url } };
     },
     completeAuthorization: async (request) => {
       const callback = new URL(request.callbackUrl);
