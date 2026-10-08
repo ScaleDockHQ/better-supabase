@@ -143,6 +143,8 @@ export interface BlockEventMap {
   "organization.member_added": OrganizationEventData;
   "organization.member_removed": OrganizationEventData;
   "organization.member_left": OrganizationEventData;
+  "organization.member_suspended": OrganizationEventData;
+  "organization.member_resumed": OrganizationEventData;
   "organization.role_changed": OrganizationEventData;
   "organization.ownership_transferred": OrganizationEventData;
   "organization.switched": OrganizationEventData;

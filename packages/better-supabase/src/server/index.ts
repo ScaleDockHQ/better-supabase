@@ -3,6 +3,12 @@ export type {
   DeleteAccountOptions,
   DeleteAccountResult,
 } from "./delete-account.ts";
+export { endSessions, suspendAccount } from "./suspend-account.ts";
+export type {
+  EndSessionsResult,
+  SuspendAccountOptions,
+  SuspendAccountResult,
+} from "./suspend-account.ts";
 export { PRIMARY_COOKIE } from "./replicas.ts";
 export type { ReplicaState } from "./replicas.ts";
 export { createServer, extendServer, TENANT_HEADER } from "./server.ts";

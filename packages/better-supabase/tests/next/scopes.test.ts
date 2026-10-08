@@ -232,6 +232,59 @@ describe("private-cache scopes", () => {
   });
 });
 
+describe("suspending accounts", () => {
+  const betterSupabase = defineSupabase(schema);
+
+  it("needs postgres to end sessions", async () => {
+    const bs = createNext(betterSupabase, {
+      env: { ...env, secretKey: "sb_secret_test" },
+      cacheTags: false,
+    });
+    expect(await bs.endSessions(USER)).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request" },
+    });
+    expect(await bs.suspendAccount(USER, { suspended: true })).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request" },
+    });
+  });
+
+  it("drops the cached session after ending sessions or suspending", async () => {
+    const calls: string[] = [];
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation((input, init) => {
+        calls.push(`${init?.method ?? "GET"} ${String(input)}`);
+        return Promise.resolve(Response.json({}));
+      });
+    const queryRaw = vi.fn(async () => [{ ended: 2 }]);
+    const bs = createNext(betterSupabase, {
+      env: { ...env, secretKey: "sb_secret_test" },
+      cacheTags: false,
+      postgres: { admin: { queryRaw } } as never,
+    });
+    mocks.updateTag.mockReset();
+    try {
+      expect(await bs.endSessions(USER)).toMatchObject({
+        ok: true,
+        data: { userId: USER, ended: 2 },
+      });
+      expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
+      mocks.updateTag.mockReset();
+      expect(await bs.suspendAccount(USER, { suspended: true })).toMatchObject({
+        ok: true,
+        data: { userId: USER, suspended: true, ended: 2 },
+      });
+      expect(calls).toEqual([`PUT ${PROJECT_URL}/auth/v1/admin/users/${USER}`]);
+      expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
+      expect(queryRaw).toHaveBeenCalledTimes(2);
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+});
+
 describe("explicit tenants", () => {
   const TENANT = "00000000-0000-4000-8000-0000000000aa";
   const OTHER_TENANT = "00000000-0000-4000-8000-0000000000bb";

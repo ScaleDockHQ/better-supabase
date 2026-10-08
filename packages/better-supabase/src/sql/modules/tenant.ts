@@ -5,11 +5,13 @@ import type { ModuleDefinition } from "../registry.ts";
 import { DEFAULT_ACTIVE_TENANT } from "../../config/modules.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  activeMembership,
   columnRef,
   accessDefinesDisabledHelpers,
   disabledHelpers,
   disabledHelpersNeedLaterTables,
   jwtClaim,
+  membershipDisabledAt,
   renameSql,
   schemaPreamble,
   updatedAt,
@@ -279,6 +281,8 @@ function tenantSql(ctx: ModuleContext): string {
   const createdAt = ctx.col("memberships", "createdAt");
   const role = roleNameOf(ctx, "m");
   const model = accessModel(ctx);
+  const active = activeMembership(ctx, "m");
+  const disabledAt = membershipDisabledAt(ctx);
   const claimJson =
     ctx.text("claimFormat", "array") === "map"
       ? `coalesce(jsonb_object_agg(m.${tenant}::text, ${role}), '{}'::jsonb)`
@@ -297,7 +301,7 @@ create table if not exists ${m} (
   primary key (${tenant}, ${user})
 );
 create index if not exists memberships_user_idx on ${m} (${user});
-${model === "catalog" ? `create index if not exists memberships_role_idx on ${m} (${roleCol});\n` : ""}${ctx.has("memberships", "updatedAt") ? `${updatedAt(m, ctx.col("memberships", "updatedAt"))}\n` : ""}${ctx.has("memberships", "lastUsedAt") ? `alter table ${m} add column if not exists ${ctx.col("memberships", "lastUsedAt")} timestamptz;\n` : ""}${
+${model === "catalog" ? `create index if not exists memberships_role_idx on ${m} (${roleCol});\n` : ""}${ctx.has("memberships", "updatedAt") ? `${updatedAt(m, ctx.col("memberships", "updatedAt"))}\n` : ""}${ctx.has("memberships", "lastUsedAt") ? `alter table ${m} add column if not exists ${ctx.col("memberships", "lastUsedAt")} timestamptz;\n` : ""}${disabledAt === undefined ? "" : `alter table ${m} add column if not exists ${disabledAt} timestamptz;\n`}${
         model === "catalog"
           ? ""
           : `alter table ${m} drop constraint if exists memberships_role_check;
@@ -350,7 +354,7 @@ as $$
   where m.${user} = (select auth.uid())
     and (member_organization_ids.roles is null or ${role} = any (member_organization_ids.roles))
     and not better_supabase.user_disabled(m.${user})
-    and not better_supabase.tenant_disabled(m.${tenant})
+    and not better_supabase.tenant_disabled(m.${tenant})${active}
 $$;
 
 create or replace function better_supabase.has_organization_role(organization ${id}, roles text[] default null)
@@ -367,7 +371,7 @@ as $$
       and m.${user} = auth.uid()
       and (has_organization_role.roles is null or ${role} = any (has_organization_role.roles))
       and not better_supabase.user_disabled(m.${user})
-      and not better_supabase.tenant_disabled(m.${tenant})
+      and not better_supabase.tenant_disabled(m.${tenant})${active}
   )
 $$;
 
@@ -407,7 +411,7 @@ as $$
   from ${m} m
   where m.${user} = membership_claims.user_id
     and not better_supabase.user_disabled(membership_claims.user_id)
-    and not better_supabase.tenant_disabled(m.${tenant})
+    and not better_supabase.tenant_disabled(m.${tenant})${active}
 $$;
 
 revoke execute on function better_supabase.membership_claims(uuid) from public, anon, authenticated;
@@ -436,11 +440,16 @@ export const TENANT: ModuleDefinition = {
           createdAt: "created_at",
           updatedAt: "updated_at",
           lastUsedAt: "last_used_at",
+          disabledAt: "disabled_at",
         },
-        optional: ["lastUsedAt", "updatedAt"],
+        optional: ["lastUsedAt", "updatedAt", "disabledAt"],
       },
     },
   },
+  adoptOptional: (ctx) =>
+    membershipDisabledAt(ctx) === undefined
+      ? { memberships: ["disabledAt"] }
+      : {},
   contract: () => [
     { name: "current_tenant_id", args: [], returns: "{id}" },
     { name: "member_organization_ids", args: ["text[]"], returns: "{id}" },

@@ -8,10 +8,12 @@ import type {
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
 import {
+  activeMembership,
   addForeignKey,
   disabledHelpers,
   disabledHelpersNeedLaterTables,
   ensureCheck,
+  membershipSuspended,
   schemaPreamble,
 } from "../shared.ts";
 import {
@@ -238,17 +240,18 @@ function membershipFunctions(ctx: ModuleContext): string {
   const id = ctx.idType;
   const n = membershipNames(ctx);
   const model = accessModel(ctx);
+  const active = activeMembership(ctx, "m");
   const permissions =
     model === "roles"
       ? `select coalesce((
       select better_supabase.role_permissions(${roleNameOf(ctx.of("tenant"), "m")}) from ${n.m} m
-      where m.${n.tenant} = member_permissions.tenant and m.${n.user} = member_permissions.member
+      where m.${n.tenant} = member_permissions.tenant and m.${n.user} = member_permissions.member${active}
     ), '{}'::text[])`
       : `select coalesce(array_agg(p.${ctx.col("permissions", "key")} order by p.${ctx.col("permissions", "key")}), '{}'::text[])
     from ${ctx.table("permissions")} p
     where exists (
       select 1 from ${n.m} m
-      where m.${n.tenant} = member_permissions.tenant and m.${n.user} = member_permissions.member
+      where m.${n.tenant} = member_permissions.tenant and m.${n.user} = member_permissions.member${active}
         and ${catalogEffective(ctx, n)}
     )`;
   // The catalog role's keys in this tenant, overrides included: the same
@@ -301,7 +304,7 @@ as $$
     and not better_supabase.tenant_disabled(tenant)
     and exists (
       select 1 from ${n.m} m
-      where m.${n.tenant} = member_can.tenant and m.${n.user} = member_can.member
+      where m.${n.tenant} = member_can.tenant and m.${n.user} = member_can.member${active}
         and ${grants(ctx, n, "member_can.permission")}
     )
 $$;
@@ -342,7 +345,7 @@ as $$
   from ${n.m} m
   where m.${n.user} = (select auth.uid())
     and not better_supabase.user_disabled(auth.uid())
-    and not better_supabase.tenant_disabled(m.${n.tenant})
+    and not better_supabase.tenant_disabled(m.${n.tenant})${active}
     and ${grants(ctx, n, "tenant_ids_with.permission")}
 $$;
 
@@ -358,7 +361,7 @@ as $$
   select member is not null
     and exists (
       select 1 from ${n.m} m
-      where m.${n.tenant} = can_assign_as.tenant and m.${n.user} = can_assign_as.member
+      where m.${n.tenant} = can_assign_as.tenant and m.${n.user} = can_assign_as.member${active}
     )${scoped}
     and not exists (
       ${roleKeys}
@@ -388,7 +391,7 @@ as $$
   from ${n.m} m
   where m.${n.user} = permission_claims.user_id
     and not better_supabase.user_disabled(permission_claims.user_id)
-    and not better_supabase.tenant_disabled(m.${n.tenant})
+    and not better_supabase.tenant_disabled(m.${n.tenant})${active}
 $$;`;
 }
 
@@ -554,6 +557,15 @@ revoke execute on function better_supabase.can_assign_as(uuid, ${ctx.idType}, te
 const CALLER_ONLY = `raise exception 'The provider access model answers for the caller only (modules.access.model)'
       using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';`;
 
+function notSuspended(
+  ctx: ModuleContext,
+  tenant: string,
+  user: string,
+): string {
+  const suspended = membershipSuspended(ctx, tenant, user);
+  return suspended === undefined ? "" : `\n    and not ${suspended}`;
+}
+
 function providerFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
   const id = ctx.idType;
   const provider = providerOf(ctx, layout);
@@ -562,7 +574,7 @@ function providerFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
     providerSql(provider, "idsWith", { permission });
   const otherMember = forUser.permitted
     ? `return not better_supabase.user_disabled(member)
-      and not better_supabase.tenant_disabled(tenant)
+      and not better_supabase.tenant_disabled(tenant)${notSuspended(ctx, "tenant", "member")}
       and tenant::text in (select t.id::text from ${providerSql(provider, "idsWithFor", { user: "member", permission: "permission" })} as t(id));`
     : CALLER_ONLY;
   const platformOther = forUser.has
@@ -586,7 +598,7 @@ begin
     ${otherMember}
   end if;
   return not better_supabase.user_disabled(member)
-    and not better_supabase.tenant_disabled(tenant)
+    and not better_supabase.tenant_disabled(tenant)${notSuspended(ctx, "tenant", "member")}
     and tenant::text in (select t.id::text from ${idsWith("permission")} as t(id));
 end;
 $$;
@@ -624,7 +636,7 @@ set search_path = ''
 as $$
   select t.id::${id} from ${idsWith("tenant_ids_with.permission")} as t(id)
   where not better_supabase.user_disabled(auth.uid())
-    and not better_supabase.tenant_disabled(t.id::${id})
+    and not better_supabase.tenant_disabled(t.id::${id})${notSuspended(ctx, `t.id::${id}`, "auth.uid()")}
 $$;
 
 -- sql.modules.access.functions.canAssign, else authorization.functions.canAssign,
@@ -679,9 +691,9 @@ security definer
 set search_path = ''
 as $$
   select case
-    when member is distinct from auth.uid() then ${functions.canUser ? `coalesce((${fill(functions.canUser, { user: "member", scope: sqlString(tenantScope(ctx)), id: "tenant", permission: "permission" })}), false)` : "null::boolean"}
+    when member is distinct from auth.uid() then ${functions.canUser ? `${membershipSuspended(ctx, "tenant", "member") === undefined ? "" : `not ${membershipSuspended(ctx, "tenant", "member")} and `}coalesce((${fill(functions.canUser, { user: "member", scope: sqlString(tenantScope(ctx)), id: "tenant", permission: "permission" })}), false)` : "null::boolean"}
     else not better_supabase.user_disabled(member)
-      and not better_supabase.tenant_disabled(tenant)
+      and not better_supabase.tenant_disabled(tenant)${notSuspended(ctx, "tenant", "member")}
       and coalesce((${can("member", "tenant", "permission")}), false)
   end
 $$;
@@ -716,7 +728,7 @@ set search_path = ''
 as $$
   select t.id::${id} from ${fill(functions.tenantIdsWith!, { permission: "tenant_ids_with.permission" })} as t(id)
   where not better_supabase.user_disabled(auth.uid())
-    and not better_supabase.tenant_disabled(t.id::${id})
+    and not better_supabase.tenant_disabled(t.id::${id})${notSuspended(ctx, `t.id::${id}`, "auth.uid()")}
 $$;
 
 create or replace function better_supabase.can_assign(tenant ${id}, role text)

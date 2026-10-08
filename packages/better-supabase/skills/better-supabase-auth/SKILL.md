@@ -115,6 +115,13 @@ A proxy or middleware with its own Supabase client calls
 Done when the irreversible action returns `SESSION_REVOKED` for a signed-out
 session in a test.
 
+To lock a user out, call `bs.suspendAccount(userId, { suspended: true })`
+(it bans the user in Auth and ends every session and refresh token), or
+`bs.endSessions(userId)` to sign them out everywhere without a ban. A ban
+alone leaves the refresh tokens, which work again once the ban is lifted. To
+switch a member off in one organization only, use the organizations block's
+`suspendMember`.
+
 ## When claims change
 
 A token carries the claims from when Auth issued it, so a revoked role or

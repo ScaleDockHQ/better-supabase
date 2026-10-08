@@ -468,6 +468,36 @@ module disables a tenant awaiting deletion by setting the `disabledAt`
 column, so a tenant row with only a `status` column is not switched off
 during the grace period.
 
+## Suspended memberships
+
+A suspended membership keeps its role but grants nothing in that tenant.
+The `tenant` module reads it from `memberships.disabledAt`, a nullable
+timestamp column on the memberships table: `member_can`, `tenant_ids_with`,
+`member_permissions`, `can_assign_as`, `permission_claims`,
+`member_organization_ids`, `has_organization_role` and `membership_claims`
+skip a membership while the column is set. The other memberships of the same
+user keep working.
+
+A managed memberships table gets the `disabled_at` column. An adopted table
+opts in by mapping the column, so an existing table without it keeps working:
+
+```ts
+sql: {
+  modules: {
+    tenant: {
+      mode: "adopt",
+      tables: { memberships: "public.organization_users" },
+      columns: { memberships: { disabledAt: "disabled_at" } },
+    },
+  },
+},
+```
+
+Under the `provider` and `custom` models, `member_can` and `tenant_ids_with`
+also refuse a tenant whose membership row is suspended, on top of what the
+provider or your functions decide. The organizations block suspends and
+resumes members with [`suspend_member` and `resume_member`](/docs/blocks/organizations#suspending-members).
+
 ## The active tenant
 
 `current_tenant_id()` and the [`tenant()` plugin](/docs/plugins/tenant) need

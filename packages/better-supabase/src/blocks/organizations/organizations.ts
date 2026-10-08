@@ -125,12 +125,14 @@ export interface OrganizationMembership {
   readonly name: string;
   readonly slug?: string;
   readonly role: string;
+  readonly disabledAt?: Temporal.Instant;
 }
 
 /** A row `list_members` returns. */
 export interface OrganizationMember {
   readonly userId: string;
   readonly role: string;
+  readonly disabledAt?: Temporal.Instant;
 }
 
 /** An open invitation `list_organization_invitations` returns. */
@@ -207,6 +209,8 @@ export interface Organizations {
     role: string,
   ): AsyncResult<true>;
   removeMember(organizationId: string, userId: string): AsyncResult<true>;
+  suspendMember(organizationId: string, userId: string): AsyncResult<boolean>;
+  resumeMember(organizationId: string, userId: string): AsyncResult<boolean>;
   leave(organizationId: string): AsyncResult<true>;
   /** `formerRole` defaults to `options.formerOwnerRole`. */
   transferOwnership(
@@ -342,6 +346,15 @@ function previewFrom(row: Record<string, unknown>): InvitationPreview {
     extra: extraOf(row, PREVIEW_KEYS),
   };
 }
+
+const disabledAtOf = (
+  row: Record<string, unknown>,
+): { readonly disabledAt?: Temporal.Instant } => {
+  const disabledAt = optionalText(row["disabled_at"]);
+  return disabledAt === null
+    ? {}
+    : { disabledAt: temporal().Instant.from(disabledAt) };
+};
 
 function recordOf(value: unknown, fn: string): Record<string, unknown> {
   if (!isRecord(value)) {
@@ -538,6 +551,36 @@ export function createOrganizations(
         },
       );
     },
+    suspendMember(organizationId, userId) {
+      return run(
+        "organizations",
+        "suspend_member",
+        { organization: organizationId, member: userId },
+        (value) => {
+          if (value === true)
+            organizationEvent("organization.member_suspended", {
+              organizationId,
+              userId,
+            });
+          return value === true;
+        },
+      );
+    },
+    resumeMember(organizationId, userId) {
+      return run(
+        "organizations",
+        "resume_member",
+        { organization: organizationId, member: userId },
+        (value) => {
+          if (value === true)
+            organizationEvent("organization.member_resumed", {
+              organizationId,
+              userId,
+            });
+          return value === true;
+        },
+      );
+    },
     leave(organizationId) {
       return run(
         "organizations",
@@ -605,6 +648,7 @@ export function createOrganizations(
             name: text(row["name"]),
             ...(slug === null ? {} : { slug }),
             role: text(row["role"]),
+            ...disabledAtOf(row),
           };
         }),
       );
@@ -618,6 +662,7 @@ export function createOrganizations(
           recordsOf(value, "list_members").map((row) => ({
             userId: text(row["user_id"]),
             role: text(row["role"]),
+            ...disabledAtOf(row),
           })),
       );
     },

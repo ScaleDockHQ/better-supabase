@@ -413,6 +413,9 @@ begin
 end;
 $$;
 
+drop function if exists "better_supabase"."suspend_member"(uuid, uuid);
+drop function if exists "better_supabase"."resume_member"(uuid, uuid);
+
 -- Makes organization the caller's active organization (modules.access.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
 returns jsonb
@@ -439,6 +442,7 @@ begin
 end;
 $$;
 
+drop function if exists "better_supabase"."list_my_organizations"();
 create or replace function "better_supabase"."list_my_organizations"()
 returns table (
   id uuid,
@@ -459,6 +463,7 @@ as $$
   order by o."name"
 $$;
 
+drop function if exists "better_supabase"."list_members"(uuid);
 create or replace function "better_supabase"."list_members"(organization uuid)
 returns table (user_id uuid, role text)
 language plpgsql
@@ -533,6 +538,9 @@ grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
 drop function if exists "api"."guard_membership_role"(uuid, uuid, text, uuid, text);
+
+drop function if exists "api"."list_my_organizations"();
+drop function if exists "api"."list_members"(uuid);
 
 create or replace function "api"."organization_slug_problem"(value text, except_organization uuid default null)
 returns text

@@ -602,3 +602,70 @@ describe("organization reads", () => {
     ]);
   });
 });
+
+describe("membership suspension", () => {
+  it("suspends and resumes members and announces only real changes", async () => {
+    const { transport, calls } = fake({
+      suspend_member: true,
+      resume_member: false,
+    });
+    const events = new EventHub();
+    const seen: string[] = [];
+    events.on("block", (event) => seen.push(event.type));
+    const organizations = createOrganizations({ transport, events });
+    expect(await organizations.suspendMember("org-1", "user-2")).toMatchObject({
+      ok: true,
+      data: true,
+    });
+    expect(await organizations.resumeMember("org-1", "user-2")).toMatchObject({
+      ok: true,
+      data: false,
+    });
+    expect(calls.map((call) => [call.fn, call.args])).toEqual([
+      ["suspend_member", { organization: "org-1", member: "user-2" }],
+      ["resume_member", { organization: "org-1", member: "user-2" }],
+    ]);
+    expect(seen).toEqual(["organization.member_suspended"]);
+  });
+
+  it("passes the module's refusal through as the hint", async () => {
+    const { transport } = fake({
+      suspend_member: pgError("23514", "ORGANIZATION_OWNER_REQUIRED"),
+    });
+    const result = await createOrganizations({ transport }).suspendMember(
+      "org-1",
+      "user-1",
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: { hint: "ORGANIZATION_OWNER_REQUIRED" },
+    });
+  });
+
+  it("reads the suspension time of members and memberships", async () => {
+    const { transport } = fake({
+      list_my_organizations: [
+        {
+          id: "org-1",
+          name: "Acme",
+          role: "admin",
+          disabled_at: "2026-10-08T10:00:00+00:00",
+        },
+      ],
+      list_members: [
+        { user_id: "user-1", role: "owner", disabled_at: null },
+        {
+          user_id: "user-2",
+          role: "member",
+          disabled_at: "2026-10-08T10:00:00+00:00",
+        },
+      ],
+    });
+    const organizations = createOrganizations({ transport });
+    const [membership] = await organizations.mine().orThrow();
+    expect(membership?.disabledAt?.toString()).toBe("2026-10-08T10:00:00Z");
+    const members = await organizations.members("org-1").orThrow();
+    expect(members[0]).toEqual({ userId: "user-1", role: "owner" });
+    expect(members[1]?.disabledAt?.toString()).toBe("2026-10-08T10:00:00Z");
+  });
+});

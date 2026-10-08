@@ -156,7 +156,7 @@ describe("organizations module", () => {
       'insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")\n  values (organization, owner, \'owner\');',
     );
     expect(sql).toContain(
-      'create constraint trigger "bs_organization_owner" after update of "role", "organization_id" or delete',
+      'create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete',
     );
     expect(sql).toMatch(
       /perform 1 from "better_supabase"\."organizations" o .* for update;/,
