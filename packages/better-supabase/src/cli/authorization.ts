@@ -80,7 +80,7 @@ function tenantScope(
 }
 
 /** The provider's membership tables that can hold rows of `scope`. */
-export const scopeMemberships = (
+const scopeMemberships = (
   provider: AuthorizationProvider,
   scope: string,
 ): readonly AuthorizationMembership[] =>
