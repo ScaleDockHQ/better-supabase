@@ -1,0 +1,44 @@
+---
+title: TanStack DB
+description: TanStack DB collections that load through a query and write through the repositories.
+---
+
+```ts title="src/lib/collections.ts"
+import { createCollection } from "@tanstack/react-db";
+import { queryCollectionOptions } from "@tanstack/query-db-collection";
+import { collectionOptions } from "better-supabase/tanstack-db";
+import { betterSupabase } from "./supabase";
+import { db, queries, queryClient } from "./client";
+
+export const customers = createCollection(
+  queryCollectionOptions(
+    collectionOptions(betterSupabase, db, "customers", {
+      query: queries.customers.findMany({ where: { status: "active" } }),
+      queryClient,
+    }),
+  ),
+);
+```
+
+`collectionOptions(betterSupabase, db, table, options)` returns the options
+`queryCollectionOptions()` reads. The collection loads its rows with the
+[query option](/docs/frontend/query) you pass and keys them by the table's
+primary key (a JSON array for a composite key). TanStack DB is not a
+dependency: the options are typed by shape.
+
+## Writes
+
+`customers.insert(row)`, `customers.update(id, draft)` and
+`customers.delete(id)` apply optimistically, then run `create`, `update` and
+`delete` on the table's repository, so RLS, hooks, events and plugins apply.
+A failed write throws a `DbException`, and TanStack DB rolls the optimistic
+change back. After a write the collection refetches its query. To refresh
+the other queries that read the table, call
+`invalidateOnMutation(betterSupabase, queryClient)` from
+`better-supabase/query` once at startup.
+
+## Live queries
+
+Join and filter collections with TanStack DB's `useLiveQuery`. To refresh a
+collection when another client changes the table, invalidate its tables
+from a realtime subscription with `invalidateTables(queryClient, ["customers"])`.

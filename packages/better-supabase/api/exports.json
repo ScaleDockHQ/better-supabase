@@ -3145,5 +3145,64 @@
       "TestWebhookSignerOptions",
       "TestWebhookTransportOptions"
     ]
+  },
+  "./expo-sqlite": {
+    "values": [
+      "checkSqlite",
+      "expoSqliteDatabase",
+      "expoSqliteExecutor",
+      "sqliteTables",
+      "watch"
+    ],
+    "types": [
+      "AddDatabaseChangeListener",
+      "DatabaseChangeEventLike",
+      "ExpoSqliteContextLike",
+      "ExpoSqliteDatabaseLike",
+      "ExpoSqliteOptions",
+      "WatchOptions"
+    ]
+  },
+  "./tanstack-db": {
+    "values": [
+      "collectionOptions"
+    ],
+    "types": [
+      "CollectionConfig",
+      "CollectionMutationHandler",
+      "CollectionOptions",
+      "CollectionQuery",
+      "MutationParamsLike",
+      "PendingMutationLike"
+    ]
+  },
+  "./blocks/push": {
+    "values": [
+      "createPushDevices",
+      "expoPush",
+      "expoPushChannel",
+      "registerDevice",
+      "rpcTransport",
+      "sqlTransport",
+      "unregisterOnSignOut"
+    ],
+    "types": [
+      "BlockTransport",
+      "ExpoNotificationsLike",
+      "ExpoPush",
+      "ExpoPushChannelOptions",
+      "ExpoPushMessage",
+      "ExpoPushOptions",
+      "ExpoPushTicket",
+      "ExpoReceiptResult",
+      "PushDeviceInput",
+      "PushDevices",
+      "PushDevicesOptions",
+      "PushPlatform",
+      "PushProvider",
+      "PushTarget",
+      "RegisterDeviceOptions",
+      "RegisteredDevice"
+    ]
   }
 }

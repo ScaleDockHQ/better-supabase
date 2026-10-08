@@ -1,0 +1,69 @@
+---
+title: expo-sqlite
+description: The same repositories over a local expo-sqlite database, without PowerSync.
+---
+
+```ts title="src/lib/local.ts"
+import { addDatabaseChangeListener, openDatabaseAsync } from "expo-sqlite";
+import { expoSqliteExecutor } from "better-supabase/expo-sqlite";
+import { betterSupabase } from "./supabase";
+
+const sqlite = await openDatabaseAsync("app.db", {
+  enableChangeListener: true,
+});
+
+export const local = betterSupabase.connect(
+  expoSqliteExecutor(sqlite, { addDatabaseChangeListener }),
+);
+
+const drafts = await local.notes
+  .findMany({ where: { status: "draft" }, orderBy: { updatedAt: "desc" } })
+  .orThrow();
+```
+
+`expoSqliteExecutor(db)` runs repository calls on a database the app owns,
+with the same SQLite compiler as [PowerSync](/docs/repository/powersync).
+Use it for drafts, caches and settings that never sync, or for an app that
+syncs on its own schedule. The app creates the tables (with the database
+column names) before the first call. `expo-sqlite` is not a dependency: the
+executor reads `getAllAsync`, `runAsync` and `withTransactionAsync` from the
+database it gets.
+
+Writes run in `withExclusiveTransactionAsync` on iOS and Android, so other
+queries on the same database can't see a half-done write, and in
+`withTransactionAsync` on web. An insert without a text or uuid key gets
+`crypto.randomUUID()`, or a UUID from SQLite's `randomblob` when Hermes has
+no `crypto`.
+
+## What runs
+
+Everything the PowerSync page lists runs the same way, and the same features
+return a `DbError` of kind `unsupported`: embedding, full-text search and
+function sources. `checkSqlite` from `better-supabase/expo-sqlite` checks a
+list definition in a test.
+
+## Live queries
+
+Pass `addDatabaseChangeListener` and open the database with
+`enableChangeListener: true`. Then `watch()` from the same subpath, and
+`useWatch()` from `better-supabase/powersync/react`, rerun a call when one of
+its tables changes:
+
+```tsx title="app/drafts.tsx"
+import { useWatch } from "better-supabase/powersync/react";
+import { expoSqliteDatabase } from "better-supabase/expo-sqlite";
+
+const database = expoSqliteDatabase(sqlite, { addDatabaseChangeListener });
+
+export function Drafts() {
+  const drafts = useWatch({
+    db: database,
+    tables: ["notes"],
+    query: () => local.notes.findMany({ where: { status: "draft" } }),
+  });
+  // ...
+}
+```
+
+Changes to another open database file are ignored. Events arrive in batches
+of at most one every 30 ms; `throttleMs` changes that.

@@ -587,6 +587,21 @@
       "default": "./dist/testing/index.js"
     },
     "./schemas/*.json": "./schemas/*.json",
+    "./expo-sqlite": {
+      "@better-supabase/source": "./src/expo-sqlite/index.ts",
+      "types": "./dist/expo-sqlite/index.d.ts",
+      "default": "./dist/expo-sqlite/index.js"
+    },
+    "./tanstack-db": {
+      "@better-supabase/source": "./src/tanstack-db/index.ts",
+      "types": "./dist/tanstack-db/index.d.ts",
+      "default": "./dist/tanstack-db/index.js"
+    },
+    "./blocks/push": {
+      "@better-supabase/source": "./src/blocks/push/index.ts",
+      "types": "./dist/blocks/push/index.d.ts",
+      "default": "./dist/blocks/push/index.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -1030,6 +1045,18 @@
         "default": "./dist/testing/index.js"
       },
       "./schemas/*.json": "./schemas/*.json",
+      "./expo-sqlite": {
+        "types": "./dist/expo-sqlite/index.d.ts",
+        "default": "./dist/expo-sqlite/index.js"
+      },
+      "./tanstack-db": {
+        "types": "./dist/tanstack-db/index.d.ts",
+        "default": "./dist/tanstack-db/index.js"
+      },
+      "./blocks/push": {
+        "types": "./dist/blocks/push/index.d.ts",
+        "default": "./dist/blocks/push/index.js"
+      },
       "./package.json": "./package.json"
     },
     "access": "public",

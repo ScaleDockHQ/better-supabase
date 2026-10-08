@@ -119,6 +119,9 @@ const entries = [
   "plugins/actor/index",
   "plugins/validation/index",
   "sql/index",
+  "expo-sqlite/index",
+  "tanstack-db/index",
+  "blocks/push/index",
   "testing/index",
 ];
 

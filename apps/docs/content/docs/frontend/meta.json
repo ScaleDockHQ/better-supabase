@@ -8,6 +8,7 @@
     "solid",
     "svelte",
     "query",
+    "tanstack-db",
     "live-queries"
   ]
 }
