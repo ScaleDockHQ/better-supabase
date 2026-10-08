@@ -363,6 +363,10 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 drop function if exists "api"."comment_subject_readable"(text, text, uuid);
 
+drop function if exists "api"."create_comment"(uuid, text, text, text, uuid[], uuid);
+drop function if exists "api"."edit_comment"(uuid, text, uuid[]);
+drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, integer);
+
 create or replace function "api"."create_comment"(tenant uuid, subject_type text, subject_id text, body text, mentions uuid[] default '{}', parent uuid default null, document jsonb default null)
 returns jsonb
 language sql

@@ -658,6 +658,8 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 drop function if exists "api"."invitation_tenant_ids"();
 
+drop function if exists "api"."create_invitation"(uuid, text, text, interval);
+
 create or replace function "api"."invite_member"(tenant uuid, invitee_email text, invitee_role text, valid_for interval default '7 days', prefill jsonb default '{}')
 returns jsonb
 language sql
