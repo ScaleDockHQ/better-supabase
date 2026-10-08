@@ -220,7 +220,7 @@ create table if not exists ${files} (
   ${f.chat} uuid,
   ${f.project} uuid,
   ${f.bucket} text not null,
-  ${f.filename} text not null check (length(${f.filename}) between 1 and 255 and ${f.filename} !~ '[/\\\\]' and ${f.filename} not in ('.', '..')),
+  ${f.filename} text not null check (length(${f.filename}) >= 1 and length(${f.filename}) <= 255 and ${f.filename} !~ '[/\\\\]' and ${f.filename} not in ('.', '..')),
   ${f.path} text generated always as (${f.tenant}::text || '/' || ${f.owner}::text || '/' || ${f.id}::text || '/' || ${f.filename}) stored,
   ${f.mediaType} text not null check (${f.mediaType} ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   ${f.size} bigint not null check (${f.size} between 0 and ${String(maxSize)}),
