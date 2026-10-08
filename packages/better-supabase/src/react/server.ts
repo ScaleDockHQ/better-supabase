@@ -14,6 +14,16 @@ import type {
   UseActionFormOptions,
   UseActionOptions,
 } from "./index.ts";
+import type { usePresence as clientUsePresence } from "./presence.ts";
+import type { useDebouncedSearch as clientUseDebouncedSearch } from "./search.ts";
+import type {
+  useSignIn as clientUseSignIn,
+  useSignOut as clientUseSignOut,
+} from "./sign-in.ts";
+import type {
+  useSignedUrl as clientUseSignedUrl,
+  useUpload as clientUseUpload,
+} from "./storage.ts";
 
 export {
   BetterSupabaseProvider,
@@ -26,6 +36,7 @@ export {
 // Component layout can render it and pass the session promise across.
 export { SessionProvider } from "./session.js";
 export { fieldErrorsOf } from "./field-errors.ts";
+export { escapeLike } from "../ir/build.ts";
 export { tenantOf } from "../auth/tenant.ts";
 export type {
   ActionForm,
@@ -47,6 +58,23 @@ export type {
   ProfileOf,
 } from "./index.ts";
 export type { SessionProviderProps } from "./session.ts";
+export type {
+  AuthHookOptions,
+  DebouncedSearch,
+  DebouncedSearchOptions,
+  PendingState,
+  Presence,
+  PresenceHookOptions,
+  PresenceTopic,
+  SignedUrl,
+  SignedUrlSource,
+  SignIn,
+  SignOut,
+  Upload,
+  UploadStatus,
+  UploadTarget,
+  UseUploadOptions,
+} from "./index.ts";
 export type { AuthSession } from "../auth/view.ts";
 export type { SupportView } from "../auth/support-view.ts";
 export { supportOf } from "../auth/support-view.ts";
@@ -88,6 +116,25 @@ export const useActionForm: <T>(
   options?: UseActionFormOptions<T>,
 ) => ActionForm<T> = clientOnly("useActionForm");
 
+/** The `react-server` build of `usePresence`: join presence in a Client Component. */
+export const usePresence: typeof clientUsePresence = clientOnly("usePresence");
+
+/** The `react-server` build of `useSignIn`: sign in from a Client Component or a Server Action. */
+export const useSignIn: typeof clientUseSignIn = clientOnly("useSignIn");
+
+/** The `react-server` build of `useSignOut`: sign out from a Client Component or a Server Action. */
+export const useSignOut: typeof clientUseSignOut = clientOnly("useSignOut");
+
+/** The `react-server` build of `useDebouncedSearch`: read the term from `searchParams` instead. */
+export const useDebouncedSearch: typeof clientUseDebouncedSearch =
+  clientOnly("useDebouncedSearch");
+
+/** The `react-server` build of `useSignedUrl`: await `bucket.signedUrl()` instead. */
+export const useSignedUrl: typeof clientUseSignedUrl =
+  clientOnly("useSignedUrl");
+
+/** The `react-server` build of `useUpload`: upload from a Client Component. */
+export const useUpload: typeof clientUseUpload = clientOnly("useUpload");
 /**
  * The `react-server` build of `createHooks`: importing a module that creates
  * hooks is safe on the server, calling a hook there throws.

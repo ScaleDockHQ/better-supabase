@@ -60,6 +60,56 @@ function CustomerList() {
   [Realtime topic](/docs/platform/realtime) while mounted and refetches the
   listed tables after each message.
 
+## Auth, search, storage and presence hooks
+
+These hooks replace the code most screens write by hand. Each reads the
+provider's client, or takes `{ client: supabase }` without the provider.
+
+```tsx title="src/features/auth/sign-in-form.tsx"
+"use client";
+
+import { useSignIn } from "better-supabase/react";
+
+export function SignInForm() {
+  const signIn = useSignIn({ onSuccess: () => router.push("/") });
+  return (
+    <form
+      action={(form) =>
+        signIn.password({
+          email: String(form.get("email")),
+          password: String(form.get("password")),
+        })
+      }
+    >
+      {signIn.error ? <p role="alert">{signIn.error.message}</p> : null}
+      <button disabled={signIn.pending}>Sign in</button>
+    </form>
+  );
+}
+```
+
+| Hook | What it returns |
+| --- | --- |
+| `useSignIn()` | `password`, `otp`, `verifyOtp` and `oauth`, with `pending` and the last `error` |
+| `useSignOut()` | `signOut(options)`, with `pending` and `error`; the provider then clears cached queries |
+| `useDebouncedSearch(initial, { delayMs })` | `value` and `setValue` for the input, the settled `term`, and `pattern` with `%` and `_` escaped for `ilike` |
+| `useSignedUrl(bucket, target, { ttl })` | a signed URL that is signed again before it expires; `null` pauses |
+| `useUpload(bucket)` | `upload(target, body)`, `progress` from 0 to 1, `status`, `abort` and `reset` |
+| `usePresence(topic, values, { state })` | the `members` on a presence topic, `track` and `untrack` |
+
+`useDebouncedSearch` pairs with `contains`, which escapes the term itself:
+`where: search.term ? { name: { contains: search.term } } : {}`. `escapeLike`
+is exported for filters you build yourself.
+
+`useUpload` reports real progress where `XMLHttpRequest` exists (browsers
+and React Native): the upload goes to a signed upload URL, and `abort`
+cancels the request. Elsewhere, and for uploads with `metadata`, progress
+jumps to 1 when the upload finishes. The same `onProgress` option works on
+`bucket.upload()` directly.
+
+`usePresence` tracks the `state` option after the join and again when its
+JSON changes; pass `null` to untrack. It rejoins when the user changes.
+
 ## Server Actions
 
 `useAction` and `useActionForm` call a [`bs.action()`](/docs/frameworks/next#server-actions)

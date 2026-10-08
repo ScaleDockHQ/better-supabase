@@ -1,5 +1,5 @@
 import { hashKey, QueryClient, skipToken } from "@tanstack/query-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
 
@@ -8,8 +8,10 @@ import { DbException } from "../../src/core/errors.ts";
 import { ok } from "../../src/core/result.ts";
 import {
   createQueries,
+  escapeLike,
   invalidateOnMutation,
   invalidateTables,
+  optimistic,
 } from "../../src/query/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -274,5 +276,111 @@ describe("createQueries", () => {
     });
     expect(isInvalid(queryClient, rpc.queryKey)).toBe(true);
     expect(calls).toEqual(["customer_stats", "archive_customer"]);
+  });
+});
+
+describe("query helpers", () => {
+  it("keeps a numbered window with maxPages and loads backwards", () => {
+    const q = createQueries(
+      betterSupabase,
+      betterSupabase.connect(capturingClient().client),
+    );
+    const pages = q.customers.infinitePages({ size: 2 }, { maxPages: 3 });
+    expect(pages.maxPages).toBe(3);
+    const page = (number: number) => ({
+      items: [],
+      page: { number, size: 2, total: null, pages: null, hasMore: true },
+    });
+    expect(pages.getPreviousPageParam?.(page(1))).toBeUndefined();
+    expect(pages.getPreviousPageParam?.(page(4))).toBe(3);
+    expect(q.customers.infinite({ size: 2 }, { maxPages: 2 }).maxPages).toBe(2);
+    expect("maxPages" in q.customers.infinite({ size: 2 })).toBe(false);
+  });
+
+  it("seeds findById from the full row a write returns", async () => {
+    const { client } = capturingClient(() => ({
+      body: [{ id: "c1", name: "Acme" }],
+    }));
+    const q = createQueries(betterSupabase, betterSupabase.connect(client));
+    const queryClient = new QueryClient();
+    const create = q.customers.create();
+    const input = { organizationId: "o1", name: "Acme" };
+    const row = await create.mutationFn(input);
+    await create.onSuccess(row, input, undefined, {
+      client: queryClient,
+    });
+    expect(
+      queryClient.getQueryData(q.customers.findById("c1").queryKey),
+    ).toEqual({ id: "c1", name: "Acme" });
+
+    const narrow = q.customers.update({ select: ["id"] });
+    await narrow.onSuccess({ id: "c2" }, { id: "c2", patch: {} }, undefined, {
+      client: queryClient,
+    });
+    expect(
+      queryClient.getQueryData(q.customers.findById("c2").queryKey),
+    ).toBeUndefined();
+  });
+
+  it("indexes queries by table and skips the scan when none read it", async () => {
+    const queryClient = new QueryClient();
+    const cache = queryClient.getQueryCache();
+    queryClient.setQueryData(["bs", "customers", "a"], 1);
+    await invalidateTables(queryClient, ["customers"]);
+    expect(isInvalid(queryClient, ["bs", "customers", "a"])).toBe(true);
+
+    queryClient.setQueryData(["bs", "notes", "b"], 1);
+    await invalidateTables(queryClient, ["notes"]);
+    expect(isInvalid(queryClient, ["bs", "notes", "b"])).toBe(true);
+
+    queryClient.removeQueries({ queryKey: ["bs", "notes"] });
+    const findAll = vi.spyOn(cache, "findAll");
+    await invalidateTables(queryClient, ["notes", "organizations"]);
+    expect(findAll).not.toHaveBeenCalled();
+  });
+
+  it("rewrites, rolls back and refetches cached lists optimistically", async () => {
+    const queryClient = new QueryClient();
+    const context = { client: queryClient };
+    type Row = { id: string; name: string };
+    const list = { queryKey: ["bs", "customers", "findMany", {}] as never };
+    queryClient.setQueryData<Row[]>(list.queryKey, [
+      { id: "a", name: "A" },
+      { id: "b", name: "B" },
+    ]);
+    const data = () => queryClient.getQueryData<Row[]>(list.queryKey);
+
+    const create = optimistic.create<Row, { name: string }>(
+      list,
+      (input) => ({ id: "tmp", ...input }),
+      { position: "start" },
+    );
+    const created = await create.onMutate({ name: "C" }, context);
+    expect(data()?.map((row) => row.id)).toEqual(["tmp", "a", "b"]);
+    create.onError(new Error("x"), { name: "C" }, created, context);
+    expect(data()?.map((row) => row.id)).toEqual(["a", "b"]);
+
+    const update = optimistic.update<Row>(list);
+    await update.onMutate({ id: "a", patch: { name: "Z" } }, context);
+    expect(data()?.[0]).toEqual({ id: "a", name: "Z" });
+
+    const remove = optimistic.remove<Row>(list);
+    await remove.onMutate("b", context);
+    expect(data()?.map((row) => row.id)).toEqual(["a"]);
+    await remove.onSettled(undefined, null, "b", undefined, context);
+    expect(isInvalid(queryClient, list.queryKey)).toBe(true);
+
+    const empty = {
+      queryKey: ["bs", "notes", "findMany"] as never,
+    };
+    const rewrite = optimistic<Row[], string>([empty], (rows) => rows);
+    const snapshot = await rewrite.onMutate("x", context);
+    expect(queryClient.getQueryData<Row[]>(empty.queryKey)).toBeUndefined();
+    rewrite.onError(null, "x", snapshot, context);
+    expect(queryClient.getQueryData<Row[]>(empty.queryKey)).toBeUndefined();
+  });
+
+  it("re-exports escapeLike", () => {
+    expect(escapeLike("50%_off\\")).toBe("50\\%\\_off\\\\");
   });
 });

@@ -3,11 +3,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type * as ReactModule from "react";
 
 import { QueryClient } from "@tanstack/query-core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AuthSnapshot } from "../../src/client/index.ts";
 import type { ActionResultOf } from "../../src/react/actions.ts";
-import type { SubscriptionStatus } from "../../src/realtime/index.ts";
+import type { PresenceTopic } from "../../src/react/presence.ts";
+import type {
+  PresenceMember,
+  SubscriptionStatus,
+} from "../../src/realtime/index.ts";
 import type { LiveCountSeed } from "../../src/realtime/live.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
@@ -31,7 +35,7 @@ import {
 } from "../../src/blocks/workflows/react/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
-import { AsyncResult } from "../../src/core/result.ts";
+import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { useAction, useActionForm } from "../../src/react/actions.ts";
 import { fieldErrorsOf } from "../../src/react/field-errors.ts";
 import {
@@ -44,7 +48,11 @@ import {
   useLiveQuery,
   useSupabase,
 } from "../../src/react/hooks.ts";
+import { usePresence } from "../../src/react/presence.ts";
+import { useDebouncedSearch } from "../../src/react/search.ts";
 import { useSession } from "../../src/react/session.ts";
+import { useSignIn, useSignOut } from "../../src/react/sign-in.ts";
+import { useSignedUrl, useUpload } from "../../src/react/storage.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -2016,5 +2024,348 @@ describe("ai-chat hooks", () => {
     view.rerender(null);
     expect(await view.result.create()).toBeUndefined();
     view.unmount();
+  });
+});
+
+describe("usePresence", () => {
+  function fakePresenceTopic() {
+    const joins: {
+      values: unknown;
+      options: {
+        onStatus?: (status: SubscriptionStatus) => void;
+        onPresence?: (
+          members: readonly PresenceMember<{ name: string }>[],
+        ) => void;
+      };
+      tracked: unknown[];
+      untracked: number;
+      left: boolean;
+    }[] = [];
+    const topic: PresenceTopic<
+      "room:{roomId}",
+      { name: string },
+      { name: string }
+    > = {
+      topic: (values) => `room:${values.roomId}`,
+      match: (name) =>
+        name.startsWith("room:") ? { roomId: name.slice(5) } : null,
+      subscribe: (_client, values, _handlers, options = {}) => {
+        const join = {
+          values,
+          options,
+          tracked: [] as unknown[],
+          untracked: 0,
+          left: false,
+        };
+        joins.push(join);
+        options.onStatus?.("subscribed");
+        return {
+          topic: "x",
+          ready: Promise.resolve(),
+          track: (state: unknown) => {
+            join.tracked.push(state);
+            return AsyncResult.from(async () => ok(undefined));
+          },
+          untrack: () => {
+            join.untracked += 1;
+            return AsyncResult.from(async () =>
+              err(dbError("network", "down")),
+            );
+          },
+          members: () => [],
+          unsubscribe: async () => {
+            join.left = true;
+          },
+        } as never;
+      },
+    };
+    return { topic, joins };
+  }
+
+  it("joins, tracks the state, re-tracks when it changes and leaves on unmount", async () => {
+    const { browser, setAuth } = fakeBrowser(LOADING);
+    const { topic, joins } = fakePresenceTopic();
+    const initial: { roomId: string | null; name: string | null } = {
+      roomId: "r1",
+      name: "Ada",
+    };
+    const view = renderHook(
+      (props: typeof initial) =>
+        usePresence(topic, props.roomId ? { roomId: props.roomId } : null, {
+          state: props.name === null ? null : { name: props.name },
+        }),
+      initial,
+      { client: browser },
+    );
+    expect(joins).toHaveLength(0);
+    expect(await view.result.track({ name: "x" })).toMatchObject({
+      kind: "invalid_request",
+    });
+    setAuth(signedIn(USER));
+    expect(joins).toHaveLength(1);
+    expect(view.result.status).toBe("subscribed");
+    expect(joins[0]!.tracked).toEqual([{ name: "Ada" }]);
+
+    joins[0]!.options.onPresence?.([{ key: "k", state: { name: "Ada" } }]);
+    expect(view.result.members).toEqual([{ key: "k", state: { name: "Ada" } }]);
+
+    view.rerender({ roomId: "r1", name: "Ada" });
+    expect(joins[0]!.tracked).toHaveLength(1);
+    view.rerender({ roomId: "r1", name: "Grace" });
+    expect(joins[0]!.tracked).toEqual([{ name: "Ada" }, { name: "Grace" }]);
+    view.rerender({ roomId: "r1", name: null });
+    expect(joins[0]!.untracked).toBe(1);
+
+    expect(await view.result.track({ name: "Z" })).toBeUndefined();
+    expect(await view.result.untrack()).toMatchObject({ kind: "network" });
+
+    view.rerender({ roomId: null, name: null });
+    expect(joins[0]!.left).toBe(true);
+    expect(view.result.members).toEqual([]);
+    expect(view.result.status).toBe("closed");
+    view.unmount();
+  });
+
+  it("needs a client", () => {
+    const { topic } = fakePresenceTopic();
+    const view = renderHook(
+      () => usePresence(topic, { roomId: "r" }),
+      undefined,
+      null,
+    );
+    expect(view.error?.message).toMatch(/usePresence needs/);
+  });
+
+  it("accepts a presence topic from defineTopic", () => {
+    const room = defineTopic("room:{roomId}", { presence: true });
+    expectTypeOf(room).toExtend<
+      PresenceTopic<
+        "room:{roomId}",
+        Readonly<Record<string, unknown>>,
+        Readonly<Record<string, unknown>>
+      >
+    >();
+  });
+});
+
+describe("useSignIn and useSignOut", () => {
+  function fakeAuth() {
+    let next: { error: { message: string } | null } = { error: null };
+    const auth = {
+      signInWithPassword: vi.fn(async () => next),
+      signInWithOtp: vi.fn(async () => next),
+      verifyOtp: vi.fn(async () => next),
+      signInWithOAuth: vi.fn(async () => next),
+      signOut: vi.fn(async () => next),
+    };
+    return {
+      client: { auth } as never,
+      auth,
+      fail: (message: string) => {
+        next = { error: { message } };
+      },
+    };
+  }
+
+  it("tracks pending and error and calls onSuccess", async () => {
+    const { client, auth, fail } = fakeAuth();
+    const onSuccess = vi.fn();
+    const view = renderHook(
+      () => useSignIn({ client, onSuccess }),
+      undefined,
+      null,
+    );
+    expect(view.result.pending).toBe(false);
+    const call = view.result.password({ email: "a@b.c", password: "pw" });
+    expect(view.result.pending).toBe(true);
+    expect(await call).toBeUndefined();
+    expect(view.result.pending).toBe(false);
+    expect(onSuccess).toHaveBeenCalledOnce();
+
+    await view.result.otp({ email: "a@b.c" });
+    await view.result.verifyOtp({ email: "a@b.c", token: "1", type: "email" });
+    await view.result.oauth("github");
+    await view.result.oauth("github", { redirectTo: "/x" });
+    expect(auth.signInWithOAuth).toHaveBeenLastCalledWith({
+      provider: "github",
+      options: { redirectTo: "/x" },
+    });
+
+    fail("bad password");
+    expect(await view.result.password({ email: "a", password: "b" })).toEqual({
+      message: "bad password",
+    });
+    expect(view.result.error).toEqual({ message: "bad password" });
+    expect(onSuccess).toHaveBeenCalledTimes(5);
+  });
+
+  it("resets pending when the call throws", async () => {
+    const { client, auth } = fakeAuth();
+    auth.signOut.mockRejectedValueOnce(new Error("offline"));
+    const view = renderHook(() => useSignOut({ client }), undefined, null);
+    await expect(view.result.signOut()).rejects.toThrow("offline");
+    expect(view.result.pending).toBe(false);
+    await view.result.signOut({ scope: "local" });
+    expect(auth.signOut).toHaveBeenLastCalledWith({ scope: "local" });
+  });
+
+  it("uses the provider's client and explains a missing one", () => {
+    const { browser } = fakeBrowser(SIGNED_OUT);
+    const auth = { signOut: vi.fn(async () => ({ error: null })) };
+    (browser.supabase as { auth?: unknown }).auth = auth;
+    const view = renderHook(() => useSignOut(), undefined, { client: browser });
+    void view.result.signOut();
+    expect(auth.signOut).toHaveBeenCalledWith(undefined);
+    const missing = renderHook(() => useSignIn(), undefined, null);
+    expect(missing.error?.message).toMatch(/useSignIn needs/);
+  });
+});
+
+describe("useDebouncedSearch", () => {
+  it("settles after the delay, trims and escapes the pattern", async () => {
+    const view = renderHook(
+      () => useDebouncedSearch("", { delayMs: 5, minLength: 2 }),
+      undefined,
+      null,
+    );
+    expect(view.result.term).toBeUndefined();
+    view.result.setValue(" 5");
+    expect(view.result.pending).toBe(true);
+    await wait(15);
+    expect(view.result.term).toBeUndefined();
+    view.result.setValue(" 50%_off ");
+    expect(view.result.value).toBe(" 50%_off ");
+    await wait(15);
+    expect(view.result.pending).toBe(false);
+    expect(view.result.term).toBe("50%_off");
+    expect(view.result.pattern).toBe("%50\\%\\_off%");
+    view.unmount();
+  });
+
+  it("starts settled with the initial value", () => {
+    const view = renderHook(() => useDebouncedSearch("acme"), undefined, null);
+    expect(view.result).toMatchObject({ term: "acme", pending: false });
+  });
+});
+
+describe("useSignedUrl", () => {
+  it("signs, re-signs before expiry, keeps the last url on errors and pauses", async () => {
+    vi.useFakeTimers();
+    try {
+      let n = 0;
+      let failing = false;
+      const bucket = {
+        signedUrl: vi.fn((_target: { id: string }) =>
+          AsyncResult.from(async () =>
+            failing
+              ? err(dbError("network", "down"))
+              : ok(`url-${String((n += 1))}`),
+          ),
+        ),
+      };
+      const initial: { id: string | null } = { id: "a" };
+      const view = renderHook(
+        (props: typeof initial) =>
+          useSignedUrl(bucket, props.id ? { id: props.id } : null, { ttl: 10 }),
+        initial,
+        null,
+      );
+      expect(view.result.loading).toBe(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(view.result).toEqual({
+        url: "url-1",
+        error: undefined,
+        loading: false,
+      });
+
+      failing = true;
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(view.result.url).toBe("url-1");
+      expect(view.result.error).toMatchObject({ kind: "network" });
+
+      failing = false;
+      view.rerender({ id: "b" });
+      expect(view.result.url).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(view.result.url).toBe("url-2");
+
+      view.rerender({ id: null });
+      expect(view.result).toEqual({
+        url: undefined,
+        error: undefined,
+        loading: false,
+      });
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("useUpload", () => {
+  it("reports progress, success and errors, and aborts the previous upload", async () => {
+    const signals: AbortSignal[] = [];
+    let release: (() => void) | undefined;
+    const bucket = {
+      upload: vi.fn(
+        (
+          target: { id: string },
+          _body: unknown,
+          options?: { signal?: AbortSignal; onProgress?: (n: number) => void },
+        ) =>
+          AsyncResult.from(async () => {
+            signals.push(options!.signal!);
+            options?.onProgress?.(0.5);
+            if (target.id === "slow")
+              await new Promise<void>((resolve) => {
+                release = resolve;
+              });
+            if (target.id === "bad") return err(dbError("forbidden", "no"));
+            if (target.id === "throw") throw new Error("boom");
+            return ok({ path: target.id });
+          }),
+      ),
+    };
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+    const view = renderHook(
+      () => useUpload(bucket, { onSuccess, onError }),
+      undefined,
+      null,
+    );
+    expect(view.result.status).toBe("idle");
+
+    const slow = view.result.upload({ id: "slow" }, "x");
+    await flush();
+    expect(view.result).toMatchObject({ status: "uploading", progress: 0.5 });
+    const fast = await view.result.upload({ id: "ok" }, "x", { upsert: true });
+    expect(signals[0]!.aborted).toBe(true);
+    expect(fast).toMatchObject({ ok: true, data: { path: "ok" } });
+    expect(view.result).toMatchObject({
+      status: "done",
+      progress: 1,
+      data: { path: "ok" },
+    });
+    release?.();
+    await slow;
+    expect(view.result.data).toEqual({ path: "ok" });
+    expect(onSuccess).toHaveBeenCalledOnce();
+
+    await view.result.upload({ id: "bad" }, "x");
+    expect(view.result).toMatchObject({
+      status: "error",
+      error: { kind: "forbidden" },
+    });
+    expect(onError).toHaveBeenCalledOnce();
+    const thrown = await view.result.upload({ id: "throw" }, "x");
+    expect(thrown.ok).toBe(false);
+
+    view.result.reset();
+    expect(view.result.status).toBe("idle");
+    void view.result.upload({ id: "slow" }, "x");
+    view.unmount();
+    await flush();
+    expect(signals.at(-1)!.aborted).toBe(true);
+    release?.();
   });
 });

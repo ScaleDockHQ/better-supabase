@@ -141,6 +141,13 @@ export interface UploadOptions {
   readonly upsert?: boolean;
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly signal?: AbortSignal;
+  /**
+   * Upload progress from 0 to 1. Where `XMLHttpRequest` exists (browsers,
+   * React Native) the body goes to a signed upload URL so progress events
+   * arrive and `signal` cancels the request; elsewhere it reports 1 when
+   * done. Uploads with `metadata` or a stream body report 1 when done.
+   */
+  readonly onProgress?: (fraction: number) => void;
 }
 
 export interface UrlOptions {

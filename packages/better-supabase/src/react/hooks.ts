@@ -5,6 +5,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
 
 import {
+  type Context,
   createContext,
   createElement,
   type ReactNode,
@@ -52,12 +53,13 @@ export interface ClientLike {
   readonly queries: object;
 }
 
-interface ContextValue {
+export interface ContextValue {
   readonly client: ClientLike;
   readonly queryClient: QueryClient | undefined;
 }
 
-const ClientContext = createContext<ContextValue | null>(null);
+export const ClientContext: Context<ContextValue | null> =
+  createContext<ContextValue | null>(null);
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
 
@@ -84,7 +86,7 @@ export function BetterSupabaseProvider(
   return createElement(ClientContext.Provider, { value }, props.children);
 }
 
-function useClientContext(): ContextValue {
+export function useClientContext(): ContextValue {
   const value = useContext(ClientContext);
   if (!value) {
     throw new Error(
@@ -288,7 +290,7 @@ function sessionUserId(session: Session): string | null {
  * The user `useBroadcast` subscribes as: the provider's auth snapshot, or
  * for a plain supabase-js client, its auth state.
  */
-function useBroadcastAuth(
+export function useBroadcastAuth(
   client: ClientLike | undefined,
   supabase: SupabaseClient,
 ): { readonly status: AuthSnapshot["status"]; readonly userId: string | null } {

@@ -21,6 +21,7 @@ import { temporalMissing } from "../core/temporal-required.ts";
 import { optionalTemporal } from "../core/temporal.ts";
 import { fromStorageError } from "./errors.ts";
 import { inScope } from "./layouts.ts";
+import { sendable, xhrConstructor, xhrUpload } from "./progress.ts";
 import { ttlSeconds } from "./ttl.ts";
 import { type ObjectVersion, toVersion } from "./versioning.ts";
 
@@ -161,6 +162,36 @@ export function connectBucket<P extends string, Id extends string>(
       const contentType = options?.contentType;
       const problem = bucket.check(bodyInfo(body, contentType));
       if (problem) return err(problem);
+      const Request = options?.onProgress ? xhrConstructor() : undefined;
+      if (
+        options?.onProgress &&
+        Request &&
+        !options.metadata &&
+        sendable(body)
+      ) {
+        const reserved = await run(() =>
+          api().createSignedUploadUrl(
+            path,
+            options.upsert ? { upsert: true } : undefined,
+          ),
+        );
+        if (!reserved.ok) return reserved;
+        const failure = await xhrUpload(
+          Request,
+          reserved.data.signedUrl,
+          body,
+          {
+            contentType,
+            cacheControl: options.cacheControl,
+            upsert: options.upsert ?? false,
+            signal: options.signal,
+            onProgress: options.onProgress,
+          },
+        );
+        if (failure) return err(fromStorageError(failure, bucket.id));
+        evict([path]);
+        return ok({ path });
+      }
       // storage-js `upload` takes no signal, so an abort settles the result
       // early instead of cancelling the request.
       return run(() =>
@@ -170,6 +201,7 @@ export function connectBucket<P extends string, Id extends string>(
         ),
       ).map(() => {
         evict([path]);
+        options?.onProgress?.(1);
         return { path };
       });
     });
