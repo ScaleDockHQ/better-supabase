@@ -6,6 +6,21 @@ msgstr ""
 "X-Generator: next-intl\n"
 "X-Message-Key: msgctxt\n"
 
+#: src/app/[locale]/(app)/assistant/[id]/page.tsx
+msgctxt "assistant.Ug9lgd"
+msgid "All chats"
+msgstr "All chats"
+
+#: src/app/[locale]/(app)/assistant/page.tsx
+msgctxt "assistant.wSAvhu"
+msgid "Assistant"
+msgstr "Assistant"
+
+#: src/app/[locale]/(app)/assistant/page.tsx
+msgctxt "assistant.p-0Iui"
+msgid "Chats on the ai-chat block. A reload resumes an answer that is still streaming."
+msgstr "Chats on the ai-chat block. A reload resumes an answer that is still streaming."
+
 #: src/app/[locale]/(app)/beta/page.tsx
 msgctxt "beta.riw_yc"
 msgid "Beta"
@@ -309,6 +324,66 @@ msgstr "Cancel"
 msgctxt "apiKeys.VzzYJk"
 msgid "Create"
 msgstr "Create"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.ytL5Ck"
+msgid "The answer failed. Try again."
+msgstr "The answer failed. Try again."
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.w_8N9S"
+msgid "The file could not be attached."
+msgstr "The file could not be attached."
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.Vlx13n"
+msgid "Attachments"
+msgstr "Attachments"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.T0e6Lh"
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.ydgifD"
+msgid "Attach a file"
+msgstr "Attach a file"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.zf_3aa"
+msgid "Ask anything"
+msgstr "Ask anything"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.T7Ry38"
+msgid "Message"
+msgstr "Message"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.q_uwLT"
+msgid "Stop"
+msgstr "Stop"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.9WRlF4"
+msgid "Send"
+msgstr "Send"
+
+#: src/features/assistant/components/chat-list.tsx
+msgctxt "assistant.YfXudL"
+msgid "No chats yet"
+msgstr "No chats yet"
+
+#: src/features/assistant/components/chat-list.tsx
+msgctxt "assistant.huX5LS"
+msgid "Your chats show up here after the first answer."
+msgstr "Your chats show up here after the first answer."
+
+#: src/features/assistant/components/chat-list.tsx
+msgctxt "assistant.lfYALm"
+msgid "Untitled chat"
+msgstr "Untitled chat"
 
 #: src/features/audit/components/audit-log.tsx
 msgctxt "audit.hE7RvK"
@@ -1203,6 +1278,11 @@ msgstr "Workflow builder"
 msgctxt "navigation.VCMKbt"
 msgid "Inbox"
 msgstr "Inbox"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.wSAvhu"
+msgid "Assistant"
+msgstr "Assistant"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.riw_yc"

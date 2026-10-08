@@ -65,7 +65,7 @@ export default defineConfig({
       // Runtime entries run on every WinterTC runtime (AGENTS.md invariant 6).
       files: [
         "src/index.ts",
-        "src/{auth,bridges,casing,chat-sdk,client,compile,config,core,edge,elysia,env,events,generators,h3,hono,ir,jobs,lint,list,mcp,next,openapi,orpc,otel,plugins,query,react,react-router,realtime,schema,server,sql,ssr,storage,sveltekit,tanstack-start,webhooks}/**/*.{ts,tsx}",
+        "src/{ai-sdk,auth,bridges,casing,chat-sdk,client,compile,config,core,edge,elysia,env,events,generators,h3,hono,ir,jobs,lint,list,mcp,next,openapi,orpc,otel,plugins,query,react,react-router,realtime,schema,server,sql,ssr,storage,sveltekit,tanstack-start,webhooks}/**/*.{ts,tsx}",
       ],
       excludeFiles: ["**/*.test.ts", "**/*.test-d.ts", "**/tests/**"],
       rules: {
@@ -79,6 +79,47 @@ export default defineConfig({
                 group: ["node:*"],
                 message:
                   "Runtime entries import no Node built-ins; move this to cli, postgres or testing.",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      // Blocks, streams and credentials stay SDK-neutral (ADR 0010): each SDK
+      // gets an adapter subpath (`src/ai-sdk`, `src/vercel-connect`) that
+      // depends on them, never the other way round. 0 findings when added.
+      files: [
+        "src/blocks/**/*.{ts,tsx}",
+        "src/streams/**/*.{ts,tsx}",
+        "src/credentials/**/*.{ts,tsx}",
+      ],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            paths: [
+              ...restrictedImportPaths,
+              ...["ai", "workflow", "chat", "@vercel/connect", "eve"].map(
+                (name) => ({
+                  name,
+                  message:
+                    "Blocks stay SDK-neutral (ADR 0010); put SDK code in an adapter subpath.",
+                }),
+              ),
+            ],
+            patterns: [
+              ...restrictedImportPatterns,
+              {
+                group: [
+                  "ai/*",
+                  "@ai-sdk/*",
+                  "workflow/*",
+                  "@workflow/*",
+                  "chat/*",
+                ],
+                message:
+                  "Blocks stay SDK-neutral (ADR 0010); put SDK code in an adapter subpath.",
               },
             ],
           },

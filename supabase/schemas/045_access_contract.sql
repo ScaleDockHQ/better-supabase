@@ -4,9 +4,9 @@
 -- the active one is the `tenant_id` claim that switch_organization writes.
 -- Owners hold every permission, admins everything but deleting and handing
 -- over the organization, members read, comment, keep their own API keys,
--- read the settings and answer inbox conversations. Assigning conversations
--- and managing inboxes is for admins. There are no platform roles, and
--- nobody is disabled.
+-- read the settings, answer inbox conversations and use the assistant.
+-- Assigning conversations and managing inboxes is for admins. There are no
+-- platform roles, and nobody is disabled.
 -- `rolePermissions` in apps/examples/nextjs/src/features/user/user-permissions.ts
 -- mirrors the lists for the UI.
 
@@ -29,14 +29,16 @@ as $$
       'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record',
       'notifications.send', 'notifications.read',
       'workflow.read', 'workflow.run', 'workflow.edit', 'workflow.publish', 'workflow.admin',
-      'inbox.read', 'inbox.reply', 'inbox.assign', 'inbox.manage'
+      'inbox.read', 'inbox.reply', 'inbox.assign', 'inbox.manage',
+      'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai_chat.admin'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
       'settings.read', 'api_keys.own', 'comments.read', 'comments.create', 'activity.read',
       'onboarding.read', 'usage.read', 'usage.record',
       'notifications.send', 'notifications.read',
-      'workflow.read', 'workflow.run', 'inbox.read', 'inbox.reply'
+      'workflow.read', 'workflow.run', 'inbox.read', 'inbox.reply',
+      'ai_chat.read', 'ai_chat.create', 'ai_chat.share'
     ]
     else array[]::text[]
   end

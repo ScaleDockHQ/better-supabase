@@ -1,0 +1,118 @@
+---
+title: AI SDK
+description: Convert between AI SDK UI messages and the canonical message format, attribute spend in the AI Gateway, and keep the model catalog and costs current.
+---
+
+`better-supabase/ai-sdk` connects the [AI SDK](https://ai-sdk.dev) to the
+[AI chat block](/docs/blocks/ai-chat). The block stores messages in its own
+format and never imports an SDK; this adapter converts AI SDK messages to
+that format and back, and adds the AI Gateway helpers the assistant uses.
+It owns no tables.
+
+```bash
+pnpm add ai @ai-sdk/react
+```
+
+`ai` (7) and `@ai-sdk/react` (4) are optional peers: install them only in
+the apps that use these subpaths.
+
+| Subpath                        | What it gives you                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `better-supabase/ai-sdk`       | Message converters and the AI Gateway helpers on this page                                                          |
+| `better-supabase/ai-sdk/chat`  | [`createAssistant`](/docs/ai-sdk/chat): the chat route over the block                                               |
+| `better-supabase/ai-sdk/files` | [`aiFileDownload`](/docs/ai-sdk/files): file parts read as the caller, generated files and provider file references |
+| `better-supabase/ai-sdk/react` | [`useAssistant`](/docs/ai-sdk/chat#client): `useChat` wired to that route                                           |
+
+## Messages
+
+```ts
+import { fromUIMessage, toUIMessages } from "better-supabase/ai-sdk";
+
+const stored = fromUIMessage(uiMessage); // an AiMessage for the block
+const path = await aiChat.messages.path(chatId, { native: true }).orThrow();
+const messages = toUIMessages(path); // UIMessage[] for useChat
+```
+
+`toUIMessage` returns the stored AI SDK copy (`native`) when the adapter
+wrote the message, so nothing is lost on the round trip. A message another
+SDK wrote is converted from its parts:
+
+| Canonical part                 | UI message part                         |
+| ------------------------------ | --------------------------------------- |
+| `text`, `reasoning`, `file`    | the same part                           |
+| `source` (`url` or `document`) | `source-url` or `source-document`       |
+| `tool-call`, `tool-result`     | one `tool-<name>` part with its `state` |
+| `tool-approval`                | the `approval` of that tool part        |
+| `step`                         | `step-start`                            |
+| `data`                         | `data-<name>`                           |
+
+A `tool` message's results join the tool parts of the assistant message
+before it, the way `useChat` expects them. A UI part with no canonical
+counterpart is stored as a `data` part (`ui.custom` or `ui.reasoning-file`)
+and comes back unchanged.
+
+## AI Gateway
+
+Models are `provider/model` strings for the
+[AI Gateway](https://vercel.com/docs/ai-gateway). `gatewayOptions` attributes
+spend to the user, the tenant and the chat:
+
+```ts
+import { streamText } from "ai";
+import { gatewayOptions, usageOf } from "better-supabase/ai-sdk";
+
+const result = streamText({
+  model: "anthropic/claude-sonnet-4.5",
+  messages,
+  providerOptions: gatewayOptions({
+    userId,
+    organizationId,
+    chatId,
+    feature: "chat",
+  }),
+});
+
+const usage = usageOf({
+  totalUsage: await result.totalUsage,
+  providerMetadata: await result.providerMetadata,
+});
+```
+
+`usageOf` returns the token counts, the gateway's `generationId` and the
+cost in micro-dollars when the gateway reported it. `usageEntries(usage)`
+turns it into entries for the [usage block](/docs/blocks/usage)
+(`ai.input_tokens` and `ai.output_tokens` by default), and
+`usageQuota(usage, meter)` is the quota check `createAssistant` takes: it
+returns a `quota_exceeded` error with `retryAfter` when the meter is used up.
+`problem429(error)` is the RFC 9457 response for it, with `Retry-After`.
+
+## Jobs
+
+Two [job](/docs/blocks/jobs) handlers keep the block current:
+
+```ts title="jobs.ts"
+import { gateway } from "ai";
+import { costBackfill, modelCatalogRefresh } from "better-supabase/ai-sdk";
+
+export const handlers = {
+  "ai.cost_backfill": costBackfill({
+    chats: aiChat,
+    gateway,
+    usage,
+    meter: "ai.cost",
+  }),
+  "ai.model_catalog": modelCatalogRefresh({
+    chats: aiChat,
+    gateway,
+    prune: true,
+  }),
+};
+```
+
+`costBackfill` reads the exact cost from `gateway.getGenerationInfo` once
+the gateway has it, writes it to the run (`runs.setCost`) and, with
+`usage`, records it once per generation. `createAssistant` enqueues it
+when the answer arrives without a cost. `modelCatalogRefresh` copies
+`gateway.getAvailableModels()` into `ai_model_catalog`, language models by
+default, with `plans` deciding which entitlements may use each model. Run it
+on a schedule.

@@ -5,6 +5,7 @@ import {
   FlaskConicalIcon,
   BellIcon,
   InboxIcon,
+  BotIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
   type LucideIcon,
@@ -37,6 +38,7 @@ const ICONS = {
   workflows: WorkflowIcon,
   workflowBuilder: WaypointsIcon,
   inbox: InboxIcon,
+  assistant: BotIcon,
   beta: FlaskConicalIcon,
   members: UsersRoundIcon,
   billing: CreditCardIcon,
@@ -61,6 +63,8 @@ function useNavLabel() {
         return t("Workflow builder");
       case "inbox":
         return t("Inbox");
+      case "assistant":
+        return t("Assistant");
       case "beta":
         return t("Beta");
       case "members":

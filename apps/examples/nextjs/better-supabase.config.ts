@@ -140,9 +140,13 @@ export default defineConfig({
       // The support inbox behind /inbox and the Help sheet: jobs carry bot
       // turns and channel replies, streams hold the bot's resumable output.
       jobs: {},
-      streams: {},
+      streams: { api: "api" },
       inbox: { api: "api" },
       "chat-sdk-state": {},
+      // The /assistant sample: chats in `ai-chat` on private Realtime topics,
+      // resumable answers in `streams` and attachments in `ai-files`.
+      "ai-chat": { api: "api" },
+      "ai-files": { api: "api" },
     },
   },
 });

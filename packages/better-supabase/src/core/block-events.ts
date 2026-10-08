@@ -132,6 +132,21 @@ export interface WaitlistEventData {
   readonly email: string;
 }
 
+/** `ai_chat.*`, written to the outbox by the ai-chat module. */
+export interface AiChatEventData {
+  readonly chatId: string;
+  readonly organizationId: string;
+  readonly ownerId: string;
+  /** `ai_chat.message.completed`: the saved answer. */
+  readonly messageId?: string;
+  readonly model?: string;
+  /** `complete`, `aborted` or `error`. */
+  readonly status?: string;
+  /** `ai_chat.shared`: the share link and the message it ends at. */
+  readonly shareId?: string;
+  readonly leafId?: string;
+}
+
 /** Every block event type and its data. */
 export interface BlockEventMap {
   "support.started": SupportEventData;
@@ -179,6 +194,8 @@ export interface BlockEventMap {
   "organization.deletion_requested": OrganizationDeletionEventData;
   "organization.deletion_cancelled": OrganizationDeletionEventData;
   "organization.purged": OrganizationDeletionEventData;
+  "ai_chat.message.completed": AiChatEventData;
+  "ai_chat.shared": AiChatEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;

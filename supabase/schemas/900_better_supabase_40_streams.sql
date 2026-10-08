@@ -278,6 +278,73 @@ begin
 end;
 $$;
 
+-- sql.modules.streams.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."stream_open"(stream_id text, owner uuid default null, tenant uuid default null, kind text default 'default', ttl interval default '1 day', wake boolean default true)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stream_open"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."stream_open"(text, uuid, uuid, text, interval, boolean) from public, anon, authenticated;
+grant execute on function "api"."stream_open"(text, uuid, uuid, text, interval, boolean) to service_role;
+
+create or replace function "api"."stream_append"(stream_id text, from_idx integer, chunks text[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stream_append"($1, $2, $3) $$;
+revoke execute on function "api"."stream_append"(text, integer, text[]) from public, anon, authenticated;
+grant execute on function "api"."stream_append"(text, integer, text[]) to service_role;
+
+create or replace function "api"."stream_read"(stream_id text, from_idx integer default 0, max integer default 1000)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stream_read"($1, $2, $3) $$;
+revoke execute on function "api"."stream_read"(text, integer, integer) from public, anon;
+grant execute on function "api"."stream_read"(text, integer, integer) to authenticated, service_role;
+
+create or replace function "api"."stream_status"(stream_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stream_status"($1) $$;
+revoke execute on function "api"."stream_status"(text) from public, anon;
+grant execute on function "api"."stream_status"(text) to authenticated, service_role;
+
+create or replace function "api"."stream_close"(stream_id text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stream_close"($1) $$;
+revoke execute on function "api"."stream_close"(text) from public, anon, authenticated;
+grant execute on function "api"."stream_close"(text) to service_role;
+
+create or replace function "api"."stream_cancel"(stream_id text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."stream_cancel"($1) $$;
+revoke execute on function "api"."stream_cancel"(text) from public, anon;
+grant execute on function "api"."stream_cancel"(text) to authenticated, service_role;
+
+create or replace function "api"."purge_streams"(older_than interval default '1 day', batch integer default 1000)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."purge_streams"($1, $2) $$;
+revoke execute on function "api"."purge_streams"(interval, integer) from public, anon, authenticated;
+grant execute on function "api"."purge_streams"(interval, integer) to service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,

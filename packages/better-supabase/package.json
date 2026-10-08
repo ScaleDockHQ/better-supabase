@@ -383,6 +383,38 @@
       "types": "./dist/blocks/ai-chat/index.d.ts",
       "default": "./dist/blocks/ai-chat/index.js"
     },
+    "./blocks/ai-chat/react": {
+      "@better-supabase/source": "./src/blocks/ai-chat/react/index.ts",
+      "types": "./dist/blocks/ai-chat/react/index.d.ts",
+      "react-server": "./dist/blocks/ai-chat/react/server.js",
+      "default": "./dist/blocks/ai-chat/react/index.js"
+    },
+    "./blocks/ai-files": {
+      "@better-supabase/source": "./src/blocks/ai-files/index.ts",
+      "types": "./dist/blocks/ai-files/index.d.ts",
+      "default": "./dist/blocks/ai-files/index.js"
+    },
+    "./ai-sdk": {
+      "@better-supabase/source": "./src/ai-sdk/index.ts",
+      "types": "./dist/ai-sdk/index.d.ts",
+      "default": "./dist/ai-sdk/index.js"
+    },
+    "./ai-sdk/chat": {
+      "@better-supabase/source": "./src/ai-sdk/chat/index.ts",
+      "types": "./dist/ai-sdk/chat/index.d.ts",
+      "default": "./dist/ai-sdk/chat/index.js"
+    },
+    "./ai-sdk/files": {
+      "@better-supabase/source": "./src/ai-sdk/files/index.ts",
+      "types": "./dist/ai-sdk/files/index.d.ts",
+      "default": "./dist/ai-sdk/files/index.js"
+    },
+    "./ai-sdk/react": {
+      "@better-supabase/source": "./src/ai-sdk/react/index.ts",
+      "types": "./dist/ai-sdk/react/index.d.ts",
+      "react-server": "./dist/ai-sdk/react/server.js",
+      "default": "./dist/ai-sdk/react/index.js"
+    },
     "./blocks/announcements": {
       "@better-supabase/source": "./src/blocks/announcements/index.ts",
       "types": "./dist/blocks/announcements/index.d.ts",
@@ -729,6 +761,32 @@
         "types": "./dist/blocks/ai-chat/index.d.ts",
         "default": "./dist/blocks/ai-chat/index.js"
       },
+      "./blocks/ai-chat/react": {
+        "types": "./dist/blocks/ai-chat/react/index.d.ts",
+        "react-server": "./dist/blocks/ai-chat/react/server.js",
+        "default": "./dist/blocks/ai-chat/react/index.js"
+      },
+      "./blocks/ai-files": {
+        "types": "./dist/blocks/ai-files/index.d.ts",
+        "default": "./dist/blocks/ai-files/index.js"
+      },
+      "./ai-sdk": {
+        "types": "./dist/ai-sdk/index.d.ts",
+        "default": "./dist/ai-sdk/index.js"
+      },
+      "./ai-sdk/chat": {
+        "types": "./dist/ai-sdk/chat/index.d.ts",
+        "default": "./dist/ai-sdk/chat/index.js"
+      },
+      "./ai-sdk/files": {
+        "types": "./dist/ai-sdk/files/index.d.ts",
+        "default": "./dist/ai-sdk/files/index.js"
+      },
+      "./ai-sdk/react": {
+        "types": "./dist/ai-sdk/react/index.d.ts",
+        "react-server": "./dist/ai-sdk/react/server.js",
+        "default": "./dist/ai-sdk/react/index.js"
+      },
       "./blocks/announcements": {
         "types": "./dist/blocks/announcements/index.d.ts",
         "default": "./dist/blocks/announcements/index.js"
@@ -806,6 +864,7 @@
     "@supabase/ssr": "catalog:deps"
   },
   "devDependencies": {
+    "@ai-sdk/react": "catalog:",
     "@arethetypeswrong/cli": "catalog:",
     "@better-supabase/ox-config": "workspace:*",
     "@better-supabase/typescript-config": "workspace:*",
@@ -836,6 +895,7 @@
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
     "@workflow/world-testing": "catalog:",
+    "ai": "catalog:",
     "ajv": "catalog:",
     "ajv-formats": "catalog:",
     "c12": "catalog:",
@@ -866,6 +926,7 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@ai-sdk/react": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
     "@next/playwright": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
@@ -876,6 +937,7 @@
     "@tanstack/query-core": "catalog:peers",
     "@workflow/world": "catalog:peers",
     "@workflow/world-postgres": "catalog:peers",
+    "ai": "catalog:peers",
     "chat": "catalog:peers",
     "expo-server": "catalog:peers",
     "hono": "catalog:peers",
@@ -889,6 +951,9 @@
     "workflow": "catalog:peers"
   },
   "peerDependenciesMeta": {
+    "@ai-sdk/react": {
+      "optional": true
+    },
     "@modelcontextprotocol/server": {
       "optional": true
     },
@@ -914,6 +979,9 @@
       "optional": true
     },
     "@workflow/world-postgres": {
+      "optional": true
+    },
+    "ai": {
       "optional": true
     },
     "chat": {

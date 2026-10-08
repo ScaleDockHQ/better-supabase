@@ -28,6 +28,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "organization.export",
     "onboarding.*",
     "inbox.*",
+    "ai_chat.*",
   ],
   member: [
     "organization.read",
@@ -43,6 +44,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "onboarding.read",
     "inbox.read",
     "inbox.reply",
+    "ai_chat.read",
+    "ai_chat.create",
+    "ai_chat.share",
   ],
   viewer: ["organization.read"],
 };
@@ -132,6 +136,14 @@ export const MODULE_PERMISSIONS = {
     assign: "inbox.assign",
     manage: "inbox.manage",
   },
+  "ai-chat": {
+    read: "ai_chat.read",
+    create: "ai_chat.create",
+    share: "ai_chat.share",
+    moderate: "ai_chat.moderate",
+    admin: "ai_chat.admin",
+  },
+  "ai-files": { upload: "ai_chat.create", manage: "ai_chat.admin" },
 } as const;
 
 /**
@@ -203,6 +215,14 @@ export const MODULE_PERMISSION_SCOPES: {
     assign: "tenant",
     manage: "tenant",
   },
+  "ai-chat": {
+    read: "tenant",
+    create: "tenant",
+    share: "tenant",
+    moderate: "tenant",
+    admin: "tenant",
+  },
+  "ai-files": { upload: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {
