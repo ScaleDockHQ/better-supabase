@@ -21,6 +21,8 @@ import {
   applyTemporal,
 } from "../shared.ts";
 
+export type ApiKeyState = "active" | "grace" | "revoked" | "expired";
+
 export interface ApiKey {
   readonly id: string;
   /** Set for a tenant key, and for a personal key limited to one tenant. */
@@ -40,6 +42,8 @@ export interface ApiKey {
   readonly rotatedFrom?: string;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
+  readonly state: ApiKeyState;
+  readonly successorId?: string;
 }
 
 /** A new key. `token` is shown once: only its hash is stored. */
@@ -178,6 +182,28 @@ function publicId(): string {
   );
 }
 
+const STATES: readonly ApiKeyState[] = [
+  "active",
+  "grace",
+  "revoked",
+  "expired",
+];
+
+function stateOf(
+  value: unknown,
+  revokedAt: Temporal.Instant | undefined,
+  expiresAt: Temporal.Instant | undefined,
+): ApiKeyState {
+  const known = STATES.find((state) => state === value);
+  if (known) return known;
+  const now = temporal().Now.instant();
+  const past = (at: Temporal.Instant | undefined): boolean =>
+    at !== undefined && temporal().Instant.compare(at, now) <= 0;
+  if (past(revokedAt)) return "revoked";
+  if (past(expiresAt)) return "expired";
+  return revokedAt === undefined ? "active" : "grace";
+}
+
 function apiKeyOf(value: unknown): ApiKey {
   const row = recordOf(value, "api key");
   const organizationId = optionalText(row["organization_id"]);
@@ -187,6 +213,7 @@ function apiKeyOf(value: unknown): ApiKey {
   const revokedAt = optionalInstant(row["revoked_at"]);
   const rotatedFrom = optionalText(row["rotated_from"]);
   const createdBy = optionalText(row["created_by"]);
+  const successorId = optionalText(row["successor_id"]);
   const rateLimit = row["rate_limit"];
   return {
     id: textOf(row["id"]),
@@ -203,6 +230,8 @@ function apiKeyOf(value: unknown): ApiKey {
     ...(rotatedFrom ? { rotatedFrom } : {}),
     ...(createdBy ? { createdBy } : {}),
     createdAt: optionalInstant(row["created_at"]) ?? temporal().Now.instant(),
+    state: stateOf(row["state"], revokedAt, expiresAt),
+    ...(successorId ? { successorId } : {}),
   };
 }
 

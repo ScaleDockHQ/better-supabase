@@ -1378,6 +1378,7 @@
       "ApiKeyResolverOptions",
       "ApiKeys",
       "ApiKeysOptions",
+      "ApiKeyState",
       "BlockTransport",
       "CreateApiKeyInput",
       "CreatedApiKey",

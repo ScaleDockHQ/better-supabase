@@ -11,7 +11,7 @@ export interface ApiKeyRow {
   /** ISO 8601 strings: Temporal values don't cross into Client Components. */
   readonly createdAt: string;
   readonly lastUsedAt: string | null;
-  readonly revokedAt: string | null;
+  readonly revoked: boolean;
 }
 
 /** The keys the caller can see in the organization (the api-keys SQL module). */
@@ -28,6 +28,6 @@ export async function getApiKeys(
     personal: key.userId !== undefined,
     createdAt: key.createdAt.toString(),
     lastUsedAt: key.lastUsedAt?.toString() ?? null,
-    revokedAt: key.revokedAt?.toString() ?? null,
+    revoked: key.state === "revoked" || key.state === "expired",
   }));
 }

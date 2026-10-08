@@ -58,6 +58,19 @@ await keys.revoke(key.id);
 period (one day by default), so a deployment can switch over. `revoke` stops
 the key at once.
 
+Every key that `create`, `list` and `rotate` return has a `state`, computed
+with the database clock, so a list shows a rotated key as still working
+while its grace period runs:
+
+| `state`   | The key                                         |
+| --------- | ----------------------------------------------- |
+| `active`  | authenticates                                   |
+| `grace`   | was rotated and authenticates until `revokedAt` |
+| `revoked` | was revoked, or its grace period ended          |
+| `expired` | passed its `expiresAt`                          |
+
+A rotated key also has `successorId`, the id of the key that replaced it.
+
 ## Accepting keys
 
 `apiKeyResolver` reads the `x-api-key` header, or a Bearer token shaped like

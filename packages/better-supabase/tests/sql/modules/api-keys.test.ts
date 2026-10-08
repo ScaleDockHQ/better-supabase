@@ -40,6 +40,24 @@ describe("api-keys module", () => {
     expect(render({})).not.toContain("API_KEY_SCOPE_WILDCARD");
   });
 
+  it("returns each key's state and successor by the database clock", () => {
+    const sql = render({});
+    expect(sql).toContain(
+      `when k."revoked_at" is not null and k."revoked_at" <= now() then 'revoked'`,
+    );
+    expect(sql).toContain(
+      `when k."expires_at" is not null and k."expires_at" <= now() then 'expired'`,
+    );
+    expect(sql).toContain(`when k."revoked_at" is not null then 'grace'`);
+    expect(sql).toContain(
+      `'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = k."id" order by s."created_at" desc limit 1)`,
+    );
+    const verify = sql.slice(sql.indexOf("verify_api_key(public_id text"));
+    expect(verify.slice(0, verify.indexOf("$$;"))).not.toContain(
+      "successor_id",
+    );
+  });
+
   it("defaults the token prefix from options.prefix", () => {
     expect(render({})).toContain("prefix text default 'bs'");
     expect(render({ prefix: "pdk" })).toContain("prefix text default 'pdk'");
