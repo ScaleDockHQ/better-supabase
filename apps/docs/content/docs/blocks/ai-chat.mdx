@@ -1,7 +1,128 @@
 ---
-title: AI messages
-description: The canonical message format the AI blocks store, published as a JSON Schema and checked with a Standard Schema validator.
+title: AI chat
+description: Chats, projects and a branching message tree in a canonical message format, with runs, tool approvals, share links, a model catalog per plan and moderation events.
 ---
+
+The `ai-chat` block stores the conversations of an AI assistant: chats and
+projects per user and tenant, a message tree with edits and regenerations
+as branches, the run that writes each answer, tool approvals, share links,
+the models each plan allows and moderation events. It doesn't call a model.
+The [AI SDK adapter](/docs/ai-sdk) generates the answers and stores them
+here; another SDK can do the same through the same methods.
+
+```bash
+better-supabase sql add ai-chat   # adds tenant, access and streams as well
+```
+
+| Table                  | Holds                                                                                                |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `ai_projects`          | Folders of chats with shared instructions, per owner and tenant                                      |
+| `ai_chats`             | `title`, `model`, `visibility`, `pinned`, `archived_at`, `temporary`, the leaf and the active stream |
+| `ai_messages`          | The tree: `parent_id`, `role`, `parts` in the message format below, `native`, `status`               |
+| `ai_runs`              | One row per answer: model, status, token usage, the gateway's generation id and cost                 |
+| `ai_tool_approvals`    | Approval requests for tool calls and the decision                                                    |
+| `ai_tool_policies`     | `auto`, `ask` or `deny` per tool and tenant                                                          |
+| `ai_pending_inputs`    | Questions a run asks the user, and the answer                                                        |
+| `ai_message_sources`   | Cited sources per message                                                                            |
+| `ai_message_feedback`  | Thumbs up or down per message and user                                                               |
+| `ai_chat_shares`       | Share links, stored as the SHA-256 of the token                                                      |
+| `ai_model_catalog`     | The models the app offers, with pricing and the plans that may use each                              |
+| `ai_moderation_events` | Flags, redactions and blocks with their category and score                                           |
+
+| Permission         | Lets a member                                        | Default roles              |
+| ------------------ | ---------------------------------------------------- | -------------------------- |
+| `ai_chat.read`     | read the tenant's chats shared with the organization | `owner`, `admin`, `member` |
+| `ai_chat.create`   | start chats in the tenant                            | `owner`, `admin`, `member` |
+| `ai_chat.share`    | share a chat with the organization or by link        | `owner`, `admin`, `member` |
+| `ai_chat.moderate` | read the tenant's moderation events                  | `owner`, `admin`           |
+| `ai_chat.admin`    | set tool policies and delete any chat in the tenant  | `owner`, `admin`           |
+
+Private chats are readable by their owner only. Assistant messages, runs,
+approvals and the model catalog are written by the service role, so a
+client can't forge an answer.
+
+## Server
+
+```ts title="lib/ai-chat.ts"
+import { createAiChat, rpcTransport } from "better-supabase/blocks/ai-chat";
+
+export const aiChatFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createAiChat({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+  });
+```
+
+`transport` calls as the user and `service` as the service role. With
+`better-supabase/postgres`, pass `sqlTransport(postgres.asUser(claims))` and
+`sqlTransport(postgres.admin)`.
+
+| Group        | Methods                                                                        |
+| ------------ | ------------------------------------------------------------------------------ |
+| `chats`      | `create`, `get`, `list`, `update`, `remove`, `purge` (expired temporary chats) |
+| `projects`   | `create`, `update`, `list`, `remove`                                           |
+| `messages`   | `appendUser`, `saveAssistant`, `path`, `siblings`, `switchBranch`              |
+| `runs`       | `claim`, `release`, `stop`, `setCost`                                          |
+| `approvals`  | `request`, `decide`, `list`, `setPolicy`, `policies`                           |
+| `inputs`     | `open`, `answer`                                                               |
+| `feedback`   | `rate`                                                                         |
+| `shares`     | `create`, `revoke`, `list`, `get` (by token, for anyone who has it)            |
+| `models`     | `allowed` (what the tenant's plans allow), `upsert`                            |
+| `moderation` | `record`, `list`                                                               |
+
+Every method returns a `Result`. Database errors are `DbError` values, never
+exceptions.
+
+## Branches
+
+`appendUser` stores the user's message under the chat's leaf. Sending the
+same id again is a no-op, and the same id with other parts is an edit,
+stored as a sibling. With `trigger: "regenerate-message"` nothing is stored
+and the leaf moves back, so the next answer becomes a sibling of the old
+one. `path(chatId)` returns the active branch from the root, `siblings`
+the alternatives at one message, and `switchBranch` shows another branch.
+
+## Runs and streams
+
+One answer runs at a time per chat. `runs.claim(chatId, streamId)` is a
+compare-and-set on the chat: it fails while another stream is active,
+unless that one is older than `staleAfter`. The writer appends to the
+[durable stream](/docs/blocks/streams), so a reload resumes the answer, and
+`runs.release` ends the run with its status and usage. `runs.stop` sets the
+stream's cancel flag; the writer sees it on its next append.
+
+## Share links
+
+`shares.create(chatId)` returns a token once and stores only its hash. The
+link shows the branch it was made from, frozen at that message.
+`shares.get(token)` reads it without signing in; `revoke` ends it.
+
+## Client
+
+```tsx title="app/chats/sidebar.tsx"
+"use client";
+
+import { useAiChats } from "better-supabase/blocks/ai-chat/react";
+
+export function Sidebar({ organizationId }: { organizationId: string }) {
+  const { items, hasMore, loadMore, create } = useAiChats({ organizationId });
+  // ...
+}
+```
+
+| Hook                          | Returns                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `useAiChats(query)`           | The user's chats, newest first, with `loadMore`, `create`, `update`, `remove` |
+| `useAiChatTree(chatId)`       | The active branch, with `switchBranch` and `step` between siblings            |
+| `useAiModels(organizationId)` | The models the tenant may use, for a model picker                             |
+| `useAiShare(chatId)`          | The chat's share links, with `create` and `revoke`                            |
+
+The list and the tree load again when the private Realtime topics
+`ai-chats:{userId}` and `ai-chat:{chatId}` announce a change
+(`sql.modules["ai-chat"].options.listTopic` and `topic`). In Server
+Components the hooks throw; call the block on the server instead.
+
+## Message format
 
 `better-supabase/blocks/ai-chat` defines the message format the AI blocks
 store. A message has an `id`, a `role` (`system`, `user`, `assistant` or
@@ -35,9 +156,11 @@ const result = await aiMessageSchema["~standard"].validate(message);
 
 `aiMessageSchema` is a [Standard Schema](https://standardschema.dev), so it
 works anywhere a Zod or Valibot schema does. `isAiMessage(value)` is the
-type guard.
+type guard. An adapter may also keep its own copy of a message in `native`
+(the AI SDK adapter stores the `UIMessage`), and reads it back with
+`path(chatId, { native: true })`.
 
-## Parts
+### Parts
 
 | Type            | Fields                                                                              |
 | --------------- | ----------------------------------------------------------------------------------- |
@@ -55,7 +178,7 @@ Every part can carry `providerMetadata`, an object the adapter passes
 through unchanged. Unknown fields are rejected. An SDK part with no
 counterpart becomes a `data` part, so a conversion never drops content.
 
-## JSON Schema
+### JSON Schema
 
 The same format is published as JSON Schema 2020-12 at
 `https://unpkg.com/better-supabase/schemas/ai-message-v1.json`

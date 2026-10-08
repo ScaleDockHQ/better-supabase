@@ -13,6 +13,7 @@
     "platform",
     "blocks",
     "chat-sdk",
+    "ai-sdk",
     "plugins",
     "testing",
     "examples",
