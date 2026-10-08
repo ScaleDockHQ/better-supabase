@@ -568,6 +568,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin${temporaryCheck}
   insert into ${messageEmbeddings} (${e.chat}, ${e.message}, ${e.user}, ${e.tenant}, ${e.embedding}, ${e.model})
   values (set_ai_message_embedding.chat_id, set_ai_message_embedding.message_id, set_ai_message_embedding.user_id, set_ai_message_embedding.tenant, set_ai_message_embedding.embedding, set_ai_message_embedding.model)
