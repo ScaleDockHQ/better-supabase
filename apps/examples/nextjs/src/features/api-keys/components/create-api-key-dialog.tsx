@@ -1,8 +1,9 @@
 "use client";
 
+import { useActionForm } from "better-supabase/react";
 import { CopyIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { useActionState, useId, useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -28,26 +29,23 @@ import { useErrorMessage } from "@/lib/use-error-message";
 
 import { createApiKey } from "../api-key-actions";
 
-type State = { readonly error: string } | { readonly token: string } | null;
-
 export function CreateApiKeyDialog() {
   const t = useExtracted("apiKeys");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
   const [open, setOpen] = useState(false);
-  const [state, submit, pending] = useActionState(
-    async (_previous: State, form: FormData): Promise<State> => {
-      const result = await createApiKey(form);
-      return result.ok
-        ? { token: result.data.token }
-        : { error: errorMessage(result.error) };
-    },
-    null,
-  );
-  const token = state && "token" in state ? state.token : null;
-  const error = state && "error" in state ? state.error : null;
+  const form = useActionForm(createApiKey);
+  const token = form.data?.token ?? null;
+  const error = form.error === undefined ? null : errorMessage(form.error);
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        // The key is shown once: a reopened dialog starts empty.
+        if (!next) form.reset();
+      }}
+    >
       <DialogTrigger render={<Button size="sm" />}>
         <PlusIcon />
         {t("Create key")}
@@ -95,7 +93,7 @@ export function CreateApiKeyDialog() {
             </DialogFooter>
           </div>
         ) : (
-          <form action={submit} className="grid gap-6">
+          <form {...form.formProps} className="grid gap-6">
             <DialogHeader>
               <DialogTitle>{t("Create an API key")}</DialogTitle>
               <DialogDescription>
@@ -121,7 +119,7 @@ export function CreateApiKeyDialog() {
               <DialogClose render={<Button type="button" variant="outline" />}>
                 {t("Cancel")}
               </DialogClose>
-              <Button type="submit" disabled={pending}>
+              <Button type="submit" disabled={form.pending}>
                 {t("Create")}
               </Button>
             </DialogFooter>

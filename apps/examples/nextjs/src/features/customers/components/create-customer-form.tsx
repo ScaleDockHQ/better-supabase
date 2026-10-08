@@ -1,8 +1,9 @@
 "use client";
 
+import { useActionForm } from "better-supabase/react";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { useActionState, useId, useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -32,25 +33,20 @@ export function CreateCustomerDialog() {
   const fieldId = useId();
   const errorMessage = useErrorMessage();
   const [open, setOpen] = useState(false);
-  const [error, submit, pending] = useActionState(
-    async (_previous: string | null, form: FormData) => {
-      const result = await createCustomer(form);
-      if (!result.ok) {
-        return result.error.kind === "rate_limited"
-          ? t(
-              "Too many new customers. Try again in {seconds, number} seconds.",
-              {
-                seconds: result.error.retryAfter ?? 60,
-              },
-            )
-          : errorMessage(result.error);
-      }
+  const form = useActionForm(createCustomer, {
+    onSuccess: (customer) => {
       setOpen(false);
-      toast.success(t("{name} added", { name: result.data.name }));
-      return null;
+      toast.success(t("{name} added", { name: customer.name }));
     },
-    null,
-  );
+  });
+  const error =
+    form.error === undefined
+      ? null
+      : form.error.kind === "rate_limited"
+        ? t("Too many new customers. Try again in {seconds, number} seconds.", {
+            seconds: form.error.retryAfter ?? 60,
+          })
+        : errorMessage(form.error);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button />}>
@@ -58,7 +54,7 @@ export function CreateCustomerDialog() {
         {t("Add customer")}
       </DialogTrigger>
       <DialogContent>
-        <form action={submit} className="grid gap-6">
+        <form {...form.formProps} className="grid gap-6">
           <DialogHeader>
             <DialogTitle>{t("Add customer")}</DialogTitle>
             <DialogDescription>
@@ -87,7 +83,7 @@ export function CreateCustomerDialog() {
             <DialogClose render={<Button type="button" variant="outline" />}>
               {t("Cancel")}
             </DialogClose>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={form.pending}>
               {t("Add")}
             </Button>
           </DialogFooter>

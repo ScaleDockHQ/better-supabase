@@ -1,3 +1,4 @@
+import { tenantOf } from "better-supabase/next";
 import { getExtracted } from "next-intl/server";
 
 import {
@@ -9,11 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getOrganizationSettings } from "@/features/settings/settings-queries";
-import {
-  activeOrganizationId,
-  can,
-  roleOf,
-} from "@/features/user/user-permissions";
+import { can, roleOf } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 import { getMyOrganizations } from "../organization-queries";
@@ -24,7 +21,7 @@ import { OrganizationSettingsForm } from "./organization-settings-form";
 /** Render inside `<Suspense>`; the fallback is `OrganizationGeneralSkeleton`. */
 export async function OrganizationGeneral() {
   const session = await getSession();
-  const organizationId = activeOrganizationId(session);
+  const organizationId = tenantOf(session);
   if (!organizationId) return null;
   const [organizations, settings, t] = await Promise.all([
     getMyOrganizations(),

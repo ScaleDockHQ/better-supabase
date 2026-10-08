@@ -1,6 +1,7 @@
 "use client";
 
 import { useTheme } from "@wrksz/themes/client";
+import { useSessionChange } from "better-supabase/next/client";
 import {
   ChevronsUpDownIcon,
   LanguagesIcon,
@@ -66,6 +67,7 @@ export function UserMenuDropdown({
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
+  const changeSession = useSessionChange(sessionChanged, router);
   const supabase = useSupabase();
   const [pending, startTransition] = useTransition();
 
@@ -196,8 +198,7 @@ export function UserMenuDropdown({
           onClick={() => {
             startTransition(async () => {
               await supabase.auth.signOut();
-              await sessionChanged();
-              router.push("/login");
+              await changeSession("/login");
             });
           }}
         >

@@ -1,3 +1,4 @@
+import { tenantOf } from "better-supabase/next";
 import { getExtracted } from "next-intl/server";
 
 import {
@@ -9,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { activeOrganizationId, can } from "@/features/user/user-permissions";
+import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 import { getApiKeys } from "../api-key-queries";
@@ -19,7 +20,7 @@ import { CreateApiKeyDialog } from "./create-api-key-dialog";
 /** Render inside `<Suspense>`; the fallback is `ApiKeysSectionSkeleton`. */
 export async function ApiKeysSection() {
   const session = await getSession();
-  const organizationId = activeOrganizationId(session);
+  const organizationId = tenantOf(session);
   if (!organizationId) return null;
   const [keys, t] = await Promise.all([
     getApiKeys(organizationId),

@@ -1,4 +1,5 @@
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
+import { tenantOf } from "better-supabase/next";
 import { DownloadIcon, ScrollTextIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { forbidden } from "next/navigation";
@@ -29,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { activeOrganizationId, can } from "@/features/user/user-permissions";
+import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
@@ -38,7 +39,7 @@ import { getAuditEvents } from "../audit-queries";
 /** Render inside `<Suspense>`. The log is a plan feature (`audit`). */
 export async function AuditLog() {
   const [session, t] = await Promise.all([getSession(), getExtracted("audit")]);
-  const organizationId = activeOrganizationId(session);
+  const organizationId = tenantOf(session);
   if (!organizationId) return null;
   if (!can(session, "audit.read")) forbidden();
   if (!hasEntitlement(session, organizationId, "audit")) {

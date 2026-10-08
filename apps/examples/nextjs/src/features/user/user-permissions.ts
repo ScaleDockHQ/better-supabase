@@ -1,5 +1,4 @@
-import type { AuthSession } from "better-supabase/react";
-
+import { type AuthSession, tenantOf } from "better-supabase/react";
 import * as v from "valibot";
 
 import { type Claims, MEMBERSHIP_SCOPE, Role } from "@/lib/claims";
@@ -78,20 +77,12 @@ const grants = {
 
 const RANK = { owner: 3, admin: 2, member: 1 } satisfies Record<Role, number>;
 
-/** The active organization: the `tenant_id` claim (top level, else `app_metadata`). */
-export function activeOrganizationId(
-  session: AuthSession<Claims>,
-): string | undefined {
-  if (session.kind !== "user") return undefined;
-  return session.claims.tenant_id ?? session.claims.app_metadata?.tenant_id;
-}
-
 /**
  * The role of the membership in the active organization, from the
  * `memberships` claim. Never `user_metadata`: users can edit that.
  */
 export function roleOf(session: AuthSession<Claims>): Role | undefined {
-  const tenant = activeOrganizationId(session);
+  const tenant = tenantOf(session);
   if (session.kind !== "user" || tenant === undefined) return undefined;
   const membership = session.claims.memberships?.find(
     (entry) => entry.scope === MEMBERSHIP_SCOPE && entry.id === tenant,

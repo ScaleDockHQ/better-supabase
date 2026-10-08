@@ -1,8 +1,8 @@
 "use client";
 
+import { useAction } from "better-supabase/react";
 import { KeyRoundIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { useTransition } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +32,16 @@ export function ApiKeyTable({ keys }: { keys: readonly ApiKeyRow[] }) {
   const t = useExtracted("apiKeys");
   const errorMessage = useErrorMessage();
   const format = useFormatter();
-  const [pending, startTransition] = useTransition();
+  const revoke = useAction(revokeApiKey, {
+    onSuccess: () => {
+      toast.success(t("Key revoked"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+  const revoking = (id: string) =>
+    revoke.pendingInputs.some((input) => input.id === id);
   if (keys.length === 0) {
     return (
       <Empty>
@@ -65,7 +74,11 @@ export function ApiKeyTable({ keys }: { keys: readonly ApiKeyRow[] }) {
       </TableHeader>
       <TableBody>
         {keys.map((key) => (
-          <TableRow key={key.id}>
+          <TableRow
+            key={key.id}
+            aria-busy={revoking(key.id) ? true : undefined}
+            className={revoking(key.id) ? "opacity-50" : undefined}
+          >
             <TableCell className="font-medium">
               {key.name}{" "}
               {key.personal ? (
@@ -86,13 +99,9 @@ export function ApiKeyTable({ keys }: { keys: readonly ApiKeyRow[] }) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={pending}
+                  disabled={revoking(key.id)}
                   onClick={() => {
-                    startTransition(async () => {
-                      const result = await revokeApiKey({ id: key.id });
-                      if (result.ok) toast.success(t("Key revoked"));
-                      else toast.error(errorMessage(result.error));
-                    });
+                    void revoke.run({ id: key.id });
                   }}
                 >
                   {t("Revoke")}

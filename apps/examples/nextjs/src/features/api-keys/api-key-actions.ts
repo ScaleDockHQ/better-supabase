@@ -1,13 +1,12 @@
 "use server";
 
-import { dbError, err, ok } from "better-supabase";
-import { toSession } from "better-supabase/next";
+import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
-import { activeOrganizationId, can } from "@/features/user/user-permissions";
+import { can } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
@@ -20,13 +19,10 @@ export const createApiKey = bs.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
     }),
+    requireTenant: true,
+    authorize: (session) => can(session, "api_keys.own"),
   },
-  async ({ name }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "api_keys.own")) {
-      return err(dbError("forbidden", "You cannot create API keys"));
-    }
+  async ({ name }, { tenant: organizationId, session, supabase }) => {
     const { apiKeys, onboarding } = blocks(supabase);
     const created = await apiKeys.create({
       name,
@@ -51,12 +47,11 @@ export const createApiKey = bs.action(
 );
 
 export const revokeApiKey = bs.action(
-  { input: v.object({ id: v.pipe(v.string(), v.uuid()) }) },
-  async ({ id }, { auth, supabase }) => {
-    const organizationId = activeOrganizationId(toSession(auth));
-    if (!organizationId) {
-      return err(dbError("forbidden", "You are not in an organization"));
-    }
+  {
+    input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
+    requireTenant: true,
+  },
+  async ({ id }, { tenant: organizationId, supabase }) => {
     const revoked = await blocks(supabase).apiKeys.revoke(id);
     if (!revoked.ok) return revoked;
     after(() =>

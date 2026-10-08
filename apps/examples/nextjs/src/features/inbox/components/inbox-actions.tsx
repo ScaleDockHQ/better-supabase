@@ -1,8 +1,8 @@
 "use client";
 
+import { useAction } from "better-supabase/react";
 import { BellPlusIcon, CheckCheckIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -13,31 +13,38 @@ import { markAllRead, notifyMe } from "../inbox-actions";
 export function InboxActions() {
   const t = useExtracted("inbox");
   const errorMessage = useErrorMessage();
-  const [pending, start] = useTransition();
+  const notify = useAction(notifyMe, {
+    onSuccess: () => {
+      toast.success(t("Notification sent"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+  const readAll = useAction(markAllRead, {
+    onSuccess: () => {
+      toast.success(t("All caught up"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
   return (
     <>
       <Button
         variant="outline"
-        disabled={pending}
+        disabled={notify.pending}
         onClick={() => {
-          start(async () => {
-            const result = await notifyMe({ title: t("Hello from the inbox") });
-            if (result.ok) toast.success(t("Notification sent"));
-            else toast.error(errorMessage(result.error));
-          });
+          void notify.run({ title: t("Hello from the inbox") });
         }}
       >
         <BellPlusIcon />
         {t("Notify me")}
       </Button>
       <Button
-        disabled={pending}
+        disabled={readAll.pending}
         onClick={() => {
-          start(async () => {
-            const result = await markAllRead({});
-            if (result.ok) toast.success(t("All caught up"));
-            else toast.error(errorMessage(result.error));
-          });
+          void readAll.run({});
         }}
       >
         <CheckCheckIcon />

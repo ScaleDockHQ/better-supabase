@@ -26,6 +26,7 @@ import {
 import { Link } from "@/i18n/navigation";
 import { initials } from "@/lib/initials";
 
+import { useCustomerSearch } from "../use-customer-search";
 import { useStatusLabel } from "../use-status-label";
 
 export interface CustomerRow {
@@ -56,13 +57,19 @@ export function CustomerTable({
   const [status, setStatus] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
-  const rows = customers.filter(
+  const search = useCustomerSearch(needle);
+  // Until the search answers, the first page filters locally.
+  const rows = (needle === "" ? customers : (search.data ?? customers)).filter(
     (customer) =>
       (status === null || customer.status === status) &&
       (needle === "" || customer.name.toLowerCase().includes(needle)),
   );
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-4"
+      data-testid="customer-results"
+      aria-busy={search.isFetching}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-full max-w-sm">
           <SearchIcon className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />

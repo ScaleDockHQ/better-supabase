@@ -1,8 +1,9 @@
 "use client";
 
+import { useActionForm } from "better-supabase/react";
 import { CopyIcon, UserPlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { useActionState, useId, useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 
 import type { Role } from "@/lib/claims";
@@ -39,8 +40,6 @@ import { inviteMember } from "../organization-actions";
 import { useInviteLink } from "../use-invite-link";
 import { useRoleLabel } from "../use-role-label";
 
-type State = { readonly error: string } | { readonly link: string } | null;
-
 export function InviteMemberDialog({ myRole }: { myRole: Role }) {
   const t = useExtracted("organization");
   const fieldId = useId();
@@ -52,26 +51,23 @@ export function InviteMemberDialog({ myRole }: { myRole: Role }) {
     value: role,
     label: roleLabel(role),
   }));
-  const [state, submit, pending] = useActionState(
-    async (_previous: State, form: FormData): Promise<State> => {
-      const result = await inviteMember(form);
-      if (!result.ok) {
-        return {
-          error:
-            result.error.kind === "conflict"
-              ? t("That person is already a member or invited.")
-              : errorMessage(result.error),
-        };
-      }
-      return { link: inviteLink(result.data.token) };
-    },
-    null,
-  );
-  const link = state && "link" in state ? state.link : null;
-  const error = state && "error" in state ? state.error : null;
+  const form = useActionForm(inviteMember);
+  const link = form.data ? inviteLink(form.data.token) : null;
+  const error =
+    form.error === undefined
+      ? null
+      : form.error.kind === "conflict"
+        ? t("That person is already a member or invited.")
+        : errorMessage(form.error);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) form.reset();
+      }}
+    >
       <DialogTrigger render={<Button size="sm" />}>
         <UserPlusIcon />
         {t("Invite")}
@@ -110,7 +106,7 @@ export function InviteMemberDialog({ myRole }: { myRole: Role }) {
             </DialogFooter>
           </div>
         ) : (
-          <form action={submit} className="grid gap-6">
+          <form {...form.formProps} className="grid gap-6">
             <DialogHeader>
               <DialogTitle>{t("Invite a teammate")}</DialogTitle>
               <DialogDescription>
@@ -155,7 +151,7 @@ export function InviteMemberDialog({ myRole }: { myRole: Role }) {
               <DialogClose render={<Button type="button" variant="outline" />}>
                 {t("Cancel")}
               </DialogClose>
-              <Button type="submit" disabled={pending}>
+              <Button type="submit" disabled={form.pending}>
                 {t("Send invitation")}
               </Button>
             </DialogFooter>

@@ -1,5 +1,6 @@
+import { tenantOf } from "better-supabase/next";
 import "server-only";
-import { activeOrganizationId } from "@/features/user/user-permissions";
+
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
@@ -15,7 +16,7 @@ export type FlagKey = (typeof FLAGS)[number];
 export async function getEnabledFlags(): Promise<readonly FlagKey[]> {
   "use cache: private";
   const { session, supabase } = await bs.cached();
-  const tenant = activeOrganizationId(session);
+  const tenant = tenantOf(session);
   if (!tenant) return [];
   const { call } = blocks(supabase);
   const enabled = await Promise.all(

@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionChange } from "better-supabase/next/client";
 import { useExtracted } from "next-intl";
 import { useActionState, useId } from "react";
 import { toast } from "sonner";
@@ -31,7 +32,7 @@ export function ResetPasswordForm() {
   const t = useExtracted("auth");
   const fieldId = useId();
   const supabase = useSupabase();
-  const router = useRouter();
+  const changeSession = useSessionChange(sessionChanged, useRouter());
   const [error, submit, pending] = useActionState(
     async (_previous: string | null, form: FormData) => {
       const password = String(form.get("password"));
@@ -46,9 +47,8 @@ export function ResetPasswordForm() {
           ? t("This link has expired. Ask for a new one.")
           : updateError.message;
       }
-      await sessionChanged();
       toast.success(t("Password changed"));
-      router.push("/");
+      await changeSession("/");
       return null;
     },
     null,

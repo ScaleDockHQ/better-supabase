@@ -1,10 +1,10 @@
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
+import { tenantOf } from "better-supabase/next";
 import { CheckIcon, MinusIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
 import type { Entitlement } from "@/lib/claims";
 
-import { activeOrganizationId } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 /**
@@ -16,7 +16,7 @@ export async function PlanFeatures() {
     getSession(),
     getExtracted("billing"),
   ]);
-  const organizationId = activeOrganizationId(session);
+  const organizationId = tenantOf(session);
   if (!organizationId) return null;
   const features = [
     ["exports", t("CSV exports")],

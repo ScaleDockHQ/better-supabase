@@ -1,3 +1,4 @@
+import { tenantOf } from "better-supabase/next";
 import { getExtracted } from "next-intl/server";
 
 import {
@@ -9,11 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  activeOrganizationId,
-  can,
-  roleOf,
-} from "@/features/user/user-permissions";
+import { can, roleOf } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 import { getInvitations, getMembers } from "../organization-queries";
@@ -24,7 +21,7 @@ import { MemberTable } from "./member-table";
 /** Render inside `<Suspense>`; the fallback is `MembersSectionSkeleton`. */
 export async function MembersSection() {
   const session = await getSession();
-  const organizationId = activeOrganizationId(session);
+  const organizationId = tenantOf(session);
   const role = roleOf(session);
   if (!organizationId || !role || session.kind !== "user") return null;
   const canInvite = can(session, "members.invite");

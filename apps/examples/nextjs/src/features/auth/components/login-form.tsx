@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionChange } from "better-supabase/next/client";
 import { useExtracted, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useActionState, useId } from "react";
@@ -30,7 +31,7 @@ export function LoginForm() {
   const fieldId = useId();
   const locale = useLocale();
   const supabase = useSupabase();
-  const router = useRouter();
+  const changeSession = useSessionChange(sessionChanged, useRouter());
   const [error, submit, pending] = useActionState(
     async (_previous: string | null, form: FormData) => {
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -42,12 +43,11 @@ export function LoginForm() {
           ? t("That email and password don't match.")
           : signInError.message;
       }
-      await sessionChanged();
       // A verified factor means this session must reach aal2 first.
       const { data: aal } =
         await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
       const next = safeNext(`/${locale}`);
-      router.push(
+      await changeSession(
         aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2"
           ? `/${locale}/mfa?next=${encodeURIComponent(next)}`
           : next,

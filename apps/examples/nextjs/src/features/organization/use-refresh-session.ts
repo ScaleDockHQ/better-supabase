@@ -8,14 +8,11 @@ import { useSupabase } from "@/lib/hooks";
 
 /**
  * After a switch, the active tenant and the `memberships` claim live in a
- * new access token: refresh it in the browser (the proxy sees the new
- * cookie), let the server re-render with it, then go to `to`.
+ * new access token: `refreshToken` refreshes it in the browser (the proxy
+ * sees the new cookie), the server re-renders with it, then it goes to `to`.
  */
 export function useRefreshSession(): (to: string) => Promise<void> {
-  const supabase = useSupabase();
-  const router = useRouter();
-  return useSessionChange(async () => {
-    await supabase.auth.refreshSession();
-    await sessionChanged();
-  }, router);
+  return useSessionChange(sessionChanged, useRouter(), {
+    refreshToken: useSupabase(),
+  });
 }

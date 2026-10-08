@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionChange } from "better-supabase/next/client";
 import { MailCheckIcon } from "lucide-react";
 import { useExtracted, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -40,6 +41,7 @@ export function SignupForm() {
   const locale = useLocale();
   const supabase = useSupabase();
   const router = useRouter();
+  const changeSession = useSessionChange(sessionChanged, router);
   const [state, submit, pending] = useActionState(
     async (_previous: State, form: FormData): Promise<State> => {
       const email = String(form.get("email"));
@@ -54,8 +56,7 @@ export function SignupForm() {
       if (error) return { error: error.message };
       // With email confirmations on, there is no session until the link is opened.
       if (!data.session) return { confirm: email };
-      await sessionChanged();
-      router.push(safeNext(`/${locale}`));
+      await changeSession(safeNext(`/${locale}`));
       return null;
     },
     null,

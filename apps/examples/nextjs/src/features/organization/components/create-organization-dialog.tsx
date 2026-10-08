@@ -1,7 +1,8 @@
 "use client";
 
+import { useActionForm } from "better-supabase/react";
 import { useExtracted } from "next-intl";
-import { useActionState, useId } from "react";
+import { useId } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -37,21 +38,19 @@ export function CreateOrganizationDialog({
   const fieldId = useId();
   const errorMessage = useErrorMessage();
   const refreshSession = useRefreshSession();
-  const [error, submit, pending] = useActionState(
-    async (_previous: string | null, form: FormData) => {
-      const result = await createOrganization(form);
-      if (!result.ok) return errorMessage(result.error);
+  const form = useActionForm(createOrganization, {
+    onSuccess: () => {
       onOpenChange(false);
-      await refreshSession("/");
-      toast.success(t("Organization created"));
-      return null;
+      void refreshSession("/").then(() =>
+        toast.success(t("Organization created")),
+      );
     },
-    null,
-  );
+  });
+  const error = form.error === undefined ? null : errorMessage(form.error);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <form action={submit} className="grid gap-6">
+        <form {...form.formProps} className="grid gap-6">
           <DialogHeader>
             <DialogTitle>{t("Create organization")}</DialogTitle>
             <DialogDescription>
@@ -81,7 +80,7 @@ export function CreateOrganizationDialog({
             <DialogClose render={<Button type="button" variant="outline" />}>
               {t("Cancel")}
             </DialogClose>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={form.pending}>
               {t("Create")}
             </Button>
           </DialogFooter>

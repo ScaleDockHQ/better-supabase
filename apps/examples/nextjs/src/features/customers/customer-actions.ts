@@ -1,13 +1,12 @@
 "use server";
 
-import { dbError, err, fromBetterResult, ok } from "better-supabase";
-import { toSession } from "better-supabase/next";
+import { fromBetterResult, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
-import { activeOrganizationId, can } from "@/features/user/user-permissions";
+import { can } from "@/features/user/user-permissions";
 import { toAppResult } from "@/lib/app-error";
 import { blocks } from "@/lib/blocks";
 import { logos } from "@/lib/buckets";
@@ -27,13 +26,10 @@ export const createCustomer = bs.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
+    requireTenant: true,
+    authorize: (session) => can(session, "customers.write"),
   },
-  async ({ name }, { auth, db, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "customers.write")) {
-      return err(dbError("forbidden", "You cannot add customers"));
-    }
+  async ({ name }, { tenant: organizationId, db, supabase }) => {
     const { usage, onboarding } = blocks(supabase);
     const quota = await usage.consume(organizationId, "customers.created");
     if (!quota.ok) return quota;
@@ -70,13 +66,10 @@ export const uploadCustomerLogo = bs.action(
         v.check((file) => file.size > 0, "Pick a file"),
       ),
     }),
+    requireTenant: true,
+    authorize: (session) => can(session, "customers.write"),
   },
-  async ({ customerId, logo }, { auth, db, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "customers.write")) {
-      return err(dbError("forbidden", "You cannot change customers"));
-    }
+  async ({ customerId, logo }, { tenant: organizationId, db, supabase }) => {
     // A better-result value with an AppError, converted back for the action.
     const customer = toAppResult(
       await db.customers.findById(customerId, { select: ["id", "logoPath"] }),
@@ -103,13 +96,10 @@ export const addCustomerComment = bs.action(
       customerId: Id,
       body: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4000)),
     }),
+    requireTenant: true,
+    authorize: (session) => can(session, "comments.create"),
   },
-  async ({ customerId, body }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "comments.create")) {
-      return err(dbError("forbidden", "You cannot comment here"));
-    }
+  async ({ customerId, body }, { tenant: organizationId, supabase }) => {
     const created = await blocks(supabase).comments.create({
       organizationId,
       subjectType: "customer",

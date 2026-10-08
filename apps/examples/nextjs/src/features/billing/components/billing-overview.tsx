@@ -1,3 +1,4 @@
+import { tenantOf } from "better-supabase/next";
 import { getExtracted, getFormatter } from "next-intl/server";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { activeOrganizationId, can } from "@/features/user/user-permissions";
+import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +27,7 @@ import { PlanFeatures } from "./plan-features";
  */
 export async function BillingOverview() {
   const session = await getSession();
-  const organizationId = activeOrganizationId(session);
+  const organizationId = tenantOf(session);
   if (!organizationId) return null;
   const [{ plans, subscription }, t, format] = await Promise.all([
     getBilling(organizationId),

@@ -1,4 +1,5 @@
-import { activeOrganizationId } from "@/features/user/user-permissions";
+import { tenantOf } from "better-supabase/next";
+
 import { getSession } from "@/features/user/user-queries";
 
 import { AnnouncementBanner } from "./announcement-banner";
@@ -7,9 +8,5 @@ import { AnnouncementBanner } from "./announcement-banner";
 export async function Announcements() {
   const session = await getSession();
   if (session.kind !== "user") return null;
-  return (
-    <AnnouncementBanner
-      organizationId={activeOrganizationId(session) ?? null}
-    />
-  );
+  return <AnnouncementBanner organizationId={tenantOf(session) ?? null} />;
 }

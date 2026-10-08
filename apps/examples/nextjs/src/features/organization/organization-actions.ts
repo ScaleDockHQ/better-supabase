@@ -1,17 +1,12 @@
 "use server";
 
-import { dbError, err, ok } from "better-supabase";
-import { toSession } from "better-supabase/next";
+import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
-import {
-  activeOrganizationId,
-  can,
-  canAssign,
-} from "@/features/user/user-permissions";
+import { can, canAssign } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { Role } from "@/lib/claims";
 import { bs } from "@/lib/supabase/server";
@@ -67,13 +62,12 @@ export const createOrganization = bs.action(
 );
 
 export const updateOrganization = bs.action(
-  { input: v.object({ name: Name, slug: Slug }) },
-  async ({ name, slug }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "organization.update")) {
-      return err(dbError("forbidden", "You cannot change this organization"));
-    }
+  {
+    input: v.object({ name: Name, slug: Slug }),
+    requireTenant: true,
+    authorize: (session) => can(session, "organization.update"),
+  },
+  async ({ name, slug }, { tenant: organizationId, supabase }) => {
     const updated = await blocks(supabase).organizations.update(
       organizationId,
       {
@@ -107,13 +101,10 @@ export const inviteMember = bs.action(
       email: v.pipe(v.string(), v.trim(), v.toLowerCase(), v.email()),
       role: Role,
     }),
+    requireTenant: true,
+    authorize: (session, { role }) => canAssign(session, role),
   },
-  async ({ email, role }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !canAssign(session, role)) {
-      return err(dbError("forbidden", "You cannot invite with this role"));
-    }
+  async ({ email, role }, { tenant: organizationId, supabase }) => {
     const { organizations, onboarding } = blocks(supabase);
     const sent = await organizations.invite({ organizationId, email, role });
     if (!sent.ok) return sent;
@@ -135,13 +126,12 @@ export const inviteMember = bs.action(
 );
 
 export const revokeInvitation = bs.action(
-  { input: v.object({ invitationId: Id }) },
-  async ({ invitationId }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "members.invite")) {
-      return err(dbError("forbidden", "You cannot revoke invitations"));
-    }
+  {
+    input: v.object({ invitationId: Id }),
+    requireTenant: true,
+    authorize: (session) => can(session, "members.invite"),
+  },
+  async ({ invitationId }, { tenant: organizationId, supabase }) => {
     const revoked =
       await blocks(supabase).organizations.revokeInvitation(invitationId);
     if (!revoked.ok) return revoked;
@@ -160,13 +150,12 @@ export const revokeInvitation = bs.action(
 );
 
 export const updateMemberRole = bs.action(
-  { input: v.object({ userId: Id, role: Role }) },
-  async ({ userId, role }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !canAssign(session, role)) {
-      return err(dbError("forbidden", "You cannot give this role"));
-    }
+  {
+    input: v.object({ userId: Id, role: Role }),
+    requireTenant: true,
+    authorize: (session, { role }) => canAssign(session, role),
+  },
+  async ({ userId, role }, { tenant: organizationId, supabase }) => {
     const updated = await blocks(supabase).organizations.updateMemberRole(
       organizationId,
       userId,
@@ -190,13 +179,12 @@ export const updateMemberRole = bs.action(
 );
 
 export const removeMember = bs.action(
-  { input: v.object({ userId: Id }) },
-  async ({ userId }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "members.remove")) {
-      return err(dbError("forbidden", "You cannot remove members"));
-    }
+  {
+    input: v.object({ userId: Id }),
+    requireTenant: true,
+    authorize: (session) => can(session, "members.remove"),
+  },
+  async ({ userId }, { tenant: organizationId, supabase }) => {
     const removed = await blocks(supabase).organizations.removeMember(
       organizationId,
       userId,
@@ -223,13 +211,10 @@ export const updateOrganizationSettings = bs.action(
       defaultRole: v.picklist(["member", "admin"]),
       weekStart: v.picklist(["monday", "sunday"]),
     }),
+    requireTenant: true,
+    authorize: (session) => can(session, "settings.update"),
   },
-  async ({ defaultRole, weekStart }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "settings.update")) {
-      return err(dbError("forbidden", "You cannot change these settings"));
-    }
+  async ({ defaultRole, weekStart }, { tenant: organizationId, supabase }) => {
     const { settings } = blocks(supabase);
     const [role, week] = await Promise.all([
       settings.organization.set(organizationId, "defaultRole", defaultRole),
@@ -244,14 +229,9 @@ export const updateOrganizationSettings = bs.action(
 
 /** Leaves the active organization; the owner has to transfer ownership first. */
 export const leaveOrganization = bs.action(
-  {},
-  async (_input, { auth, supabase }) => {
-    const organizationId = activeOrganizationId(toSession(auth));
-    if (!organizationId) {
-      return err(dbError("forbidden", "You are not in an organization"));
-    }
-    return blocks(supabase).organizations.leave(organizationId);
-  },
+  { requireTenant: true },
+  async (_input, { tenant: organizationId, supabase }) =>
+    blocks(supabase).organizations.leave(organizationId),
 );
 
 export const declineInvitation = bs.action(

@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionChange } from "better-supabase/next/client";
 import { useExtracted, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
@@ -30,6 +31,7 @@ export function MfaChallengeForm() {
   const locale = useLocale();
   const supabase = useSupabase();
   const router = useRouter();
+  const changeSession = useSessionChange(sessionChanged, router);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -51,8 +53,7 @@ export function MfaChallengeForm() {
         setError(t("That code didn't work. Try the next one."));
         return;
       }
-      await sessionChanged();
-      router.push(safeNext(`/${locale}`));
+      await changeSession(safeNext(`/${locale}`));
     });
   };
   return (

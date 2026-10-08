@@ -1,9 +1,10 @@
+import { tenantOf } from "better-supabase/next";
+
 import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
-import { activeOrganizationId } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 import { getMyOrganizations } from "../organization-queries";
@@ -20,7 +21,7 @@ export async function OrganizationSwitcher() {
       <SidebarMenuItem>
         <OrganizationSwitcherMenu
           organizations={organizations}
-          activeId={activeOrganizationId(session) ?? null}
+          activeId={tenantOf(session) ?? null}
         />
       </SidebarMenuItem>
     </SidebarMenu>

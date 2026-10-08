@@ -1,8 +1,8 @@
 "use client";
 
+import { useAction } from "better-supabase/react";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { useTransition } from "react";
 import { toast } from "sonner";
 import * as v from "valibot";
 
@@ -51,7 +51,28 @@ export function MemberTable({
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
   const format = useFormatter();
-  const [pending, startTransition] = useTransition();
+  const roleChange = useAction(updateMemberRole, {
+    onSuccess: () => {
+      toast.success(t("Role updated"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+  const removal = useAction(removeMember, {
+    onSuccess: () => {
+      toast.success(t("Member removed"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+  // Rows show a pending change before the server confirms it.
+  const roleOf = (member: Member): Role =>
+    roleChange.pendingInputs.findLast((input) => input.userId === member.userId)
+      ?.role ?? member.role;
+  const removing = (member: Member) =>
+    removal.pendingInputs.some((input) => input.userId === member.userId);
   const assignable = assignableRoles(myRole);
   const roleItems = assignable.map((role) => ({
     value: role,
@@ -75,7 +96,11 @@ export function MemberTable({
       </TableHeader>
       <TableBody>
         {members.map((member) => (
-          <TableRow key={member.userId}>
+          <TableRow
+            key={member.userId}
+            aria-busy={removing(member) ? true : undefined}
+            className={removing(member) ? "opacity-50" : undefined}
+          >
             <TableCell>
               <div className="flex items-center gap-3">
                 <Avatar className="size-8">
@@ -105,19 +130,12 @@ export function MemberTable({
             <TableCell>
               {canUpdateRole && editable(member) ? (
                 <Select
-                  value={member.role}
+                  value={roleOf(member)}
                   items={roleItems}
-                  disabled={pending}
+                  disabled={removing(member)}
                   onValueChange={(value) => {
                     if (!v.is(Role, value)) return;
-                    startTransition(async () => {
-                      const result = await updateMemberRole({
-                        userId: member.userId,
-                        role: value,
-                      });
-                      if (result.ok) toast.success(t("Role updated"));
-                      else toast.error(errorMessage(result.error));
-                    });
+                    void roleChange.run({ userId: member.userId, role: value });
                   }}
                 >
                   <SelectTrigger
@@ -151,18 +169,12 @@ export function MemberTable({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  disabled={pending}
+                  disabled={removing(member)}
                   aria-label={t("Remove {name}", {
                     name: member.name ?? member.email ?? "",
                   })}
                   onClick={() => {
-                    startTransition(async () => {
-                      const result = await removeMember({
-                        userId: member.userId,
-                      });
-                      if (result.ok) toast.success(t("Member removed"));
-                      else toast.error(errorMessage(result.error));
-                    });
+                    void removal.run({ userId: member.userId });
                   }}
                 >
                   <UserMinusIcon />
