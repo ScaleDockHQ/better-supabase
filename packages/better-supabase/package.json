@@ -72,6 +72,11 @@
       "react-server": "./dist/react/server.js",
       "default": "./dist/react/index.js"
     },
+    "./react/native": {
+      "@better-supabase/source": "./src/react/native/index.ts",
+      "types": "./dist/react/native/index.d.ts",
+      "default": "./dist/react/native/index.js"
+    },
     "./query": {
       "@better-supabase/source": "./src/query/index.ts",
       "types": "./dist/query/index.d.ts",
@@ -560,6 +565,10 @@
         "types": "./dist/react/index.d.ts",
         "react-server": "./dist/react/server.js",
         "default": "./dist/react/index.js"
+      },
+      "./react/native": {
+        "types": "./dist/react/native/index.d.ts",
+        "default": "./dist/react/native/index.js"
       },
       "./query": {
         "types": "./dist/query/index.d.ts",

@@ -62,7 +62,7 @@ function hashOf(text: string): string {
  * that needs no change keeps its name (sessions stored before stay
  * readable); one that does gets a hash suffix, so `a:b` and `a/b` differ.
  */
-function safeKey(key: string): string {
+export function safeKey(key: string): string {
   const safe = key.replaceAll(UNSAFE, "_");
   return safe === key ? key : `${safe}-${hashOf(key)}`;
 }

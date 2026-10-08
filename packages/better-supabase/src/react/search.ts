@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { escapeLike } from "../ir/build.ts";
+import { escapeLike } from "../ir/escape-like.ts";
 
 export interface DebouncedSearchOptions {
   /** Defaults to 250 ms. */

@@ -36,7 +36,7 @@ export {
 // Component layout can render it and pass the session promise across.
 export { SessionProvider } from "./session.js";
 export { fieldErrorsOf } from "./field-errors.ts";
-export { escapeLike } from "../ir/build.ts";
+export { escapeLike } from "../ir/escape-like.ts";
 export { tenantOf } from "../auth/tenant.ts";
 export type {
   ActionForm,

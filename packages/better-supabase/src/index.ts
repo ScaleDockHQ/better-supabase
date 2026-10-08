@@ -187,7 +187,7 @@ export type * from "./schema/types.ts";
 export type { SearchArgs } from "./core/search.ts";
 export type * from "./ir/args.ts";
 export type * from "./ir/types.ts";
-export { escapeLike } from "./ir/build.ts";
+export { escapeLike } from "./ir/escape-like.ts";
 export { decodeRows } from "./ir/codec.ts";
 export { encodeValue } from "./ir/wire.ts";
 export {

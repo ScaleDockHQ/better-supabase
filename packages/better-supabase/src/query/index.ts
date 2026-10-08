@@ -11,7 +11,7 @@ export type {
   OptimisticSnapshot,
   OptimisticTarget,
 } from "./optimistic.ts";
-export { escapeLike } from "../ir/build.ts";
+export { escapeLike } from "../ir/escape-like.ts";
 export type { UserChangeSource } from "./user-change.ts";
 export type {
   BetterQueryMeta,

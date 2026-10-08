@@ -83,6 +83,140 @@ better-supabase never imports `react-native`; any object with `currentState`
 and `addEventListener("change", listener)` works, including a fake in a unit
 test.
 
+## Large sessions
+
+`largeSecureStorage` keeps a session of any size without chunking: it
+encrypts the session with AES-GCM, stores the result in MMKV or AsyncStorage
+and keeps only the 256-bit key in the keychain. Every write uses a fresh key.
+When the key and the data come from different installs (a reinstall kept one
+of them), the read returns `null`, so the user signs in again instead of
+seeing an error.
+
+```ts title="src/lib/supabase/native.ts"
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import { largeSecureStorage } from "better-supabase/client/native";
+
+const storage = largeSecureStorage({
+  secureStore: SecureStore,
+  storage: AsyncStorage,
+});
+```
+
+It uses the global `crypto`. On Hermes builds without WebCrypto, pass
+`crypto` from `react-native-quick-crypto`.
+
+## TanStack Query on a device
+
+`syncQueryWithApp` tells TanStack Query when the app is in the foreground and
+when the device is online, so queries refetch when the user returns and
+pause without a connection. With `supabase`, it also calls
+`autoRefreshOnForeground`, so one call covers both.
+
+```tsx title="src/app/_layout.tsx"
+import NetInfo from "@react-native-community/netinfo";
+import { focusManager, onlineManager } from "@tanstack/react-query";
+import { syncQueryWithApp } from "better-supabase/client/native";
+import { AppState } from "react-native";
+
+useEffect(
+  () =>
+    syncQueryWithApp({
+      focusManager,
+      onlineManager,
+      appState: AppState,
+      netInfo: NetInfo,
+      supabase,
+    }),
+  [],
+);
+```
+
+`persistQueryCache(storage)` is a TanStack Query persister over MMKV or
+AsyncStorage. A cold start shows the cached rows before the first fetch, and
+writes are throttled to one per second. The provider's `clearOnUserChange`
+drops the cache when another user signs in.
+
+```tsx
+<PersistQueryClientProvider client={queryClient} persistOptions={{ persister: persistQueryCache(storage) }}>
+```
+
+## Uploading picked files
+
+React Native can't upload a `Blob`. `uploadFromUri` reads a `file://` or
+`content://` URI from `expo-image-picker` or `expo-document-picker` into an
+`ArrayBuffer` and uploads it to a [typed bucket](/docs/platform/storage). The
+content type comes from the `contentType` option, then the file extension,
+then the response header. A file that can't be read returns an
+`invalid_input` error.
+
+```ts
+const picked = await ImagePicker.launchImageLibraryAsync();
+const uri = picked.assets?.[0]?.uri;
+if (uri) await uploadFromUri(avatars, { userId }, uri, { upsert: true });
+```
+
+## Sign-in on a device
+
+`better-supabase/react/native` has hooks for OAuth, deep links and protected
+routes. They read the client from `<BetterSupabaseProvider>`, or take
+`{ client: supabase }`.
+
+```tsx title="src/app/(auth)/sign-in.tsx"
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+import { useOAuth } from "better-supabase/react/native";
+
+export default function SignIn() {
+  const oauth = useOAuth({
+    browser: WebBrowser,
+    redirectTo: Linking.createURL("auth/callback"),
+  });
+  return (
+    <Button
+      title="GitHub"
+      disabled={oauth.pending}
+      onPress={() => oauth.signIn("github")}
+    />
+  );
+}
+```
+
+`oauth.signIn` opens the provider in an auth session and finishes the
+sign-in from the redirect; a dismissed browser is not an error.
+`oauth.idToken` signs in with an ID token from `expo-apple-authentication` or
+Google Sign-In. Add the redirect URL to the Auth redirect allow list.
+
+`useAuthDeepLinks(Linking)` finishes sign-ins from links that open the app:
+magic links, email confirmations and PKCE codes. It handles the initial URL
+and every link after it, once each, and returns the last outcome.
+`handleAuthDeepLink(supabase, url)` and `signInWithOAuthBrowser` in
+`better-supabase/client/native` do the same without React.
+
+```tsx title="src/app/_layout.tsx"
+import { useRouter, useSegments } from "expo-router";
+import {
+  useAuthDeepLinks,
+  useProtectedRoute,
+} from "better-supabase/react/native";
+
+function Navigation() {
+  useAuthDeepLinks(Linking);
+  const status = useProtectedRoute({
+    segments: useSegments(),
+    router: useRouter(),
+  });
+  if (status === "loading") return <Splash />;
+  return <Stack />;
+}
+```
+
+`useProtectedRoute` sends signed-out users outside the `(auth)` group to
+`/sign-in`, and signed-in users inside it to `/`; `publicGroup`,
+`signInHref` and `homeHref` change those. `<AuthGate fallback signedOut>`
+renders by auth status for apps without expo-router. With expo-router's
+`Stack.Protected`, pass `useAuth().status === "signed-in"` as its `guard`.
+
 ## Hermes and Temporal
 
 Hermes has no `Temporal`, and installing a polyfill on `globalThis` is a side

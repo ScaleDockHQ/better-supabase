@@ -9,6 +9,7 @@ const entries = [
   "react/index",
   "react/server",
   "react/session",
+  "react/native/index",
   "query/index",
   "server/index",
   "postgres/index",

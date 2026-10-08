@@ -56,7 +56,7 @@ export type {
   UploadTarget,
   UseUploadOptions,
 } from "./storage.ts";
-export { escapeLike } from "../ir/build.ts";
+export { escapeLike } from "../ir/escape-like.ts";
 export type { SessionProviderProps } from "./session.ts";
 export type { AuthSession } from "../auth/view.ts";
 export type { SupportView } from "../auth/support-view.ts";

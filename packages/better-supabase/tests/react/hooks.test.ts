@@ -48,6 +48,14 @@ import {
   useLiveQuery,
   useSupabase,
 } from "../../src/react/hooks.ts";
+import {
+  AuthGate,
+  type LinkingLike,
+  type UseOAuthOptions,
+  useAuthDeepLinks,
+  useOAuth,
+  useProtectedRoute,
+} from "../../src/react/native/index.ts";
 import { usePresence } from "../../src/react/presence.ts";
 import { useDebouncedSearch } from "../../src/react/search.ts";
 import { useSession } from "../../src/react/session.ts";
@@ -2367,5 +2375,118 @@ describe("useUpload", () => {
     await flush();
     expect(signals.at(-1)!.aborted).toBe(true);
     release?.();
+  });
+});
+
+describe("react/native", () => {
+  function fakeNativeAuth() {
+    const auth = {
+      exchangeCodeForSession: vi.fn(async (_code: string) => ({ error: null })),
+      setSession: vi.fn(async () => ({ error: null })),
+      verifyOtp: vi.fn(async () => ({ error: null })),
+      signInWithOAuth: vi.fn(async () => ({
+        data: { url: "https://auth.example/authorize" },
+        error: null,
+      })),
+      signInWithIdToken: vi.fn(async () => ({ error: null })),
+    };
+    return { auth, client: { auth } as never };
+  }
+
+  it("useOAuth signs in through the browser and with an ID token", async () => {
+    const { auth, client } = fakeNativeAuth();
+    const onSuccess = vi.fn();
+    let redirect = { type: "success", url: "app://cb?code=abc" };
+    const browser = {
+      openAuthSessionAsync: vi.fn(async () => redirect),
+    };
+    const view = renderHook(
+      () => useOAuth({ browser, redirectTo: "app://cb", client, onSuccess }),
+      undefined,
+      null,
+    );
+    expect(await view.result.signIn("github")).toBeUndefined();
+    expect(auth.exchangeCodeForSession).toHaveBeenCalledWith("abc");
+    redirect = { type: "success", url: "app://cb#error_description=Denied" };
+    expect(await view.result.signIn("github")).toEqual({ message: "Denied" });
+    expect(view.result.error).toEqual({ message: "Denied" });
+    await view.result.idToken({ provider: "apple", token: "t", nonce: "n" });
+    expect(auth.signInWithIdToken).toHaveBeenCalledWith({
+      provider: "apple",
+      token: "t",
+      nonce: "n",
+    });
+    expect(onSuccess).toHaveBeenCalledTimes(2);
+  });
+
+  it("useAuthDeepLinks handles the initial URL and later links once each", async () => {
+    const { auth, client } = fakeNativeAuth();
+    const listeners = new Set<(event: { url: string }) => void>();
+    const linking: LinkingLike = {
+      getInitialURL: async () => "app://cb?code=first",
+      addEventListener: (_type, listener) => {
+        listeners.add(listener);
+        return { remove: () => void listeners.delete(listener) };
+      },
+    };
+    const onResult = vi.fn();
+    const view = renderHook(
+      () => useAuthDeepLinks(linking, { client, onResult }),
+      undefined,
+      null,
+    );
+    await flush();
+    expect(view.result).toEqual({ type: "signed-in", via: "code" });
+    for (const listener of listeners) {
+      listener({ url: "app://home" });
+      listener({ url: "app://cb?code=first" });
+      listener({ url: "app://cb?token_hash=h&type=email" });
+    }
+    await flush();
+    expect(auth.exchangeCodeForSession).toHaveBeenCalledOnce();
+    expect(auth.verifyOtp).toHaveBeenCalledOnce();
+    expect(onResult).toHaveBeenCalledTimes(2);
+    view.unmount();
+    expect(listeners.size).toBe(0);
+  });
+
+  it("useProtectedRoute redirects by auth status and route group", () => {
+    const { browser, setAuth } = fakeBrowser(LOADING);
+    const router = { replace: vi.fn() };
+    const initial: { segments: readonly string[] } = { segments: ["(app)"] };
+    const view = renderHook(
+      (props) => useProtectedRoute({ segments: props.segments, router }),
+      initial,
+      { client: browser },
+    );
+    expect(view.result).toBe("loading");
+    expect(router.replace).not.toHaveBeenCalled();
+    setAuth(SIGNED_OUT);
+    expect(router.replace).toHaveBeenLastCalledWith("/sign-in");
+    view.rerender({ segments: ["(auth)", "sign-in"] });
+    setAuth(signedIn(USER));
+    expect(router.replace).toHaveBeenLastCalledWith("/");
+    expect(router.replace).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts a real supabase-js client", () => {
+    const asClient = (client: SupabaseClient): UseOAuthOptions["client"] =>
+      client;
+    expectTypeOf(asClient).returns.toEqualTypeOf<UseOAuthOptions["client"]>();
+  });
+
+  it("AuthGate picks the branch for the status", () => {
+    const { browser, setAuth } = fakeBrowser(LOADING);
+    const props = { fallback: "splash", signedOut: "sign-in", children: "app" };
+    const view = renderHook(() => AuthGate(props), undefined, {
+      client: browser,
+    });
+    expect(view.result).toBe("splash");
+    setAuth(SIGNED_OUT);
+    expect(view.result).toBe("sign-in");
+    setAuth(signedIn(USER));
+    expect(view.result).toBe("app");
+    const bare = renderHook(() => AuthGate({}), undefined, { client: browser });
+    expect(bare.result).toBeNull();
   });
 });

@@ -337,11 +337,25 @@
   "./client/native": {
     "values": [
       "autoRefreshOnForeground",
+      "contentTypeOf",
       "createNativeClient",
-      "secureStorage"
+      "handleAuthDeepLink",
+      "keyValue",
+      "largeSecureStorage",
+      "linkParams",
+      "persistQueryCache",
+      "secureStorage",
+      "signInWithOAuthBrowser",
+      "syncQueryWithApp",
+      "uploadFromUri"
     ],
     "types": [
+      "AesCryptoLike",
       "AppStateLike",
+      "AsyncStorageLike",
+      "AuthFailure",
+      "AuthLinkClient",
+      "AuthLinkResult",
       "AuthSnapshot",
       "AuthStorage",
       "AuthUser",
@@ -349,9 +363,24 @@
       "BetterClient",
       "BindClientOptions",
       "ClientAuth",
+      "FocusManagerLike",
+      "KeyValue",
+      "KeyValueStoreLike",
+      "LargeSecureStorageOptions",
+      "MmkvLike",
+      "NetInfoLike",
+      "OAuthClient",
+      "OAuthSignInOptions",
+      "OnlineManagerLike",
+      "PersistQueryCacheOptions",
+      "QueryPersister",
       "SecureStorageOptions",
       "SecureStoreLike",
-      "SecureStoreOptionsLike"
+      "SecureStoreOptionsLike",
+      "SyncQueryWithAppOptions",
+      "UploadFromUriOptions",
+      "UriUploadTarget",
+      "WebBrowserLike"
     ]
   },
   "./react": {
@@ -416,6 +445,26 @@
       "UseActionFormOptions",
       "UseActionOptions",
       "UseUploadOptions"
+    ]
+  },
+  "./react/native": {
+    "values": [
+      "AuthGate",
+      "useAuthDeepLinks",
+      "useOAuth",
+      "useProtectedRoute"
+    ],
+    "types": [
+      "AuthDeepLinksOptions",
+      "AuthFailure",
+      "AuthGateProps",
+      "AuthLinkResult",
+      "LinkingLike",
+      "OAuth",
+      "OAuthSignInOptions",
+      "ProtectedRouteOptions",
+      "UseOAuthOptions",
+      "WebBrowserLike"
     ]
   },
   "./query": {
