@@ -145,8 +145,12 @@ export default defineConfig({
       "chat-sdk-state": {},
       // The /assistant sample: chats in `ai-chat` on private Realtime topics,
       // resumable answers in `streams` and attachments in `ai-files`.
+      // /knowledge ingests documents into `knowledge` for the assistant's
+      // search tool, and `memory` keeps what it remembers.
       "ai-chat": { api: "api" },
       "ai-files": { api: "api" },
+      knowledge: { api: "api" },
+      memory: { api: "api" },
     },
   },
 });
