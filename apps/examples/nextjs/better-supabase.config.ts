@@ -129,6 +129,10 @@ export default defineConfig({
       // In-app notifications behind the unread badge and /notifications,
       // on the recipient's private topic `notifications:<user id>`.
       notifications: { api: "api" },
+      // The /assistant sample: resumable answers in `streams`, chats in
+      // `ai-chat`, both on private Realtime topics.
+      streams: { api: "api" },
+      "ai-chat": { api: "api" },
     },
   },
 });
