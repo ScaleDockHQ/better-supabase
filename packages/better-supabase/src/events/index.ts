@@ -344,6 +344,7 @@ export {
   onBlockEvent,
 } from "../core/block-events.ts";
 export type {
+  AiChatEventData,
   AttachmentEventData,
   BillingEventData,
   CommentEventData,
