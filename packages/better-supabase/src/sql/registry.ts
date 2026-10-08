@@ -33,14 +33,17 @@ import {
   modulePermissionKey,
 } from "./modules/access-model.ts";
 import { ACCESS } from "./modules/access.ts";
+import { AGENTS_MODULE } from "./modules/agents.ts";
 import { AI_CHAT } from "./modules/ai-chat.ts";
 import { AI_FILES } from "./modules/ai-files.ts";
+import { AI_TASKS } from "./modules/ai-tasks.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
 import { COMMENTS } from "./modules/comments.ts";
+import { CONNECTORS } from "./modules/connectors.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { FLAGS } from "./modules/flags.ts";
@@ -2227,6 +2230,9 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(AI_FILES),
       built(KNOWLEDGE),
       built(MEMORY),
+      built(AGENTS_MODULE),
+      built(CONNECTORS),
+      built(AI_TASKS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

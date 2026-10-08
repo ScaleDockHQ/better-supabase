@@ -37,7 +37,13 @@ export const restrictedImportPatterns: { group: string[]; message: string }[] =
     { group: ["@radix-ui/*"], message: "Use Base UI primitives." },
     { group: ["date-fns/*", "@date-fns/*"], message: "Use Temporal." },
     {
-      group: ["@ai-sdk/*", "!@ai-sdk/react", "!@ai-sdk/valibot"],
+      // @ai-sdk/mcp is the MCP client, not a model provider.
+      group: [
+        "@ai-sdk/*",
+        "!@ai-sdk/react",
+        "!@ai-sdk/valibot",
+        "!@ai-sdk/mcp",
+      ],
       message: 'Use plain "provider/model" strings through AI Gateway.',
     },
   ];

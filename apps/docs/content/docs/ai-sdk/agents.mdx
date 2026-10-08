@@ -1,0 +1,69 @@
+---
+title: Agents
+description: Build a ToolLoopAgent from a stored agent with its tools, approvals and knowledge search, and check input and output with a moderation middleware.
+---
+
+`better-supabase/ai-sdk/agents` runs an [agent](/docs/blocks/agents) with
+the AI SDK. It picks the tools the agent may use, asks for approval where
+the tool policies say so, and adds a knowledge search tool for the agent's
+scopes.
+
+```bash
+pnpm add ai
+```
+
+## Runtime
+
+```ts title="app/api/agents/[slug]/route.ts"
+import { gateway } from "ai";
+import { createAgentRuntime } from "better-supabase/ai-sdk/agents";
+
+const runtime = createAgentRuntime({
+  agent,
+  model: (modelId) => gateway(modelId ?? "openai/gpt-5-mini"),
+  tools: { ...appTools, ...connectorTools },
+  policies: await chats.tools.policies(organizationId).orThrow(),
+  knowledge: { knowledge, organizationId },
+  instructions: "Answer in the user's language.",
+});
+
+const result = await runtime.stream({ messages });
+```
+
+`createAgentRuntime` returns a `ToolLoopAgent`. Its instructions are the
+app's `instructions` followed by the agent's own, and it stops after 20
+steps unless you pass `stopWhen`. With `knowledge`, the model gets a
+`search_knowledge` tool limited to the agent's knowledge scopes.
+
+| Helper              | Returns                                                                  |
+| ------------------- | ------------------------------------------------------------------------ |
+| `agentTools`        | The tools the agent lists (all of them when it lists none), minus `deny` |
+| `agentToolApproval` | `user-approval` for every tool whose policy is `ask`                     |
+| `agentScopes`       | The agent's knowledge scopes, with `agent` resolved to its id            |
+
+An `ask` tool doesn't run until the user approves it: the stream carries a
+`tool-approval-request` part, and the [chat route](/docs/ai-sdk/chat) stores
+the approval.
+
+## Moderation
+
+```ts
+import { wrapLanguageModel } from "ai";
+import { moderationMiddleware } from "better-supabase/ai-sdk/agents";
+
+const model = wrapLanguageModel({
+  model: gateway("openai/gpt-5-mini"),
+  middleware: moderationMiddleware({
+    chats,
+    organizationId,
+    chatId,
+    check: async (text, stage) => classify(text),
+  }),
+});
+```
+
+`check` gets the last user message (`input`) and the answer (`output`) and
+returns a verdict with an `action` and a `category`, or nothing. Every
+verdict is recorded in the [AI chat](/docs/blocks/ai-chat) moderation log.
+A `block` verdict throws `ModerationBlockedError` before the model runs, or
+after it answers; in a stream it ends the stream with an error part.

@@ -1,0 +1,90 @@
+---
+title: MCP connectors
+description: Authorize a user with an MCP server through OAuth with dynamic client registration in Vault, connect with the stored session and give the model the server's tools.
+---
+
+`better-supabase/ai-sdk/mcp` connects the [connectors](/docs/blocks/connectors)
+block to MCP servers through `@ai-sdk/mcp`. It runs the OAuth flow for a
+user, keeps the tokens in Vault, reuses the MCP session of a chat and only
+returns tools from a tool list an admin approved.
+
+```bash
+pnpm add ai @ai-sdk/mcp
+```
+
+## Authorize a user
+
+```ts title="app/connectors/[id]/connect/route.ts"
+import { authorizeConnector } from "better-supabase/ai-sdk/mcp";
+
+const result = await authorizeConnector({
+  connectors,
+  vault,
+  server,
+  userId,
+  redirectUrl: `${origin}/connectors/callback`,
+}).orThrow();
+if (result.url) return Response.redirect(result.url);
+```
+
+```ts title="app/connectors/callback/route.ts"
+import { completeConnector } from "better-supabase/ai-sdk/mcp";
+
+await completeConnector({
+  connectors,
+  vault,
+  server,
+  userId,
+  redirectUrl: `${origin}/connectors/callback`,
+  callback: request.url,
+}).orThrow();
+```
+
+`authorizeConnector` registers the app with the server's authorization
+server when it has no client yet (dynamic client registration) and returns
+the URL to send the user to, or no URL when the stored tokens still work.
+`completeConnector` checks the state, exchanges the code, then records the
+grant. `vaultOAuthProvider` is the `OAuthClientProvider`
+behind both: the client information goes in an app secret
+`mcp-client:<serverId>` and the user's tokens and PKCE verifier in a user
+secret under `mcpOAuthRef(serverId)`.
+
+## Connect and get tools
+
+```ts
+import { connectAll } from "better-supabase/ai-sdk/mcp";
+
+const servers = await connectors.servers.list(organizationId).orThrow();
+const { tools, skipped, close } = await connectAll(servers, {
+  connectors,
+  userId,
+  vault,
+  credentials,
+  chatKey: chatId,
+});
+try {
+  return streamText({ model, messages, tools });
+} finally {
+  await close();
+}
+```
+
+`connectTools` connects to one server and `connectAll` to many, naming each
+tool after its server (`github_create_issue`). A server's auth type sets
+the credential:
+
+| Auth     | Sends                                                              |
+| -------- | ------------------------------------------------------------------ |
+| `none`   | Nothing                                                            |
+| `header` | The headers of the server's `credential_ref`, resolved for the app |
+| `oauth`  | The user's Vault tokens, or their grant through another provider   |
+
+With `chatKey`, the MCP session id and initialize result are stored per
+chat and reused on the next request. A server that is disabled, has no
+grant for the user or can't be reached fails with the hint
+`CONNECTOR_DISABLED`, `CONNECTOR_NOT_AUTHORIZED` or `CONNECTOR_UNREACHABLE`;
+`connectAll` lists those in `skipped` and keeps the rest. A tool list that
+changed returns `CONNECTOR_TOOLS_CHANGED` until an admin approves it.
+
+Pass `apps: true` to split out MCP Apps tools into `appTools`, and `elicit`
+to answer a server's elicitation requests; without it they are declined.

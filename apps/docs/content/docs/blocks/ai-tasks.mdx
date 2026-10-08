@@ -1,0 +1,76 @@
+---
+title: AI tasks
+description: Prompts a user schedules on a cron in their time zone, a scheduler that queues each run, and a run log with the chat each run wrote to.
+---
+
+The `ai-tasks` block runs a prompt on a schedule, such as a summary of new
+tickets every weekday at 9:00 in the user's time zone. Each run is logged
+with its status and the chat it wrote to.
+
+```bash
+better-supabase sql add ai-tasks   # adds tenant and access as well
+```
+
+| Table                | Holds                                                              |
+| -------------------- | ------------------------------------------------------------------ |
+| `ai_scheduled_tasks` | The prompt, cron, time zone, optional chat and agent, and next run |
+| `ai_task_runs`       | One row per run: `queued`, `running`, `succeeded` or `failed`      |
+
+A user sees and changes their own tasks; `ai_chat.admin` lists every task
+in the organization. With [agents](/docs/blocks/agents) installed, a task
+can name the agent it runs as.
+
+| Permission       | Lets a member                      | Default roles              |
+| ---------------- | ---------------------------------- | -------------------------- |
+| `ai_chat.create` | schedule tasks                     | `owner`, `admin`, `member` |
+| `ai_chat.admin`  | see every task in the organization | `owner`, `admin`           |
+
+| Option       | Default       | Sets                                               |
+| ------------ | ------------- | -------------------------------------------------- |
+| `maxPrompt`  | 20,000        | The longest prompt, in characters                  |
+| `queue`      | `ai_task_run` | The jobs queue a run is sent to                    |
+| `staleAfter` | `30 minutes`  | When a `running` run counts as abandoned and fails |
+
+## Server
+
+```ts title="lib/ai-tasks.ts"
+import { createAiTasks, rpcTransport } from "better-supabase/blocks/ai-tasks";
+
+export const tasksFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createAiTasks({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    run: async (task, run, signal) => {
+      const chatId = await runAssistant(task, signal);
+      return { chatId };
+    },
+  });
+```
+
+```ts
+await tasks
+  .create(organizationId, {
+    title: "Ticket summary",
+    prompt: "Summarize the tickets opened since yesterday.",
+    cron: "0 9 * * 1-5",
+    timezone: "Europe/Amsterdam",
+  })
+  .orThrow();
+```
+
+The block computes the next occurrence on the server from the cron and
+time zone; a bad cron or zone fails with `invalid_input`. Change `cron`
+and `timezone` together. `pause` and `resume` turn a task off and on, and
+`runs(taskId)` lists its recent runs.
+
+## Running tasks
+
+`tick()` claims the due tasks as the service role, queues a run for each
+and sets the next occurrence. With [jobs](/docs/blocks/jobs) installed, each
+run is sent to the `ai_task_run` queue and `runJob()` is its handler;
+without jobs, call `drain()` from a cron route to tick and run in one go.
+
+`execute(runId)` marks the run `running`, calls your `run` function and
+marks it `succeeded` or `failed` with the error. It returns `false` when
+another worker already has the run. The optional `notify` callback gets
+every outcome, for a notification or an email.
