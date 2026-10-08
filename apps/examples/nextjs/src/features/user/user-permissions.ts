@@ -30,6 +30,8 @@ export const PERMISSIONS = [
   "onboarding.complete",
   "workflow.read",
   "workflow.run",
+  "workflow.edit",
+  "workflow.publish",
   "workflow.admin",
 ] as const;
 
@@ -61,6 +63,8 @@ const grants = {
     "onboarding.complete",
     "workflow.read",
     "workflow.run",
+    "workflow.edit",
+    "workflow.publish",
     "workflow.admin",
   ],
   member: [

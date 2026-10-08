@@ -133,6 +133,8 @@ export default defineConfig({
       // the Supabase World (`WORKFLOW_TARGET_WORLD`), which polls in dev.
       workflows: { api: "api" },
       "workflow-sdk-world": {},
+      // Workflows tenants build on a canvas at /workflows/builder.
+      "workflow-builder": { api: "api" },
     },
   },
 });

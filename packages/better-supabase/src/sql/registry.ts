@@ -58,6 +58,7 @@ import { USAGE } from "./modules/usage.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
+import { WORKFLOW_BUILDER } from "./modules/workflow-builder.ts";
 import { WORKFLOW_SDK_WORLD } from "./modules/workflow-sdk-world.ts";
 import { WORKFLOWS } from "./modules/workflows.ts";
 import { tableGlobs } from "./schema-scan.ts";
@@ -2236,6 +2237,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(CREDENTIALS),
       built(WORKFLOWS),
       built(WORKFLOW_SDK_WORLD),
+      built(WORKFLOW_BUILDER),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
