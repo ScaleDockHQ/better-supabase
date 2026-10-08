@@ -1,5 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
+import { membershipDisabledAt } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 /** Columns `reads` needs from `namesOf`. */
@@ -25,19 +26,24 @@ export function organizationReads(
     .map((logical) => ` and o.${ctx.col("organizations", logical)} is null`)
     .join("");
   const invites = ctx.installed("invitations") ? invitationsRead(ctx) : "";
+  const disabledAt = membershipDisabledAt(ctx);
+  const disabledColumn =
+    disabledAt === undefined ? "" : ",\n  disabled_at timestamptz";
+  const disabledValue = disabledAt === undefined ? "" : `, m.${disabledAt}`;
   return `
+drop function if exists ${ctx.fn("list_my_organizations")}();
 create or replace function ${ctx.fn("list_my_organizations")}()
 returns table (
   id ${ctx.idType},
   name text${slug === undefined ? "" : ",\n  slug text"},
-  role text
+  role text${disabledColumn}
 )
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select o.${n.id}, o.${name}${slug === undefined ? "" : `, o.${slug}`}, m.${n.role}::text
+  select o.${n.id}, o.${name}${slug === undefined ? "" : `, o.${slug}`}, m.${n.role}::text${disabledValue}
   from ${n.m} m
   join ${n.organization} o on o.${n.id} = m.${n.tenant}
   where m.${n.user} = (select auth.uid())${flags}
@@ -45,8 +51,9 @@ as $$
   order by o.${name}
 $$;
 
+drop function if exists ${ctx.fn("list_members")}(${ctx.idType});
 create or replace function ${ctx.fn("list_members")}(organization ${ctx.idType})
-returns table (user_id uuid, role text)
+returns table (user_id uuid, role text${disabledColumn.replace(",\n  ", ", ")})
 language plpgsql
 stable
 security definer
@@ -57,7 +64,7 @@ begin
     raise exception 'Not allowed to list members' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   return query
-  select m.${n.user}, m.${n.role}::text
+  select m.${n.user}, m.${n.role}::text${disabledValue}
   from ${n.m} m
   where m.${n.tenant} = organization
   order by m.${n.user};

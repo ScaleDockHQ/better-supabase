@@ -3,14 +3,17 @@ import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  activeMembership,
   addForeignKey,
   columnRef,
+  membershipDisabledAt,
   schemaPreamble,
   SERVICE_CALLER,
   updatedAt,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
 import { organizationReads } from "./organizations-reads.ts";
+import { memberSuspension } from "./organizations-suspension.ts";
 import {
   activeTenantSource,
   roleNameFrom,
@@ -621,6 +624,7 @@ ${keys.join("\n")}
 
 /** The deferred owner check and the role guard on the memberships table. */
 function guards(ctx: ModuleContext, n: OrganizationNames): string {
+  const disabledAt = membershipDisabledAt(ctx);
   const invariant = ctx.flag("ownerInvariant", true)
     ? `
 -- Checked at commit, so one transaction can promote one owner and demote
@@ -636,7 +640,7 @@ begin
   -- transactions can't each remove a different last owner.
   perform 1 from ${n.organization} o where o.${n.id} = old.${n.tenant} for update;
   if found and not exists (
-      select 1 from ${n.m} m where m.${n.tenant} = old.${n.tenant} and ${isOwner(ctx, n, "m")}
+      select 1 from ${n.m} m where m.${n.tenant} = old.${n.tenant} and ${isOwner(ctx, n, "m")}${activeMembership(ctx, "m")}
     ) then
     raise exception 'An organization needs an owner' using errcode = '23514', hint = 'ORGANIZATION_OWNER_REQUIRED';
   end if;
@@ -644,7 +648,7 @@ begin
 end;
 $$;
 drop trigger if exists ${ctx.trigger("organization_owner")} on ${n.m};
-create constraint trigger ${ctx.trigger("organization_owner")} after update of ${n.role}, ${n.tenant} or delete on ${n.m}
+create constraint trigger ${ctx.trigger("organization_owner")} after update of ${n.role}, ${n.tenant}${disabledAt === undefined ? "" : `, ${disabledAt}`} or delete on ${n.m}
   deferrable initially deferred
   for each row execute function ${ctx.fn("ensure_organization_owner")}();
 `
@@ -709,7 +713,7 @@ begin
   if not (${CLIENT_WRITE}) then
     return new;
   end if;
-  if tg_op = 'UPDATE' and new.${n.role} is not distinct from old.${n.role} then
+  if tg_op = 'UPDATE' and new.${n.role} is not distinct from old.${n.role}${disabledAt === undefined ? "" : ` and new.${disabledAt} is not distinct from old.${disabledAt}`} then
     return new;
   end if;
   perform ${ctx.fn("guard_membership_role")}(
@@ -750,6 +754,14 @@ function members(ctx: ModuleContext, n: OrganizationNames): string {
   return found;`
     : "return false;";
   const former = sqlString(ctx.text("formerOwnerRole", "admin"));
+  const disabledAt = membershipDisabledAt(ctx);
+  const suspendedOwner =
+    disabledAt === undefined
+      ? ""
+      : `
+  if exists (select 1 from ${n.m} m where m.${n.tenant} = organization and m.${n.user} = new_owner and m.${disabledAt} is not null) then
+    raise exception 'The new owner is suspended' using errcode = '42501', hint = 'ORGANIZATION_MEMBER_SUSPENDED';
+  end if;`;
   return `
 -- Errors carry a code in the hint: ORGANIZATION_FORBIDDEN, ORGANIZATION_DISABLED, ORGANIZATION_NOT_MEMBER,
 -- ORGANIZATION_SELF, ORGANIZATION_SELF_ROLE, ORGANIZATION_ROLE_CEILING, ORGANIZATION_ROLE_UNKNOWN, ORGANIZATION_OWNER_REQUIRED.
@@ -866,7 +878,7 @@ begin
   end if;
   if better_supabase.user_disabled(new_owner) then
     raise exception 'The new owner is disabled' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
-  end if;
+  end if;${suspendedOwner}
   -- One statement for both rows, so a statement-level guard on the number of
   -- owners sees the transfer as a whole.
   update ${n.m} m set ${n.role} = case
@@ -977,6 +989,12 @@ const functionsOf = (
   ...(ctx.installed("invitations")
     ? ([["list_organization_invitations", id]] as const)
     : []),
+  ...(membershipDisabledAt(ctx) === undefined
+    ? []
+    : ([
+        ["suspend_member", `${id}, uuid`],
+        ["resume_member", `${id}, uuid`],
+      ] as const)),
 ];
 
 function organizationsSql(ctx: ModuleContext): string {
@@ -991,7 +1009,18 @@ grant execute on function ${ctx.fn(name)}(${args}) to authenticated, service_rol
     )
     .join("\n");
   return `${schemaPreamble(ctx)}
-${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${remove(ctx, n)}${guards(ctx, n)}${members(ctx, n)}${switcher(ctx, n)}${organizationReads(ctx, n)}
+${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${remove(ctx, n)}${guards(ctx, n)}${members(ctx, n)}${memberSuspension(
+    ctx,
+    n,
+    {
+      isOwner: (alias) => isOwner(ctx, n, alias),
+      activeOrganization: (organization) =>
+        activeOrganization(ctx, n, organization),
+      platformOverride: platformOverride(ctx, "removeMemberPlatform"),
+      assignableRole: (stored) => assignableRole(ctx, stored),
+      event,
+    },
+  )}${switcher(ctx, n)}${organizationReads(ctx, n)}
 ${grants}`;
 }
 

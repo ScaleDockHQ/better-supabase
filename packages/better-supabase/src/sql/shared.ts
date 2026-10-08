@@ -185,6 +185,34 @@ export function organizationMissing(
   return `not exists (select 1 from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${organization})`;
 }
 
+export function membershipDisabledAt(ctx: ModuleContext): string | undefined {
+  if (ctx.module !== "tenant" && !ctx.installed("tenant")) return undefined;
+  const tenant = ctx.module === "tenant" ? ctx : ctx.of("tenant");
+  if (!tenant.has("memberships", "disabledAt")) return undefined;
+  if (
+    !tenant.manages &&
+    typeof tenant.config.columns["memberships"]?.["disabledAt"] !== "string"
+  )
+    return undefined;
+  return tenant.col("memberships", "disabledAt");
+}
+
+export function activeMembership(ctx: ModuleContext, alias: string): string {
+  const column = membershipDisabledAt(ctx);
+  return column === undefined ? "" : ` and ${alias}.${column} is null`;
+}
+
+export function membershipSuspended(
+  ctx: ModuleContext,
+  tenant: string,
+  user: string,
+): string | undefined {
+  const column = membershipDisabledAt(ctx);
+  if (column === undefined) return undefined;
+  const t = ctx.module === "tenant" ? ctx : ctx.of("tenant");
+  return `exists (select 1 from ${t.table("memberships")} sm where sm.${t.col("memberships", "tenant")} = ${tenant} and sm.${t.col("memberships", "user")} = ${user} and sm.${column} is not null)`;
+}
+
 /**
  * `tenant_disabled(id)` and `user_disabled(uuid)` from
  * `sql.modules.access.disabled`. Without a column they return false, so callers
