@@ -149,6 +149,7 @@ create table if not exists ${keys} (
   ${k.updatedAt} timestamptz not null default now(),
   unique (${k.tenant}, ${k.provider}, ${k.name})
 );
+create index if not exists ai_provider_keys_created_by_idx on ${keys} (${k.createdBy});
 alter table ${keys} enable row level security;
 revoke all on ${keys} from anon, authenticated;
 grant select on ${keys} to authenticated;
