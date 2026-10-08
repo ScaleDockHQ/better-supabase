@@ -128,6 +128,12 @@ export interface ProxyOptions<C = unknown, P = unknown> {
    * proxy, and resolving the session (a local verify, or a refresh).
    */
   readonly serverTiming?: boolean;
+  readonly endedSession?: true | EndedSessionOptions;
+}
+
+export interface EndedSessionOptions {
+  readonly paths?: readonly string[];
+  readonly redirect?: string;
 }
 
 export type ActionResult<T> =
@@ -656,6 +662,12 @@ export function requireAal(
   };
 }
 
+function endedRedirect(request: NextRequest, path: string): Response {
+  const target = new URL(path, request.url);
+  target.searchParams.set("reason", "session_ended");
+  return NextResponse.redirect(target);
+}
+
 /** A router or browser prefetch, by its request headers. */
 function isPrefetch(request: Request): boolean {
   const h = request.headers;
@@ -664,6 +676,16 @@ function isPrefetch(request: Request): boolean {
     h.get("purpose") === "prefetch" ||
     (h.get("sec-purpose")?.includes("prefetch") ?? false)
   );
+}
+
+export function shouldCheckSession(
+  request: NextRequest,
+  options: EndedSessionOptions = {},
+): boolean {
+  if (request.method !== "GET" && request.method !== "HEAD") return false;
+  if (isPrefetch(request)) return false;
+  if (request.headers.get("sec-fetch-dest") === "document") return true;
+  return options.paths?.includes(request.nextUrl.pathname) ?? false;
 }
 
 /** Page loads, client navigations and server actions; never prefetches or assets. */
@@ -950,10 +972,17 @@ export function createNext<
       const id = collector ? crypto.randomUUID() : undefined;
       let verifyMs = 0;
       // `before` (i18n rewrites, redirects) and auth run on the original request.
+      const sessionCheck =
+        proxyOptions.endedSession === true ? {} : proxyOptions.endedSession;
+      const checkSession =
+        sessionCheck !== undefined && shouldCheckSession(request, sessionCheck);
       const [early, resolution] = await Promise.all([
         proxyOptions.before?.(request),
         base
-          .resolve(request, { refresh: shouldRefresh(request) })
+          .resolve(request, {
+            refresh: shouldRefresh(request),
+            ...(checkSession ? { checkSession } : {}),
+          })
           .then((resolved) => {
             verifyMs = performance.now() - started;
             return resolved;
@@ -969,10 +998,17 @@ export function createNext<
         protectMethods === true
           ? true
           : (protectMethods ?? ["GET", "HEAD"]).includes(request.method);
+      const ended =
+        resolution.sessionEnded === true &&
+        sessionCheck?.redirect !== undefined &&
+        request.nextUrl.pathname !== sessionCheck.redirect
+          ? endedRedirect(request, sessionCheck.redirect)
+          : undefined;
       const custom =
-        rendersSignedOut || !runsProtect
+        ended ??
+        (rendersSignedOut || !runsProtect
           ? undefined
-          : await proxyOptions.protect?.(resolution.auth, request);
+          : await proxyOptions.protect?.(resolution.auth, request));
       const initial = custom ?? early;
       if (
         !initial &&

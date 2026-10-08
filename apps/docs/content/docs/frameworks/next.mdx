@@ -60,6 +60,35 @@ caching a redirect to sign-in; the click refreshes the session
 ([details](/docs/frameworks/next-cache-components#5-optimistic-redirects-in-the-proxy)).
 The default, `"protect"`, passes them to `protect` like any other request.
 
+### Ended sessions
+
+An access token stays valid until it expires, even after its session is
+signed out elsewhere, revoked or deleted. RLS that checks the session then
+hides every row, and the app looks empty. `endedSession` asks Auth whether
+the session still exists (`GET /auth/v1/user`) on document loads and on the
+paths you list. When Auth answers 401 or 403, the proxy clears the session
+cookies and redirects to `redirect` with `?reason=session_ended`:
+
+```ts
+export const proxy = (request: NextRequest) =>
+  bs.proxy(request, {
+    endedSession: { redirect: "/login", paths: ["/"] },
+    protect,
+  });
+```
+
+| Option     | Default | Meaning                                                                    |
+| ---------- | ------- | -------------------------------------------------------------------------- |
+| `paths`    | none    | Paths checked on client navigations too, such as the page after sign-in    |
+| `redirect` | none    | Where an ended session goes; without it `protect` gets a signed-out caller |
+
+Each checked request costs one Auth request, so client navigations, server
+actions and prefetches keep the local token check unless their path is in
+`paths`. A request to `redirect` itself only clears the cookies. When Auth
+cannot be reached or answers with a server error, the session is kept.
+`endedSession: true` checks document loads without a redirect. Use
+`shouldCheckSession(request, options)` to see whether a request is checked.
+
 ## Server Components
 
 ```tsx

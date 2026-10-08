@@ -18,7 +18,7 @@ import { type DbError, dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf } from "./actor.ts";
 import { userContext } from "./impersonation.ts";
-import { refreshSession } from "./refresh.ts";
+import { refreshSession, sessionEnded } from "./refresh.ts";
 import {
   applyCookieWrites,
   AUTH_CACHE_HEADERS,
@@ -126,6 +126,7 @@ export interface ResolveAuthOptions {
   readonly leeway?: number;
   /** Milliseconds before a refresh counts as a network failure. Defaults to 5000. */
   readonly refreshTimeoutMs?: number;
+  readonly checkSession?: boolean;
   /**
    * Accept `sb_secret_` keys (`apikey` header) as service callers: `true` for
    * any configured key, or the key names allowed (`['cron']`). Defaults to false.
@@ -189,6 +190,7 @@ export interface AuthResolution<C = unknown, P = unknown> {
   readonly requestCookies: readonly CookieRecord[];
   /** Adds `cookies` and `headers` to a response. */
   apply(response: Response): Response;
+  readonly sessionEnded?: boolean;
 }
 
 function expiryOf(session: StoredSession): number | undefined {
@@ -529,11 +531,13 @@ function resolution(
   auth: AuthState,
   cookies: () => readonly CookieRecord[],
   writes: readonly CookieWrite[] = [],
+  ended = false,
 ): AuthResolution {
   const headers = writes.length > 0 ? AUTH_CACHE_HEADERS : {};
   let requestCookies: readonly CookieRecord[] | undefined;
   return {
     auth,
+    ...(ended ? { sessionEnded: true } : {}),
     cookies: writes,
     headers,
     /** Parsed on first read: bearer requests rarely need their cookies. */
@@ -663,6 +667,33 @@ export async function resolveAuth(
       options,
       "cookie",
     );
+    if (
+      state.kind === "user" &&
+      options.checkSession &&
+      (await sessionEnded(state.token, {
+        url: options.env.url,
+        publishableKey: options.env.publishableKey,
+        ...(options.fetch ? { fetch: options.fetch } : {}),
+        ...(options.refreshTimeoutMs === undefined
+          ? {}
+          : { timeoutMs: options.refreshTimeoutMs }),
+      }))
+    ) {
+      return resolution(
+        { kind: "anon", reason: "signed_out" },
+        cookies,
+        options.refresh
+          ? writeSession(
+              cookies(),
+              name,
+              null,
+              options.cookie?.options,
+              encoding,
+            )
+          : [],
+        true,
+      );
+    }
     // A refresh can't fix claims the schema or the act check rejects, nor an unreachable JWKS.
     if (
       state.kind !== "invalid" ||

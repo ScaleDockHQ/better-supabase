@@ -13,6 +13,7 @@ import { AsyncResult, ok } from "../../src/core/result.ts";
 import {
   createNext,
   requireAal,
+  shouldCheckSession,
   shouldRefresh,
   tagFor,
 } from "../../src/next/index.ts";
@@ -108,6 +109,28 @@ describe("shouldRefresh", () => {
   });
 });
 
+describe("shouldCheckSession", () => {
+  it("checks document loads and the listed paths", () => {
+    expect(shouldCheckSession(page())).toBe(true);
+    const navigation = page({
+      headers: { "sec-fetch-dest": "empty", rsc: "1" },
+    });
+    expect(shouldCheckSession(navigation)).toBe(false);
+    expect(shouldCheckSession(navigation, { paths: ["/dashboard"] })).toBe(
+      true,
+    );
+    expect(
+      shouldCheckSession(page({ headers: { "next-router-prefetch": "1" } })),
+    ).toBe(false);
+    expect(
+      shouldCheckSession(
+        page({ method: "POST", headers: { "next-action": "abc" } }),
+        { paths: ["/dashboard"] },
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("createNext", () => {
   const fresh = vi.fn<typeof fetch>();
   const betterSupabase = defineSupabase(schema);
@@ -184,6 +207,117 @@ describe("createNext", () => {
         .getSetCookie()
         .every((cookie) => cookie.includes("Max-Age=0")),
     ).toBe(true);
+  });
+
+  describe("ended sessions", () => {
+    const session = async () => {
+      const token = await signer.sign({ sub: USER });
+      return {
+        token,
+        cookie: writeSession([], NAME, {
+          access_token: token,
+          refresh_token: "r-ended",
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        })
+          .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
+          .join("; "),
+      };
+    };
+    const ended = () =>
+      Response.json(
+        { code: 403, error_code: "session_not_found" },
+        { status: 403 },
+      );
+
+    it("signs out and redirects when Auth no longer knows the session", async () => {
+      const { token, cookie } = await session();
+      fresh.mockResolvedValue(ended());
+      const protect = vi.fn(() => undefined);
+      const response = await bs.proxy(page({ cookie }), {
+        protect,
+        endedSession: { redirect: "/login" },
+      });
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toBe(
+        "https://app.test/login?reason=session_ended",
+      );
+      expect(response.headers.getSetCookie().length).toBeGreaterThan(0);
+      expect(
+        response.headers
+          .getSetCookie()
+          .every((value) => value.includes("Max-Age=0")),
+      ).toBe(true);
+      expect(protect).not.toHaveBeenCalled();
+      const [url, init] = fresh.mock.calls[0]!;
+      expect(String(url)).toBe(`${PROJECT_URL}/auth/v1/user`);
+      expect(new Headers(init?.headers).get("authorization")).toBe(
+        `Bearer ${token}`,
+      );
+    });
+
+    it("hands an ended session to protect without a redirect", async () => {
+      const { cookie } = await session();
+      fresh.mockResolvedValue(ended());
+      const protect = vi.fn((_auth: unknown) => undefined);
+      const response = await bs.proxy(page({ cookie }), {
+        protect,
+        endedSession: true,
+      });
+      expect(protect).toHaveBeenCalledWith(
+        { kind: "anon", reason: "signed_out" },
+        expect.anything(),
+      );
+      expect(response.headers.get("x-middleware-next")).toBe("1");
+      expect(response.headers.getSetCookie().length).toBeGreaterThan(0);
+
+      const onLogin = await bs.proxy(
+        new NextRequest("https://app.test/login", {
+          headers: { "sec-fetch-dest": "document", cookie },
+        }),
+        { endedSession: { redirect: "/login" } },
+      );
+      expect(onLogin.headers.get("location")).toBeNull();
+      expect(onLogin.headers.getSetCookie().length).toBeGreaterThan(0);
+    });
+
+    it("keeps the session when Auth answers or cannot be reached", async () => {
+      const { cookie } = await session();
+      fresh.mockResolvedValueOnce(Response.json({ id: USER }));
+      const live = await bs.proxy(page({ cookie }), {
+        endedSession: { redirect: "/login" },
+      });
+      expect(live.headers.get("x-middleware-next")).toBe("1");
+      expect(live.headers.getSetCookie()).toEqual([]);
+
+      fresh.mockRejectedValueOnce(new TypeError("fetch failed"));
+      const offline = await bs.proxy(page({ cookie }), {
+        endedSession: { redirect: "/login" },
+      });
+      expect(offline.headers.get("x-middleware-next")).toBe("1");
+
+      fresh.mockResolvedValueOnce(Response.json({}, { status: 500 }));
+      const failing = await bs.proxy(page({ cookie }), {
+        endedSession: { redirect: "/login" },
+      });
+      expect(failing.headers.get("x-middleware-next")).toBe("1");
+    });
+
+    it("asks Auth only on the requests it checks", async () => {
+      const { cookie } = await session();
+      fresh.mockResolvedValue(ended());
+      await bs.proxy(page({ cookie }));
+      const navigation = page({
+        cookie,
+        headers: { "sec-fetch-dest": "empty", rsc: "1" },
+      });
+      await bs.proxy(navigation, { endedSession: { redirect: "/login" } });
+      expect(fresh).not.toHaveBeenCalled();
+      const listed = await bs.proxy(navigation, {
+        endedSession: { redirect: "/login", paths: ["/dashboard"] },
+      });
+      expect(fresh).toHaveBeenCalledTimes(1);
+      expect(listed.status).toBe(307);
+    });
   });
 
   describe("proxy composition", () => {
