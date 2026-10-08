@@ -139,6 +139,7 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "delete_message_template", args: ["uuid"], returns: "boolean" },
+    { name: "purge_contact", args: ["uuid"], returns: "jsonb" },
     { name: "get_message", args: ["uuid"], returns: "jsonb" },
     {
       name: "set_typing",

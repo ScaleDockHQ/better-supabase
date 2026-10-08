@@ -65,6 +65,11 @@ const answers = {
   pending_inbound_events: [storedEventRow],
   purge_inbound_events: 4,
   wake_snoozed_conversations: 1,
+  purge_contact: {
+    conversations: 2,
+    messages: 5,
+    attachments: ["org/c1/photo.jpg", null],
+  },
 };
 
 describe("createInbox", () => {
@@ -249,6 +254,11 @@ describe("createInbox", () => {
       await inbox.inbound.purge({ olderThan: 60, batch: 10 }).orThrow(),
     ).toBe(4);
     expect(await inbox.wakeSnoozed().orThrow()).toBe(1);
+    expect(await inbox.purgeContact("ct1").orThrow()).toEqual({
+      conversations: 2,
+      messages: 5,
+      attachments: ["org/c1/photo.jpg"],
+    });
 
     for (const [schema] of call.mock.calls) expect(schema).toBe("app");
     expect(call.mock.calls.map(([, fn, args]) => [fn, args])).toMatchSnapshot();

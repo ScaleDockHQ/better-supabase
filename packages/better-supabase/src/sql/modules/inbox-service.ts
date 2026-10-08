@@ -11,6 +11,7 @@ export function inboxServiceFunctions(q: InboxSql): string {
   const dl = q.cols("deliveries");
   const ie = q.cols("inbound");
   const tp = q.cols("templates");
+  const ct = q.cols("contacts");
   const T = (name: string): string => q.t(name);
   const service = q.service;
   const authed = (signature: string): string =>
@@ -259,5 +260,45 @@ begin
   return true;
 end;
 $$;
-${authed(`${fn("delete_message_template")}(uuid)`)}`;
+${authed(`${fn("delete_message_template")}(uuid)`)}
+
+-- Erases a contact for a data subject request: the contact, its identities
+-- and its conversations with their messages, deliveries and events. Returns
+-- { conversations, messages, attachments }; attachments are the storage
+-- paths the caller still has to remove.
+create or replace function ${fn("purge_contact")}(contact uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${id};
+  v_conversations integer;
+  v_messages integer;
+  v_paths jsonb;
+begin
+  select c.${ct("tenant")} into v_tenant from ${T("contacts")} c where c.${ct("id")} = purge_contact.contact;
+  if not found then
+    ${missing("contact", "CONTACT_NOT_FOUND")}
+  end if;
+  if not (${service} or ${q.can("v_tenant", "manage")}) then
+    ${forbidden("not allowed to erase contacts")}
+  end if;
+  select count(*)::integer into v_conversations from ${T("conversations")} v where v.${cv("contact")} = purge_contact.contact;
+  select coalesce(jsonb_agg(a ->> 'path') filter (where a ? 'path'), '[]'::jsonb)
+  into v_paths
+  from ${T("messages")} m
+  join ${T("conversations")} v on v.${cv("id")} = m.${ms("conversation")}
+  left join lateral jsonb_array_elements(m.${ms("attachments")}) a on true
+  where v.${cv("contact")} = purge_contact.contact;
+  select count(*)::integer into v_messages
+  from ${T("messages")} m
+  join ${T("conversations")} v on v.${cv("id")} = m.${ms("conversation")}
+  where v.${cv("contact")} = purge_contact.contact;
+  delete from ${T("contacts")} c where c.${ct("id")} = purge_contact.contact;
+  return jsonb_build_object('conversations', v_conversations, 'messages', v_messages, 'attachments', v_paths);
+end;
+$$;
+${authed(`${fn("purge_contact")}(uuid)`)}`;
 }

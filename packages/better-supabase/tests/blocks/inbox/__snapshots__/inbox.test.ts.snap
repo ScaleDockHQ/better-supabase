@@ -358,5 +358,11 @@ exports[`createInbox > calls every function with snake_case arguments 1`] = `
     "wake_snoozed_conversations",
     {},
   ],
+  [
+    "purge_contact",
+    {
+      "contact": "ct1",
+    },
+  ],
 ]
 `;

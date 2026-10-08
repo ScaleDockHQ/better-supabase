@@ -137,6 +137,17 @@ describe.skipIf(!live)("inbox module", () => {
       expect(types).toEqual(
         expect.arrayContaining(["opened", "handoff", "assigned", "status"]),
       );
+
+      await s.asRole(member);
+      const erase = await inbox.purgeContact(opened.contactId);
+      expect(erase.ok ? undefined : erase.error.kind).toBe("forbidden");
+      await s.asRole(owner);
+      expect(await inbox.purgeContact(opened.contactId).orThrow()).toEqual({
+        conversations: 1,
+        messages: 4,
+        attachments: [],
+      });
+      expect(await inbox.conversations.get(opened.id).orThrow()).toBeNull();
     } finally {
       await s.close();
     }

@@ -33,5 +33,6 @@ export type {
   MessageDirection,
   MessageKind,
   MessageTemplate,
+  PurgedContact,
   StoredInboundEvent,
 } from "./types.ts";

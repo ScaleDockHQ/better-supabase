@@ -16,6 +16,7 @@ import type {
   InboxRow,
   MessageAttachment,
   MessageTemplate,
+  PurgedContact,
   StoredInboundEvent,
 } from "./types.ts";
 
@@ -41,6 +42,7 @@ import {
   inboxOf,
   messageOf,
   messagesOf,
+  purgedOf,
   reactionsOf,
   storedEventsOf,
   templateOf,
@@ -301,6 +303,12 @@ export interface Inbox {
   };
   /** Service only: reopens snoozed conversations whose time came. */
   wakeSnoozed(): AsyncResult<number>;
+  /**
+   * Erases a contact and its conversations for a data subject request
+   * (`inbox.manage` or the service). Remove the returned attachment paths
+   * from Storage afterwards.
+   */
+  purgeContact(contactId: string): AsyncResult<PurgedContact>;
 }
 
 export function contactArg(
@@ -699,5 +707,7 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
     },
     wakeSnoozed: () => call("wake_snoozed_conversations", {}, Number),
+    purgeContact: (contactId) =>
+      call("purge_contact", { contact: contactId }, purgedOf),
   };
 }

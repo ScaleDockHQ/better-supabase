@@ -8,6 +8,7 @@ import type {
   ConversationStatus,
   DeliveryStatus,
   InboundResult,
+  PurgedContact,
   InboxChannel,
   InboxCounts,
   InboxMessage,
@@ -238,6 +239,18 @@ export function countsOf(value: unknown): InboxCounts {
     mine: Number(row["mine"] ?? 0),
     unassigned: Number(row["unassigned"] ?? 0),
     unread: Number(row["unread"] ?? 0),
+  };
+}
+
+export function purgedOf(value: unknown): PurgedContact {
+  const row = recordOf(value, "purge_contact");
+  const paths = row["attachments"];
+  return {
+    conversations: Number(row["conversations"] ?? 0),
+    messages: Number(row["messages"] ?? 0),
+    attachments: Array.isArray(paths)
+      ? paths.filter((path): path is string => typeof path === "string")
+      : [],
   };
 }
 
