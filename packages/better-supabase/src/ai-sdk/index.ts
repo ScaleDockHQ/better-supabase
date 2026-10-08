@@ -21,8 +21,12 @@ export {
 export {
   AI_SDK_UI_FORMAT,
   DENIED_TOOL_OUTPUT,
+  fromModelMessages,
+  type FromModelMessagesOptions,
   fromUIMessage,
   isUIMessage,
+  type ModelApproval,
+  type ModelSource,
   toUIMessage,
   toUIMessages,
 } from "./messages.ts";

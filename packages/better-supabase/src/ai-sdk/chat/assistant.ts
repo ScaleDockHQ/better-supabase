@@ -34,6 +34,7 @@ import {
   gatewayOptions,
   type GatewayOptions,
   problem429,
+  runRelease,
   usageOf,
 } from "../gateway.ts";
 import {
@@ -149,9 +150,33 @@ export interface AssistantRequestBody {
   readonly model?: string;
 }
 
+/** A checked and stored user turn, ready for a model: what `prepare` returns. */
+export interface AssistantTurn {
+  readonly chat: AiChatRecord;
+  /** The model the request may use, after the catalog check. */
+  readonly model: string;
+  /** The stored user message, which the answer is saved under. */
+  readonly parentId: string;
+  /** The history the model sees, as UI messages. */
+  readonly uiMessages: UIMessage[];
+  readonly messages: ModelMessage[];
+  /** Spend attribution for the AI Gateway (`gatewayOptions`). */
+  readonly providerOptions: { readonly gateway: GatewayOptions };
+}
+
 export interface Assistant {
   /** Stores the user's message, starts the answer and streams it (SSE). */
   respond(request: Request, context: AssistantContext): Promise<Response>;
+  /**
+   * The checks and writes before a generation, without one: parses the
+   * body `useAssistant` sends, creates the chat on first use, picks the
+   * model, moderates, checks the quota, stores the user's message and loads
+   * the history. Returns a problem response when one of them fails.
+   */
+  prepare(
+    body: unknown,
+    context: AssistantContext,
+  ): Promise<AssistantTurn | Response>;
   /** The running answer of `chatId` from the start, or 204 when none runs. */
   resume(
     chatId: string,
@@ -289,11 +314,11 @@ export function createAssistant(options: AssistantOptions): Assistant {
       : undefined;
   }
 
-  async function respond(
-    request: Request,
+  async function prepare(
+    value: unknown,
     context: AssistantContext,
-  ): Promise<Response> {
-    const body = parseBody(await readJson(request));
+  ): Promise<AssistantTurn | Response> {
+    const body = parseBody(value);
     if (typeof body === "string") return badRequest(body);
     const chat = await chatOf(context, body);
     if (chat instanceof Response) return chat;
@@ -334,6 +359,30 @@ export function createAssistant(options: AssistantOptions): Assistant {
           : (repaired.get(stored.id) ?? stored),
       ),
     );
+    return {
+      chat,
+      model,
+      parentId,
+      uiMessages,
+      messages: await convertToModelMessages(uiMessages, {
+        ignoreIncompleteToolCalls: true,
+      }),
+      providerOptions: gatewayOptions({
+        userId: context.userId,
+        organizationId: chat.organizationId,
+        chatId: chat.id,
+        feature: options.feature ?? "chat",
+      }),
+    };
+  }
+
+  async function respond(
+    request: Request,
+    context: AssistantContext,
+  ): Promise<Response> {
+    const turn = await prepare(await readJson(request), context);
+    if (turn instanceof Response) return turn;
+    const { chat, model, parentId, uiMessages } = turn;
 
     const streamId = newId();
     const assistantId = newId();
@@ -351,44 +400,21 @@ export function createAssistant(options: AssistantOptions): Assistant {
     const runId = claim.data.runId;
     const abort = new AbortController();
     const release = (status: AiRunStatus, usage?: AiUsage, error?: string) =>
-      context.chats.runs.release(chat.id, streamId, {
-        status,
-        ...(usage === undefined
-          ? {}
-          : {
-              usage: {
-                inputTokens: usage.inputTokens,
-                outputTokens: usage.outputTokens,
-                totalTokens: usage.totalTokens,
-                cachedInputTokens: usage.cachedInputTokens,
-                reasoningTokens: usage.reasoningTokens,
-              },
-            }),
-        ...(usage?.generationId === undefined
-          ? {}
-          : { generationId: usage.generationId }),
-        ...(usage?.costMicroUsd === undefined
-          ? {}
-          : { costMicroUsd: usage.costMicroUsd }),
-        ...(error === undefined ? {} : { error }),
-      });
+      context.chats.runs.release(
+        chat.id,
+        streamId,
+        runRelease(status, usage, error),
+      );
 
     let result: AssistantRunResult;
     try {
       result = await options.run({
         chat,
         model,
-        messages: await convertToModelMessages(uiMessages, {
-          ignoreIncompleteToolCalls: true,
-        }),
+        messages: turn.messages,
         uiMessages,
         abortSignal: abort.signal,
-        providerOptions: gatewayOptions({
-          userId: context.userId,
-          organizationId: chat.organizationId,
-          chatId: chat.id,
-          feature: options.feature ?? "chat",
-        }),
+        providerOptions: turn.providerOptions,
         context,
       });
     } catch (cause) {
@@ -515,5 +541,5 @@ export function createAssistant(options: AssistantOptions): Assistant {
     return new Response(null, { status: 204 });
   }
 
-  return { respond, resume, stop };
+  return { respond, prepare, resume, stop };
 }

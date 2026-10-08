@@ -1,6 +1,10 @@
 import type { AssistantState, UseAssistantOptions } from "./index.ts";
 
-export type { AssistantState, UseAssistantOptions } from "./index.ts";
+export type {
+  AssistantState,
+  AssistantTransportConfig,
+  UseAssistantOptions,
+} from "./index.ts";
 
 /** The `react-server` build of `useAssistant`: load the history with `aiChat.messages.path()` instead. */
 export const useAssistant: (

@@ -38,11 +38,14 @@ export const restrictedImportPatterns: { group: string[]; message: string }[] =
     { group: ["date-fns/*", "@date-fns/*"], message: "Use Temporal." },
     {
       // @ai-sdk/mcp is the MCP client, not a model provider.
+      // @ai-sdk/workflow runs agents inside Workflow SDK runs; it calls no provider.
       group: [
         "@ai-sdk/*",
         "!@ai-sdk/react",
         "!@ai-sdk/valibot",
         "!@ai-sdk/mcp",
+        "!@ai-sdk/workflow",
+        "!@ai-sdk/workflow/*",
       ],
       message: 'Use plain "provider/model" strings through AI Gateway.',
     },

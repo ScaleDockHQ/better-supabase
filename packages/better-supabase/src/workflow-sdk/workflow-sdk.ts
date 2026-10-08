@@ -17,17 +17,7 @@ import type {
 import type { Actor, RequestContext } from "../core/plugin.ts";
 
 import { unwrap, withContext } from "../blocks/jobs/envelope.ts";
-
-/** The attributes the Supabase World's status trigger copies into `workflow_runs`. */
-export const WORKFLOW_ATTRIBUTES = {
-  tenant: "bs.tenant",
-  actor: "bs.actor",
-  key: "bs.key",
-  /** The builder definition a run started from; its alerts match on it. */
-  definition: "bs.definition",
-  /** The builder version number a run started from. */
-  version: "bs.version",
-} as const;
+import { WORKFLOW_ATTRIBUTES } from "./attributes.ts";
 
 /** A workflow function (a `"use workflow"` export), typed structurally. */
 export type WorkflowFn<

@@ -319,7 +319,9 @@ describe("idleSandboxStop", () => {
 
   it("throws when the idle sessions can't be read", async () => {
     const idle = vi.fn(() =>
-      AsyncResult.from(async () => err(dbError("unexpected", "down"))),
+      AsyncResult.from<readonly AiHarnessSession[]>(async () =>
+        err(dbError("unexpected", "down")),
+      ),
     );
     const handler = idleSandboxStop({
       sessions: { idle, save: vi.fn() },
