@@ -199,4 +199,81 @@ describe.skipIf(!live)("tenant sameTenant", () => {
       await s.close();
     }
   });
+  it("matches a column reached through another reference", async () => {
+    const s = await BlockSession.open(pool);
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const quotes = `public.bs_quotes_${suffix}`;
+    const assets = `public.bs_assets_${suffix}`;
+    const lines = `public.bs_quote_assets_${suffix}`;
+    try {
+      await s.client.query(`
+        create table ${quotes} (
+          id uuid primary key default gen_random_uuid(),
+          organization_id uuid not null,
+          customer_id uuid
+        );
+        create table ${assets} (
+          id uuid primary key default gen_random_uuid(),
+          organization_id uuid not null,
+          customer_id uuid
+        );
+        create table ${lines} (
+          id uuid primary key default gen_random_uuid(),
+          organization_id uuid not null,
+          quote_id uuid references ${quotes} (id),
+          asset_id uuid references ${assets} (id)
+        );`);
+      await s.install(["tenant"], {
+        modules: {
+          tenant: {
+            options: {
+              sameTenant: [
+                {
+                  table: lines,
+                  column: "asset_id",
+                  references: assets,
+                  match: { "quote_id.customer_id": "customer_id" },
+                  through: { quote_id: quotes },
+                },
+              ],
+            },
+          },
+        },
+      });
+      const a = crypto.randomUUID();
+      const alice = crypto.randomUUID();
+      const bob = crypto.randomUUID();
+      const [aliceQuote, bobQuote] = await s.rows<{ id: string }>(
+        `insert into ${quotes} (organization_id, customer_id) values ($1, $2), ($1, $3) returning id`,
+        [a, alice, bob],
+      );
+      const [aliceAsset, bobAsset] = await s.rows<{ id: string }>(
+        `insert into ${assets} (organization_id, customer_id) values ($1, $2), ($1, $3) returning id`,
+        [a, alice, bob],
+      );
+      const insert = `insert into ${lines} (organization_id, quote_id, asset_id) values ($1, $2, $3)`;
+
+      await s.service();
+      expect(await s.hint(insert, [a, aliceQuote!.id, bobAsset!.id])).toBe(
+        "TENANT_MISMATCH",
+      );
+      expect(await s.hint(insert, [a, aliceQuote!.id, aliceAsset!.id])).toBe(
+        "no error",
+      );
+      expect(
+        await s.hint(`update ${lines} set quote_id = $1 where asset_id = $2`, [
+          bobQuote!.id,
+          aliceAsset!.id,
+        ]),
+      ).toBe("TENANT_MISMATCH");
+      expect(
+        await s.hint(
+          `update ${lines} set quote_id = $1, asset_id = $2 where asset_id = $3`,
+          [bobQuote!.id, bobAsset!.id, aliceAsset!.id],
+        ),
+      ).toBe("no error");
+    } finally {
+      await s.close();
+    }
+  });
 });

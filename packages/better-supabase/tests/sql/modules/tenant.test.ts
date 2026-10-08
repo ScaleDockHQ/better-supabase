@@ -85,6 +85,68 @@ describe("tenant module sameTenant", () => {
     expect(sql).toContain("while i + 1 < tg_nargs loop");
   });
 
+  it("matches a column reached through another reference of the row", () => {
+    const sql = body([
+      {
+        table: "quote_assets",
+        column: "asset_id",
+        references: "assets",
+        match: { "quote_id.customer_id": "customer_id" },
+        through: { quote_id: "public.quotes" },
+      },
+      {
+        table: "task_materials",
+        column: "quote_id",
+        references: { table: "quotes", where: "{row}.status <> 'draft'" },
+        match: {
+          site_id: "site_id",
+          "task_id.customer_id": "customer_id",
+        },
+        through: { task_id: { table: "work.tasks", column: "key" } },
+      },
+    ]);
+    expect(sql).toContain(
+      `create trigger "bs_same_tenant_asset_id" before insert or update of "asset_id", "organization_id", "quote_id" on "public"."quote_assets"
+  for each row execute function better_supabase.same_tenant('asset_id', 'organization_id', '"public"."assets"', 'id', 'organization_id', 'p."customer_id" is not distinct from (select h."customer_id" from "public"."quotes" h where h."id" = ($1)."quote_id")');`,
+    );
+    expect(sql).toContain(
+      `create trigger "bs_same_tenant_quote_id" before insert or update of "quote_id", "organization_id", "site_id", "task_id" on "public"."task_materials"
+  for each row execute function better_supabase.same_tenant('quote_id', 'organization_id', '"public"."quotes"', 'id', 'organization_id', '(p.status <> ''draft'') and (p."customer_id" is not distinct from (select h."customer_id" from "work"."tasks" h where h."key" = ($1)."task_id"))', 'site_id', 'site_id');`,
+    );
+    expect(() =>
+      body([
+        {
+          table: "quote_assets",
+          column: "asset_id",
+          references: "assets",
+          match: { "quote_id.customer_id": "customer_id" },
+        },
+      ]),
+    ).toThrow(/through\.quote_id must name the table quote_id references/);
+    expect(() =>
+      body([
+        {
+          table: "quote_assets",
+          column: "asset_id",
+          references: "assets",
+          match: { "quote_id.customer_id": "customer_id" },
+          through: ["quotes"],
+        },
+      ]),
+    ).toThrow(/through must be \{ <column>/);
+    expect(() =>
+      body([
+        {
+          table: "quote_assets",
+          column: "asset_id",
+          references: "assets",
+          match: { "quote_id.Customer": "customer_id" },
+          through: { quote_id: "quotes" },
+        },
+      ]),
+    ).toThrow(/match must be a lowercase column name/);
+  });
+
   it("writes nothing without entries and checks their shape", () => {
     expect(moduleBody("tenant", { modules: {} })).not.toContain("same_tenant");
     expect(() => body({ table: "tasks" })).toThrow(/must be a list/);
