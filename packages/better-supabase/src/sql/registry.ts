@@ -34,6 +34,7 @@ import {
 } from "./modules/access-model.ts";
 import { ACCESS } from "./modules/access.ts";
 import { AI_CHAT } from "./modules/ai-chat.ts";
+import { AI_FILES } from "./modules/ai-files.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
@@ -2234,6 +2235,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(STREAMS),
       built(CREDENTIALS),
       built(AI_CHAT),
+      built(AI_FILES),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

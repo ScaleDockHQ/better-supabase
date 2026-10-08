@@ -121,6 +121,7 @@ export const MODULE_PERMISSIONS = {
     moderate: "ai_chat.moderate",
     admin: "ai_chat.admin",
   },
+  "ai-files": { upload: "ai_chat.create", manage: "ai_chat.admin" },
 } as const;
 
 /**
@@ -184,6 +185,7 @@ export const MODULE_PERMISSION_SCOPES: {
     moderate: "tenant",
     admin: "tenant",
   },
+  "ai-files": { upload: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {
