@@ -55,6 +55,21 @@ export interface ExpoMiddlewareOptions extends MiddlewareOptions {
    * middleware lets every request through and only refreshes the session.
    */
   readonly redirectTo?: string;
+  /**
+   * Paths every caller may open, such as `/` or `/pricing`. An entry matches
+   * the path itself and everything under it (`/auth` matches
+   * `/auth/callback`). The `redirectTo` path and everything under it are
+   * always public, so its callback routes never loop back to it.
+   */
+  readonly publicPaths?: readonly string[];
+}
+
+/** `path` is `prefix` or a path under it. */
+function under(path: string, prefix: string): boolean {
+  const base = prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+  return base === ""
+    ? path === "/"
+    : path === base || path.startsWith(`${base}/`);
 }
 
 export interface BetterExpo<
@@ -212,7 +227,13 @@ export function createExpo<
     },
 
     middleware(middlewareOptions = {}) {
-      const { redirectTo, allow, aal, scopes } = middlewareOptions;
+      const {
+        redirectTo,
+        allow,
+        aal,
+        scopes,
+        publicPaths = [],
+      } = middlewareOptions;
       return async (incoming): Promise<Response | void> => {
         const ctx = await server.context(toRequest(incoming), {
           refresh: middlewareOptions.refresh ?? true,
@@ -222,7 +243,8 @@ export function createExpo<
           redirectTo === undefined ? undefined : new URL(redirectTo, url);
         if (
           !target ||
-          url.pathname === target.pathname ||
+          under(url.pathname, target.pathname) ||
+          publicPaths.some((path) => under(url.pathname, path)) ||
           !guard(ctx.auth, allow, aal, scopes)
         ) {
           writeHeaders(ctx);

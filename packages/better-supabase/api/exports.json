@@ -329,6 +329,7 @@
       "AuthSnapshot",
       "AuthUser",
       "BetterClient",
+      "BindClientOptions",
       "ClientAuth",
       "ClientOptions"
     ]
@@ -346,9 +347,11 @@
       "AuthUser",
       "AutoRefreshClient",
       "BetterClient",
+      "BindClientOptions",
       "ClientAuth",
       "SecureStorageOptions",
-      "SecureStoreLike"
+      "SecureStoreLike",
+      "SecureStoreOptionsLike"
     ]
   },
   "./react": {

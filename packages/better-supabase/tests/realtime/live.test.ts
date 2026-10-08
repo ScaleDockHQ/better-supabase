@@ -66,6 +66,13 @@ function fakeClient(
   };
 }
 
+/** Unsubscribes under fake timers: leaving waits a tick before removing the channel. */
+async function leaveFaked(live: { unsubscribe(): Promise<void> }) {
+  const left = live.unsubscribe();
+  await vi.advanceTimersByTimeAsync(1);
+  await left;
+}
+
 const wait = (ms: number) =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -137,6 +144,83 @@ describe("liveQuery join states", () => {
     expect(errors).toEqual([cause]);
     await notes.unsubscribe();
     await customers.unsubscribe();
+  });
+
+  it("reports an error after the join and the rejoin that follows", async () => {
+    const { client, status } = fakeClient();
+    const statuses: string[] = [];
+    const onChange = vi.fn();
+    const live = liveQuery(betterSupabase, client, ["notes"], {
+      onChange,
+      debounceMs: 0,
+      onStatus: (next) => statuses.push(next),
+    });
+    await live.ready;
+    status("bs:t:public.notes", "CHANNEL_ERROR");
+    status("bs:t:public.notes", "SUBSCRIBED");
+    await wait(5);
+    expect(statuses).toEqual(["joining", "subscribed", "error", "subscribed"]);
+    expect(onChange).toHaveBeenCalledWith(["notes"]);
+    await live.unsubscribe();
+  });
+
+  it("retries a failed first join with backoff and refetches once joined", async () => {
+    vi.useFakeTimers();
+    try {
+      let attempt = 0;
+      const { client, raw } = fakeClient(() =>
+        attempt++ < 2 ? ["TIMED_OUT"] : ["SUBSCRIBED"],
+      );
+      const statuses: string[] = [];
+      const onChange = vi.fn();
+      const live = liveQuery(betterSupabase, client, ["notes"], {
+        onChange,
+        onStatus: (next) => statuses.push(next),
+      });
+      await expect(live.ready).rejects.toThrow(/timed_out/);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(raw.channel).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(raw.channel).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(raw.channel).toHaveBeenCalledTimes(3);
+      expect(statuses).toEqual([
+        "joining",
+        "error",
+        "joining",
+        "error",
+        "joining",
+        "subscribed",
+      ]);
+      expect(onChange).toHaveBeenCalledWith(["notes"]);
+      await leaveFaked(live);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stays in error with retry: false and stops retrying on unsubscribe", async () => {
+    vi.useFakeTimers();
+    try {
+      const { client, raw } = fakeClient(() => ["TIMED_OUT"]);
+      const once = liveQuery(betterSupabase, client, ["notes"], {
+        onChange: vi.fn(),
+        retry: false,
+      });
+      await expect(once.ready).rejects.toThrow(/timed_out/);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(raw.channel).toHaveBeenCalledTimes(1);
+      await leaveFaked(once);
+      const left = liveQuery(betterSupabase, client, ["notes"], {
+        onChange: vi.fn(),
+      });
+      await expect(left.ready).rejects.toThrow(/timed_out/);
+      await leaveFaked(left);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(raw.channel).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("drops a channel that never joined so the next live query starts over", async () => {

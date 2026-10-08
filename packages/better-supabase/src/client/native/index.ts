@@ -12,5 +12,6 @@ export { secureStorage } from "./storage.ts";
 export type {
   AuthStorage,
   SecureStorageOptions,
+  SecureStoreOptionsLike,
   SecureStoreLike,
 } from "./storage.ts";
