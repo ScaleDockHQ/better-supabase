@@ -80,6 +80,8 @@ export interface Conversation {
   } | null;
   /** When the caller last read it. */
   readonly lastReadAt: Temporal.Instant | null;
+  /** When the contact last read it; `null` for contacts and before they read. */
+  readonly contactReadAt: Temporal.Instant | null;
   /** In lists: whether a message arrived after `lastReadAt`. */
   readonly unread?: boolean;
 }

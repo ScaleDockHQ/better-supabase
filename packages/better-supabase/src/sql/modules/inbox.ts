@@ -161,6 +161,7 @@ export const INBOX: ModuleDefinition = {
     "inbox_message_broadcast",
     "inbox_conversation_broadcast",
     "inbox_delivery_broadcast",
+    "inbox_read_broadcast",
   ],
   name: "inbox",
   title: "Shared inbox",

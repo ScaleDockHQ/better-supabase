@@ -441,6 +441,14 @@ CREATE OR REPLACE FUNCTION api.get_message (
   SET search_path TO ''
   AS $function$ select "better_supabase"."get_message"($1) $function$;
 
+CREATE OR REPLACE FUNCTION api.inbox_contact_read_at (
+  conversation uuid
+)
+  RETURNS timestamp WITH time zone
+  LANGUAGE sql
+  SET search_path TO ''
+  AS $function$ select "better_supabase"."inbox_contact_read_at"($1) $function$;
+
 CREATE OR REPLACE FUNCTION api.inbox_counts (
   tenant uuid
 )
@@ -1585,6 +1593,23 @@ CREATE OR REPLACE FUNCTION better_supabase.inbox_contact_ids()
   select c."id" from "better_supabase"."contacts" c where c."user_id" = (select auth.uid());
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.inbox_contact_read_at (
+  conversation uuid
+)
+  RETURNS timestamp WITH time zone
+  LANGUAGE sql
+  STABLE
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+  select r."last_read_at"
+  from "better_supabase"."conversations" v
+  join "better_supabase"."contacts" c on c."id" = v."contact_id"
+  join "better_supabase"."conversation_reads" r on r."conversation_id" = v."id" and r."user_id" = c."user_id"
+  where v."id" = inbox_contact_read_at.conversation
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v."tenant_id", 'inbox.read'), false));
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.inbox_conversation_allowed (
   conversation text,
   write        boolean DEFAULT false
@@ -1631,7 +1656,8 @@ CREATE OR REPLACE FUNCTION better_supabase.inbox_conversation_json (
   select to_jsonb(v) || jsonb_build_object(
     'contact', (select jsonb_build_object('id', c."id", 'name', c."name", 'email', c."email", 'phone', c."phone", 'avatar_url', c."avatar_url", 'user_id', c."user_id") from "better_supabase"."contacts" c where c."id" = v."contact_id"),
     'inbox', (select jsonb_build_object('id', i."id", 'name', i."name", 'channel', i."channel") from "better_supabase"."inboxes" i where i."id" = v."inbox_id"),
-    'last_read_at', (select r."last_read_at" from "better_supabase"."conversation_reads" r where r."conversation_id" = v."id" and r."user_id" = (select auth.uid()))
+    'last_read_at', (select r."last_read_at" from "better_supabase"."conversation_reads" r where r."conversation_id" = v."id" and r."user_id" = (select auth.uid())),
+    'contact_read_at', "better_supabase"."inbox_contact_read_at"(v."id")
   )
   from "better_supabase"."conversations" v
   where v."id" = conversation;
@@ -1710,6 +1736,23 @@ begin
       perform realtime.send(v_payload, v_event, 'inbox:' || new."conversation_id"::text, true);
     end if;
     perform realtime.send(v_payload, v_event, 'inbox:org:' || new."tenant_id"::text, true);
+  end if;
+  return null;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.inbox_read_broadcast()
+  RETURNS TRIGGER
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+begin
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null and exists (
+    select 1 from "better_supabase"."conversations" v join "better_supabase"."contacts" c on c."id" = v."contact_id"
+    where v."id" = new."conversation_id" and c."user_id" = new."user_id"
+  ) then
+    perform realtime.send(jsonb_build_object('conversation_id', new."conversation_id"), 'read', 'inbox:' || new."conversation_id"::text, true);
   end if;
   return null;
 end;
@@ -3244,6 +3287,11 @@ CREATE TRIGGER bs_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION better_supabase.set_updated_at('updated_at');
 
+CREATE TRIGGER conversation_reads_broadcast
+  AFTER INSERT OR UPDATE ON better_supabase.conversation_reads
+  FOR EACH ROW
+  EXECUTE FUNCTION better_supabase.inbox_read_broadcast();
+
 CREATE TRIGGER bs_updated_at
   BEFORE UPDATE ON better_supabase.conversations
   FOR EACH ROW
@@ -3433,6 +3481,10 @@ GRANT EXECUTE ON FUNCTION "api"."get_conversation"(uuid) TO "authenticated", "se
 REVOKE ALL ON FUNCTION "api"."get_message"(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."get_message"(uuid) TO "authenticated", "service_role";
+
+REVOKE ALL ON FUNCTION "api"."inbox_contact_read_at"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "api"."inbox_contact_read_at"(uuid) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "api"."inbox_counts"(uuid) FROM PUBLIC;
 
@@ -3680,6 +3732,10 @@ REVOKE ALL ON FUNCTION "better_supabase"."inbox_contact_ids"() FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."inbox_contact_ids"() TO "authenticated", "service_role";
 
+REVOKE ALL ON FUNCTION "better_supabase"."inbox_contact_read_at"(uuid) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION "better_supabase"."inbox_contact_read_at"(uuid) TO "authenticated", "service_role";
+
 REVOKE ALL ON FUNCTION "better_supabase"."inbox_conversation_allowed"(text, boolean) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."inbox_conversation_allowed"(text, boolean) TO "authenticated", "service_role";
@@ -3701,6 +3757,8 @@ REVOKE ALL ON FUNCTION "better_supabase"."inbox_file_allowed"(text, boolean) FRO
 GRANT EXECUTE ON FUNCTION "better_supabase"."inbox_file_allowed"(text, boolean) TO "authenticated", "service_role";
 
 REVOKE ALL ON FUNCTION "better_supabase"."inbox_message_broadcast"() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION "better_supabase"."inbox_read_broadcast"() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION "better_supabase"."inbox_resolve_contact"(uuid, jsonb) FROM PUBLIC;
 

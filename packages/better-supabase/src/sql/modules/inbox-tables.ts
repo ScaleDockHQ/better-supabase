@@ -393,6 +393,8 @@ export function inboxRealtime(q: InboxSql): string {
   const cv = q.cols("conversations");
   const ms = q.cols("messages");
   const dl = q.cols("deliveries");
+  const ct = q.cols("contacts");
+  const rd = q.cols("reads");
   const topic = topics(q);
   const send = (payload: string, event: string, to: string): string =>
     `perform realtime.send(${payload}, ${event}, ${to}, true);`;
@@ -476,6 +478,28 @@ revoke execute on function ${q.fn("inbox_delivery_broadcast")}() from public, an
 drop trigger if exists message_deliveries_broadcast on ${q.t("deliveries")};
 create trigger message_deliveries_broadcast after insert or update of ${dl("status")} on ${q.t("deliveries")}
   for each row execute function ${q.fn("inbox_delivery_broadcast")}();
+
+-- A contact's read reaches staff on the conversation topic, for read receipts.
+create or replace function ${q.fn("inbox_read_broadcast")}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if ${ready} and exists (
+    select 1 from ${q.t("conversations")} v join ${q.t("contacts")} c on c.${ct("id")} = v.${cv("contact")}
+    where v.${cv("id")} = new.${rd("conversation")} and c.${ct("user")} = new.${rd("user")}
+  ) then
+    ${send(`jsonb_build_object('conversation_id', new.${rd("conversation")})`, "'read'", topic.conversation(`new.${rd("conversation")}`))}
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function ${q.fn("inbox_read_broadcast")}() from public, anon, authenticated;
+drop trigger if exists conversation_reads_broadcast on ${q.t("reads")};
+create trigger conversation_reads_broadcast after insert or update on ${q.t("reads")}
+  for each row execute function ${q.fn("inbox_read_broadcast")}();
 
 -- Staff join ${q.topic}:org:<tenant>; staff and the contact join
 -- ${q.topic}:<conversation>, where they may also send typing broadcasts and

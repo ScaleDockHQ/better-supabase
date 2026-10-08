@@ -102,6 +102,10 @@ describe.skipIf(!live)("inbox module", () => {
       expect(await inbox.messages.get(reply.id).orThrow()).toMatchObject({
         body: "It is under Billing.",
       });
+      await inbox.conversations.markRead(opened.id).orThrow();
+      expect(
+        (await inbox.conversations.get(opened.id).orThrow())?.contactReadAt,
+      ).toBeNull();
       const note = await inbox.messages.note(opened.id, "sneaky");
       expect(note.ok ? undefined : note.error.kind).toBe("forbidden");
       await inbox.messages.send(opened.id, { body: "Thanks" }).orThrow();
@@ -116,6 +120,9 @@ describe.skipIf(!live)("inbox module", () => {
       expect(blocked.ok).toBe(false);
 
       await s.asRole(owner);
+      expect(
+        (await inbox.conversations.get(opened.id).orThrow())?.contactReadAt,
+      ).not.toBeNull();
       const toViewer = await inbox.conversations.assign(opened.id, {
         assigneeId: viewer.id,
       });

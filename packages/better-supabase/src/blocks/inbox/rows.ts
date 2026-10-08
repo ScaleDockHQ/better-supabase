@@ -142,6 +142,7 @@ export function conversationOf(value: unknown): Conversation {
         }
       : null,
     lastReadAt: nullableInstant(row["last_read_at"]),
+    contactReadAt: nullableInstant(row["contact_read_at"]),
     ...(typeof row["unread"] === "boolean" ? { unread: row["unread"] } : {}),
   };
 }

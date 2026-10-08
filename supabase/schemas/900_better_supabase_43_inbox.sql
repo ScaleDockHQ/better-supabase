@@ -399,6 +399,24 @@ drop policy if exists inbox_messages_read on "better_supabase"."inbox_messages";
 create policy inbox_messages_read on "better_supabase"."inbox_messages" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or ("kind" = 'message' and "conversation_id" in (select "better_supabase"."inbox_contact_conversation_ids"())));
 
+-- When the contact last read the conversation, for staff read receipts.
+create or replace function "better_supabase"."inbox_contact_read_at"(conversation uuid)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r."last_read_at"
+  from "better_supabase"."conversations" v
+  join "better_supabase"."contacts" c on c."id" = v."contact_id"
+  join "better_supabase"."conversation_reads" r on r."conversation_id" = v."id" and r."user_id" = c."user_id"
+  where v."id" = inbox_contact_read_at.conversation
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v."tenant_id", 'inbox.read'), false));
+$$;
+revoke execute on function "better_supabase"."inbox_contact_read_at"(uuid) from public, anon;
+grant execute on function "better_supabase"."inbox_contact_read_at"(uuid) to authenticated, service_role;
+
 -- A conversation with its contact and inbox, as the reads return it.
 create or replace function "better_supabase"."inbox_conversation_json"(conversation uuid)
 returns jsonb
@@ -409,7 +427,8 @@ as $$
   select to_jsonb(v) || jsonb_build_object(
     'contact', (select jsonb_build_object('id', c."id", 'name', c."name", 'email', c."email", 'phone', c."phone", 'avatar_url', c."avatar_url", 'user_id', c."user_id") from "better_supabase"."contacts" c where c."id" = v."contact_id"),
     'inbox', (select jsonb_build_object('id', i."id", 'name', i."name", 'channel', i."channel") from "better_supabase"."inboxes" i where i."id" = v."inbox_id"),
-    'last_read_at', (select r."last_read_at" from "better_supabase"."conversation_reads" r where r."conversation_id" = v."id" and r."user_id" = (select auth.uid()))
+    'last_read_at', (select r."last_read_at" from "better_supabase"."conversation_reads" r where r."conversation_id" = v."id" and r."user_id" = (select auth.uid())),
+    'contact_read_at', "better_supabase"."inbox_contact_read_at"(v."id")
   )
   from "better_supabase"."conversations" v
   where v."id" = conversation;
@@ -1652,6 +1671,28 @@ drop trigger if exists message_deliveries_broadcast on "better_supabase"."messag
 create trigger message_deliveries_broadcast after insert or update of "status" on "better_supabase"."message_deliveries"
   for each row execute function "better_supabase"."inbox_delivery_broadcast"();
 
+-- A contact's read reaches staff on the conversation topic, for read receipts.
+create or replace function "better_supabase"."inbox_read_broadcast"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null and exists (
+    select 1 from "better_supabase"."conversations" v join "better_supabase"."contacts" c on c."id" = v."contact_id"
+    where v."id" = new."conversation_id" and c."user_id" = new."user_id"
+  ) then
+    perform realtime.send(jsonb_build_object('conversation_id', new."conversation_id"), 'read', 'inbox:' || new."conversation_id"::text, true);
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."inbox_read_broadcast"() from public, anon, authenticated;
+drop trigger if exists conversation_reads_broadcast on "better_supabase"."conversation_reads";
+create trigger conversation_reads_broadcast after insert or update on "better_supabase"."conversation_reads"
+  for each row execute function "better_supabase"."inbox_read_broadcast"();
+
 -- Staff join inbox:org:<tenant>; staff and the contact join
 -- inbox:<conversation>, where they may also send typing broadcasts and
 -- presence.
@@ -1723,6 +1764,15 @@ drop function if exists "api"."inbox_contact_conversation_ids"();
 drop function if exists "api"."inbox_conversation_allowed"(text, boolean);
 drop function if exists "api"."inbox_conversation_json"(uuid);
 drop function if exists "api"."inbox_file_allowed"(text, boolean);
+
+create or replace function "api"."inbox_contact_read_at"(conversation uuid)
+returns timestamptz
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."inbox_contact_read_at"($1) $$;
+revoke execute on function "api"."inbox_contact_read_at"(uuid) from public, anon;
+grant execute on function "api"."inbox_contact_read_at"(uuid) to authenticated, service_role;
 
 create or replace function "api"."create_inbox"(tenant uuid, name text, channel text default 'in_app', settings jsonb default '{}'::jsonb, bot_mode text default 'human', address text default null)
 returns jsonb

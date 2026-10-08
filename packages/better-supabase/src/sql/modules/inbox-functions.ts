@@ -79,7 +79,24 @@ grant execute on function ${signature} to service_role;`;
     ${missing("conversation", "CONVERSATION_NOT_FOUND")}
   end if;`;
 
-  return `-- A conversation with its contact and inbox, as the reads return it.
+  return `-- When the contact last read the conversation, for staff read receipts.
+create or replace function ${fn("inbox_contact_read_at")}(conversation uuid)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r.${rd("lastReadAt")}
+  from ${T("conversations")} v
+  join ${T("contacts")} c on c.${ct("id")} = v.${cv("contact")}
+  join ${T("reads")} r on r.${rd("conversation")} = v.${cv("id")} and r.${rd("user")} = c.${ct("user")}
+  where v.${cv("id")} = inbox_contact_read_at.conversation
+    and (${service} or ${q.can(`v.${cv("tenant")}`, "read")});
+$$;
+${authed(`${fn("inbox_contact_read_at")}(uuid)`)}
+
+-- A conversation with its contact and inbox, as the reads return it.
 create or replace function ${conversationJson}(conversation uuid)
 returns jsonb
 language sql
@@ -89,7 +106,8 @@ as $$
   select to_jsonb(v) || jsonb_build_object(
     'contact', (select jsonb_build_object('id', c.${ct("id")}, 'name', c.${ct("name")}, 'email', c.${ct("email")}, 'phone', c.${ct("phone")}, 'avatar_url', c.${ct("avatarUrl")}, 'user_id', c.${ct("user")}) from ${T("contacts")} c where c.${ct("id")} = v.${cv("contact")}),
     'inbox', (select jsonb_build_object('id', i.${ib("id")}, 'name', i.${ib("name")}, 'channel', i.${ib("channel")}) from ${T("inboxes")} i where i.${ib("id")} = v.${cv("inbox")}),
-    'last_read_at', (select r.${rd("lastReadAt")} from ${T("reads")} r where r.${rd("conversation")} = v.${cv("id")} and r.${rd("user")} = (select auth.uid()))
+    'last_read_at', (select r.${rd("lastReadAt")} from ${T("reads")} r where r.${rd("conversation")} = v.${cv("id")} and r.${rd("user")} = (select auth.uid())),
+    'contact_read_at', ${fn("inbox_contact_read_at")}(v.${cv("id")})
   )
   from ${T("conversations")} v
   where v.${cv("id")} = conversation;
