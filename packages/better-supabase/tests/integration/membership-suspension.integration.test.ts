@@ -90,17 +90,17 @@ describe.skipIf(!live)("membership suspension", () => {
       await s.as(member);
       expect(
         await s.value<boolean>(
-          `${schema}.member_can($1, $2, 'organization.read')`,
+          "better_supabase.member_can($1::uuid, $2::uuid, 'organization.read')",
           [member.id, organization],
         ),
       ).toBe(false);
       expect(
         await s.rows(
-          `select * from ${schema}.tenant_ids_with('organization.read')`,
+          "select * from better_supabase.tenant_ids_with('organization.read')",
         ),
       ).toEqual([]);
       expect(
-        await s.rows(`select * from ${schema}.member_organization_ids()`),
+        await s.rows("select * from better_supabase.member_organization_ids()"),
       ).toEqual([]);
       const mine = await s.rows<{ disabled_at: Date | null }>(
         `select * from ${schema}.list_my_organizations()`,
@@ -118,7 +118,7 @@ describe.skipIf(!live)("membership suspension", () => {
       await s.as(member);
       expect(
         await s.value<boolean>(
-          `${schema}.member_can($1, $2, 'organization.read')`,
+          "better_supabase.member_can($1::uuid, $2::uuid, 'organization.read')",
           [member.id, organization],
         ),
       ).toBe(true);
