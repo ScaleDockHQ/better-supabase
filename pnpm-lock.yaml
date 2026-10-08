@@ -392,6 +392,9 @@ catalogs:
     eslint-plugin-turbo:
       specifier: 2.11.7
       version: 2.11.7
+    eve:
+      specifier: 0.71.3
+      version: 0.71.3
     expo:
       specifier: 57.0.26
       version: 57.0.26
@@ -779,7 +782,7 @@ importers:
     dependencies:
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -822,7 +825,7 @@ importers:
         version: 2.3.1(@op-engineering/op-sqlite@18.2.5(react-native@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0))(@types/react@19.3.0)(react@19.2.3)(supports-color@7.2.0))(react@19.2.3))(@powersync/common@2.3.1)(react-native@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0))(@types/react@19.3.0)(react@19.2.3)(supports-color@7.2.0))(react@19.2.3)
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)
       '@supabase/ssr':
         specifier: 'catalog:'
         version: 0.12.7(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))
@@ -895,7 +898,7 @@ importers:
     dependencies:
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -926,7 +929,7 @@ importers:
     dependencies:
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -1024,7 +1027,7 @@ importers:
     dependencies:
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -1055,7 +1058,7 @@ importers:
         version: 1.8.0(@types/react@19.3.0)(date-fns@4.1.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.1(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)
+        version: 1.9.1(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)
       '@supabase/ssr':
         specifier: 'catalog:'
         version: 0.12.7(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))
@@ -1194,13 +1197,13 @@ importers:
         version: 2.0.0-beta.42
       '@orpc/openapi':
         specifier: 'catalog:'
-        version: 2.0.0-beta.42
+        version: 2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))
       '@orpc/server':
         specifier: 'catalog:'
-        version: 2.0.0-beta.42
+        version: 2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))
       '@supabase/server':
         specifier: 'catalog:'
-        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)
+        version: 1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -1386,7 +1389,7 @@ importers:
         version: 2.117.2
       '@supabase/server':
         specifier: catalog:deps
-        version: 1.9.1(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)
+        version: 1.9.1(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0))(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)
       '@supabase/ssr':
         specifier: catalog:deps
         version: 0.12.7(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))
@@ -1435,10 +1438,10 @@ importers:
         version: 2.0.0-beta.42
       '@orpc/openapi':
         specifier: 'catalog:'
-        version: 2.0.0-beta.42
+        version: 2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))
       '@orpc/server':
         specifier: 'catalog:'
-        version: 2.0.0-beta.42
+        version: 2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))
       '@supabase-labs/middleware-openfeature':
         specifier: 'catalog:'
         version: 0.2.0(typescript@7.0.2)
@@ -1511,6 +1514,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.0.0
+      eve:
+        specifier: 'catalog:'
+        version: 0.71.3(@opentelemetry/api@1.9.1)(ai@7.0.127(zod@4.6.5))(chat@4.41.1(ai@7.0.127(zod@4.6.5))(supports-color@7.2.0)(workflow@5.1.0(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.1.2(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.1)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0)(supports-color@7.2.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.5)(next@16.3.8(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(supports-color@7.2.0)(typescript@7.0.2)(ws@8.22.0))(zod@4.6.5))
       expo-server:
         specifier: 'catalog:'
         version: 57.0.3
@@ -1693,7 +1699,7 @@ importers:
         version: 1.9.1
       '@orpc/server':
         specifier: 'catalog:'
-        version: 2.0.0-beta.42
+        version: 2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.117.2(@opentelemetry/api@1.9.1)
@@ -7151,6 +7157,14 @@ packages:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
 
+  crossws@0.4.15:
+    resolution: {integrity: sha512-NsUOpDZosz7nyI+qEIl05yaiXOWaXH2oTeM+XBWtiSWZtb5rzcIsl1AST/HzM2jzUn76eFuyrkn83E6iSBRUvw==}
+    peerDependencies:
+      srvx: '>=0.11.5'
+    peerDependenciesMeta:
+      srvx:
+        optional: true
+
   css-in-js-utils@3.1.0:
     resolution: {integrity: sha512-fJAcud6B3rRu+KHYk+Bwf+WFL2MDCJJ1XG9x137tJQ0xYxor7XziQtuGFbWNdqrvF4Tk26O3H73nfVqXt/fW1A==}
 
@@ -7205,6 +7219,9 @@ packages:
 
   date-fns@4.1.0:
     resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
+
+  db0@0.4.1:
+    resolution: {integrity: sha512-6RBY/bSn42UrqATwsiULj2uYFyEykB3XeA/NLIVQeHNXlYV6D4Idxx3/aa6k5Y45Dwzx7sygeLotnqHWSeURYA==}
 
   debounce-fn@4.0.0:
     resolution: {integrity: sha512-8pYCQiL9Xdcg0UPSD3d+0KMlOjp+KGU5EPwYddgzQ7DATsg4fuUDjQtsYLmWjnk2obnNHgV3vE2Y4jejSOJVBQ==}
@@ -7517,6 +7534,10 @@ packages:
     resolution: {integrity: sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A==}
     engines: {node: '>=6'}
 
+  env-runner@0.2.3:
+    resolution: {integrity: sha512-S8EFBKyznRwPVwayK187cYjvnpgC92xy+q0BIF++V965pfjMVVRbQ/HoTYGA/1EHmZ7E68k6Heq+4WnvVhOL5w==}
+    hasBin: true
+
   environment@1.1.0:
     resolution: {integrity: sha512-xUtoPkMggbz0MPyPiIWr1Kp4aeWJjDZ6SMvURhimjdZgsRuDplF5/s9hcgGhyXMhs+6vpnuoiZ2kFiu3FMnS8Q==}
     engines: {node: '>=18'}
@@ -7658,6 +7679,32 @@ packages:
   etag@1.8.1:
     resolution: {integrity: sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==}
     engines: {node: '>= 0.6'}
+
+  eve@0.71.3:
+    resolution: {integrity: sha512-n0IdHqthlSTZvWjRtyaai0dQQB6K441JUbBbk9N63zsZrVkOkaJrLxh0hY9AfPb+TlJINOlhd/BcIQIHgf5w4g==}
+    engines: {node: '>=24'}
+    hasBin: true
+    peerDependencies:
+      '@opentelemetry/api': ^1.0.0
+      ai: ^7.0.105
+      braintrust: ^3.0.0
+      chat: ^4.41.0
+      dd-trace: ^6.13.0
+      just-bash: ^3.1.0
+      microsandbox: ^0.5.0
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
+      braintrust:
+        optional: true
+      chat:
+        optional: true
+      dd-trace:
+        optional: true
+      just-bash:
+        optional: true
+      microsandbox:
+        optional: true
 
   event-target-shim@5.0.1:
     resolution: {integrity: sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==}
@@ -8273,6 +8320,19 @@ packages:
     engines: {node: '>=14.0.0'}
     hasBin: true
 
+  h3@2.0.2:
+    resolution: {integrity: sha512-+/zvHSNldYpNURuUUG+y1KzdASUhNnSd1VpqxYFVY40ov3YzuBnCETaUQaT+QbKkoxhh9LRa6AEQdB14LALwdA==}
+    engines: {node: '>=20.19.0'}
+    hasBin: true
+    peerDependencies:
+      crossws: ^0.4.12
+      ocache: '>=0.3.0'
+    peerDependenciesMeta:
+      crossws:
+        optional: true
+      ocache:
+        optional: true
+
   has-flag@3.0.0:
     resolution: {integrity: sha512-sKJf1+ceQBr4SMkvQnBDNDtf4TXpVhVGateu0t918bl30FnbE2m4vNLX+VWe/dpjlb+HugGYzW7uQXH98HPEYw==}
     engines: {node: '>=4'}
@@ -8390,6 +8450,9 @@ packages:
   https-proxy-agent@7.0.6:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
     engines: {node: '>= 14'}
+
+  httpxy@0.5.5:
+    resolution: {integrity: sha512-uDjmnPyp1q4Sgzf3w+J/Fc6UqcCEj0x4Wjp7OqK5dGhNeDgpyrAmnS6ey8QWrX3SWDon2DMKf9sBa5X9+CVyMA==}
 
   human-id@4.2.1:
     resolution: {integrity: sha512-zPGsiS+dWoTZtZ4AtpA9Y+BdSFSNWvnouNlWNoUFyAM6xHOHmdCvqO3k8AIbdamCOv4gUFUVNPf6rJFfc4UiJw==}
@@ -9485,6 +9548,14 @@ packages:
       sass:
         optional: true
 
+  nf3@0.3.24:
+    resolution: {integrity: sha512-HxLK4bo+5jNsEETZp4w3tJblHOA9MCBY14IN9nZJJV8JDxt9yNIYxuBuLMjTAR5GFa3HL61+8VQDUrXv3/C8fw==}
+
+  nitro@3.0.260903-beta:
+    resolution: {integrity: sha512-54gANPi62O8rfMvepiJUVuIzEIinYfpeHbebywlLxvVTgIYXDwSvpaU9Id+0sJOBjBx0wC1/CVYXJkH7SY+l0g==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    hasBin: true
+
   node-addon-api@7.1.1:
     resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
 
@@ -9698,6 +9769,9 @@ packages:
   obug@3.0.0:
     resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
     engines: {node: '>=12.20.0'}
+
+  ocache@0.3.0:
+    resolution: {integrity: sha512-RS/9P0zeBb0gDJmadGERLH8lZNXK7xbufTDhclkXGvFGTsj0G4M5/cLk+mizcERH29mLXNnocfB5wjcK70wGJg==}
 
   ohash@2.0.12:
     resolution: {integrity: sha512-65S/5gk9YSsaRjcyf7Nfa6h/d3E8/1gslpXfI4W7Dxn/oap8IKRuNT5VXkLQ1YFKIEg4apRY4Pj6aiwFzrDdmw==}
@@ -10498,6 +10572,9 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
+  rou3@0.9.2:
+    resolution: {integrity: sha512-3SOzvaAg8rkHrXtRjpCvCvbyO5to9oOO27Z/XqHEYXfMRVSw/qMIVdmaOk9W2lcRLtR6dlqTjo9hDeJk70QBYQ==}
+
   rou3@1.0.0:
     resolution: {integrity: sha512-ySeaQkSrua+ut9g+65I7FHqOFBaY8tV0FmccXItoq0q21se32Q3u4YiW7/RqXSosWgYJaaKwRHXy3BST9PeCNQ==}
     engines: {node: '>=20.19.0'}
@@ -10748,6 +10825,11 @@ packages:
 
   srvx@0.12.8:
     resolution: {integrity: sha512-7k9HoDhluTlD7UJ+F+OopZoPZXB2J8f/5nW2VMLaB8KsSlZlRQxyyoX0hWEQCxB+F+3ZvB5QX3LqB6xSBRfxQQ==}
+    engines: {node: '>=20.16.0'}
+    hasBin: true
+
+  srvx@1.0.5:
+    resolution: {integrity: sha512-KvSKRpgPG/oaq3cyT614OQ2bAa7DynuGamivCZeoZzIUULOdbQz6wUtnnVuC4+DCx2Zglzo8v5gBYmWIWYhDxA==}
     engines: {node: '>=20.16.0'}
     hasBin: true
 
@@ -11190,9 +11272,16 @@ packages:
     resolution: {integrity: sha512-dkrQXeHSaoamnItlYbmzG0wFYrM0ZwDxCIg0A7aKjTyyhh9svRzCNFEzV+Vm05/yehjCzjDZ31KXfGEjYSztDQ==}
     engines: {node: '>=20.18.1'}
 
+  undici@8.10.2:
+    resolution: {integrity: sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==}
+    engines: {node: '>=22.19.0'}
+
   undici@8.11.2:
     resolution: {integrity: sha512-u4UB2/IrKdU6lFxumHmmo1a3fCQO5tzQllRorfoRS63txhrB7xTpSn1PftwC4qEHkOaqP95fCWW4lJzwErwzhQ==}
     engines: {node: '>=22.19.0'}
+
+  unenv@2.0.0-rc.24:
+    resolution: {integrity: sha512-i7qRCmY42zmCwnYlh9H2SvLEypEFGye5iRmEMKjcGi7zk9UquigRjFtTLz0TYqr0ZGLZhaMHl/foy1bZR+Cwlw==}
 
   unicode-canonical-property-names-ecmascript@2.0.1:
     resolution: {integrity: sha512-dA8WbNeb2a6oQzAQ55YlT5vQAWGV9WXOsi3SskE3bcCdM0P4SDd+24zS/OCacdRq5BkdsRj9q3Pg6YyQoxIGqg==}
@@ -11257,6 +11346,9 @@ packages:
   unplugin@2.3.11:
     resolution: {integrity: sha512-5uKD0nqiYVzlmCRs01Fhs2BdkEgBS3SAVP6ndrBsuK42iC2+JHyxM05Rm9G8+5mkmRtzMZGY8Ct5+mliZxU/Ww==}
     engines: {node: '>=18.12.0'}
+
+  unstorage@2.0.0-alpha.10:
+    resolution: {integrity: sha512-6h1veZp8gnp4dGllf0tDijoXxDYymJu251IpKKkrSVH+QHL6tXFbwG85KM+CBHSgpkkgtPuIiZ9oLCLP5+1Evw==}
 
   untyped@2.0.0:
     resolution: {integrity: sha512-nwNCjxJTjNuLCgFr42fEak5OcLuB3ecca+9ksPFNvtfYSLpjf+iJqSIaSnIile6ZPbKYxI5k2AfXqeopGudK/g==}
@@ -13963,26 +14055,26 @@ snapshots:
       '@orpc/shared': 2.0.0-beta.42
       '@standard-schema/spec': 1.1.0
 
-  '@orpc/json-schema@2.0.0-beta.42':
+  '@orpc/json-schema@2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))':
     dependencies:
       '@openapi-spec/types': 0.3.0
       '@orpc/client': 2.0.0-beta.42
       '@orpc/contract': 2.0.0-beta.42
-      '@orpc/server': 2.0.0-beta.42
+      '@orpc/server': 2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))
       '@orpc/shared': 2.0.0-beta.42
       '@standard-schema/spec': 1.1.0
     transitivePeerDependencies:
       - crossws
       - fastify
 
-  '@orpc/openapi@2.0.0-beta.42':
+  '@orpc/openapi@2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))':
     dependencies:
       '@openapi-spec/downgrader': 0.3.0
       '@openapi-spec/types': 0.3.0
       '@orpc/client': 2.0.0-beta.42
       '@orpc/contract': 2.0.0-beta.42
-      '@orpc/json-schema': 2.0.0-beta.42
-      '@orpc/server': 2.0.0-beta.42
+      '@orpc/json-schema': 2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))
+      '@orpc/server': 2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))
       '@orpc/shared': 2.0.0-beta.42
       '@standard-server/core': 0.10.1
       '@standard-server/fetch': 0.10.1
@@ -13991,7 +14083,7 @@ snapshots:
       - crossws
       - fastify
 
-  '@orpc/server@2.0.0-beta.42':
+  '@orpc/server@2.0.0-beta.42(crossws@0.4.15(srvx@1.0.5))':
     dependencies:
       '@orpc/client': 2.0.0-beta.42
       '@orpc/contract': 2.0.0-beta.42
@@ -14003,6 +14095,8 @@ snapshots:
       '@standard-server/node': 0.10.1
       '@standard-server/peer': 0.10.1
       cookie: 2.0.1
+    optionalDependencies:
+      crossws: 0.4.15(srvx@1.0.5)
 
   '@orpc/shared@2.0.0-beta.42':
     dependencies:
@@ -14701,21 +14795,6 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@react-native/community-cli-plugin@0.86.3(supports-color@7.2.0)':
-    dependencies:
-      '@react-native/dev-middleware': 0.86.3(supports-color@7.2.0)
-      debug: 4.4.3(supports-color@7.2.0)
-      invariant: 2.2.4
-      metro: 0.84.5(supports-color@7.2.0)
-      metro-config: 0.84.5(supports-color@7.2.0)
-      metro-core: 0.84.5
-      semver: 7.8.5
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-    optional: true
-
   '@react-native/community-cli-plugin@0.86.3(supports-color@8.1.1)':
     dependencies:
       '@react-native/dev-middleware': 0.86.3(supports-color@8.1.1)
@@ -15225,58 +15304,63 @@ snapshots:
       '@supabase/phoenix': 0.4.5
       tslib: 2.8.1
 
-  '@supabase/server@1.9.1(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)':
+  '@supabase/server@1.9.1(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0))(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)':
     dependencies:
       '@supabase/middleware': 1.0.0(typescript@7.0.2)
       '@supabase/supabase-js': 2.117.2(@opentelemetry/api@1.9.1)
       jose: 6.2.12
     optionalDependencies:
       '@nestjs/common': 12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
+      h3: 2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0)
       hono: 4.13.13
       pg: 8.23.1
     transitivePeerDependencies:
       - typescript
 
-  '@supabase/server@1.9.1(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)':
+  '@supabase/server@1.9.1(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.13)(pg@8.23.1)(typescript@7.0.2)':
     dependencies:
       '@supabase/middleware': 1.0.0(typescript@7.0.2)
       '@supabase/supabase-js': 2.117.2(@opentelemetry/api@1.9.1)
       jose: 6.2.12
     optionalDependencies:
       '@nestjs/common': 12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1)
+      h3: 2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0)
       hono: 4.13.13
       pg: 8.23.1
     transitivePeerDependencies:
       - typescript
 
-  '@supabase/server@1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)':
+  '@supabase/server@1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.10)(pg@8.23.0)(typescript@7.0.2)':
     dependencies:
       '@supabase/middleware': 1.0.0(typescript@7.0.2)
       '@supabase/supabase-js': 2.117.2(@opentelemetry/api@1.9.1)
       jose: 6.2.12
     optionalDependencies:
+      h3: 2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0)
       hono: 4.13.10
       pg: 8.23.0
     transitivePeerDependencies:
       - typescript
 
-  '@supabase/server@1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)':
+  '@supabase/server@1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.12)(pg@8.23.1)(typescript@7.0.2)':
     dependencies:
       '@supabase/middleware': 1.0.0(typescript@7.0.2)
       '@supabase/supabase-js': 2.117.2(@opentelemetry/api@1.9.1)
       jose: 6.2.12
     optionalDependencies:
+      h3: 2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0)
       hono: 4.13.12
       pg: 8.23.1
     transitivePeerDependencies:
       - typescript
 
-  '@supabase/server@1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)':
+  '@supabase/server@1.9.1(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))(h3@2.0.2)(hono@4.13.13)(pg@8.23.0)(typescript@7.0.2)':
     dependencies:
       '@supabase/middleware': 1.0.0(typescript@7.0.2)
       '@supabase/supabase-js': 2.117.2(@opentelemetry/api@1.9.1)
       jose: 6.2.12
     optionalDependencies:
+      h3: 2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0)
       hono: 4.13.13
       pg: 8.23.0
     transitivePeerDependencies:
@@ -17666,6 +17750,10 @@ snapshots:
       shebang-command: 2.0.0
       which: 2.0.2
 
+  crossws@0.4.15(srvx@1.0.5):
+    optionalDependencies:
+      srvx: 1.0.5
+
   css-in-js-utils@3.1.0:
     dependencies:
       hyphenate-style-name: 1.1.0
@@ -17713,6 +17801,8 @@ snapshots:
   dataloader@2.2.3: {}
 
   date-fns@4.1.0: {}
+
+  db0@0.4.1: {}
 
   debounce-fn@4.0.0:
     dependencies:
@@ -17907,6 +17997,13 @@ snapshots:
 
   env-paths@2.2.1: {}
 
+  env-runner@0.2.3:
+    dependencies:
+      crossws: 0.4.15(srvx@1.0.5)
+      exsolve: 1.1.1
+      httpxy: 0.5.5
+      srvx: 1.0.5
+
   environment@1.1.0: {}
 
   error-ex@1.3.4:
@@ -18096,6 +18193,15 @@ snapshots:
   esutils@2.0.3: {}
 
   etag@1.8.1: {}
+
+  eve@0.71.3(@opentelemetry/api@1.9.1)(ai@7.0.127(zod@4.6.5))(chat@4.41.1(ai@7.0.127(zod@4.6.5))(supports-color@7.2.0)(workflow@5.1.0(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.1.2(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.1)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0)(supports-color@7.2.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.5)(next@16.3.8(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(supports-color@7.2.0)(typescript@7.0.2)(ws@8.22.0))(zod@4.6.5)):
+    dependencies:
+      ai: 7.0.127(zod@4.6.5)
+      nitro: 3.0.260903-beta
+      undici: 8.10.2
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      chat: 4.41.1(ai@7.0.127(zod@4.6.5))(supports-color@7.2.0)(workflow@5.1.0(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.1.2(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@opentelemetry/api@1.9.1)(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0)(supports-color@7.2.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(magicast@0.5.5)(next@16.3.8(@babel/core@7.29.7(supports-color@7.2.0))(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(supports-color@7.2.0)(typescript@7.0.2)(ws@8.22.0))(zod@4.6.5)
 
   event-target-shim@5.0.1: {}
 
@@ -18922,6 +19028,14 @@ snapshots:
       - supports-color
       - typescript
 
+  h3@2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0):
+    dependencies:
+      rou3: 1.0.0
+      srvx: 1.0.5
+    optionalDependencies:
+      crossws: 0.4.15(srvx@1.0.5)
+      ocache: 0.3.0
+
   has-flag@3.0.0: {}
 
   has-flag@4.0.0: {}
@@ -19117,6 +19231,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
     optional: true
+
+  httpxy@0.5.5: {}
 
   human-id@4.2.1: {}
 
@@ -20573,6 +20689,24 @@ snapshots:
       - '@types/node'
       - babel-plugin-macros
 
+  nf3@0.3.24: {}
+
+  nitro@3.0.260903-beta:
+    dependencies:
+      consola: 3.4.2
+      crossws: 0.4.15(srvx@1.0.5)
+      db0: 0.4.1
+      env-runner: 0.2.3
+      h3: 2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0)
+      hookable: 6.1.2
+      nf3: 0.3.24
+      ocache: 0.3.0
+      rolldown: 1.2.12
+      rou3: 0.9.2
+      srvx: 1.0.5
+      unenv: 2.0.0-rc.24
+      unstorage: 2.0.0-alpha.10
+
   node-addon-api@7.1.1: {}
 
   node-emoji@2.2.0:
@@ -20638,6 +20772,8 @@ snapshots:
   obug@2.2.1: {}
 
   obug@3.0.0: {}
+
+  ocache@0.3.0: {}
 
   ohash@2.0.12: {}
 
@@ -21382,7 +21518,7 @@ snapshots:
     dependencies:
       '@react-native/assets-registry': 0.86.3
       '@react-native/codegen': 0.86.3(@babel/core@7.29.7(supports-color@7.2.0))
-      '@react-native/community-cli-plugin': 0.86.3(supports-color@7.2.0)
+      '@react-native/community-cli-plugin': 0.86.3(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0))(supports-color@7.2.0)
       '@react-native/gradle-plugin': 0.86.3
       '@react-native/js-polyfills': 0.86.3
       '@react-native/normalize-colors': 0.86.3
@@ -21779,6 +21915,8 @@ snapshots:
       '@rolldown/binding-openharmony-arm64': 1.2.9
       '@rolldown/binding-win32-arm64-msvc': 1.2.9
       '@rolldown/binding-win32-x64-msvc': 1.2.9
+
+  rou3@0.9.2: {}
 
   rou3@1.0.0: {}
 
@@ -22204,6 +22342,8 @@ snapshots:
 
   srvx@0.12.8: {}
 
+  srvx@1.0.5: {}
+
   stackframe@1.3.4: {}
 
   stacktrace-parser@0.1.11:
@@ -22628,7 +22768,13 @@ snapshots:
 
   undici@7.30.0: {}
 
+  undici@8.10.2: {}
+
   undici@8.11.2: {}
+
+  unenv@2.0.0-rc.24:
+    dependencies:
+      pathe: 2.0.3
 
   unicode-canonical-property-names-ecmascript@2.0.1: {}
 
@@ -22699,6 +22845,8 @@ snapshots:
       acorn: 8.18.0
       picomatch: 4.0.7
       webpack-virtual-modules: 0.6.2
+
+  unstorage@2.0.0-alpha.10: {}
 
   untyped@2.0.0:
     dependencies:
