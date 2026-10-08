@@ -48,6 +48,8 @@ const PURE_BARRELS = [
   "workflow-sdk",
   "blocks/workflow-builder",
   "workflow-sdk/builder",
+  "blocks/inbox",
+  "chat-sdk",
 ];
 
 describe("subpath entries", () => {

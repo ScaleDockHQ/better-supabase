@@ -46,6 +46,12 @@ const entries = [
   "streams/redis/index",
   "credentials/index",
   "vercel-connect/index",
+  "blocks/inbox/index",
+  "blocks/inbox/react/index",
+  "blocks/inbox/react/server",
+  "chat-sdk/index",
+  "chat-sdk/react/index",
+  "chat-sdk/react/server",
   "blocks/onboarding/index",
   "blocks/onboarding/react/index",
   "blocks/onboarding/react/server",
@@ -90,7 +96,7 @@ const entries = [
 const src = resolve(import.meta.dirname, "src");
 
 const USE_CLIENT_MODULE =
-  /src\/(react\/(index|hooks|session)|blocks\/notifications\/react\/index)\.ts$/;
+  /src\/(react\/(index|hooks|session)|blocks\/(notifications|inbox)\/react\/index|chat-sdk\/react\/index)\.ts$/;
 
 /**
  * The subpath of a library entry (`src/sql/index.ts` is `sql`), or undefined

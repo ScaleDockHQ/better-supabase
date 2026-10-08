@@ -65,7 +65,7 @@ export default defineConfig({
       // Runtime entries run on every WinterTC runtime (AGENTS.md invariant 6).
       files: [
         "src/index.ts",
-        "src/{auth,bridges,casing,client,compile,config,core,edge,elysia,env,events,generators,h3,hono,ir,jobs,lint,list,mcp,next,openapi,orpc,otel,plugins,query,react,react-router,realtime,schema,server,sql,ssr,storage,sveltekit,tanstack-start,webhooks}/**/*.{ts,tsx}",
+        "src/{auth,bridges,casing,chat-sdk,client,compile,config,core,edge,elysia,env,events,generators,h3,hono,ir,jobs,lint,list,mcp,next,openapi,orpc,otel,plugins,query,react,react-router,realtime,schema,server,sql,ssr,storage,sveltekit,tanstack-start,webhooks}/**/*.{ts,tsx}",
       ],
       excludeFiles: ["**/*.test.ts", "**/*.test-d.ts", "**/tests/**"],
       rules: {
