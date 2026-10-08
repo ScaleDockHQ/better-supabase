@@ -139,6 +139,22 @@ describe.skipIf(!live)("inbox module", () => {
       );
 
       await s.asRole(member);
+      const ownHelp = await inbox.conversations
+        .open(widget.id, { message: "Staff need help too" })
+        .orThrow();
+      expect(ownHelp.contact?.userId).toBe(member.id);
+      const [asked] = await inbox.messages.list(ownHelp.id).orThrow();
+      expect(asked).toMatchObject({
+        authorType: "contact",
+        direction: "inbound",
+      });
+      expect(
+        (
+          await inbox.messages
+            .send(ownHelp.id, { body: "Still there?" })
+            .orThrow()
+        ).authorType,
+      ).toBe("contact");
       const erase = await inbox.purgeContact(opened.contactId);
       expect(erase.ok ? undefined : erase.error.kind).toBe("forbidden");
       await s.asRole(owner);

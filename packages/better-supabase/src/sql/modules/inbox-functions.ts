@@ -423,20 +423,24 @@ begin
   if not found then
     ${missing("inbox", "INBOX_NOT_FOUND")}
   end if;
-  v_staff := ${service} or ${q.can(`v_inbox.${ib("tenant")}`, "reply")};
-  if v_staff then
+  -- A signed-in caller who names no contact on a widget inbox is the
+  -- visitor, staff included, so they can try their own widget.
+  if not ${service} and (select auth.uid()) is not null and not (input ? 'contact')
+    and v_inbox.${ib("channel")} = 'in_app' and coalesce((v_inbox.${ib("settings")} ->> 'widget')::boolean, false) then
+    v_staff := false;
+    v_contact_input := jsonb_build_object(
+      'user_id', (select auth.uid()),
+      'name', v_contact_input ->> 'name',
+      'email', coalesce((select auth.jwt()) ->> 'email', v_contact_input ->> 'email')
+    );
+  elsif ${service} or ${q.can(`v_inbox.${ib("tenant")}`, "reply")} then
+    v_staff := true;
     if jsonb_typeof(input -> 'contact') = 'string' then
       v_contact_input := jsonb_build_object('id', input ->> 'contact');
     end if;
     if v_contact_input = '{}'::jsonb then
       raise exception 'input.contact is required' using errcode = '22023', hint = 'CONTACT_REQUIRED';
     end if;
-  elsif (select auth.uid()) is not null and v_inbox.${ib("channel")} = 'in_app' and coalesce((v_inbox.${ib("settings")} ->> 'widget')::boolean, false) then
-    v_contact_input := jsonb_build_object(
-      'user_id', (select auth.uid()),
-      'name', v_contact_input ->> 'name',
-      'email', coalesce((select auth.jwt()) ->> 'email', v_contact_input ->> 'email')
-    );
   else
     ${forbidden("not allowed to open a conversation in this inbox")}
   end if;
@@ -490,15 +494,16 @@ begin
   if ${service} then
     v_author_type := coalesce(input ->> 'author_type', 'bot');
     v_direction := case when v_author_type = 'contact' then 'inbound' else 'outbound' end;
-  elsif ${staffCan("reply")} then
-    v_author_type := 'agent';
-    v_direction := 'outbound';
   elsif exists (select 1 from ${T("contacts")} c where c.${ct("id")} = v_conv.${cv("contact")} and c.${ct("user")} = (select auth.uid())) then
+    -- The conversation's own contact writes as the contact, staff included.
     if v_kind <> 'message' then
       ${forbidden("contacts cannot write notes")}
     end if;
     v_author_type := 'contact';
     v_direction := 'inbound';
+  elsif ${staffCan("reply")} then
+    v_author_type := 'agent';
+    v_direction := 'outbound';
   else
     ${forbidden("not allowed to write in this conversation")}
   end if;

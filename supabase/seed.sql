@@ -126,3 +126,16 @@ select better_supabase.notify(jsonb_build_object(
   'data', jsonb_build_object('title', 'Welcome to Acme'),
   'key', 'seed-welcome-acme'
 ));
+
+-- The Help inbox behind the example's Help sheet and /inbox, with one
+-- customer conversation waiting. Staff answer: the bot is left out.
+insert into better_supabase.inboxes (id, tenant_id, name, channel, bot_mode, settings) values
+  ('00000000-0000-4000-8000-00000000e001', '00000000-0000-4000-8000-000000000001', 'Help', 'in_app', 'human', '{"widget": true}');
+
+select better_supabase.record_inbound(jsonb_build_object(
+  'inbox_id', '00000000-0000-4000-8000-00000000e001',
+  'thread_id', 'inbox:seed-road-runner',
+  'subject', 'Wrong VAT number',
+  'contact', jsonb_build_object('external_id', 'beep@roadrunner.test', 'name', 'Road Runner', 'email', 'beep@roadrunner.test'),
+  'message', jsonb_build_object('body', 'Our last invoice shows the wrong VAT number. Can you fix it?')
+));

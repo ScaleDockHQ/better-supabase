@@ -757,20 +757,24 @@ begin
   if not found then
     raise exception 'inbox not found' using errcode = 'P0002', hint = 'INBOX_NOT_FOUND';
   end if;
-  v_staff := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_inbox."tenant_id", 'inbox.reply'), false);
-  if v_staff then
+  -- A signed-in caller who names no contact on a widget inbox is the
+  -- visitor, staff included, so they can try their own widget.
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (select auth.uid()) is not null and not (input ? 'contact')
+    and v_inbox."channel" = 'in_app' and coalesce((v_inbox."settings" ->> 'widget')::boolean, false) then
+    v_staff := false;
+    v_contact_input := jsonb_build_object(
+      'user_id', (select auth.uid()),
+      'name', v_contact_input ->> 'name',
+      'email', coalesce((select auth.jwt()) ->> 'email', v_contact_input ->> 'email')
+    );
+  elsif coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_inbox."tenant_id", 'inbox.reply'), false) then
+    v_staff := true;
     if jsonb_typeof(input -> 'contact') = 'string' then
       v_contact_input := jsonb_build_object('id', input ->> 'contact');
     end if;
     if v_contact_input = '{}'::jsonb then
       raise exception 'input.contact is required' using errcode = '22023', hint = 'CONTACT_REQUIRED';
     end if;
-  elsif (select auth.uid()) is not null and v_inbox."channel" = 'in_app' and coalesce((v_inbox."settings" ->> 'widget')::boolean, false) then
-    v_contact_input := jsonb_build_object(
-      'user_id', (select auth.uid()),
-      'name', v_contact_input ->> 'name',
-      'email', coalesce((select auth.jwt()) ->> 'email', v_contact_input ->> 'email')
-    );
   else
     raise exception 'not allowed to open a conversation in this inbox' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
@@ -829,15 +833,16 @@ begin
   if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_author_type := coalesce(input ->> 'author_type', 'bot');
     v_direction := case when v_author_type = 'contact' then 'inbound' else 'outbound' end;
-  elsif coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'inbox.reply'), false) then
-    v_author_type := 'agent';
-    v_direction := 'outbound';
   elsif exists (select 1 from "better_supabase"."contacts" c where c."id" = v_conv."contact_id" and c."user_id" = (select auth.uid())) then
+    -- The conversation's own contact writes as the contact, staff included.
     if v_kind <> 'message' then
       raise exception 'contacts cannot write notes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
     end if;
     v_author_type := 'contact';
     v_direction := 'inbound';
+  elsif coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'inbox.reply'), false) then
+    v_author_type := 'agent';
+    v_direction := 'outbound';
   else
     raise exception 'not allowed to write in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;

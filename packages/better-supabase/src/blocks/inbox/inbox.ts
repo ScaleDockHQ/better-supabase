@@ -109,7 +109,11 @@ export interface MessageInput {
 }
 
 export interface StartConversationInput {
-  /** A contact id or the fields to find or create one. Ignored for a widget visitor. */
+  /**
+   * A contact id or the fields to find or create one. Leave it out on a
+   * widget inbox to open the conversation as the signed-in visitor, staff
+   * included.
+   */
   readonly contact?: string | ContactInput;
   readonly subject?: string;
   readonly priority?: ConversationPriority;
