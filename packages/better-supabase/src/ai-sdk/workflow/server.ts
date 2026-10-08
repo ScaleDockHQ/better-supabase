@@ -199,6 +199,31 @@ function segmentChunks(
   return streamOf(normalizeUIMessageStreamParts(chunksOf(chunks)));
 }
 
+/** `stream` once its first chunk arrives, or `undefined` when reading it fails. */
+async function opened<T>(
+  stream: ReadableStream<T>,
+): Promise<ReadableStream<T> | undefined> {
+  const reader = stream.getReader();
+  let first: ReadableStreamReadResult<T>;
+  try {
+    first = await reader.read();
+  } catch {
+    return undefined;
+  }
+  let pending: ReadableStreamReadResult<T> | undefined = first;
+  return new ReadableStream<T>({
+    async pull(controller) {
+      const next = pending ?? (await reader.read());
+      pending = undefined;
+      if (next.done) controller.close();
+      else controller.enqueue(next.value);
+    },
+    async cancel(reason) {
+      await reader.cancel(reason);
+    },
+  });
+}
+
 function sse(stream: ReadableStream<string>, workflowRunId?: string): Response {
   return new Response(stream.pipeThrough(new TextEncoderStream()), {
     headers: {
@@ -454,20 +479,23 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     if (run === undefined || streamId === undefined)
       return new Response(null, { status: 204 });
     const startIndex = Math.max(0, Math.trunc(resumeOptions.startIndex ?? 0));
-    if (run.engine === WORKFLOW_ENGINE && run.externalRunId !== undefined)
+    if (run.engine === WORKFLOW_ENGINE && run.externalRunId !== undefined) {
+      let live: ReadableStream<string> | undefined;
       try {
-        return sse(
+        live = await opened(
           segmentChunks(
             run.externalRunId,
             streamId,
             run.assistantMessageId,
             startIndex,
           ).pipeThrough(new JsonToSseTransformStream()),
-          run.externalRunId,
         );
       } catch {
-        // The stream store below has the copy the client read.
+        live = undefined;
       }
+      // Without the World's stream, the stream store has the copy the client read.
+      if (live !== undefined) return sse(live, run.externalRunId);
+    }
     const stored = await resumeFromStore(options.streams, streamId, {
       fromIdx: startIndex,
       ...(resumeOptions.signal === undefined

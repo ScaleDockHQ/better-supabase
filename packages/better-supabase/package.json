@@ -520,6 +520,17 @@
       "react-server": "./dist/ai-sdk/react/server.js",
       "default": "./dist/ai-sdk/react/index.js"
     },
+    "./ai-sdk/workflow": {
+      "@better-supabase/source": "./src/ai-sdk/workflow/index.ts",
+      "types": "./dist/ai-sdk/workflow/index.d.ts",
+      "default": "./dist/ai-sdk/workflow/index.js"
+    },
+    "./ai-sdk/workflow/react": {
+      "@better-supabase/source": "./src/ai-sdk/workflow/react/index.ts",
+      "types": "./dist/ai-sdk/workflow/react/index.d.ts",
+      "react-server": "./dist/ai-sdk/workflow/react/server.js",
+      "default": "./dist/ai-sdk/workflow/react/index.js"
+    },
     "./blocks/announcements": {
       "@better-supabase/source": "./src/blocks/announcements/index.ts",
       "types": "./dist/blocks/announcements/index.d.ts",
@@ -990,6 +1001,15 @@
         "types": "./dist/ai-sdk/react/index.d.ts",
         "react-server": "./dist/ai-sdk/react/server.js",
         "default": "./dist/ai-sdk/react/index.js"
+      },
+      "./ai-sdk/workflow": {
+        "types": "./dist/ai-sdk/workflow/index.d.ts",
+        "default": "./dist/ai-sdk/workflow/index.js"
+      },
+      "./ai-sdk/workflow/react": {
+        "types": "./dist/ai-sdk/workflow/react/index.d.ts",
+        "react-server": "./dist/ai-sdk/workflow/react/server.js",
+        "default": "./dist/ai-sdk/workflow/react/index.js"
       },
       "./blocks/announcements": {
         "types": "./dist/blocks/announcements/index.d.ts",
