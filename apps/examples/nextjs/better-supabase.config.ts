@@ -131,10 +131,13 @@ export default defineConfig({
       notifications: { api: "api" },
       // The /assistant sample: resumable answers in `streams`, chats in
       // `ai-chat`, both on private Realtime topics, and attachments in
-      // `ai-files`.
+      // `ai-files`. /knowledge ingests documents into `knowledge` for the
+      // assistant's search tool, and `memory` keeps what it remembers.
       streams: { api: "api" },
       "ai-chat": { api: "api" },
       "ai-files": { api: "api" },
+      knowledge: { api: "api" },
+      memory: { api: "api" },
     },
   },
 });
