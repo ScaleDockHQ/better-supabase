@@ -314,7 +314,16 @@ that function's arguments. It:
 - tags the entry `bs:session:<user id>`, so `bs.invalidateSession(userId)`
   drops every cached view of that user, for example after an admin changes
   their role. `tags` adds more tags to the entry, and
-  `bs.invalidateSession(userId, { tags })` drops those too;
+  `bs.invalidateSession(userId, { tags })` drops those too. In a Server
+  Action it also re-renders the caller's page, so no `refresh()` is needed.
+  It reaches the server caches and the caller's router only: another
+  user's browser keeps its private entries until they go stale or that
+  user's token changes;
+- with `tables`, tags the entry with each table's tag
+  (`bs:<table>@<tenant>` and `bs:<table>@*` under an active tenant, else
+  `bs:<table>`), so the `updateTag` after a mutation of those tables drops it
+  and the next visit re-reads. `id` also tags the row of the first table:
+  `bs.cached({ tables: ["customers"], id })`;
 - returns the caller's context plus `session`. `db`, `supabase` and `sql` are
   built on first access;
 - scopes that context to `tenant` when you pass one, for example from the
@@ -455,6 +464,19 @@ await supabase.auth.signInWithPassword({ email, password });
 await go("/");
 ```
 
+After a change that only the next token carries, such as switching the
+active organization, pass the browser client as `refreshToken`. The hook
+refreshes the session first, so the server renders with the new claims, and
+throws the refresh error instead of navigating with the old token:
+
+```ts
+const switched = useSessionChange(sessionChanged, router, {
+  refreshToken: supabase,
+});
+await switchOrganization({ organizationId });
+await switched("/");
+```
+
 ## Asymmetric signing keys
 
 All of this depends on verifying tokens locally. With asymmetric JWT signing
@@ -542,6 +564,48 @@ await expectDbBudget(page, {
   during: () => page.goto("/customers"),
 });
 ```
+
+## Prove it with a simulated delay
+
+Locally, every read is fast, so a page that waits for the database still
+looks instant. Delay the server's Supabase requests and the uncached reads
+show up as spinners:
+
+```ts title="src/lib/supabase/server.ts"
+const delayMs = Number(process.env["BS_FETCH_DELAY_MS"] ?? "0");
+const delayed: typeof fetch = async (input, init) => {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+  return fetch(input, init);
+};
+
+export const bs = createNext(
+  betterSupabase,
+  delayMs > 0 ? { fetch: delayed, auth: { fetch: delayed } } : {},
+);
+```
+
+`fetch` covers PostgREST and supabase-js, `auth.fetch` the token refreshes
+and the JWKS. Under a 3 s delay, each of the three cache layers has a
+signature you can assert in an e2e test:
+
+| Layer                                       | Lives in                                | First visit | Next visit                     | Reload  |
+| ------------------------------------------- | --------------------------------------- | ----------- | ------------------------------ | ------- |
+| Static shell and `'use cache'`              | The server, shared by every user        | Instant     | Instant, for every user        | Instant |
+| `'use cache: private'` (`bs.cached()`)      | The browser's router cache, per session | 3 s         | Instant, within its stale time | 3 s     |
+| TanStack Query `staleTime` (`useQueries()`) | The browser's query cache, per tab      | 3 s         | Instant, within `staleTime`    | 3 s     |
+
+The private cache is never stored on the server, so a reload pays for it
+again; the shared cache is filled by the first request of anyone. Browser
+queries go to Supabase directly, so delay those with Playwright's
+`page.route()`. Time a page load to `waitUntil: "commit"`: the `load` event
+waits for the whole streamed document, which hides an instant shell.
+
+The [Next.js example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/nextjs/e2e)
+runs its `latency` project against a second `next start` of the same build
+with `BS_FETCH_DELAY_MS=3000`. In one run, the dashboard shell painted in
+62 ms and its data in 3.4 s, Customers took 3.3 s on a full load, 40 ms on
+the next visit and 3.4 s on reload, and the plan catalog rendered in 63 ms
+for a second user whose own subscription took 3.4 s.
 
 ## Testing instant navigations
 

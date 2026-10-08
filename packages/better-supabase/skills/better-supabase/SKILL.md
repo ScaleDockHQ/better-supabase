@@ -89,6 +89,27 @@ Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runt
 For who the caller is (sessions, claims, OAuth clients, agents, scopes), use
 the `better-supabase-auth` skill.
 
+## Forms and actions (Next.js)
+
+- Put the permission check in the action's options, not its body:
+  `bs.action({ input, requireTenant: true, authorize: (session, input) => can(session, "members.invite") }, (input, { db, tenant, session }) => ...)`.
+  `requireTenant` types `tenant` as a string; a refusal is a `forbidden`
+  `ActionResult`. `bs.route(handler, { requireTenant, authorize })` takes the same.
+- A form: `const form = useActionForm(action, { onSuccess })` from
+  `better-supabase/react`, then `<form {...form.formProps}>`, `form.pending`
+  and `form.fieldErrors.<field>`. Fields survive a failed submit. Pass
+  `resetOnSuccess: false` for edit forms.
+- A button or row action: `const remove = useAction(action, { onError })`,
+  `remove.run(input)`, and `remove.pendingInputs` to mark the row in flight.
+- Error copy: `createErrorMessages({ ...one entry per DbError kind })` from
+  `better-supabase`; a missing kind is a type error.
+- A page only some callers may see: `await bs.require({ authorize })` throws
+  `forbidden()` or `unauthorized()` (needs `experimental.authInterrupts`).
+  Under Cache Components, check the privately cached session and call
+  `forbidden()` instead, so the page stays prefetchable.
+- The active tenant of a session: `tenantOf(session)`, on the server and in
+  the browser.
+
 ## Querying
 
 ```ts

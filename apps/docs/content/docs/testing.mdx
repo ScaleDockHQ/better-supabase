@@ -178,7 +178,10 @@ Playwright stays your dependency, not better-supabase's. The app needs
 
 A response the browser aborts mid-stream (the router does this for some
 navigations) counts as finished, so the check doesn't wait out `timeoutMs`
-for it.
+for it. After `during` resolves, the check keeps listening until no new
+response has arrived for `settleMs` (500 ms by default), so a render that
+starts late, such as the dynamic render after an `instant()` lock releases,
+is still counted.
 
 ## Instant navigations
 
@@ -227,6 +230,9 @@ test("customers come from the per-session App Shell", async ({ page }) => {
   after `expectInstant` returns.
 - Pass `baseURL` when `during` loads the first page, so the lock can be set
   before the page has a URL.
+- With `maxCalls` or `maxWaves`, a navigation that never reaches the proxy
+  fails: the client cache served it, so there is no render to measure. Drop
+  the budget for that navigation; `visible` already proves it is instant.
 
 ## pgTAP
 

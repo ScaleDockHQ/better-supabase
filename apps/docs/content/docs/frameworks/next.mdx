@@ -12,7 +12,8 @@ export const bs = createNext(betterSupabase);
 ```
 
 `createNext(betterSupabase)` is [`createServer`](/docs/auth/server) plus the Next.js
-pieces below, so `bs.admin()` and `bs.actingAs()` work too.
+pieces below, so `bs.admin()` and `bs.actingAs()` work too. It needs Next.js
+16.3 or later.
 
 ## Proxy
 
@@ -81,6 +82,32 @@ The tenant gets the same checks as the resolver's
 ([the active tenant](/docs/blocks/access#the-active-tenant)), and each
 tenant gets its own memoized context. `bs.cached({ tenant })` does the same
 in a private cache; pass the tenant in as an argument of your function.
+
+`bs.require(options)` is `bs.context()` for a page only some callers may
+see. It takes the same `allow`, `aal` and `scopes` as `bs.route()`, plus
+`requireTenant` and `authorize` (see [server actions](#server-actions)), and
+turns a refusal into the Next.js interrupt: `unauthorized()` renders the
+nearest `unauthorized.tsx`, `forbidden()` the nearest `forbidden.tsx`. Both
+need `experimental.authInterrupts` in `next.config.ts`; without it, a
+refused caller gets `notFound()`.
+
+```tsx title="src/app/settings/audit/page.tsx"
+export default async function AuditPage() {
+  const { db, tenant } = await bs.require({
+    requireTenant: true,
+    authorize: (session) => can(session, "audit.read"),
+  });
+  const events = await db.auditEvents
+    .findMany({ where: { organizationId: tenant } })
+    .orThrow();
+  return <AuditLog events={events} />;
+}
+```
+
+`bs.require()` reads the request, so it keeps the page out of the
+prefetched App Shell. For a page under
+[Cache Components](/docs/frameworks/next-cache-components), check the
+privately cached session instead and call `forbidden()` yourself.
 
 `bs.liveCount(spec)` counts on the server and returns a serializable
 `{ spec, count }` seed for `useLiveCount`, so a badge renders with its
@@ -201,6 +228,36 @@ serializable `ActionResult`: `{ ok: true, data }` or `{ ok: false, error }`,
 where `error` is a plain `DbError` your form can render (`validation`
 errors carry `issues` with paths). `tenant: (input) => input.organizationId`
 scopes the action's context to a tenant from the validated input.
+[`useActionForm` and `useAction`](/docs/frontend/react#server-actions) call
+it from a Client Component.
+
+`requireTenant` and `authorize` run after `allow`, `aal` and `scopes`, so
+the permission check sits next to the action instead of at the top of its
+body:
+
+```ts title="src/features/organization/organization-actions.ts"
+export const inviteMember = bs.action(
+  {
+    input: Invite,
+    requireTenant: true,
+    authorize: (session, input) => canAssign(session, input.role),
+  },
+  (input, { db, tenant }) =>
+    db.invitations.create({ ...input, organizationId: tenant }),
+);
+```
+
+- `requireTenant: true` refuses a caller without an active tenant with a
+  `forbidden` error (`code: "NO_TENANT"`) and types `ctx.tenant` as a
+  `string`. The tenant is the action's `tenant`, then the server's `tenant`
+  resolver, then the tenant claim.
+- `authorize(session, input)` gets the `AuthSession` and the validated input
+  (the request, in `bs.route()`). Returning `false` refuses the caller with
+  `forbidden` (`code: "NOT_AUTHORIZED"`).
+- `ctx.session` is the caller's `AuthSession`, so the body doesn't call
+  `toSession(ctx.auth)` again.
+- `bs.route(handler, { requireTenant, authorize })` takes the same options
+  and answers a refusal with a 403 Problem Details response.
 
 Route handlers and actions pass event sink sends they started to `after()`
 from `next/server`, so the function stays alive until the sends finish (see
@@ -260,7 +317,9 @@ The read is tagged `bs:customers@<tenant>` and `bs:customers@*`. A
 mutation invalidates `bs:customers`, the tag of its tenant (from the
 request context, such as the tenant plugin's), or `bs:customers@*` when it
 has none, and the tags of the rows it changed. Reads without a `tenant` keep
-`bs:<table>`, which every mutation of the table invalidates. `bs.cacheTag`
+`bs:<table>`, which every mutation of the table invalidates, and so does a
+read across tenants (`{ tenant: "*" }`), which carries `bs:<table>` as well
+as `bs:<table>@*`. `bs.cacheTag`
 takes the same option as its third argument, and `tagFor(table, undefined,
 { tenant })` builds the tag.
 

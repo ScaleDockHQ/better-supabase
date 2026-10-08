@@ -53,11 +53,83 @@ function CustomerList() {
   real state. It uses `useSyncExternalStore`, so it never tears.
 - `useDb()` and `useQueries()` re-render when the user changes.
 - With `queryClient`, the provider removes all better-supabase queries when
-  the user signs out or switches accounts, so one user's data never shows up
-  for the next. It uses [`clearOnUserChange`](/docs/frontend/query#clearing-on-sign-out).
+  the user signs out or switches accounts, and refetches them when the
+  token's tenant or role changes, so one user's or tenant's data never shows
+  up for the next. It uses [`clearOnUserChange`](/docs/frontend/query#clearing-on-sign-out).
 - `useBroadcast(topic, values, handlers, { invalidate })` subscribes to a
   [Realtime topic](/docs/platform/realtime) while mounted and refetches the
   listed tables after each message.
+
+## Server Actions
+
+`useAction` and `useActionForm` call a [`bs.action()`](/docs/frameworks/next#server-actions)
+Server Action and track its `ActionResult`, so a component doesn't need its
+own transition, pending flag and error state.
+
+```tsx title="src/features/customers/components/create-customer-form.tsx"
+"use client";
+
+import { useActionForm } from "better-supabase/react";
+
+import { createCustomer } from "../customer-actions";
+
+export function CreateCustomerForm() {
+  const form = useActionForm(createCustomer, {
+    onSuccess: (customer) => toast.success(`${customer.name} added`),
+  });
+  return (
+    <form {...form.formProps}>
+      <Input name="name" aria-invalid={form.fieldErrors.name !== undefined} />
+      {form.fieldErrors.name ? <p>{form.fieldErrors.name}</p> : null}
+      <Button type="submit" disabled={form.pending}>
+        Add
+      </Button>
+    </form>
+  );
+}
+```
+
+- `useActionForm(action, { onSuccess, onError, resetOnSuccess })` submits
+  the form's `FormData`. The fields keep what the user typed when the action
+  fails and clear on success (`resetOnSuccess: false` keeps them, for an edit
+  form). `fieldErrors` holds the first message per field of a `validation`
+  error; `fieldErrorsOf(error)` returns the same for any `DbError`.
+- `useAction(action, { onSuccess, onError })` runs the action from an event
+  handler with `run(input)`, which resolves with the `ActionResult`. The
+  input type drops `FormData`, so `run` takes the action's object input.
+  `pending` covers the run and the re-render it causes, `data` and `error`
+  hold the last result, and `pendingInputs` lists the inputs in flight, so
+  one table row can show its own change before the server confirms it:
+
+```tsx
+const roleChange = useAction(updateMemberRole);
+const roleOf = (member: Member) =>
+  roleChange.pendingInputs.findLast((input) => input.userId === member.userId)
+    ?.role ?? member.role;
+```
+
+- A thrown error (not an `ActionResult` error) still reaches the nearest
+  error boundary.
+
+`createErrorMessages(messages)` from `better-supabase` turns a `DbError`
+into the sentence to show. It takes a message, or a function of the error,
+for every [error kind](/docs/repository/unique-and-errors#error-kinds); leaving a kind out is a type
+error, so a new kind can't fall through to a generic message. Build it
+where your translations are:
+
+```ts title="src/lib/use-error-message.ts"
+import { createErrorMessages } from "better-supabase";
+
+export function useErrorMessage() {
+  const t = useExtracted("errors");
+  return createErrorMessages({
+    unauthorized: t("Sign in again to continue."),
+    forbidden: t("You don't have access to this."),
+    raised: (error) => error.message,
+    // ...every other kind
+  });
+}
+```
 
 ## Server session
 
@@ -89,7 +161,9 @@ export function SideNav() {
 - `useSession()` suspends, so keep it under a `<Suspense>` boundary, and
   create the promise inside that boundary.
 - The session is a plain `AuthSession` (no token), the same type
-  `bs.session()` returns.
+  `bs.session()` returns. `tenantOf(session)` reads its active tenant (the
+  tenant claim at the top level of the token, then in `app_metadata`), on
+  the server and in the browser.
 
 See [Cache Components](/docs/frameworks/next-cache-components) for the full
 pattern, including role-filtered menus.

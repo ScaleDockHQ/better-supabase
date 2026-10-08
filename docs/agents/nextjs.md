@@ -30,8 +30,14 @@ contracts.
 - Never measure on `next dev`. The verdict comes from `next build` with
   `EXPOSE_TESTING_API=1` and `next start`; Playwright's `webServer` builds
   with it. A build without the testing API passes every test vacuously.
-- Build `packages/better-supabase` first in a fresh worktree; the example
-  imports its `dist`.
+- Build `packages/better-supabase` first in a fresh worktree, and again after
+  every library change: the example imports its `dist`, so a stale `dist`
+  builds the example against the old code.
+- The `latency` project runs `latency.spec.ts` against a second `next start`
+  on 3101 with `BS_FETCH_DELAY_MS=3000` (`e2e/serve.ts`). Time page loads to
+  `waitUntil: "commit"`; `load` waits for the whole stream. A shared
+  `"use cache"` read that uses `bs.admin()` must sit behind a session read,
+  or the build prerenders it and fails without `SUPABASE_SECRET_KEY`.
 - Before trusting a GREEN, show that the spec can go RED: remove the cache
   scope the contract depends on (replace `"use cache: private"` and
   `bs.cached()` in `getCustomers` with `bs.context()`; `bs.cached()` alone
@@ -57,12 +63,19 @@ gap. Docs and marketing do not use those names, so their `lint` stays `oxlint`.
 
 ## The example app
 
+- Library code imports `next/navigation` by its bare specifier. Next aliases
+  it to the react-server build only without the `.js` suffix; with it, every
+  route handler that imports `better-supabase/next` fails the build with
+  `MODULE_UNPARSABLE` on the app router context.
+- `useAction` callbacks written as expression arrows
+  (`onSuccess: () => toast(...)`) return the toast id and fail Oxlint's
+  `strict-void-return`; give them a block body.
 - `protect` in `src/proxy.ts` runs on GET and HEAD only. Server Actions post
   to the current URL, and a guest-only redirect on that POST breaks sign-in.
 - `refresh()` from a Server Action doesn't evict prefetched private App
   Shells. After the session changes (sign-in, organization switch), call
-  `router.refresh()` on the client after `router.push`
-  (`use-refresh-session.ts`), and don't link to a page whose signed-out
+  `router.refresh()` on the client after `router.push`; `useSessionChange`
+  does both (`use-refresh-session.ts`), and don't link to a page whose signed-out
   prefetch is a redirect (the brand in the auth layout).
 - next-intl reads `.po` catalogs keyed by `msgctxt` only with the header
   `X-Message-Key: msgctxt`; without it the keys are dropped and every message

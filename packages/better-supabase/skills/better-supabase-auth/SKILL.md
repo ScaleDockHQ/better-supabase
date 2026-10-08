@@ -117,7 +117,8 @@ membership lasts until the next refresh. When that window matters:
   restrictive policy with `using ((select better_supabase.session_active()))`
   on the tables that guard sensitive data.
 - After a change the user made themselves (joining an organization), call
-  `supabase.auth.refreshSession()` in the browser.
+  `supabase.auth.refreshSession()` in the browser (in Next.js, through
+  `useSessionChange`'s `refreshToken`, below).
 - In Next.js, drop the user's cached views with
   `bs.invalidateSession(userId, { tags })`.
 
@@ -128,6 +129,15 @@ membership lasts until the next refresh. When that window matters:
   and caps its lifetime at the token's.
 - `bs.cached({ tags, life: { stale } })` adds tags and caps the stale time
   further, for example for a PermDock snapshot.
+- `bs.cached({ tables: ["customers"] })` tags the entry by table, so an
+  action that writes the table drops it without a hand-written tag.
+- `bs.invalidateSession(userId)` reaches the server caches and the caller's
+  router only; another user's browser keeps its private entries until they
+  go stale.
+- After signing in or out: `useSessionChange(sessionChanged)` from
+  `better-supabase/next/client`. After switching the active organization:
+  `useSessionChange(sessionChanged, router, { refreshToken: supabase })`, so
+  the new token reaches the server before it renders.
 - For a tenant from the route params, call `bs.cached({ tenant })` and take
   the tenant as an argument of the `'use cache: private'` function, so it is
   part of the cache key. Outside a cache, use `bs.context({ tenant })`.
