@@ -337,6 +337,7 @@ export function roleScopeIs(
 const MODULE_PERMISSION_SHORTHANDS: Readonly<
   Record<string, Readonly<Record<string, string>>>
 > = {
+  organizations: { suspendMember: "removeMember" },
   "webhooks-in": { create: "manage", update: "manage", delete: "manage" },
 };
 

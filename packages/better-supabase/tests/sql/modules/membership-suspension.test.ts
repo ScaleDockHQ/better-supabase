@@ -146,6 +146,21 @@ describe("membership suspension", () => {
     );
   });
 
+  it("follows a renamed removeMember key unless suspendMember is set", () => {
+    const sql = render({
+      ...SUSPENDABLE,
+      organizations: {
+        ...SUSPENDABLE["organizations"],
+        permissions: { removeMember: "member.remove" },
+      },
+    });
+    const organizations = sql("organizations");
+    expect(organizations).not.toContain("'members.remove'");
+    expect(
+      organizations.slice(organizations.indexOf("suspend_member")),
+    ).toContain("'member.remove'");
+  });
+
   it("keeps suspended members out of the provider and custom models", () => {
     const provider = render({
       ...SUSPENDABLE,

@@ -923,6 +923,21 @@ describe("modulePermissionKeys", () => {
     expect(keys.map((entry) => entry.module)).not.toContain("notifications");
   });
 
+  it("defaults suspendMember to the removeMember key", () => {
+    const suspend = (permissions: Record<string, string>) =>
+      modulePermissionKeys({ organizations: { permissions } }, [
+        "organizations",
+      ]).find((entry) => entry.action === "suspendMember")?.key;
+    expect(suspend({})).toBe("members.remove");
+    expect(suspend({ removeMember: "member.remove" })).toBe("member.remove");
+    expect(
+      suspend({
+        removeMember: "member.remove",
+        suspendMember: "member.suspend",
+      }),
+    ).toBe("member.suspend");
+  });
+
   it("applies sql.modules.<module>.permissions and skips custom modules", () => {
     expect(
       modulePermissionKeys(
