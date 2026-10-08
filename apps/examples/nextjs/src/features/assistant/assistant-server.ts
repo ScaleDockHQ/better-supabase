@@ -19,10 +19,10 @@ import { demoModel } from "./demo-model";
 /** `sql.modules["ai-chat"].api` and `sql.modules.streams.api`. */
 const API_SCHEMA = "api";
 
-export const DEFAULT_MODEL = "openai/gpt-5-mini";
+const DEFAULT_MODEL = "openai/gpt-5-mini";
 
 /** Without a gateway key the sample answers with a scripted model. */
-export const demoMode = (): boolean => !process.env["AI_GATEWAY_API_KEY"];
+const demoMode = (): boolean => !process.env["AI_GATEWAY_API_KEY"];
 
 function languageModel(id: string): LanguageModel {
   return demoMode() ? demoModel() : id;

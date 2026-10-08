@@ -337,7 +337,8 @@ describe.skipIf(!live)("ai-chat module", () => {
       ).toBe(true);
       expect(
         await s.rows(
-          "select status, cost_micro_usd, usage from better_supabase.ai_runs",
+          "select status, cost_micro_usd, usage from better_supabase.ai_runs where chat_id = $1",
+          [chat.id],
         ),
       ).toEqual([
         {
