@@ -164,6 +164,9 @@ settings:
 
 catalogs:
   default:
+    '@ai-sdk/mcp':
+      specifier: 2.0.66
+      version: 2.0.66
     '@ai-sdk/react':
       specifier: 4.0.130
       version: 4.0.130
@@ -1348,6 +1351,9 @@ importers:
         specifier: catalog:deps
         version: 0.12.7(@supabase/supabase-js@2.117.2(@opentelemetry/api@1.9.1))
     devDependencies:
+      '@ai-sdk/mcp':
+        specifier: 'catalog:'
+        version: 2.0.66(zod@4.6.5)
       '@ai-sdk/react':
         specifier: 'catalog:'
         version: 4.0.130(react@19.3.0)(zod@4.6.5)
