@@ -17,8 +17,9 @@ import { decodeJwtPayload } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf } from "./actor.ts";
+import { sessionStatus } from "./ended.ts";
 import { userContext } from "./impersonation.ts";
-import { refreshSession, sessionEnded } from "./refresh.ts";
+import { refreshSession } from "./refresh.ts";
 import {
   applyCookieWrites,
   AUTH_CACHE_HEADERS,
@@ -670,14 +671,15 @@ export async function resolveAuth(
     if (
       state.kind === "user" &&
       options.checkSession &&
-      (await sessionEnded(state.token, {
+      (await sessionStatus(state.token, {
         url: options.env.url,
         publishableKey: options.env.publishableKey,
         ...(options.fetch ? { fetch: options.fetch } : {}),
         ...(options.refreshTimeoutMs === undefined
           ? {}
           : { timeoutMs: options.refreshTimeoutMs }),
-      }))
+        ...(options.now ? { now: options.now } : {}),
+      })) === "ended"
     ) {
       return resolution(
         { kind: "anon", reason: "signed_out" },

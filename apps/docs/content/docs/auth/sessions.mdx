@@ -108,6 +108,49 @@ headers, since a cookie API keyed by name (such as `response.cookies.set` in
 Next.js) keeps only the last write for each name, and don't pass them to
 `applyCookieWrites`, which would drop the current session from the request.
 
+## Ended sessions in your own proxy
+
+An access token stays valid until it expires, even after its session is
+signed out elsewhere, revoked or deleted. `bs.proxy({ endedSession })` in
+Next.js checks for that on page loads. A proxy or middleware that runs its
+own `@supabase/ssr` client uses the same check through `sessionStatus` and
+`clearSessionCookies` from `better-supabase/ssr` or `better-supabase/server`:
+
+```ts
+import { clearSessionCookies, sessionStatus } from "better-supabase/ssr";
+
+const status = await sessionStatus(request, { url, publishableKey });
+if (status === "ended") {
+  const response = NextResponse.redirect(
+    new URL("/login?reason=session_ended", request.url),
+  );
+  return clearSessionCookies(request, response, { url });
+}
+```
+
+`sessionStatus` takes a request or an access token. From a request it reads
+the bearer token, then the session cookie (`cookieName` overrides
+`sb-<project>-auth-token`). It asks Auth (`GET /auth/v1/user`) and returns:
+
+| Status      | When                                                                                          |
+| ----------- | --------------------------------------------------------------------------------------------- |
+| `"ended"`   | Auth answers 401 or 403: the session was signed out, revoked or deleted                       |
+| `"active"`  | Auth answers 2xx                                                                              |
+| `"unknown"` | No token, an expired token (refresh it first), a network failure, a timeout or another status |
+
+Treat `"unknown"` as active, so an Auth outage never signs anyone out. Each
+call costs one Auth request, so run it on page loads only, not on prefetches
+or assets (`shouldCheckSession` from `better-supabase/next` makes that
+choice for Next.js). `fetch`, `timeoutMs` (5000 by default) and `now` are
+optional.
+
+`clearSessionCookies(request, response, { url, cookieName?, cookie? })`
+appends `Max-Age=0` writes for every chunk of the session cookie the request
+carries, plus `AUTH_CACHE_HEADERS`, and returns the same response. Its
+headers must be mutable: `NextResponse.redirect` and `NextResponse.next` are,
+`Response.redirect` is not. Pass `cookie` with the `domain` or `path` the
+session was written at when it is not the default.
+
 ## Claims in the session
 
 The access token inside the cookie carries every claim your custom access

@@ -77,12 +77,14 @@ export {
   authContext,
   checkAal,
   checkSession,
+  clearSessionCookies,
   clientIp,
   impersonatorOf,
   readSession,
   refreshSession,
   resolveAuth,
   sessionCookieName,
+  sessionStatus,
   toSession,
   writeSession,
 } from "../auth/index.ts";
@@ -94,6 +96,7 @@ export type {
   AuthResolver,
   AuthSession,
   AuthState,
+  ClearSessionCookiesOptions,
   CookieOptions,
   CookieRecord,
   CookieWrite,
@@ -106,6 +109,8 @@ export type {
   SessionActor,
   SessionDelegation,
   SessionLookup,
+  SessionStatus,
+  SessionStatusOptions,
   StoredSession,
 } from "../auth/index.ts";
 export {

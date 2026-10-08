@@ -88,6 +88,9 @@ actions and prefetches keep the local token check unless their path is in
 cannot be reached or answers with a server error, the session is kept.
 `endedSession: true` checks document loads without a redirect. Use
 `shouldCheckSession(request, options)` to see whether a request is checked.
+A proxy that does not use `bs.proxy` can run the same check with
+`sessionStatus` and `clearSessionCookies`
+([details](/docs/auth/sessions#ended-sessions-in-your-own-proxy)).
 
 ## Server Components
 
