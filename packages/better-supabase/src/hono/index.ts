@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import type { AuthState } from "../auth/resolve.ts";
+import type { AuthSession } from "../auth/view.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type {
@@ -12,11 +13,13 @@ import type {
   ServerOptions,
 } from "../server/server.ts";
 
+import { toSession } from "../auth/view.ts";
 import { honoMiddleware } from "../bridges/hono.ts";
 import { dbErrorOf } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
+import { type KitRequireOptions, requireCaller } from "../server/kit.ts";
 import {
   defineResource,
   type ResourceRouteOptions,
@@ -29,6 +32,7 @@ import {
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
+export type { KitRequireOptions } from "../server/kit.ts";
 export { toHono } from "../bridges/hono.ts";
 export type { HonoBridge } from "../bridges/hono.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
@@ -45,6 +49,10 @@ export interface HonoEnv<
     readonly bs: ServerContext<M, F, E, C, P>;
     readonly db: ServerContext<M, F, E, C, P>["db"];
     readonly auth: AuthState<C, P>;
+    /** The caller as plain data, safe to return in a response. */
+    readonly session: AuthSession<C, P>;
+    /** The active tenant: `ServerOptions.tenant`, then the tenant claim. */
+    readonly tenant: string | undefined;
   };
 }
 
@@ -76,7 +84,21 @@ export interface BetterHono<
   middleware(
     options?: MiddlewareOptions,
   ): MiddlewareHandler<HonoEnv<M, F, E, C, P>>;
-  /** Wraps a handler: `Result`s become JSON or Problem Details, `undefined` becomes 204. */
+  /**
+   * A route guard after `middleware()`: `allow`, `aal`, `scopes`,
+   * `requireTenant` and `authorize`. A refused caller gets Problem Details.
+   *
+   * ```ts
+   * app.post('/invites', bs.require({ requireTenant: true, authorize: (s) => can(s, 'members.invite') }), handler)
+   * ```
+   */
+  require: (
+    options?: KitRequireOptions<C, P>,
+  ) => MiddlewareHandler<HonoEnv<M, F, E, C, P>>;
+  /**
+   * Wraps a handler: `Result`s and `AsyncResult`s become JSON or Problem
+   * Details, `undefined` becomes 204.
+   */
   handler(
     fn: (
       c: Context<HonoEnv<M, F, E, C, P>>,
@@ -168,14 +190,36 @@ export function createHono<
         (c, ctx) => {
           // SAFETY: withBetterSupabase(server) contributes this server's ServerContext as `bs`.
           const bs = (ctx as { readonly bs: ServerContext<M, F, E, C, P> }).bs;
+          // SAFETY: withBetterSupabase contributes the resolved tenant as `tenant`.
+          const { tenant } = ctx as { readonly tenant: string | undefined };
           c.set("bs", bs);
           c.set("db", bs.db);
           c.set("auth", bs.auth);
+          c.set("session", toSession(bs.auth));
+          c.set("tenant", tenant);
         },
       );
       return async (c, next) => {
         await run(c, next);
         flushEvents(server, waitUntilOf(c));
+      };
+    },
+
+    require: (requireOptions = {}) => {
+      return async (c, next) => {
+        const ctx = contextOf(c);
+        const caller = await requireCaller(
+          ctx.auth,
+          requireOptions,
+          c.get("tenant"),
+        );
+        if ("kind" in caller) {
+          return problemResponse(caller, {
+            instance: new URL(c.req.url).pathname,
+            expose,
+          });
+        }
+        return next();
       };
     },
 

@@ -26,6 +26,7 @@ export interface ServerCore<
       readonly refresh?: boolean;
       readonly cookies?: boolean;
       readonly encode?: SessionEncoding;
+      readonly checkSession?: boolean;
     },
   ): Promise<AuthResolution<C, P>>;
   /** The session cookie's name (`auth.cookie.name`, else `sb-<ref>-auth-token`). */

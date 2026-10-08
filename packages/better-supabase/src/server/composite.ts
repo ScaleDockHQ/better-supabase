@@ -147,8 +147,15 @@ function betterSupabaseParts<
   core: ServerCore<M, F, E, C, P>,
   config: BetterSupabaseConfig = {},
 ): BetterSupabaseParts<M, F, E, C, P> {
-  const { refresh, cookies, waitUntil, encode, cookieScopes, ...guardConfig } =
-    config;
+  const {
+    refresh,
+    cookies,
+    waitUntil,
+    encode,
+    cookieScopes,
+    checkSession,
+    ...guardConfig
+  } = config;
   return [
     withSession(core, {
       ...(refresh === undefined ? {} : { refresh }),
@@ -156,6 +163,7 @@ function betterSupabaseParts<
       ...(waitUntil === undefined ? {} : { waitUntil }),
       ...(encode === undefined ? {} : { encode }),
       ...(cookieScopes === undefined ? {} : { cookieScopes }),
+      ...(checkSession === undefined ? {} : { checkSession }),
     }),
     withTenant(core),
     withSupport(core),
@@ -236,6 +244,7 @@ export function withBetterSupabase<
     waitUntil,
     encode,
     cookieScopes,
+    checkSession,
     allow,
     aal,
     scopes,
@@ -247,6 +256,7 @@ export function withBetterSupabase<
     ...(waitUntil === undefined ? {} : { waitUntil }),
     ...(encode === undefined ? {} : { encode }),
     ...(cookieScopes === undefined ? {} : { cookieScopes }),
+    ...(checkSession === undefined ? {} : { checkSession }),
     ...(allow === undefined ? {} : { allow }),
     ...(aal === undefined ? {} : { aal }),
     ...(scopes === undefined ? {} : { scopes }),

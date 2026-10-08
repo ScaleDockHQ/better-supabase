@@ -18,6 +18,7 @@ import { DbException } from "../core/errors.ts";
 import { toProblem } from "../core/problem.ts";
 import { unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
+import { refreshFor } from "../server/refresh.ts";
 import {
   defaultExpose,
   guard,
@@ -235,8 +236,9 @@ export function createExpo<
         publicPaths = [],
       } = middlewareOptions;
       return async (incoming): Promise<Response | void> => {
-        const ctx = await server.context(toRequest(incoming), {
-          refresh: middlewareOptions.refresh ?? true,
+        const resolved = toRequest(incoming);
+        const ctx = await server.context(resolved, {
+          refresh: refreshFor(middlewareOptions.refresh, resolved) ?? true,
         });
         const url = new URL(incoming.url);
         const target =

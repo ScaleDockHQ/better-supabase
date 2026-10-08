@@ -35,8 +35,19 @@ import { isReadSet, type ReadSet } from "../core/read-set.ts";
 import { err } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { type DbStats, EMPTY_STATS } from "../core/stats.ts";
+import { cacheTagsOf, tagFor, type TagOptions } from "../core/tags.ts";
 import { bearerRequest, flushEvents, handle } from "../server/adapter.ts";
 import { serverCore } from "../server/entries/core.ts";
+import {
+  type ActionInput,
+  type ActionParsed,
+  type ActionResult,
+  type AuthorizedContext,
+  type AuthorizeOptions,
+  formDataObject,
+  type Unwrapped,
+} from "../server/kit.ts";
+import { isPrefetch } from "../server/refresh.ts";
 import {
   defaultExpose,
   guard,
@@ -65,6 +76,12 @@ import {
   overrideRequestHeaders,
   serverTimingValue,
 } from "./proxy.ts";
+
+export type {
+  ActionResult,
+  AuthorizedContext,
+  AuthorizeOptions,
+} from "../server/kit.ts";
 
 export interface NextOptions extends ServerOptions {
   /** Invalidate `tagFor(table)` cache tags after mutations. Defaults to true. */
@@ -136,34 +153,6 @@ export interface EndedSessionOptions {
   readonly redirect?: string;
 }
 
-export type ActionResult<T> =
-  | { readonly ok: true; readonly data: T; readonly error: null }
-  | { readonly ok: false; readonly data: null; readonly error: DbError };
-
-/**
- * Checks after `allow`, `aal` and `scopes`. A caller who fails one gets
- * `forbidden`: an `ActionResult` error, a 403, or `forbidden()`.
- */
-export interface AuthorizeOptions<I, C, P, R extends boolean> {
-  /** Refuse callers without an active tenant, so `ctx.tenant` is a string. */
-  readonly requireTenant?: R;
-  /** Return `false` to refuse the caller, e.g. `(session) => can(session, 'members.invite')`. */
-  readonly authorize?: (
-    session: AuthSession<C, P>,
-    input: I,
-  ) => boolean | Promise<boolean>;
-}
-
-/** What `requireTenant` and `authorize` add to the context. */
-export interface AuthorizedContext<C, P, R extends boolean> {
-  readonly session: AuthSession<C, P>;
-  /**
-   * The active tenant: the action's `tenant`, then `NextOptions.tenant`,
-   * then the tenant claim (`tenantOf(session)`).
-   */
-  readonly tenant: R extends true ? string : string | undefined;
-}
-
 export interface ActionOptions<
   S extends StandardSchemaV1 | undefined,
   C = unknown,
@@ -215,20 +204,6 @@ export interface ScopeOptions {
    */
   readonly tenant?: string;
 }
-
-type ActionInput<S> = S extends StandardSchemaV1
-  ? StandardSchemaV1.InferInput<S> | FormData
-  : unknown;
-type ActionParsed<S> = S extends StandardSchemaV1
-  ? StandardSchemaV1.InferOutput<S>
-  : unknown;
-// Distributes over a `Result` union: the `Err` member adds nothing, so an
-// action that returns `err(...)` on one path keeps the data type of the others.
-type Unwrapped<T> = T extends { readonly ok: true; readonly data: infer D }
-  ? D
-  : T extends { readonly ok: false }
-    ? never
-    : T;
 
 export interface BetterNext<
   M extends AnyModels,
@@ -494,27 +469,6 @@ export function sessionTag(userId: string): string {
   return `bs:session:${userId}`;
 }
 
-export interface TagOptions {
-  /** The tenant the read is scoped to; `"*"` is every tenant's reads. */
-  readonly tenant?: string;
-}
-
-/**
- * `bs:<table>`, `bs:<table>:<id>`, or `bs:<table>@<tenant>` for a read
- * scoped to one tenant. Mutations invalidate the table tag, the tag of their
- * tenant (`bs:<table>@*` without one) and the tags of the changed rows.
- */
-export function tagFor(
-  table: string,
-  id?: string | number,
-  options: TagOptions = {},
-): string {
-  if (id !== undefined) return `bs:${table}:${String(id)}`;
-  return options.tenant === undefined
-    ? `bs:${table}`
-    : `bs:${table}@${options.tenant}`;
-}
-
 /**
  * The table tags of a read: the tenant's and every tenant's, or the table's.
  * A read across tenants (`"*"`) also carries the table's, which every
@@ -580,12 +534,7 @@ export function nextCache(options: NextCacheOptions = {}): CacheAdapter {
   return {
     name: "next",
     invalidate: (target) => {
-      const tenant = { tenant: target.tenant ?? "*" };
-      const tags: string[] = [];
-      for (const table of target.tables)
-        tags.push(tagFor(table), tagFor(table, undefined, tenant));
-      for (const id of target.ids) tags.push(tagFor(target.table, id));
-      invalidateAll(tags, options.revalidate);
+      invalidateAll(cacheTagsOf(target), options.revalidate);
     },
   };
 }
@@ -618,15 +567,6 @@ function interrupt(error: DbError): never {
   if (error.kind === "forbidden") authInterrupt(forbidden);
   if (error.kind === "not_found") notFound();
   throw new DbException(error);
-}
-
-function formDataObject(form: FormData): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const key of new Set(form.keys())) {
-    const values = form.getAll(key);
-    out[key] = values.length > 1 ? values : values[0];
-  }
-  return out;
 }
 
 export interface RequireAalOptions {
@@ -673,16 +613,6 @@ function endedRedirect(request: NextRequest, path: string): Response {
   const target = new URL(path, request.url);
   target.searchParams.set("reason", "session_ended");
   return NextResponse.redirect(target);
-}
-
-/** A router or browser prefetch, by its request headers. */
-function isPrefetch(request: Request): boolean {
-  const h = request.headers;
-  return (
-    h.has("next-router-prefetch") ||
-    h.get("purpose") === "prefetch" ||
-    (h.get("sec-purpose")?.includes("prefetch") ?? false)
-  );
 }
 
 export function shouldCheckSession(

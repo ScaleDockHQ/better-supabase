@@ -152,3 +152,31 @@ describe("expectDbBudget", () => {
     ).rejects.toThrow(/answered 404\. Mount bs\.debugRoute\(\)/);
   });
 });
+
+describe("expectDbBudget(response)", () => {
+  const withStats = (value?: string, header = "x-bs-db-calls") =>
+    new Response(null, value ? { headers: { [header]: value } } : {});
+
+  it("returns the stats within budget", () => {
+    expect(
+      expectDbBudget(withStats("2;1;5"), { maxCalls: 3, maxWaves: 1 }),
+    ).toEqual({
+      calls: 2,
+      waves: 1,
+      ms: 5,
+    });
+    expect(
+      expectDbBudget(withStats("9;9;9", "x-db"), { header: "x-db" }).calls,
+    ).toBe(9);
+  });
+
+  it("fails over budget or without the header", () => {
+    expect(() => expectDbBudget(withStats("4;1;5"), { maxCalls: 3 })).toThrow(
+      /4 calls in 1 waves/,
+    );
+    expect(() => expectDbBudget(withStats("1;3;5"), { maxWaves: 2 })).toThrow(
+      /over the budget/,
+    );
+    expect(() => expectDbBudget(withStats(), {})).toThrow(/withDbStats/);
+  });
+});

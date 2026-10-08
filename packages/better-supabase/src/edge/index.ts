@@ -1,5 +1,6 @@
 import { withCors, type WithCorsConfig } from "@supabase/middleware/cors";
 
+import type { AuthSession } from "../auth/view.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type {
@@ -11,8 +12,11 @@ import type {
 import { type EdgeHandler, toEdge } from "../bridges/edge.ts";
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
+import { err } from "../core/result.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
+import { EVERY_CALLER } from "../server/framework.ts";
+import { type KitRequireOptions, requireCaller } from "../server/kit.ts";
 import {
   defineResource,
   type ResourceHandler,
@@ -23,12 +27,14 @@ import {
   type MiddlewareOptions,
   respond,
 } from "../server/respond.ts";
-import { createServer, extendServer } from "../server/server.ts";
+import { createServer, extendServer, withExtra } from "../server/server.ts";
+import { compileRoutes, matchRoute, type RouteMatch } from "./routes.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export { toEdge } from "../bridges/edge.ts";
 export type { EdgeExecutionContext, EdgeHandler } from "../bridges/edge.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
+export type { KitRequireOptions } from "../server/kit.ts";
 
 export interface CorsOptions {
   /** Allowed origins, or `*`. Defaults to `*`. */
@@ -61,6 +67,47 @@ export interface ResourcesOptions extends MiddlewareOptions {
   readonly basePath?: string;
 }
 
+/** A route handler: the request, the caller's context and the path params. */
+export type EdgeRouteHandler<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+> = (
+  request: Request,
+  ctx: ServerContext<M, F, E, C, P> & {
+    readonly params: Readonly<Record<string, string>>;
+    readonly session: AuthSession<C, P>;
+    readonly tenant: string | undefined;
+  },
+) => unknown;
+
+/** A route with its own guard: `allow`, `aal`, `scopes`, `requireTenant`, `authorize`. */
+export interface EdgeRoute<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+> extends KitRequireOptions<C, P> {
+  readonly handler: EdgeRouteHandler<M, F, E, C, P>;
+}
+
+/**
+ * Routes by `"METHOD /path"` (or `"/path"` for every method). `:name`
+ * segments are params, a final `*` matches the rest of the path.
+ */
+export type EdgeRoutes<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+> = Readonly<
+  Record<string, EdgeRouteHandler<M, F, E, C, P> | EdgeRoute<M, F, E, C, P>>
+>;
+
 export interface BetterEdge<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -75,6 +122,23 @@ export interface BetterEdge<
   handler(
     fn: (request: Request, ctx: ServerContext<M, F, E, C, P>) => unknown,
     options?: MiddlewareOptions,
+  ): EdgeHandler;
+  /**
+   * A router: each route runs as the caller, behind the shared guard in
+   * `options` and its own. An unknown path answers 404 and a known path
+   * with another method 405, both before auth resolves.
+   *
+   * ```ts
+   * Deno.serve(bs.routes({
+   *   'GET /customers': (req, ctx) => ctx.db.customers.findMany(),
+   *   'GET /customers/:id': (req, ctx) => ctx.db.customers.find(ctx.params.id),
+   *   'POST /invites': { requireTenant: true, handler: (req, ctx) => invite(req, ctx) },
+   * }, { basePath: '/api' }))
+   * ```
+   */
+  routes(
+    routes: EdgeRoutes<M, F, E, C, P>,
+    options?: ResourcesOptions,
   ): EdgeHandler;
   /** REST resources matching `createOpenApi`, e.g. `Deno.serve(bs.resources({ customers: true }))`. */
   resources(map: ResourceMap<M>, options?: ResourcesOptions): EdgeHandler;
@@ -125,7 +189,11 @@ export function createEdge<
   const withCorsConfig = cors ? corsConfig(cors) : undefined;
 
   const serve = (
-    run: (request: Request, ctx: ServerContext<M, F, E, C, P>) => unknown,
+    run: (
+      request: Request,
+      ctx: ServerContext<M, F, E, C, P>,
+      tenant: string | undefined,
+    ) => unknown,
     handlerOptions: MiddlewareOptions,
     /** Answers before auth resolves, e.g. a 404 for an unknown route. */
     early?: (request: Request) => Response | undefined,
@@ -135,7 +203,7 @@ export function createEdge<
       async (request, ctx) => {
         const instance = new URL(request.url).pathname;
         try {
-          return await respond(() => run(request, ctx.bs), {
+          return await respond(() => run(request, ctx.bs, ctx.tenant), {
             instance,
             expose,
           });
@@ -168,6 +236,79 @@ export function createEdge<
   return extendServer<BetterEdge<M, F, E, C, P>>(server, {
     handler(fn, handlerOptions = {}) {
       return serve(fn, handlerOptions);
+    },
+
+    routes(routes, routesOptions = {}) {
+      const base = (routesOptions.basePath ?? "").replace(/\/$/, "");
+      const compiled = compileRoutes(routes);
+      const { allow, aal, scopes, ...middlewareOptions } = routesOptions;
+      const shared = {
+        ...(allow === undefined ? {} : { allow }),
+        ...(aal === undefined ? {} : { aal }),
+        ...(scopes === undefined ? {} : { scopes }),
+      };
+      const find = (request: Request): RouteMatch<M, F, E, C, P> | Response => {
+        const { pathname } = new URL(request.url);
+        const path =
+          base === ""
+            ? pathname
+            : pathname === base || pathname.startsWith(`${base}/`)
+              ? pathname.slice(base.length) || "/"
+              : undefined;
+        const found =
+          path === undefined
+            ? undefined
+            : matchRoute(compiled, request.method, path);
+        if (found === undefined || found === "none") {
+          return problemResponse(
+            dbError("not_found", `No route for ${pathname}`),
+            {
+              instance: pathname,
+            },
+          );
+        }
+        if (!("route" in found)) {
+          return Response.json(
+            {
+              type: "about:blank",
+              title: "Method Not Allowed",
+              status: 405,
+              detail: `${request.method} is not allowed on ${pathname}`,
+              instance: pathname,
+            },
+            {
+              status: 405,
+              headers: {
+                allow: found.join(", "),
+                "content-type": "application/problem+json",
+              },
+            },
+          );
+        }
+        return found;
+      };
+      return serve(
+        async (request, ctx, tenant) => {
+          const found = find(request);
+          if (found instanceof Response) return found;
+          const { route, params } = found;
+          const caller = await requireCaller(
+            ctx.auth,
+            { ...shared, ...route.options },
+            tenant,
+          );
+          if ("kind" in caller) return err(caller);
+          return route.handler(
+            request,
+            withExtra(ctx, { params, session: caller.session, tenant }),
+          );
+        },
+        { ...middlewareOptions, allow: EVERY_CALLER },
+        (request) => {
+          const found = find(request);
+          return found instanceof Response ? found : undefined;
+        },
+      );
     },
 
     resources(map, resourcesOptions = {}) {

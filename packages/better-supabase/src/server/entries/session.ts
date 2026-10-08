@@ -11,15 +11,44 @@ import {
   type SessionEncoding,
   serializeCookie,
 } from "../../auth/session.ts";
+import {
+  refreshFor,
+  type RefreshPolicy,
+  shouldCheckSession,
+} from "../refresh.ts";
 import { callOf, type ServerCore } from "./core.ts";
+
+function checkFor(
+  policy: SessionEntryConfig["checkSession"],
+  request: Request,
+): boolean {
+  if (policy === undefined || typeof policy === "boolean")
+    return policy ?? false;
+  return policy === "navigation"
+    ? shouldCheckSession(request)
+    : policy(request);
+}
 
 export interface SessionEntryConfig {
   /**
    * Refresh an expired cookie session and send the new cookies on the
    * response. Only where cookies can be written once per request (a proxy, a
-   * framework middleware); never in Server Components. Defaults to false.
+   * framework middleware); never in Server Components. `'navigation'`
+   * refreshes page loads, navigations and form posts (`shouldRefresh`), so
+   * parallel `fetch` calls never race on the refresh token. Defaults to false.
    */
-  readonly refresh?: boolean;
+  readonly refresh?: RefreshPolicy;
+  /**
+   * Ask the Auth server whether the session still exists, so a session
+   * ended elsewhere (sign-out on another device, an admin revoke) is anon
+   * here too. One Auth call per matching request: `true` checks every
+   * request, `'navigation'` full page loads (`shouldCheckSession`). Off by
+   * default, because a valid token otherwise never calls the Auth server.
+   */
+  readonly checkSession?:
+    | boolean
+    | "navigation"
+    | ((request: Request) => boolean);
   /** Read the session cookie. Defaults to true; `false` resolves bearer tokens only. */
   readonly cookies?: boolean;
   /**
@@ -95,11 +124,15 @@ export function withSession<
     run: () =>
       async function* (request, ctx) {
         const call = callOf(ctx)?.options;
-        const refresh = call ? (call.refresh ?? false) : config.refresh;
+        const refresh = call
+          ? (call.refresh ?? false)
+          : refreshFor(config.refresh, request);
         const cookies = call ? call.cookies : config.cookies;
+        const checkSession = !call && checkFor(config.checkSession, request);
         const session = await core.resolve(request, {
           ...(refresh === undefined ? {} : { refresh }),
           ...(cookies === undefined ? {} : { cookies }),
+          ...(checkSession ? { checkSession } : {}),
           ...(config.encode === undefined ? {} : { encode: config.encode }),
         });
         try {

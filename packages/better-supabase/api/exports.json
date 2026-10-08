@@ -501,6 +501,7 @@
       "AUTH_CACHE_HEADERS",
       "authContext",
       "authModeOf",
+      "cacheTagsOf",
       "checkAal",
       "checkSession",
       "clearSessionCookies",
@@ -508,6 +509,7 @@
       "clientIp",
       "contextFromSupabase",
       "createServer",
+      "DB_CALLS_HEADER",
       "defineResource",
       "deleteAccount",
       "endSessions",
@@ -516,23 +518,30 @@
       "fromProblem",
       "guard",
       "handle",
+      "hasRole",
       "impersonatorOf",
+      "isPrefetch",
       "isProblem",
       "isResult",
       "jwtClaimsOf",
+      "parseDbStats",
       "PRIMARY_COOKIE",
       "PROBLEM_CONTENT_TYPE",
       "PROBLEM_TYPE_BASE",
       "problemResponse",
       "readSession",
+      "refreshFor",
       "refreshSession",
       "resolveAuth",
       "resolveToken",
       "respond",
+      "rolesAt",
       "serverCore",
       "sessionCookieName",
       "sessionStatus",
       "settle",
+      "shouldCheckSession",
+      "shouldRefresh",
       "sqlSupportStore",
       "SUPPORT_COOKIE",
       "supportClaims",
@@ -541,6 +550,8 @@
       "supportOf",
       "supportSessions",
       "suspendAccount",
+      "tagCache",
+      "tagFor",
       "TENANT_HEADER",
       "toProblem",
       "toSession",
@@ -550,16 +561,21 @@
       "withBetterPostgres",
       "withBetterSupabase",
       "withBlock",
+      "withDbStats",
       "withGuard",
+      "withServerTiming",
       "withSession",
       "writeSession"
     ],
     "types": [
       "Aal",
       "ActClaim",
+      "ActionResult",
       "ActiveSupport",
       "AmrEntry",
       "AuthKind",
+      "AuthorizedContext",
+      "AuthorizeOptions",
       "AuthResolution",
       "AuthResolver",
       "AuthSession",
@@ -583,11 +599,14 @@
       "ImpersonationOptions",
       "Impersonator",
       "InvalidReason",
+      "KitActionOptions",
+      "KitRequireOptions",
       "MiddlewareOptions",
       "ProblemDetails",
       "ProblemOptions",
       "ProblemResponseOptions",
       "RefreshOutcome",
+      "RefreshPolicy",
       "ReplicaState",
       "ResolveAuthOptions",
       "ResolvedState",
@@ -601,6 +620,7 @@
       "ServerCore",
       "ServerDbOptions",
       "ServerOptions",
+      "ServerTiming",
       "SessionActor",
       "SessionDelegation",
       "SessionEntryConfig",
@@ -626,7 +646,8 @@
       "SupportStartRequest",
       "SupportView",
       "SuspendAccountOptions",
-      "SuspendAccountResult"
+      "SuspendAccountResult",
+      "TagOptions"
     ]
   },
   "./powersync": {
@@ -842,54 +863,103 @@
       "HonoBridge",
       "HonoEnv",
       "HonoOptions",
+      "KitRequireOptions",
       "MiddlewareOptions",
       "ResourceRouteOptions"
     ]
   },
   "./tanstack-start": {
     "values": [
+      "createTanStackStart",
       "toTanStackStart"
     ],
     "types": [
+      "ActionResult",
+      "AuthorizedContext",
+      "AuthorizeOptions",
+      "BetterTanStackStart",
+      "FrameworkLocals",
+      "FrameworkOptions",
+      "KitActionOptions",
+      "KitRequireOptions",
+      "RefusalRedirects",
+      "TanStackStartHandlerArgs",
+      "TanStackStartOptions",
       "TanStackStartServerArgs",
       "ToTanStackStartOptions"
     ]
   },
   "./sveltekit": {
     "values": [
+      "createSvelteKit",
+      "tagFor",
       "toSvelteKit"
     ],
     "types": [
+      "ActionResult",
+      "AuthorizedContext",
+      "AuthorizeOptions",
+      "BetterSvelteKit",
+      "FrameworkLocals",
+      "FrameworkOptions",
+      "KitActionOptions",
+      "KitRequireOptions",
+      "RefusalRedirects",
+      "SvelteKitAppError",
+      "SvelteKitDepends",
       "SvelteKitEvent",
-      "SvelteKitHandle"
+      "SvelteKitFailure",
+      "SvelteKitHandle",
+      "SvelteKitHelpers",
+      "SvelteKitOptions",
+      "SvelteKitRequestEvent"
     ]
   },
   "./react-router": {
     "values": [
+      "createReactRouter",
       "toReactRouter"
     ],
     "types": [
+      "ActionResult",
+      "AuthorizedContext",
+      "AuthorizeOptions",
+      "BetterReactRouter",
+      "FrameworkLocals",
+      "FrameworkOptions",
+      "KitActionOptions",
+      "KitRequireOptions",
+      "ReactRouterArgs",
       "ReactRouterContext",
+      "ReactRouterContextProvider",
       "ReactRouterMiddleware",
+      "ReactRouterOptions",
+      "RefusalRedirects",
       "ToReactRouterOptions"
     ]
   },
   "./h3": {
     "values": [
+      "guard",
+      "problemOnError",
       "toH3"
     ],
     "types": [
       "H3Event",
       "H3Middleware",
+      "RouteGuardOptions",
       "ToH3Options"
     ]
   },
   "./elysia": {
     "values": [
+      "guard",
+      "problemOnError",
       "toElysia"
     ],
     "types": [
-      "ElysiaBridge"
+      "ElysiaBridge",
+      "RouteGuardOptions"
     ]
   },
   "./orpc": {
@@ -902,9 +972,12 @@
       "BetterOrpc",
       "GuardOptions",
       "MiddlewareOptions",
+      "OrpcAuthed",
       "OrpcContext",
+      "OrpcExecutionContext",
       "OrpcFetchHandler",
       "OrpcFetchOptions",
+      "OrpcGuardOptions",
       "OrpcHandlerLike",
       "OrpcMiddleware",
       "OrpcOptions",
@@ -942,7 +1015,11 @@
       "EdgeExecutionContext",
       "EdgeHandler",
       "EdgeOptions",
+      "EdgeRoute",
+      "EdgeRouteHandler",
+      "EdgeRoutes",
       "GuardOptions",
+      "KitRequireOptions",
       "MiddlewareOptions",
       "ResourceMap",
       "ResourceRouteOptions",
@@ -2814,6 +2891,8 @@
       "IsolationTenant",
       "LocalStack",
       "MeasuredRender",
+      "ResponseBudgetExpectation",
+      "ResponseDbStats",
       "Seed",
       "SeedFixtures",
       "SigningJwk",

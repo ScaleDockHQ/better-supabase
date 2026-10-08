@@ -148,3 +148,27 @@ export type {
   ResourcePagination,
   ResourceRouteOptions,
 } from "./resource.ts";
+export {
+  isPrefetch,
+  refreshFor,
+  shouldCheckSession,
+  shouldRefresh,
+} from "./refresh.ts";
+export type { RefreshPolicy } from "./refresh.ts";
+export {
+  DB_CALLS_HEADER,
+  parseDbStats,
+  withDbStats,
+  withServerTiming,
+} from "./entries/timing.ts";
+export type { ServerTiming } from "./entries/timing.ts";
+export { cacheTagsOf, tagCache, tagFor } from "../core/tags.ts";
+export type { TagOptions } from "../core/tags.ts";
+export { hasRole, rolesAt } from "./kit.ts";
+export type {
+  ActionResult,
+  AuthorizedContext,
+  AuthorizeOptions,
+  KitActionOptions,
+  KitRequireOptions,
+} from "./kit.ts";

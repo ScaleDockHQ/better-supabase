@@ -4,6 +4,7 @@ import type { BetterServer, ContextOptions, ServerContext } from "./server.ts";
 
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
+import { refreshFor } from "./refresh.ts";
 import {
   defaultExpose,
   guard,
@@ -84,7 +85,7 @@ export async function handle<
   const instance = options.instance ?? new URL(request.url).pathname;
   const ctx = await server.context(request, {
     ...options.context,
-    refresh: options.refresh ?? false,
+    refresh: refreshFor(options.refresh, request) ?? false,
   });
   const denied = guard(ctx.auth, options.allow, options.aal, options.scopes);
   try {

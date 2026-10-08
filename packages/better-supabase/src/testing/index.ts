@@ -29,6 +29,8 @@ export type {
   BudgetResponse,
   DbBudgetExpectation,
   MeasuredRender,
+  ResponseBudgetExpectation,
+  ResponseDbStats,
 } from "./budget.ts";
 export { supabaseClaimFixtures } from "./claims-fixtures.ts";
 export type {
