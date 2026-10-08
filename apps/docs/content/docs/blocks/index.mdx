@@ -67,35 +67,36 @@ expose the module schema itself.
 
 ## Blocks
 
-| Block                                                       | Subpath                                                                              | SQL modules                            |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------- |
-| [Access contract](/docs/blocks/access)                      | none                                                                                 | `access`, `tenant`                     |
-| [Organizations and invitations](/docs/blocks/organizations) | `better-supabase/blocks/organizations`                                               | `organizations`, `invitations`         |
-| [Profiles](/docs/blocks/profiles)                           | `better-supabase/blocks/profiles`                                                    | `profiles`                             |
-| [Audit log](/docs/blocks/audit)                             | `better-supabase/blocks/audit`                                                       | `audit`                                |
-| [Jobs, idempotency and webhook inbox](/docs/blocks/jobs)    | `better-supabase/blocks/jobs`                                                        | `jobs`, `idempotency`, `webhook-inbox` |
-| [Outbox](/docs/blocks/outbox)                               | `better-supabase/blocks/outbox`                                                      | `outbox`                               |
-| [Durable streams](/docs/blocks/streams)                     | `better-supabase/streams`, `better-supabase/streams/redis`                           | `streams`                              |
-| [Workflows](/docs/blocks/workflows)                         | `better-supabase/blocks/workflows`, `better-supabase/blocks/workflows/react`         | `workflows`                            |
-| [Workflow SDK](/docs/blocks/workflow-sdk)                   | `better-supabase/workflow-sdk`, `better-supabase/workflow-sdk/world`                 | `workflow-sdk-world`                   |
-| [Notifications](/docs/blocks/notifications)                 | `better-supabase/blocks/notifications`, `better-supabase/blocks/notifications/react` | `notifications`                        |
-| [Outgoing webhooks](/docs/blocks/webhooks-out)              | `better-supabase/blocks/webhooks`                                                    | `webhooks-out`                         |
-| [Incoming webhooks](/docs/blocks/webhooks-in)               | `better-supabase/blocks/webhooks`                                                    | `webhooks-in`, `webhook-inbox`         |
-| [API keys](/docs/blocks/api-keys)                           | `better-supabase/blocks/api-keys`                                                    | `api-keys`                             |
-| [Settings](/docs/blocks/settings)                           | `better-supabase/blocks/settings`                                                    | `settings`                             |
-| [Usage and quotas](/docs/blocks/usage)                      | `better-supabase/blocks/usage`                                                       | `usage`                                |
-| [Billing](/docs/blocks/billing)                             | `better-supabase/blocks/billing`                                                     | `billing`                              |
-| [Feature flags](/docs/blocks/flags)                         | `better-supabase/blocks/flags`                                                       | `flags`                                |
-| [Comments and activity](/docs/blocks/comments)              | `better-supabase/blocks/comments`                                                    | `comments`                             |
-| [Attachments](/docs/blocks/attachments)                     | `better-supabase/blocks/attachments`                                                 | `attachments`                          |
-| [Data lifecycle](/docs/blocks/data-lifecycle)               | `better-supabase/blocks/data-lifecycle`                                              | `data-lifecycle`                       |
-| [SSO and SCIM](/docs/blocks/sso)                            | `better-supabase/blocks/sso`                                                         | `sso`                                  |
-| [Onboarding](/docs/blocks/onboarding)                       | `better-supabase/blocks/onboarding`, `better-supabase/blocks/onboarding/react`       | `onboarding`                           |
-| [Waitlist and invite codes](/docs/blocks/waitlist)          | `better-supabase/blocks/waitlist`                                                    | `waitlist`                             |
-| [Announcements](/docs/blocks/announcements)                 | `better-supabase/blocks/announcements`, `better-supabase/blocks/announcements/react` | `announcements`                        |
-| [Entitlements](/docs/blocks/entitlements)                   | `better-supabase/blocks/entitlements`                                                | `entitlements`                         |
-| [Vector search](/docs/blocks/vector-search)                 | none (`db.$search` in the core)                                                      | `vector-search`                        |
-| [AI messages](/docs/blocks/ai-chat)                         | `better-supabase/blocks/ai-chat`                                                     | none                                   |
+| Block                                                       | Subpath                                                                                                                            | SQL modules                            |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| [Access contract](/docs/blocks/access)                      | none                                                                                                                               | `access`, `tenant`                     |
+| [Organizations and invitations](/docs/blocks/organizations) | `better-supabase/blocks/organizations`                                                                                             | `organizations`, `invitations`         |
+| [Profiles](/docs/blocks/profiles)                           | `better-supabase/blocks/profiles`                                                                                                  | `profiles`                             |
+| [Audit log](/docs/blocks/audit)                             | `better-supabase/blocks/audit`                                                                                                     | `audit`                                |
+| [Jobs, idempotency and webhook inbox](/docs/blocks/jobs)    | `better-supabase/blocks/jobs`                                                                                                      | `jobs`, `idempotency`, `webhook-inbox` |
+| [Outbox](/docs/blocks/outbox)                               | `better-supabase/blocks/outbox`                                                                                                    | `outbox`                               |
+| [Durable streams](/docs/blocks/streams)                     | `better-supabase/streams`, `better-supabase/streams/redis`                                                                         | `streams`                              |
+| [Workflows](/docs/blocks/workflows)                         | `better-supabase/blocks/workflows`, `better-supabase/blocks/workflows/react`                                                       | `workflows`                            |
+| [Workflow SDK](/docs/blocks/workflow-sdk)                   | `better-supabase/workflow-sdk`, `better-supabase/workflow-sdk/world`                                                               | `workflow-sdk-world`                   |
+| [Workflow builder](/docs/blocks/workflow-builder)           | `better-supabase/blocks/workflow-builder`, `better-supabase/blocks/workflow-builder/react`, `better-supabase/workflow-sdk/builder` | `workflow-builder`                     |
+| [Notifications](/docs/blocks/notifications)                 | `better-supabase/blocks/notifications`, `better-supabase/blocks/notifications/react`                                               | `notifications`                        |
+| [Outgoing webhooks](/docs/blocks/webhooks-out)              | `better-supabase/blocks/webhooks`                                                                                                  | `webhooks-out`                         |
+| [Incoming webhooks](/docs/blocks/webhooks-in)               | `better-supabase/blocks/webhooks`                                                                                                  | `webhooks-in`, `webhook-inbox`         |
+| [API keys](/docs/blocks/api-keys)                           | `better-supabase/blocks/api-keys`                                                                                                  | `api-keys`                             |
+| [Settings](/docs/blocks/settings)                           | `better-supabase/blocks/settings`                                                                                                  | `settings`                             |
+| [Usage and quotas](/docs/blocks/usage)                      | `better-supabase/blocks/usage`                                                                                                     | `usage`                                |
+| [Billing](/docs/blocks/billing)                             | `better-supabase/blocks/billing`                                                                                                   | `billing`                              |
+| [Feature flags](/docs/blocks/flags)                         | `better-supabase/blocks/flags`                                                                                                     | `flags`                                |
+| [Comments and activity](/docs/blocks/comments)              | `better-supabase/blocks/comments`                                                                                                  | `comments`                             |
+| [Attachments](/docs/blocks/attachments)                     | `better-supabase/blocks/attachments`                                                                                               | `attachments`                          |
+| [Data lifecycle](/docs/blocks/data-lifecycle)               | `better-supabase/blocks/data-lifecycle`                                                                                            | `data-lifecycle`                       |
+| [SSO and SCIM](/docs/blocks/sso)                            | `better-supabase/blocks/sso`                                                                                                       | `sso`                                  |
+| [Onboarding](/docs/blocks/onboarding)                       | `better-supabase/blocks/onboarding`, `better-supabase/blocks/onboarding/react`                                                     | `onboarding`                           |
+| [Waitlist and invite codes](/docs/blocks/waitlist)          | `better-supabase/blocks/waitlist`                                                                                                  | `waitlist`                             |
+| [Announcements](/docs/blocks/announcements)                 | `better-supabase/blocks/announcements`, `better-supabase/blocks/announcements/react`                                               | `announcements`                        |
+| [Entitlements](/docs/blocks/entitlements)                   | `better-supabase/blocks/entitlements`                                                                                              | `entitlements`                         |
+| [Vector search](/docs/blocks/vector-search)                 | none (`db.$search` in the core)                                                                                                    | `vector-search`                        |
+| [AI messages](/docs/blocks/ai-chat)                         | `better-supabase/blocks/ai-chat`                                                                                                   | none                                   |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,
 `support-sessions` and the rest) are listed on the

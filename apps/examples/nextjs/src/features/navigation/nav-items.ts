@@ -5,6 +5,7 @@ export type NavId =
   | "customers"
   | "notifications"
   | "workflows"
+  | "workflowBuilder"
   | "beta"
   | "members"
   | "billing"
@@ -35,6 +36,12 @@ export const navItems: readonly NavItem[] = [
   {
     id: "workflows",
     href: "/workflows",
+    group: "workspace",
+    requires: "workflow.read",
+  },
+  {
+    id: "workflowBuilder",
+    href: "/workflows/builder",
     group: "workspace",
     requires: "workflow.read",
   },

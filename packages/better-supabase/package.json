@@ -310,6 +310,17 @@
       "react-server": "./dist/blocks/workflows/react/server.js",
       "default": "./dist/blocks/workflows/react/index.js"
     },
+    "./blocks/workflow-builder": {
+      "@better-supabase/source": "./src/blocks/workflow-builder/index.ts",
+      "types": "./dist/blocks/workflow-builder/index.d.ts",
+      "default": "./dist/blocks/workflow-builder/index.js"
+    },
+    "./blocks/workflow-builder/react": {
+      "@better-supabase/source": "./src/blocks/workflow-builder/react/index.ts",
+      "types": "./dist/blocks/workflow-builder/react/index.d.ts",
+      "react-server": "./dist/blocks/workflow-builder/react/server.js",
+      "default": "./dist/blocks/workflow-builder/react/index.js"
+    },
     "./workflow-sdk": {
       "@better-supabase/source": "./src/workflow-sdk/index.ts",
       "types": "./dist/workflow-sdk/index.d.ts",
@@ -319,6 +330,11 @@
       "@better-supabase/source": "./src/workflow-sdk/world/index.ts",
       "types": "./dist/workflow-sdk/world/index.d.ts",
       "default": "./dist/workflow-sdk/world/index.js"
+    },
+    "./workflow-sdk/builder": {
+      "@better-supabase/source": "./src/workflow-sdk/builder/index.ts",
+      "types": "./dist/workflow-sdk/builder/index.d.ts",
+      "default": "./dist/workflow-sdk/builder/index.js"
     },
     "./streams": {
       "@better-supabase/source": "./src/streams/index.ts",
@@ -632,6 +648,15 @@
         "react-server": "./dist/blocks/workflows/react/server.js",
         "default": "./dist/blocks/workflows/react/index.js"
       },
+      "./blocks/workflow-builder": {
+        "types": "./dist/blocks/workflow-builder/index.d.ts",
+        "default": "./dist/blocks/workflow-builder/index.js"
+      },
+      "./blocks/workflow-builder/react": {
+        "types": "./dist/blocks/workflow-builder/react/index.d.ts",
+        "react-server": "./dist/blocks/workflow-builder/react/server.js",
+        "default": "./dist/blocks/workflow-builder/react/index.js"
+      },
       "./workflow-sdk": {
         "types": "./dist/workflow-sdk/index.d.ts",
         "default": "./dist/workflow-sdk/index.js"
@@ -639,6 +664,10 @@
       "./workflow-sdk/world": {
         "types": "./dist/workflow-sdk/world/index.d.ts",
         "default": "./dist/workflow-sdk/world/index.js"
+      },
+      "./workflow-sdk/builder": {
+        "types": "./dist/workflow-sdk/builder/index.d.ts",
+        "default": "./dist/workflow-sdk/builder/index.js"
       },
       "./streams": {
         "types": "./dist/streams/index.d.ts",

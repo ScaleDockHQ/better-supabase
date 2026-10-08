@@ -116,6 +116,13 @@ export const MODULE_PERMISSIONS = {
     run: "workflow.run",
     admin: "workflow.admin",
   },
+  "workflow-builder": {
+    read: "workflow.read",
+    run: "workflow.run",
+    edit: "workflow.edit",
+    publish: "workflow.publish",
+    admin: "workflow.admin",
+  },
 } as const;
 
 /**
@@ -174,6 +181,13 @@ export const MODULE_PERMISSION_SCOPES: {
   waitlist: { manage: "platform", invite: "tenant" },
   flags: { manage: "platform" },
   workflows: { read: "tenant", run: "tenant", admin: "tenant" },
+  "workflow-builder": {
+    read: "tenant",
+    run: "tenant",
+    edit: "tenant",
+    publish: "tenant",
+    admin: "tenant",
+  },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

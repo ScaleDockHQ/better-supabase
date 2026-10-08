@@ -1,0 +1,290 @@
+---
+title: Workflow builder
+description: Graph workflows that members edit and publish per tenant, with webhook, schedule and event triggers, credentials by reference, node-level run status and alerts on failed or slow runs.
+---
+
+The `workflow-builder` block stores workflows as graphs that members edit on
+a canvas and publish per tenant. A published version runs on the engine you
+choose. The [Workflow SDK](/docs/blocks/workflow-sdk#graph-workflows)
+adapter compiles each version to a workflow and records the status of each
+node, so the canvas shows a run as it happens.
+
+```bash
+better-supabase sql add workflow-builder   # adds workflows, tenant and access as well
+```
+
+| Table                     | Holds                                                                                                            |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `workflow_definitions`    | One row per workflow: `tenant_id`, `slug`, `name`, `description`                                                 |
+| `workflow_versions`       | Numbered versions of a definition: `graph`, `compiled`, `status` (`draft`, `published`, `archived`)              |
+| `workflow_triggers`       | What starts a definition: `kind` (`manual`, `webhook`, `schedule`, `event`, `form`, `chat`), `config`, `enabled` |
+| `workflow_webhook_tokens` | The SHA-256 of each webhook trigger's token; only the service role reads it                                      |
+| `workflow_credentials`    | A tenant's credentials by `kind` and `name`, as a `credential_ref`; never the secret itself                      |
+| `workflow_step_library`   | The steps your deployment provides, which the canvas offers as its palette                                       |
+| `workflow_node_runs`      | The status, attempts, output and error of each node of a run                                                     |
+| `workflow_alerts`         | Alerts on a definition's failed runs, or runs that stay unfinished past a threshold                              |
+| `workflow_alert_fires`    | Which alert fired for which run, so each fires once; only the service role reads it                              |
+
+| Permission         | Lets                                                          | Default roles   |
+| ------------------ | ------------------------------------------------------------- | --------------- |
+| `workflow.read`    | members read the tenant's definitions, versions and node runs | none by default |
+| `workflow.run`     | members start a published version                             | none by default |
+| `workflow.edit`    | members create definitions and save drafts                    | none by default |
+| `workflow.publish` | members publish a version                                     | none by default |
+| `workflow.admin`   | members manage triggers, credentials and alerts               | none by default |
+
+Grant the keys to your roles in `sql.modules.access.roles`.
+
+## Graphs
+
+A graph is a list of nodes and the edges between them. It has one
+`trigger` node, and the other nodes run in dependency order once the trigger
+reaches them.
+
+```ts
+import type { WorkflowGraph } from "better-supabase/blocks/workflow-builder";
+
+const graph: WorkflowGraph = {
+  nodes: [
+    { id: "start", kind: "trigger" },
+    {
+      id: "lookup",
+      kind: "step",
+      step: "crm.lookup",
+      config: { field: "email" },
+    },
+    {
+      id: "isPaid",
+      kind: "condition",
+      config: { path: "results.lookup.plan", op: "equals", value: "pro" },
+    },
+    { id: "review", kind: "approval" },
+    { id: "wait", kind: "sleep", config: { duration: "1d" } },
+    {
+      id: "welcome",
+      kind: "step",
+      step: "email.send",
+      config: { template: "welcome" },
+    },
+  ],
+  edges: [
+    { id: "e1", source: "start", target: "lookup" },
+    { id: "e2", source: "lookup", target: "isPaid" },
+    { id: "e3", source: "isPaid", target: "review", branch: "true" },
+    { id: "e4", source: "isPaid", target: "wait", branch: "false" },
+    { id: "e5", source: "review", target: "welcome", branch: "true" },
+    { id: "e6", source: "wait", target: "welcome" },
+  ],
+};
+```
+
+| Kind        | Does                                                                                                                                     |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `trigger`   | Passes the run's input on                                                                                                                |
+| `step`      | Calls the library step `step` with its `config`, the input and the outputs of the nodes before it                                        |
+| `sleep`     | Waits `config.duration`: milliseconds, or `30s`, `5m`, `2h`, `1d`                                                                        |
+| `approval`  | Waits for its hook to be resumed; the payload `{ approved: false }` takes the `false` branch                                             |
+| `condition` | Tests `config.path` (under `input` or `results`) with `equals`, `notEquals`, `exists`, `truthy`, `greaterThan`, `lessThan` or `contains` |
+
+An edge without a `branch` runs its target when its source ran. From a
+condition or an approval, `branch: "true"` or `"false"` picks the outcome
+it follows. A node runs when one of its incoming edges is active, so two
+branches can join again.
+
+`validateGraph(graph, steps)` returns the errors: a missing or second
+trigger, a cycle, an edge to an unknown node, a step outside the library or
+an invalid condition. The database runs the same checks when it saves a
+draft and when it publishes one. `diffGraphs(from, to)` lists the nodes and
+edges that were added, removed or changed.
+
+## Editing and publishing
+
+```ts title="lib/workflow-builder.ts"
+import "server-only";
+
+import {
+  createBuilder,
+  sqlTransport,
+} from "better-supabase/blocks/workflow-builder";
+import {
+  compileGraph,
+  graphStarter,
+} from "better-supabase/workflow-sdk/builder";
+
+import { steps, stepLibrary } from "@/workflows/steps";
+import { graphExecutor } from "@/workflows/graph";
+
+export const builderFor = (sql: Sql) =>
+  createBuilder({
+    transport: sqlTransport(sql),
+    service: sqlTransport(postgres.admin),
+    steps: stepLibrary,
+    compile: compileGraph,
+    start: graphStarter({ steps, executor: graphExecutor }),
+  });
+```
+
+```ts
+const builder = builderFor(await bs.sql());
+
+const definition = await builder.definitions
+  .save({ tenant: organizationId, slug: "onboarding", name: "Onboarding" })
+  .orThrow();
+const draft = await builder.versions.save(definition.id, graph).orThrow();
+const published = await builder.versions.publish(draft.id).orThrow();
+const runId = await builder
+  .run({ definition: definition.id, input: { email } })
+  .orThrow();
+```
+
+`versions.save` updates the open draft, or opens the next version when the
+last one is published. `versions.publish` runs `compile` on the graph,
+stores the result with the version, publishes it and archives the version
+that was published before. `run` starts the published version through
+`start` with a fresh idempotency key unless you pass one, and returns the
+engine's run id. The run appears in `workflow_runs` like any other run.
+
+`steps.sync()` writes `steps` to the library (service role). Run it at
+deploy time or on start-up, so the palette and the database's checks know
+every step the deployment has. Each step has a `name`, a `title`, JSON
+Schemas for its config and output, and the `credentialKind` it needs.
+
+## Triggers
+
+```ts
+await builder.triggers.save({ definition: id, kind: "webhook" }).orThrow();
+const token = await builder.triggers.rotateToken(triggerId).orThrow(); // shown once
+```
+
+| Kind       | How it starts a run                                                                                                    |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `manual`   | `builder.run()` from your UI                                                                                           |
+| `webhook`  | `builder.triggers.webhook(request)` in a route: the token in the path or a `Bearer` header, the JSON body as the input |
+| `schedule` | `triggers.syncSchedule(trigger)` creates a [workflows schedule](/docs/blocks/workflows#schedules) from `config.cron`   |
+| `event`    | `builder.triggers.onEvent(event)` from your outbox consumer starts every definition listening for `config.type`        |
+| `form`     | Your form calls `run()`; `config.schema` holds its fields                                                              |
+| `chat`     | Your chat calls `run()`                                                                                                |
+
+```ts title="app/api/hooks/workflows/[token]/route.ts"
+export const POST = (request: Request) =>
+  serviceBuilder.triggers.webhook(request);
+```
+
+The webhook route answers `202` with `{ runId }`, `404` for an unknown or
+disabled token and `405` for a method other than `POST`. A body that is not
+JSON arrives as `{ body: "<text>" }`. An `Idempotency-Key`
+header keys the start, so a retried delivery starts one run. Only the
+token's SHA-256 is stored; rotating it ends the old one.
+
+Schedule triggers run on the `workflows` schedule tick. Pass
+`builder.triggers.starter(fallback)` as its `start`: it starts the
+`builder-trigger:` schedules here and hands the others to `fallback`.
+
+## Credentials
+
+```ts
+import { vaultCredentials } from "better-supabase/credentials";
+
+const builder = createBuilder({
+  transport,
+  service,
+  credentials: vaultCredentials(sql),
+});
+
+const slack = await builder.credentials
+  .create({
+    tenant: organizationId,
+    kind: "slack",
+    name: "Team Slack",
+    ref,
+    secret,
+  })
+  .orThrow();
+const { token } = await builder.credentials.resolve(slack.id).orThrow(); // inside a step
+await builder.credentials.revoke(slack.id);
+```
+
+A credential row holds a `credential_ref`, never the secret. `create` stores
+`secret` first when the provider can store one, and `authorize` returns the
+URL that connects an account for providers that authorize (such as
+[Vercel Connect](/docs/extending/credentials)). `resolve` is a service-role
+call for steps: it returns the token from the provider named in the ref,
+with the row's scopes. `revoke` deletes the row and then revokes the
+secret. Members with `workflow.admin` manage the tenant's credentials;
+members with `workflow.read` list them.
+
+## Run status on the canvas
+
+`nodeRunReporter` from `better-supabase/workflow-sdk/builder` wraps each
+step so it records `running`, then `completed` with its output or `failed`
+with its error, in `workflow_node_runs`. Each record pings
+`workflow-run:<id>`.
+
+```tsx title="components/workflow-canvas.tsx"
+"use client";
+
+import {
+  useWorkflowBuilder,
+  useWorkflowCanvasRun,
+} from "better-supabase/blocks/workflow-builder/react";
+
+export function CanvasStatus({ runId }: { runId: string }) {
+  const { run, nodes } = useWorkflowCanvasRun(runId);
+  return (
+    <p>
+      {run?.status}:{" "}
+      {Object.values(nodes).filter((n) => n.status === "completed").length}{" "}
+      nodes done
+    </p>
+  );
+}
+```
+
+`useWorkflowBuilder({ tenant })` returns the definitions, the step library
+and a `builder` bound to the user's session. `useWorkflowCanvasRun(id)`
+returns the run and each node's status by node id, and loads them again on
+every message on `workflow-run:<id>`. Both are Client Component hooks; in
+Server Components, call `builder.definitions.list()` and
+`builder.nodeRuns.list(run)` instead.
+
+## Alerts
+
+```ts
+await builder.alerts.save({
+  definition: id,
+  onEvent: "failed",
+  channel: { type: "email", to },
+});
+await builder.alerts.save({
+  definition: id,
+  onEvent: "slow",
+  threshold: 3600,
+  channel,
+});
+await serviceBuilder.alerts.check(); // from a cron route
+```
+
+A `failed` alert fires when a run of the definition fails. A `slow` alert
+fires from `alerts.check()` when a run is still unfinished `threshold`
+seconds after it started. Each alert fires once per run and emits a
+`workflow.alert` outbox event with the alert, its `channel` and the run.
+Your outbox consumer sends it; the module only stores the channel. Runs
+match a definition on their `bs.definition` attribute, which
+`graphStarter` sets.
+
+## Functions
+
+| Function                                                                                                         | Granted to                      | Does                                             |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------ |
+| `save_workflow_definition`, `workflow_definitions_list`, `workflow_definition_get`, `remove_workflow_definition` | `authenticated`, `service_role` | Definitions                                      |
+| `save_workflow_draft(definition, graph)`, `publish_workflow_version(version, compiled)`                          | `authenticated`, `service_role` | Drafts and publishing                            |
+| `workflow_versions_list`, `workflow_version_get`, `validate_workflow_graph`                                      | `authenticated`, `service_role` | Versions and graph checks                        |
+| `workflow_start_target(definition)`                                                                              | `authenticated`, `service_role` | The published version a `workflow.run` may start |
+| `save_workflow_trigger`, `workflow_triggers_list`, `remove_workflow_trigger`, `rotate_workflow_webhook_token`    | `authenticated`, `service_role` | Triggers                                         |
+| `workflow_webhook_target(token)`, `workflow_event_targets(type, tenant)`                                         | `service_role`                  | What a webhook or an event starts                |
+| `save_workflow_credential`, `workflow_credentials_list`, `remove_workflow_credential`                            | `authenticated`, `service_role` | Credentials                                      |
+| `workflow_credential_get(id)`                                                                                    | `service_role`                  | A credential's ref, for `resolve`                |
+| `sync_workflow_steps(steps)`, `workflow_steps_list()`                                                            | `service_role`, `authenticated` | The step library                                 |
+| `record_workflow_node_run(...)`, `workflow_node_runs_list(run)`                                                  | `service_role`, `authenticated` | Node status                                      |
+| `save_workflow_alert`, `workflow_alerts_list`, `remove_workflow_alert`                                           | `authenticated`, `service_role` | Alerts                                           |
+| `check_workflow_alerts(batch)`                                                                                   | `service_role`                  | Fires the slow alerts that are due               |

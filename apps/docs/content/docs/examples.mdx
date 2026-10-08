@@ -44,18 +44,19 @@ seeded users from `supabase/seed.sql` (password `password123`):
 
 The features and the better-supabase parts they use:
 
-| Feature                               | Uses                                                                                                                                             |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Sign-in, sign-up, password reset, MFA | `bs.proxy` with `protect`, the browser client, the Auth server and Mailpit                                                                       |
-| Organizations, switcher, invitations  | the `organizations` and `invitations` SQL modules with `better-supabase/blocks/organizations`                                                    |
-| Customers list and detail             | `defineListQuery` with facets, `bs.cached()` in `"use cache: private"`, comments, logo upload                                                    |
-| Notifications                         | the `notifications` module with `better-supabase/blocks/notifications`, a live unread badge                                                      |
-| Workflows                             | `better-supabase/blocks/workflows` and the Supabase World: a live runs list, run detail with cancel, an approval with `authorizeHook`, schedules |
-| Members, roles and permissions        | the `access` module in custom mode, `can()` in policies and the UI                                                                               |
-| Billing and plan features             | the `entitlements` and `usage` modules                                                                                                           |
-| API keys and audit log                | the `api-keys` and `audit` modules, with a CSV export                                                                                            |
-| Profile, settings, onboarding         | the `profiles`, `settings` and `onboarding` modules                                                                                              |
-| Announcements and a beta page         | the `announcements` and `flags` modules                                                                                                          |
+| Feature                               | Uses                                                                                                                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sign-in, sign-up, password reset, MFA | `bs.proxy` with `protect`, the browser client, the Auth server and Mailpit                                                                                                                                   |
+| Organizations, switcher, invitations  | the `organizations` and `invitations` SQL modules with `better-supabase/blocks/organizations`                                                                                                                |
+| Customers list and detail             | `defineListQuery` with facets, `bs.cached()` in `"use cache: private"`, comments, logo upload                                                                                                                |
+| Notifications                         | the `notifications` module with `better-supabase/blocks/notifications`, a live unread badge                                                                                                                  |
+| Workflows                             | `better-supabase/blocks/workflows` and the Supabase World: a live runs list, run detail with cancel, an approval with `authorizeHook`, schedules                                                             |
+| Workflow builder                      | `better-supabase/blocks/workflow-builder` on `@xyflow/react`: a node palette from the step library, a live run overlay, approvals on the canvas, trigger and credential drawers, publish with a version diff |
+| Members, roles and permissions        | the `access` module in custom mode, `can()` in policies and the UI                                                                                                                                           |
+| Billing and plan features             | the `entitlements` and `usage` modules                                                                                                                                                                       |
+| API keys and audit log                | the `api-keys` and `audit` modules, with a CSV export                                                                                                                                                        |
+| Profile, settings, onboarding         | the `profiles`, `settings` and `onboarding` modules                                                                                                                                                          |
+| Announcements and a beta page         | the `announcements` and `flags` modules                                                                                                                                                                      |
 
 The routes are localized under `/en` and `/nl` with `next/root-params`, and
 the translations are `.po` files read directly by next-intl. The theme
