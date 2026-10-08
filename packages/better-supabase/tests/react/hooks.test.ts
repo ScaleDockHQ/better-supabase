@@ -511,12 +511,12 @@ describe("useBroadcast", () => {
         throw new Error("tokens-only placeholder");
       },
     };
-    expect(() =>
+    expect(() => {
       callback("SIGNED_IN", {
         access_token: `e30.${payload}.sig`,
         user: placeholder,
-      }),
-    ).not.toThrow();
+      });
+    }).not.toThrow();
     expect(realtime.client.channel).toHaveBeenCalledTimes(1);
     view.unmount();
   });
@@ -1564,11 +1564,13 @@ describe("useAction", () => {
       undefined,
       null,
     );
-    const { run, reset } = view.result;
+    const before = view.result;
     onSuccess = latest;
     view.rerender(undefined);
-    expect(view.result.run).toBe(run);
-    expect(view.result.reset).toBe(reset);
+    // oxlint-disable-next-line typescript/unbound-method -- identity check only; run is never called unbound.
+    expect(view.result.run).toBe(before.run);
+    // oxlint-disable-next-line typescript/unbound-method -- identity check only; reset is never called unbound.
+    expect(view.result.reset).toBe(before.reset);
     await view.result.run({ id: "a" });
     expect(first).not.toHaveBeenCalled();
     expect(latest).toHaveBeenCalledOnce();

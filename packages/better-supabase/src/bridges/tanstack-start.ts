@@ -15,6 +15,11 @@ export interface TanStackStartServerArgs<Context, Result> {
   readonly next: (options: { readonly context: Context }) => Promise<Result>;
 }
 
+export interface ToTanStackStartOptions {
+  /** The host's env object for `getEnv`, read per request. */
+  readonly env?: (request: Request) => unknown;
+}
+
 /**
  * Runs an entry array as the `.server()` callback of a TanStack Start
  * middleware. Every contributed key lands on `context`. On request
@@ -30,6 +35,7 @@ export interface TanStackStartServerArgs<Context, Result> {
  */
 export function toTanStackStart<const Entries extends readonly AnyEntry[]>(
   entries: Entries & Validated<Entries>,
+  options: ToTanStackStartOptions = {},
 ): <Result extends object>(
   args: TanStackStartServerArgs<Contributions<Entries>, Result>,
 ) => Promise<Result> {
@@ -43,7 +49,8 @@ export function toTanStackStart<const Entries extends readonly AnyEntry[]>(
   >): Promise<Result> => {
     bufferInPlace(request);
     const downstream: { result?: Result } = {};
-    const response = await run(request, undefined, async (contributions) => {
+    const env = options.env?.(request);
+    const response = await run(request, env, async (contributions) => {
       const result = await next({
         // SAFETY: around() hands over exactly the entries' contributions.
         context: contributions as Contributions<Entries>,

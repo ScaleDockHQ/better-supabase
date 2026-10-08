@@ -187,7 +187,14 @@ export interface RouteOptions<
   P = unknown,
   R extends boolean = boolean,
 >
-  extends GuardOptions, AuthorizeOptions<NextRequest, C, P, R> {}
+  extends GuardOptions, AuthorizeOptions<NextRequest, C, P, R> {
+  /**
+   * Refresh an expired session cookie in the route and send the new cookies
+   * with its response. For routes the proxy's matcher skips; off by default
+   * because the proxy refreshes everything it matches.
+   */
+  readonly refresh?: boolean;
+}
 
 export interface RequireOptions<
   C = unknown,
@@ -1146,9 +1153,16 @@ export function createNext<
     action(actionOptions, fn) {
       type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
       return async (input) => {
-        let ctx = await current();
+        // With a per-input tenant the context waits for the input, so the
+        // guard reads the verified caller instead of building a context for
+        // `NextOptions.tenant` it would throw away. Support sessions swap the
+        // caller in the context, so they keep the context's view.
+        const early =
+          actionOptions.tenant && !options.support
+            ? undefined
+            : await current();
         const denied = guard(
-          ctx.auth,
+          early?.auth ?? (await incoming()).resolution.auth,
           actionOptions.allow,
           actionOptions.aal,
           actionOptions.scopes,
@@ -1165,7 +1179,10 @@ export function createNext<
         // SAFETY: parsed is the validated input, or the raw input when the
         // action has no schema.
         const tenant = actionOptions.tenant?.(parsed as never);
-        if (tenant !== undefined) ctx = await current(tenant);
+        const ctx =
+          tenant === undefined
+            ? (early ?? (await current()))
+            : await current(tenant);
         // SAFETY: as above, parsed is the action's input.
         const caller = await authorizeCaller(
           ctx,

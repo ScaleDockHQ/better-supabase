@@ -90,11 +90,30 @@ export function around(entries: readonly AnyEntry[]): Around {
     run(request, { ...seedContext(platform), [DOWNSTREAM]: downstream });
 }
 
-/** A framework handler's value as a `Response`: responses as is, `undefined` as 204, other values as JSON. */
-export function toResponse(value: unknown): Response {
+/** The status and headers a framework collected for a handler that returned a plain value. */
+export interface HandlerResponseInit {
+  readonly status?: number | undefined;
+  readonly statusText?: string | undefined;
+  readonly headers?: HeadersInit | undefined;
+}
+
+/**
+ * A framework handler's value as a `Response`: responses as is, `undefined`
+ * as 204, other values as JSON. `init` carries the status and headers the
+ * handler set on the framework's response object.
+ */
+export function toResponse(
+  value: unknown,
+  init: HandlerResponseInit = {},
+): Response {
   if (value instanceof Response) return value;
+  const options = {
+    ...(init.status === undefined ? {} : { status: init.status }),
+    ...(init.statusText === undefined ? {} : { statusText: init.statusText }),
+    ...(init.headers === undefined ? {} : { headers: init.headers }),
+  };
   if (value === undefined || value === null)
-    return new Response(null, { status: 204 });
-  if (typeof value === "string") return new Response(value);
-  return Response.json(value);
+    return new Response(null, { status: 204, ...options });
+  if (typeof value === "string") return new Response(value, options);
+  return Response.json(value, options);
 }

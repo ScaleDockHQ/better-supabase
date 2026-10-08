@@ -235,8 +235,8 @@ export function connectBucket<P extends string, Id extends string>(
     name: string;
     id: string | null;
     metadata: unknown;
-    created_at: string;
-    updated_at: string;
+    created_at: string | null;
+    updated_at: string | null;
   };
   const toObject = (path: string, item: Listed): StoredObject => {
     // SAFETY: Storage returns object metadata as JSON with optional size

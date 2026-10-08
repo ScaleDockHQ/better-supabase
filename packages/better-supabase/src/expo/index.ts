@@ -33,7 +33,7 @@ export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export type ExpoRequest = Request | ImmutableRequest;
 
 export { toExpo } from "../bridges/expo.ts";
-export type { ExpoParams } from "../bridges/expo.ts";
+export type { ExpoParams, ToExpoOptions } from "../bridges/expo.ts";
 
 export interface ExpoOptions extends ServerOptions {
   /** Include error details in problem responses. Defaults to `NODE_ENV === 'development'`. */

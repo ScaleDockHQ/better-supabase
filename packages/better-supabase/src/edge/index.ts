@@ -149,8 +149,10 @@ export function createEdge<
         early?.(request) ?? authorized(request, env, executionContext),
       );
     const answer: EdgeHandler = withCorsConfig
-      ? toEdge([withCors(withCorsConfig)], (request, _ctx, executionContext) =>
-          routed(request, undefined, executionContext),
+      ? toEdge(
+          [withCors(withCorsConfig)],
+          (request, _ctx, executionContext, env) =>
+            routed(request, env, executionContext),
         )
       : routed;
     return async (request, env, executionContext) => {
@@ -191,8 +193,10 @@ export function createEdge<
         readonly id: string | undefined;
         readonly instance: string;
       }
-      const routes = new WeakMap<Request, Route>();
-      const notFound = (request: Request): Response | undefined => {
+      // Matched from the URL on each call: the bridge buffers a request with a
+      // body into a new Request, so the early check and the handler see
+      // different objects.
+      const match = (request: Request): Route | Response => {
         const { pathname } = new URL(request.url);
         const rest = pathname.startsWith(`${base}/`)
           ? pathname.slice(base.length + 1)
@@ -209,27 +213,31 @@ export function createEdge<
             { instance: pathname },
           );
         }
-        let key: string | undefined;
         try {
-          key =
+          const key =
             id === undefined || id === "" ? undefined : decodeURIComponent(id);
+          return { handler, id: key, instance: pathname };
         } catch {
           return problemResponse(
             dbError("invalid_input", `Malformed id in ${pathname}`),
             { instance: pathname },
           );
         }
-        routes.set(request, { handler, id: key, instance: pathname });
-        return undefined;
       };
       return serve(
         (request, ctx) => {
-          // SAFETY: serve() only runs this after notFound() matched the request.
-          const { handler, id, instance } = routes.get(request)!;
-          return handler.handle(request, ctx.db, id, { instance, expose });
+          const route = match(request);
+          if (route instanceof Response) return route;
+          return route.handler.handle(request, ctx.db, route.id, {
+            instance: route.instance,
+            expose,
+          });
         },
         resourcesOptions,
-        notFound,
+        (request) => {
+          const route = match(request);
+          return route instanceof Response ? route : undefined;
+        },
       );
     },
   });

@@ -595,12 +595,15 @@ export function createMcp<
   }
   const registry = new Map<string, Entry>();
   let allTools: ToolInfo[] | undefined;
+  /** Bumped on every registration, so cached visible lists built before it miss. */
+  let generation = 0;
   const register = (entry: Entry): void => {
     if (registry.has(entry.info.name)) {
       throw new TypeError(`Duplicate MCP tool "${entry.info.name}"`);
     }
     registry.set(entry.info.name, entry);
     allTools = undefined;
+    generation++;
   };
   const failure = (error: DbError): ToolResult =>
     textResult(toProblem(error, { expose }), true);
@@ -686,7 +689,11 @@ export function createMcp<
    */
   const visibleLists = new Map<
     string,
-    { readonly tools: ToolInfo[]; readonly until: number }
+    {
+      readonly tools: ToolInfo[];
+      readonly until: number;
+      readonly generation: number;
+    }
   >();
   /** Without a `visible` hook every caller sees the same list, built once. */
   const visibleTools = async (
@@ -697,7 +704,8 @@ export function createMcp<
     const token = ctx.auth.kind === "user" ? ctx.auth.token : undefined;
     const now = Date.now();
     const cached = token === undefined ? undefined : visibleLists.get(token);
-    if (cached && cached.until > now) return cached.tools;
+    if (cached && cached.until > now && cached.generation === generation)
+      return cached.tools;
     const entries = [...registry.values()];
     const shown = await Promise.all(
       entries.map((entry) => isVisible(entry, ctx)),
@@ -709,7 +717,11 @@ export function createMcp<
         const oldest = visibleLists.keys().next();
         if (!oldest.done) visibleLists.delete(oldest.value);
       }
-      visibleLists.set(token, { tools, until: now + LIST_TTL_MS });
+      visibleLists.set(token, {
+        tools,
+        until: now + LIST_TTL_MS,
+        generation,
+      });
     }
     return tools;
   };

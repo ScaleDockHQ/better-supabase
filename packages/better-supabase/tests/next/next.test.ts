@@ -727,6 +727,19 @@ describe("createNext", () => {
       (_input, { tenant }) => tenant,
     );
     expect(await scoped({ org: "org-2" })).toMatchObject({ data: "org-2" });
+
+    const resolver = vi.fn(() => "org-default");
+    const withResolver = createNext(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      tenant: resolver,
+    });
+    const perInput = withResolver.action(
+      { input: v.object({ org: v.string() }), tenant: (input) => input.org },
+      (_input, { tenant }) => tenant,
+    );
+    expect(await perInput({ org: "org-3" })).toMatchObject({ data: "org-3" });
+    expect(resolver).not.toHaveBeenCalled();
   });
 
   it("refuses a route caller that authorize rejects with a 403", async () => {

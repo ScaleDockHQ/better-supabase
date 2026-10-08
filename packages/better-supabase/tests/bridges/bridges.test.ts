@@ -292,6 +292,80 @@ describe("bridge behavior", () => {
     expect(locals.probe).toBe(true);
   });
 
+  it("toH3 keeps the status and headers a handler set on event.res", async () => {
+    const middleware = toH3([]);
+    const headers = new Headers({ "x-kind": "created" });
+    const response = await middleware(
+      {
+        req: new Request("https://api.test/"),
+        context: {},
+        res: { status: 201, headers },
+      },
+      () => ({ id: 1 }),
+    );
+    expect(response.status).toBe(201);
+    expect(response.headers.get("x-kind")).toBe("created");
+    expect(await response.json()).toEqual({ id: 1 });
+  });
+
+  it("seeds getEnv from each bridge's platform env", async () => {
+    const seen: (string | undefined)[] = [];
+    const probe = defineMiddleware({
+      key: "probe",
+      run: () => async () => {
+        seen.push(getEnv("BRIDGE_PROBE"));
+        return { probe: true };
+      },
+    });
+    await toH3([probe()])(
+      {
+        req: new Request("https://api.test/"),
+        context: { cloudflare: { env: { BRIDGE_PROBE: "h3" } } },
+      },
+      () => undefined,
+    );
+    await toReactRouter([probe()], Symbol("k"), {
+      env: () => ({ BRIDGE_PROBE: "react-router" }),
+    })(
+      { request: new Request("https://app.test/"), context: { set: () => {} } },
+      async () => new Response(null),
+    );
+    await toTanStackStart([probe()], {
+      env: () => ({ BRIDGE_PROBE: "tanstack" }),
+    })({
+      request: new Request("https://app.test/"),
+      next: async () => ({ response: new Response(null) }),
+    });
+    await toExpo([probe()], () => new Response(null), {
+      env: () => ({ BRIDGE_PROBE: "expo" }),
+    })(new Request("https://app.test/"));
+    await toElysia([probe()]).wrap(async () => new Response(null))(
+      new Request("https://app.test/"),
+      { BRIDGE_PROBE: "elysia" },
+    );
+    await toOrpc([probe()], {
+      handle: async () => ({ matched: true, response: new Response(null) }),
+    })(new Request("https://app.test/"), { BRIDGE_PROBE: "orpc" });
+    expect(seen).toEqual([
+      "h3",
+      "react-router",
+      "tanstack",
+      "expo",
+      "elysia",
+      "orpc",
+    ]);
+  });
+
+  it("toEdge hands the host env to the handler", async () => {
+    const bindings = { BRIDGE_PROBE: "bound" };
+    let seen: unknown;
+    await toEdge([], (_request, _ctx, _execution, hostEnv) => {
+      seen = hostEnv;
+      return new Response(null);
+    })(new Request("https://app.test/"), bindings);
+    expect(seen).toBe(bindings);
+  });
+
   it("toTanStackStart throws a short circuit as a Response", async () => {
     const signer = await createTestSigner();
     const middleware = toTanStackStart([

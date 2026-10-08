@@ -742,7 +742,8 @@
       "toTanStackStart"
     ],
     "types": [
-      "TanStackStartServerArgs"
+      "TanStackStartServerArgs",
+      "ToTanStackStartOptions"
     ]
   },
   "./sveltekit": {
@@ -760,7 +761,8 @@
     ],
     "types": [
       "ReactRouterContext",
-      "ReactRouterMiddleware"
+      "ReactRouterMiddleware",
+      "ToReactRouterOptions"
     ]
   },
   "./h3": {
@@ -769,7 +771,8 @@
     ],
     "types": [
       "H3Event",
-      "H3Middleware"
+      "H3Middleware",
+      "ToH3Options"
     ]
   },
   "./elysia": {
@@ -813,7 +816,8 @@
       "ExpoParams",
       "ExpoRequest",
       "GuardOptions",
-      "MiddlewareOptions"
+      "MiddlewareOptions",
+      "ToExpoOptions"
     ]
   },
   "./edge": {
