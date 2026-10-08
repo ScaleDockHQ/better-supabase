@@ -17,7 +17,8 @@
           "unstable_useServerRendering": true
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-notifications"
     ],
     "updates": {
       "enabled": false

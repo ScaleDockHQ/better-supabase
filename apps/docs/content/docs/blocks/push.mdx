@@ -45,7 +45,7 @@ export async function onSignedIn() {
     notifications: Notifications,
     devices,
     platform: Platform.OS,
-    projectId: Constants.expoConfig?.extra?.eas?.projectId,
+    projectId: Constants.easConfig?.projectId,
     appVersion: Constants.expoConfig?.version,
   }).orThrow();
   token = device?.token;

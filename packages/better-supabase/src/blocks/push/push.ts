@@ -133,10 +133,10 @@ export interface RegisterDeviceOptions {
   readonly devices: PushDevices;
   /** `Platform.OS` from `react-native`. */
   readonly platform: string;
-  /** `Constants.expoConfig?.extra?.eas?.projectId`; Expo needs it outside Expo Go. */
-  readonly projectId?: string;
-  readonly deviceName?: string;
-  readonly appVersion?: string;
+  /** `Constants.easConfig?.projectId`; Expo needs it outside Expo Go. */
+  readonly projectId?: string | undefined;
+  readonly deviceName?: string | undefined;
+  readonly appVersion?: string | undefined;
   /** Asks for permission when it isn't granted yet. Defaults to true. */
   readonly request?: boolean;
 }
@@ -156,7 +156,7 @@ export interface RegisteredDevice {
  *   notifications: Notifications,
  *   devices: createPushDevices({ transport: rpcTransport(supabase) }),
  *   platform: Platform.OS,
- *   projectId: Constants.expoConfig?.extra?.eas?.projectId,
+ *   projectId: Constants.easConfig?.projectId,
  * }).orThrow();
  * ```
  */

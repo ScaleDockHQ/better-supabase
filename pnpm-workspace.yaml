@@ -90,9 +90,11 @@ catalog:
   expo: 57.0.26
   expo-constants: 57.0.20
   expo-linking: 57.0.11
+  expo-notifications: 57.0.17
   expo-router: 57.0.24
   expo-secure-store: 57.0.4
   expo-server: 57.0.3
+  expo-web-browser: 57.0.2
   fastest-levenshtein: 1.0.16
   fumadocs-core: 16.15.18
   fumadocs-mdx: 15.4.6

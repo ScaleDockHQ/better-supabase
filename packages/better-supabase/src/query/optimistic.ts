@@ -26,14 +26,14 @@ export interface OptimisticSnapshot {
 export interface OptimisticHandlers<V> {
   onMutate(variables: V, context: MutationContext): Promise<OptimisticSnapshot>;
   onError(
-    error: unknown,
+    error: Error,
     variables: V,
     snapshot: OptimisticSnapshot | undefined,
     context: MutationContext,
   ): void;
   onSettled(
     data: unknown,
-    error: unknown,
+    error: Error | null,
     variables: V,
     snapshot: OptimisticSnapshot | undefined,
     context: MutationContext,

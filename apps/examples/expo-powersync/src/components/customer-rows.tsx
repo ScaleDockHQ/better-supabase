@@ -22,7 +22,10 @@ const renderRow: ListRenderItem<Row> = ({ item }) => <CustomerRow row={item} />;
 
 const rowKey = (row: Row): string => row.id;
 
-/** Watched lists rerun on every change: only rows whose data changed re-render. */
+/**
+ * Watched lists rerun on every change. `useWatch` keeps the identity of
+ * unchanged rows, so `memo` re-renders only the rows whose data changed.
+ */
 export function CustomerRows({
   rows,
   footer,
