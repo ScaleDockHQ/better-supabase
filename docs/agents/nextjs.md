@@ -50,6 +50,16 @@ contracts.
 - Content that reads `params` can't be in the route's shared App Shell. A
   link to such a page needs `prefetch` to resolve its cached reads before
   the click (the customer rows in `customer-table.tsx`).
+- Data a client component fetches in `useEffect` is never in the prefetch,
+  so an `instant` page that does it shows a skeleton on every click. Load it
+  in a `"use cache: private"` function with `bs.cached()` and pass it in as a
+  prop (`security-queries.ts` for the two-factor and connected agents cards).
+  `supabase.auth` is off on the server client, which passes `accessToken`, so
+  those reads call the Auth REST endpoints with `auth.token`.
+- `flows.spec.ts` signs users out with the default global scope, which ends
+  their other sessions. A saved `storageState` still renders pages (the
+  token verifies locally), but the Auth server refuses it, so a spec that
+  reaches Auth signs in fresh (`settings.spec.ts`).
 - A database budget (`maxCalls`, `maxWaves`) fails on a navigation served
   entirely from the client cache, because no response carries
   `x-bs-request-id`. Budget only navigations that reach the server.

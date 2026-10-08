@@ -1,15 +1,19 @@
-import { ConnectedAgentsCard } from "@/features/user/components/connected-agents-card";
+import { Suspense } from "react";
+
 import { DeleteAccountCard } from "@/features/user/components/delete-account-button";
-import { TwoFactorCard } from "@/features/user/components/two-factor-card";
+import {
+  SecurityCards,
+  SecurityCardsSkeleton,
+} from "@/features/user/components/security-cards";
 
 export const instant = true;
 
-/** All in the browser: Supabase Auth MFA needs no server render. */
 export default function SecuritySettingsPage() {
   return (
     <>
-      <TwoFactorCard />
-      <ConnectedAgentsCard />
+      <Suspense fallback={<SecurityCardsSkeleton />}>
+        <SecurityCards />
+      </Suspense>
       <DeleteAccountCard />
     </>
   );

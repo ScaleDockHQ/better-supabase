@@ -44,6 +44,12 @@
     detail (the row link prefetches, because `params` content can't be in the
     shared shell); members get the read-only view; Globex sees only Initech
     (`customers.spec.ts`).
+  - Settings tabs, for each user: a click from one tab to the next commits
+    the "Settings" heading and the tab's content under the lock, through
+    Security (the two-factor status and the connected agents) and back to
+    Profile; Audit log is absent for members (`settings.spec.ts`). The spec
+    signs in fresh, because Security asks the Auth server, which refuses a
+    saved session once the flows spec has signed that user out everywhere.
   - Flows: sign in and out, a wrong password, sign-up without an
     organization, password reset through Mailpit, the organization switch
     without a reload, the language switch, the theme before first paint, and
@@ -71,8 +77,13 @@
   3356 ms; search 3323 ms, again 14 ms; plans 63 ms on the first load (a
   sidebar prefetch on the same server had already filled the shared cache),
   76 ms on reload and 63 ms for another user, whose subscription took
-  3403 ms.
-- DIFFERENTIAL: replacing `"use cache: private"` and `bs.cached()` in
+  3403 ms. All seven settings tabs, clicked in a row, 864 to 964 ms per user.
+- DIFFERENTIAL: with the two-factor card and the connected agents card
+  loading their data in a client `useEffect` (the code before
+  `security-queries.ts`), the settings contract is RED for every user at
+  Security ("getByTestId('mfa-status') was not visible under the instant()
+  lock"); the cached server reads turn it GREEN. Replacing
+  `"use cache: private"` and `bs.cached()` in
   `getCustomers` with `bs.context()` turns both Customers list contracts RED
   ("not in the prefetched UI"); restoring it turns them GREEN. Removing only
   the directive fails the render, because `bs.cached()` calls `cacheLife()`.

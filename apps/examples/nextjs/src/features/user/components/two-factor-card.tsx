@@ -4,7 +4,7 @@ import { useSessionChange } from "better-supabase/next/client";
 import { ShieldCheckIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import Image from "next/image";
-import { useEffect, useId, useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -28,8 +28,9 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useSupabase } from "@/lib/hooks";
+
+import type { AuthRead } from "../security-queries";
 
 import { sessionChanged } from "../user-actions";
 
@@ -40,11 +41,16 @@ interface Enrollment {
 }
 
 /**
- * TOTP through Supabase Auth MFA, in the browser. A verified factor raises
- * the session to `aal2`, which `deleteMyAccount` and `DELETE
- * /api/customers/:id` require.
+ * TOTP through Supabase Auth MFA. The server reads the verified factor
+ * (`getTotpFactorId`), so it is in the prefetched page; enrolling and
+ * verifying run in the browser. A verified factor raises the session to
+ * `aal2`, which `deleteMyAccount` and `DELETE /api/customers/:id` require.
  */
-export function TwoFactorCard() {
+export function TwoFactorCard({
+  initial,
+}: {
+  readonly initial: AuthRead<string | null>;
+}) {
   const t = useExtracted("security");
   const fieldId = useId();
   const supabase = useSupabase();
@@ -52,23 +58,12 @@ export function TwoFactorCard() {
   const refreshAndChange = useSessionChange(sessionChanged, undefined, {
     refreshToken: supabase,
   });
-  const [factorId, setFactorId] = useState<string | null | undefined>(
-    undefined,
-  );
+  const [factorId, setFactorId] = useState(initial.ok ? initial.value : null);
+  const readError = initial.ok ? null : initial.error;
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    let active = true;
-    void supabase.auth.mfa.listFactors().then(({ data }) => {
-      if (active) setFactorId(data?.totp[0]?.id ?? null);
-    });
-    return () => {
-      active = false;
-    };
-  }, [supabase]);
 
   const enroll = () => {
     startTransition(async () => {
@@ -136,9 +131,7 @@ export function TwoFactorCard() {
           )}
         </CardDescription>
         <CardAction>
-          {factorId === undefined ? (
-            <Skeleton className="h-5 w-16" />
-          ) : factorId ? (
+          {readError ? null : factorId ? (
             <Badge data-testid="mfa-status">
               <ShieldCheckIcon />
               {t("On")}
@@ -151,7 +144,9 @@ export function TwoFactorCard() {
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
-        {enrollment ? (
+        {readError ? (
+          <p className="text-destructive text-sm">{readError}</p>
+        ) : enrollment ? (
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
             {/* An SVG data URL from Supabase Auth: nothing to optimize. */}
             <Image
@@ -210,10 +205,7 @@ export function TwoFactorCard() {
           </Button>
         ) : (
           <>
-            <Button
-              onClick={enroll}
-              disabled={pending || factorId === undefined}
-            >
+            <Button onClick={enroll} disabled={pending}>
               {t("Set up")}
             </Button>
             {error ? <p className="text-destructive text-sm">{error}</p> : null}
