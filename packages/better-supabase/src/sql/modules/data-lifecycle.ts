@@ -68,6 +68,7 @@ export interface LifecycleTable {
   /** Delete its tenant rows in the purge. Default true. */
   readonly purge?: boolean;
   readonly omit?: readonly string[];
+  readonly export?: boolean;
 }
 
 /** One table an export reads or the purge clears. */
@@ -81,6 +82,7 @@ interface Entry {
   readonly column: string;
   readonly purge: boolean;
   readonly omit: readonly string[];
+  readonly export: boolean;
 }
 
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
@@ -109,6 +111,7 @@ function entries(ctx: ModuleContext): readonly Entry[] {
           table: of.table(logical),
           column: of.col(logical, column).replaceAll('"', ""),
           purge: spec.lifecycle?.purge !== false,
+          export: spec.lifecycle?.export !== false,
           omit: (spec.lifecycle?.omit ?? [])
             .filter((name) => of.has(logical, name))
             .map((name) => of.col(logical, name).replaceAll('"', "")),
@@ -120,6 +123,7 @@ function entries(ctx: ModuleContext): readonly Entry[] {
   const where = "sql.modules.data-lifecycle.options.tables";
   const option = ctx.option("tables");
   if (option === undefined || option === "auto") return list;
+  const configured: Entry[] = [];
   if (typeof option !== "object" || option === null || Array.isArray(option)) {
     throw new TypeError(
       `${where} must be an object of table names to { user, tenant, purge }`,
@@ -158,6 +162,9 @@ function entries(ctx: ModuleContext): readonly Entry[] {
         `${where}.${key}.omit must be a list of lowercase column names`,
       );
     }
+    if (config.export !== undefined && typeof config.export !== "boolean") {
+      throw new TypeError(`${where}.${key}.export must be true or false`);
+    }
     if (config.user === undefined && config.tenant === undefined) {
       throw new TypeError(`${where}.${key} needs a user or a tenant column`);
     }
@@ -165,16 +172,22 @@ function entries(ctx: ModuleContext): readonly Entry[] {
       name: `${schema}.${table}`,
       table: `${sqlIdent(schema)}.${sqlIdent(table)}`,
       purge: config.purge !== false,
+      export: config.export !== false,
       omit: omit.filter((name) => typeof name === "string"),
     };
     if (config.user !== undefined) {
-      list.push({ ...base, subject: "user", column: config.user });
+      configured.push({ ...base, subject: "user", column: config.user });
     }
     if (config.tenant !== undefined) {
-      list.push({ ...base, subject: "organization", column: config.tenant });
+      configured.push({
+        ...base,
+        subject: "organization",
+        column: config.tenant,
+      });
     }
   }
-  return list;
+  const replaced = new Set(configured.map((entry) => entry.name));
+  return [...list.filter((entry) => !replaced.has(entry.name)), ...configured];
 }
 
 /** `options.autoTables`: every table in `schemas` with the tenant (or user) column. */
@@ -244,7 +257,7 @@ function autoTablesSql(auto: AutoTables, explicit: readonly Entry[]): string {
       `n.nspname || '.' || c.relname like ${sqlString(pattern.replaceAll("_", "\\_").replaceAll("*", "%"))}`,
   );
   const select = (subject: string, column: string): string => `
-  select ${sqlString(subject)}::text, n.nspname || '.' || c.relname, format('%I.%I', n.nspname, c.relname), a.attname::text, ${String(auto.purge)}, '{}'::text[]
+  select ${sqlString(subject)}::text, n.nspname || '.' || c.relname, format('%I.%I', n.nspname, c.relname), a.attname::text, ${String(auto.purge)}, '{}'::text[], true
   from pg_catalog.pg_class c
   join pg_catalog.pg_namespace n on n.oid = c.relnamespace
   join pg_catalog.pg_attribute a on a.attrelid = c.oid and a.attname = ${sqlString(column)} and not a.attisdropped
@@ -373,14 +386,14 @@ function build(ctx: ModuleContext): string {
   const values = list
     .map(
       (entry) =>
-        `(${sqlString(entry.subject)}, ${sqlString(entry.name)}, ${sqlString(entry.table)}, ${sqlString(entry.column)}, ${String(entry.purge)}, ${entry.omit.length === 0 ? "'{}'::text[]" : `array[${entry.omit.map(sqlString).join(", ")}]::text[]`})`,
+        `(${sqlString(entry.subject)}, ${sqlString(entry.name)}, ${sqlString(entry.table)}, ${sqlString(entry.column)}, ${String(entry.purge)}, ${entry.omit.length === 0 ? "'{}'::text[]" : `array[${entry.omit.map(sqlString).join(", ")}]::text[]`}, ${String(entry.export)})`,
     )
     .join(",\n    ");
   const auto = autoTablesOf(ctx);
   const explicitBody =
     list.length === 0
-      ? "select null::text, null::text, null::text, null::text, null::boolean, null::text[] where false"
-      : `select * from (values\n    ${values}\n  ) as t(subject, name, tbl, col, purge, omit)`;
+      ? "select null::text, null::text, null::text, null::text, null::boolean, null::text[], null::boolean where false"
+      : `select * from (values\n    ${values}\n  ) as t(subject, name, tbl, col, purge, omit, exported)`;
   const autoBody = auto ? autoTablesSql(auto, list) : "";
   const tablesBody = autoBody
     ? `${explicitBody}\n  union all${autoBody}`
@@ -499,7 +512,7 @@ grant all on ${d} to service_role;
 -- quoted table, column and whether the purge deletes it.
 drop function if exists ${fn("data_lifecycle_tables")}();
 create or replace function ${fn("data_lifecycle_tables")}()
-returns table (subject text, name text, tbl text, col text, purge boolean, omit text[])
+returns table (subject text, name text, tbl text, col text, purge boolean, omit text[], exported boolean)
 language sql
 ${auto ? "stable" : "immutable"}
 set search_path = ''
@@ -617,7 +630,7 @@ begin
   return to_jsonb(v_row) || jsonb_build_object('tables', (
     select coalesce(jsonb_agg(t.name order by t.name), '[]'::jsonb)
     from ${fn("data_lifecycle_tables")}() t
-    where t.subject = v_row.${ce("subject")} and to_regclass(t.tbl) is not null
+    where t.subject = v_row.${ce("subject")} and t.exported and to_regclass(t.tbl) is not null
   ));
 end;
 $$;
@@ -645,7 +658,7 @@ begin
     raise exception 'No running export has this id' using errcode = 'P0002', hint = 'DATA_EXPORT_NOT_FOUND';
   end if;
   select * into v_table from ${fn("data_lifecycle_tables")}() t
-  where t.subject = v_row.${ce("subject")} and t.name = data_export_rows.table_name;
+  where t.subject = v_row.${ce("subject")} and t.name = data_export_rows.table_name and t.exported;
   if v_table.tbl is null or to_regclass(v_table.tbl) is null then
     raise exception 'The export has no table %', data_export_rows.table_name using errcode = '22023', hint = 'DATA_EXPORT_TABLE';
   end if;
@@ -995,7 +1008,7 @@ export const DATA_LIFECYCLE: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   names: NAMES,
   contract,
   upgrades: [
@@ -1009,6 +1022,12 @@ export const DATA_LIFECYCLE: ModuleDefinition = {
       from: 2,
       description:
         "data_lifecycle_tables returns the columns an export leaves out (omit), such as the incoming webhook secrets and token hashes.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "data_lifecycle_tables returns whether an export reads a table (exported): API keys are never exported and invitation token hashes are left out, and options.tables can keep a table out of exports while the purge still deletes it or replace a module table's entry.",
       sql: () => "",
     },
   ],

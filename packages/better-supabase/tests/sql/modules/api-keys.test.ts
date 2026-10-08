@@ -55,6 +55,19 @@ describe("api-keys module", () => {
     );
   });
 
+  it("needs the own permission in every tenant for a personal key without a tenant", () => {
+    const sql = moduleBody("api-keys", {
+      modules: { "api-keys": { permissions: { own: "apiKey.own" } } },
+    })!;
+    const create = sql.slice(sql.indexOf('create_api_key"('));
+    expect(create.slice(0, create.indexOf("$$;"))).toContain(
+      `if personal and tenant is null and exists (
+      select 1 from better_supabase.member_organization_ids() as m(id)
+      where m.id not in (select better_supabase.tenant_ids_with('apiKey.own'))
+    ) then`,
+    );
+  });
+
   it("defaults the token prefix from options.prefix", () => {
     expect(render({})).toContain("prefix text default 'bs'");
     expect(render({ prefix: "pdk" })).toContain("prefix text default 'pdk'");

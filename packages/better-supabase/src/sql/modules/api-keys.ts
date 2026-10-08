@@ -14,7 +14,7 @@ const NAMES: ModuleNames = {
   tables: {
     keys: {
       name: "api_keys",
-      lifecycle: { tenant: "tenant" },
+      lifecycle: { tenant: "tenant", export: false },
       columns: {
         id: "id",
         tenant: "organization_id",
@@ -215,6 +215,12 @@ begin
     end if;
     if personal and tenant is not null and not ${can("tenant", "own")} then
       ${fail("API_KEY_FORBIDDEN", "Not allowed to create API keys in this tenant")}
+    end if;
+    if personal and tenant is null and exists (
+      select 1 from better_supabase.member_organization_ids() as m(id)
+      where m.id not in (select better_supabase.tenant_ids_with(${ctx.permission("own", permissions.own)}))
+    ) then
+      ${fail("API_KEY_FORBIDDEN", "Not allowed to create API keys for every tenant")}
     end if;
   end if;${scopeCheck}${wildcard}
   if expires_at is not null and expires_at <= now() then
@@ -432,7 +438,7 @@ export const API_KEYS: ModuleDefinition = {
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   names: NAMES,
   contract,
   upgrades: [
@@ -440,6 +446,12 @@ export const API_KEYS: ModuleDefinition = {
       from: 1,
       description:
         "verify_api_key counts a hit and touches last_used_at in one update; the table uses fillfactor 80; list_api_keys reads through the tenant or user index.",
+      sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "A personal key without a tenant needs the own permission in every tenant the caller belongs to, since it acts in all of them.",
       sql: () => "",
     },
   ],

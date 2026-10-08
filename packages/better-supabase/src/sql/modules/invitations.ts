@@ -57,7 +57,7 @@ const NAMES: ModuleNames = {
   tables: {
     invitations: {
       name: "invitations",
-      lifecycle: { tenant: "tenant" },
+      lifecycle: { tenant: "tenant", omit: ["tokenHash"] },
       columns: {
         ...PLATFORM_COLUMNS,
         tenant: "organization_id",

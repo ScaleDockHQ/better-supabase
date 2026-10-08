@@ -7,6 +7,10 @@ import type {
 } from "../../src/blocks/data-lifecycle/index.ts";
 
 import {
+  createApiKeys,
+  sqlTransport as apiKeysTransport,
+} from "../../src/blocks/api-keys/index.ts";
+import {
   createDataExporter,
   createDataLifecycle,
   createOrganizationPurger,
@@ -764,6 +768,50 @@ describe.skipIf(!live)("data lifecycle", () => {
         expect.arrayContaining(["organization_id", "key", "value"]),
       );
       expect(row).toContain(`"'=1+1, ""quoted"""`);
+    } finally {
+      await s.close();
+    }
+  });
+  it("never exports API keys and still purges them with the tenant", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "api-keys", "data-lifecycle"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      await s.as(owner);
+      await createApiKeys({ transport: apiKeysTransport(s.sql) })
+        .create({ name: "CI", organizationId: organization })
+        .orThrow();
+      const requested = await createDataLifecycle({
+        transport: sqlTransport(s.sql),
+      })
+        .requestExport({ organizationId: organization })
+        .orThrow();
+
+      await s.service();
+      const memory = memoryStorage();
+      const ready = await createDataExporter({
+        transport: sqlTransport(s.sql),
+        storage: memory.storage,
+      })
+        .run(requested.id)
+        .orThrow();
+      expect(ready.files.some((file) => file.includes("api_keys"))).toBe(false);
+      expect(
+        await s.value<boolean>(
+          "(select exported from better_supabase.data_lifecycle_tables() where subject = 'organization' and name = 'better_supabase.api_keys')",
+        ),
+      ).toBe(false);
+
+      await s.rows(
+        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        [organization],
+      );
+      const purged = await s.value<{ deleted: Record<string, number> }>(
+        "better_supabase.purge_organization($1)",
+        [organization],
+      );
+      expect(purged.deleted["better_supabase.api_keys"]).toBe(1);
     } finally {
       await s.close();
     }

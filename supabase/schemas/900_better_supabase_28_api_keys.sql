@@ -1,5 +1,5 @@
 -- better-supabase module: api-keys (0.5.1)
--- @bs-module api-keys@2 managed
+-- @bs-module api-keys@3 managed
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,6 +75,12 @@ begin
     end if;
     if personal and tenant is not null and not coalesce(better_supabase.can('tenant', tenant, 'api_keys.own'), false) then
       raise exception 'Not allowed to create API keys in this tenant' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
+    end if;
+    if personal and tenant is null and exists (
+      select 1 from better_supabase.member_organization_ids() as m(id)
+      where m.id not in (select better_supabase.tenant_ids_with('api_keys.own'))
+    ) then
+      raise exception 'Not allowed to create API keys for every tenant' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
     end if;
   end if;
   if expires_at is not null and expires_at <= now() then
