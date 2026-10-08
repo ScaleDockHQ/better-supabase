@@ -245,4 +245,66 @@ describe.skipIf(!live)("memory module", () => {
       await s.close();
     }
   });
+
+  it("writes documents only at the version the caller read", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "memory"]);
+      const owner = await s.user("owner");
+      const memory = createMemory({ transport: sqlTransport(s.sql) });
+
+      await s.asRole(owner);
+      expect(
+        (await memory.documents.read("scope", "/a.md")).error?.kind,
+      ).toBeDefined();
+
+      await s.service();
+      expect(await memory.documents.read("scope", "/a.md").orThrow()).toBe(
+        undefined,
+      );
+      const first = await memory.documents
+        .write("scope", "/a.md", "one", { expectedVersion: null })
+        .orThrow();
+      expect(first).toEqual({ content: "one", version: "1" });
+      const again = await memory.documents.write("scope", "/a.md", "two", {
+        expectedVersion: null,
+      });
+      expect(again.error?.hint).toBe("MEMORY_DOCUMENT_CONFLICT");
+      const second = await memory.documents
+        .write("scope", "/a.md", "two", { expectedVersion: "1" })
+        .orThrow();
+      expect(second.version).toBe("2");
+      const stale = await memory.documents.write("scope", "/a.md", "three", {
+        expectedVersion: "1",
+      });
+      expect(stale.error?.hint).toBe("MEMORY_DOCUMENT_CONFLICT");
+      expect(await memory.documents.read("other", "/a.md").orThrow()).toBe(
+        undefined,
+      );
+
+      await memory.documents
+        .write("scope", "/tmp.md", "gone", {
+          expectedVersion: null,
+          expiresIn: 1,
+        })
+        .orThrow();
+      await s.client.query(
+        "update better_supabase.memory_documents set expires_at = now() - interval '1 second' where path = '/tmp.md'",
+      );
+      expect(await memory.documents.read("scope", "/tmp.md").orThrow()).toBe(
+        undefined,
+      );
+      expect(
+        await memory.documents
+          .write("scope", "/tmp.md", "back", { expectedVersion: null })
+          .orThrow(),
+      ).toEqual({ content: "back", version: "1" });
+      await s.client.query(
+        "update better_supabase.memory_documents set expires_at = now() - interval '1 second' where path = '/tmp.md'",
+      );
+      expect(await memory.documents.purge().orThrow()).toBe(1);
+    } finally {
+      await s.close();
+    }
+  });
 });

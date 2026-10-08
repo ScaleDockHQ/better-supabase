@@ -37,6 +37,16 @@ const MESSAGE_EMBEDDINGS = {
   createdAt: "created_at",
 } as const;
 
+const DOCUMENTS = {
+  scopeKey: "scope_key",
+  path: "path",
+  content: "content",
+  version: "version",
+  expiresAt: "expires_at",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
+} as const;
+
 const NAMES: ModuleNames = {
   options: ["dimensions", "type", "textSearch", "maxContent"],
   tables: {
@@ -49,6 +59,10 @@ const NAMES: ModuleNames = {
       name: "ai_message_embeddings",
       columns: MESSAGE_EMBEDDINGS,
       lifecycle: { user: "user", tenant: "tenant" },
+    },
+    documents: {
+      name: "memory_documents",
+      columns: DOCUMENTS,
     },
   },
 };
@@ -76,8 +90,10 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const fn = (name: string): string => ctx.fn(name);
   const m = columnsOf(ctx, "memories", MEMORIES);
   const e = columnsOf(ctx, "messageEmbeddings", MESSAGE_EMBEDDINGS);
+  const d = columnsOf(ctx, "documents", DOCUMENTS);
   const memories = ctx.table("memories");
   const messageEmbeddings = ctx.table("messageEmbeddings");
+  const documents = ctx.table("documents");
   const permissions = MODULE_PERMISSIONS.memory;
   const read = ctx.permission("read", permissions.read);
   const manage = ctx.permission("manage", permissions.manage);
@@ -613,14 +629,105 @@ begin
   return v_rows;
 end;
 $$;
-${userGrant(signature("recall_ai_messages", `${id}, ${embedding.type}, integer, uuid, uuid`))}`;
+${userGrant(signature("recall_ai_messages", `${id}, ${embedding.type}, integer, uuid, uuid`))}
+
+-- Documents an agent runtime keeps under an opaque scope key, such as eve's
+-- file memory and its replay records. Only the service role reads or writes
+-- them; a write names the version it read, so a stale write fails.
+create table if not exists ${documents} (
+  ${d.scopeKey} text not null check (length(${d.scopeKey}) <= 4096),
+  ${d.path} text not null check (length(${d.path}) <= 1024),
+  ${d.content} text not null check (length(${d.content}) <= ${String(maxContent)}),
+  ${d.version} bigint not null default 1,
+  ${d.expiresAt} timestamptz,
+  ${d.createdAt} timestamptz not null default now(),
+  ${d.updatedAt} timestamptz not null default now(),
+  primary key (${d.scopeKey}, ${d.path})
+);
+create index if not exists memory_documents_expires_idx on ${documents} (${d.expiresAt}) where ${d.expiresAt} is not null;
+alter table ${documents} enable row level security;
+revoke all on ${documents} from anon, authenticated;
+grant all on ${documents} to service_role;
+
+-- A document and its version, or null.
+create or replace function ${fn("memory_document_read")}(scope_key text, path text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('content', x.${d.content}, 'version', x.${d.version}::text)
+  from ${documents} x
+  where x.${d.scopeKey} = memory_document_read.scope_key and x.${d.path} = memory_document_read.path
+    and (x.${d.expiresAt} is null or x.${d.expiresAt} > now())
+$$;
+${serviceGrant(signature("memory_document_read", "text, text"))}
+
+-- Writes a document when its version is still expected_version; null means
+-- it must not exist yet. Otherwise raises MEMORY_DOCUMENT_CONFLICT.
+create or replace function ${fn("memory_document_write")}(scope_key text, path text, content text, expected_version text default null, expires_in integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${documents}%rowtype;
+  v_expires timestamptz := case when memory_document_write.expires_in is null then null else now() + make_interval(secs => memory_document_write.expires_in) end;
+begin${checkContent("memory_document_write.content")}
+  delete from ${documents} x
+  where x.${d.scopeKey} = memory_document_write.scope_key and x.${d.path} = memory_document_write.path
+    and x.${d.expiresAt} <= now();
+  if memory_document_write.expected_version is null then
+    insert into ${documents} (${d.scopeKey}, ${d.path}, ${d.content}, ${d.expiresAt})
+    values (memory_document_write.scope_key, memory_document_write.path, memory_document_write.content, v_expires)
+    on conflict (${d.scopeKey}, ${d.path}) do nothing
+    returning * into v_row;
+  else
+    update ${documents} x set ${d.content} = memory_document_write.content, ${d.version} = x.${d.version} + 1,
+      ${d.expiresAt} = v_expires, ${d.updatedAt} = now()
+    where x.${d.scopeKey} = memory_document_write.scope_key and x.${d.path} = memory_document_write.path
+      and x.${d.version}::text = memory_document_write.expected_version
+    returning * into v_row;
+  end if;
+  if not found then
+    ${raise("% changed since version %", "40001", "MEMORY_DOCUMENT_CONFLICT", "memory_document_write.path", "coalesce(memory_document_write.expected_version, 'none')")}
+  end if;
+  return jsonb_build_object('content', v_row.${d.content}, 'version', v_row.${d.version}::text);
+end;
+$$;
+${serviceGrant(signature("memory_document_write", "text, text, text, text, integer"))}
+
+-- Deletes expired documents, at most batch. Returns how many.
+create or replace function ${fn("purge_memory_documents")}(batch integer default 1000)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  delete from ${documents} x
+  where (x.${d.scopeKey}, x.${d.path}) in (
+    select y.${d.scopeKey}, y.${d.path} from ${documents} y
+    where y.${d.expiresAt} <= now()
+    limit least(greatest(purge_memory_documents.batch, 1), 10000)
+  );
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+${serviceGrant(signature("purge_memory_documents", "integer"))}`;
 }
 
 export const MEMORY: ModuleDefinition = {
   name: "memory",
   title: "Memory",
   description:
-    "Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; and message embeddings to recall earlier chats, skipped for temporary chats.",
+    "Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.",
   requires: ["tenant", "access", "vector-search"],
   target: "schema",
   version: 1,

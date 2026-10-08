@@ -1,6 +1,6 @@
 -- better-supabase module: memory (0.5.1)
 -- @bs-module memory@1 managed
--- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; and message embeddings to recall earlier chats, skipped for temporary chats.
+-- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -696,6 +696,103 @@ $$;
 revoke execute on function "better_supabase"."recall_ai_messages"(uuid, extensions.vector, integer, uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."recall_ai_messages"(uuid, extensions.vector, integer, uuid, uuid) to authenticated, service_role;
 
+-- Documents an agent runtime keeps under an opaque scope key, such as eve's
+-- file memory and its replay records. Only the service role reads or writes
+-- them; a write names the version it read, so a stale write fails.
+create table if not exists "better_supabase"."memory_documents" (
+  "scope_key" text not null check (length("scope_key") <= 4096),
+  "path" text not null check (length("path") <= 1024),
+  "content" text not null check (length("content") <= 100000),
+  "version" bigint not null default 1,
+  "expires_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  primary key ("scope_key", "path")
+);
+create index if not exists memory_documents_expires_idx on "better_supabase"."memory_documents" ("expires_at") where "expires_at" is not null;
+alter table "better_supabase"."memory_documents" enable row level security;
+revoke all on "better_supabase"."memory_documents" from anon, authenticated;
+grant all on "better_supabase"."memory_documents" to service_role;
+
+-- A document and its version, or null.
+create or replace function "better_supabase"."memory_document_read"(scope_key text, path text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('content', x."content", 'version', x."version"::text)
+  from "better_supabase"."memory_documents" x
+  where x."scope_key" = memory_document_read.scope_key and x."path" = memory_document_read.path
+    and (x."expires_at" is null or x."expires_at" > now())
+$$;
+revoke execute on function "better_supabase"."memory_document_read"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."memory_document_read"(text, text) to service_role;
+
+-- Writes a document when its version is still expected_version; null means
+-- it must not exist yet. Otherwise raises MEMORY_DOCUMENT_CONFLICT.
+create or replace function "better_supabase"."memory_document_write"(scope_key text, path text, content text, expected_version text default null, expires_in integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."memory_documents"%rowtype;
+  v_expires timestamptz := case when memory_document_write.expires_in is null then null else now() + make_interval(secs => memory_document_write.expires_in) end;
+begin
+  if length(memory_document_write.content) > 100000 then
+    raise exception 'memory content is limited to % characters', 100000 using errcode = '22023', hint = 'MEMORY_TOO_LARGE';
+  end if;
+  delete from "better_supabase"."memory_documents" x
+  where x."scope_key" = memory_document_write.scope_key and x."path" = memory_document_write.path
+    and x."expires_at" <= now();
+  if memory_document_write.expected_version is null then
+    insert into "better_supabase"."memory_documents" ("scope_key", "path", "content", "expires_at")
+    values (memory_document_write.scope_key, memory_document_write.path, memory_document_write.content, v_expires)
+    on conflict ("scope_key", "path") do nothing
+    returning * into v_row;
+  else
+    update "better_supabase"."memory_documents" x set "content" = memory_document_write.content, "version" = x."version" + 1,
+      "expires_at" = v_expires, "updated_at" = now()
+    where x."scope_key" = memory_document_write.scope_key and x."path" = memory_document_write.path
+      and x."version"::text = memory_document_write.expected_version
+    returning * into v_row;
+  end if;
+  if not found then
+    raise exception '% changed since version %', memory_document_write.path, coalesce(memory_document_write.expected_version, 'none') using errcode = '40001', hint = 'MEMORY_DOCUMENT_CONFLICT';
+  end if;
+  return jsonb_build_object('content', v_row."content", 'version', v_row."version"::text);
+end;
+$$;
+revoke execute on function "better_supabase"."memory_document_write"(text, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."memory_document_write"(text, text, text, text, integer) to service_role;
+
+-- Deletes expired documents, at most batch. Returns how many.
+create or replace function "better_supabase"."purge_memory_documents"(batch integer default 1000)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  delete from "better_supabase"."memory_documents" x
+  where (x."scope_key", x."path") in (
+    select y."scope_key", y."path" from "better_supabase"."memory_documents" y
+    where y."expires_at" <= now()
+    limit least(greatest(purge_memory_documents.batch, 1), 10000)
+  );
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."purge_memory_documents"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."purge_memory_documents"(integer) to service_role;
+
 -- sql.modules.memory.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -825,6 +922,33 @@ set search_path = ''
 as $$ select "better_supabase"."recall_ai_messages"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."recall_ai_messages"(uuid, extensions.vector, integer, uuid, uuid) from public, anon;
 grant execute on function "api"."recall_ai_messages"(uuid, extensions.vector, integer, uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."memory_document_read"(scope_key text, path text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."memory_document_read"($1, $2) $$;
+revoke execute on function "api"."memory_document_read"(text, text) from public, anon, authenticated;
+grant execute on function "api"."memory_document_read"(text, text) to service_role;
+
+create or replace function "api"."memory_document_write"(scope_key text, path text, content text, expected_version text default null, expires_in integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."memory_document_write"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."memory_document_write"(text, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "api"."memory_document_write"(text, text, text, text, integer) to service_role;
+
+create or replace function "api"."purge_memory_documents"(batch integer default 1000)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."purge_memory_documents"($1) $$;
+revoke execute on function "api"."purge_memory_documents"(integer) from public, anon, authenticated;
+grant execute on function "api"."purge_memory_documents"(integer) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
