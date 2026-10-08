@@ -303,6 +303,7 @@ every bump.
 Read the page for the area you are changing. When an agent needs the same
 correction twice, add it to one of these pages.
 
+- [`docs/agents/adapters.md`](docs/agents/adapters.md): shared guards, Node loading checks, native packages and fixture modules for blocks.
 - [`docs/agents/core.md`](docs/agents/core.md): column casing in queries and per-request work in the core.
 - [`docs/agents/blocks.md`](docs/agents/blocks.md): the checklist for adding a block, its SQL module and its subpath.
 - [`docs/agents/database.md`](docs/agents/database.md): the declarative schema workflow and what the diff misses.

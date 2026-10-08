@@ -56,7 +56,7 @@ disconnects and clears the local database, so one user never reads another's
 rows. Unsynced changes are cleared with them; pass `clearOnSignOut: false` to
 keep the database.
 
-```tsx title="src/lib/sync.native.ts"
+```tsx title="src/lib/powersync/sync.ts"
 import { syncWithAuth } from "better-supabase/powersync";
 
 export function useSync(): void {

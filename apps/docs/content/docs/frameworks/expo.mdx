@@ -25,13 +25,21 @@ features in `app.json`:
         "expo-router",
         {
           "unstable_useServerDataLoaders": true,
-          "unstable_useServerMiddleware": true
+          "unstable_useServerMiddleware": true,
+          "unstable_useServerRendering": true
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }
 ```
+
+`unstable_useServerRendering` renders web routes on the server per request,
+so a loader sees the caller's cookie; without it, web routes are rendered at
+build time and loaders run without a request. `expo-secure-store` is the
+plugin for [`secureStorage`](/docs/frontend/react-native) on the device; add
+`expo-notifications` too when you use the [push block](/docs/blocks/push).
 
 ## Loaders
 
