@@ -11,6 +11,7 @@ import {
   SettingsIcon,
   UsersIcon,
   UsersRoundIcon,
+  WaypointsIcon,
   WorkflowIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
@@ -33,6 +34,7 @@ const ICONS = {
   customers: UsersIcon,
   notifications: BellIcon,
   workflows: WorkflowIcon,
+  workflowBuilder: WaypointsIcon,
   beta: FlaskConicalIcon,
   members: UsersRoundIcon,
   billing: CreditCardIcon,
@@ -53,6 +55,8 @@ function useNavLabel() {
         return t("Notifications");
       case "workflows":
         return t("Workflows");
+      case "workflowBuilder":
+        return t("Workflow builder");
       case "beta":
         return t("Beta");
       case "members":

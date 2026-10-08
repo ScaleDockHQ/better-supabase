@@ -46,6 +46,8 @@ const PURE_BARRELS = [
   "vercel-connect",
   "blocks/workflows",
   "workflow-sdk",
+  "blocks/workflow-builder",
+  "workflow-sdk/builder",
 ];
 
 describe("subpath entries", () => {

@@ -1743,6 +1743,67 @@
       "WorkflowRunState"
     ]
   },
+  "./blocks/workflow-builder": {
+    "values": [
+      "approvalToken",
+      "approved",
+      "createBuilder",
+      "diffGraphs",
+      "durationMs",
+      "evaluateCondition",
+      "executeGraph",
+      "rpcTransport",
+      "sqlTransport",
+      "topologicalOrder",
+      "validateGraph"
+    ],
+    "types": [
+      "AlertInput",
+      "BlockTransport",
+      "BuilderOptions",
+      "BuilderStartCall",
+      "BuilderStarter",
+      "CredentialInput",
+      "DefinitionInput",
+      "GraphCompiler",
+      "GraphRuntime",
+      "GraphStepCall",
+      "NodeRunRecord",
+      "OutboxLikeEvent",
+      "RunInput",
+      "TriggerInput",
+      "WorkflowAlert",
+      "WorkflowBuilder",
+      "WorkflowCondition",
+      "WorkflowConditionOperator",
+      "WorkflowCredential",
+      "WorkflowDefinition",
+      "WorkflowGraph",
+      "WorkflowGraphDiff",
+      "WorkflowGraphEdge",
+      "WorkflowGraphNode",
+      "WorkflowNodeKind",
+      "WorkflowNodeRun",
+      "WorkflowNodeRunStatus",
+      "WorkflowStepInfo",
+      "WorkflowTrigger",
+      "WorkflowTriggerKind",
+      "WorkflowVersion",
+      "WorkflowVersionStatus"
+    ]
+  },
+  "./blocks/workflow-builder/react": {
+    "values": [
+      "useWorkflowBuilder",
+      "useWorkflowCanvasRun"
+    ],
+    "types": [
+      "UseWorkflowBuilderOptions",
+      "UseWorkflowCanvasRunOptions",
+      "WorkflowBuilderState",
+      "WorkflowCanvasRunState"
+    ]
+  },
   "./workflow-sdk": {
     "values": [
       "authorizeHook",
@@ -1782,6 +1843,27 @@
       "SupabaseWorld",
       "SupabaseWorldOptions",
       "WorkflowDeliveryMode"
+    ]
+  },
+  "./workflow-sdk/builder": {
+    "values": [
+      "approvalToken",
+      "compiledGraphOf",
+      "compileGraph",
+      "DYNAMIC_SOURCE_MAX_BYTES",
+      "DYNAMIC_WORKFLOWS_ENV",
+      "executeGraph",
+      "graphStarter",
+      "nodeRunReporter"
+    ],
+    "types": [
+      "CompiledGraph",
+      "GraphRunMeta",
+      "GraphRuntime",
+      "GraphStarterOptions",
+      "GraphStep",
+      "GraphStepCall",
+      "NodeRunSink"
     ]
   },
   "./streams": {
