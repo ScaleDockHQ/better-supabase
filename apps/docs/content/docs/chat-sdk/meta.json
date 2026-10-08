@@ -1,0 +1,4 @@
+{
+  "title": "Chat SDK",
+  "pages": ["index", "state", "inbox-adapter", "channels", "react"]
+}

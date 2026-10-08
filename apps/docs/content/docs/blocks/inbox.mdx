@@ -1,0 +1,200 @@
+---
+title: Inbox
+description: A shared inbox for support conversations from an in-app widget, Slack, WhatsApp, SMS and other channels, with assignment, internal notes, read receipts, bot handoff and realtime updates.
+---
+
+The `inbox` [SQL module](/docs/blocks/sql) stores inboxes, contacts,
+conversations and messages per organization. `createInbox` from
+`better-supabase/blocks/inbox` reads and writes them, and the hooks in
+`better-supabase/blocks/inbox/react` keep a list, a thread and an in-app
+widget current over Supabase Realtime. Channel messages reach the same
+tables through the [Chat SDK adapters](/docs/chat-sdk).
+
+```bash
+pnpm better-supabase sql add inbox
+```
+
+The module needs the [access contract](/docs/blocks/access) and the
+[jobs](/docs/blocks/jobs) module. With [notifications](/docs/blocks/notifications)
+installed, assignees and mentioned staff get a notification, and with the
+[outbox](/docs/blocks/outbox) every change emits a block event.
+
+## Permissions
+
+Staff need a tenant permission for each action. The roles in your access
+contract grant them like any other permission.
+
+| Permission     | Allows                                                                      |
+| -------------- | --------------------------------------------------------------------------- |
+| `inbox.read`   | Listing conversations, reading messages and notes, seeing a contact's reads |
+| `inbox.reply`  | Sending replies and internal notes, reacting, typing pings                  |
+| `inbox.assign` | Assigning, changing the status, snoozing and handing off to staff           |
+| `inbox.manage` | Creating inboxes and teams, members, templates and `purgeContact`           |
+
+A contact who is a signed-in user reads only their own conversations and
+never sees internal notes. Inboxes with `settings.widget = true` let such a
+visitor open a conversation; other inboxes take new conversations only from
+staff and the service.
+
+## Creating the client
+
+`createInbox` takes a [block transport](/docs/blocks#transports). Use the
+caller's client in server actions so RLS and the permission checks apply,
+and a service transport for bots and channel webhooks:
+
+```ts title="lib/blocks.ts"
+import "server-only";
+
+import { createInbox, sqlTransport } from "better-supabase/blocks/inbox";
+
+export const inboxFor = (claims: Record<string, unknown>) =>
+  createInbox({ transport: sqlTransport(postgres.asUser(claims)) });
+
+export const serviceInbox = createInbox({
+  transport: sqlTransport(postgres.asService()),
+});
+```
+
+`rpcTransport(supabase)` calls the same functions over the Data API when
+the block schema is exposed. Every method returns a `Result`, so database
+errors come back as a `DbError` instead of an exception.
+
+## Inboxes and contacts
+
+```ts
+const help = await inbox.inboxes
+  .create({
+    tenant: organizationId,
+    name: "Help",
+    channel: "widget",
+    botMode: "human",
+    settings: { widget: true },
+  })
+  .orThrow();
+
+await inbox.inboxes.setMember(help.id, agentId, "agent").orThrow();
+const contact = await inbox.contacts
+  .upsert(organizationId, { email: "ada@example.com", name: "Ada" })
+  .orThrow();
+```
+
+`contacts.upsert` finds a contact by id, channel identity, user or email
+and fills in the fields it lacks, so a WhatsApp number and a signed-in user
+with the same email end up as one contact.
+
+## Conversations and messages
+
+```ts
+const conversation = await inbox.conversations
+  .open(help.id, { contact: contact.id, subject: "Billing", message: "Hi" })
+  .orThrow();
+
+await inbox.messages
+  .send(conversation.id, { body: "How can we help?" })
+  .orThrow();
+await inbox.messages
+  .note(conversation.id, "Refund approved", { mentions: [leadId] })
+  .orThrow();
+await inbox.conversations
+  .assign(conversation.id, { assigneeId: agentId })
+  .orThrow();
+await inbox.conversations.resolve(conversation.id).orThrow();
+```
+
+| Method                                                             | Does                                                                         |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `conversations.list(tenant, filter)`                               | Conversations by status, inbox, assignee, team, contact or search text       |
+| `conversations.get(id)`                                            | One conversation with `lastReadAt` for the caller and `contactReadAt`        |
+| `conversations.assign`, `setStatus`, `snooze`, `resolve`, `reopen` | Routing and status; a contact's new message reopens a resolved conversation  |
+| `conversations.handoff(id, reason)`, `setBotMode`                  | Moves a bot conversation to staff and tells them                             |
+| `conversations.markRead`, `typing`, `events`, `counts`             | Read state, typing pings, the conversation's history, open and unread counts |
+| `messages.send`, `note`, `list`, `get`, `edit`, `remove`, `react`  | Messages and notes; `remove` leaves a tombstone                              |
+| `templates.upsert`, `delete`                                       | Approved channel templates, such as WhatsApp's                               |
+| `purgeContact(contactId)`                                          | Erases a contact and its conversations; returns attachment paths to delete   |
+
+`contactReadAt` is the last time the contact read the conversation, only
+for staff, so a thread can show a read receipt. A message body is limited
+to `maxBodyLength` characters (20000 by default), and attachments live in
+the private `inbox-files` bucket under the conversation's path, readable by
+the staff and the contact of that conversation.
+
+`purgeContact` deletes the rows; remove the paths it returns from Storage
+afterwards, since a SQL function can't delete Storage objects.
+
+## Bots and outgoing messages
+
+Each inbox and conversation has a `botMode`: `bot`, `human` (staff answer)
+or `paused` (nobody answers, for example while a contact is blocked). When
+a contact writes in `bot` mode the module queues a job on `inbox_bot`, and
+a staff reply on a channel inbox queues one on `inbox_outbound`. The job
+handlers in [Chat SDK adapters](/docs/chat-sdk) run the bot and post the
+reply on its channel. A staff reply or `handoff` switches the conversation
+to `human`, so the bot stops answering.
+
+## Realtime
+
+Changes broadcast without row data on private topics: `inbox:<conversationId>`
+for a thread (`message`, `typing`, `read` and `conversation`) and
+`inbox:org:<organizationId>` for the lists. The hooks reload through your
+server action when a broadcast arrives.
+
+```tsx title="components/conversation-list.tsx"
+"use client";
+
+import { useInbox } from "better-supabase/blocks/inbox/react";
+
+import { loadConversations } from "./inbox-actions";
+
+export function ConversationList({
+  organizationId,
+}: {
+  organizationId: string;
+}) {
+  const { items } = useInbox({
+    organizationId,
+    load: () => loadConversations({ status: "open" }),
+  });
+  return (
+    <ul>
+      {items?.map((row) => (
+        <li key={row.id}>{row.subject}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+| Hook                                        | Returns                                                          |
+| ------------------------------------------- | ---------------------------------------------------------------- |
+| `useInbox({ organizationId, load })`        | `items`, `status`, `error` and `refresh` for a conversation list |
+| `useConversation({ conversationId, load })` | The messages as `items`, who is `typing` and a `setTyping`       |
+| `useInboxWidget({ open, send, load })`      | An in-app widget: `submit`, `reset` and the open conversation    |
+
+`useInboxWidget` keeps the open conversation id in `localStorage` under
+`storageKey`, so mount it only in the browser. Throttle `setTyping`
+yourself; a ping counts for `typingMs` (5000 by default).
+
+## Block events
+
+With the outbox installed the module emits `inbox.message.received`,
+`inbox.conversation.opened`, `inbox.conversation.assigned`,
+`inbox.conversation.resolved` and `inbox.conversation.reopened`, each with
+the conversation, organization, inbox, contact, assignee and status.
+
+## Options
+
+| Option                                    | Default          | Meaning                                         |
+| ----------------------------------------- | ---------------- | ----------------------------------------------- |
+| `sql.modules.inbox.options.topic`         | `inbox`          | The Realtime topic prefix; pass it to the hooks |
+| `sql.modules.inbox.options.bucket`        | `inbox-files`    | The private Storage bucket for attachments      |
+| `sql.modules.inbox.options.maxBodyLength` | `20000`          | The longest message body                        |
+| `sql.modules.inbox.options.botQueue`      | `inbox_bot`      | The job queue for bot replies                   |
+| `sql.modules.inbox.options.outboundQueue` | `inbox_outbound` | The job queue for channel deliveries            |
+| `sql.modules.inbox.options.notify`        | `true`           | Notifications for assignments and mentions      |
+
+## Example
+
+The Next.js example has a staff inbox at `/inbox` with status and assignee
+filters, assignment, internal notes, read receipts and typing, and a Help
+sheet in the header where a signed-in user opens a conversation with the
+`useInboxWidget` hook. See `apps/examples/nextjs/src/features/inbox`.

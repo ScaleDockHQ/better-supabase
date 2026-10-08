@@ -1,0 +1,89 @@
+---
+title: Chat SDK
+description: Run Chat SDK bots on Supabase with a Postgres state adapter, an inbox adapter for the in-app widget, and helpers that record Slack, WhatsApp and SMS messages in the inbox.
+---
+
+`better-supabase/chat-sdk` connects [Chat SDK](https://chat-sdk.dev) to
+Supabase. It adds no tables of its own: the state lives in the
+`chat-sdk-state` [SQL module](/docs/blocks/sql), and conversations live in
+the [inbox](/docs/blocks/inbox).
+
+```bash
+pnpm add chat
+pnpm better-supabase sql add chat-sdk-state inbox
+```
+
+`chat` is an optional peer (`>=4.41 <5`), so apps that don't run a bot
+never install it. Every platform adapter, such as `@chat-adapter/slack`, is
+the app's own dependency.
+
+| Page                                          | Covers                                                                |
+| --------------------------------------------- | --------------------------------------------------------------------- |
+| [State](/docs/chat-sdk/state)                 | `createSupabaseState`, the `StateAdapter` on Postgres                 |
+| [Inbox adapter](/docs/chat-sdk/inbox-adapter) | `inboxAdapter`, a bot that answers in the in-app widget               |
+| [Channels](/docs/chat-sdk/channels)           | `webhook`, `inboundHandler`, `deliver`, `maintain` and installations  |
+| [React](/docs/chat-sdk/react)                 | `better-supabase/chat-sdk/react`, the inbox hooks for chat interfaces |
+
+## How a message flows
+
+1. A platform webhook reaches the route from `webhook()`, which verifies
+   it, stores it in the inbox's event table and answers at once.
+2. `inboundHandler().drain()` replays the stored event into Chat SDK.
+   Your handlers call `handler.mirror(thread, message)`, which records the
+   message in the inbox, so staff see it next to widget conversations.
+3. A staff reply queues an `inbox_outbound` job; `deliver()` posts it with
+   the platform adapter and records the delivery.
+4. In `bot` mode, a contact's message queues an `inbox_bot` job instead,
+   and `inboxAdapter().dispatch()` runs your bot's handlers on it.
+5. `maintain()` on a cron reopens snoozed conversations, replays events a
+   crashed request left, purges old events and deletes expired state.
+
+A minimal bot on the widget:
+
+```ts title="lib/bot.ts"
+import "server-only";
+
+import { Chat } from "chat";
+import { createInbox, sqlTransport } from "better-supabase/blocks/inbox";
+import { createSupabaseState, inboxAdapter } from "better-supabase/chat-sdk";
+
+const transport = sqlTransport(postgres.asService());
+export const inbox = createInbox({ transport });
+export const inboxBot = inboxAdapter({ inbox, userName: "Acme bot" });
+
+export const bot = new Chat({
+  userName: "Acme bot",
+  adapters: { inbox: inboxBot },
+  state: createSupabaseState({ transport }),
+});
+
+bot.onNewMention(async (thread, message) => {
+  await thread.post(`You wrote: ${message.text}`);
+});
+```
+
+Run the bot jobs from a [jobs](/docs/blocks/jobs) drain route. Declare
+`inbox_bot` in your queues with the `InboxBotJob` shape
+(`conversation_id`, `message_id`), then:
+
+```ts title="app/api/jobs/drain/route.ts"
+import "server-only";
+
+import { inboxBot } from "@/lib/bot";
+import { jobs } from "@/lib/jobs";
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: {
+    inbox_bot: (payload) => inboxBot.dispatch(payload),
+  },
+});
+```
+
+## Credentials
+
+Platform tokens never sit in the inbox tables. An installation stores a
+`credential_ref`, and `channelAdapter` asks the
+[credential provider](/docs/extending/credentials) for the token each time
+it builds an adapter, so a rotated or revoked token takes effect on the
+next message.

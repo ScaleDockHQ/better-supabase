@@ -1,0 +1,66 @@
+---
+title: State
+description: createSupabaseState, a Chat SDK StateAdapter on Postgres with subscriptions, locks, a cache, lists and per-thread queues.
+---
+
+`createSupabaseState` implements the Chat SDK `StateAdapter` on the tables
+of the `chat-sdk-state` [SQL module](/docs/blocks/sql), so a bot needs no
+Redis. Every call is one `security definer` function that only the service
+role may run.
+
+```bash
+pnpm better-supabase sql add chat-sdk-state
+```
+
+```ts title="lib/bot.ts"
+import { Chat } from "chat";
+import { sqlTransport } from "better-supabase/blocks/inbox";
+import { createSupabaseState } from "better-supabase/chat-sdk";
+
+export const state = createSupabaseState({
+  transport: sqlTransport(postgres.asService()),
+  keyPrefix: "support-bot",
+});
+
+export const bot = new Chat({ userName: "Acme bot", adapters, state });
+```
+
+| Option      | Default           | Meaning                                               |
+| ----------- | ----------------- | ----------------------------------------------------- |
+| `transport` | required          | A service transport, `sqlTransport` or `rpcTransport` |
+| `schema`    | `better_supabase` | The schema of the `chat-sdk-state` module             |
+| `keyPrefix` | `chat-sdk`        | Separates bots that share the tables                  |
+| `mappers`   | none              | Error mappers for the `DbError` the transport returns |
+
+## What it stores
+
+| Chat SDK method                                                | Behavior                                                            |
+| -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `subscribe`, `unsubscribe`, `isSubscribed`                     | One row per subscribed thread                                       |
+| `acquireLock`, `extendLock`, `releaseLock`, `forceReleaseLock` | One holder per thread; release and extension check the lock's token |
+| `get`, `set`, `setIfNotExists`, `delete`                       | JSON values with an optional TTL                                    |
+| `appendToList`, `getList`                                      | Ordered lists trimmed to `maxLength`, with a TTL                    |
+| `enqueue`, `dequeue`, `queueDepth`                             | A per-thread queue that keeps the newest `maxSize` entries          |
+
+Expired rows are ignored at once and deleted by `state.purge({ batch })`,
+which returns how many rows went. Call it from a cron, or pass the state to
+[`maintain`](/docs/chat-sdk/channels#maintenance).
+
+## Testing another state adapter
+
+`testChatState` from `better-supabase/testing` runs the same contract
+against any `StateAdapter`. It needs a message factory for the queue
+checks:
+
+```ts title="tests/state.test.ts"
+import { createTestMessage } from "@chat-adapter/tests";
+import { testChatState } from "better-supabase/testing";
+import { test } from "vitest";
+
+test("the state adapter conforms", async () => {
+  await testChatState(state, { message: createTestMessage });
+});
+```
+
+The kit throws a `ConformanceError` that lists every failed check. See
+[Conformance kits](/docs/extending/conformance).

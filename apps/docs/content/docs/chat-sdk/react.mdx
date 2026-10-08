@@ -1,0 +1,50 @@
+---
+title: React
+description: better-supabase/chat-sdk/react re-exports the inbox hooks for chat interfaces, a staff list, a thread with typing, and an in-app widget.
+---
+
+`better-supabase/chat-sdk/react` re-exports `useInbox`, `useConversation`
+and `useInboxWidget` from `better-supabase/blocks/inbox/react`, so a chat
+interface imports its hooks from the same place as its bot. They are the
+same functions; see [Inbox](/docs/blocks/inbox#realtime) for their options.
+
+```tsx title="components/help-chat.tsx"
+"use client";
+
+import { useInboxWidget } from "better-supabase/chat-sdk/react";
+
+import { askForHelp, loadMessages, sendHelp } from "./help-actions";
+
+export function HelpChat({ userId }: { userId: string }) {
+  const widget = useInboxWidget({
+    storageKey: `help:${userId}`,
+    open: (message) => askForHelp({ message }),
+    send: (conversationId, message) => sendHelp({ conversationId, message }),
+    load: (conversationId) => loadMessages({ conversationId }),
+  });
+
+  return (
+    <form action={(data) => widget.submit(String(data.get("message")))}>
+      <ul>
+        {widget.items?.map((m) => (
+          <li key={m.id}>{m.body}</li>
+        ))}
+      </ul>
+      {widget.typing.length > 0 ? <output>Typing</output> : null}
+      <textarea name="message" onInput={() => widget.setTyping(true)} />
+    </form>
+  );
+}
+```
+
+`useInboxWidget` returns the thread state of `useConversation` (`items`,
+`typing`, `setTyping`) plus `conversationId`, `submit` and `reset`.
+
+Each hook loads through a server action you pass as `load`, and reloads
+when a broadcast arrives on the private inbox topics, so the browser never
+needs the tables in the Data API. A bot's replies arrive the same way as a
+person's.
+
+Cards and modals from Chat SDK aren't rendered here; the
+[inbox adapter](/docs/chat-sdk/inbox-adapter#limits) posts their fallback
+text.
