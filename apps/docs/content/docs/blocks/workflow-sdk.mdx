@@ -173,6 +173,69 @@ A hook token in a link or an email is not enough to resume the run:
 `authorizeHook` also checks who is asking. `can` is your permission check,
 for example a call to `member_can(auth.uid(), tenant, permission)`.
 
+## Graph workflows
+
+`better-supabase/workflow-sdk/builder` runs the graphs of the
+[workflow builder](/docs/blocks/workflow-builder) on the Workflow SDK.
+`compileGraph` turns a graph into dynamic workflow source: each step node
+calls its own step, sleep nodes call `sleep` and approval nodes wait on
+`createHook({ token: "<runKey>:<node>" })`. Pass it as `compile`, and
+`graphStarter` as `start`, to `createBuilder`.
+
+```ts title="workflows/graph.ts"
+import {
+  executeGraph,
+  type GraphStepCall,
+} from "better-supabase/workflow-sdk/builder";
+import type { WorkflowGraph } from "better-supabase/blocks/workflow-builder";
+import { createHook, sleep } from "workflow";
+
+import { steps } from "./steps";
+
+export async function graphExecutor(
+  graph: WorkflowGraph,
+  input: unknown,
+  meta: { runKey: string },
+) {
+  "use workflow";
+  return executeGraph(graph, input, {
+    runKey: meta.runKey,
+    step: (call: GraphStepCall) => steps[call.step](call),
+    sleep: (ms) => sleep(ms),
+    approval: (token) => createHook({ token }),
+  });
+}
+```
+
+```ts title="workflows/steps.ts"
+import {
+  nodeRunReporter,
+  type GraphStepCall,
+} from "better-supabase/workflow-sdk/builder";
+
+const report = nodeRunReporter(serviceBuilder.nodeRuns);
+
+export async function sendEmail(call: GraphStepCall) {
+  "use step";
+  return report(call, () => email.send(call.config));
+}
+
+export const steps = { "email.send": sendEmail };
+```
+
+Dynamic workflows are experimental in the Workflow SDK. With
+`WORKFLOW_EXPERIMENTAL_DYNAMIC_WORKFLOWS=1`, `graphStarter` starts the
+compiled source of the published version; source over 128 KiB fails to
+publish. Without it, `graphStarter` starts `executor`, a static
+`"use workflow"` function that walks the stored graph with `executeGraph`
+and takes the same branches. Either way a run carries `bs.definition`,
+`bs.version`, `bs.tenant`, `bs.actor` and `bs.key`, and a start with a key
+that already ran returns the first run.
+
+`nodeRunReporter` records each step node's status, output and error in
+`workflow_node_runs` for the canvas. A record that fails never fails the
+step.
+
 ## Analytics
 
 `world.analytics` lists runs (by workflow name, status, attributes and a
