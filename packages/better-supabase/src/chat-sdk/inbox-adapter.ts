@@ -24,7 +24,12 @@ import type { Inbox } from "../blocks/inbox/inbox.ts";
 import type { InboxMessage } from "../blocks/inbox/types.ts";
 import type { StreamStore } from "../streams/store.ts";
 
-import { isRecord, optionalText, randomToken } from "../blocks/shared.ts";
+import {
+  isRecord,
+  optionalText,
+  randomToken,
+  toInstant,
+} from "../blocks/shared.ts";
 import { writeToStore } from "../streams/tee.ts";
 
 const PREFIX = "inbox:";
@@ -65,7 +70,7 @@ export interface InboxAdapterOptions {
 
 export interface InboxAdapter extends Adapter<string, InboxMessage> {
   readonly name: "inbox";
-  /** Hands a queued bot job to Chat SDK: loads the contact's message and runs the bot's handlers. */
+  /** Hands a queued bot job to Chat SDK: loads the contact's message and runs the bot's handlers. Other authors are skipped. */
   dispatch(job: InboxBotJob): Promise<void>;
 }
 
@@ -204,7 +209,12 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
   const dispatch = async (job: InboxBotJob): Promise<void> => {
     if (!chat) throw new Error("inboxAdapter: initialize() has not run");
     const message = await inbox.messages.get(job.message_id).orThrow();
-    if (!message || message.conversationId !== job.conversation_id) return;
+    if (
+      message?.conversationId !== job.conversation_id ||
+      message.authorType !== "contact" ||
+      message.kind !== "message"
+    )
+      return;
     await chat.processMessage(
       adapter,
       `${PREFIX}${message.conversationId}`,
@@ -249,7 +259,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
         conversation_id: job["conversation_id"],
         message_id: job["message_id"],
       });
-      return new Response(null, { status: 204 });
+      return new Response("ok", { status: 200 });
     },
     postMessage: (threadId, message) => {
       const { body, format } = bodyOf(message);
@@ -299,7 +309,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       const before =
         fetchOptions.cursor === undefined
           ? undefined
-          : Temporal.Instant.from(fetchOptions.cursor);
+          : toInstant(fetchOptions.cursor);
       const page = await inbox.messages
         .list(conversationIdOf(threadId), {
           limit,

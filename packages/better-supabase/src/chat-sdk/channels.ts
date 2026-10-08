@@ -24,6 +24,7 @@ import type {
 } from "../credentials/provider.ts";
 
 import { errorText } from "../blocks/shared.ts";
+import { nowInstant } from "../core/temporal.ts";
 import {
   DELIVERY_PARSERS,
   type DeliveryParser,
@@ -369,7 +370,7 @@ export interface DeliverOptions {
 export async function whatsappWindowOpen(
   inbox: Inbox,
   conversationId: string,
-  now: Temporal.Instant = Temporal.Now.instant(),
+  now: Temporal.Instant = nowInstant(),
 ): Promise<boolean> {
   const page = await inbox.messages
     .list(conversationId, { limit: 200 })
@@ -379,7 +380,7 @@ export async function whatsappWindowOpen(
   );
   return (
     last !== undefined &&
-    Temporal.Instant.compare(last.createdAt.add({ hours: 24 }), now) > 0
+    last.createdAt.add({ hours: 24 }).epochMilliseconds > now.epochMilliseconds
   );
 }
 

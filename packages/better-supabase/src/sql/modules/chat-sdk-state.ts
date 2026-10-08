@@ -102,9 +102,10 @@ grant execute on function ${signature} to service_role;`;
 revoke all on ${name} from anon, authenticated;
 grant all on ${name} to service_role;`;
   const ttl = (ms: string): string =>
-    `case when ${ms} is null or ${ms} <= 0 then null else now() + make_interval(secs => ${ms} / 1000.0) end`;
+    `case when ${ms} is null or ${ms} <= 0 then null else clock_timestamp() + make_interval(secs => ${ms} / 1000.0) end`;
+  // Expiry reads the wall clock, so a long transaction sees TTLs pass.
   const live = (column: string): string =>
-    `(${column} is null or ${column} > now())`;
+    `(${column} is null or ${column} > clock_timestamp())`;
   const lockJson = (row: string): string =>
     `jsonb_build_object('thread_id', ${row}.${cl("thread")}, 'token', ${row}.${cl("token")}, 'expires_at', ${row}.${cl("expiresAt")})`;
 
@@ -185,6 +186,7 @@ create table if not exists ${ins} (
   unique (${ci("adapter")}, ${ci("externalId")})
 );
 create index if not exists chat_installations_tenant_idx on ${ins} (${ci("tenant")});
+create index if not exists chat_installations_installed_by_idx on ${ins} (${ci("installedBy")});
 ${table(ins)}
 
 create or replace function ${fn("chat_state_subscribe")}(prefix text, thread_id text)
@@ -228,10 +230,10 @@ declare
   v_lock ${lk}%rowtype;
 begin
   insert into ${lk} as l (${cl("prefix")}, ${cl("thread")}, ${cl("token")}, ${cl("expiresAt")})
-  values (prefix, thread_id, token, now() + make_interval(secs => greatest(coalesce(ttl_ms, 0), 1) / 1000.0))
+  values (prefix, thread_id, token, clock_timestamp() + make_interval(secs => greatest(coalesce(ttl_ms, 0), 1) / 1000.0))
   on conflict (${cl("prefix")}, ${cl("thread")}) do update
-    set ${cl("token")} = excluded.${cl("token")}, ${cl("expiresAt")} = excluded.${cl("expiresAt")}, ${cl("updatedAt")} = now()
-    where l.${cl("expiresAt")} <= now()
+    set ${cl("token")} = excluded.${cl("token")}, ${cl("expiresAt")} = excluded.${cl("expiresAt")}, ${cl("updatedAt")} = clock_timestamp()
+    where l.${cl("expiresAt")} <= clock_timestamp()
   returning * into v_lock;
   if not found then
     return null;
@@ -249,11 +251,11 @@ set search_path = ''
 as $$
 begin
   update ${lk} l
-  set ${cl("expiresAt")} = now() + make_interval(secs => greatest(coalesce(ttl_ms, 0), 1) / 1000.0), ${cl("updatedAt")} = now()
+  set ${cl("expiresAt")} = clock_timestamp() + make_interval(secs => greatest(coalesce(ttl_ms, 0), 1) / 1000.0), ${cl("updatedAt")} = clock_timestamp()
   where l.${cl("prefix")} = chat_state_extend_lock.prefix
     and l.${cl("thread")} = chat_state_extend_lock.thread_id
     and l.${cl("token")} = chat_state_extend_lock.token
-    and l.${cl("expiresAt")} > now();
+    and l.${cl("expiresAt")} > clock_timestamp();
   return found;
 end;
 $$;
@@ -293,7 +295,6 @@ ${serviceOnly(`${fn("chat_state_force_release_lock")}(text, text)`)}
 create or replace function ${fn("chat_state_get")}(prefix text, key text)
 returns jsonb
 language sql
-stable
 set search_path = ''
 as $$
   select jsonb_build_object('value', c.${cc("value")})
@@ -311,7 +312,7 @@ as $$
   insert into ${ca} (${cc("prefix")}, ${cc("key")}, ${cc("value")}, ${cc("expiresAt")})
   values (prefix, key, value, ${ttl("ttl_ms")})
   on conflict (${cc("prefix")}, ${cc("key")}) do update
-    set ${cc("value")} = excluded.${cc("value")}, ${cc("expiresAt")} = excluded.${cc("expiresAt")}, ${cc("updatedAt")} = now();
+    set ${cc("value")} = excluded.${cc("value")}, ${cc("expiresAt")} = excluded.${cc("expiresAt")}, ${cc("updatedAt")} = clock_timestamp();
 $$;
 ${serviceOnly(`${fn("chat_state_set")}(text, text, jsonb, integer)`)}
 
@@ -326,8 +327,8 @@ begin
   insert into ${ca} as c (${cc("prefix")}, ${cc("key")}, ${cc("value")}, ${cc("expiresAt")})
   values (prefix, key, value, ${ttl("ttl_ms")})
   on conflict (${cc("prefix")}, ${cc("key")}) do update
-    set ${cc("value")} = excluded.${cc("value")}, ${cc("expiresAt")} = excluded.${cc("expiresAt")}, ${cc("updatedAt")} = now()
-    where c.${cc("expiresAt")} is not null and c.${cc("expiresAt")} <= now();
+    set ${cc("value")} = excluded.${cc("value")}, ${cc("expiresAt")} = excluded.${cc("expiresAt")}, ${cc("updatedAt")} = clock_timestamp()
+    where c.${cc("expiresAt")} is not null and c.${cc("expiresAt")} <= clock_timestamp();
   return found;
 end;
 $$;
@@ -374,7 +375,6 @@ ${serviceOnly(`${fn("chat_state_append_to_list")}(text, text, jsonb, integer, in
 create or replace function ${fn("chat_state_get_list")}(prefix text, key text)
 returns jsonb
 language sql
-stable
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(l.${cli("value")} order by l.${cli("id")}), '[]'::jsonb)
@@ -396,7 +396,7 @@ declare
 begin
   delete from ${qu} q
   where q.${cq("prefix")} = chat_state_enqueue.prefix and q.${cq("thread")} = chat_state_enqueue.thread_id
-    and q.${cq("expiresAt")} <= now();
+    and q.${cq("expiresAt")} <= clock_timestamp();
   insert into ${qu} (${cq("prefix")}, ${cq("thread")}, ${cq("value")}, ${cq("expiresAt")})
   values (prefix, thread_id, entry, expires_at);
   if max_size is not null and max_size > 0 then
@@ -411,7 +411,7 @@ begin
   end if;
   select count(*)::integer into v_depth from ${qu} q
   where q.${cq("prefix")} = chat_state_enqueue.prefix and q.${cq("thread")} = chat_state_enqueue.thread_id
-    and q.${cq("expiresAt")} > now();
+    and q.${cq("expiresAt")} > clock_timestamp();
   return v_depth;
 end;
 $$;
@@ -429,7 +429,7 @@ declare
 begin
   delete from ${qu} q
   where q.${cq("prefix")} = chat_state_dequeue.prefix and q.${cq("thread")} = chat_state_dequeue.thread_id
-    and q.${cq("expiresAt")} <= now();
+    and q.${cq("expiresAt")} <= clock_timestamp();
   delete from ${qu} q
   where q.${cq("id")} = (
     select k.${cq("id")} from ${qu} k
@@ -447,12 +447,11 @@ ${serviceOnly(`${fn("chat_state_dequeue")}(text, text)`)}
 create or replace function ${fn("chat_state_queue_depth")}(prefix text, thread_id text)
 returns integer
 language sql
-stable
 set search_path = ''
 as $$
   select count(*)::integer from ${qu} q
   where q.${cq("prefix")} = chat_state_queue_depth.prefix and q.${cq("thread")} = chat_state_queue_depth.thread_id
-    and q.${cq("expiresAt")} > now();
+    and q.${cq("expiresAt")} > clock_timestamp();
 $$;
 ${serviceOnly(`${fn("chat_state_queue_depth")}(text, text)`)}
 
@@ -468,16 +467,16 @@ declare
   v_count integer := 0;
   v_rows integer;
 begin
-  delete from ${lk} l where ctid in (select ctid from ${lk} where ${cl("expiresAt")} <= now() limit v_limit);
+  delete from ${lk} l where ctid in (select ctid from ${lk} where ${cl("expiresAt")} <= clock_timestamp() limit v_limit);
   get diagnostics v_rows = row_count;
   v_count := v_count + v_rows;
-  delete from ${ca} c where ctid in (select ctid from ${ca} where ${cc("expiresAt")} <= now() limit v_limit);
+  delete from ${ca} c where ctid in (select ctid from ${ca} where ${cc("expiresAt")} <= clock_timestamp() limit v_limit);
   get diagnostics v_rows = row_count;
   v_count := v_count + v_rows;
-  delete from ${li} l where l.${cli("id")} in (select ${cli("id")} from ${li} where ${cli("expiresAt")} <= now() limit v_limit);
+  delete from ${li} l where l.${cli("id")} in (select ${cli("id")} from ${li} where ${cli("expiresAt")} <= clock_timestamp() limit v_limit);
   get diagnostics v_rows = row_count;
   v_count := v_count + v_rows;
-  delete from ${qu} q where q.${cq("id")} in (select ${cq("id")} from ${qu} where ${cq("expiresAt")} <= now() limit v_limit);
+  delete from ${qu} q where q.${cq("id")} in (select ${cq("id")} from ${qu} where ${cq("expiresAt")} <= clock_timestamp() limit v_limit);
   get diagnostics v_rows = row_count;
   return v_count + v_rows;
 end;
@@ -507,7 +506,7 @@ begin
         ${ci("credentialRef")} = excluded.${ci("credentialRef")},
         ${ci("installedBy")} = coalesce(excluded.${ci("installedBy")}, i.${ci("installedBy")}),
         ${ci("metadata")} = i.${ci("metadata")} || excluded.${ci("metadata")},
-        ${ci("installedAt")} = now(),
+        ${ci("installedAt")} = clock_timestamp(),
         ${ci("uninstalledAt")} = null
   returning * into v_row;
   return to_jsonb(v_row) || jsonb_build_object(
@@ -562,7 +561,7 @@ begin
   if not found then
     return null;
   end if;
-  update ${ins} i set ${ci("uninstalledAt")} = now(), ${ci("credentialRef")} = null
+  update ${ins} i set ${ci("uninstalledAt")} = clock_timestamp(), ${ci("credentialRef")} = null
   where i.${ci("adapter")} = chat_uninstall.adapter and i.${ci("externalId")} = chat_uninstall.external_id
   returning * into v_row;
   return to_jsonb(v_row) || jsonb_build_object('previous_credential_ref', v_ref);

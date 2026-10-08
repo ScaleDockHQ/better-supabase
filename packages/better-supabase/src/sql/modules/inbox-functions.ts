@@ -708,7 +708,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_at timestamptz := now();
+  v_at timestamptz := clock_timestamp();
 begin
   if (select auth.uid()) is null or not ${fn("inbox_conversation_allowed")}(conversation::text) then
     ${forbidden("not allowed to read this conversation")}

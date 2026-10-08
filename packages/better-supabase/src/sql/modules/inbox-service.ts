@@ -72,13 +72,13 @@ returns jsonb
 language plpgsql
 set search_path = ''
 as $$
-#variable_conflict use_variable
+#variable_conflict use_column
 declare
   v_row ${T("deliveries")}%rowtype;
 begin
   insert into ${T("deliveries")} as d (${dl("tenant")}, ${dl("message")}, ${dl("channel")}, ${dl("externalId")}, ${dl("status")}, ${dl("error")}, ${dl("attempts")})
-  select m.${ms("tenant")}, m.${ms("id")}, channel, external_id, coalesce(status, 'sent'), error, 1
-  from ${T("messages")} m where m.${ms("id")} = message
+  select m.${ms("tenant")}, m.${ms("id")}, record_delivery.channel, record_delivery.external_id, coalesce(record_delivery.status, 'sent'), record_delivery.error, 1
+  from ${T("messages")} m where m.${ms("id")} = record_delivery.message
   on conflict (${dl("message")}, ${dl("channel")}) do update set
     ${dl("externalId")} = coalesce(excluded.${dl("externalId")}, d.${dl("externalId")}),
     ${dl("status")} = excluded.${dl("status")},
