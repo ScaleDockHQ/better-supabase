@@ -77,11 +77,13 @@ const config: KnipConfig = {
       ...browserExample,
       ignore: [...exampleIgnore, "src/components/ui/**"],
       // Knip's Playwright plugin finds the specs; the setup project is a
-      // `testMatch` regex it can't read.
+      // `testMatch` regex and `e2e/serve.ts` a `webServer` command, which it
+      // can't read.
       entry: [
         "better-supabase.config.ts",
         "src/image-loader.ts",
         "e2e/auth.setup.ts",
+        "e2e/serve.ts",
       ],
     },
     "apps/examples/vite-react": browserExample,

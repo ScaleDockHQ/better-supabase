@@ -572,6 +572,8 @@ looks instant. Delay the server's Supabase requests and the uncached reads
 show up as spinners:
 
 ```ts title="src/lib/supabase/server.ts"
+import "server-only";
+
 const delayMs = Number(process.env["BS_FETCH_DELAY_MS"] ?? "0");
 const delayed: typeof fetch = async (input, init) => {
   await new Promise((resolve) => setTimeout(resolve, delayMs));

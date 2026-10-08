@@ -5,7 +5,7 @@ import "server-only";
  * round trip from the server visible. Cached reads and the static shell
  * skip it, so a slow page under it shows which reads were not cached.
  */
-export function delayedFetch(ms: number): typeof fetch {
+function delayedFetch(ms: number): typeof fetch {
   return async (input, init) => {
     await new Promise<void>((resolve, reject) => {
       const signal = init?.signal;
