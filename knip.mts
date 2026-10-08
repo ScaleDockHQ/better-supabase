@@ -74,6 +74,10 @@ const config: KnipConfig = {
     "apps/examples/edge": edgeExample,
     "apps/examples/mcp": edgeExample,
     "apps/examples/hono-api": serverExample,
+    "apps/examples/express": {
+      entry: ["better-supabase.config.ts"],
+      ignore: exampleIgnore,
+    },
     "apps/examples/orpc-api": serverExample,
     "apps/examples/nextjs": {
       ...browserExample,
