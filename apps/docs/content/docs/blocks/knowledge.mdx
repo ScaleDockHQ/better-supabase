@@ -1,0 +1,130 @@
+---
+title: Knowledge
+description: Documents chunked and embedded per organization, agent, project, chat or user, with hybrid search that ranks full text and vector matches together.
+---
+
+The `knowledge` block stores what an assistant can look things up in:
+documents, split into chunks that each carry an embedding and a
+`tsvector`. Search runs full text and vector similarity and fuses the two
+rankings with reciprocal rank fusion, so a query finds both the exact term
+and a paraphrase. Row level security decides which documents a caller
+sees.
+
+```bash
+better-supabase sql add knowledge   # adds tenant, access and vector-search as well
+```
+
+| Table                 | Holds                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------ |
+| `knowledge_documents` | One row per document: tenant, owner, `scope` and `scope_id`, `title`, `source`, `metadata`, `status`   |
+| `knowledge_chunks`    | The chunks of a document in order: `content`, `token_count`, `embedding`, `embedding_model`, the `tsv` |
+
+A document belongs to one scope:
+
+| Scope          | `scope_id`                         | Who reads it                             |
+| -------------- | ---------------------------------- | ---------------------------------------- |
+| `organization` | none                               | every member with the read permission    |
+| `agent`        | the agent                          | every member with the read permission    |
+| `project`      | the project                        | the owner                                |
+| `chat`         | an [AI chat](/docs/blocks/ai-chat) | the owner, and whoever can read the chat |
+| `user`         | the owner (the caller by default)  | the owner                                |
+
+Members with the manage permission read every document in the tenant.
+A new document is `user` scoped unless you pass `scope`.
+
+| Permission       | Lets a member                                        | Default roles              |
+| ---------------- | ---------------------------------------------------- | -------------------------- |
+| `ai_chat.read`   | read organization and agent documents                | `owner`, `admin`, `member` |
+| `ai_chat.create` | add `user`, `project` and `chat` documents           | `owner`, `admin`, `member` |
+| `ai_chat.admin`  | add organization and agent documents, read every one | `owner`, `admin`           |
+
+Rename the keys with `sql.modules.knowledge.permissions.read`, `.write`
+and `.manage`.
+
+| Option       | Default           | Sets                                                                     |
+| ------------ | ----------------- | ------------------------------------------------------------------------ |
+| `dimensions` | `1536`            | The embedding size; 384 for `gte-small` in Edge Functions                |
+| `type`       | `vector`          | `vector` or `halfvec`, as in [vector search](/docs/blocks/vector-search) |
+| `textSearch` | `simple`          | The text search configuration of the `tsv` column, such as `english`     |
+| `embedQueue` | `knowledge_embed` | The [jobs](/docs/blocks/jobs) queue a new document is enqueued on        |
+
+## Server
+
+```ts title="lib/knowledge.ts"
+import { embedWith } from "better-supabase/ai-sdk/embeddings";
+import {
+  createKnowledge,
+  rpcTransport,
+} from "better-supabase/blocks/knowledge";
+
+export const knowledgeFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createKnowledge({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    embedder: embedWith("openai/text-embedding-3-small"),
+  });
+```
+
+`transport` acts as the user. `service` writes embeddings, which only the
+server does. The `embedder` is anything with a `model` name and an
+`embed(values)` method; [`better-supabase/ai-sdk/embeddings`](/docs/ai-sdk/embeddings)
+builds one from an AI SDK model, and `files` (an [AI files](/docs/blocks/ai-files)
+client) lets `ingest.file` read uploads.
+
+| Group       | Methods                                             |
+| ----------- | --------------------------------------------------- |
+| `documents` | `create`, `get`, `list`, `write`, `remove`          |
+| `ingest`    | `text`, `file`                                      |
+| (top level) | `process`, `embedJob`, `drain`, `search`, `reembed` |
+
+## Ingest and embed
+
+```ts
+const doc = await knowledge.ingest
+  .text(organizationId, { title: "Refund policy", text, source: "handbook" })
+  .orThrow();
+```
+
+`ingest.text` creates the document and writes its chunks with
+`chunk(text)`: about 2,000 characters each, cut at a paragraph, line,
+sentence or word break, with a short overlap. The document starts
+`pending`. Embedding happens on the server:
+
+- With the [`jobs`](/docs/blocks/jobs) module installed, a new document is
+  enqueued on `knowledge_embed`; register `knowledge.embedJob()` as its
+  handler. The last failed attempt marks the document `failed` with the
+  error.
+- Without a queue, call `knowledge.process(doc.id)` (in `after()`, for
+  example) or `knowledge.drain()` from a cron job.
+
+`documents.write(id, chunks)` replaces the chunks; a chunk whose text and
+model didn't change keeps its embedding, so editing one paragraph re-embeds
+one chunk. `reembed({ model })` marks documents embedded by another model
+`pending` again after you change models.
+
+`ingest.file(organizationId, fileId)` reads a ready AI files upload. It
+extracts text, JSON, XML and YAML; pass `extract` to `createKnowledge` for
+PDFs and other formats.
+
+## Search
+
+```ts
+const hits = await knowledge
+  .search(organizationId, "how fast are refunds paid", {
+    scopes: [{ scope: "organization" }, { scope: "chat", id: chatId }],
+    k: 8,
+  })
+  .orThrow();
+```
+
+Each hit has the `documentId`, the chunk `index`, its `content`, the
+document `title` and a fused `score`. Without an embedder the search is
+full text only; pass `{ text, embedding }` to reuse an embedding you
+already have. `filter` matches documents whose `metadata` contains an
+object.
+
+## AI SDK
+
+[`better-supabase/ai-sdk/embeddings`](/docs/ai-sdk/embeddings) gives you
+the embedder, a reranker, a search tool for the model and source parts
+for the answer.
