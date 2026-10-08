@@ -12,6 +12,12 @@
         "SUPABASE_*",
         "WORKFLOW_*"
       ]
+    },
+    "lint": {
+      "dependsOn": ["transit", "^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["transit", "^build"]
     }
   }
 }

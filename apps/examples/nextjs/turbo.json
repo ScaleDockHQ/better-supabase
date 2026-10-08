@@ -17,6 +17,12 @@
         "WORKFLOW_*"
       ],
       "inputs": ["$TURBO_DEFAULT$", ".env.production"]
+    },
+    "lint": {
+      "dependsOn": ["transit", "^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["transit", "^build"]
     }
   }
 }
