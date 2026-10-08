@@ -351,6 +351,7 @@
       "fieldErrorsOf",
       "SessionProvider",
       "supportOf",
+      "tenantOf",
       "useAction",
       "useActionForm",
       "useAuth",
@@ -364,6 +365,7 @@
     "types": [
       "ActionForm",
       "ActionHandle",
+      "ActionInputOf",
       "ActionResultOf",
       "AuthSession",
       "BetterHooks",

@@ -5,6 +5,7 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { ActionResult, AuthSession } from "../../src/next/index.ts";
+import type { ActionInputOf } from "../../src/react/index.ts";
 
 import { createClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
@@ -209,5 +210,18 @@ describe("authorize and requireTenant", () => {
     void bs.cached({ tables: ["customers"], id: "c1" });
     // @ts-expect-error not a table
     void bs.cached({ tables: ["nope"] });
+  });
+});
+
+describe("ActionInputOf", () => {
+  it("drops FormData from a schema action's input", () => {
+    const save = bs.action(
+      { input: v.object({ id: v.string() }) },
+      () => "saved" as const,
+    );
+    expectTypeOf<ActionInputOf<Parameters<typeof save>[0]>>().toEqualTypeOf<{
+      id: string;
+    }>();
+    expectTypeOf<ActionInputOf<FormData>>().toEqualTypeOf<FormData>();
   });
 });

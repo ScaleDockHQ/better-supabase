@@ -13,6 +13,14 @@ export type ActionResultOf<T> =
   | { readonly ok: true; readonly data: T; readonly error: null }
   | { readonly ok: false; readonly data: null; readonly error: DbError };
 
+/**
+ * The input `useAction` passes: a `bs.action()` with an `input` schema also
+ * accepts `FormData`, which belongs to `useActionForm`.
+ */
+export type ActionInputOf<I> = [Exclude<I, FormData>] extends [never]
+  ? I
+  : Exclude<I, FormData>;
+
 export interface UseActionOptions<I, T> {
   readonly onSuccess?: (data: T, input: I) => void;
   readonly onError?: (error: DbError, input: I) => void;
@@ -52,15 +60,15 @@ const IDLE = { data: undefined, error: undefined } as const;
  */
 export function useAction<I, T>(
   action: (input: I) => Promise<ActionResultOf<T>>,
-  options: UseActionOptions<I, T> = {},
-): ActionHandle<I, T> {
+  options: UseActionOptions<ActionInputOf<I>, T> = {},
+): ActionHandle<ActionInputOf<I>, T> {
   const [transitioning, startTransition] = useTransition();
-  const [inFlight, setInFlight] = useState<readonly { readonly input: I }[]>(
-    [],
-  );
+  const [inFlight, setInFlight] = useState<
+    readonly { readonly input: ActionInputOf<I> }[]
+  >([]);
   const [settled, setSettled] = useState<Settled<T>>(IDLE);
 
-  const run = (input: I): Promise<ActionResultOf<T>> => {
+  const run = (input: ActionInputOf<I>): Promise<ActionResultOf<T>> => {
     // Each run gets its own entry, so two runs with equal inputs stay apart.
     const entry = { input };
     setInFlight((current) => [...current, entry]);

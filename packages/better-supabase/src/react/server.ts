@@ -5,6 +5,7 @@ import type { LiveCountSeed } from "../realtime/live.ts";
 import type {
   ActionForm,
   ActionHandle,
+  ActionInputOf,
   ActionResultOf,
   BetterHooks,
   ClientLike,
@@ -25,9 +26,11 @@ export {
 // Component layout can render it and pass the session promise across.
 export { SessionProvider } from "./session.js";
 export { fieldErrorsOf } from "./field-errors.ts";
+export { tenantOf } from "../auth/view.ts";
 export type {
   ActionForm,
   ActionHandle,
+  ActionInputOf,
   ActionResultOf,
   UseActionFormOptions,
   UseActionOptions,
@@ -76,8 +79,8 @@ export const useLiveCount: (
 /** The `react-server` build of `useAction`: call the Server Action directly instead. */
 export const useAction: <I, T>(
   action: (input: I) => Promise<ActionResultOf<T>>,
-  options?: UseActionOptions<I, T>,
-) => ActionHandle<I, T> = clientOnly("useAction");
+  options?: UseActionOptions<ActionInputOf<I>, T>,
+) => ActionHandle<ActionInputOf<I>, T> = clientOnly("useAction");
 
 /** The `react-server` build of `useActionForm`: render the form in a Client Component. */
 export const useActionForm: <T>(

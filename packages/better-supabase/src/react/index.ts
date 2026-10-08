@@ -22,9 +22,11 @@ export type {
 } from "./hooks.ts";
 export { useAction, useActionForm } from "./actions.ts";
 export { fieldErrorsOf } from "./field-errors.ts";
+export { tenantOf } from "../auth/view.ts";
 export type {
   ActionForm,
   ActionHandle,
+  ActionInputOf,
   ActionResultOf,
   UseActionFormOptions,
   UseActionOptions,
