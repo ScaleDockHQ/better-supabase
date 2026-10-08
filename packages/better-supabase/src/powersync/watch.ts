@@ -1,3 +1,4 @@
+import type { SqliteCompilerOptions } from "../compile/sqlite.ts";
 import type { Result } from "../core/result.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 import type { PowerSyncDatabaseLike } from "./executor.ts";
@@ -73,14 +74,19 @@ export function watch<T>(
   };
 }
 
-/** The SQLite table names of app table keys (`customerTags` to `customer_tags`). */
+/**
+ * The SQLite table names of app table keys (`customerTags` to
+ * `customer_tags`). Pass the executor's `tableName` when it renames tables,
+ * so `watch` listens to the names the queries read.
+ */
 export function sqliteTables(
   betterSupabase: { readonly meta: SchemaMeta },
   keys: readonly string[],
+  options: SqliteCompilerOptions = {},
 ): string[] {
   return keys.map((key) => {
     const table = betterSupabase.meta.tables[key];
     if (!table) throw new TypeError(`better-supabase: unknown table "${key}"`);
-    return table.name;
+    return options.tableName ? options.tableName(table) : table.name;
   });
 }

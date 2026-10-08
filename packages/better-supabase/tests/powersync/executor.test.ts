@@ -94,6 +94,30 @@ describe("powersyncExecutor", () => {
     expect(await client.locations.count().orThrow()).toBe(0);
   });
 
+  it("decodes bigint values without losing precision", async () => {
+    const { db } = setup();
+    const big = 2n ** 60n + 1n;
+    const wide: PowerSyncDatabaseLike = {
+      ...db,
+      getAll: async <R>(sql: string, parameters?: unknown[]) => {
+        const rows = await db.getAll<Record<string, unknown>>(sql, parameters);
+        // SAFETY: the rows are the tags rows the query selected.
+        return rows.map((row, index) => ({
+          ...row,
+          name: index === 0 ? big : 7n,
+        })) as R[];
+      },
+    };
+    const client = betterSupabase.connect(powersyncExecutor(db));
+    await client.tags.create({ organizationId: ORG, name: "a" }).orThrow();
+    await client.tags.create({ organizationId: ORG, name: "b" }).orThrow();
+    const rows = await betterSupabase
+      .connect(powersyncExecutor(wide))
+      .tags.findMany({ select: ["name"], orderBy: { name: "asc" } })
+      .orThrow();
+    expect(rows.map((row) => row.name as unknown)).toEqual([big.toString(), 7]);
+  });
+
   it("reads rows and their count in one read transaction", async () => {
     const { db } = setup();
     const inTransaction: string[] = [];
@@ -447,6 +471,14 @@ describe("watch", () => {
       signal: controller.signal,
     })();
     expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+
+  it("names tables the way the executor's tableName does", () => {
+    expect(
+      sqliteTables(betterSupabase, ["customerTags"], {
+        tableName: (table) => `local_${table.name}`,
+      }),
+    ).toEqual(["local_customer_tags"]);
   });
 
   it("needs onChange and known tables", () => {
