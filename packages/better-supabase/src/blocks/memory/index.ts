@@ -2,6 +2,7 @@ export {
   createMemory,
   type Memory,
   type MemoryCommand,
+  type MemoryDocument,
   type MemoryHit,
   type MemoryKind,
   type MemoryNamespace,

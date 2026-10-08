@@ -241,6 +241,36 @@ export interface Memory {
     readonly batch?: number;
     readonly signal?: AbortSignal;
   }): AsyncResult<number>;
+  /**
+   * Documents under an opaque scope key, for agent runtimes (service role).
+   * A write names the version it read; a stale one fails with the hint
+   * `MEMORY_DOCUMENT_CONFLICT`.
+   */
+  readonly documents: {
+    read(
+      scopeKey: string,
+      path: string,
+    ): AsyncResult<MemoryDocument | undefined>;
+    /** `expectedVersion: null` means the document must not exist yet. */
+    write(
+      scopeKey: string,
+      path: string,
+      content: string,
+      options: {
+        readonly expectedVersion: string | null;
+        /** Seconds until the document expires. */
+        readonly expiresIn?: number;
+      },
+    ): AsyncResult<MemoryDocument>;
+    /** Deletes expired documents, at most `batch`. Returns how many. */
+    purge(batch?: number): AsyncResult<number>;
+  };
+}
+
+export interface MemoryDocument {
+  readonly content: string;
+  /** Opaque; pass it back as `expectedVersion`. */
+  readonly version: string;
 }
 
 const SCOPES: ReadonlySet<string> = new Set([
@@ -307,6 +337,11 @@ function viewOf(value: unknown): MemoryView | undefined {
       size: Number(entry["size"]),
     })),
   };
+}
+
+function documentOf(value: unknown): MemoryDocument {
+  const row = recordOf(value, "memory_document");
+  return { content: textOf(row["content"]), version: textOf(row["version"]) };
 }
 
 const nsArg = (ns: MemoryNamespace = {}): Record<string, string> => {
@@ -704,5 +739,26 @@ export function createMemory(options: MemoryOptions): Memory {
             }),
           )
         : AsyncResult.err(noEmbedder()),
+    documents: {
+      read: (scopeKey, path) =>
+        service(
+          "memory_document_read",
+          { scope_key: scopeKey, path },
+          (value) => (isRecord(value) ? documentOf(value) : undefined),
+        ),
+      write: (scopeKey, path, content, writeOptions) =>
+        service(
+          "memory_document_write",
+          {
+            scope_key: scopeKey,
+            path,
+            content,
+            expected_version: writeOptions.expectedVersion,
+            expires_in: writeOptions.expiresIn,
+          },
+          documentOf,
+        ),
+      purge: (batch) => service("purge_memory_documents", { batch }, Number),
+    },
   };
 }

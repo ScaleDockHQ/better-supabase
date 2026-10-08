@@ -89,6 +89,11 @@ const config: KnipConfig = {
       ],
     },
     "apps/examples/vite-react": browserExample,
+    // eve loads the agent's files by path, and the World by package name
+    // from agent/agent.ts.
+    "apps/examples/eve": {
+      entry: ["agent/**/*.ts"],
+    },
     "apps/examples/monorepo/runtime": serverExample,
     // Expo Router loads the routes by file name and Metro picks the
     // `.native` files on iOS and Android.

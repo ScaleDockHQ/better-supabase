@@ -1,0 +1,37 @@
+{
+  "name": "@better-supabase/example-eve",
+  "version": "0.0.0",
+  "private": true,
+  "description": "An eve agent in a Next.js app on Supabase: the Supabase World, Supabase sign-in on eve routes, a Vault-backed connection, memory, sessions in the chat tables and the inbox as a channel.",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3110",
+    "lint": "next typegen && oxlint",
+    "transit": "true",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "catalog:",
+    "@workflow/world": "catalog:",
+    "@workflow/world-postgres": "catalog:",
+    "ai": "catalog:",
+    "better-supabase": "workspace:*",
+    "chat": "catalog:",
+    "eve": "catalog:",
+    "next": "catalog:",
+    "pg": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "server-only": "catalog:",
+    "valibot": "catalog:"
+  },
+  "devDependencies": {
+    "@better-supabase/ox-config": "workspace:*",
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

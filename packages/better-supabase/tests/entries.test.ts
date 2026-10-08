@@ -63,6 +63,7 @@ const PURE_BARRELS = [
   "workflow-sdk/builder",
   "blocks/inbox",
   "chat-sdk",
+  "eve",
 ];
 
 describe("subpath entries", () => {

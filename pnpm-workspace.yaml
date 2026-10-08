@@ -83,6 +83,9 @@ catalog:
   diff: 9.0.0
   dotenv-cli: 11.0.0
   effect: 4.0.0
+  # 0.72 and later peer on ai ^7.0.128; 0.71.3 is the newest release that
+  # accepts the ai pin above (AGENTS.md "Pre-release pins").
+  eve: 0.71.3
   expo: 57.0.26
   expo-constants: 57.0.20
   expo-linking: 57.0.11
@@ -186,6 +189,8 @@ catalogs:
     ai: ">=7 <8"
     # 55.0.0 added setResponseHeaders, which the Expo adapter writes cookies through.
     expo-server: ">=55 <59"
+    # 0.71 is the memory provider, hook and connection contract better-supabase/eve is typed against.
+    eve: ">=0.71 <1"
     hono: ">=4 <5"
     # 16.3.0 added `io()`, which `better-supabase/next` awaits before reading the session.
     next: ">=16.3 <17"

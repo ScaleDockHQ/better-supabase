@@ -1846,6 +1846,51 @@
       "WorkflowDeliveryMode"
     ]
   },
+  "./eve": {
+    "values": [
+      "chatIdOf",
+      "ConnectionAuthorizationFailedError",
+      "ConnectionAuthorizationRequiredError",
+      "credentialAuth",
+      "EveAuthRejection",
+      "MemoryDocumentConflictError",
+      "persistSessions",
+      "principalOf",
+      "routeInbox",
+      "stableUuid",
+      "supabaseAuth",
+      "supabaseDocumentBackend",
+      "supabaseMemory"
+    ],
+    "types": [
+      "CredentialAuthOptions",
+      "EveAuthorizationChallenge",
+      "EveChatMessage",
+      "EveChatSdkBridge",
+      "EveChatThread",
+      "EveConnectionAuthorization",
+      "EveConnectionPrincipal",
+      "EveConnectionRequest",
+      "EveDocumentBackend",
+      "EveInteractiveAuthorization",
+      "EveMemoryContext",
+      "EveMemoryProvider",
+      "EveMemoryTool",
+      "EveMemoryToolsContext",
+      "EveRecallMessage",
+      "EveRecallResult",
+      "EveSessionAuth",
+      "EveSessionContext",
+      "EveSessionHooks",
+      "EveTokenAuthorization",
+      "EveTokenResult",
+      "PersistSessionsOptions",
+      "RouteInboxOptions",
+      "SupabaseAuthOptions",
+      "SupabaseDocumentBackendOptions",
+      "SupabaseMemoryOptions"
+    ]
+  },
   "./workflow-sdk/builder": {
     "values": [
       "approvalToken",
@@ -2204,6 +2249,7 @@
       "Embedder",
       "Memory",
       "MemoryCommand",
+      "MemoryDocument",
       "MemoryHit",
       "MemoryKind",
       "MemoryNamespace",
