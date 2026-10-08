@@ -19,7 +19,9 @@ better-supabase sql add ai-chat   # adds tenant, access and streams as well
 | `ai_projects`          | Folders of chats with shared instructions, per owner and tenant                                      |
 | `ai_chats`             | `title`, `model`, `visibility`, `pinned`, `archived_at`, `temporary`, the leaf and the active stream |
 | `ai_messages`          | The tree: `parent_id`, `role`, `parts` in the message format below, `native`, `status`               |
-| `ai_runs`              | One row per answer: model, status, token usage, the gateway's generation id and cost                 |
+| `ai_runs`              | One row per answer: model, status, token usage, the gateway's generation id and cost, the engine     |
+| `ai_run_steps`         | The progress of a long run, one row per step key                                                     |
+| `ai_harness_sessions`  | What a coding-agent harness keeps per chat: resume state, sandbox id and a lock (experimental)       |
 | `ai_tool_approvals`    | Approval requests for tool calls and the decision                                                    |
 | `ai_tool_policies`     | `auto`, `ask` or `deny` per tool and tenant                                                          |
 | `ai_pending_inputs`    | Questions a run asks the user, and the answer                                                        |
@@ -90,6 +92,64 @@ unless that one is older than `staleAfter`. The writer appends to the
 [durable stream](/docs/blocks/streams), so a reload resumes the answer, and
 `runs.release` ends the run with its status and usage. `runs.stop` sets the
 stream's cancel flag; the writer sees it on its next append.
+
+## Durable runs
+
+A run's `engine` is `ai-sdk` for an answer written inside the request and
+`workflow` for one that runs as a workflow
+([durable chat](/docs/ai-sdk/workflow)), with the engine's own run id in
+`external_run_id`. `createAiRuns` reads them:
+
+```ts
+import { createAiRuns } from "better-supabase/blocks/ai-chat";
+
+const runs = createAiRuns({ transport, service: serviceTransport });
+const mine = await runs.list({ active: true }).orThrow();
+const steps = await runs.steps.list(mine[0].id).orThrow();
+const inbox = await runs.pendingApprovals().orThrow();
+```
+
+| Method                       | Does                                                                  |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `get`, `list`                | The caller's runs, or one chat's (`chatId`), newest first             |
+| `attach`                     | Records the engine's run id (service role)                            |
+| `steps.record`, `steps.list` | Records a step by its key (service role); the same key updates it     |
+| `pendingApprovals`           | The caller's undecided approvals across chats, with each chat's title |
+
+Members read the runs and steps of the chats they can read; only the
+service role writes them.
+
+### Harness sessions
+
+A coding-agent harness keeps its state per chat in `ai_harness_sessions`
+through `createHarnessSessions`, on the service role. The block stores the
+harness's resume and continue states as JSON without reading them. `lock`
+keeps two turns from driving one sandbox for `ttlSeconds`, and `save` with a
+`holder` fails with `AI_HARNESS_LOCKED` while another holder has the lock.
+The store is experimental: its shape follows the harnesses as they settle.
+
+`idleSandboxStop` is a [job](/docs/blocks/jobs) handler for a schedule. It
+stops each sandbox that sat unused for `idleSeconds` (900 by default) and
+marks the session `stopped`, or `error` when the stop threw:
+
+```ts title="jobs.ts"
+import { Sandbox } from "@vercel/sandbox";
+import {
+  createHarnessSessions,
+  idleSandboxStop,
+} from "better-supabase/blocks/ai-chat";
+
+export const handlers = {
+  "ai.idle_sandboxes": idleSandboxStop({
+    sessions: createHarnessSessions({ transport: serviceTransport }),
+    stop: async (session) => {
+      if (session.sandboxId === undefined) return;
+      const sandbox = await Sandbox.get({ sandboxId: session.sandboxId });
+      await sandbox.stop();
+    },
+  }),
+};
+```
 
 ## Share links
 
