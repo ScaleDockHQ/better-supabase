@@ -11,6 +11,12 @@ import type { SubscriptionStatus } from "../../src/realtime/index.ts";
 import type { LiveCountSeed } from "../../src/realtime/live.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
+import {
+  useAiChats,
+  useAiChatTree,
+  useAiModels,
+  useAiShare,
+} from "../../src/blocks/ai-chat/react/index.ts";
 import { useAnnouncements } from "../../src/blocks/announcements/react/index.ts";
 import { useNotifications } from "../../src/blocks/notifications/react/index.ts";
 import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
@@ -1341,5 +1347,290 @@ describe("useActionForm", () => {
   it("reads field errors only from validation errors", () => {
     expect(fieldErrorsOf(undefined)).toEqual({});
     expect(fieldErrorsOf(dbError("conflict", "x"))).toEqual({});
+  });
+});
+
+describe("ai-chat hooks", () => {
+  const AT = "2026-01-01T00:00:00Z";
+  const chat = (id: string, extra: object = {}) => ({
+    id,
+    organization_id: "org-1",
+    owner_id: USER,
+    title: `Chat ${id}`,
+    visibility: "private",
+    is_temporary: false,
+    last_message_at: AT,
+    created_at: AT,
+    updated_at: AT,
+    ...extra,
+  });
+  const message = (id: string, parent: string | null) => ({
+    id,
+    parent_id: parent,
+    role: parent === null ? "user" : "assistant",
+    parts: [{ type: "text", text: id }],
+    status: "complete",
+    format: "canonical",
+    created_at: AT,
+    sibling_count: 1,
+    sibling_index: 0,
+  });
+
+  it("lists, pages, creates, updates and removes chats", async () => {
+    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    let first = [chat("a"), chat("b")];
+    let fail = false;
+    const rpc = withRpc(client, (fn, args) => {
+      if (fail) throw new Error("denied");
+      switch (fn) {
+        case "list_ai_chats":
+          return args["after"]
+            ? { items: [chat("c")], next: null }
+            : { items: first, next: "cursor" };
+        case "create_ai_chat":
+          return chat(
+            "n",
+            (args["fields"] as { is_temporary?: boolean }).is_temporary
+              ? { is_temporary: true }
+              : {},
+          );
+        case "update_ai_chat":
+          return chat("a", { title: "Renamed" });
+        default:
+          return true;
+      }
+    });
+    const view = renderHook(
+      () => useAiChats({ organizationId: "org-1", search: "x", size: 2 }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["a", "b"]);
+    expect(view.result.hasMore).toBe(true);
+    expect(view.result.status).toBe("subscribed");
+    expect(rpc).toHaveBeenCalledWith("list_ai_chats", {
+      tenant: "org-1",
+      search: "x",
+      size: 2,
+    });
+
+    await view.result.loadMore();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["a", "b", "c"]);
+    expect(view.result.hasMore).toBe(false);
+    await view.result.loadMore();
+
+    first = [chat("b")];
+    emit(`ai-chats:${USER}`, "chat.updated", {});
+    await flush();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["b"]);
+
+    expect((await view.result.create({ title: "New" }))?.id).toBe("n");
+    expect(view.result.items?.map((item) => item.id)).toEqual(["n", "b"]);
+    await view.result.create({ temporary: true });
+    expect(view.result.items).toHaveLength(2);
+
+    first = [chat("a"), chat("b")];
+    await view.result.refresh();
+    expect((await view.result.update("a", { title: "Renamed" }))?.title).toBe(
+      "Renamed",
+    );
+    expect(view.result.items?.[0]?.title).toBe("Renamed");
+    await view.result.remove("a");
+    expect(view.result.items?.map((item) => item.id)).toEqual(["b"]);
+
+    fail = true;
+    await view.result.remove("b");
+    expect(view.result.error?.message).toBe("denied");
+    expect(await view.result.update("b", {})).toBeUndefined();
+    await view.result.refresh();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["b"]);
+    fail = false;
+    await view.result.refresh();
+    expect(view.result.error).toBeUndefined();
+    view.unmount();
+    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for a user, loads once without a topic and needs a tenant to create", async () => {
+    const signedOut = fakeBrowser(SIGNED_OUT);
+    const idle = withRpc(signedOut.client, () => ({ items: [], next: null }));
+    const waiting = renderHook(() => useAiChats(), undefined, {
+      client: signedOut.browser,
+    });
+    await flush();
+    expect(idle).not.toHaveBeenCalled();
+    expect(await waiting.result.create()).toBeUndefined();
+    waiting.unmount();
+
+    const once = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(once.client, () => ({
+      items: [chat("a")],
+      next: null,
+    }));
+    const view = renderHook(
+      () =>
+        useAiChats({
+          topic: null,
+          schema: "api",
+          archived: true,
+          pinned: true,
+          projectId: "p",
+        }),
+      undefined,
+      { client: once.browser },
+    );
+    await flush();
+    expect(view.result.items).toHaveLength(1);
+    expect(rpc).toHaveBeenCalledWith("list_ai_chats", {
+      tenant: null,
+      project: "p",
+      pinned: true,
+      archived: true,
+    });
+    expect(once.client.channel).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it("follows a chat's branch and steps between siblings", async () => {
+    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    let path = [message("u1", null), message("a1", "u1")];
+    let siblings = [
+      { id: "a1", role: "assistant", created_at: AT },
+      { id: "a2", role: "assistant", created_at: AT },
+    ];
+    let fail = false;
+    const rpc = withRpc(client, (fn) => {
+      if (fail) throw new Error("gone");
+      switch (fn) {
+        case "ai_message_path":
+          return path;
+        case "ai_message_siblings":
+          return siblings;
+        default:
+          return { leaf_id: "a2" };
+      }
+    });
+    const view = renderHook((id: string | null) => useAiChatTree(id), "c1", {
+      client: browser,
+    });
+    await flush();
+    await flush();
+    expect(view.result.path?.map((item) => item.id)).toEqual(["u1", "a1"]);
+    expect(view.result.status).toBe("subscribed");
+
+    path = [message("u1", null), message("a2", "u1")];
+    emit("ai-chat:c1", "stream.started", {});
+    await flush();
+    expect(view.result.path?.[1]?.id).toBe("a1");
+    emit("ai-chat:c1", "message.saved", {});
+    await flush();
+    expect(view.result.path?.[1]?.id).toBe("a2");
+
+    await view.result.step("a1", 1);
+    expect(rpc).toHaveBeenCalledWith("switch_ai_branch", {
+      chat: "c1",
+      message_id: "a2",
+    });
+    expect(rpc).toHaveBeenLastCalledWith("ai_message_path", {
+      chat: "c1",
+      leaf: "a2",
+    });
+    const calls = rpc.mock.calls.length;
+    await view.result.step("a1", -1);
+    await view.result.step("zz", 1);
+    expect(rpc.mock.calls.length).toBe(calls + 2);
+    await view.result.refresh();
+
+    siblings = [];
+    fail = true;
+    await view.result.step("a1", 1);
+    await view.result.switchBranch("a1");
+    expect(view.result.error?.message).toBe("gone");
+
+    view.rerender(null);
+    await view.result.refresh();
+    await view.result.switchBranch("a1");
+    await view.result.step("a1", 1);
+    view.unmount();
+  });
+
+  it("loads a chat once without a topic", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    withRpc(client, () => [message("u1", null)]);
+    const view = renderHook(
+      () => useAiChatTree("c1", { topic: null, schema: "api" }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.path).toHaveLength(1);
+    expect(client.channel).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it("reads the allowed models", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, () => [
+      { model_id: "openai/gpt-5", provider: "openai", name: "GPT-5" },
+    ]);
+    const view = renderHook(() => useAiModels("org-1"), undefined, {
+      client: browser,
+    });
+    await flush();
+    expect(view.result.models?.map((model) => model.id)).toEqual([
+      "openai/gpt-5",
+    ]);
+    await view.result.refresh();
+    expect(rpc).toHaveBeenLastCalledWith("allowed_ai_models", {
+      tenant: "org-1",
+    });
+    view.unmount();
+    const none = renderHook(
+      () => useAiModels(undefined, { schema: "api" }),
+      undefined,
+      {
+        client: browser,
+      },
+    );
+    await flush();
+    expect(rpc).toHaveBeenLastCalledWith("allowed_ai_models", { tenant: null });
+    none.unmount();
+  });
+
+  it("creates and revokes share links", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    let shares: object[] = [];
+    let fail = false;
+    withRpc(client, (fn) => {
+      if (fail) throw new Error("not yours");
+      switch (fn) {
+        case "share_ai_chat":
+          shares = [{ id: "s1", leaf_id: "a1", created_at: AT }];
+          return { id: "s1", token: "tok", leaf_id: "a1", created_at: AT };
+        case "revoke_ai_chat_share":
+          shares = [];
+          return true;
+        default:
+          return shares;
+      }
+    });
+    const view = renderHook((id: string | null) => useAiShare(id), "c1", {
+      client: browser,
+    });
+    await flush();
+    expect(view.result.shares).toEqual([]);
+    expect((await view.result.create())?.token).toBe("tok");
+    expect(view.result.shares).toHaveLength(1);
+    await view.result.revoke("s1");
+    expect(view.result.shares).toEqual([]);
+    fail = true;
+    expect(await view.result.create("a1")).toBeUndefined();
+    await view.result.revoke("s1");
+    expect(view.result.error?.message).toBe("not yours");
+    view.rerender(null);
+    expect(await view.result.create()).toBeUndefined();
+    view.unmount();
   });
 });

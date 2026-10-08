@@ -324,6 +324,12 @@
       "types": "./dist/blocks/ai-chat/index.d.ts",
       "default": "./dist/blocks/ai-chat/index.js"
     },
+    "./blocks/ai-chat/react": {
+      "@better-supabase/source": "./src/blocks/ai-chat/react/index.ts",
+      "types": "./dist/blocks/ai-chat/react/index.d.ts",
+      "react-server": "./dist/blocks/ai-chat/react/server.js",
+      "default": "./dist/blocks/ai-chat/react/index.js"
+    },
     "./blocks/announcements": {
       "@better-supabase/source": "./src/blocks/announcements/index.ts",
       "types": "./dist/blocks/announcements/index.d.ts",
@@ -621,6 +627,11 @@
       "./blocks/ai-chat": {
         "types": "./dist/blocks/ai-chat/index.d.ts",
         "default": "./dist/blocks/ai-chat/index.js"
+      },
+      "./blocks/ai-chat/react": {
+        "types": "./dist/blocks/ai-chat/react/index.d.ts",
+        "react-server": "./dist/blocks/ai-chat/react/server.js",
+        "default": "./dist/blocks/ai-chat/react/index.js"
       },
       "./blocks/announcements": {
         "types": "./dist/blocks/announcements/index.d.ts",
