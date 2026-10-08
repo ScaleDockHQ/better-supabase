@@ -7,10 +7,10 @@ import {
   revalidateTag,
   updateTag,
 } from "next/cache.js";
+import { forbidden } from "next/dist/client/components/forbidden.js";
+import { notFound } from "next/dist/client/components/not-found.js";
+import { unauthorized } from "next/dist/client/components/unauthorized.js";
 import { cookies, headers } from "next/headers.js";
-// Bare specifier: Next aliases `next/navigation` to its react-server build,
-// but not `next/navigation.js`, which breaks route handlers at build time.
-import { forbidden, notFound, unauthorized } from "next/navigation";
 import { after, type NextRequest, NextResponse } from "next/server.js";
 import { cache } from "react";
 

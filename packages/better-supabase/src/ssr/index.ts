@@ -3,6 +3,7 @@ export {
   AUTH_CACHE_HEADERS,
   authContext,
   clearSessionAtScopes,
+  clearSessionCookies,
   DEFAULT_SESSION_ENCODING,
   parseCookies,
   readSession,
@@ -11,6 +12,7 @@ export {
   serializeCookie,
   sessionCookieName,
   sessionEncoding,
+  sessionStatus,
   toSession,
   writeSession,
 } from "../auth/index.ts";
@@ -19,6 +21,7 @@ export type {
   AuthResolver,
   AuthSession,
   AuthState,
+  ClearSessionCookiesOptions,
   CookieOptions,
   CookieRecord,
   CookieScope,
@@ -28,6 +31,8 @@ export type {
   RefreshOutcome,
   ResolveAuthOptions,
   SessionEncoding,
+  SessionStatus,
+  SessionStatusOptions,
   StoredSession,
   WriteSessionOptions,
 } from "../auth/index.ts";

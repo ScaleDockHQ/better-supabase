@@ -1,7 +1,10 @@
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { builtinModules } from "node:module";
 import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import { gzipSync } from "node:zlib";
 import { rolldown } from "rolldown";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -143,6 +146,50 @@ function overBaseline(
   });
 }
 
+const NODE_LOADED = ["./next", "./next/client", "./next/image"];
+
+type ExportTarget =
+  | string
+  | null
+  | readonly ExportTarget[]
+  | { readonly [condition: string]: ExportTarget };
+
+interface Manifest {
+  readonly exports?: Exclude<ExportTarget, null>;
+}
+
+function exportsSubpath(
+  exports: Exclude<ExportTarget, null>,
+  subpath: string,
+): boolean {
+  const keys = Object.keys(exports);
+  if (!keys.some((key) => key.startsWith("."))) return subpath === ".";
+  return keys.some((key) => {
+    const star = key.indexOf("*");
+    if (star === -1) return key === subpath;
+    return (
+      subpath.startsWith(key.slice(0, star)) &&
+      subpath.endsWith(key.slice(star + 1))
+    );
+  });
+}
+
+async function nodeResolvable(specifier: string): Promise<boolean> {
+  const parts = specifier.split("/");
+  const size = specifier.startsWith("@") ? 2 : 1;
+  if (parts.length <= size) return true;
+  const name = parts.slice(0, size).join("/");
+  const root =
+    name === "better-supabase" ? PACKAGE : join(PACKAGE, "node_modules", name);
+  const manifest = JSON.parse(
+    await readFile(join(root, "package.json"), "utf8"),
+  ) as Manifest;
+  const rest = parts.slice(size).join("/");
+  return manifest.exports === undefined
+    ? existsSync(join(root, rest))
+    : exportsSubpath(manifest.exports, `./${rest}`);
+}
+
 const subpaths = async (): Promise<Map<string, string>> => {
   const manifest = JSON.parse(
     await readFile(join(PACKAGE, "package.json"), "utf8"),
@@ -187,6 +234,32 @@ describe("bundle", () => {
       closures.get("./testing")?.externals.some((name) => BUILTINS.has(name)),
     ).toBe(true);
   });
+
+  it("imports package subpaths that Node ESM resolves", async () => {
+    const offenders: string[] = [];
+    for (const [subpath, { externals }] of closures) {
+      for (const specifier of externals) {
+        if (BUILTINS.has(specifier)) continue;
+        if (!(await nodeResolvable(specifier)))
+          offenders.push(`${subpath} imports ${specifier}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it.each(NODE_LOADED)(
+    "loads %s in plain Node",
+    { timeout: 30_000 },
+    async (subpath) => {
+      const file = (await subpaths()).get(subpath)!;
+      const { stdout } = await promisify(execFile)(process.execPath, [
+        "--input-type=module",
+        "--eval",
+        `const m = await import(${JSON.stringify(pathToFileURL(file).href)}); console.log(Object.keys(m).length);`,
+      ]);
+      expect(Number(stdout.trim())).toBeGreaterThan(0);
+    },
+  );
 
   it('keeps "use client" on the react and next/client entries', async () => {
     for (const file of ["dist/react/index.js", "dist/next/client/index.js"]) {

@@ -107,6 +107,10 @@ browser out on page loads instead of showing an empty app. Next.js:
 `bs.proxy(request, { endedSession: { redirect: "/login" } })` asks Auth on
 document loads (and on `paths`), clears the cookies and redirects with
 `?reason=session_ended`.
+A proxy or middleware with its own Supabase client calls
+`sessionStatus(request, { url, publishableKey })` from `better-supabase/ssr`
+(`"ended"` on a 401 or 403 from Auth; treat `"unknown"` as active) and
+`clearSessionCookies(request, response, { url })` before redirecting.
 
 Done when the irreversible action returns `SESSION_REVOKED` for a signed-out
 session in a test.
