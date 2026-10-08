@@ -9,7 +9,7 @@ export type {
   ResolveAuthOptions,
   ResolvedState,
 } from "./resolve.ts";
-export { toSession } from "./view.ts";
+export { tenantOf, toSession } from "./view.ts";
 export type { AuthSession } from "./view.ts";
 export { aalOf, amrOf, checkAal } from "./mfa.ts";
 export type { Aal, AmrEntry } from "./mfa.ts";

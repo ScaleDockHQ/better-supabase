@@ -12,6 +12,8 @@ export {
 export type {
   ActionOptions,
   ActionResult,
+  AuthorizedContext,
+  AuthorizeOptions,
   BetterNext,
   CachedContext,
   CachedOptions,
@@ -20,6 +22,8 @@ export type {
   NextOptions,
   ProxyOptions,
   RequireAalOptions,
+  RequireOptions,
+  RouteOptions,
   ScopeOptions,
   SessionStaleOptions,
   SupportStarted,
@@ -34,7 +38,7 @@ export type { SupportView } from "../auth/support-view.ts";
 export type { Aal, AmrEntry } from "../auth/mfa.ts";
 export type { Impersonator } from "../auth/impersonation.ts";
 export { supportOf } from "../auth/support-view.ts";
-export { toSession } from "../auth/view.ts";
+export { tenantOf, toSession } from "../auth/view.ts";
 export type {
   ActiveSupport,
   SupportOptions,

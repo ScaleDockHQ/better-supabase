@@ -173,3 +173,41 @@ describe("next.action", () => {
     expectTypeOf(plain).returns.resolves.toEqualTypeOf<ActionResult<"done">>();
   });
 });
+
+describe("authorize and requireTenant", () => {
+  it("narrows ctx.tenant to a string only with requireTenant", () => {
+    bs.action({ requireTenant: true }, (_input, ctx) => {
+      expectTypeOf(ctx.tenant).toEqualTypeOf<string>();
+      expectTypeOf(ctx.session).toEqualTypeOf<AuthSession>();
+    });
+    bs.action({}, (_input, ctx) => {
+      expectTypeOf(ctx.tenant).toEqualTypeOf<string | undefined>();
+    });
+    bs.action(
+      {
+        input: v.object({ id: v.string() }),
+        authorize: (session, input) => {
+          expectTypeOf(session).toEqualTypeOf<AuthSession>();
+          expectTypeOf(input).toEqualTypeOf<{ id: string }>();
+          return true;
+        },
+      },
+      () => undefined,
+    );
+    bs.route(
+      (_request, ctx) => {
+        expectTypeOf(ctx.tenant).toEqualTypeOf<string>();
+      },
+      { requireTenant: true },
+    );
+    expectTypeOf(bs.require({ requireTenant: true }))
+      .resolves.toHaveProperty("tenant")
+      .toEqualTypeOf<string>();
+  });
+
+  it("types bs.cached tables by the schema", () => {
+    void bs.cached({ tables: ["customers"], id: "c1" });
+    // @ts-expect-error not a table
+    void bs.cached({ tables: ["nope"] });
+  });
+});

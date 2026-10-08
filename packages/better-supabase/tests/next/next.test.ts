@@ -42,6 +42,7 @@ vi.mock("next/cache.js", () => ({
   updateTag: mocks.updateTag,
   revalidateTag: mocks.revalidateTag,
   cacheTag: mocks.cacheTag,
+  cacheLife: () => undefined,
   io: () => Promise.resolve(),
 }));
 
@@ -544,6 +545,133 @@ describe("createNext", () => {
       ok: false,
       error: { kind: "conflict" },
     });
+  });
+
+  it("checks requireTenant and authorize after validation, and passes session and tenant", async () => {
+    const authorize = vi.fn(
+      (_session: unknown, input: { name: string }) => input.name !== "nope",
+    );
+    const save = bs.action(
+      {
+        input: v.object({ name: v.string() }),
+        requireTenant: true,
+        authorize,
+      },
+      (input, ctx) => {
+        const tenant: string = ctx.tenant;
+        return { name: input.name, tenant, kind: ctx.session.kind };
+      },
+    );
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+    expect(await save({ name: "Acme" })).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden", code: "NO_TENANT" },
+    });
+    expect(authorize).not.toHaveBeenCalled();
+
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER, app_metadata: { tenant_id: "org-1" } })}`,
+    });
+    expect(await save({ name: "Acme" })).toEqual({
+      ok: true,
+      data: { name: "Acme", tenant: "org-1", kind: "user" },
+      error: null,
+    });
+    expect(authorize).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "user" }),
+      { name: "Acme" },
+    );
+    expect(await save({ name: "nope" })).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden", code: "NOT_AUTHORIZED" },
+    });
+
+    const scoped = bs.action(
+      { input: v.object({ org: v.string() }), tenant: (input) => input.org },
+      (_input, { tenant }) => tenant,
+    );
+    expect(await scoped({ org: "org-2" })).toMatchObject({ data: "org-2" });
+  });
+
+  it("refuses a route caller that authorize rejects with a 403", async () => {
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER, tenant_id: "org-1" })}`,
+    });
+    const handler = vi.fn((_request: NextRequest, ctx: { tenant: string }) => ({
+      tenant: ctx.tenant,
+    }));
+    const call = (authorized: boolean) =>
+      bs.route(handler, {
+        requireTenant: true,
+        authorize: (session, request) =>
+          authorized && session.kind === "user" && request.method === "GET",
+      })(
+        new NextRequest("https://app.test/api/x", { headers: mocks.headers }),
+        { params: Promise.resolve({}) },
+      );
+    const allowed = await call(true);
+    expect(await allowed.json()).toEqual({ tenant: "org-1" });
+    const refused = await call(false);
+    expect(refused.status).toBe(403);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("require() returns the context or throws the matching interrupt", async () => {
+    const digest = async (run: () => Promise<unknown>) => {
+      try {
+        await run();
+      } catch (cause) {
+        return (cause as { digest?: string }).digest;
+      }
+      return "resolved";
+    };
+    // Without authInterrupts, unauthorized() and forbidden() fall back to notFound().
+    expect(await digest(() => bs.require())).toBe(
+      "NEXT_HTTP_ERROR_FALLBACK;404",
+    );
+    vi.stubEnv("__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS", "true");
+    try {
+      expect(await digest(() => bs.require())).toBe(
+        "NEXT_HTTP_ERROR_FALLBACK;401",
+      );
+      mocks.headers = new Headers({
+        authorization: `Bearer ${await signer.sign({ sub: USER, tenant_id: "org-1" })}`,
+      });
+      expect(await digest(() => bs.require({ authorize: () => false }))).toBe(
+        "NEXT_HTTP_ERROR_FALLBACK;403",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    const ctx = await bs.require({ requireTenant: true });
+    const tenant: string = ctx.tenant;
+    expect(tenant).toBe("org-1");
+    expect(ctx.session.kind).toBe("user");
+  });
+
+  it("tags bs.cached() entries with the tables they read", async () => {
+    mocks.cacheTag.mockReset();
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+    await bs.cached({ tables: ["customers", "notes"], id: "c1" });
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      `bs:session:${USER}`,
+      "bs:customers",
+      "bs:notes",
+      "bs:customers:c1",
+    );
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER, tenant_id: "org-1" })}`,
+    });
+    await bs.cached({ tables: ["customers"] });
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      `bs:session:${USER}`,
+      "bs:customers@org-1",
+      "bs:customers@*",
+    );
   });
 
   it("reads the session as serializable data without the token", async () => {

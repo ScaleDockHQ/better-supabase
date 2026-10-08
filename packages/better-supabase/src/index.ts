@@ -47,6 +47,8 @@ export type {
   RawDbError,
   ValidationIssue,
 } from "./core/errors.ts";
+export { createErrorMessages } from "./core/error-messages.ts";
+export type { ErrorMessages } from "./core/error-messages.ts";
 export { definePlugin, PLUGIN_API_VERSION } from "./core/plugin.ts";
 export { defineRepository } from "./core/define-repository.ts";
 export type { TableRepositoryExtension } from "./core/define-repository.ts";

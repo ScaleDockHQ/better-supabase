@@ -8,6 +8,7 @@
       "column",
       "compilePostgrest",
       "consoleLogger",
+      "createErrorMessages",
       "dbError",
       "DbException",
       "decodeCursor",
@@ -115,6 +116,7 @@
       "Err",
       "ErrorEvent",
       "ErrorMapper",
+      "ErrorMessages",
       "EventHandler",
       "EventName",
       "ExecuteContext",
@@ -346,8 +348,11 @@
     "values": [
       "BetterSupabaseProvider",
       "createHooks",
+      "fieldErrorsOf",
       "SessionProvider",
       "supportOf",
+      "useAction",
+      "useActionForm",
       "useAuth",
       "useBroadcast",
       "useLiveCount",
@@ -357,6 +362,9 @@
       "useSupportSession"
     ],
     "types": [
+      "ActionForm",
+      "ActionHandle",
+      "ActionResultOf",
       "AuthSession",
       "BetterHooks",
       "BetterSupabaseProviderProps",
@@ -371,7 +379,9 @@
       "MembershipClaim",
       "ProfileOf",
       "SessionProviderProps",
-      "SupportView"
+      "SupportView",
+      "UseActionFormOptions",
+      "UseActionOptions"
     ]
   },
   "./query": {
@@ -623,6 +633,7 @@
       "supportSessions",
       "supportTag",
       "tagFor",
+      "tenantOf",
       "toSession"
     ],
     "types": [
@@ -632,6 +643,8 @@
       "ActiveSupport",
       "AmrEntry",
       "AuthKind",
+      "AuthorizedContext",
+      "AuthorizeOptions",
       "AuthSession",
       "BetterNext",
       "CachedContext",
@@ -647,6 +660,8 @@
       "NextOptions",
       "ProxyOptions",
       "RequireAalOptions",
+      "RequireOptions",
+      "RouteOptions",
       "ScopeOptions",
       "SessionStaleOptions",
       "SupportOptions",
@@ -673,7 +688,9 @@
       "useSessionChange"
     ],
     "types": [
-      "SessionChangeRouter"
+      "SessionChangeOptions",
+      "SessionChangeRouter",
+      "TokenRefresher"
     ]
   },
   "./hono": {

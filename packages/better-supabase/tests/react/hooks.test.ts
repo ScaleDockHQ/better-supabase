@@ -6,6 +6,7 @@ import { QueryClient } from "@tanstack/query-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSnapshot } from "../../src/client/index.ts";
+import type { ActionResultOf } from "../../src/react/actions.ts";
 import type { SubscriptionStatus } from "../../src/realtime/index.ts";
 import type { LiveCountSeed } from "../../src/realtime/live.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
@@ -17,6 +18,8 @@ import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
+import { useAction, useActionForm } from "../../src/react/actions.ts";
+import { fieldErrorsOf } from "../../src/react/field-errors.ts";
 import {
   BetterSupabaseProvider,
   type ClientLike,
@@ -140,6 +143,14 @@ vi.mock("react", async (importOriginal) => {
         cell.cleanup = typeof cleanup === "function" ? cleanup : undefined;
       });
     },
+    // Transitions run at once here; a rejected async one is the boundary's.
+    useTransition: () => [
+      false,
+      (fn: () => unknown) => {
+        const result = fn();
+        if (result instanceof Promise) result.catch(() => undefined);
+      },
+    ],
     useSyncExternalStore: (
       subscribe: (listener: () => void) => () => void,
       getSnapshot: () => unknown,
@@ -1169,5 +1180,166 @@ describe("useAnnouncements", () => {
     expect(client.channel).not.toHaveBeenCalled();
     expect(view.result.error?.message).toBe("offline");
     view.unmount();
+  });
+});
+
+describe("useAction", () => {
+  type Out = ActionResultOf<{ id: string }>;
+  const deferred = () => {
+    let resolve: (value: Out) => void = () => undefined;
+    let reject: (cause: unknown) => void = () => undefined;
+    const promise = new Promise<Out>((done, fail) => {
+      resolve = done;
+      reject = fail;
+    });
+    return { promise, resolve, reject };
+  };
+
+  it("tracks the inputs in flight and keeps the last data and error", async () => {
+    const calls: ReturnType<typeof deferred>[] = [];
+    const action = vi.fn((_input: { id: string }) => {
+      const call = deferred();
+      calls.push(call);
+      return call.promise;
+    });
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+    const view = renderHook(
+      () => useAction(action, { onSuccess, onError }),
+      undefined,
+      null,
+    );
+    expect(view.result.pending).toBe(false);
+
+    const first = view.result.run({ id: "a" });
+    const second = view.result.run({ id: "b" });
+    expect(view.result.pending).toBe(true);
+    expect(view.result.pendingInputs).toEqual([{ id: "a" }, { id: "b" }]);
+    expect(view.result.pendingInput).toEqual({ id: "b" });
+
+    calls[0]!.resolve({ ok: true, data: { id: "a" }, error: null });
+    await expect(first).resolves.toMatchObject({ ok: true });
+    expect(view.result.pendingInputs).toEqual([{ id: "b" }]);
+    expect(view.result.data).toEqual({ id: "a" });
+    expect(onSuccess).toHaveBeenCalledWith({ id: "a" }, { id: "a" });
+
+    const failure = dbError("forbidden", "no");
+    calls[1]!.resolve({ ok: false, data: null, error: failure });
+    await second;
+    expect(view.result).toMatchObject({
+      pending: false,
+      data: { id: "a" },
+      error: failure,
+    });
+    expect(onError).toHaveBeenCalledWith(failure, { id: "b" });
+
+    void view.result.run({ id: "c" });
+    expect(view.result.error).toBeUndefined();
+    calls[2]!.resolve({ ok: true, data: { id: "c" }, error: null });
+    await flush();
+    view.result.reset();
+    expect(view.result).toMatchObject({ data: undefined, error: undefined });
+  });
+
+  it("rejects the run when the action throws", async () => {
+    const view = renderHook(
+      () => useAction(() => Promise.reject(new Error("offline"))),
+      undefined,
+      null,
+    );
+    await expect(view.result.run(undefined)).rejects.toThrow("offline");
+    expect(view.result.pending).toBe(false);
+  });
+});
+
+describe("useActionForm", () => {
+  class FakeFormData extends FormData {
+    constructor(form?: { fields: Record<string, string> }) {
+      super();
+      for (const [key, value] of Object.entries(form?.fields ?? {}))
+        this.append(key, value);
+    }
+  }
+
+  const submit = (fields: Record<string, string>) => {
+    const form = { fields, reset: vi.fn() };
+    const event = { preventDefault: vi.fn(), currentTarget: form };
+    return { form, event };
+  };
+
+  it("keeps the fields on a failure, maps field errors and resets on success", async () => {
+    vi.stubGlobal("FormData", FakeFormData);
+    try {
+      const action = vi.fn((input: FormData) =>
+        Promise.resolve<ActionResultOf<string>>(
+          input.get("name") === "x"
+            ? {
+                ok: false,
+                data: null,
+                error: dbError("validation", "invalid", {
+                  issues: [
+                    { message: "Too short", path: ["name"] },
+                    { message: "Also short", path: ["name"] },
+                    { message: "Form-level" },
+                  ],
+                }),
+              }
+            : { ok: true, data: String(input.get("name")), error: null },
+        ),
+      );
+      const onSuccess = vi.fn();
+      const onError = vi.fn();
+      const view = renderHook(
+        () => useActionForm(action, { onSuccess, onError }),
+        undefined,
+        null,
+      );
+
+      const failed = submit({ name: "x" });
+      view.result.formProps.onSubmit(failed.event as never);
+      await flush();
+      expect(failed.event.preventDefault).toHaveBeenCalled();
+      expect(failed.form.reset).not.toHaveBeenCalled();
+      expect(view.result.fieldErrors).toEqual({ name: "Too short" });
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "validation" }),
+        failed.form,
+      );
+
+      const saved = submit({ name: "Acme" });
+      view.result.formProps.onSubmit(saved.event as never);
+      await flush();
+      expect(saved.form.reset).toHaveBeenCalledTimes(1);
+      expect(onSuccess).toHaveBeenCalledWith("Acme", saved.form);
+      expect(view.result).toMatchObject({ data: "Acme", fieldErrors: {} });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("can keep the fields after a success", async () => {
+    vi.stubGlobal("FormData", FakeFormData);
+    try {
+      const view = renderHook(
+        () =>
+          useActionForm(
+            () => Promise.resolve({ ok: true, data: 1, error: null } as const),
+            { resetOnSuccess: false },
+          ),
+        undefined,
+        null,
+      );
+      const kept = submit({});
+      view.result.formProps.onSubmit(kept.event as never);
+      await flush();
+      expect(kept.form.reset).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reads field errors only from validation errors", () => {
+    expect(fieldErrorsOf(undefined)).toEqual({});
+    expect(fieldErrorsOf(dbError("conflict", "x"))).toEqual({});
   });
 });
