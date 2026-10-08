@@ -1044,6 +1044,9 @@ importers:
 
   apps/examples/nextjs:
     dependencies:
+      '@ai-sdk/react':
+        specifier: 'catalog:'
+        version: 4.0.130(react@19.3.0)(zod@3.25.76)
       '@base-ui/react':
         specifier: 'catalog:'
         version: 1.8.0(@types/react@19.3.0)(date-fns@4.1.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1071,6 +1074,9 @@ importers:
       '@xyflow/react':
         specifier: 'catalog:'
         version: 12.12.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      ai:
+        specifier: 'catalog:'
+        version: 7.0.127(zod@3.25.76)
       better-result:
         specifier: 'catalog:'
         version: 3.0.1
@@ -11693,12 +11699,27 @@ packages:
 
 snapshots:
 
+  '@ai-sdk/gateway@4.0.103(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.21
+      '@ai-sdk/provider-utils': 5.0.53(zod@3.25.76)
+      '@vercel/oidc': 3.2.0
+      zod: 3.25.76
+
   '@ai-sdk/gateway@4.0.103(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 4.0.21
       '@ai-sdk/provider-utils': 5.0.53(zod@4.6.5)
       '@vercel/oidc': 3.2.0
       zod: 4.6.5
+
+  '@ai-sdk/mcp@2.0.66(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.21
+      '@ai-sdk/provider-utils': 5.0.53(zod@3.25.76)
+      cross-spawn: 7.0.6
+      pkce-challenge: 5.0.1
+      zod: 3.25.76
 
   '@ai-sdk/mcp@2.0.66(zod@4.6.5)':
     dependencies:
@@ -11707,6 +11728,15 @@ snapshots:
       cross-spawn: 7.0.6
       pkce-challenge: 5.0.1
       zod: 4.6.5
+
+  '@ai-sdk/provider-utils@5.0.53(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.21
+      '@standard-schema/spec': 1.1.0
+      '@workflow/serde': 4.1.0
+      eventsource-parser: 3.1.1
+      undici: 7.29.1
+      zod: 3.25.76
 
   '@ai-sdk/provider-utils@5.0.53(zod@4.6.5)':
     dependencies:
@@ -11720,6 +11750,18 @@ snapshots:
   '@ai-sdk/provider@4.0.21':
     dependencies:
       json-schema: 0.4.0
+
+  '@ai-sdk/react@4.0.130(react@19.3.0)(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/mcp': 2.0.66(zod@3.25.76)
+      '@ai-sdk/provider': 4.0.21
+      '@ai-sdk/provider-utils': 5.0.53(zod@3.25.76)
+      ai: 7.0.127(zod@3.25.76)
+      react: 19.3.0
+      swr: 2.5.1(react@19.3.0)
+      throttleit: 2.1.0
+    transitivePeerDependencies:
+      - zod
 
   '@ai-sdk/react@4.0.130(react@19.3.0)(zod@4.6.5)':
     dependencies:
@@ -16864,6 +16906,13 @@ snapshots:
   agent-base@7.1.4: {}
 
   agent-cli-detector@0.1.7: {}
+
+  ai@7.0.127(zod@3.25.76):
+    dependencies:
+      '@ai-sdk/gateway': 4.0.103(zod@3.25.76)
+      '@ai-sdk/provider': 4.0.21
+      '@ai-sdk/provider-utils': 5.0.53(zod@3.25.76)
+      zod: 3.25.76
 
   ai@7.0.127(zod@4.6.5):
     dependencies:

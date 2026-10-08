@@ -149,3 +149,10 @@ return <Chat id={id} initial={toUIMessages(path)} />;
 
 The UI message stream protocol version is pinned as
 `SPEC_PINS.aiSdkUiMessageStream`; see [Standards](/docs/standards).
+
+## Example
+
+The Next.js example has an assistant at `/assistant`
+(`apps/examples/nextjs/src/features/assistant`). Without `AI_GATEWAY_API_KEY`
+it answers with a scripted `MockLanguageModelV4`, so the stored messages,
+the stream store and resuming after a reload work on the local stack.
