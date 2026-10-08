@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import {
   type RealtimeChannel,
+  type RealtimePresenceState,
   REALTIME_SUBSCRIBE_STATES,
   type SupabaseClient,
 } from "@supabase/supabase-js";
@@ -34,7 +35,13 @@ import { refreshRealtimeAuth } from "./auth.ts";
 
 export type EventSchemas = Readonly<Record<string, StandardSchemaV1>>;
 
-export interface TopicOptions<E extends EventSchemas> {
+/** `true`, or a schema every tracked presence state is validated against. */
+export type PresenceSchema = boolean | StandardSchemaV1;
+
+export interface TopicOptions<
+  E extends EventSchemas,
+  R extends PresenceSchema = PresenceSchema,
+> {
   /** Name used for generated policies and functions. Defaults to the template's literal parts. */
   readonly name?: string;
   /** Payload schemas per event. Incoming and outgoing payloads are validated. */
@@ -74,8 +81,12 @@ export interface TopicOptions<E extends EventSchemas> {
   readonly catalog?: PermdockCatalog;
   /** Let clients broadcast on the topic, not only receive. Defaults to `false`. */
   readonly send?: boolean;
-  /** Also authorize presence. Defaults to `false`. */
-  readonly presence?: boolean;
+  /**
+   * Presence: authorizes it in the policies and adds `track` and
+   * `onPresence` to subscriptions. Pass a schema to validate the states
+   * this client tracks and the ones it receives. Defaults to `false`.
+   */
+  readonly presence?: R;
 }
 
 export interface TopicMessage {
@@ -135,6 +146,53 @@ export interface Subscription extends Disposable, AsyncDisposable {
   readonly ready: Promise<void>;
   unsubscribe(): Promise<void>;
 }
+
+/** One tracked state on a presence topic. */
+export interface PresenceMember<S> {
+  /** The connection's presence key; a client tracking twice keeps one key. */
+  readonly key: string;
+  readonly state: S;
+}
+
+export interface PresenceOptions<S> {
+  /**
+   * Called with everyone on the topic, this client included, after each
+   * presence sync. States that fail the presence schema are left out and
+   * passed to `onInvalid` as a `presence` message.
+   */
+  readonly onPresence?: (members: readonly PresenceMember<S>[]) => void;
+}
+
+export interface PresenceSubscription<I, O> extends Subscription {
+  /**
+   * Validates the state, waits for the join and shares it with the topic.
+   * One state per client and topic: the last `track` wins, and leaving the
+   * topic removes it.
+   */
+  track(state: I): AsyncResult<void>;
+  /** Removes this client's state from the topic. */
+  untrack(): AsyncResult<void>;
+  /** Everyone from the last sync, as `onPresence` received them. */
+  members(): readonly PresenceMember<O>[];
+}
+
+type PresenceState = Readonly<Record<string, unknown>>;
+export type PresenceInput<R> = R extends StandardSchemaV1
+  ? StandardSchemaV1.InferInput<R>
+  : PresenceState;
+export type PresenceOutput<R> = R extends StandardSchemaV1
+  ? StandardSchemaV1.InferOutput<R>
+  : PresenceState;
+
+/** What `subscribe` returns: with `track` and `members` on presence topics. */
+export type TopicSubscription<R> = [R] extends [false]
+  ? Subscription
+  : PresenceSubscription<PresenceInput<R>, PresenceOutput<R>>;
+
+/** `subscribe` options: with `onPresence` on presence topics. */
+export type TopicSubscribeOptions<R> = [R] extends [false]
+  ? SubscribeOptions
+  : SubscribeOptions & PresenceOptions<PresenceOutput<R>>;
 
 export type RealtimeClient = Pick<
   SupabaseClient,
@@ -202,11 +260,17 @@ export interface RowChange<R> {
   readonly oldRecord: Partial<R> | null;
 }
 
-export interface Topic<P extends string, E extends EventSchemas> {
+export interface Topic<
+  P extends string,
+  E extends EventSchemas,
+  R extends PresenceSchema = false,
+> {
   readonly template: P;
   readonly name: string;
   readonly params: readonly TemplateParams<P>[];
   readonly private: boolean;
+  /** Whether subscriptions get `track` and `onPresence`. */
+  readonly presence: boolean;
   topic(values: TemplateValues<P>): string;
   match(topic: string): TemplateValues<P> | null;
   /** `realtime.messages` policies for this topic. Idempotent. */
@@ -227,8 +291,8 @@ export interface Topic<P extends string, E extends EventSchemas> {
     client: RealtimeClient,
     values: TemplateValues<P>,
     handlers: TopicHandlers<E>,
-    options?: SubscribeOptions,
-  ): Subscription;
+    options?: TopicSubscribeOptions<R>,
+  ): TopicSubscription<R>;
   /** Sends over HTTP, without joining the channel. */
   send<K extends TopicEvent<E>>(
     client: RealtimeClient,
@@ -241,14 +305,19 @@ export interface Topic<P extends string, E extends EventSchemas> {
 interface Subscriber {
   readonly onStatus: SubscribeOptions["onStatus"];
   readonly receive: (message: TopicMessage) => void;
+  readonly sync?: (state: RealtimePresenceState) => void;
 }
 
 interface SharedTopic {
   readonly channel: RealtimeChannel;
   readonly self: boolean;
+  readonly presence: boolean;
   readonly subscribers: Set<Subscriber>;
   readonly ready: Promise<void>;
   subscribed: boolean;
+  synced: boolean;
+  /** The subscriber whose `track` set this client's presence state. */
+  tracker: Subscriber | undefined;
 }
 
 const topicChannels = new WeakMap<RealtimeClient, Map<string, SharedTopic>>();
@@ -263,10 +332,10 @@ function joinTopic(
   topic: string,
   isPrivate: boolean,
   self: boolean,
+  presence: boolean,
   subscriber: Subscriber,
 ): {
-  channel: RealtimeChannel;
-  ready: Promise<void>;
+  shared: SharedTopic;
   leave: () => Promise<void>;
 } {
   let byTopic = topicChannels.get(client);
@@ -279,6 +348,11 @@ function joinTopic(
   if (shared && shared.self !== self) {
     throw new TypeError(
       `better-supabase: "${topic}" is already subscribed with self: ${String(shared.self)}; every subscription on a topic needs the same \`self\``,
+    );
+  }
+  if (shared && shared.presence !== presence) {
+    throw new TypeError(
+      `better-supabase: "${topic}" is already subscribed ${shared.presence ? "with" : "without"} presence; every topic definition for it needs the same \`presence\``,
     );
   }
   if (!shared) {
@@ -297,13 +371,24 @@ function joinTopic(
       };
       for (const each of subscribers) each.receive(message);
     });
+    // realtime-js refuses presence listeners after `subscribe()`, so the
+    // shared channel registers one for every subscriber up front.
+    if (presence) {
+      channel.on("presence", { event: "sync" }, () => {
+        entry.synced = true;
+        const state = channel.presenceState();
+        for (const each of subscribers) each.sync?.(state);
+      });
+    }
     const evict = (): void => {
       if (topics.get(topic) !== entry) return;
       topics.delete(topic);
       void client.removeChannel(channel);
     };
     const ready = (async () => {
-      if (isPrivate) await refreshRealtimeAuth(client);
+      // Yields for public topics too: the first subscriber is added after
+      // this starts, and one that leaves before the join skips it.
+      await (isPrivate ? refreshRealtimeAuth(client) : undefined);
       if (subscribers.size === 0) return;
       await new Promise<void>((resolve, reject) => {
         channel.subscribe((state, error) => {
@@ -344,9 +429,12 @@ function joinTopic(
     const entry: SharedTopic = {
       channel,
       self,
+      presence,
       subscribers,
       ready,
       subscribed: false,
+      synced: false,
+      tracker: undefined,
     };
     shared = entry;
     topics.set(topic, entry);
@@ -355,12 +443,18 @@ function joinTopic(
   current.subscribers.add(subscriber);
   subscriber.onStatus?.("joining");
   if (current.subscribed) subscriber.onStatus?.("subscribed");
+  if (current.synced) subscriber.sync?.(current.channel.presenceState());
   return {
-    channel: current.channel,
-    ready: current.ready,
+    shared: current,
     leave: async () => {
       current.subscribers.delete(subscriber);
-      if (current.subscribers.size > 0) return;
+      if (current.subscribers.size > 0) {
+        if (current.tracker === subscriber) {
+          current.tracker = undefined;
+          await current.channel.untrack();
+        }
+        return;
+      }
       // Removed right away rather than on the next tick like live queries: a
       // resubscribe for another user must join with that user's token.
       if (topics.get(topic) !== current) return;
@@ -500,12 +594,17 @@ function eventSql(
 export function defineTopic<
   const P extends string,
   const E extends EventSchemas = Record<never, never>,
->(template: P, options: TopicOptions<E> = {}): Topic<P, E> {
+  const R extends PresenceSchema = false,
+>(template: P, options: TopicOptions<E, R> = {}): Topic<P, E, R> {
   const parsed: Template = parseTemplate(template, ":", validateValue);
   const literal = template.replaceAll(/\{[^}]+\}/g, " ");
   const name = slug(options.name ?? literal) || "topic";
   const isPrivate = options.private ?? true;
   const schemas: EventSchemas = options.events ?? {};
+  const hasPresence =
+    options.presence !== undefined && options.presence !== false;
+  const presenceSchema =
+    typeof options.presence === "object" ? options.presence : undefined;
 
   const segment = (param: string, kind: string): number => {
     const index = parsed.segmentOf(param);
@@ -572,10 +671,11 @@ export function defineTopic<
     name,
     params: parsed.params as TemplateParams<P>[],
     private: isPrivate,
+    presence: hasPresence,
     topic: topicOf,
     match: (topic) => parsed.match(topic) as TemplateValues<P> | null,
     sql() {
-      const extensions = options.presence
+      const extensions = hasPresence
         ? "('broadcast', 'presence')"
         : "('broadcast')";
       const condition = (extra: string | undefined) =>
@@ -589,7 +689,7 @@ export function defineTopic<
       const policies: [string, string, "using" | "with check", string][] = [
         ["receive", "select", "using", condition(permdockChecks?.receive)],
       ];
-      if (options.send || options.presence || permdock?.send !== undefined)
+      if (options.send || hasPresence || permdock?.send !== undefined)
         policies.push([
           "send",
           "insert",
@@ -690,7 +790,7 @@ export function defineTopic<
         "",
       ].join("\n");
     },
-    subscribe(client, values, handlers, subscribeOptions = {}) {
+    subscribe(client, values, handlers, given) {
       const topic = topicOf(values);
       // SAFETY: handlers maps event names to callbacks; the per-event payload
       // types stop at this boundary.
@@ -700,6 +800,39 @@ export function defineTopic<
           ((payload: unknown, message: TopicMessage) => void) | undefined
         >
       >;
+      // SAFETY: `onPresence` is only typed in on presence topics, and the
+      // member states it receives passed the presence schema.
+      const subscribeOptions = (given ?? {}) as SubscribeOptions &
+        PresenceOptions<unknown>;
+      let members: readonly PresenceMember<unknown>[] = [];
+      let syncs = 0;
+      const sync = async (state: RealtimePresenceState): Promise<void> => {
+        const run = ++syncs;
+        const checked = await Promise.all(
+          Object.entries(state).flatMap(([key, metas]) =>
+            metas.map(async ({ presence_ref: _ref, ...meta }) => ({
+              key,
+              meta,
+              checked: await validate(presenceSchema, meta),
+            })),
+          ),
+        );
+        // A later sync finished validating first.
+        if (run !== syncs) return;
+        const valid: PresenceMember<unknown>[] = [];
+        for (const each of checked) {
+          if (each.checked.ok) {
+            valid.push({ key: each.key, state: each.checked.value });
+          } else {
+            subscribeOptions.onInvalid?.(
+              { event: "presence", payload: each.meta, topic },
+              each.checked.issues,
+            );
+          }
+        }
+        members = valid;
+        subscribeOptions.onPresence?.(valid);
+      };
       const subscriber: Subscriber = {
         onStatus: subscribeOptions.onStatus,
         receive: (message) => {
@@ -712,21 +845,56 @@ export function defineTopic<
             },
           );
         },
+        ...(hasPresence ? { sync: (state) => void sync(state) } : {}),
       };
-      const shared = joinTopic(
+      const { shared, leave } = joinTopic(
         client,
         topic,
         isPrivate,
         subscribeOptions.self ?? false,
+        hasPresence,
         subscriber,
       );
       let closed = false;
       const unsubscribe = async () => {
         if (closed) return;
         closed = true;
-        await shared.leave();
+        await leave();
       };
-      return {
+      const presenceCall = (
+        action: "track" | "untrack",
+        run: () => Promise<string>,
+      ): AsyncResult<void> =>
+        AsyncResult.from(async () => {
+          if (closed)
+            return err(
+              dbError(
+                "invalid_request",
+                `Presence ${action} after unsubscribe on ${topic}`,
+              ),
+            );
+          try {
+            await shared.ready;
+          } catch (cause) {
+            return err(
+              dbError(
+                "network",
+                `Presence ${action} on ${topic}: the join failed`,
+                {
+                  details:
+                    cause instanceof Error ? cause.message : String(cause),
+                },
+              ),
+            );
+          }
+          const answer = await run();
+          return answer === "ok"
+            ? ok(undefined)
+            : err(
+                dbError("network", `Presence ${action} ${answer} on ${topic}`),
+              );
+        });
+      const subscription: Subscription = {
         topic,
         channel: shared.channel,
         ready: shared.ready,
@@ -734,6 +902,40 @@ export function defineTopic<
         [Symbol.dispose]: () => void unsubscribe(),
         [Symbol.asyncDispose]: unsubscribe,
       };
+      const result = hasPresence
+        ? {
+            ...subscription,
+            track: (state: unknown) =>
+              AsyncResult.from(async () => {
+                const checked = await validate(presenceSchema, state);
+                if (!checked.ok)
+                  return err(
+                    dbError(
+                      "validation",
+                      `Invalid presence state for ${topic}`,
+                      {
+                        issues: checked.issues,
+                      },
+                    ),
+                  );
+                return presenceCall("track", async () => {
+                  shared.tracker = subscriber;
+                  return shared.channel.track(
+                    // SAFETY: a presence schema's output is the tracked object.
+                    checked.value as Record<string, unknown>,
+                  );
+                });
+              }),
+            untrack: () =>
+              presenceCall("untrack", async () => {
+                if (shared.tracker === subscriber) shared.tracker = undefined;
+                return shared.channel.untrack();
+              }),
+            members: () => members,
+          }
+        : subscription;
+      // SAFETY: the presence methods are added exactly when R allows presence.
+      return result as TopicSubscription<R>;
     },
     send(client, values, event, payload) {
       return AsyncResult.from(async () => {

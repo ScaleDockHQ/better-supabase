@@ -419,6 +419,51 @@ msgctxt "auth.q5Xl0M"
 msgid "Verify"
 msgstr "Verify"
 
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.KbH-nc"
+msgid "This link has no authorization request. Start again from the app that sent you here."
+msgstr "This link has no authorization request. Start again from the app that sent you here."
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.iJrFD8"
+msgid "This request can't continue"
+msgstr "This request can't continue"
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.SqCwD2"
+msgid "Connect {client}"
+msgstr "Connect {client}"
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.obBC0G"
+msgid "{client} wants to act as {email} in Acme Cloud."
+msgstr "{client} wants to act as {email} in Acme Cloud."
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth._JGGPj"
+msgid "It asks for"
+msgstr "It asks for"
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.DD76F7"
+msgid "Access to your account, with your permissions."
+msgstr "Access to your account, with your permissions."
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.E2dLnU"
+msgid "Row Level Security still applies: it can only see and change what you can. After you approve, you return to {host}."
+msgstr "Row Level Security still applies: it can only see and change what you can. After you approve, you return to {host}."
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.htvX-Z"
+msgid "Deny"
+msgstr "Deny"
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.WCaf5C"
+msgid "Approve"
+msgstr "Approve"
+
 #: src/features/auth/components/reset-password-form.tsx
 msgctxt "auth.weOT3A"
 msgid "The passwords don't match."
@@ -1394,6 +1439,36 @@ msgstr "API keys"
 msgctxt "settings.ED9RG5"
 msgid "Audit log"
 msgstr "Audit log"
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.i_IILR"
+msgid "{client} is disconnected."
+msgstr "{client} is disconnected."
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.4khuEB"
+msgid "Connected agents"
+msgstr "Connected agents"
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.-FGFtd"
+msgid "Apps and AI agents you allowed to act as you. Disconnecting one ends its sessions; a token it already holds works until it expires."
+msgstr "Apps and AI agents you allowed to act as you. Disconnecting one ends its sessions; a token it already holds works until it expires."
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.a-annA"
+msgid "No agents are connected."
+msgstr "No agents are connected."
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.iELlIu"
+msgid "Connected {date}"
+msgstr "Connected {date}"
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.qj1uhz"
+msgid "Disconnect"
+msgstr "Disconnect"
 
 #: src/features/user/components/delete-account-button.tsx
 msgctxt "security.wyxJrL"

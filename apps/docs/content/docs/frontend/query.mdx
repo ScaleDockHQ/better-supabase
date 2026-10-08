@@ -27,6 +27,53 @@ React, Vue, Solid, Svelte and Angular adapters alike.
 Pass `skipToken` to disable a query until its input exists:
 `q.customers.findById(id ?? skipToken)`.
 
+## Infinite lists
+
+`infinite` pages by [cursor](/docs/repository/pagination#cursors): each page
+asks for the rows after the last one, so it skips the count and a deep page
+costs the same as the first. The infinite query hook in the Supabase library
+blocks pages with `.range()` and `count: 'exact'` instead, which counts the
+whole table on every page and shifts rows when someone inserts while the user
+scrolls. Keep `infinitePages` for lists that show a total.
+
+Load the next page when a sentinel row scrolls into view:
+
+```tsx title="src/features/customers/customer-feed.tsx"
+"use client";
+
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+
+export function CustomerFeed() {
+  const feed = useInfiniteQuery(
+    q.customers.infinite({ size: 50, orderBy: { createdAt: "desc" } }),
+  );
+  const sentinel = useRef<HTMLLIElement>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = feed;
+
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || !hasNextPage) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting && !isFetchingNextPage) void fetchNextPage();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  return (
+    <ul>
+      {feed.data?.pages.flatMap((page) =>
+        page.items.map((customer) => (
+          <li key={customer.id}>{customer.name}</li>
+        )),
+      )}
+      <li ref={sentinel} aria-hidden />
+    </ul>
+  );
+}
+```
+
 ## Keys and invalidation
 
 Keys are `['bs', table, operation, args]`. Arguments are part of the key, so

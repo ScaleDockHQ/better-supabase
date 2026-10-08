@@ -1,3 +1,4 @@
+import { ConnectedAgentsCard } from "@/features/user/components/connected-agents-card";
 import { DeleteAccountCard } from "@/features/user/components/delete-account-button";
 import { TwoFactorCard } from "@/features/user/components/two-factor-card";
 
@@ -8,6 +9,7 @@ export default function SecuritySettingsPage() {
   return (
     <>
       <TwoFactorCard />
+      <ConnectedAgentsCard />
       <DeleteAccountCard />
     </>
   );

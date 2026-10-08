@@ -5,6 +5,7 @@
     "env",
     "sessions",
     "mfa-sso",
+    "oauth-consent",
     "account-deletion",
     "impersonation",
     "server",

@@ -39,7 +39,7 @@ when a client joins. `topic.sql()` generates them:
 Both checks switch on automatically when the template has those placeholders.
 Configure them with `tenant: { param, claim | sql }` and `owner: { param }`,
 or turn them off with `false`. `send: true` adds an insert policy so clients
-can broadcast too, and `presence: true` authorizes presence.
+can broadcast too, and `presence` authorizes [presence](#presence).
 
 With [PermDock](/docs/auth/permdock), `permdock` replaces the tenant check
 with PermDock permissions: joining needs `receive` in the scope named by the
@@ -238,6 +238,84 @@ await notifications
 The payload is validated first (a `validation` error on failure) and sent over
 HTTP without joining the channel. Policy denials come back as `unauthorized`
 or `forbidden`.
+
+## Presence
+
+Pass a schema as `presence` to show who is on a topic. The policies then
+authorize presence, and every subscription can `track` this client's state
+and get everyone's states after each sync:
+
+```ts title="lib/topics.ts"
+export const customerViewers = defineTopic(
+  "organization:{organizationId}:customer:{customerId}:viewers",
+  { presence: v.object({ userId: v.string(), name: v.string() }) },
+);
+```
+
+```tsx title="features/customers/components/viewers.tsx"
+"use client";
+
+export function Viewers({ organizationId, customerId, me }: Props) {
+  const supabase = useSupabase();
+  const [viewers, setViewers] = useState<readonly string[]>([]);
+
+  useEffect(() => {
+    const sub = customerViewers.subscribe(
+      supabase,
+      { organizationId, customerId },
+      {},
+      {
+        onPresence: (members) =>
+          setViewers([...new Set(members.map((m) => m.state.name))]),
+      },
+    );
+    void sub.track({ userId: me.id, name: me.name });
+    return () => void sub.unsubscribe();
+  }, [supabase, organizationId, customerId, me.id, me.name]);
+
+  return <AvatarStack names={viewers} />;
+}
+```
+
+`track` validates the state (a `validation` error on failure), waits for the
+join and returns a `Result`. States other clients track that fail the schema
+are left out of `onPresence` and reach `onInvalid` as a `presence` message.
+`members()` returns the last sync. Each tab is its own member with its own
+`key`, so group by a field of the state (`userId` above) to count people.
+
+Presence shares the topic's channel, so one client has one state per topic:
+the last `track` wins, and it goes away with the subscription that tracked
+it. `presence: true` skips the schema and accepts any object. Every
+definition of a topic name must agree on presence. For cursors or
+collaborative editing, broadcast positions as a regular event; presence
+suits state that changes a few times a session, since every change reaches
+everyone.
+
+## Chat and cursors
+
+The realtime chat and cursor blocks in the Supabase library join a public
+channel, take the sender's name from the client, and keep messages only in
+the browsers that were open when they arrived. To build the same features on
+topics:
+
+- **Authorize the topic.** Use a private `defineTopic` template with a
+  tenant or owner placeholder, and turn off public access (see
+  [Before production](#before-production)).
+- **Persist messages.** Insert each message into a table and broadcast it
+  with [`triggerSql`](#row-changes), so the row is the record. Clients that
+  join late or reconnect load the history from the table, and the sender's
+  id comes from `auth.uid()` in the row's policy instead of from the client.
+- **Throttle sends in the app.** Realtime limits the messages per second for
+  each client and project. Send a cursor position at most every 50 to 100 ms
+  and drop the positions in between; `send` and `track` don't throttle for
+  you.
+- **Name people from the session.** Use the user id as the identity, and
+  take names and colors from a profile row or the presence state.
+
+The collaborative editor blocks sync Yjs documents through
+`@supabase-labs/y-supabase`. better-supabase ships no Yjs provider, so that
+stays an app dependency; check that it joins a private channel before you
+rely on a topic policy to guard the document.
 
 ## React
 

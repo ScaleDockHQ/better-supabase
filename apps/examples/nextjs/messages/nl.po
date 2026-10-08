@@ -419,6 +419,51 @@ msgctxt "auth.q5Xl0M"
 msgid "Verify"
 msgstr "Verifiëren"
 
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.KbH-nc"
+msgid "This link has no authorization request. Start again from the app that sent you here."
+msgstr "Deze link bevat geen autorisatieverzoek. Begin opnieuw in de app die je hierheen stuurde."
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.iJrFD8"
+msgid "This request can't continue"
+msgstr "Dit verzoek kan niet verder"
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.SqCwD2"
+msgid "Connect {client}"
+msgstr "{client} koppelen"
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.obBC0G"
+msgid "{client} wants to act as {email} in Acme Cloud."
+msgstr "{client} wil namens {email} handelen in Acme Cloud."
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth._JGGPj"
+msgid "It asks for"
+msgstr "Het vraagt om"
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.DD76F7"
+msgid "Access to your account, with your permissions."
+msgstr "Toegang tot je account, met jouw rechten."
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.E2dLnU"
+msgid "Row Level Security still applies: it can only see and change what you can. After you approve, you return to {host}."
+msgstr "Row Level Security blijft gelden: het ziet en wijzigt alleen wat jij mag. Na goedkeuren ga je terug naar {host}."
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.htvX-Z"
+msgid "Deny"
+msgstr "Weigeren"
+
+#: src/features/auth/components/oauth-consent-form.tsx
+msgctxt "oauth.WCaf5C"
+msgid "Approve"
+msgstr "Goedkeuren"
+
 #: src/features/auth/components/reset-password-form.tsx
 msgctxt "auth.weOT3A"
 msgid "The passwords don't match."
@@ -1394,6 +1439,36 @@ msgstr "API-sleutels"
 msgctxt "settings.ED9RG5"
 msgid "Audit log"
 msgstr "Auditlog"
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.i_IILR"
+msgid "{client} is disconnected."
+msgstr "{client} is ontkoppeld."
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.4khuEB"
+msgid "Connected agents"
+msgstr "Gekoppelde agents"
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.-FGFtd"
+msgid "Apps and AI agents you allowed to act as you. Disconnecting one ends its sessions; a token it already holds works until it expires."
+msgstr "Apps en AI-agents die namens jou mogen handelen. Ontkoppelen beëindigt hun sessies; een token dat ze al hebben werkt tot het verloopt."
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.a-annA"
+msgid "No agents are connected."
+msgstr "Er zijn geen agents gekoppeld."
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.iELlIu"
+msgid "Connected {date}"
+msgstr "Gekoppeld op {date}"
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.qj1uhz"
+msgid "Disconnect"
+msgstr "Ontkoppelen"
 
 #: src/features/user/components/delete-account-button.tsx
 msgctxt "security.wyxJrL"
