@@ -205,6 +205,7 @@ await organizations.invite({ organizationId, email, role: "member" });
 | [Onboarding](https://bettersupabase.com/docs/blocks/onboarding): checklists per user or organization, and `useOnboarding`                                               | `better-supabase/blocks/onboarding`, `better-supabase/blocks/onboarding/react`       | `onboarding`                           |
 | [Waitlist](https://bettersupabase.com/docs/blocks/waitlist): a waitlist with approvals, hashed invite codes and an invite-only sign-up hook                             | `better-supabase/blocks/waitlist`                                                    | `waitlist`                             |
 | [Announcements](https://bettersupabase.com/docs/blocks/announcements): in-app announcements by audience and time window, and `useAnnouncements`                         | `better-supabase/blocks/announcements`, `better-supabase/blocks/announcements/react` | `announcements`                        |
+| [AI messages](https://bettersupabase.com/docs/blocks/ai-chat): the canonical message format, a Standard Schema validator and its JSON Schema                            | `better-supabase/blocks/ai-chat`                                                     | none                                   |
 | [Entitlements](https://bettersupabase.com/docs/blocks/entitlements): Stripe entitlements per tenant, `hasEntitlement` and the members of a plan change                  | `better-supabase/blocks/entitlements`                                                | `entitlements`                         |
 | [Vector search](https://bettersupabase.com/docs/blocks/vector-search): `search_<table>` functions over embedding columns, called with `db.$search`                      | SQL only                                                                             | `vector-search`                        |
 
@@ -254,6 +255,9 @@ The other SQL modules (`updated-at`, `actor`, `rate-limit`, `support-sessions` a
 | `better-supabase/env`                                 | Validated Supabase settings                                                   |
 | `better-supabase/events`, `/openapi`, `/otel`         | CloudEvents, OpenAPI 3.1 and OpenTelemetry                                    |
 | `better-supabase/plugins/*`                           | Timestamps, soft delete, tenant, actor, validation and runtime rules          |
+| `better-supabase/streams`, `/streams/redis`           | Resumable output for chats and workflows, in Postgres or Redis                |
+| `better-supabase/credentials`                         | Third-party tokens behind a `credential_ref`, over Supabase Vault             |
+| `better-supabase/vercel-connect`                      | A credential provider over Vercel Connect connectors                          |
 | `better-supabase/sql`                                 | The SQL modules and read-set compiler behind `better-supabase sql`            |
 | `better-supabase/lint`                                | Editor rules for unbounded reads and unscoped deletes                         |
 | `better-supabase/testing`                             | `asUser`, `localAuth`, typed seeds and conformance kits                       |
