@@ -146,6 +146,17 @@
         "packages/better-supabase/skills/**"
       ]
     },
+    "//#check:no-permdock": {
+      "inputs": [
+        "scripts/check-no-permdock.ts",
+        "packages/better-supabase/src/**",
+        "packages/better-supabase/skills/**",
+        "packages/better-supabase/schemas/**",
+        "apps/docs/content/**",
+        "apps/examples/**",
+        "supabase/schemas/**"
+      ]
+    },
     "//#docs:drift": {
       "inputs": [
         "scripts/docs-drift.ts",
