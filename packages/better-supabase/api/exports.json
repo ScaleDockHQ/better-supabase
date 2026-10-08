@@ -633,6 +633,7 @@
     "values": [
       "checkSqlite",
       "compileSqlite",
+      "createUploadConnector",
       "fromSqliteError",
       "likeToGlob",
       "postgrestTimestamp",
@@ -641,11 +642,18 @@
       "sqliteCompiler",
       "sqliteTables",
       "sqliteValue",
+      "syncWithAuth",
+      "uploadOutcome",
       "watch"
     ],
     "types": [
+      "AuthSourceLike",
+      "CrudEntryLike",
+      "CrudQueueLike",
       "PowerSyncDatabaseLike",
       "PowerSyncExecutorOptions",
+      "RejectedChange",
+      "RejectedStore",
       "SqliteColumn",
       "SqliteCompilerOptions",
       "SqliteContextLike",
@@ -658,7 +666,31 @@
       "SqliteReturning",
       "SqliteSelectPlan",
       "SqliteValue",
+      "SyncedDatabaseLike",
+      "SyncWithAuthOptions",
+      "UploadConnector",
+      "UploadConnectorOptions",
+      "UploadOutcome",
+      "UploadRepository",
+      "UploadRoute",
       "WatchOptions"
+    ]
+  },
+  "./powersync/react": {
+    "values": [
+      "useConflicts",
+      "useSyncStatus",
+      "useWatch"
+    ],
+    "types": [
+      "Conflicts",
+      "RejectedChange",
+      "RejectedStore",
+      "SyncState",
+      "SyncStatusLike",
+      "SyncStatusSource",
+      "UseWatchOptions",
+      "WatchState"
     ]
   },
   "./postgres": {

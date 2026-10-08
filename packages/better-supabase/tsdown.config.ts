@@ -12,6 +12,7 @@ const entries = [
   "react/native/index",
   "query/index",
   "server/index",
+  "powersync/react/index",
   "postgres/index",
   "ssr/index",
   "next/index",

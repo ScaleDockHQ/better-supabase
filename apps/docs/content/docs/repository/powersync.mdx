@@ -78,6 +78,44 @@ const stop = watch(powersync, () => customerList.run(local, query), {
 to `customer_tags`). The function `watch` returns stops it, and so does
 `signal`; a signal that is already aborted never starts it.
 
+Rows that didn't change keep their object identity between runs (matched by
+`id`, else by position), so `memo` list items skip re-rendering, and a run
+that returns the same result calls no `onResult`. `structuralSharing: false`
+turns that off.
+
+### In React
+
+`better-supabase/powersync/react` wraps `watch` in a hook and adds the sync
+state:
+
+```tsx
+import {
+  useConflicts,
+  useSyncStatus,
+  useWatch,
+} from "better-supabase/powersync/react";
+
+function Customers({ search }: { search: string }) {
+  const { data, error, loading } = useWatch({
+    db: powersync,
+    query: () =>
+      customerList.run(local, { ...customerList.defaults, q: search }),
+    tables,
+    deps: [search],
+  });
+  const { hasSynced, uploading } = useSyncStatus(powersync);
+  const { changes } = useConflicts(connector);
+  // ...
+}
+```
+
+`useWatch` restarts when `deps` or `tables` change and reports `loading`
+until the first result for them; `enabled: false` pauses it.
+`useSyncStatus` returns `connected`, `connecting`, `hasSynced`, `uploading`,
+`downloading` and the last sync `error`, and re-renders only when one of them
+changes. `useConflicts` is described in
+[Offline-first](/docs/guides/offline-first#conflicts).
+
 A read with a count (`paginate` with `count: "exact"`, a list query's total)
 runs the rows and the count in one `readTransaction`, so the two agree while
 PowerSync syncs.

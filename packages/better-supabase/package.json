@@ -92,6 +92,11 @@
       "types": "./dist/powersync/index.d.ts",
       "default": "./dist/powersync/index.js"
     },
+    "./powersync/react": {
+      "@better-supabase/source": "./src/powersync/react/index.ts",
+      "types": "./dist/powersync/react/index.d.ts",
+      "default": "./dist/powersync/react/index.js"
+    },
     "./postgres": {
       "@better-supabase/source": "./src/postgres/index.ts",
       "types": "./dist/postgres/index.d.ts",
@@ -581,6 +586,10 @@
       "./powersync": {
         "types": "./dist/powersync/index.d.ts",
         "default": "./dist/powersync/index.js"
+      },
+      "./powersync/react": {
+        "types": "./dist/powersync/react/index.d.ts",
+        "default": "./dist/powersync/react/index.js"
       },
       "./postgres": {
         "types": "./dist/postgres/index.d.ts",

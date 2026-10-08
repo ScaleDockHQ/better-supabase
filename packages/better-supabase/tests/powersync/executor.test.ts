@@ -446,6 +446,55 @@ describe("watch", () => {
     expect(results).toEqual([0, 1]);
   });
 
+  it("keeps unchanged rows' identity and skips results that changed nothing", async () => {
+    const { db, client } = setup();
+    await client.tags.create({ organizationId: ORG, name: "a" });
+    const results: (readonly { readonly name: string }[])[] = [];
+    let rerun: (() => void) | undefined;
+    const onChange = db.onChange!.bind(db);
+    vi.spyOn(db, "onChange").mockImplementation((handler, options) => {
+      rerun = () => void handler.onChange({ changedTables: ["tags"] });
+      return onChange(handler, options);
+    });
+    const stop = watch(
+      db,
+      () => client.tags.findMany({ orderBy: { name: "asc" } }),
+      {
+        tables: sqliteTables(betterSupabase, ["tags"]),
+        onResult: (result) => {
+          if (result.ok) results.push(result.data);
+        },
+      },
+    );
+    await tick();
+    rerun?.();
+    await tick();
+    expect(results).toHaveLength(1);
+    await client.tags.create({ organizationId: ORG, name: "b" });
+    await tick();
+    stop();
+    expect(results).toHaveLength(2);
+    expect(results[1]?.[0]).toBe(results[0]?.[0]);
+    expect(results[1]?.[1]?.name).toBe("b");
+  });
+
+  it("returns new objects every run without structural sharing", async () => {
+    const { db, client } = setup();
+    await client.tags.create({ organizationId: ORG, name: "a" });
+    const results: unknown[] = [];
+    const stop = watch(db, () => client.tags.findMany(), {
+      tables: sqliteTables(betterSupabase, ["tags"]),
+      structuralSharing: false,
+      onResult: (result) => results.push(result.data),
+    });
+    await tick();
+    await client.tags.create({ organizationId: ORG, name: "b" });
+    await tick();
+    stop();
+    expect(results).toHaveLength(2);
+    expect((results[1] as unknown[])[0]).not.toBe((results[0] as unknown[])[0]);
+  });
+
   it("never starts with an aborted signal and detaches from it on stop", async () => {
     const { db } = setup();
     const query = vi.fn(() =>
