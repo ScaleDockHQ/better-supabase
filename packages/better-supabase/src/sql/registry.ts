@@ -50,6 +50,7 @@ import { OUTBOX } from "./modules/outbox.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SSO } from "./modules/sso.ts";
+import { STREAMS } from "./modules/streams.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TENANT } from "./modules/tenant.ts";
 import { USAGE } from "./modules/usage.ts";
@@ -2228,6 +2229,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(ONBOARDING),
       built(WAITLIST),
       built(ANNOUNCEMENTS),
+      built(STREAMS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

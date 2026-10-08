@@ -299,6 +299,16 @@
       "types": "./dist/blocks/waitlist/index.d.ts",
       "default": "./dist/blocks/waitlist/index.js"
     },
+    "./streams": {
+      "@better-supabase/source": "./src/streams/index.ts",
+      "types": "./dist/streams/index.d.ts",
+      "default": "./dist/streams/index.js"
+    },
+    "./streams/redis": {
+      "@better-supabase/source": "./src/streams/redis/index.ts",
+      "types": "./dist/streams/redis/index.d.ts",
+      "default": "./dist/streams/redis/index.js"
+    },
     "./blocks/announcements": {
       "@better-supabase/source": "./src/blocks/announcements/index.ts",
       "types": "./dist/blocks/announcements/index.d.ts",
@@ -576,6 +586,14 @@
       "./blocks/waitlist": {
         "types": "./dist/blocks/waitlist/index.d.ts",
         "default": "./dist/blocks/waitlist/index.js"
+      },
+      "./streams": {
+        "types": "./dist/streams/index.d.ts",
+        "default": "./dist/streams/index.js"
+      },
+      "./streams/redis": {
+        "types": "./dist/streams/redis/index.d.ts",
+        "default": "./dist/streams/redis/index.js"
       },
       "./blocks/announcements": {
         "types": "./dist/blocks/announcements/index.d.ts",

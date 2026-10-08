@@ -74,3 +74,5 @@ export type {
   TestWebhookSignerOptions,
   TestWebhookTransportOptions,
 } from "./webhooks.ts";
+export { testStreamStore } from "./streams.ts";
+export type { TestStreamStoreOptions } from "./streams.ts";

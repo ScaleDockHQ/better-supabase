@@ -39,6 +39,8 @@ const PURE_BARRELS = [
   "realtime",
   "sql",
   "storage",
+  "streams",
+  "streams/redis",
 ];
 
 describe("subpath entries", () => {

@@ -41,6 +41,8 @@ const entries = [
   "blocks/announcements/react/index",
   "blocks/announcements/react/server",
   "blocks/waitlist/index",
+  "streams/index",
+  "streams/redis/index",
   "blocks/onboarding/index",
   "blocks/onboarding/react/index",
   "blocks/onboarding/react/server",
