@@ -150,6 +150,9 @@ export interface SqlModule {
    * entry point for them.
    */
   readonly internal?: readonly string[];
+  readonly adoptOptional?: (
+    ctx: ModuleContext,
+  ) => Readonly<Record<string, readonly string[]>>;
 }
 
 /** A pgTAP file a module writes for the layout, e.g. one per audited table. */

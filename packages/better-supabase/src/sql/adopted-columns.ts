@@ -20,13 +20,18 @@ export function adoptedColumnProblems(
     const spec = SQL_MODULES[name]?.names?.tables;
     if (spec === undefined) continue;
     const ctx = moduleContext(name, { modules }, Object.keys(modules));
+    const unchecked = SQL_MODULES[name]?.adoptOptional?.(ctx) ?? {};
     for (const [logical, table] of Object.entries(spec)) {
       if (!ctx.hasTable(logical)) continue;
       const { schema, name: tableName } = ctx.tableName(logical);
       const columns = declared.get(`${schema}.${tableName}`);
       if (columns === undefined) continue;
       for (const [column, physical] of Object.entries(table.columns)) {
-        if (!table.optional?.includes(column) || !ctx.has(logical, column))
+        if (
+          !table.optional?.includes(column) ||
+          !ctx.has(logical, column) ||
+          unchecked[logical]?.includes(column)
+        )
           continue;
         const mapped = ctx.config.columns[logical]?.[column];
         const used = mapped ?? physical;
