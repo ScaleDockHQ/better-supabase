@@ -1,8 +1,8 @@
 import type { AuthSession } from "./view.ts";
 
 /**
- * One entry of the `memberships` claim, in PermDock's shape. PermDock strips
- * `null`s, so optional fields are absent rather than `null`.
+ * One entry of the `memberships` claim when a hook writes it as a list.
+ * Hooks strip `null`s, so optional fields are absent rather than `null`.
  */
 export interface MembershipClaim {
   /** The scope the membership is in, e.g. `tenant` or `organization`. */

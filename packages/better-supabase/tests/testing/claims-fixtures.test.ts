@@ -7,9 +7,6 @@ import { actClaim, impersonatorOf } from "../../src/auth/impersonation.ts";
 import { supportClaims } from "../../src/auth/support.ts";
 import { toSession } from "../../src/auth/view.ts";
 import { supabaseClaimFixtures } from "../../src/testing/index.ts";
-import { problems, validatorFor } from "../standards/validator.ts";
-
-const permdockClaims = validatorFor("permdock-supabase-claims-v1.json");
 
 function user(claims: Readonly<Record<string, unknown>>): AuthState {
   return {
@@ -24,8 +21,7 @@ function user(claims: Readonly<Record<string, unknown>>): AuthState {
 
 describe("supabaseClaimFixtures", () => {
   for (const [name, fixture] of Object.entries(supabaseClaimFixtures)) {
-    it(`${name}: passes PermDock's claims schema and reads as expected`, () => {
-      expect(problems(permdockClaims, fixture.claims)).toEqual([]);
+    it(`${name}: reads as expected`, () => {
       expect(actorOf(fixture.claims)).toEqual({
         ok: true,
         actor: fixture.expect.actor,

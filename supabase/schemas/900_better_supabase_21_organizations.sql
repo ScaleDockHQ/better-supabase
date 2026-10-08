@@ -175,9 +175,9 @@ create constraint trigger "bs_organization_owner" after update of "role", "organ
 
 -- No client grants a role above their own permissions (can_assign), demotes
 -- someone above them, or changes their own role. Only writes made as anon or
--- authenticated are checked, like PermDock's assignment triggers: the
--- service role, direct admin connections and security definer functions
--- (the module's own and the app's, which check their own ceilings) pass.
+-- authenticated are checked: the service role, direct admin connections and
+-- security definer functions (the module's own and the app's, which check
+-- their own ceilings) pass.
 -- The checks, as the module's owner, so the client needs no rights on the
 -- roles tables. It only raises, so a direct call reveals nothing.
 create or replace function "better_supabase"."guard_membership_role"(target_tenant uuid, target_member uuid, target_role text, previous_tenant uuid, previous_role text)
@@ -376,7 +376,7 @@ begin
     raise exception 'The new owner is disabled' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   -- One statement for both rows, so a statement-level guard on the number of
-  -- owners (PermDock's transferOnly) sees the transfer as a whole.
+  -- owners sees the transfer as a whole.
   update "public"."memberships" m set "role" = case
       when m."user_id" = new_owner then 'owner'
       else former_role

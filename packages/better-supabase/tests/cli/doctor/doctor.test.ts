@@ -13,7 +13,6 @@ import type {
   ExtrasHookFunction,
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
-import type { PermdockProject } from "../../../src/cli/permdock.ts";
 
 import { locate } from "../../../src/cli/commands/doctor.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
@@ -31,7 +30,6 @@ import {
 } from "../../../src/cli/doctor/rules.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
-import { parseManifest } from "../../../src/cli/permdock.ts";
 import { run } from "../../../src/cli/run.ts";
 import {
   parseToml,
@@ -39,18 +37,16 @@ import {
   type SupabaseToml,
 } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { modulePermissionKeys, SQL_MODULES } from "../../../src/sql/index.ts";
+import {
+  stubProvider,
+  withProvider,
+} from "../../fixtures/authorization-provider.ts";
 import { moduleSnapshotFixture as fixture } from "../fixtures/library.ts";
-import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
 const base = await parseSnapshot(fixture);
 
-const PERMDOCK: PermdockProject = {
-  config: "permdock.config.ts",
-  manifestPath: "permdock.manifest.json",
-  manifest: { version: 1, claims: [], memberships: [], decidingColumns: [] },
-  catalogPath: "permissions.catalog.json",
-  problems: [],
+const AUTHZ = {
+  config: resolveConfig({ authorization: stubProvider }, "/project"),
 };
 
 const toml = (text: string): SupabaseToml => ({
@@ -386,12 +382,18 @@ describe("doctor rules", () => {
       expect(await runRules(context(noPolicy), only)).toEqual([]);
     });
 
-    it("flags PermDock's deciding columns and names PD028", async () => {
-      const permdock: PermdockProject = {
-        ...PERMDOCK,
-        manifest: parseManifest(manifest),
+    it("flags the provider's deciding columns", async () => {
+      const provider = {
+        config: resolveConfig(
+          {
+            authorization: withProvider({
+              decidingColumns: ["public.contacts.organization_id"],
+            }),
+          },
+          "/project",
+        ),
       };
-      const findings = await runRules(context(base, { permdock }), only);
+      const findings = await runRules(context(base, provider), only);
       expect(findings.map((finding) => finding.target)).toEqual([
         "public.contacts",
       ]);
@@ -399,7 +401,7 @@ describe("doctor rules", () => {
         "authenticated may insert organization_id; authenticated may update organization_id",
       );
       expect(findings[0]!.message).toContain(
-        "PermDock's manifest lists organization_id as deciding columns, which PD028 protects",
+        "the authorization provider lists organization_id as deciding columns",
       );
       expect(findings[0]!.message).toContain(
         "revoke insert, update on public.contacts from authenticated;\ngrant insert (id, email, full_name, created_at, updated_at), update (id, email, full_name, created_at, updated_at) on public.contacts to authenticated;",
@@ -417,7 +419,7 @@ describe("doctor rules", () => {
           },
         ];
       });
-      expect(await runRules(context(revoked, { permdock }), only)).toEqual([]);
+      expect(await runRules(context(revoked, provider), only)).toEqual([]);
     });
   });
 
@@ -1114,27 +1116,32 @@ uri = "https://example.com/hook"
       expect(message).toContain("from authenticated, anon, public;");
     });
 
-    it("points PermDock's hook at its grants migration, and an applied-later one at migration up (BS404)", async () => {
+    it("points the provider's hook at its grants command, and an applied-later migration at migration up (BS404)", async () => {
       const ungranted = withHook([hookFn({ execute: [], schemaUsage: [] })]);
       const hookFile = {
         path: "supabase/schemas/040_hook.sql",
-        text: "-- permdock:hook v1 schema=rbac\ncreate or replace function rbac.custom_access_token_hook(event jsonb)",
+        text: "-- authz: access token hook\ncreate or replace function rbac.custom_access_token_hook(event jsonb)",
       };
-      const [permdock] = await runRules(
+      const [provider] = await runRules(
+        hookContext(ungranted, { ...AUTHZ, sqlFiles: [hookFile] }),
+        only("BS404"),
+      );
+      expect(provider?.message).toContain(
+        "It is the hook of the authorization provider (stub), so let the provider write the grants: `authz hook grants`.",
+      );
+      expect(provider?.message).not.toContain("grant usage");
+      const [plain] = await runRules(
         hookContext(ungranted, { sqlFiles: [hookFile] }),
         only("BS404"),
       );
-      expect(permdock?.message).toContain(
-        "permdock supabase hook generate --grants-out",
-      );
-      expect(permdock?.message).not.toContain("grant usage");
+      expect(plain?.message).toContain("grant usage");
 
       const grantsFile = {
-        path: "supabase/migrations/20261001000001_permdock_hook_grants.sql",
-        text: "-- permdock:grants v1 schema=rbac\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
+        path: "supabase/migrations/20261001000001_hook_grants.sql",
+        text: "-- authz: hook grants\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
       };
       const [migration] = await runRules(
-        hookContext(ungranted, { sqlFiles: [hookFile, grantsFile] }),
+        hookContext(ungranted, { ...AUTHZ, sqlFiles: [hookFile, grantsFile] }),
         only("BS404"),
       );
       expect(migration?.message).toContain(
@@ -1142,22 +1149,22 @@ uri = "https://example.com/hook"
       );
     });
 
-    describe("PermDock's hook under pg-delta (BS404)", () => {
+    describe("grants under pg-delta (BS404)", () => {
       const PGDELTA = toml(
         `${HOOK_TOML}\n[experimental.pgdelta]\nenabled = true\n`,
       );
       const ungranted = withHook([hookFn({ execute: [], schemaUsage: [] })]);
       const hookFile = {
         path: "supabase/schemas/040_hook.sql",
-        text: "-- permdock:hook v1 schema=rbac\ncreate or replace function rbac.custom_access_token_hook(event jsonb)",
+        text: "create or replace function rbac.custom_access_token_hook(event jsonb)",
       };
       const grantedHookFile = {
         ...hookFile,
         text: `${hookFile.text} returns jsonb language plpgsql as $$ begin return event; end $$;\ngrant usage on schema rbac to supabase_auth_admin;\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;`,
       };
       const grantsMigration = {
-        path: "supabase/migrations/20261001000001_permdock_hook_grants.sql",
-        text: "-- permdock:grants v1 schema=rbac\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
+        path: "supabase/migrations/20261001000001_hook_grants.sql",
+        text: "-- authz: hook grants\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
       };
       const message = async (
         sqlFiles: NonNullable<DoctorContext["sqlFiles"]>,
@@ -1166,6 +1173,7 @@ uri = "https://example.com/hook"
         (
           await runRules(
             hookContext(ungranted, {
+              ...AUTHZ,
               sqlFiles,
               ...(configToml ? { configToml } : {}),
             }),
@@ -1173,26 +1181,13 @@ uri = "https://example.com/hook"
           )
         )[0]?.message;
 
-      it("asks PermDock to keep the grants in the hook's schema file", async () => {
-        const text = await message([hookFile], PGDELTA);
-        expect(text).toContain(
-          "`permdock supabase hook generate --out supabase/schemas/040_hook.sql`",
-        );
-        expect(text).toContain("without `--grants-out`");
-        expect(text).toContain("`supabase db schema declarative sync`");
-        expect(text).not.toContain("supabase/migrations/<timestamp>");
-        expect(await message([hookFile])).toContain(
-          "--grants-out supabase/migrations/<timestamp>_permdock_hook_grants.sql",
-        );
-      });
-
       it("accepts grants in the schema file that defines the hook", async () => {
         expect(await message([grantedHookFile], PGDELTA)).toContain(
           `${hookFile.path} grants it, so the database is behind: run \`supabase db schema declarative sync\`, then apply the migrations (\`supabase migration up\`).`,
         );
         // `supabase db diff` drops grants, so the legacy engine doesn't count them.
         expect(await message([grantedHookFile])).toContain(
-          "permdock supabase hook generate --grants-out",
+          "Append to the migration `supabase db diff` wrote",
         );
       });
 
@@ -1206,15 +1201,32 @@ uri = "https://example.com/hook"
       });
 
       it("prints the same fixes in --fix-grants", () => {
-        const block = (sqlFiles: NonNullable<DoctorContext["sqlFiles"]>) =>
+        const block = (
+          sqlFiles: NonNullable<DoctorContext["sqlFiles"]>,
+          extra: Partial<DoctorContext> = {},
+        ) =>
           hookGrantBlock(
             hookGrantProblems(
-              hookContext(ungranted, { sqlFiles, configToml: PGDELTA }),
+              hookContext(ungranted, {
+                sqlFiles,
+                configToml: PGDELTA,
+                ...extra,
+              }),
             ),
             "pg-delta",
           );
-        expect(block([hookFile])).toContain(
-          "is PermDock's hook: permdock supabase hook generate --out supabase/schemas/040_hook.sql (without --grants-out), then supabase db schema declarative sync",
+        expect(
+          block(
+            [
+              {
+                ...hookFile,
+                text: `-- authz: access token hook\n${hookFile.text}`,
+              },
+            ],
+            AUTHZ,
+          ),
+        ).toContain(
+          "is the hook of the authorization provider (stub): authz hook grants",
         );
         expect(block([grantedHookFile])).toContain(
           `: ${hookFile.path} grants it; run \`supabase db schema declarative sync\`, then \`supabase migration up\`.`,
@@ -1222,7 +1234,10 @@ uri = "https://example.com/hook"
         expect(
           hookGrantBlock(
             hookGrantProblems(
-              hookContext(ungranted, { sqlFiles: [hookFile, grantsMigration] }),
+              hookContext(ungranted, {
+                ...AUTHZ,
+                sqlFiles: [hookFile, grantsMigration],
+              }),
             ),
             "migra",
           ),
@@ -1318,7 +1333,7 @@ uri = "https://example.com/hook"
         extra: Partial<DoctorContext> = {},
         size: {
           memberships?: number;
-          attrs?: number;
+          budget?: number;
           truncated?: boolean;
         } = {},
       ) => {
@@ -1339,7 +1354,7 @@ uri = "https://example.com/hook"
                 {
                   bytes,
                   memberships: size.memberships ?? 0,
-                  attrs: size.attrs ?? null,
+                  budget: size.budget ?? 0,
                   truncated: size.truncated ?? false,
                 },
               ] as R[];
@@ -1367,26 +1382,23 @@ uri = "https://example.com/hook"
         { severity: "info", message: expect.stringContaining("no such user") },
       ]);
       expect((await run(1500)).findings).toEqual([]);
-      const permdock = { permdock: PERMDOCK };
-      // A normal PermDock token: 1.5 KB in total, memberships and attrs within the budget.
+      // The stub's hook budgets 1024 bytes of memberships within a 2048-byte token.
+      expect((await run(1500, true, AUTHZ, { budget: 600 })).findings).toEqual(
+        [],
+      );
       expect(
-        (await run(1500, true, permdock, { memberships: 600, attrs: 300 }))
-          .findings,
-      ).toEqual([]);
-      expect(
-        (await run(1500, true, permdock, { memberships: 900, attrs: 200 }))
-          .findings,
+        (await run(1500, true, AUTHZ, { budget: 1100 })).findings,
       ).toMatchObject([
         {
           severity: "warning",
           message: expect.stringContaining(
-            "1100 bytes of memberships and attrs for 11111111-1111-4111-8111-111111111111, over PermDock's budget of 1024",
+            "1100 bytes of memberships for 11111111-1111-4111-8111-111111111111, over the hook's budget of 1024",
           ),
           target: expect.stringMatching(/:budget$/),
         },
       ]);
       expect(
-        (await run(2500, true, permdock, { memberships: 400 })).findings,
+        (await run(2500, true, AUTHZ, { memberships: 400 })).findings,
       ).toMatchObject([
         {
           message: expect.stringContaining("(limit 2048, memberships 400)"),
@@ -1405,24 +1417,29 @@ uri = "https://example.com/hook"
           await run(
             1500,
             true,
-            { ...permdock, config: custom },
-            { memberships: 600 },
+            {
+              config: resolveConfig(
+                { authorization: stubProvider, doctor: { claimsLimit: 512 } },
+                "/project",
+              ),
+            },
+            { budget: 600 },
           )
         ).findings,
       ).toMatchObject([
-        { message: expect.stringContaining("over PermDock's budget of 512") },
+        { message: expect.stringContaining("over the hook's budget of 512") },
       ]);
       expect(
-        (await run(300, true, {}, { truncated: true })).findings,
+        (await run(300, true, AUTHZ, { truncated: true })).findings,
       ).toMatchObject([
         {
           severity: "info",
-          message: expect.stringContaining("memberships_truncated"),
+          message: expect.stringContaining("sets memberships_truncated"),
         },
       ]);
     });
 
-    it("flags a module hook next to PermDock (BS407)", async () => {
+    it("flags a module hook next to the provider's (BS407)", async () => {
       const moduleHook = hookFn({
         source:
           "begin claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims(uid)); end",
@@ -1431,154 +1448,47 @@ uri = "https://example.com/hook"
         [],
       );
       expect(
-        await codes(
-          hookContext(withHook([moduleHook]), { permdock: PERMDOCK }),
-          "BS407",
-        ),
+        await codes(hookContext(withHook([moduleHook]), AUTHZ), "BS407"),
       ).toEqual(["BS407"]);
-      const both = hookFn({
-        source: `${moduleHook.source ?? ""} perform permdock.permdock_claims(event);`,
-      });
-      expect(await codes(hookContext(withHook([both])), "BS407")).toEqual([
-        "BS407",
-      ]);
       expect(
         await codes(
-          hookContext(withHook([hookFn({ source: "select 1" })]), {
-            permdock: PERMDOCK,
-          }),
+          hookContext(withHook([hookFn({ source: "select 1" })]), AUTHZ),
           "BS407",
         ),
       ).toEqual([]);
     });
 
-    it("leaves the features claim and the generated PermDock hook alone (BS407)", async () => {
-      const withPermdock = (source: string) =>
-        codes(
-          hookContext(withHook([hookFn({ source })]), {
-            permdock: PERMDOCK,
-          }),
-          "BS407",
-        );
+    it("leaves registered claims and the provider's own hook alone (BS407)", async () => {
+      const withProviderHook = (source: string) =>
+        codes(hookContext(withHook([hookFn({ source })]), AUTHZ), "BS407");
       expect(
-        await withPermdock(
+        await withProviderHook(
           "begin return jsonb_set(event, '{claims,features}', better_supabase.feature_claims(uid)); end",
         ),
       ).toEqual([]);
-      expect(
-        await withPermdock(
-          "begin claims := jsonb_set(claims, '{roles}', held); claims := jsonb_set(claims, '{memberships}', kept); claims := jsonb_set(claims, '{memberships_truncated}', 'true'::jsonb); end",
-        ),
-      ).toEqual([]);
-    });
-
-    it("flags a hook that writes the PermDock claims itself (BS407)", async () => {
-      const findings = async (source: string, extra = {}) =>
-        runRules(
-          hookContext(withHook([hookFn({ source })]), {
-            permdock: PERMDOCK,
-            ...extra,
-          }),
-          only("BS407"),
-        );
-      expect(
-        await findings(
-          "begin return jsonb_set(event, '{claims,roles}', '[\"admin\"]'); end",
-        ),
-      ).toMatchObject([{ message: expect.stringContaining("writes roles") }]);
-      expect(
-        await findings(
-          "begin claims := claims || jsonb_build_object('memberships', m, 'tenant_id', t); end",
-        ),
-      ).toMatchObject([
-        { message: expect.stringContaining("writes memberships, tenant_id") },
-      ]);
-      const renamed = resolveConfig(
-        { claims: { tenant: "org_id" } },
-        "/project",
-      );
-      expect(
-        await findings(
-          "begin return jsonb_set(event, '{claims,org_id}', to_jsonb(t)); end",
-          { config: renamed },
-        ),
-      ).toMatchObject([{ message: expect.stringContaining("writes org_id") }]);
-      expect(
-        await findings(
-          "begin return jsonb_set(event, '{claims,org_id}', to_jsonb(t)); end",
-        ),
-      ).toEqual([]);
-      const wrapped = hookFn({
-        source:
-          "begin event := public.permdock_hook(event); return jsonb_set(event, '{claims,user_role}', '\"admin\"'); end",
-      });
-      expect(await codes(hookContext(withHook([wrapped])), "BS407")).toEqual([
-        "BS407",
-      ]);
-    });
-
-    it("treats supabase.hook.claims functions as PermDock's own sources (BS407)", async () => {
-      const project: PermdockProject = {
-        ...PERMDOCK,
-        manifest: {
-          ...PERMDOCK.manifest!,
-          hook: { schema: "public", function: "permdock_hook" },
-          claims: [
-            { name: "roles", source: "permdock" },
-            { name: "features", source: "better_supabase.feature_claims" },
-          ],
-        },
-      };
-      const run = (source: string, extra: Partial<DoctorContext> = {}) =>
-        runRules(
-          hookContext(withHook([hookFn({ source })]), {
-            permdock: project,
-            ...extra,
-          }),
-          only("BS407"),
-        );
-      // A hook that only adds a registered claim's function is not a second source.
-      expect(
-        await run(
-          "begin return jsonb_set(event, '{claims,features}', better_supabase.feature_claims(uid)); end",
-        ),
-      ).toEqual([]);
-      // Wrapping PermDock's hook and writing features again gives it two writers.
-      expect(
-        await run(
-          "begin event := public.permdock_hook(event); return jsonb_set(event, '{claims,features}', better_supabase.feature_claims(uid)); end",
-        ),
-      ).toMatchObject([
-        {
-          message: expect.stringContaining(
-            "its hook already writes features from better_supabase.feature_claims",
-          ),
-        },
-      ]);
-      // The configured hook is PermDock's own (manifest hook or marker file): never reported.
       const generated = hookFn({
-        name: "permdock_hook",
-        schema: "public",
+        name: "access_token_hook",
+        schema: "authz",
         source:
-          "begin claims := jsonb_set(claims, '{roles}', held); claims := jsonb_set(claims, '{features}', extra); end",
+          "begin claims := jsonb_set(claims, '{memberships}', held); claims := jsonb_set(claims, '{tenant_id}', t); end",
       });
       expect(
         await runRules(
-          hookContext(withHook([generated]), { permdock: project }),
+          hookContext(withHook([generated]), AUTHZ),
           only("BS407"),
         ),
       ).toEqual([]);
       const marked = hookFn({
-        source: "begin claims := jsonb_set(claims, '{roles}', held); end",
+        source: "begin claims := jsonb_set(claims, '{memberships}', held); end",
       });
       expect(
         await runRules(
           hookContext(withHook([marked]), {
-            permdock: PERMDOCK,
+            ...AUTHZ,
             sqlFiles: [
               {
-                path: "supabase/migrations/20261001000200_permdock_hook.sql",
-                text: '-- permdock:hook v1 schema=rbac tenant=tenant_id budget=1024 claims=roles,features\ncreate or replace function "rbac".custom_access_token_hook(event jsonb)',
+                path: "supabase/migrations/20261001000200_authz_hook.sql",
+                text: '-- authz: access token hook\ncreate or replace function "rbac".custom_access_token_hook(event jsonb)',
               },
             ],
           }),
@@ -1587,895 +1497,55 @@ uri = "https://example.com/hook"
       ).toEqual([]);
     });
 
-    it("asks for the manifest when only the PermDock config is there (BS407)", async () => {
-      const { manifest: _, ...withoutManifest } = PERMDOCK;
-      const noHooks = { ...base, extras: { ...base.extras, hooks: [] } };
-      expect(
-        await runRules(
-          hookContext(noHooks, { permdock: withoutManifest }),
+    it("flags a hook that writes the provider's claims itself (BS407)", async () => {
+      const findings = async (source: string, extra = {}) =>
+        runRules(
+          hookContext(withHook([hookFn({ source })]), { ...AUTHZ, ...extra }),
           only("BS407"),
-        ),
-      ).toMatchObject([
-        {
-          severity: "info",
-          message: expect.stringContaining("permdock supabase inspect --out"),
-        },
-      ]);
-    });
-  });
-
-  describe("PermDock helpers for entitlements (BS408)", () => {
-    const only = RULES.filter((rule) => rule.code === "BS408");
-    const parsed = parseManifest(manifest);
-    // The fixture's example fills `features` from its own function; the module's needs better_supabase.feature_claims.
-    const project: PermdockProject = {
-      ...PERMDOCK,
-      manifest: {
-        ...parsed,
-        claims: parsed.claims.map((claim) =>
-          claim.name === "features"
-            ? { ...claim, source: "better_supabase.feature_claims" }
-            : claim,
-        ),
-      },
-    };
-    const entitlementsConfig: Parameters<typeof resolveConfig>[0] = {
-      sql: { modules: ["entitlements"] },
-    };
-    const check = (
-      extra: Partial<DoctorContext> = {},
-      config = entitlementsConfig,
-    ) =>
-      runRules(
-        context(base, {
-          permdock: project,
-          config: resolveConfig(config, "/project"),
-          ...extra,
-        }),
-        only,
-      );
-    const withHelpers = snapshot((_tables, functions) => {
-      for (const name of [
-        "member_organization_ids",
-        "member_organization_ids_for",
-      ])
-        functions.push({ ...functions[0]!, schema: "public", name });
-    });
-
-    it("passes when the manifest and the database have both helpers", async () => {
-      expect(await check({ snapshot: withHelpers })).toEqual([]);
-      expect(await check({}, { sql: { modules: ["audit"] } })).toEqual([]);
-      expect(
-        await check(
-          {},
-          {
-            sql: { modules: ["entitlements"] },
-            entitlements: { permdock: false },
-          },
-        ),
-      ).toEqual([]);
-      expect(await check({ permdock: PERMDOCK })).toMatchObject([
-        {
-          target: "entitlements.permdock",
-          message: expect.stringContaining("has no rls block"),
-        },
-      ]);
-    });
-
-    it("checks the features claim PermDock's hook registers", async () => {
-      const withClaims = (
-        claims: { name: string; source: string }[],
-      ): PermdockProject => ({
-        ...project,
-        manifest: { ...project.manifest!, claims },
-      });
-      expect(
-        await messages(
-          withClaims([{ name: "features", source: "public.feature_claims" }]),
-        ),
-      ).toEqual([
-        [
-          "claims.features",
-          expect.stringContaining(
-            'fills the "features" claim from public.feature_claims, not better_supabase.feature_claims',
-          ),
-        ],
-      ]);
-      expect(
-        await messages(
-          withClaims([
-            { name: "plan", source: "better_supabase.feature_claims" },
-          ]),
-        ),
-      ).toEqual([
-        [
-          "claims.features",
-          expect.stringContaining(
-            'registers better_supabase.feature_claims as the "plan" claim, but claims.features is "features"',
-          ),
-        ],
-      ]);
-      expect(await messages(withClaims([]))).toEqual([
-        [
-          "claims.features",
-          expect.stringContaining(
-            'has no "features" claim, so PermDock\'s hook never writes the plan features',
-          ),
-        ],
-      ]);
-      expect((await messages(withClaims([])))[0]![1]).toContain(
-        "entitlements.claim: false",
-      );
-      const claimOff = (
-        claims: { name: string; source: string }[],
-        snapshotOf = withHelpers,
-      ) =>
-        check(
-          {
-            permdock: withClaims(claims),
-            snapshot: snapshotOf,
-          },
-          {
-            sql: { modules: ["entitlements"] },
-            entitlements: { claim: false },
-          },
         );
-      expect(await claimOff([])).toEqual([]);
       expect(
-        await claimOff([{ name: "features", source: "public.feature_claims" }]),
-      ).toEqual([]);
-      expect(
-        (await claimOff([], base)).map((finding) => finding.target),
-      ).toEqual([
-        "public.member_organization_ids",
-        "public.member_organization_ids_for",
-      ]);
-    });
-
-    it("warns when rls.memberships maps no table to the scope", async () => {
-      const rls = project.manifest!.rls!;
-      expect(
-        await messages({
-          ...project,
-          manifest: {
-            ...project.manifest!,
-            rls: {
-              ...rls,
-              memberships: rls.memberships!.filter(
-                (source) => "value" in source.scope,
-              ),
-            },
-          },
-        }),
-      ).toEqual([
-        [
-          "entitlements.permdock.organization",
-          expect.stringContaining(
-            'permdock.manifest.json maps no rls.memberships table to scope "organization"',
-          ),
-        ],
-      ]);
-    });
-
-    it("falls back to the hook's sources without rls.memberships", async () => {
-      const { memberships: _, ...rls } = project.manifest!.rls!;
-      const older = (
-        memberships: NonNullable<PermdockProject["manifest"]>["memberships"],
-      ) =>
-        messages({
-          ...project,
-          manifest: { ...project.manifest!, memberships, rls },
-        });
-      expect(await older(project.manifest!.memberships)).toEqual([
-        [
-          "entitlements.permdock.organization",
-          expect.stringContaining(
-            "has no rls.memberships, so entitlement_members() reads the hook's membership sources",
-          ),
-        ],
-      ]);
-      expect(
-        await older(
-          project.manifest!.memberships.filter(
-            (source) => "value" in source.scope,
-          ),
-        ),
-      ).toMatchObject([
-        { 0: "entitlements.permdock.organization" },
-        {
-          1: expect.stringContaining(
-            'No membership source in permdock.manifest.json covers scope "organization"',
-          ),
-        },
-      ]);
-    });
-
-    it("reports helpers missing from the database or the manifest", async () => {
-      expect((await check()).map((finding) => finding.message)).toEqual([
-        expect.stringContaining(
-          "public.member_organization_ids is in permdock.manifest.json but not in the database",
-        ),
-        expect.stringContaining("public.member_organization_ids_for is in"),
-      ]);
-      const older: PermdockProject = {
-        ...project,
-        manifest: {
-          ...project.manifest!,
-          rls: {
-            ...project.manifest!.rls!,
-            helpers: project.manifest!.rls!.helpers.filter(
-              (helper) => helper.name !== "member_organization_ids_for",
-            ),
-          },
-        },
-      };
-      expect(
-        await check({ permdock: older, snapshot: withHelpers }),
-      ).toMatchObject([
-        {
-          severity: "warning",
-          target: "public.member_organization_ids_for",
-          message: expect.stringContaining(
-            "permdock.manifest.json lists no public.member_organization_ids_for",
-          ),
-        },
-      ]);
-    });
-
-    type Helpers = NonNullable<
-      NonNullable<PermdockProject["manifest"]>["rls"]
-    >["helpers"];
-    const editHelpers = (
-      edit: (helpers: Helpers) => Helpers,
-    ): PermdockProject => ({
-      ...project,
-      manifest: {
-        ...project.manifest!,
-        rls: {
-          ...project.manifest!.rls!,
-          helpers: edit(project.manifest!.rls!.helpers),
-        },
-      },
-    });
-    const messages = async (permdock: PermdockProject) =>
-      (await check({ permdock, snapshot: withHelpers })).map(
-        (finding) => [finding.target, finding.message] as const,
-      );
-
-    it("asks for permdock rls generate when member_<scope>_ids is missing", async () => {
-      const findings = await messages(
-        editHelpers((helpers) =>
-          helpers.filter((helper) => helper.name !== "member_organization_ids"),
-        ),
-      );
-      expect(findings).toEqual([
-        [
-          "public.member_organization_ids",
-          expect.stringContaining(
-            "has_entitlement calls it. Run `permdock rls generate` with a current PermDock",
-          ),
-        ],
-      ]);
-      expect(findings[0]![1]).not.toContain("every scope");
-    });
-
-    it("names the membership source setting when member_<scope>_ids_for is missing", async () => {
-      expect(
-        await messages(
-          editHelpers((helpers) =>
-            helpers.filter(
-              (helper) => helper.name !== "member_organization_ids_for",
-            ),
-          ),
-        ),
-      ).toEqual([
-        [
-          "public.member_organization_ids_for",
-          expect.stringMatching(
-            /only for a scope with a membership source.*supabase\.hook\.memberships.*rls\.membershipSources.*permdock\.config\.ts/,
-          ),
-        ],
-      ]);
-    });
-
-    it("names supabase.hook.claims when supabase_auth_admin can't execute member_<scope>_ids_for", async () => {
-      expect(
-        await messages(
-          editHelpers((helpers) =>
-            helpers.map((helper) =>
-              helper.name === "member_organization_ids_for"
-                ? { ...helper, execute: [] }
-                : helper,
-            ),
-          ),
-        ),
-      ).toEqual([
-        [
-          "public.member_organization_ids_for",
-          expect.stringMatching(
-            /supabase_auth_admin may not execute.*feature_claims runs as its owner.*supabase\.hook\.claims.*permdock\.config\.ts/,
-          ),
-        ],
-      ]);
-    });
-
-    it("reports member_<scope>_ids that authenticated may not execute", async () => {
-      expect(
-        await messages(
-          editHelpers((helpers) =>
-            helpers.map((helper) =>
-              helper.name === "member_organization_ids"
-                ? { ...helper, execute: [] }
-                : helper,
-            ),
-          ),
-        ),
-      ).toEqual([
-        [
-          "public.member_organization_ids",
-          expect.stringContaining("authenticated may not execute"),
-        ],
-      ]);
-    });
-
-    it("checks only the helpers of the chosen scope", async () => {
-      expect(
-        await messages(
-          editHelpers((helpers) =>
-            helpers.filter(
-              (helper) => !helper.name.startsWith("member_customer"),
-            ),
-          ),
-        ),
-      ).toEqual([]);
-    });
-
-    it("reports a scope id type the module can't render", async () => {
-      const untyped: PermdockProject = {
-        ...project,
-        manifest: {
-          ...project.manifest!,
-          rls: {
-            ...project.manifest!.rls!,
-            scopes: [{ name: "organization", type: "numeric" }],
-          },
-        },
-      };
-      expect(await check({ permdock: untyped })).toMatchObject([
-        {
-          target: "entitlements.permdock",
-          message: expect.stringContaining("uuid, text, bigint or integer"),
-        },
-      ]);
-    });
-
-    it("reports a scope the manifest doesn't have", async () => {
-      expect(
-        await check(
-          {},
-          {
-            sql: { modules: ["entitlements"] },
-            entitlements: { permdock: { scope: "team" } },
-          },
-        ),
-      ).toMatchObject([{ target: "entitlements.permdock" }]);
-    });
-  });
-
-  describe("PermDock row conditions (BS214)", () => {
-    const only = RULES.filter((rule) => rule.code === "BS214");
-    const withCatalog: PermdockProject = {
-      ...PERMDOCK,
-      catalog: {
-        permissions: [
-          { key: "docs.read", rowConditions: true },
-          { key: "docs.write", rowConditions: false },
-        ],
-      },
-    };
-    const policyFile = {
-      path: "supabase/schemas/900_better_supabase_storage.sql",
-      text: [
-        "-- better-supabase: bucket docs",
-        'drop policy if exists "bs_docs_select" on storage.objects;',
-        'create policy "bs_docs_select" on storage.objects for select to authenticated',
-        `  using (bucket_id = 'docs' and split_part(name, '/', 1) in (select t.id::text from "public"."permitted_organization_ids"('docs.read') as t(id)));`,
-        'create policy "bs_docs_insert" on storage.objects for insert to authenticated',
-        `  with check (bucket_id = 'docs' and split_part(name, '/', 1) in (select t.id::text from "public"."permitted_organization_ids"('docs.write') as t(id)));`,
-        "create policy own_policy on storage.objects for select using ((select public.permdock_has('docs.read')));",
-      ].join("\n"),
-    };
-
-    it("flags generated policies and configured buckets that name a row-conditioned key", async () => {
-      const findings = await runRules(
-        context(base, {
-          permdock: withCatalog,
-          sqlFiles: [policyFile],
-          config: resolveConfig(
-            {
-              buckets: {
-                docs: {
-                  path: "{organizationId}/{file}",
-                  policy: {
-                    permdock: { read: "docs.read", write: "docs.write" },
-                    scope: "organization",
-                  },
-                },
-              },
-            },
-            "/project",
-          ),
-        }),
-        only,
-      );
-      expect(findings.map((finding) => finding.target)).toEqual([
-        "buckets.docs:docs.read",
-        "storage.objects.bs_docs_select:docs.read",
-      ]);
-      expect(findings[1]).toMatchObject({
-        severity: "error",
-        location: {
-          file: "supabase/schemas/900_better_supabase_storage.sql",
-          line: 3,
-        },
-      });
-    });
-
-    it("checks the helper schema and scope against the manifest and catalog", async () => {
-      const project: PermdockProject = {
-        ...PERMDOCK,
-        manifest: parseManifest(manifest),
-        catalog: {
-          permissions: [
-            { key: "docs.read", rowConditions: false, scope: "organization" },
-            { key: "docs.write", rowConditions: false, scope: "customer" },
-          ],
-        },
-      };
-      const bucket = (policy: { scope: string; schema?: string }) =>
-        resolveConfig(
-          {
-            buckets: {
-              docs: {
-                path: "{organizationId}/{file}",
-                policy: {
-                  permdock: { read: "docs.read", write: "docs.write" },
-                  ...policy,
-                },
-              },
-            },
-          },
-          "/project",
-        );
-      const run = async (
-        config: ReturnType<typeof resolveConfig>,
-        sqlFiles: DoctorContext["sqlFiles"] = [],
-      ) =>
-        (
-          await runRules(
-            context(base, { permdock: project, config, sqlFiles }),
-            only,
-          )
-        ).map((finding) => finding.message);
-      // The default schema is PermDock's `permdock`; this manifest puts the helpers in `public`.
-      expect(await run(bucket({ scope: "organization" }))).toEqual([
-        expect.stringContaining(
-          "calls PermDock's helpers in schema permdock, but permdock.manifest.json puts them in public",
-        ),
-        expect.stringContaining(
-          'buckets.docs ("docs.write") calls PermDock\'s helpers in schema permdock',
-        ),
-        expect.stringContaining(
-          'checks "docs.write" at scope "organization", but permissions.catalog.json grants it at "customer"',
-        ),
-      ]);
-      const current: PermdockProject = {
-        ...project,
-        catalog: {
-          permissions: [
-            { key: "docs.read", rowConditions: false, scope: "docs:read" },
-            { key: "docs.write", rowConditions: false, scope: "docs:write" },
-          ],
-          grants: [
-            { permission: "docs.read", scope: "organization" },
-            { permission: "docs.write", scope: "organization" },
-            { permission: "docs.write", scope: "customer" },
-          ],
-          scopes: ["organization", "customer"],
-        },
-      };
-      const scoped = async (scope: string) =>
-        (
-          await runRules(
-            context(base, {
-              permdock: current,
-              config: bucket({ scope, schema: "public" }),
-            }),
-            only,
-          )
-        ).map((finding) => finding.message);
-      expect(await scoped("organization")).toEqual([]);
-      expect(await scoped("customer")).toEqual([
-        expect.stringContaining(
-          'checks "docs.read" at scope "customer", but permissions.catalog.json grants it at "organization"',
-        ),
-      ]);
-      const oauthOnly: PermdockProject = {
-        ...project,
-        catalog: {
-          permissions: [
-            { key: "docs.read", rowConditions: false, scope: "docs:read" },
-            { key: "docs.write", rowConditions: false, scope: "docs:write" },
-          ],
-        },
-      };
-      expect(
-        (
-          await runRules(
-            context(base, {
-              permdock: oauthOnly,
-              config: bucket({ scope: "organization", schema: "public" }),
-            }),
-            only,
-          )
-        ).map((finding) => finding.message),
-      ).toEqual([]);
-      expect(await run(bucket({ scope: "tenant", schema: "public" }))).toEqual([
-        expect.stringContaining(
-          'uses scope "tenant", which permdock.manifest.json doesn\'t declare, so permitted_tenant_ids doesn\'t exist. Use "organization"',
-        ),
-        expect.stringContaining('uses scope "tenant"'),
-      ]);
-      expect(
-        await run(resolveConfig({}, "/project"), [
-          {
-            path: "supabase/schemas/900_storage.sql",
-            text: `create policy "bs_docs_select" on storage.objects for select using (split_part(name, '/', 1) in (select t.id::text from "authz"."permitted_organization_ids"(p_permission => 'docs.read') as t(id)));`,
-          },
-        ]),
-      ).toEqual([
-        expect.stringContaining(
-          'Policy "bs_docs_select" on storage.objects calls PermDock\'s helpers in schema authz',
-        ),
-      ]);
-    });
-
-    it("treats a key without a rowConditions flag, or missing from the catalog, as unknown", async () => {
-      const findings = await runRules(
-        context(base, {
-          permdock: {
-            ...PERMDOCK,
-            catalog: {
-              permissions: [{ key: "docs.read" }, { key: "docs.write" }],
-            },
-          },
-          sqlFiles: [policyFile],
-          config: resolveConfig(
-            {
-              buckets: {
-                docs: {
-                  path: "{organizationId}/{file}",
-                  policy: {
-                    permdock: { read: "docs.read", write: "docs.list" },
-                    scope: "organization",
-                  },
-                },
-              },
-            },
-            "/project",
-          ),
-        }),
-        only,
-      );
-      expect(
-        findings.map((finding) => [finding.severity, finding.target]),
-      ).toEqual([
-        ["error", "buckets.docs:docs.read"],
-        ["error", "buckets.docs:docs.list"],
-        ["error", "storage.objects.bs_docs_select:docs.read"],
-        ["error", "storage.objects.bs_docs_insert:docs.write"],
-      ]);
-      expect(findings[0]!.message).toContain(
-        "has no rowConditions flag in permissions.catalog.json",
-      );
-      expect(findings[1]!.message).toContain(
-        "is not in permissions.catalog.json",
-      );
-      expect(findings[0]!.message).toContain("current `permdock catalog`");
-    });
-
-    it("asks for the catalog when helpers are used without one", async () => {
-      expect(
-        await runRules(
-          context(base, { permdock: PERMDOCK, sqlFiles: [policyFile] }),
-          only,
+        await findings(
+          "begin claims := claims || jsonb_build_object('memberships', m, 'tenant_id', t); end",
         ),
       ).toMatchObject([
         {
-          severity: "error",
           message: expect.stringContaining(
-            "so whether their permissions have row conditions is unknown. Run `permdock catalog`",
+            "writes memberships, tenant_id, but the hook of the authorization provider (stub) (authz.access_token_hook) owns those claims",
           ),
         },
       ]);
       expect(
-        await runRules(context(base, { sqlFiles: [policyFile] }), only),
-      ).toEqual([]);
-    });
-  });
-
-  describe("PermDock manifest and config agree (BS409)", () => {
-    const only = RULES.filter((rule) => rule.code === "BS409");
-    const project: PermdockProject = {
-      ...PERMDOCK,
-      manifest: parseManifest(manifest),
-    };
-    const run = async (
-      extra: Partial<DoctorContext> = {},
-      config: Parameters<typeof resolveConfig>[0] = {},
-    ) =>
-      runRules(
-        context(base, {
-          permdock: project,
-          config: resolveConfig(config, "/project"),
-          ...extra,
-        }),
-        only,
-      );
-
-    it("passes when the claims match the manifest", async () => {
-      expect(await run()).toEqual([]);
-      expect(await run({}, { claims: { scope: "organization" } })).toEqual([]);
-      expect(
-        await runRules(
-          context(base, { config: resolveConfig({}, "/project") }),
-          only,
+        await findings(
+          "begin return jsonb_set(event, '{claims,roles}', '[\"admin\"]'); end",
         ),
       ).toEqual([]);
-    });
-
-    it("warns when claims.tenant names another claim than PermDock's", async () => {
-      expect(await run({}, { claims: { tenant: "org_id" } })).toMatchObject([
-        {
-          severity: "warning",
-          target: "claims.tenant",
-          message: expect.stringContaining(
-            'PermDock writes the active tenant to "tenant_id", but claims.tenant is "org_id"',
-          ),
-        },
-      ]);
-    });
-
-    it("refuses hook and grants markers it can't read", async () => {
+      // Wrapping the provider's hook and writing a registered claim again gives it two writers.
       expect(
-        await run({
-          sqlFiles: [
-            {
-              path: "supabase/migrations/1_hook.sql",
-              text: "-- permdock:hook v2 schema=public\ncreate function x()",
-            },
-            {
-              path: "supabase/migrations/2_grants.sql",
-              text: "-- permdock:grants v1 schema=public\n",
-            },
-          ],
-        }),
+        await findings(
+          "begin event := authz.access_token_hook(event); return jsonb_set(event, '{claims,features}', better_supabase.feature_claims(uid)); end",
+        ),
       ).toMatchObject([
         {
-          severity: "error",
-          target: "supabase/migrations/1_hook.sql",
-          message: expect.stringContaining("`-- permdock:hook v2` marker"),
-        },
-      ]);
-    });
-
-    it("notes a claims.scope that isn't the manifest's root scope", async () => {
-      expect(await run({}, { claims: { scope: "customer" } })).toMatchObject([
-        {
-          severity: "info",
-          target: "claims.scope",
           message: expect.stringContaining(
-            'claims.scope is "customer", which stands for "customer" in permdock.manifest.json, whose root scope is "organization"',
+            "(it already writes features from better_supabase.feature_claims)",
           ),
         },
       ]);
-    });
-  });
-
-  describe("PermDock access model (BS411)", () => {
-    const only = RULES.filter((rule) => rule.code === "BS411");
-    const allScopeOnly = (): PermdockProject["catalog"] => ({
-      permissions: modulePermissionKeys(
-        { access: { model: "permdock" } },
-        Object.keys(SQL_MODULES),
-      ).map((entry) => ({ key: entry.key, rowConditions: false })),
-    });
-    const project: PermdockProject = {
-      ...PERMDOCK,
-      manifest: parseManifest(manifest),
-      catalog: allScopeOnly()!,
-    };
-    const withHelpers = snapshot((_tables, functions) => {
-      for (const name of ["permitted_organization_ids", "permdock_has"])
-        functions.push({ ...functions[0]!, schema: "public", name });
-    });
-    const run = async (
-      access: object = {},
-      extra: Partial<DoctorContext> = {},
-      modules: string[] = ["access", "organizations"],
-    ) =>
-      runRules(
-        context(withHelpers, {
-          permdock: project,
-          config: resolveConfig(
-            {
-              sql: {
-                modules: {
-                  ...Object.fromEntries(
-                    modules.map((name) => [
-                      name,
-                      name === "access"
-                        ? {
-                            model: "permdock",
-                            functions: {
-                              canAssign:
-                                "public.permdock_can_assign({role}, {tenant}::text)",
-                            },
-                            ...access,
-                          }
-                        : {},
-                    ]),
-                  ),
-                },
-              },
-            },
-            "/project",
-          ),
-          ...extra,
-        }),
-        only,
-      );
-
-    it("passes when the manifest, the catalog and the database back the model", async () => {
-      expect(await run()).toMatchObject([
-        {
-          severity: "info",
-          message: expect.stringContaining(
-            "doesn't list public.permdock_can_assign",
-          ),
-        },
-      ]);
-      expect(
-        await run({ model: "roles" }, {}, ["access", "organizations"]),
-      ).toEqual([]);
-      expect(await run({}, {}, ["profiles"])).toEqual([]);
-    });
-
-    it("reports a manifest that can't back the model", async () => {
-      expect(await run({}, { permdock: PERMDOCK })).toMatchObject([
-        {
-          target: "sql.modules.access.permdock",
-          message: expect.stringContaining("has no rls block"),
-        },
-      ]);
-      expect(await run({ permdock: { scope: "tenant" } })).toMatchObject([
-        {
-          target: "sql.modules.access.permdock",
-          message: expect.stringContaining(
-            'sql.modules.access.permdock.scope is "tenant"',
-          ),
-        },
-      ]);
-    });
-
-    it("reports helpers the manifest or the database lacks", async () => {
-      const rls = project.manifest!.rls!;
-      const older: PermdockProject = {
-        ...project,
-        manifest: {
-          ...project.manifest!,
-          rls: {
-            ...rls,
-            helpers: rls.helpers
-              .filter((helper) => helper.name !== "permdock_has")
-              .map((helper) =>
-                helper.name === "permitted_organization_ids"
-                  ? { ...helper, execute: [] }
-                  : helper,
-              ),
-          },
-        },
-      };
-      const findings = await run({}, { permdock: older });
-      expect(
-        findings.filter((finding) => finding.severity === "error"),
-      ).toMatchObject([
-        {
-          target: "public.permitted_organization_ids",
-          message: expect.stringContaining(
-            "authenticated may not execute public.permitted_organization_ids",
-          ),
-        },
-        {
-          target: "public.permdock_has",
-          message: expect.stringContaining("lists no public.permdock_has"),
-        },
-      ]);
-      expect(await run({}, { snapshot: base })).toMatchObject([
-        {
-          target: "public.permitted_organization_ids",
-          message: expect.stringContaining("not in the database"),
-        },
-        {
-          target: "public.permdock_has",
-          message: expect.stringContaining("not in the database"),
-        },
-        { severity: "info" },
-      ]);
-    });
-
-    it("reports module permission keys the catalog doesn't mark scope-only", async () => {
-      const findings = await run(
-        {},
-        {
-          permdock: {
-            ...project,
-            catalog: {
-              permissions: [
-                { key: "organization.update", rowConditions: true },
-              ],
-            },
-          },
-        },
-      );
-      expect(findings).toContainEqual(
-        expect.objectContaining({
-          severity: "error",
-          target: "sql.modules.organizations.permissions.update",
-          message: expect.stringContaining("has row conditions"),
-        }),
-      );
-      expect(findings).toContainEqual(
-        expect.objectContaining({
-          target: "sql.modules.organizations.permissions.delete",
-          message: expect.stringContaining(
-            "is not in permissions.catalog.json",
-          ),
-        }),
-      );
-    });
-
-    it("warns without canAssign and recommends permdock_can_assign", async () => {
-      const findings = await run({ functions: {} });
-      expect(findings).toMatchObject([
-        {
-          severity: "warning",
-          target: "sql.modules.access.functions.canAssign",
-          message: expect.stringContaining(
-            'Set canAssign: "public.permdock_can_assign({role}, {tenant}::text)"',
-          ),
-        },
-      ]);
-      expect(findings[0]!.message).toContain("PermDock projects don't install");
     });
   });
 
   describe("shared roles table (BS324)", () => {
     const only = RULES.filter((rule) => rule.code === "BS324");
-    const project: PermdockProject = {
-      ...PERMDOCK,
-      manifest: parseManifest(manifest),
-    };
     const through = { table: "public.roles", id: "id", column: "key" };
     const run = (tenantWhere?: string, platformWhere?: string) =>
       runRules(
         context(base, {
-          permdock: project,
           config: resolveConfig(
             {
+              authorization: stubProvider,
               sql: {
                 modules: {
-                  access: { model: "permdock" },
+                  access: { model: "provider" },
                   tenant: {
                     mode: "adopt",
                     tables: { memberships: "public.team_members" },

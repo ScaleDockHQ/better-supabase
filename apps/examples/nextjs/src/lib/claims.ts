@@ -9,8 +9,8 @@ const isEntitlement = (key: string): key is Entitlement =>
 
 /**
  * The scope of the tenant entries in `memberships`: `claims.scope` in
- * better-supabase.config.ts. PermDock's hook writes its declared scope
- * names, so with PermDock this is the manifest's root scope.
+ * better-supabase.config.ts. An authorization provider's hook writes its
+ * own scope names, so with one this is its `tenantScope`.
  */
 export const MEMBERSHIP_SCOPE = "tenant";
 
@@ -21,8 +21,8 @@ const Membership = v.looseObject({
 });
 
 /**
- * Each entry is parsed on its own: PermDock's `tenant`, `team` and `on`
- * forms (no `scope` and `id`) are skipped instead of discarding the list.
+ * Each entry is parsed on its own: entries without `scope` and `id`, which
+ * another hook may write, are skipped instead of discarding the list.
  */
 const Memberships = v.fallback(
   v.optional(
@@ -41,13 +41,13 @@ const Memberships = v.fallback(
 
 /**
  * The claims the servers validate on every request (`betterSupabase.claims(Claims)`),
- * in PermDock's claim contract. The custom access token hook
+ * in the claim contract better-supabase reads. The custom access token hook
  * (supabase/schemas/040_rbac.sql) writes `memberships` and `features`;
  * `tenant_id` in `app_metadata` is the active organization, which
  * `switch_organization` changes.
  *
- * Every object is loose, so claims this schema doesn't name (`user_role`,
- * `authz_ver`, `memberships_truncated`) reach PermDock unchanged.
+ * Every object is loose, so claims this schema doesn't name reach other
+ * readers unchanged.
  */
 export const Claims = v.looseObject({
   tenant_id: v.optional(v.pipe(v.string(), v.uuid())),

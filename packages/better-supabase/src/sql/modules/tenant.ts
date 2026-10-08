@@ -16,15 +16,14 @@ import {
 } from "../shared.ts";
 import {
   accessModel,
-  permdockPlatformRoles,
+  providerPlatformRoles,
   roleNames,
 } from "./access-model.ts";
 import { sameTenantSql } from "./tenant-same.ts";
 
 /**
  * `sql.modules.tenant.options.roleThrough`: the membership role column holds
- * a key of `table` (`id`), and the role name is that row's `column`, as in
- * PermDock's `through` membership roles.
+ * a key of `table` (`id`), and the role name is that row's `column`.
  */
 export interface RoleThrough {
   /** The quoted `schema.table`. */
@@ -113,9 +112,9 @@ export function roleThroughTable(
 export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
   const own = roleThroughTable(tenant);
   if (!own || own.where) return undefined;
-  if (permdockPlatformRoles(tenant)?.through?.table !== own.table)
+  if (providerPlatformRoles(tenant)?.through?.table !== own.table)
     return undefined;
-  return `sql.modules.tenant.options.roleThrough.where: ${own.table} also holds the platform roles (sql.modules.invitations.options.platformRoles.through), so name the tenant roles with a condition such as "{row}.scope = 'organization'". A roleThrough read from PermDock's manifest has no where; set sql.modules.tenant.options.roleThrough in the config.`;
+  return `sql.modules.tenant.options.roleThrough.where: ${own.table} also holds the platform roles (sql.modules.invitations.options.platformRoles.through), so name the tenant roles with a condition such as "{row}.scope = 'organization'". A roleThrough from the authorization provider's roleSources has no where; set sql.modules.tenant.options.roleThrough in the config.`;
 }
 
 /**
@@ -390,9 +389,9 @@ grant execute on function better_supabase.member_organization_ids(text[]) to aut
 grant execute on function better_supabase.has_organization_role(${id}, text[]) to authenticated, service_role;
 grant execute on function better_supabase.organization_member_role(${id}, uuid) to service_role;
 
--- The memberships claim. \`claimFormat: 'array'\` (the default) is PermDock's
--- shape, [{ scope, id, roles }]; \`'map'\` is { [tenant id]: role }. With
--- PermDock, \`permdock supabase hook generate\` writes the hook instead.
+-- The memberships claim. \`claimFormat: 'array'\` (the default) is
+-- [{ scope, id, roles }]; \`'map'\` is { [tenant id]: role }. When an
+-- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
 --     better_supabase.membership_claims((event ->> 'user_id')::uuid));

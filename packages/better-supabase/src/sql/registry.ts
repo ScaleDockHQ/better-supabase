@@ -1,3 +1,8 @@
+import type {
+  AuthorizationFunctions,
+  AuthorizationMembership,
+  AuthorizationRoleSource,
+} from "../config/authorization.ts";
 import type { EntitlementPlansSource } from "../config/config.ts";
 import type {
   AccessModuleConfig,
@@ -8,6 +13,7 @@ import type {
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
 
+import { fillTemplate } from "../core/access-sql.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { apiWrappers } from "./api-schema.ts";
@@ -110,8 +116,8 @@ export interface SqlModule {
   readonly description: string;
   /** Modules this one needs, added along with it. */
   readonly requires: readonly string[];
-  /** What it needs instead when the layout has `permdock`. */
-  readonly permdockRequires?: readonly string[];
+  /** What it needs instead when an authorization provider supplies memberships. */
+  readonly providerRequires?: readonly string[];
   /** What it needs for this layout, e.g. per `sql.modules.access.model`; overrides both. */
   readonly dependencies?: (layout: ModuleLayout) => readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
@@ -187,8 +193,8 @@ const requiresOf = (
   layout: ModuleLayout,
 ): readonly string[] =>
   module.dependencies?.(layout) ??
-  (layout.permdock && module.permdockRequires
-    ? module.permdockRequires
+  (layout.entitlementsProvider && module.providerRequires
+    ? module.providerRequires
     : module.requires);
 
 const UPDATED_AT: SqlModule = {
@@ -595,18 +601,26 @@ ${featureClaimsBody(
 )}
 $$;`;
 
-/** `has_entitlement` and `feature_claims` on PermDock's `member_<scope>_ids` helpers. */
-const permdockEntitlementChecks = (
+/** `has_entitlement` and `feature_claims` on the provider's `memberIds` and `memberIdsFor`. */
+const providerEntitlementChecks = (
   claims: ClaimsMeta,
-  permdock: ModulePermdock,
+  provider: ModuleEntitlementsProvider,
   claim?: FeatureClaimOption,
 ): string => {
-  const member = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids`)}`;
-  const memberFor = `${sqlIdent(permdock.schema)}.${sqlIdent(`member_${permdock.scope}_ids_for`)}`;
-  const id = permdock.idType;
+  const member = fillTemplate(
+    "authorization.functions.memberIds",
+    provider.memberIds,
+    { scope: provider.scope },
+  );
+  const memberFor = fillTemplate(
+    "authorization.functions.memberIdsFor",
+    provider.memberIdsFor,
+    { scope: provider.scope, user: "feature_claims.user_id" },
+  );
+  const id = provider.idType;
   return `
--- PermDock mode: memberships come from PermDock's ${permdock.scope} scope
--- (${member}() and ${memberFor}(uuid), from \`permdock rls generate\`).
+-- Memberships come from the authorization provider (${provider.name}), in its
+-- ${provider.scope} scope: authorization.functions.memberIds and memberIdsFor.
 
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
 create or replace function better_supabase.has_entitlement(tenant ${id}, key text)
@@ -616,13 +630,13 @@ stable
 security definer
 set search_path = ''
 as $$
-  select tenant in (select ${member}())
+  select tenant::text in (select t.id::text from ${member} as t(id))
     and key = any (better_supabase.tenant_entitlements(tenant))
 $$;
 
 revoke execute on function better_supabase.has_entitlement(${id}, text) from public, anon;
 grant execute on function better_supabase.has_entitlement(${id}, text) to authenticated, service_role;
-${entitlementValueCheck(id, `tenant in (select ${member}())`)}
+${entitlementValueCheck(id, `tenant::text in (select t.id::text from ${member} as t(id))`)}
 
 -- Every tenant of the caller with \`key\`, for one set check per query instead of
 -- one call per row:
@@ -635,18 +649,17 @@ stable
 security definer
 set search_path = ''
 as $$
-  select t.id from ${member}() as t(id)
-  where key = any (better_supabase.tenant_entitlements(t.id))
+  select t.id::${id} from ${member} as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id::${id}))
 $$;
 
 revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
 grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
 
--- The \`${claims.features}\` claim: { [${permdock.scope} id]: lookup keys }, read by
--- hasEntitlement(). Register it with PermDock instead of writing a hook:
---   supabase: { hook: { claims: { ${claims.features}: 'better_supabase.feature_claims' } } }
--- \`permdock supabase hook generate --grants-out\` then grants ${memberFor}
--- to supabase_auth_admin.
+-- The \`${claims.features}\` claim: { [${provider.scope} id]: lookup keys }, read by
+-- hasEntitlement(). Register it with the provider's access token hook, which
+-- runs as supabase_auth_admin, so that role needs execute on what
+-- memberIdsFor calls.
 create or replace function better_supabase.feature_claims(user_id uuid)
 returns jsonb
 language sql
@@ -656,8 +669,8 @@ set search_path = ''
 as $$
 ${featureClaimsBody(
   `    select t.id::text as tenant, e.keys
-    from ${memberFor}(feature_claims.user_id) as t(id)
-    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    from ${memberFor} as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id::${id}) as keys) e
     where cardinality(e.keys) > 0`,
   claim,
 )}
@@ -669,7 +682,7 @@ const entitlementsSql = (
   layout: ModuleLayout = {},
 ): string => {
   const m = memberships(layout);
-  const id = layout.permdock?.idType ?? m.idType;
+  const id = layout.entitlementsProvider?.idType ?? m.idType;
   const source = layout.entitlements?.source ?? "stripe-sync";
   if (source === "custom") {
     return `${SCHEMA}
@@ -680,7 +693,7 @@ grant usage on schema better_supabase to supabase_auth_admin;
 -- better_supabase.tenant_entitlement_value(tenant ${id}, key text) a feature's
 -- value (jsonb); the checks below call them.
 set check_function_bodies = off;
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
+${layout.entitlementsProvider ? providerEntitlementChecks(claims, layout.entitlementsProvider, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;
@@ -690,7 +703,7 @@ reset check_function_bodies;`;
     return `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
 ${planEntitlements(source.plans, id)}
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
+${layout.entitlementsProvider ? providerEntitlementChecks(claims, layout.entitlementsProvider, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
@@ -725,7 +738,7 @@ $$;
 revoke execute on function better_supabase.tenant_entitlements(${id}) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlements(${id}) to service_role, supabase_auth_admin;
 ${booleanEntitlementValue(id)}
-${layout.permdock ? permdockEntitlementChecks(claims, layout.permdock, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
+${layout.entitlementsProvider ? providerEntitlementChecks(claims, layout.entitlementsProvider, layout.entitlements?.claim) : tenantEntitlementChecks(claims, m, layout.entitlements?.claim)}
 
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
@@ -829,7 +842,7 @@ const ENTITLEMENTS: SqlModule = {
   description:
     "Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.",
   requires: ["tenant"],
-  permdockRequires: [],
+  providerRequires: [],
   target: "schema",
   get sql() {
     return entitlementsSql(DEFAULT_CLAIMS);
@@ -2298,80 +2311,45 @@ export interface ModuleLayout {
   readonly vectorSchema?: string;
   /** `config.claims`: claim names the modules read and write. */
   readonly claims?: ClaimsMeta;
-  /** PermDock's helpers and membership sources, from its manifest: `entitlements` reads them instead of `tenant`. */
-  readonly permdock?: ModulePermdock;
-  /** PermDock's permission helpers for the `access` module's `permdock` model, from its manifest. */
-  readonly accessPermdock?: ModuleAccessPermdock;
+  /** The authorization provider's memberships: `entitlements` reads them instead of `tenant`'s. */
+  readonly entitlementsProvider?: ModuleEntitlementsProvider;
+  /** The authorization provider the `access` module's `provider` model calls. */
+  readonly accessProvider?: ModuleAccessProvider;
   /** `config.sql.modules`: modes, names and permission keys per module. */
   readonly modules?: ModulesConfig;
-  /** The keys of PermDock's permission catalog, when the project has one. */
+  /** The authorization provider's permission keys, for `api-keys` scopes. */
   readonly permissionCatalog?: readonly string[];
 }
 
-/** One PermDock membership source, from the manifest's `memberships`. */
-interface ModuleMembershipSource {
-  /** `schema.table`. */
-  readonly table: string;
-  readonly userColumn: string;
-  readonly scope: { readonly column: string } | { readonly value: string };
-  readonly idColumn: string;
+/** Where the `entitlements` module reads the provider's memberships, and the tables behind them. */
+export interface ModuleEntitlementsProvider {
+  /** The provider's name, for comments. */
+  readonly name: string;
+  /** The provider scope tenants are, e.g. `organization`. */
+  readonly scope: string;
+  readonly idType: ModuleIdType;
+  /** `authorization.functions.memberIds`. */
+  readonly memberIds: string;
+  /** `authorization.functions.memberIdsFor`. */
+  readonly memberIdsFor: string;
+  readonly memberships: readonly AuthorizationMembership[];
 }
 
-/** Where PermDock's `member_<scope>_ids` helpers live, and the tables behind them. */
-export interface ModulePermdock {
-  /** PermDock's `rls.schema`. */
-  readonly schema: string;
-  /** The PermDock scope tenants map to, e.g. `organization`. */
+/** What the `access` module's `provider` model calls. */
+export interface ModuleAccessProvider {
+  /** The provider's name, for comments and errors. */
+  readonly name: string;
+  /** The provider scope tenants are. */
   readonly scope: string;
-  /** The scope's id type, from the manifest's `rls.scopes[].type`. */
   readonly idType: ModuleIdType;
-  readonly memberships: readonly ModuleMembershipSource[];
-}
-
-/** Where the `permdock` access model finds `permitted_<scope>_ids` and `permdock_has`. */
-export interface ModuleAccessPermdock {
-  /** PermDock's `rls.schema`. */
-  readonly schema: string;
-  /** The PermDock scope tenants are: the manifest's root scope unless set. */
-  readonly scope: string;
-  /** The scope's id type, from the manifest's `rls.scopes[].type`. */
-  readonly idType: ModuleIdType;
-  /**
-   * PermDock's helpers for a named user (`database` mode) the manifest's
-   * `rls.helpers` lists: `permdock_has_for`, `permitted_<scope>_ids_for` and
-   * `permdock_can_assign_for` and `permdock_can_assign_any_for`.
-   */
-  readonly forUser?: {
-    readonly has: boolean;
-    readonly permitted: boolean;
-    readonly canAssign: boolean;
-    readonly canAssignAny?: boolean;
-  };
-  /**
-   * Membership tables of the scope whose role column points into a roles
-   * table (the manifest's `through` roles). An adopted `tenant` module on
-   * one of them reads role names the same way.
-   */
-  /**
-   * The manifest's `rls.suspension` rows for users and for the tenant scope.
-   * The `access` module's `disabled` setting defaults to them.
-   */
+  readonly functions: AuthorizationFunctions;
+  /** The access module's `disabled` setting defaults to these. */
   readonly suspension?: {
-    readonly users?: DisabledRow;
+    readonly user?: DisabledRow;
     readonly tenant?: DisabledRow;
   };
-  readonly roleSources?: readonly {
-    /** `schema.table` of the memberships. */
-    readonly table: string;
-    readonly role: {
-      readonly column: string;
-      readonly through: {
-        readonly table: string;
-        readonly id: string;
-        readonly column: string;
-      };
-    };
-  }[];
+  /** An adopted `tenant` module on one of these tables reads role names the same way. */
+  readonly roleSources?: readonly AuthorizationRoleSource[];
 }
 
 /** An embedding column `db.$search` can query. */
@@ -2779,15 +2757,17 @@ function tableGrants(layout: ModuleLayout): string {
 }
 
 /** A jsonb column and the JSON Schema its values must match. */
-/** Users with a membership in a tenant of `customer`, from PermDock's membership sources. */
-function permdockEntitlementMembers(permdock: ModulePermdock): string {
-  const sources = permdock.memberships.flatMap((source) => {
+/** Users with a membership in a tenant of `customer`, from the provider's membership tables. */
+function providerEntitlementMembers(
+  provider: ModuleEntitlementsProvider,
+): string {
+  const sources = provider.memberships.flatMap((source) => {
     const scoped =
       "value" in source.scope
-        ? source.scope.value === permdock.scope
+        ? source.scope.value === provider.scope
           ? ""
           : undefined
-        : `\n    and m.${sqlIdent(source.scope.column)}::text = ${sqlString(permdock.scope)}`;
+        : `\n    and m.${sqlIdent(source.scope.column)}::text = ${sqlString(provider.scope)}`;
     if (scoped === undefined) return [];
     const [schema, table] = splitTable(source.table);
     return [
@@ -2856,13 +2836,13 @@ function entitlementsSource(
   },
   layout: ModuleLayout,
 ): string {
-  const permdock = layout.permdock;
+  const provider = layout.entitlementsProvider;
   const m = memberships(layout);
   const [schema, table] = splitTable(source.table);
   const target = `${sqlIdent(schema)}.${sqlIdent(table)}`;
   const key = `t.${sqlIdent(source.key)}`;
   const column = `t.${sqlIdent(source.column)}`;
-  const id = permdock?.idType ?? m.idType;
+  const id = provider?.idType ?? m.idType;
   const definer =
     "language sql\nstable\nsecurity definer\nset search_path = ''";
   // plpgsql checks the body when it runs, which the organizations default
@@ -2917,8 +2897,8 @@ returns setof uuid
 ${definer}
 as $$
 ${
-  permdock
-    ? permdockEntitlementMembers(permdock)
+  provider
+    ? providerEntitlementMembers(provider)
     : `  select distinct m.${m.user}
   from ${m.table} m
   where m.${m.tenant} in (select better_supabase.stripe_customer_tenants(customer))`
@@ -2988,43 +2968,44 @@ export function moduleContext(
   layout: ModuleLayout = {},
   installed?: readonly string[],
 ): ModuleContext {
-  const modules = withManifestDefaults(layout);
+  const modules = withProviderDefaults(layout);
   return createModuleContext(name, (module) => SQL_MODULES[module]?.names, {
     ...(modules ? { modules } : {}),
     ...(layout.claims ? { claims: layout.claims } : {}),
     ...(installed ? { installed } : {}),
-    ...permdockIdType(layout),
+    ...providerIdType(layout),
   });
 }
 
 /**
- * `sql.modules` with what PermDock's manifest already says: an adopted
- * `tenant` module on a membership table whose role PermDock reads through a
- * roles table gets the same `roleThrough`, unless the config sets one.
+ * `sql.modules` with what the authorization provider already says: an
+ * adopted `tenant` module on a membership table whose role the provider
+ * reads through a roles table gets the same `roleThrough`, unless the config
+ * sets one.
  */
-function withManifestDefaults(layout: ModuleLayout): ModulesConfig | undefined {
-  return withManifestRoles(layout, withManifestSuspension(layout));
+function withProviderDefaults(layout: ModuleLayout): ModulesConfig | undefined {
+  return withProviderRoles(layout, withProviderSuspension(layout));
 }
 
 /**
- * `sql.modules.access.disabled` from the manifest's `rls.suspension` under
- * the `permdock` model, per subject, unless the config sets that subject.
+ * `sql.modules.access.disabled` from the provider's `suspension` under the
+ * `provider` model, per subject, unless the config sets that subject.
  */
-function withManifestSuspension(
+function withProviderSuspension(
   layout: ModuleLayout,
 ): ModulesConfig | undefined {
   const modules = layout.modules;
-  const suspension = layout.accessPermdock?.suspension;
+  const suspension = layout.accessProvider?.suspension;
   const access = modules?.access;
-  if (!modules || !suspension || access?.model !== "permdock") return modules;
+  if (!modules || !suspension || access?.model !== "provider") return modules;
   const configured = access.disabled ?? {};
   const disabled: NonNullable<AccessModuleConfig["disabled"]> = {
     ...configured,
     ...(configured.tenant === undefined && suspension.tenant
       ? { tenant: suspension.tenant }
       : {}),
-    ...(configured.user === undefined && suspension.users
-      ? { user: suspension.users }
+    ...(configured.user === undefined && suspension.user
+      ? { user: suspension.user }
       : {}),
   };
   if (
@@ -3035,11 +3016,11 @@ function withManifestSuspension(
   return { ...modules, access: { ...access, disabled } };
 }
 
-function withManifestRoles(
+function withProviderRoles(
   layout: ModuleLayout,
   modules: ModulesConfig | undefined,
 ): ModulesConfig | undefined {
-  const sources = layout.accessPermdock?.roleSources;
+  const sources = layout.accessProvider?.roleSources;
   const tenant = modules?.["tenant"];
   if (!modules || !sources || tenant?.mode !== "adopt") return modules;
   if (tenant.options?.["roleThrough"] !== undefined) return modules;
@@ -3062,12 +3043,13 @@ function withManifestRoles(
   };
 }
 
-/** The tenant id type PermDock's manifest gives, preferring the access model's scope. */
-function permdockIdType(layout: ModuleLayout): {
-  permdockIdType?: ModuleIdType;
+/** The tenant id type the authorization provider gives, preferring the access model's scope. */
+function providerIdType(layout: ModuleLayout): {
+  providerIdType?: ModuleIdType;
 } {
-  const idType = layout.accessPermdock?.idType ?? layout.permdock?.idType;
-  return idType ? { permdockIdType: idType } : {};
+  const idType =
+    layout.accessProvider?.idType ?? layout.entitlementsProvider?.idType;
+  return idType ? { providerIdType: idType } : {};
 }
 
 /** Throws on a `sql.modules` key that names no module, or a mode a module doesn't support. */
@@ -3120,7 +3102,7 @@ function moduleSql(
   if (
     module.render &&
     (layout.claims ||
-      layout.permdock ||
+      layout.entitlementsProvider ||
       layout.tenantColumn ||
       (layout.entitlements?.source ?? "stripe-sync") !== "stripe-sync")
   )
@@ -3212,7 +3194,7 @@ const isPermissionModule = (
  * Every permission key the modules `names` install (with what they pull
  * in) check, after `sql.modules.<module>.permissions` overrides. Modules in custom
  * mode are skipped, and so is `invitations.invitePlatform` without platform
- * roles. PermDock's doctor runs the same catalog check from its side.
+ * roles.
  */
 export function modulePermissionKeys(
   config: ModulesConfig,
@@ -3543,7 +3525,7 @@ export function upgradePlan(
         ...(layout.modules ? { modules: layout.modules } : {}),
         ...(layout.claims ? { claims: layout.claims } : {}),
         installed: names,
-        ...permdockIdType(layout),
+        ...providerIdType(layout),
       },
     );
     if (ctx.mode === "custom") return [];

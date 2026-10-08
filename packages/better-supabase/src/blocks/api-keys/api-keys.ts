@@ -120,7 +120,7 @@ const CRC_TABLE = ((): Uint32Array => {
 
 /**
  * The CRC-32 (IEEE 802.3) of `text` as 6 base62 characters: the checksum
- * PermDock's `pdk_` keys and GitHub-style tokens end in, so a secret
+ * GitHub-style tokens end in, so a secret
  * scanner or the server rejects a mistyped key without a lookup.
  */
 export function apiKeyChecksum(text: string): string {
@@ -337,41 +337,38 @@ export function createApiKeys(options: ApiKeysOptions): ApiKeys {
 }
 
 /**
- * PermDock's `rls.apiKeys` claim settings, as its Supabase manifest lists
- * them (`manifest.rls.apiKeys`). Every field is optional and defaults to
- * PermDock's name.
+ * A second claim for an authorization provider's SQL functions, with the
+ * field names they read. Every field but `name` is optional.
  */
-export interface PermdockApiKeyClaim {
-  /** The claim, default `api_key`. */
-  readonly claim?: string;
+export interface ApiKeyExtraClaim {
+  /** The claim. `api_key` adds the fields to the module's own claim. */
+  readonly name: string;
   /** The field with the permission keys, default `scopes`. */
   readonly scopes?: string;
   /** The field with a tenant key's tenant, default `tenant`. */
   readonly tenant?: string;
   /** The field with a tenant key's roles, default `roles`. */
   readonly roles?: string;
+  /** The roles a tenant key holds in its tenant, unless `serviceRoles` in the options answers. */
   readonly serviceRoles?: readonly string[];
 }
 
 export interface ApiKeyClaimsOptions {
   /**
-   * Also write the claim PermDock's generated helpers read (`rls.apiKeys`):
-   * the scopes as a ceiling, and a tenant key as a service principal of its
-   * tenant. Pass `true` for PermDock's default names or the manifest's
-   * `rls.apiKeys`.
+   * Also write the claim an authorization provider's SQL functions read:
+   * the scopes as a ceiling, and a tenant key's tenant and roles.
    */
-  readonly permdock?: true | PermdockApiKeyClaim;
-  /** The roles a tenant key holds in its tenant; default the manifest's `serviceRoles`. */
+  readonly claim?: ApiKeyExtraClaim;
+  /** The roles a tenant key holds in its tenant; default `claim.serviceRoles`. */
   readonly serviceRoles?: (key: ApiKey) => readonly string[];
   /**
-   * The permission keys `*` stands for. PermDock's ceiling has no wildcard,
-   * so without this a key with `*` allows nothing under it.
+   * The permission keys `*` stands for in `claim`, which has no wildcard,
+   * so without this a key with `*` allows nothing there.
    */
   readonly allPermissions?: readonly string[];
   /**
-   * The claim that narrows PermDock's helpers to one tenant (its
-   * `rls.tenantClaim`, such as `tenant_id`), set for a personal key limited
-   * to a tenant.
+   * The claim that narrows a provider's functions to one tenant (such as
+   * `tenant_id`), set for a personal key limited to a tenant.
    */
   readonly tenantClaim?: string;
 }
@@ -386,7 +383,7 @@ export interface ApiKeyResolverOptions extends ApiKeyClaimsOptions {
 /**
  * The claims queries run with for a key: `api_key` with `id`, `name`,
  * `scopes` and `organization_id` for the module's `has_scope()` and
- * `api_key_tenant()`, plus PermDock's claim with `options.permdock`.
+ * `api_key_tenant()`, plus `options.claim`.
  */
 export function apiKeyClaims(
   key: ApiKey,
@@ -413,9 +410,9 @@ export function apiKeyClaims(
     aud: "authenticated",
     api_key: base,
   };
-  if (options.permdock !== undefined) {
-    const names = options.permdock === true ? {} : options.permdock;
-    const claim = names.claim ?? "api_key";
+  if (options.claim !== undefined) {
+    const names = options.claim;
+    const claim = names.name;
     const service =
       key.userId === undefined && key.organizationId !== undefined;
     const roles = service
@@ -497,101 +494,6 @@ export function apiKeyResolver(options: ApiKeyResolverOptions): AuthResolver {
           return exhaustive;
         }
       }
-    },
-  };
-}
-
-/** PermDock's credential v1, as its `CredentialVerifier` returns it. */
-export interface ApiKeyCredential {
-  readonly v: 1;
-  /** The key's public id, the `<id>` in `pdk_<id>_<secret>`. */
-  readonly id: string;
-  readonly kind: "user" | "service";
-  readonly principal: string;
-  readonly tenant?: string;
-  readonly roles?: readonly string[];
-  readonly permissions: readonly {
-    readonly permission: string;
-    readonly ids?: readonly string[];
-  }[];
-  readonly createdBy: string;
-  /** Seconds since the epoch. */
-  readonly createdAt: number;
-  readonly expiresAt?: number;
-  readonly name?: string;
-}
-
-export interface PermdockVerifierOptions {
-  /** `createApiKeys({ prefix: "pdk" })` over a service transport. */
-  readonly keys: Pick<ApiKeys, "verify">;
-  /**
-   * The roles a tenant key holds in its tenant, as a PermDock service
-   * principal. Without it, tenant keys verify to `null`.
-   */
-  readonly serviceRoles?: (key: ApiKey) => readonly string[];
-  /** The permission keys `*` stands for. Without it, a key with `*` verifies to `null`. */
-  readonly allPermissions?: readonly string[];
-}
-
-/** A PermDock `CredentialVerifier`: its `verify(secret)` shape, typed without importing PermDock. */
-export interface PermdockVerifier {
-  verify(secret: string): Promise<ApiKeyCredential | null>;
-}
-
-const seconds = (instant: Temporal.Instant): number =>
-  Math.floor(instant.epochMilliseconds / 1000);
-
-/**
- * The keys as PermDock's `CredentialVerifier`, for `subjectFromApiKey`, so
- * the TypeScript guard and the database agree on the same key. Keys must use
- * PermDock's `pdk` prefix (`createApiKeys({ prefix: "pdk" })` and
- * `sql.modules.api-keys.options.prefix: "pdk"`). A personal key is a `user`
- * credential acting as its user (on its tenant's instances only when the
- * key is limited to one, through the credential's `tenant`), a tenant key a `service` credential with
- * `serviceRoles` in its tenant, and the scopes are the credential's
- * permissions. `verify_api_key` already records the use, so there is no
- * `touch`. An invalid, revoked, expired or rate-limited key is `null`.
- */
-export function permdockVerifier(
-  options: PermdockVerifierOptions,
-): PermdockVerifier {
-  return {
-    async verify(secret) {
-      const checked = await options.keys.verify(secret);
-      if (!checked.ok || checked.data.status !== "ok") return null;
-      const { key } = checked.data;
-      const scopes = key.scopes.includes("*")
-        ? options.allPermissions
-        : key.scopes;
-      if (scopes === undefined) return null;
-      const owner = key.userId;
-      const base = {
-        v: 1 as const,
-        id: key.publicId,
-        permissions: scopes.map((permission) => ({ permission })),
-        createdBy: key.createdBy ?? owner ?? key.publicId,
-        createdAt: seconds(key.createdAt),
-        ...(key.expiresAt ? { expiresAt: seconds(key.expiresAt) } : {}),
-        name: key.name,
-      };
-      if (owner !== undefined)
-        return {
-          ...base,
-          kind: "user",
-          principal: owner,
-          ...(key.organizationId === undefined
-            ? {}
-            : { tenant: key.organizationId }),
-        };
-      const roles = options.serviceRoles?.(key);
-      if (!roles || key.organizationId === undefined) return null;
-      return {
-        ...base,
-        kind: "service",
-        principal: key.publicId,
-        tenant: key.organizationId,
-        roles,
-      };
     },
   };
 }

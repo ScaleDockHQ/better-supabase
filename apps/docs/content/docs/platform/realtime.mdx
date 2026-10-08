@@ -41,64 +41,48 @@ Configure them with `tenant: { param, claim | sql }` and `owner: { param }`,
 or turn them off with `false`. `send: true` adds an insert policy so clients
 can broadcast too, and `presence` authorizes [presence](#presence).
 
-With [PermDock](/docs/auth/permdock), `permdock` replaces the tenant check
-with PermDock permissions: joining needs `receive` in the scope named by the
-`{organizationId}` segment, and sending needs `send`. The policies call the helpers
-`permdock rls generate` writes, `<schema>.permitted_<scope>_ids(key)`, or
-`<schema>.permdock_has(key)` for `scope: 'global'`. The topic's `schema`
-option defaults to `permdock`, PermDock's default `rls.schema`, and must equal
-the schema PermDock writes them to:
+`access` replaces the tenant check with permissions: joining needs `receive`
+in the scope named by the `{organizationId}` segment, and sending needs
+`send`. Without `sql`, the policies call the [access contract](/docs/blocks/access)
+(`tenant_ids_with`, or `is_platform` for `scope: 'platform'`). With an
+[authorization provider](/docs/extending/authorization-providers), copy its
+`idsWith` and `isPlatform` templates into `sql` to call its functions for any
+scope:
 
 ```ts
 export const board = defineTopic("organization:{organizationId}:board", {
-  permdock: {
+  access: {
     receive: "board.read",
     send: "board.write",
     scope: "organization",
+    sql: {
+      idsWith: "authz.permitted_{scope}_ids({permission})",
+      isPlatform: "authz.is_platform({permission})",
+    },
   },
 });
 ```
 
 Without `send`, clients can only receive. `segment` (1-based, `:`-separated)
-and `schema` work as for [buckets](/docs/platform/storage#permdock-permissions),
-and keys PermDock splits by row condition (`board.read#1`) are refused. The
+works as for [buckets](/docs/platform/storage#provider-permissions). The
 segment is compared as text, so it must be the id's canonical lowercase form:
 a topic with an uppercase uuid is denied.
 
-The helpers check role and scope, not a permission's row conditions (for
-example `authorId = principal.id`). Use `permdock` only for permissions whose
-grants have no row conditions beyond the scope: for one that has them, the
-topic lets every member of the scope join or send. Keep those permissions on
-the tables that `permdock rls generate` writes policies for.
+The policies check role and scope, not a permission's row conditions. Use a
+key only when its grants have no row conditions beyond the scope: for one
+that has them, the topic lets every member of the scope join or send. Keep
+those permissions on tables.
 
 ```ts
 // Wrong: board.read is granted only for boards the member owns
-defineTopic("organization:{organizationId}:board", {
-  permdock: { receive: "board.read", scope: "organization" },
-});
+access: { receive: "board.read", scope: "organization", sql },
 // Right: board.view is granted per organization, with no row condition
-defineTopic("organization:{organizationId}:board", {
-  permdock: { receive: "board.view", scope: "organization" },
-});
+access: { receive: "board.view", scope: "organization", sql },
 ```
 
-Pass `permissions.catalog.json` as `catalog` and `defineTopic` throws for a
-`receive` or `send` key unless the catalog marks it `rowConditions: false`.
-An entry without the flag and a key the catalog doesn't list count as
-unknown, so they throw too:
-
-```ts
-import catalog from "../../permissions.catalog.json" with { type: "json" };
-
-defineTopic("organization:{organizationId}:board", {
-  permdock: { receive: "board.view", scope: "organization" },
-  catalog,
-});
-```
-
-[`doctor`](/docs/cli/doctor#bs214) reports BS214 for a generated topic policy
-in your SQL files that names such a key, and `permdock doctor` reports PD037
-for any topic policy that calls a helper for one.
+`better-supabase gen` and [`doctor`](/docs/cli/doctor#bs214) (BS214) refuse a
+`receive` or `send` key the provider doesn't mark `sqlComplete: true`, for
+topics in the config and for generated topic policies in your SQL files.
 
 ### Writing the policies to a file
 

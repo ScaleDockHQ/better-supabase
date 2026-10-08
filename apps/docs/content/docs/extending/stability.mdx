@@ -40,12 +40,12 @@ own advisors report those problems now, as BS100 and BS200.
 A new check gets a new code and ships in a minor release, because it can make
 a passing run report findings: BS205 to BS209, BS211 and BS212 (RLS
 performance, statistics and plans) arrived that way, and so did BS213
-(API roles that can write the columns granting access), BS214 (PermDock row conditions in Storage and Realtime policies), BS407 (two
-authorization hooks), BS408 (PermDock helpers for entitlements) and BS409
-(PermDock's manifest and the config disagree), BS410 (HTTP auth hooks), BS411
-(the permdock access model and PermDock's manifest disagree, in 0.5.1, because
-the configurations it reports rendered functions that call helpers PermDock
-never wrote), and
+(API roles that can write the columns granting access), BS214 (permissions the provider doesn't fully answer in Storage and Realtime
+policies), BS407 (two authorization hooks), BS408 (the provider's memberships
+for entitlements) and BS409 (the authorization provider and the config
+disagree), BS410 (HTTP auth hooks), BS411 (the provider access model can't use
+the provider, in 0.5.1, because the configurations it reports rendered
+functions that call missing helpers), and
 BS307 to BS314 (custom block contracts, the tenant claim, deprecated block
 symbols, duplicate block triggers, SQL modules behind their version, exposed
 block schemas, rate limits not wired to PostgREST and migration-only block

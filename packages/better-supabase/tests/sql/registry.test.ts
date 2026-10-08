@@ -14,6 +14,7 @@ import {
   sameModuleFile,
   SQL_MODULES,
 } from "../../src/sql/registry.ts";
+import { stubProvider } from "../fixtures/authorization-provider.ts";
 
 describe("resolveModules", () => {
   it("adds dependencies and keeps registry order", () => {
@@ -765,11 +766,13 @@ describe("vector search options", () => {
   });
 });
 
-describe("entitlements in PermDock mode", () => {
-  const permdock = {
-    schema: "authz",
+describe("entitlements with provider memberships", () => {
+  const entitlementsProvider = {
+    name: "stub",
     scope: "organization",
     idType: "uuid",
+    memberIds: stubProvider.functions.memberIds,
+    memberIdsFor: stubProvider.functions.memberIdsFor,
     memberships: [
       {
         table: "public.memberships",
@@ -796,22 +799,25 @@ describe("entitlements in PermDock mode", () => {
       resolveModules(["entitlements"]).map((module) => module.name),
     ).toEqual(["updated-at", "tenant", "entitlements"]);
     expect(
-      resolveModules(["entitlements"], { permdock }).map(
+      resolveModules(["entitlements"], { entitlementsProvider }).map(
         (module) => module.name,
       ),
     ).toEqual(["entitlements"]);
   });
 
   it("reads member_<scope>_ids and member_<scope>_ids_for", () => {
-    const [file] = renderModules(["entitlements"], { permdock, entitlements });
+    const [file] = renderModules(["entitlements"], {
+      entitlementsProvider,
+      entitlements,
+    });
     const sql = file!.contents;
     expect(sql).toContain(
-      'select tenant in (select "authz"."member_organization_ids"())',
+      "select tenant::text in (select t.id::text from authz.member_organization_ids() as t(id))",
     );
     expect(sql).toContain(
-      'from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)',
+      "from authz.member_organization_ids_for(feature_claims.user_id) as t(id)",
     );
-    expect(sql).toContain("features: 'better_supabase.feature_claims'");
+    expect(sql).toContain("Register it with the provider's access token hook");
     expect(sql).not.toContain("has_organization_role");
     expect(sql).not.toContain("better_supabase.memberships");
     // entitlement_members reads the organization-scoped source only.
@@ -825,7 +831,7 @@ describe("entitlements in PermDock mode", () => {
     "renders the %s scope id type in every tenant signature",
     (idType) => {
       const file = renderModules(["entitlements"], {
-        permdock: { ...permdock, idType },
+        entitlementsProvider: { ...entitlementsProvider, idType },
         entitlements,
       }).find((entry) => entry.module === "entitlements");
       const sql = file!.contents;
@@ -847,7 +853,7 @@ describe("entitlements in PermDock mode", () => {
     },
   );
 
-  it("keeps the tenant-mode functions without PermDock", () => {
+  it("keeps the tenant-mode functions without a provider", () => {
     const file = renderModules(["entitlements"], { entitlements }).find(
       (entry) => entry.module === "entitlements",
     );
@@ -949,7 +955,7 @@ describe("modulePermissionKeys", () => {
       modulePermissionKeys(modules, ["invitations"]).some(
         (entry) => entry.action === "invitePlatform",
       );
-    expect(platform({ access: { model: "permdock" } })).toBe(false);
+    expect(platform({ access: { model: "provider" } })).toBe(false);
     expect(platform({ access: { model: "catalog" } })).toBe(true);
   });
 

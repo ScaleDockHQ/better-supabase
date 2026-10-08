@@ -4,18 +4,10 @@ import * as v from "valibot";
 import { type Claims, MEMBERSHIP_SCOPE, Role } from "@/lib/claims";
 
 // A deliberately small, hand-written permission check that runs on the server
-// and the client, over PermDock's claim contract. A real app replaces this
-// file with PermDock (https://github.com/ScaleDockHQ/PermDock):
-//
-//   permdock rls generate                    # helpers and table policies
-//   permdock supabase hook generate          # the only access token hook
-//   const subject = subjectFromSupabaseSession(session);
-//   const permdock = await createPermDock(policy, subject);
-//   permdock.can(permissions.customers.read);
-//
-// `AuthSession` already has the `{ kind, claims }` shape PermDock reads, and
-// `anon`, `service` and `invalid` sessions become PermDock's anonymous subject.
-// See https://bettersupabase.com/docs/auth/permdock.
+// and the client, over the claims the access token hook writes. An app with
+// more roles replaces this file with an authorization library and plugs it in
+// as an authorization provider:
+// https://bettersupabase.com/docs/extending/authorization-providers.
 
 export const PERMISSIONS = [
   "customers.read",

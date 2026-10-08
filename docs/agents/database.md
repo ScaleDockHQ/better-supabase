@@ -104,7 +104,7 @@ another.
   `supabase status --env`. The Docker backend rejects `--env`, which is why
   CI and `scripts/env-local.ts` keep `-o env`.
 - On CLI 2.119.0 its Realtime refuses or times out private-channel joins, so
-  the Realtime block and PermDock topic integration tests fail there. Run them
+  the Realtime block and access topic integration tests fail there. Run them
   on the Docker backend.
 - The two backends keep separate databases, so reset after switching.
 

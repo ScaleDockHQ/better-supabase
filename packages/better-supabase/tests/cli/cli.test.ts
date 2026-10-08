@@ -14,11 +14,14 @@ import {
 } from "../../src/cli/gen/shared.ts";
 import { run } from "../../src/cli/run.ts";
 import { resolveConfig } from "../../src/config/index.ts";
+import {
+  stubProvider,
+  withProvider,
+} from "../fixtures/authorization-provider.ts";
 import { libraryFixture } from "./fixtures/library.ts";
 import { loadFixtureSnapshot, renderFixtures } from "./fixtures/render.ts";
 
 const fixtures = fileURLToPath(libraryFixture(""));
-const cliFixtures = fileURLToPath(new URL("fixtures/", import.meta.url));
 
 describe("parseCheckUnion", () => {
   it("reads ANY(ARRAY[...]) constraints", () => {
@@ -591,7 +594,7 @@ describe("config JSON Schema", () => {
       topics: true,
       realtime: true,
       entitlements: true,
-      permdock: true,
+      authorization: true,
       vectorSearch: true,
       sensitive: true,
       storagePaths: true,
@@ -741,60 +744,27 @@ describe("gen", () => {
     );
   });
 
-  it("refuses bucket policies with PermDock keys that have row conditions", async () => {
+  it("refuses bucket policies with keys the provider doesn't answer for completely", async () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
         output: "src/db/generated.ts",
+        authorization: withProvider({
+          permissions: [
+            { key: "docs.read", sqlComplete: false },
+            { key: "docs.write" },
+          ],
+        }),
         buckets: {
           docs: {
             path: "{organizationId}/{file}",
             policy: {
-              permdock: { read: "docs.read", write: "docs.write" },
+              access: { read: "docs.read", write: "docs.write" },
               scope: "organization",
-            },
-          },
-        },
-      }),
-    );
-    await writeFile(join(dir, "permdock.config.ts"), "export default {};\n");
-    await writeFile(
-      join(dir, "permissions.catalog.json"),
-      JSON.stringify({
-        version: 1,
-        permissions: [
-          { key: "docs.read", rowConditions: true },
-          { key: "docs.write" },
-        ],
-      }),
-    );
-    const refused = await run([
-      "gen",
-      "--snapshot",
-      "snapshot.json",
-      "--cwd",
-      dir,
-    ]);
-    expect(refused.code).toBe(1);
-    expect(refused.stderr).toContain(
-      'buckets.docs: "docs.read" has row conditions in permissions.catalog.json',
-    );
-    expect(refused.stderr).toContain(
-      'buckets.docs: "docs.write" has no rowConditions flag in permissions.catalog.json',
-    );
-  });
-
-  it("refuses PermDock bucket policies when there is no catalog", async () => {
-    await writeFile(
-      join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        output: "src/db/generated.ts",
-        buckets: {
-          docs: {
-            path: "{organizationId}/{file}",
-            policy: {
-              permdock: { read: "docs.read", write: "docs.write" },
-              scope: "organization",
+              sql: {
+                idsWith: stubProvider.functions.idsWith,
+                isPlatform: stubProvider.functions.isPlatform,
+              },
             },
           },
         },
@@ -809,7 +779,10 @@ describe("gen", () => {
     ]);
     expect(refused.code).toBe(1);
     expect(refused.stderr).toContain(
-      "buckets.docs: there is no permissions.catalog.json, so whether the keys have row conditions is unknown",
+      `buckets.docs: "docs.read" has conditions the authorization provider (stub)'s SQL functions don't check (sqlComplete: false)`,
+    );
+    expect(refused.stderr).toContain(
+      'buckets.docs: "docs.write" has no sqlComplete flag in authorization.permissions',
     );
   });
 
@@ -905,13 +878,20 @@ describe("sql", () => {
     expect(list.stdout).toMatch(/○ tenant/);
   });
 
-  it("stops before writing the tenant module next to a permdock.config.ts", async () => {
-    await writeFile(join(dir, "permdock.config.ts"), "export default {};\n");
+  it("stops before writing the tenant module when the provider's hook owns memberships", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        sql: { modules: ["invitations"] },
+        authorization: stubProvider,
+      }),
+    );
     const stopped = await run(["sql", "add", "tenant", "--cwd", dir]);
     expect(stopped.code).toBe(1);
-    expect(stopped.stderr).toContain("permdock.config.ts is present");
+    expect(stopped.stderr).toContain(
+      "The access token hook of the authorization provider (stub) writes the memberships claim.",
+    );
     expect(stopped.stderr).toContain("tenant would add a second source");
-    expect(stopped.stderr).toContain("permdock supabase hook generate");
     expect((await run(["sql", "list", "--cwd", dir])).stdout).toMatch(
       /^ {2}tenant/m,
     );
@@ -921,81 +901,49 @@ describe("sql", () => {
     expect(forced.stdout).toMatch(/900_better_supabase_\d\d_tenant\.sql/);
   });
 
-  it("refuses entitlements next to a permdock.config.ts without a manifest", async () => {
-    await writeFile(join(dir, "permdock.config.ts"), "export default {};\n");
-    const refused = await run(["sql", "add", "entitlements", "--cwd", dir]);
-    expect(refused.code).toBe(1);
-    expect(refused.stderr).toContain(
-      "permdock.config.ts is a PermDock project, but there is no permdock.manifest.json",
-    );
-    await writeFile(
-      join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        entitlements: {
-          customer: "organizations.stripe_customer_id",
-          permdock: false,
-        },
-      }),
-    );
+  it("writes entitlements on the provider's member functions", async () => {
+    const config = (
+      authorization: unknown,
+      memberships?: "tenant" | "provider",
+    ) =>
+      writeFile(
+        join(dir, "better-supabase.config.json"),
+        JSON.stringify({
+          authorization,
+          entitlements: {
+            customer: "organizations.stripe_customer_id",
+            ...(memberships ? { memberships } : {}),
+          },
+        }),
+      );
+    await config(stubProvider);
     const added = await run(["sql", "add", "entitlements", "--cwd", dir]);
     expect(added.code).toBe(0);
-    expect(added.stdout).toMatch(/900_better_supabase_\d\d_entitlements\.sql/);
-    expect(added.stdout).toContain("tenant came along as a dependency");
-    expect(added.stdout).toContain("membership_claims");
-  });
-
-  it("writes entitlements on PermDock's helpers when the manifest is there", async () => {
-    await writeFile(join(dir, "permdock.config.ts"), "export default {};\n");
-    await cp(
-      join(cliFixtures, "permdock.manifest.json"),
-      join(dir, "permdock.manifest.json"),
-    );
-    await writeFile(
-      join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        entitlements: { customer: "organizations.stripe_customer_id" },
-      }),
-    );
-    const added = await run(["sql", "add", "entitlements", "--cwd", dir]);
-    expect(added.code).toBe(0);
-    expect(added.stdout).not.toContain("tenant");
     expect(added.stdout).not.toContain("came along as a dependency");
     const path =
       /supabase\/schemas\/900_better_supabase_\d\d_entitlements\.sql/.exec(
         added.stdout,
       )![0];
     expect(await readFile(join(dir, path), "utf8")).toContain(
-      '"public"."member_organization_ids_for"(feature_claims.user_id)',
-    );
-    expect((await run(["sql", "list", "--cwd", dir])).stdout).toMatch(
-      /entitlements +Active Stripe entitlements[^\n]*\.\n/,
+      "authz.member_organization_ids_for(feature_claims.user_id)",
     );
 
-    await writeFile(
-      join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        entitlements: {
-          customer: "organizations.stripe_customer_id",
-          permdock: { scope: "team" },
-        },
-      }),
-    );
+    await config(withProvider({ tenantScope: "team" }));
     const invalid = await run(["sql", "add", "entitlements", "--cwd", dir]);
     expect(invalid.code).toBe(1);
     expect(invalid.stderr).toContain(
-      'entitlements.permdock.scope is "team", but permdock.manifest.json has the scopes organization, customer',
+      'authorization.tenantScope is "team", but the authorization provider (stub) has the scopes organization, project',
     );
 
-    await writeFile(
-      join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        entitlements: {
-          customer: "organizations.stripe_customer_id",
-          permdock: false,
-        },
-      }),
-    );
-    const tenant = await run(["sql", "add", "entitlements", "--cwd", dir]);
+    await config(stubProvider, "tenant");
+    const tenant = await run([
+      "sql",
+      "add",
+      "entitlements",
+      "--force",
+      "--cwd",
+      dir,
+    ]);
     expect(tenant.stdout).toContain("tenant came along as a dependency");
   });
 

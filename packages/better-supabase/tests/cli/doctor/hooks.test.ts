@@ -5,7 +5,6 @@ import type {
   ExtrasHookFunction,
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
-import type { PermdockProject } from "../../../src/cli/permdock.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import {
@@ -17,11 +16,13 @@ import {
   RULES,
   runRules,
 } from "../../../src/cli/doctor/rules.ts";
-import { parseManifest } from "../../../src/cli/permdock.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import {
+  stubProvider,
+  withProvider,
+} from "../../fixtures/authorization-provider.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
-import manifest from "../fixtures/permdock.manifest.json" with { type: "json" };
 
 const fixtureSnapshot = await parseSnapshot(fixture);
 // The fixture's own hook writes user_role; each test adds the hook it needs.
@@ -87,46 +88,48 @@ function context(
   };
 }
 
-const PERMDOCK: PermdockProject = {
-  config: "permdock.config.ts",
-  manifestPath: "permdock.manifest.json",
-  manifest: parseManifest(manifest),
-  catalogPath: "permissions.catalog.json",
-  problems: [],
-};
+const OWN_HOOK = resolveConfig(
+  {
+    authorization: withProvider({
+      tokenHook: {
+        ...stubProvider.tokenHook,
+        function: "rbac.custom_access_token_hook",
+      },
+    }),
+  },
+  "/project",
+);
 
 const only = (code: string) => RULES.filter((rule) => rule.code === code);
 const ungranted = hookFn({ execute: ["anon"], schemaUsage: [] });
 
 describe("hookGrantBlock", () => {
-  it("points PermDock's own hook at its grants command", () => {
-    const permdock: PermdockProject = {
-      ...PERMDOCK,
-      manifest: {
-        ...PERMDOCK.manifest!,
-        hook: { schema: "rbac", function: "custom_access_token_hook" },
-      },
-    };
+  it("points the provider's own hook at its grants command", () => {
     const problems = hookGrantProblems(
-      context(withHook([ungranted]), { permdock }),
+      context(withHook([ungranted]), { config: OWN_HOOK }),
     );
     expect(problems.map((problem) => problem.fix)).toEqual([
-      { kind: "permdock" },
+      {
+        kind: "provider",
+        name: "the authorization provider (stub)",
+        command: "authz hook grants",
+      },
     ]);
     expect(hookGrantBlock(problems, "migra").split("\n").slice(2)).toEqual([
       "",
-      "-- rbac.custom_access_token_hook(event jsonb) ([auth.hook.custom_access_token]) is PermDock's hook: permdock supabase hook generate --grants-out supabase/migrations/<timestamp>_permdock_hook_grants.sql",
+      "-- rbac.custom_access_token_hook(event jsonb) ([auth.hook.custom_access_token]) is the hook of the authorization provider (stub): authz hook grants",
     ]);
   });
 
   it("points at a grants migration the database has not applied", () => {
-    const path = "supabase/migrations/2_permdock_hook_grants.sql";
+    const path = "supabase/migrations/2_authz_hook_grants.sql";
     const problems = hookGrantProblems(
       context(withHook([ungranted]), {
+        config: OWN_HOOK,
         sqlFiles: [
           {
             path,
-            text: '-- permdock:grants v1 schema=rbac\ngrant execute on function "rbac"."custom_access_token_hook"(jsonb) to supabase_auth_admin;',
+            text: '-- authz: hook grants\ngrant execute on function "rbac"."custom_access_token_hook"(jsonb) to supabase_auth_admin;',
           },
         ],
       }),
@@ -331,81 +334,26 @@ describe("BS405 --as", () => {
 });
 
 describe("BS407", () => {
-  it("reports an unreadable manifest instead of asking for one", async () => {
-    const broken: PermdockProject = {
-      config: "permdock.config.ts",
-      manifestPath: "permdock.manifest.json",
-      catalogPath: "permissions.catalog.json",
-      problems: [
-        "permdock.manifest.json: Unexpected token",
-        "permissions.catalog.json: missing",
-      ],
-    };
+  it("skips hooks without a body and writers the provider does not own", async () => {
+    const config = resolveConfig({ authorization: stubProvider }, "/project");
     expect(
-      await runRules(context(base, { permdock: broken }), only("BS407")),
-    ).toEqual([
-      expect.objectContaining({
-        severity: "info",
-        message:
-          "Could not read PermDock's manifest: permdock.manifest.json: Unexpected token",
-        target: "permdock.manifest.json",
-      }),
-    ]);
-  });
-
-  it("reads the claims PermDock's hook adds from the marker when the manifest lists none", async () => {
-    const permdock: PermdockProject = {
-      ...PERMDOCK,
-      manifest: {
-        ...PERMDOCK.manifest!,
-        hook: { schema: "public", function: "permdock_hook" },
-        claims: [{ name: "roles", source: "permdock" }],
-      },
-    };
-    const marker = {
-      path: "supabase/schemas/040_permdock_hook.sql",
-      text: "-- permdock:hook v1 schema=public claims=roles,tenant_id,features,attrs\ncreate or replace function public.permdock_hook(event jsonb)",
-    };
-    const wrapper = hookFn({
-      source:
-        "begin event := public.permdock_hook(event); return jsonb_set(event, '{claims,features}', f); end",
-    });
-    const findings = await runRules(
-      context(withHook([wrapper]), { permdock, sqlFiles: [marker] }),
-      only("BS407"),
-    );
-    expect(findings).toHaveLength(1);
-    expect(findings[0]!.message).toContain(
-      "writes features, and permdock.config.ts says PermDock owns those claims (its hook already writes features through supabase.hook.claims)",
-    );
-    expect(findings[0]!.location).toEqual({
-      file: "supabase/config.toml",
-      line: 1,
-    });
-    const plain = hookFn({
-      source: "begin return jsonb_set(event, '{claims,features}', f); end",
-    });
-    expect(
-      await runRules(
-        context(withHook([plain]), { permdock, sqlFiles: [marker] }),
-        only("BS407"),
-      ),
-    ).toEqual([]);
-  });
-
-  it("skips hooks without a body and writers PermDock does not own", async () => {
-    expect(
-      await runRules(
-        context(withHook([hookFn()]), { permdock: PERMDOCK }),
-        only("BS407"),
-      ),
+      await runRules(context(withHook([hookFn()]), { config }), only("BS407")),
     ).toEqual([]);
     const lone = hookFn({
       source: "begin return jsonb_set(event, '{claims,roles}', r); end",
     });
-    expect(await runRules(context(withHook([lone])), only("BS407"))).toEqual(
+    expect(
+      await runRules(context(withHook([lone]), { config }), only("BS407")),
+    ).toEqual([]);
+    const writer = hookFn({
+      source: "begin return jsonb_set(event, '{claims,memberships}', m); end",
+    });
+    expect(await runRules(context(withHook([writer])), only("BS407"))).toEqual(
       [],
     );
+    expect(
+      await runRules(context(withHook([writer]), { config }), only("BS407")),
+    ).toHaveLength(1);
   });
 });
 

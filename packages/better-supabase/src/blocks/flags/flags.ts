@@ -542,7 +542,7 @@ export interface FlagContextOptions {
   readonly membershipsClaim?: string;
   /**
    * The scope of tenant memberships when the claim is a list of entries, as
-   * PermDock's hook writes (`{ scope, id, roles }`). Without it, the entry
+   * an authorization provider's hook may write it (`{ scope, id, roles }`). Without it, the entry
    * for the tenant id that has no `within` (a root scope) is read.
    */
   readonly membershipScope?: string;
@@ -556,7 +556,7 @@ export interface FlagContextOptions {
 /**
  * The caller's roles in `tenant` from the memberships claim: an object of
  * tenant id to role (the `tenant` module's hook), or a list of
- * `{ scope, id, role | roles }` entries (PermDock's hook).
+ * `{ scope, id, role | roles }` entries (an authorization provider's hook).
  */
 function membershipRoles(
   memberships: unknown,
@@ -584,7 +584,7 @@ function membershipRoles(
 /**
  * The evaluation context of a request: the user id as `targetingKey`, the
  * tenant, its plan features (`features` claim) and the caller's roles in it
- * (`memberships` claim, in the `tenant` module's or PermDock's shape, or
+ * (`memberships` claim, in the `tenant` module's or the list shape, or
  * `options.roles`). Pass it as `context` to `withOpenFeature`.
  */
 export function flagContext(

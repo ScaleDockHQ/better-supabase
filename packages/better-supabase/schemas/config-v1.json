@@ -236,7 +236,7 @@
       }
     },
     "claims": {
-      "description": "Claim names shared by the SQL modules, codegen and runtime defaults (PermDock's claim contract).",
+      "description": "Claim names shared by the SQL modules, codegen and runtime defaults.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -289,11 +289,11 @@
               },
               {
                 "type": "object",
-                "description": "Policies that call PermDock's permitted_<scope>_ids or permdock_has helpers.",
-                "required": ["permdock", "scope"],
+                "description": "A policy through the access contract (tenant_ids_with, is_platform), or through `sql` templates such as an authorization provider's.",
+                "required": ["access"],
                 "additionalProperties": false,
                 "properties": {
-                  "permdock": {
+                  "access": {
                     "type": "object",
                     "required": ["read", "write"],
                     "additionalProperties": false,
@@ -313,14 +313,26 @@
                     }
                   },
                   "scope": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "`tenant` (default) or `platform`; with `sql`, any scope name the templates take."
                   },
                   "segment": {
                     "type": "integer",
                     "minimum": 1
                   },
-                  "schema": {
-                    "type": "string"
+                  "sql": {
+                    "type": "object",
+                    "required": ["idsWith", "isPlatform"],
+                    "additionalProperties": false,
+                    "description": "SQL templates with `{permission}` and `{scope}` the policy calls instead of the access contract.",
+                    "properties": {
+                      "idsWith": {
+                        "type": "string"
+                      },
+                      "isPlatform": {
+                        "type": "string"
+                      }
+                    }
                   }
                 }
               }
@@ -474,28 +486,16 @@
           "type": "string",
           "default": "id"
         },
-        "permdock": {
-          "description": "With a PermDock manifest, read PermDock's memberships for this scope instead of better_supabase.memberships; false keeps the module's table.",
-          "oneOf": [
-            {
-              "const": false
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "scope": {
-                  "type": "string",
-                  "description": "The PermDock scope tenants are. Defaults to the manifest's root scope, the rls.scopes entry without within."
-                }
-              }
-            }
-          ]
+        "memberships": {
+          "description": "Where has_entitlement and feature_claims read memberships: \"provider\" (the authorization provider's memberIds functions) or \"tenant\" (better_supabase.memberships). Defaults to \"provider\" when `authorization` is set.",
+          "enum": ["tenant", "provider"]
         },
         "source": {
           "description": "Where each tenant's entitlements come from: \"stripe-sync\" (the Stripe Sync Engine, the default), \"custom\" (your own better_supabase.tenant_entitlements), or a plan catalog in your tables.",
           "oneOf": [
-            { "enum": ["stripe-sync", "custom"] },
+            {
+              "enum": ["stripe-sync", "custom"]
+            },
             {
               "type": "object",
               "additionalProperties": false,
@@ -511,13 +511,23 @@
                       "additionalProperties": false,
                       "required": ["table", "tenant", "plan"],
                       "properties": {
-                        "table": { "type": "string" },
-                        "tenant": { "type": "string" },
-                        "plan": { "type": "string" },
-                        "status": { "type": "string" },
+                        "table": {
+                          "type": "string"
+                        },
+                        "tenant": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
                         "activeStatuses": {
                           "type": "array",
-                          "items": { "type": "string" }
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       }
                     },
@@ -526,11 +536,21 @@
                       "additionalProperties": false,
                       "required": ["table", "plan", "feature"],
                       "properties": {
-                        "table": { "type": "string" },
-                        "plan": { "type": "string" },
-                        "feature": { "type": "string" },
-                        "included": { "type": "string" },
-                        "value": { "type": "string" }
+                        "table": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "type": "string"
+                        },
+                        "feature": {
+                          "type": "string"
+                        },
+                        "included": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
                       }
                     }
                   }
@@ -542,15 +562,22 @@
         "claim": {
           "description": "The shape of the features claim feature_claims writes: false for {}, or maxTenants (at most that many tenants) and keys (short codes for feature keys).",
           "oneOf": [
-            { "const": false },
+            {
+              "const": false
+            },
             {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "maxTenants": { "type": "integer", "minimum": 1 },
+                "maxTenants": {
+                  "type": "integer",
+                  "minimum": 1
+                },
                 "keys": {
                   "type": "object",
-                  "additionalProperties": { "type": "string" }
+                  "additionalProperties": {
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -558,20 +585,334 @@
         }
       }
     },
-    "permdock": {
-      "description": "Where PermDock's JSON outputs are.",
+    "authorization": {
+      "description": "An authorization provider (apiVersion 1) the SQL modules, policies and doctor delegate to.",
       "type": "object",
       "additionalProperties": false,
+      "required": ["apiVersion", "name", "scopes", "tenantScope", "functions"],
       "properties": {
-        "manifest": {
-          "description": "What `permdock supabase inspect --out` writes.",
-          "type": "string",
-          "default": "permdock.manifest.json"
+        "apiVersion": {
+          "const": 1
         },
-        "catalog": {
-          "description": "What `permdock catalog` writes.",
+        "name": {
+          "type": "string"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "idType": {
+                "type": "string"
+              },
+              "parent": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "tenantScope": {
           "type": "string",
-          "default": "permissions.catalog.json"
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "functions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["idsWith", "isPlatform"],
+          "description": "SQL templates with {permission}, {scope}, {user}, {tenant} and {role}.",
+          "properties": {
+            "idsWith": {
+              "type": "string"
+            },
+            "isPlatform": {
+              "type": "string"
+            },
+            "idsWithFor": {
+              "type": "string"
+            },
+            "isPlatformFor": {
+              "type": "string"
+            },
+            "memberIds": {
+              "type": "string"
+            },
+            "memberIdsFor": {
+              "type": "string"
+            },
+            "canAssign": {
+              "type": "string"
+            },
+            "canAssignFor": {
+              "type": "string"
+            }
+          }
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["function", "role"],
+            "properties": {
+              "function": {
+                "type": "string"
+              },
+              "args": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key"],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "sqlComplete": {
+                "type": "boolean"
+              },
+              "scopes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "memberships": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["table", "userColumn", "scope", "idColumn"],
+            "properties": {
+              "table": {
+                "type": "string"
+              },
+              "userColumn": {
+                "type": "string"
+              },
+              "idColumn": {
+                "type": "string"
+              },
+              "scope": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["column"],
+                    "properties": {
+                      "column": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["value"],
+                    "properties": {
+                      "value": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "suspension": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "user": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["table", "id"],
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "disabledAt": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "tenant": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["table", "id"],
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "disabledAt": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "roleSources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["table", "role"],
+            "properties": {
+              "table": {
+                "type": "string"
+              },
+              "role": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["column", "through"],
+                "properties": {
+                  "column": {
+                    "type": "string"
+                  },
+                  "through": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["table", "id", "column"],
+                    "properties": {
+                      "table": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "column": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "decidingColumns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tokenHook": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["function", "ownedClaims"],
+          "properties": {
+            "function": {
+              "type": "string"
+            },
+            "tenantClaim": {
+              "type": "string"
+            },
+            "ownedClaims": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "registeredClaims": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "function"],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "function": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "budget": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["claims", "bytes"],
+              "properties": {
+                "claims": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "truncatedClaim": {
+                  "type": "string"
+                }
+              }
+            },
+            "markers": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "hook": {
+                  "type": "string"
+                },
+                "grants": {
+                  "type": "string"
+                }
+              }
+            },
+            "grantsCommand": {
+              "type": "string"
+            }
+          }
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -596,7 +937,10 @@
                 "enum": ["cosine", "l2", "inner_product"],
                 "default": "cosine"
               },
-              "type": { "enum": ["vector", "halfvec"], "default": "vector" },
+              "type": {
+                "enum": ["vector", "halfvec"],
+                "default": "vector"
+              },
               "key": {
                 "type": "string",
                 "default": "id",
@@ -608,9 +952,18 @@
                 "required": ["tsvector"],
                 "description": "Fuses a full-text ranking over a tsvector column with the vector ranking (reciprocal rank fusion).",
                 "properties": {
-                  "tsvector": { "type": "string" },
-                  "config": { "type": "string", "default": "simple" },
-                  "k": { "type": "integer", "minimum": 1, "default": 60 }
+                  "tsvector": {
+                    "type": "string"
+                  },
+                  "config": {
+                    "type": "string",
+                    "default": "simple"
+                  },
+                  "k": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 60
+                  }
                 }
               },
               "boost": {
@@ -619,7 +972,9 @@
               },
               "prefilter": {
                 "type": "array",
-                "items": { "type": "string" },
+                "items": {
+                  "type": "string"
+                },
                 "description": "Columns db.$search({ filter }) narrows before ranking."
               },
               "predicate": {
@@ -671,8 +1026,15 @@
           "additionalProperties": false,
           "required": ["from", "output"],
           "properties": {
-            "from": { "type": "array", "items": { "type": "string" } },
-            "output": { "type": "string" }
+            "from": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output": {
+              "type": "string"
+            }
           }
         }
       }
@@ -909,7 +1271,7 @@
           "$ref": "#/$defs/moduleConfigProperties/api"
         },
         "model": {
-          "enum": ["roles", "catalog", "permdock", "custom"],
+          "enum": ["roles", "catalog", "provider", "custom"],
           "default": "roles"
         },
         "roles": {
@@ -941,6 +1303,9 @@
               "type": "string"
             },
             "permissionClaims": {
+              "type": "string"
+            },
+            "canAssignFor": {
               "type": "string"
             }
           }
@@ -1044,22 +1409,6 @@
               }
             }
           ]
-        },
-        "permdock": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "schema": {
-              "type": "string"
-            },
-            "scope": {
-              "type": "string"
-            },
-            "forUser": {
-              "type": "boolean",
-              "description": "PermDock's helpers for a named user (permdock_has_for, permitted_<scope>_ids_for, permdock_can_assign_for) exist even though the manifest doesn't list them."
-            }
-          }
         }
       }
     },

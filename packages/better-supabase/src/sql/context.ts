@@ -158,8 +158,8 @@ export interface ModuleContextSource {
   readonly claims?: ClaimsMeta;
   /** The modules being installed together. */
   readonly installed?: readonly string[];
-  /** The id type from PermDock's manifest, when the layout has one. */
-  readonly permdockIdType?: ModuleIdType;
+  /** The id type the authorization provider gives, when the layout has one. */
+  readonly providerIdType?: ModuleIdType;
 }
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_$]*$/;
@@ -262,7 +262,7 @@ export function createModuleContext(
   };
 
   const rawId =
-    config.idType ?? modules.access?.idType ?? source.permdockIdType ?? "uuid";
+    config.idType ?? modules.access?.idType ?? source.providerIdType ?? "uuid";
   const idType = moduleIdType(rawId);
   if (!idType) {
     throw new TypeError(

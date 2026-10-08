@@ -1233,8 +1233,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
-  it("reads PermDock's member helpers in PermDock mode", async () => {
-    const pd = `bs_pd_${RUN}`;
+  it("reads the provider's member functions under provider memberships", async () => {
+    const pd = `bs_authz_${RUN}`;
     const billing = `bs_billing_pd_${RUN}`;
     const organization = crypto.randomUUID();
     const customer = `cus_pd_${RUN}`;
@@ -1260,10 +1260,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       column: "customer_id",
       key: "org_id",
     } as const;
-    const permdock = {
-      schema: pd,
+    const entitlementsProvider = {
+      name: "test",
       scope: "organization",
       idType: "uuid",
+      memberIds: `${pd}.member_{scope}_ids()`,
+      memberIdsFor: `${pd}.member_{scope}_ids_for({user})`,
       memberships: [
         {
           table: `${pd}.memberships`,
@@ -1273,7 +1275,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       ],
     } as const;
-    const module = renderModules(["entitlements"], { entitlements, permdock });
+    const module = renderModules(["entitlements"], {
+      entitlements,
+      entitlementsProvider,
+    });
     expect(module.map((file) => [file.module, file.kind])).toEqual([
       ["entitlements", "schema"],
       ["entitlements", "data"],
@@ -1292,8 +1297,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             updated_at timestamptz not null default now(), last_synced_at timestamptz
           );`);
       }
-      // Stand-ins with the shape of PermDock's generated helpers: security
-      // definer, an active-membership filter, and _for revoked from users.
+      // Stand-ins for a provider's member functions: security definer, an
+      // active-membership filter, and _for revoked from users.
       await pool.query(`
         create schema ${pd};
         create table ${pd}.memberships (
@@ -1381,15 +1386,19 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
-  it("answers for the caller only under the permdock access model", async () => {
-    const pd = `pd_access_${RUN}`;
+  it("answers for the caller only under the provider access model", async () => {
+    const pd = `authz_access_${RUN}`;
     const me = "00000000-0000-4000-8000-0000000000a1";
     const other = "00000000-0000-4000-8000-0000000000a2";
     const sql = moduleBody("access", {
-      modules: {
-        access: {
-          model: "permdock",
-          permdock: { schema: pd, scope: "organization" },
+      modules: { access: { model: "provider" } },
+      accessProvider: {
+        name: "test",
+        scope: "organization",
+        idType: "uuid",
+        functions: {
+          idsWith: `${pd}.permitted_{scope}_ids({permission})`,
+          isPlatform: `${pd}.is_platform({permission})`,
         },
       },
     })!;
@@ -1410,7 +1419,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         create schema ${pd};
         create function ${pd}.permitted_organization_ids(permission text) returns setof uuid
         language sql stable as $$ select '${ACME}'::uuid where permission = 'members.read' $$;
-        create function ${pd}.permdock_has(permission text) returns boolean
+        create function ${pd}.is_platform(permission text) returns boolean
         language sql stable as $$ select false $$;`);
       await client.query(sql);
       await client.query("select set_config('request.jwt.claims', $1, true)", [

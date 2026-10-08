@@ -13,16 +13,16 @@ import {
 const live = await reachable();
 
 /**
- * A PermDock-shaped schema: memberships with text roles, declared roles
- * (`owner`, `admin`, `member`) and tenant custom roles, and the helpers the
- * permdock access model calls.
+ * An authorization provider's schema: memberships with text roles, declared
+ * roles (`owner`, `admin`, `member`) and tenant custom roles, and the
+ * functions the provider access model calls.
  */
-async function permdockSchema(
+async function providerSchema(
   s: BlockSession,
   organization: string,
   members: Readonly<Record<string, TestUser>>,
 ): Promise<string> {
-  const schema = `bs_pd_${crypto.randomUUID().slice(0, 8)}`;
+  const schema = `bs_authz_${crypto.randomUUID().slice(0, 8)}`;
   await s.client.query(`
     create schema ${schema};
     create table ${schema}.team_members (
@@ -37,14 +37,14 @@ async function permdockSchema(
       language sql stable as $$
         select m.organization_id from ${schema}.team_members m
         where m.user_id = auth.uid() and m.role in ('owner', 'admin') $$;
-    create function ${schema}.permdock_has(permission text) returns boolean
+    create function ${schema}.is_platform(permission text) returns boolean
       language sql stable as $$ select false $$;
-    create function ${schema}.permdock_can_assign(p_role text, p_scope_id text) returns boolean
+    create function ${schema}.can_assign(p_role text, p_scope_id text) returns boolean
       language sql stable as $$ select p_role <> 'owner' $$;
-    -- Knows only the declared roles, as PermDock's helper does.
-    create function ${schema}.permdock_can_assign_for(p_user uuid, p_role text, p_scope_id text) returns boolean
+    -- Knows only the declared roles.
+    create function ${schema}.can_assign_for(p_user uuid, p_role text, p_scope_id text) returns boolean
       language sql stable as $$ select p_role in ('admin', 'member') $$;
-    create function ${schema}.permdock_can_assign_any_for(p_user uuid, p_role text, p_tenant uuid, p_scope text, p_scope_id text) returns boolean
+    create function ${schema}.can_assign_any_for(p_user uuid, p_role text, p_tenant uuid, p_scope text, p_scope_id text) returns boolean
       language sql stable as $$
         select p_scope = 'organization' and p_scope_id = p_tenant::text
           and (p_role in ('admin', 'member')
@@ -58,24 +58,26 @@ async function permdockSchema(
   return schema;
 }
 
-function permdockLayout(
+const provider = (
   schema: string,
-  forUser: { canAssign: boolean; canAssignAny: boolean },
-): ModuleLayout {
+  canAssignFor?: string,
+): NonNullable<ModuleLayout["accessProvider"]> => ({
+  name: "test",
+  scope: "organization",
+  idType: "uuid",
+  functions: {
+    idsWith: `${schema}.permitted_{scope}_ids({permission})`,
+    isPlatform: `${schema}.is_platform({permission})`,
+    canAssign: `${schema}.can_assign({role}, {tenant}::text)`,
+    ...(canAssignFor ? { canAssignFor } : {}),
+  },
+});
+
+function providerLayout(schema: string, canAssignFor?: string): ModuleLayout {
   return {
-    accessPermdock: {
-      schema,
-      scope: "organization",
-      idType: "uuid",
-      forUser: { has: false, permitted: false, ...forUser },
-    },
+    accessProvider: provider(schema, canAssignFor),
     modules: {
-      access: {
-        model: "permdock",
-        functions: {
-          canAssign: `${schema}.permdock_can_assign({role}, {tenant}::text)`,
-        },
-      },
+      access: { model: "provider" },
       tenant: {
         schema,
         mode: "adopt",
@@ -91,18 +93,21 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
   afterAll(() => pool.end());
 
-  it("accepts an invitation to a tenant custom role through permdock_can_assign_any_for", async () => {
+  it("accepts an invitation to a tenant custom role through the provider's canAssignFor", async () => {
     const s = await BlockSession.open(pool);
     try {
       const owner = await s.user("owner");
       const invitee = await s.user("invitee");
       const late = await s.user("late");
       const organization = crypto.randomUUID();
-      const schema = await permdockSchema(s, organization, { owner });
+      const schema = await providerSchema(s, organization, { owner });
 
       await s.install(
         ["invitations"],
-        permdockLayout(schema, { canAssign: true, canAssignAny: false }),
+        providerLayout(
+          schema,
+          `${schema}.can_assign_for({user}, {role}, {tenant}::text)`,
+        ),
       );
       await s.as(owner);
       const refused = await s.value<{ token: string }>(
@@ -116,7 +121,10 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
 
       await s.install(
         ["invitations"],
-        permdockLayout(schema, { canAssign: true, canAssignAny: true }),
+        providerLayout(
+          schema,
+          `${schema}.can_assign_any_for({user}, {role}, {tenant}, 'organization', {tenant}::text)`,
+        ),
       );
       await s.as(owner);
       const invite = await s.value<{ token: string }>(
@@ -148,19 +156,15 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
       const owner = await s.user("owner");
       const invitee = await s.user("invitee");
       const organization = crypto.randomUUID();
-      const schema = await permdockSchema(s, organization, { owner });
-      const layout = permdockLayout(schema, {
-        canAssign: false,
-        canAssignAny: false,
-      });
+      const schema = await providerSchema(s, organization, { owner });
+      const layout = providerLayout(schema);
       await s.install(["invitations"], {
         ...layout,
         modules: {
           ...layout.modules,
           access: {
-            model: "permdock",
+            model: "provider",
             functions: {
-              canAssign: `${schema}.permdock_can_assign({role}, {tenant}::text)`,
               canAssignFor: `{role} <> 'auditor' and {user} is not null and {tenant} is not null`,
             },
           },
@@ -510,9 +514,9 @@ async function sharedSchema(
         select m.organization_id from ${schema}.team_members m
         join ${schema}.roles r on r.id = m.role_id
         where m.user_id = auth.uid() and r.key in ('owner', 'admin') $$;
-    create function ${schema}.permdock_has(permission text) returns boolean
+    create function ${schema}.is_platform(permission text) returns boolean
       language sql stable as $$ select auth.uid() = '${staff.id}' $$;
-    create function ${schema}.permdock_can_assign(p_role text, p_scope_id text) returns boolean
+    create function ${schema}.can_assign(p_role text, p_scope_id text) returns boolean
       language sql stable as $$ select p_role <> 'owner' $$;
   `);
   return schema;
@@ -521,14 +525,9 @@ async function sharedSchema(
 function sharedLayout(schema: string): ModuleLayout {
   const roles = { table: `${schema}.roles`, id: "id", column: "key" };
   return {
-    accessPermdock: { schema, scope: "organization", idType: "uuid" },
+    accessProvider: provider(schema),
     modules: {
-      access: {
-        model: "permdock",
-        functions: {
-          canAssign: `${schema}.permdock_can_assign({role}, {tenant}::text)`,
-        },
-      },
+      access: { model: "provider" },
       tenant: {
         schema,
         mode: "adopt",

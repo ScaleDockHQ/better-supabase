@@ -168,8 +168,8 @@ const NOT_ALIAS = new Set([
 interface GrantColumn {
   /** The helpers that read the column, as `schema.name`. */
   readonly helpers: Set<string>;
-  /** Listed in the PermDock manifest's `decidingColumns`, which PD028 protects. */
-  permdock: boolean;
+  /** Listed in the authorization provider's `decidingColumns`. */
+  provider: boolean;
 }
 
 /** The body of `schema.name` from the snapshot, else from the first SQL file that creates it. */
@@ -273,7 +273,7 @@ function grantColumns(
     columns.set(table, byColumn);
     const existing = byColumn.get(column);
     if (existing) return existing;
-    const created: GrantColumn = { helpers: new Set(), permdock: false };
+    const created: GrantColumn = { helpers: new Set(), provider: false };
     byColumn.set(column, created);
     return created;
   };
@@ -295,10 +295,10 @@ function grantColumns(
       }
     }
   }
-  for (const deciding of context.permdock?.manifest?.decidingColumns ?? []) {
+  for (const deciding of context.config.authorization?.decidingColumns ?? []) {
     const dot = deciding.lastIndexOf(".");
     if (dot > 0)
-      entry(deciding.slice(0, dot), deciding.slice(dot + 1)).permdock = true;
+      entry(deciding.slice(0, dot), deciding.slice(dot + 1)).provider = true;
   }
   return columns;
 }
@@ -468,7 +468,7 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "API roles can write the columns that grant access",
     description:
-      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and PermDock's manifest lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke.",
+      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke.",
     check: (context) => {
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),
@@ -533,8 +533,8 @@ export const RLS_RULES: readonly Rule[] = [
               columns.flatMap((column) => [...byColumn.get(column)!.helpers]),
             ),
           ].sort();
-          const permdock = columns.filter(
-            (column) => byColumn.get(column)!.permdock,
+          const deciding = columns.filter(
+            (column) => byColumn.get(column)!.provider,
           );
           const readers = [
             ...(helpers.length > 0
@@ -542,9 +542,9 @@ export const RLS_RULES: readonly Rule[] = [
                   `${helpers.join(", ")} read${helpers.length === 1 ? "s" : ""} them to decide access`,
                 ]
               : []),
-            ...(permdock.length > 0
+            ...(deciding.length > 0
               ? [
-                  `PermDock's manifest lists ${permdock.join(", ")} as deciding columns, which PD028 protects`,
+                  `the authorization provider lists ${deciding.join(", ")} as deciding columns`,
                 ]
               : []),
           ].join(", and ");

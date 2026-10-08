@@ -44,7 +44,7 @@ docs/
 
 - `pnpm install`: install (pnpm 12, Node 24).
 - `pnpm verify`: the gate before every push. It runs the format check, lint
-  (type-aware Oxlint with the anti-slop plugin), the prose check, typecheck,
+  (type-aware Oxlint with the anti-slop plugin), the prose check, the PermDock name check, typecheck,
   Knip, Turbo boundaries, tests, doctor and `pnpm audit`. Every step except
   the format check, boundaries and audit is a cached Turbo task with
   `inputs` in `turbo.json`, so a second run only repeats what changed.
@@ -138,6 +138,12 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     match `SPLINTER_SHA256` (`src/cli/doctor/advisors.ts`).
 14. Don't bypass the supply-chain policy (`minimumReleaseAge` in
     `pnpm-workspace.yaml`). If a release is too new, pin the previous one.
+15. better-supabase never depends on or names an authorization library.
+    Libraries plug in through the versioned `AuthorizationProvider` in the
+    `authorization` config key (`src/config/authorization.ts`) and ship
+    their own adapter. `pnpm check:no-permdock` fails on the name in the
+    library, its skills, the docs, the examples and `supabase/schemas`;
+    the provider page and the 0.5 to 0.6 guide are the exceptions.
 
 ## Code conventions
 

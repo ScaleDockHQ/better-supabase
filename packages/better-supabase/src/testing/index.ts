@@ -48,6 +48,7 @@ export {
   testSupportSessionStore,
 } from "./conformance.ts";
 export { testAdapter } from "./adapter.ts";
+export { testAuthorizationProvider } from "./authorization-provider.ts";
 export { testGenerator } from "./generator.ts";
 export type { TestGeneratorOptions } from "./generator.ts";
 export type { AdapterRun, TestAdapterOptions } from "./adapter.ts";

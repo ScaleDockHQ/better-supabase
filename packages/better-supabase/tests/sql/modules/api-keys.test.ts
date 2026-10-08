@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { moduleBody } from "../../../src/sql/registry.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const render = (
   options: Record<string, unknown>,
@@ -12,14 +13,14 @@ const render = (
   })!;
 
 describe("api-keys module", () => {
-  it("limits scopes to PermDock's permission catalog", () => {
+  it("limits scopes to the provider's permissions", () => {
     const sql = render({ scopes: "catalog" }, [
       "invoice.read",
       "apiKey.manage",
     ]);
     expect(sql).toContain(`'{invoice.read,apiKey.manage}'::text[]`);
     expect(() => render({ scopes: "catalog" })).toThrow(
-      /no PermDock permission catalog/,
+      /no authorization.permissions to read/,
     );
     expect(render({ scopes: ["deal.read", "deals:write"] })).toContain(
       `'{deal.read,deals:write}'::text[]`,
@@ -27,14 +28,10 @@ describe("api-keys module", () => {
     expect(() => render({ scopes: ["bad scope"] })).toThrow(/is not a scope/);
   });
 
-  it("refuses the * scope under the permdock model", () => {
+  it("refuses the * scope under the provider model", () => {
     const sql = moduleBody("api-keys", {
-      modules: {
-        access: {
-          model: "permdock",
-          permdock: { schema: "authz", scope: "organization" },
-        },
-      },
+      modules: { access: { model: "provider" } },
+      accessProvider: moduleProvider,
     })!;
     expect(sql).toContain("API_KEY_SCOPE_WILDCARD");
     expect(render({})).not.toContain("API_KEY_SCOPE_WILDCARD");

@@ -161,8 +161,7 @@ challenge.
 A token from the Supabase OAuth server carries the client's `client_id` and
 the `scope` the user granted it. `toSession(ctx.auth)` from
 `better-supabase/server` turns these into `session.actor` and
-`session.delegation`, the way PermDock's `actorOf` and `delegationOf` read
-them, so `authorize` can check a scope per tool:
+`session.delegation`, so `authorize` can check a scope per tool:
 
 ```ts title="supabase/functions/mcp/index.ts"
 import { toSession } from "better-supabase/server";
@@ -270,8 +269,10 @@ gets `undefined`.
   effect at once for calls.
 
 Both hooks can be async. An exception in either one fails the call, and the
-error message is hidden unless `exposeErrors`. For PermDock permissions, see
-[MCP tools with PermDock](/docs/auth/permdock#mcp-tools).
+error message is hidden unless `exposeErrors`. To check a permission per tool,
+put it in the tool's `meta` (`unknown` to better-supabase), narrow it in the
+hooks, and treat a tool without one as hidden and refused, so a tool someone
+forgot to annotate is never open to everyone.
 
 With [`.claims(schema)`](/docs/auth#typed-claims) on the definition,
 `ctx.auth` in `authorize`, `visible` and `run` is typed by the schema's
@@ -393,16 +394,12 @@ To keep your own HTTP wiring, use the pieces instead: `auth.verifier` is an
 call whose `authInfo` did not come from `auth.verifier` is verified again from
 its token, and one without a token runs as `anon`.
 
-To check permissions with PermDock, wrap the server with `permdock/mcp`'s
-`protectServer` first and `withBetterSupabaseMcp` second. PermDock then refuses a
-tool before the repositories are built, and the tool config keeps its
-`permission` key:
+To check permissions with a library that wraps the SDK's `McpServer`, wrap
+the server with it first and `withBetterSupabaseMcp` second. The library then
+refuses a tool before the repositories are built:
 
 ```ts
-const server = withBetterSupabaseMcp(
-  protectServer(new McpServer(info), dock),
-  auth,
-);
+const server = withBetterSupabaseMcp(protect(new McpServer(info)), auth);
 ```
 
 ### Which one to use
@@ -413,4 +410,4 @@ const server = withBetterSupabaseMcp(
 | No MCP dependency, or the smallest bundle on an edge function | `createMcp`                                 |
 | The `authorize` and `visible` hooks                           | `createMcp`                                 |
 | An existing `McpServer`, prompts, resources or SDK features   | `createMcpAuth` and `withBetterSupabaseMcp` |
-| PermDock approvals through `permdock/mcp`                     | `createMcpAuth` and `withBetterSupabaseMcp` |
+| A permission library that wraps `McpServer`                   | `createMcpAuth` and `withBetterSupabaseMcp` |

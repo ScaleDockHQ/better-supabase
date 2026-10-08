@@ -73,8 +73,4 @@ export type {
 } from "./bucket.ts";
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
 export type { PathIn, StoragePath } from "./path.ts";
-export type {
-  AccessBucketPolicy,
-  PermdockBucketPolicy,
-} from "../schema/types.ts";
-export type { PermdockCatalog } from "../core/permdock-sql.ts";
+export type { AccessBucketPolicy, AccessPolicySql } from "../schema/types.ts";

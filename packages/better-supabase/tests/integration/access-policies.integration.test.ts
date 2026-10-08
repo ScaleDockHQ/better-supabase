@@ -23,7 +23,7 @@ const USER = "00000000-0000-4000-8000-0000000000fe";
 /** An id with hex letters, so its uppercase form differs. */
 const HEX = "abcdef00-0000-4000-8000-0000000000ab";
 const RUN = String(Date.now());
-const SCHEMA = `bs_pd_${RUN}`;
+const SCHEMA = `bs_authz_${RUN}`;
 
 async function reachable(): Promise<boolean> {
   try {
@@ -38,51 +38,59 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 
-// Stand-ins for PermDock's generated helpers: the test token lists the
-// organizations each key is permitted in under a `pd` claim.
+// Stand-ins for a provider's functions: the test token lists the
+// organizations each key is permitted in under an `authz` claim.
 const STUBS = `
 create schema ${SCHEMA};
 grant usage on schema ${SCHEMA} to authenticated;
 create function ${SCHEMA}.permitted_organization_ids(key text)
 returns table (id uuid) language sql stable set search_path = '' as $$
   select value::uuid
-  from jsonb_array_elements_text(coalesce(auth.jwt() -> 'pd' -> key, '[]'::jsonb))
+  from jsonb_array_elements_text(coalesce(auth.jwt() -> 'authz' -> key, '[]'::jsonb))
 $$;
-create function ${SCHEMA}.permdock_has(key text)
+create function ${SCHEMA}.is_platform(key text)
 returns boolean language sql stable set search_path = '' as $$
-  select coalesce(auth.jwt() -> 'pd_global' ? key, false)
+  select coalesce(auth.jwt() -> 'authz_platform' ? key, false)
 $$;
 `;
+
+const SQL = {
+  idsWith: `${SCHEMA}.permitted_{scope}_ids({permission})`,
+  isPlatform: `${SCHEMA}.is_platform({permission})`,
+};
 
 const files = defineBucket({
   id: `bs-it-pd-${RUN}`,
   path: "{organizationId}/{file}",
   policy: {
-    permdock: { read: "files.read", list: "files.list", write: "files.write" },
+    access: { read: "files.read", list: "files.list", write: "files.write" },
     scope: "organization",
-    schema: SCHEMA,
+    sql: SQL,
   },
 });
 
 const board = defineTopic("pd:{organizationId}:board", {
   name: `pd_board_${RUN}`,
-  permdock: {
+  access: {
     receive: "board.read",
     send: "board.write",
     scope: "organization",
-    schema: SCHEMA,
+    sql: SQL,
   },
 });
 
-describe.skipIf(!live)("PermDock policy mode", async () => {
-  const clientWith = (pd: Record<string, string[]>, pdGlobal: string[] = []) =>
+describe.skipIf(!live)("access policies on provider functions", async () => {
+  const clientWith = (
+    authz: Record<string, string[]>,
+    platform: string[] = [],
+  ) =>
     createClient(url, publishableKey, {
       accessToken: () =>
         signLocalJwt({
           sub: USER,
           role: "authenticated",
-          pd,
-          pd_global: pdGlobal,
+          authz,
+          authz_platform: platform,
         }),
     });
   const service = createClient(url, secretKey, {

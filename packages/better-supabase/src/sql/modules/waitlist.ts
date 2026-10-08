@@ -61,7 +61,7 @@ const FIELD = /^[a-z][a-z0-9_]{0,62}$/;
 
 /**
  * The roles an invite code may grant: `options.roles`, else every role of
- * the `roles` or `catalog` model but the owner. Under the `permdock` and
+ * the `roles` or `catalog` model but the owner. Under the `provider` and
  * `custom` models the roles are not in the config, so codes grant none
  * unless `options.roles` lists them.
  */

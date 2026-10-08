@@ -25,8 +25,7 @@ export type {
   TriggerValue,
 } from "./topic.ts";
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
-export type { PermdockTopicPolicy } from "../schema/types.ts";
-export type { PermdockCatalog } from "../core/permdock-sql.ts";
+export type { AccessPolicySql, AccessTopicPolicy } from "../schema/types.ts";
 export { liveCount, liveQuery, liveTopic } from "./live.ts";
 export type {
   CountRunner,

@@ -8,45 +8,38 @@ import type { Claims } from "@/lib/claims";
 
 import { betterSupabase } from "@/lib/supabase";
 
-// Compile-time only. `permdock` is not on npm yet, so these stand-ins copy
-// the shapes `permdock/supabase/middleware` and `permdock/supabase` export:
-// `withPermDock` needs `ctx.jwtClaims` upstream and contributes `ctx.permdock`,
-// and `subjectFromSupabaseSession` reads `{ kind, claims }`.
-// Once `permdock@next` is on npm, add it as a devDependency of this
-// example only and import `withPermDock` from `permdock/supabase/middleware`
-// and `subjectFromSupabaseSession` from `permdock/supabase` instead of these
-// stand-ins. Source: https://github.com/ScaleDockHQ/PermDock
-/* oxlint-disable anti-slop/no-unsafe-dictionary-type, anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns -- the stand-ins copy the published PermDock signatures */
+// Compile-time only. A third-party authorization middleware that reads
+// `ctx.jwtClaims` and contributes `ctx.authorization` composes after
+// `withBetterDb`, and a subject builder takes an `AuthSession` as it is.
+/* oxlint-disable anti-slop/no-unsafe-dictionary-type, anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns -- the stand-ins type a library this example doesn't install */
 type SupabaseJwtClaims = {
   readonly sub: string;
   readonly [claim: string]: unknown;
 };
-type SupabaseSessionLike = { readonly kind: string; readonly claims?: unknown };
-type PermDockLike = { can(permission: string, resource?: unknown): boolean };
+type SessionLike = { readonly kind: string; readonly claims?: unknown };
+type Authorization = { can(permission: string, resource?: unknown): boolean };
 
-const withPermDock = defineMiddleware({
-  key: "permdock",
+const withAuthorization = defineMiddleware({
+  key: "authorization",
   run:
     (_config: void) =>
     (
       _req: Request,
       _ctx: { readonly jwtClaims: SupabaseJwtClaims | null },
-    ): Promise<{ permdock: PermDockLike }> =>
-      Promise.resolve({ permdock: { can: () => false } }),
+    ): Promise<{ authorization: Authorization }> =>
+      Promise.resolve({ authorization: { can: () => false } }),
 });
-declare function subjectFromSupabaseSession(
-  session: SupabaseSessionLike,
-): unknown;
+declare function subjectFromSession(session: SessionLike): unknown;
 /* oxlint-enable anti-slop/no-unsafe-dictionary-type, anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns */
 
 export const handler = pipeline(
   [
     withSupabase({ auth: "user" }),
     withBetterDb(betterSupabase)(),
-    withPermDock(),
+    withAuthorization(),
   ],
   async (_req, ctx) => {
-    if (!ctx.permdock.can("customers.read")) {
+    if (!ctx.authorization.can("customers.read")) {
       return new Response(null, { status: 403 });
     }
     const tenant: unknown = ctx.jwtClaims?.["tenant_id"];
@@ -56,4 +49,4 @@ export const handler = pipeline(
 );
 
 declare const session: AuthSession<Claims>;
-subjectFromSupabaseSession(session);
+subjectFromSession(session);

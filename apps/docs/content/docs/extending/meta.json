@@ -4,6 +4,7 @@
     "plugins",
     "repositories",
     "interfaces",
+    "authorization-providers",
     "events",
     "conformance",
     "stability"

@@ -251,14 +251,14 @@ ARGUMENTS
 
 OPTIONS
 
-            --check    With sync: fail when a file is stale. With upgrade: fail when a module is behind
-  --tests-dir=<dir>    Where the pgtap module goes. Defaults to sql.testsDir                           
-          --dry-run    Show what would be written                                                      
-            --force    Write tenant even though a permdock.config.ts is present                        
-        --cwd=<dir>    Project directory                                                               
-    --config=<file>    Config file, relative to --cwd                                                  
-             --json    Print one JSON document on stdout; errors as Problem Details                    
-          -y, --yes    Ask nothing; use the flags and the defaults                                     
+            --check    With sync: fail when a file is stale. With upgrade: fail when a module is behind     
+  --tests-dir=<dir>    Where the pgtap module goes. Defaults to sql.testsDir                                
+          --dry-run    Show what would be written                                                           
+            --force    Write tenant even though the authorization provider's hook owns the memberships claim
+        --cwd=<dir>    Project directory                                                                    
+    --config=<file>    Config file, relative to --cwd                                                       
+             --json    Print one JSON document on stdout; errors as Problem Details                         
+          -y, --yes    Ask nothing; use the flags and the defaults                                          
 "
 `;
 

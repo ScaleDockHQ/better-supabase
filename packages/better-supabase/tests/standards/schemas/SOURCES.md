@@ -17,7 +17,6 @@ the matching `SPEC_PINS` entry in one change.
 | `mcp-2025-06-18.json` | MCP 2025-06-18 | https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/schema/2025-06-18/schema.json | `af845e7e5b9d27107d1690f0936022546177a1403e63ffb11470135b296a2e01` |
 | `mcp-2025-03-26.json` | MCP 2025-03-26 | https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/schema/2025-03-26/schema.json | `e720669548c8100a4282c49e580efd6ddf7f28899ea786fc8db251dbdb356131` |
 | `mcp-registry-server-2025-10-17.json` | MCP Registry `server.json` 2025-10-17 | https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json | `2cc1552fb3a00ad83d9ae4ee0445a21617098963b58e9bae7b94d680d841b4cc` |
-| `permdock-supabase-claims-v1.json` | PermDock Supabase claims v1, commit `a2971c91d3b5628082f13e8fe2b4b361fad296a9` | https://raw.githubusercontent.com/ScaleDockHQ/permdock/a2971c91d3b5628082f13e8fe2b4b361fad296a9/packages/permdock/schemas/supabase-claims-v1.json | `e65f4217ab3a435c1ddba73468e64f8218aba1adfadc5d5c5b7c9a5e6c517b69` |
 | `stripe-sync-engine-0.48.5-active-entitlements.sql` | Stripe Sync Engine v0.48.5, migration `0038_active_entitlement.sql` (later migrations up to the tag only drop the `lookup_key` unique constraint) | https://raw.githubusercontent.com/supabase/stripe-sync-engine/v0.48.5/packages/sync-engine/src/database/migrations/0038_active_entitlement.sql | `0983c0401a597cd5f4e27466c661b01ac27c6ed021386a168cadd572ebc42ad2` |
 
 The SARIF schema is draft-04. Draft-04 and draft-07 differ in that file only

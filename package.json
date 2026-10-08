@@ -12,6 +12,7 @@
     "build:packages": "turbo run build --filter=better-supabase...",
     "changeset": "changeset",
     "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck",
+    "check:no-permdock": "node scripts/check-no-permdock.ts",
     "check:prose": "node scripts/check-prose.ts",
     "check:publish": "turbo run check:publish",
     "db:gen": "for p in apps/examples/* apps/examples/monorepo/* tests/validation-*; do if [ \"$p\" != tests/validation-centrakit ] && ls \"$p\"/better-supabase.config.* >/dev/null 2>&1; then better-supabase gen --cwd \"$p\" || exit 1; fi; done",
@@ -49,7 +50,7 @@
     "typecheck:matrix": "turbo run typecheck:matrix",
     "typecheck:perf": "turbo run typecheck:perf",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
-    "verify": "pnpm run format:check && turbo run lint lint:root typecheck typecheck:tooling test check:prose docs:drift knip gen:check doctor check:publish typecheck:matrix && turbo run typecheck:perf && turbo boundaries && pnpm run audit:high",
+    "verify": "pnpm run format:check && turbo run lint lint:root typecheck typecheck:tooling test check:prose check:no-permdock docs:drift knip gen:check doctor check:publish typecheck:matrix && turbo run typecheck:perf && turbo boundaries && pnpm run audit:high",
     "version-packages": "node scripts/root-changelog.ts && changeset version && node scripts/sync-versions.ts && pnpm run format"
   },
   "devDependencies": {

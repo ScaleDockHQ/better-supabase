@@ -74,7 +74,7 @@ const alice = await asUser(betterSupabase, {
 `supabaseClaimFixtures` holds access-token claims where someone acts for the
 user, with the `actor`, `impersonator` and `delegation` each one reads as:
 `supportSession`, `supportSessionReadOnly`, `impersonation`, `oauthClient`
-and `agentChain`. They follow PermDock's claim fixtures, so a test can sign
+and `agentChain`. They follow the claim contract every hook writes, so a test can sign
 one and check a guard or a support banner:
 
 ```ts

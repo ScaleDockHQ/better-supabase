@@ -1,0 +1,177 @@
+---
+title: Authorization providers
+description: Let another authorization system answer permission checks in the SQL modules, bucket and topic policies, API keys and doctor, through one versioned config key.
+---
+
+An authorization provider is a plain object in the `authorization` key of
+`better-supabase.config.ts`. It tells better-supabase which SQL functions
+answer "does this user hold this permission", which scopes exist, which
+membership tables the provider reads, and which claims its access token hook
+writes. better-supabase never imports the provider: the object is data, and
+the provider's own package builds it, usually from the files that package
+generates.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+import { authorizationProvider } from "your-authorization-package";
+
+export default defineConfig({
+  authorization: authorizationProvider(),
+  sql: { modules: { access: { model: "provider" }, organizations: {} } },
+});
+```
+
+[PermDock](https://permdock.com/docs/adapters/better-supabase) builds one
+from its manifest and catalog.
+
+## What reads it
+
+| Feature                                                                                    | What it takes from the provider                                                   |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `sql.modules.access.model: "provider"`                                                     | `can()` and the modules' checks call `functions`, at `tenantScope`                |
+| `entitlements.memberships: "provider"`                                                     | `has_entitlement` and `entitlement_members()` call `memberIds` and `memberIdsFor` |
+| Bucket and topic `access` policies with `sql`                                              | the `idsWith` and `isPlatform` templates, for any scope in `scopes`               |
+| [API keys](/docs/blocks/api-keys) with `claim`                                             | nothing at runtime; the claim names follow the provider's functions               |
+| `better-supabase sql add tenant`                                                           | refuses when `tokenHook.ownedClaims` has `memberships` (`--force` writes it)      |
+| `better-supabase gen`                                                                      | refuses a bucket or topic key that isn't `sqlComplete: true`                      |
+| [Doctor](/docs/cli/doctor) BS107, BS213, BS214, BS324, BS404, BS405, BS407 to BS409, BS411 | `requires`, `decidingColumns`, `permissions`, `memberships`, `tokenHook`          |
+
+`entitlements.memberships` defaults to `"provider"` when `authorization` is
+set. The access model stays what `sql.modules.access.model` says.
+
+## The contract
+
+```ts
+interface AuthorizationProvider {
+  apiVersion: 1;
+  name: string;
+  scopes: { name: string; idType?: string; parent?: string }[];
+  tenantScope: string;
+  functions: AuthorizationFunctions;
+  requires?: { function: string; args?: string; role: string }[];
+  permissions?: { key: string; sqlComplete?: boolean; scopes?: string[] }[];
+  memberships?: {
+    table: string;
+    userColumn: string;
+    scope: { column: string } | { value: string };
+    idColumn: string;
+  }[];
+  suspension?: { user?: DisabledRow; tenant?: DisabledRow };
+  roleSources?: AuthorizationRoleSource[];
+  decidingColumns?: string[];
+  tokenHook?: AuthorizationTokenHook;
+  problems?: string[];
+}
+```
+
+`AuthorizationProvider` and its parts are exported from
+`better-supabase/config`. A scope name is lower case (`[a-z][a-z0-9_]*`),
+because it goes into templates unquoted. `problems` lists what the provider
+found wrong while building the object; doctor reports each one.
+
+### Functions
+
+Each function is a SQL template. better-supabase fills the placeholders and
+puts the result into a policy or a module function:
+
+| Template        | Placeholders                              | Returns                                                   |
+| --------------- | ----------------------------------------- | --------------------------------------------------------- |
+| `idsWith`       | `{permission}`, `{scope}`                 | a set of the `{scope}` ids where the caller holds the key |
+| `isPlatform`    | `{permission}`                            | `boolean`: the caller holds the key platform-wide         |
+| `idsWithFor`    | `{user}`, `{permission}`, `{scope}`       | as `idsWith`, for another user                            |
+| `isPlatformFor` | `{user}`, `{permission}`                  | as `isPlatform`, for another user                         |
+| `memberIds`     | `{scope}`                                 | the `{scope}` ids the caller is a member of               |
+| `memberIdsFor`  | `{user}`, `{scope}`                       | as `memberIds`, for another user                          |
+| `canAssign`     | `{role}`, `{tenant}`, `{scope}`           | `boolean`: the caller may give `{role}` in `{tenant}`     |
+| `canAssignFor`  | `{user}`, `{role}`, `{tenant}`, `{scope}` | as `canAssign`, for another user                          |
+
+`idsWith` and `isPlatform` are required. A template that leaves out a `For`
+variant makes the module function answer for the caller only: called for
+another user, it raises SQLSTATE `0A000`. Without `canAssign`, only the
+service role assigns roles.
+
+```ts
+functions: {
+  idsWith: "authz.permitted_{scope}_ids({permission})",
+  isPlatform: "authz.is_platform({permission})",
+  memberIds: "authz.member_{scope}_ids()",
+  canAssign: "authz.can_assign({role}, {tenant}::text)",
+},
+requires: [
+  { function: "authz.permitted_organization_ids", args: "text", role: "authenticated" },
+  { function: "authz.is_platform", args: "text", role: "authenticated" },
+  { function: "authz.member_organization_ids", role: "authenticated" },
+  { function: "authz.can_assign", args: "text, text", role: "authenticated" },
+],
+```
+
+`requires` lists every function the templates call, with `{scope}` filled,
+and the role that must be able to execute it. Doctor (BS411) checks the
+database has each one, and the conformance block checks the list is complete.
+`idType` is the Postgres type of a scope's ids: `uuid`, `text`, `bigint` or
+`integer`.
+
+### Permissions
+
+`permissions` lists the keys the provider knows. `sqlComplete: true` says its
+SQL functions answer the key completely: a grant has no row condition beyond
+the scope. Bucket and topic policies and the SQL modules check by role and
+scope only, so `gen`, `sql add` and doctor (BS214, BS411) refuse a key that
+isn't marked. Leave row-conditioned keys to the provider's table policies.
+
+### Token hook
+
+`tokenHook` describes the custom access token hook the provider generates:
+
+| Field              | Used for                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `function`         | BS404 checks its grants, BS405 its shape                                                  |
+| `tenantClaim`      | BS409 compares it with `claims.tenant`                                                    |
+| `ownedClaims`      | BS407 reports another hook that writes them; `sql add tenant` stops on `memberships`      |
+| `registeredClaims` | BS407 accepts these claims from the functions named, such as `features`                   |
+| `budget`           | BS405 measures the claims it lists against `bytes` for `doctor --as`                      |
+| `markers`          | comment lines in the provider's files, so doctor recognises its hook and grants migration |
+| `grantsCommand`    | the command BS404 suggests                                                                |
+
+## Bucket and topic policies
+
+An `access` policy calls the access contract (`tenant_ids_with`,
+`is_platform`) by default. Give it the provider's templates in `sql`, and it
+calls those instead, for any scope they take. Copy the provider's
+`idsWith` and `isPlatform`, so the bucket module doesn't import the config:
+
+```ts title="src/storage/documents.ts"
+import { defineBucket } from "better-supabase/storage";
+
+export const documents = defineBucket({
+  id: "documents",
+  path: "{organizationId}/{documentId}/{name}",
+  policy: {
+    access: { read: "documents.browse", write: "documents.write" },
+    scope: "organization",
+    sql: {
+      idsWith: "authz.permitted_{scope}_ids({permission})",
+      isPlatform: "authz.is_platform({permission})",
+    },
+  },
+});
+```
+
+The scope id is compared as text, so a path or topic segment must be the id's
+lowercase form. `segment` picks another path segment than `{organizationId}`.
+
+## Test a provider
+
+`testAuthorizationProvider` from `better-supabase/testing` checks API v1,
+plain JSON, valid scopes, the placeholders of each template, `requires` and
+the permission list. See [conformance blocks](/docs/extending/conformance).
+
+```ts title="tests/provider.test.ts"
+import { testAuthorizationProvider } from "better-supabase/testing";
+import { it } from "vitest";
+
+it("conforms", () => testAuthorizationProvider(authorizationProvider()));
+```
+
+A provider for a new contract version sets another `apiVersion`; this release
+refuses anything but `1` with a message naming both versions.

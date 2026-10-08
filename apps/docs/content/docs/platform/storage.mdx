@@ -159,14 +159,13 @@ registry is defined.
 `logos.sql()` returns idempotent SQL. It upserts the bucket row and creates
 `storage.objects` policies for the `authenticated` role:
 
-| `policy`              | Access                                                                                                                                     |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `tenant`              | The `{organizationId}` segment must equal the JWT `tenant_id` (or `app_metadata.tenant_id`)                                                |
-| `owner`               | The `{userId}` segment must equal `auth.uid()`                                                                                             |
-| `public`              | Anyone can read. Writes need the secret key. A `public: true` bucket gets no select policy, so its public URLs work and nobody can list it |
-| `none`                | No policies. Only the secret key has access                                                                                                |
-| `{ permdock, scope }` | PermDock permissions decide, through its generated SQL helpers (see below)                                                                 |
-| `{ access }`          | The SQL modules' access contract decides, for any access model (see below)                                                                 |
+| `policy`     | Access                                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tenant`     | The `{organizationId}` segment must equal the JWT `tenant_id` (or `app_metadata.tenant_id`)                                                |
+| `owner`      | The `{userId}` segment must equal `auth.uid()`                                                                                             |
+| `public`     | Anyone can read. Writes need the secret key. A `public: true` bucket gets no select policy, so its public URLs work and nobody can list it |
+| `none`       | No policies. Only the secret key has access                                                                                                |
+| `{ access }` | The SQL modules' access contract decides, for any access model (see below)                                                                 |
 
 `bucket.owner` names the placeholder that holds the owning user's id: the
 `owner` param for `owner` buckets, otherwise `userId` when the template has
@@ -187,7 +186,7 @@ of scanning the bucket. Put the tenant first in new templates to get this.
 
 With the [access contract](/docs/blocks/access) installed, a bucket can check
 the app's permissions whatever model backs them: default roles, your own
-role tables, PermDock or your own functions. The tenant id in the path must
+role tables, an authorization provider or your own functions. The tenant id in the path must
 be one of `tenant_ids_with(key)`, or `scope: 'platform'` checks
 `is_platform(key)`:
 
@@ -202,8 +201,9 @@ export const contracts = defineBucket({
 });
 ```
 
-`list` and `delete` take their own keys, as in the PermDock mode, and
-`segment` picks another path segment for the tenant id.
+`list` and `delete` take their own keys (see
+[provider permissions](#provider-permissions)), and `segment` picks another
+path segment for the tenant id.
 
 ### Avatars and organization logos
 
@@ -230,26 +230,28 @@ pass `tenant: false` to upload for any organization the policy allows. A new
 `{version}` per upload keeps CDN caches correct; store the path in the
 profile's `avatar_url` or the organization's logo column.
 
-### PermDock permissions
+### Provider permissions
 
-With [PermDock](/docs/auth/permdock), a bucket can check permissions instead
-of the tenant claim. The policies call the helpers `permdock rls generate`
-writes: `<schema>.permitted_<scope>_ids(key)` for a scope whose id is a path
-segment, and `<schema>.permdock_has(key)` for `scope: 'global'`. The helpers
-live in PermDock's `rls.schema` (`permdock` by default), and the bucket calls
-them in `permdock` unless its `schema` option names PermDock's other schema.
+With an [authorization provider](/docs/extending/authorization-providers), an
+`access` policy can call the provider's SQL functions directly, for any scope
+they take, instead of the access contract. Copy its `idsWith` and
+`isPlatform` templates into `sql`:
 
 ```ts title="src/lib/storage.ts"
 export const files = defineBucket({
   id: "organization-files",
   path: "{organizationId}/{file}",
   policy: {
-    permdock: {
+    access: {
       read: "files.download",
       list: "files.browse",
       write: "files.upload",
     },
-    scope: "organization", // or 'global'
+    scope: "organization", // or 'platform'
+    sql: {
+      idsWith: "authz.permitted_{scope}_ids({permission})",
+      isPlatform: "authz.is_platform({permission})",
+    },
   },
 });
 ```
@@ -259,74 +261,37 @@ With `list`, listing gets its own policy (through
 `storage.allow_any_operation`), so a user can download a file they were sent
 without being able to browse the folder, or the other way around. `write`
 covers uploads, updates and moves, and deletes unless `delete` is set. The
-scope id comes from the `{organizationId}` segment; set `segment` (1-based) for another
-one, and `schema` when the helpers aren't in `public`. The id is compared as
-text, so a malformed path is denied instead of raising a cast error, and the
-segment must be the id's canonical lowercase form: a path with an uppercase
-uuid is denied.
+scope id comes from the `{organizationId}` segment; set `segment` (1-based) for
+another one. The id is compared as text, so a malformed path is denied instead
+of raising a cast error, and the segment must be the id's canonical lowercase
+form: a path with an uppercase uuid is denied.
 
 The policies are only ever for `authenticated`.
 
 #### Only for permissions without row conditions
 
-The helpers check role and scope, nothing else. A permission's row conditions
-(for example `ownerId = principal.id`) are applied by the table policies
-`permdock rls generate` writes, and a helper called on its own ignores them.
-Use the `permdock` mode only for permissions whose grants have no row
-conditions beyond the scope. For a permission with row conditions, the bucket
-would grant every object in the scope.
+The policies check role and scope, nothing else. A permission's row
+conditions (for example "only files the member uploaded") are applied by the
+provider's table policies, and its functions called on their own ignore them.
+For a permission with row conditions, the bucket would grant every object in
+the scope.
 
 This bucket is wrong if `files.download` is granted to members only for files
-they own (`ownerId = principal.id`): every member can download every file in
-the organization.
+they own: every member can download every file in the organization.
 
 ```ts title="src/lib/storage.ts"
 // Wrong: files.download has a row condition, which the policy ignores
-export const files = defineBucket({
-  id: "organization-files",
-  path: "{organizationId}/{file}",
-  policy: { permdock: { read: "files.download" }, scope: "organization" },
-});
-```
-
-Keep row-conditioned permissions on tables, where PermDock's generated
-policies enforce them, and give the bucket a permission that is granted for
-the whole scope:
-
-```ts title="src/lib/storage.ts"
+policy: { access: { read: "files.download", write: "files.upload" }, scope: "organization", sql },
 // Right: files.browse is granted per organization, with no row condition
-export const files = defineBucket({
-  id: "organization-files",
-  path: "{organizationId}/{file}",
-  policy: { permdock: { read: "files.browse" }, scope: "organization" },
-});
+policy: { access: { read: "files.browse", write: "files.upload" }, scope: "organization", sql },
 ```
 
-PermDock splits some permissions with row conditions into keys such as
-`files.download#1`. `defineBucket` refuses those keys, but a permission with
-row conditions doesn't always have one. The `rowConditions` flag on the
-permission in `permissions.catalog.json` says so: `true` means the helpers
-would grant more than the application does. Pass the catalog as `catalog`
-and `defineBucket` accepts only keys marked `rowConditions: false`. It throws
-for `true`, for an entry without the flag (regenerate the catalog with a
-current `permdock catalog`) and for a key the catalog doesn't list:
-
-```ts title="src/lib/storage.ts"
-import catalog from "../../permissions.catalog.json" with { type: "json" };
-
-export const files = defineBucket({
-  id: "organization-files",
-  path: "{organizationId}/{file}",
-  policy: { permdock: { read: "files.browse" }, scope: "organization" },
-  catalog,
-});
-```
-
-For buckets in `better-supabase.config.ts`, `better-supabase gen` reads the
-catalog itself and refuses to write their policies, and
+Keep row-conditioned permissions on tables, where the provider's policies
+enforce them. The provider marks the keys its functions answer completely
+with `sqlComplete: true`. For buckets in `better-supabase.config.ts`,
+`better-supabase gen` refuses to write policies for any other key, and
 [`doctor`](/docs/cli/doctor#bs214) reports BS214 for them and for generated
-bucket policies in your SQL files. `permdock doctor` reports PD037 for any
-policy in your migrations that calls a helper for such a key.
+bucket policies in your SQL files.
 
 `logos.toml()` gives the `[storage.buckets.customer-logos]` section for
 `supabase/config.toml`. `logos.drift(actual)` compares the bucket with what

@@ -7,7 +7,7 @@ import { moduleContext, resolveModules } from "./registry.ts";
 /**
  * Why a roles table that holds both tenant and platform roles (the tenant
  * module's `roleThrough` and the invitations module's
- * `platformRoles.through` under the `permdock` model) can't tell them apart:
+ * `platformRoles.through` under the `provider` model) can't tell them apart:
  * the setting that lacks `where` and why. Empty when the modules don't share a roles table.
  */
 export function sharedRolesProblems(

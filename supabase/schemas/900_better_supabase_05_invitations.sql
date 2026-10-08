@@ -113,7 +113,7 @@ begin
     raise exception 'An invitation is valid for at most %', '30 days' using errcode = '22023', hint = 'INVITATION_VALIDITY';
   end if;
   if tenant is null then
-    raise exception 'Platform invitations need platform roles: sql.modules.access.model ''catalog'' with platform assignments, or sql.modules.invitations.options.platformRoles under ''permdock''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
+    raise exception 'Platform invitations need platform roles: sql.modules.access.model ''catalog'' with platform assignments, or sql.modules.invitations.options.platformRoles under ''provider''' using errcode = '0A000', hint = 'INVITATION_SCOPE_UNSUPPORTED';
   end if;
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
     raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';

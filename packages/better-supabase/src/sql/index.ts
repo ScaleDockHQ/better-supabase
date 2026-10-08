@@ -22,11 +22,11 @@ export type {
   InstalledModule,
   ModuleDeprecation,
   ModuleExtension,
-  ModuleAccessPermdock,
+  ModuleAccessProvider,
   ModuleFile,
   ModuleIdType,
   ModuleLayout,
-  ModulePermdock,
+  ModuleEntitlementsProvider,
   ModulePermissionKey,
   ModuleTestFile,
   ModuleTopic,
@@ -43,6 +43,7 @@ export {
   policyGrants,
   type PolicyGrant,
 } from "./schema-scan.ts";
+export { templateFunctions } from "../core/access-sql.ts";
 export { contractSignature } from "./context.ts";
 export type {
   ModuleContext,
@@ -56,12 +57,3 @@ export { sharedRolesProblems } from "./shared-roles.ts";
 export type { MigrationOptionUse } from "./migration-options.ts";
 export { compileReadSet, compileReadSets } from "./read-sets.ts";
 export type { CompiledReadSet } from "./read-sets.ts";
-export {
-  PERMDOCK_SCHEMA,
-  permdockKeys,
-  permdockKeyStatus,
-} from "../core/permdock-sql.ts";
-export type {
-  PermdockCatalog,
-  PermdockKeyStatus,
-} from "../core/permdock-sql.ts";

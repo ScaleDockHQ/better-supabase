@@ -7,6 +7,7 @@ import {
   renderModules,
   resolveModules,
 } from "../../../src/sql/registry.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const CENTRAKIT: ModulesConfig = {
   access: { model: "catalog", platformClaim: "system_permissions" },
@@ -38,7 +39,7 @@ const CENTRAKIT: ModulesConfig = {
 };
 
 const body = (modules: ModulesConfig) =>
-  moduleBody("organizations", { modules })!;
+  moduleBody("organizations", { modules, accessProvider: moduleProvider })!;
 
 describe("organizations module", () => {
   it("lists the caller's organizations, members and invitations", () => {
@@ -295,8 +296,7 @@ describe("organizations module", () => {
 describe("roles through a lookup table", () => {
   const THROUGH: ModulesConfig = {
     access: {
-      model: "permdock",
-      permdock: { schema: "authz", scope: "organization" },
+      model: "provider",
     },
     tenant: {
       mode: "adopt",
@@ -317,12 +317,16 @@ describe("roles through a lookup table", () => {
       `set "role_id" = (select r."id" from "public"."team_roles" r where (r."id"::text = (role)::text or r."key"::text = (role)::text)`,
     );
     expect(sql).toContain("hint = 'ORGANIZATION_ROLE_UNKNOWN'");
-    const tenant = moduleBody("tenant", { modules: THROUGH })!;
+    const tenant = moduleBody("tenant", {
+      modules: THROUGH,
+      accessProvider: moduleProvider,
+    })!;
     expect(tenant).toContain(
       `jsonb_build_array((select r."key"::text from "public"."team_roles" r where r."id"::text = (m."role_id")::text))`,
     );
     const invitations = moduleBody("invitations", {
       modules: { ...THROUGH, invitations: { mode: "adopt" } },
+      accessProvider: moduleProvider,
     })!;
     expect(invitations).toContain(
       `if (select r."id" from "public"."team_roles" r where (r."id"::text = (invitee_role)::text`,
@@ -353,14 +357,12 @@ describe("roles through a lookup table", () => {
     ).toThrow(/roleThrough must be/);
   });
 
-  it("takes the role lookup from PermDock's manifest", () => {
+  it("takes the role lookup from the provider's role sources", () => {
     const { options: _options, ...tenant } = THROUGH["tenant"]!;
     const layout = {
       modules: { ...THROUGH, tenant },
-      accessPermdock: {
-        schema: "authz",
-        scope: "organization",
-        idType: "uuid" as const,
+      accessProvider: {
+        ...moduleProvider,
         roleSources: [
           {
             table: "public.team_members",

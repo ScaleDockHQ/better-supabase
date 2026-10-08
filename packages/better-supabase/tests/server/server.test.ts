@@ -177,7 +177,7 @@ describe("createServer claims", () => {
     expect(bad.auth).toMatchObject({ kind: "invalid", reason: "claims" });
   });
 
-  it("keeps PermDock claims a loose schema does not list", async () => {
+  it("keeps provider claims a loose schema does not list", async () => {
     const betterSupabase = defineSupabase(schema).claims(
       v.looseObject({
         tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
@@ -198,7 +198,7 @@ describe("createServer claims", () => {
       auth: { jwks: signer.jwks as never },
     });
     const organization = "22222222-2222-4222-8222-222222222222";
-    const permdock = {
+    const extra = {
       tenant_id: organization,
       user_role: "member",
       roles: ["support"],
@@ -217,7 +217,7 @@ describe("createServer claims", () => {
     };
     const token = await signer.sign({
       sub: "11111111-1111-4111-8111-111111111111",
-      ...permdock,
+      ...extra,
     });
     const ctx = await server.context(
       new Request("https://api.test/", {
@@ -226,7 +226,7 @@ describe("createServer claims", () => {
     );
     expect(ctx.auth.kind).toBe("user");
     if (ctx.auth.kind !== "user") return;
-    expect(ctx.auth.claims).toMatchObject(permdock);
+    expect(ctx.auth.claims).toMatchObject(extra);
   });
 });
 

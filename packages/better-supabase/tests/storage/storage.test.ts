@@ -16,6 +16,11 @@ import {
 import { fakeStorage, storageError } from "../fixtures/fake-storage.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
+const SQL = {
+  idsWith: "authz.ids_{scope}({permission})",
+  isPlatform: "authz.is_platform({permission})",
+};
+
 const logos = defineBucket({
   id: "customer-logos",
   path: "{organizationId}/{customerId}/logo/{version}.webp",
@@ -139,22 +144,23 @@ describe("defineBucket", () => {
     expect(logos.drift(undefined)[0]?.field).toBe("missing");
   });
 
-  it("compiles PermDock policies with list split from read", () => {
+  it("compiles sql-template policies with list split from read", () => {
     const files = defineBucket({
       id: "organization-files",
       path: "{organizationId}/{file}",
       policy: {
-        permdock: {
+        access: {
           read: "files.read",
           list: "files.list",
           write: "files.write",
         },
         scope: "organization",
+        sql: SQL,
       },
     });
     const sql = files.sql();
     const ids = (key: string) =>
-      `split_part(name, '/', 1) in (select t.id::text from "permdock"."permitted_organization_ids"('${key}') as t(id))`;
+      `split_part(name, '/', 1) in (select t.id::text from authz.ids_organization('${key}') as t(id))`;
     const listing =
       "storage.allow_any_operation(array['object.list', 'object.list_v2', 's3.object.list'])";
     expect(sql).toContain(
@@ -175,74 +181,50 @@ describe("defineBucket", () => {
       id: "docs",
       path: "{file}",
       policy: {
-        permdock: {
+        access: {
           read: "docs.read",
           write: "docs.write",
           delete: "docs.delete",
         },
-        scope: "global",
-        schema: "authz",
+        scope: "platform",
+        sql: SQL,
       },
     }).sql();
     expect(global).toContain(
-      `using (bucket_id = 'docs' and (select "authz".permdock_has('docs.read')));`,
+      `using (bucket_id = 'docs' and (select authz.is_platform('docs.read')));`,
     );
-    expect(global).toContain(`(select "authz".permdock_has('docs.delete'))`);
+    expect(global).toContain(`(select authz.is_platform('docs.delete'))`);
     expect(global).toContain('drop policy if exists "bs_docs_list"');
     expect(global).not.toContain("allow_any_operation");
     expect(global).not.toContain("service_role");
   });
 
-  it("refuses PermDock keys it cannot compile", () => {
+  it("refuses access policies it cannot compile", () => {
     const bucket = (
       read: string,
       scope = "organization",
       path = "{organizationId}/{file}",
+      sql: typeof SQL | null = SQL,
     ) =>
       defineBucket({
         id: "x",
         path,
-        policy: { permdock: { read, write: "x.write" }, scope },
+        policy: {
+          access: { read, write: "x.write" },
+          scope,
+          ...(sql ? { sql } : {}),
+        },
       });
-    expect(() => bucket("files.read#2")).toThrow(/splits by row condition/);
     expect(() => bucket("")).toThrow(/empty/);
     expect(() => bucket("x.read", "organization; drop")).toThrow(
-      /invalid PermDock scope/,
+      /invalid scope/,
     );
     expect(() => bucket("x.read", "organization", "{file}")).toThrow(
       /whole path segment/,
     );
-  });
-
-  it("refuses PermDock keys the catalog marks with row conditions", () => {
-    const catalog = {
-      permissions: [
-        { key: "files.read", rowConditions: true },
-        { key: "files.write", rowConditions: false },
-        { key: "files.list", rowConditions: false },
-        { key: "files.share" },
-      ],
-    };
-    const bucket = (read: string) =>
-      defineBucket({
-        id: "x",
-        path: "{organizationId}/{file}",
-        policy: {
-          permdock: { read, write: "files.write" },
-          scope: "organization",
-        },
-        catalog,
-      });
-    expect(() => bucket("files.read")).toThrow(
-      /"files\.read" has row conditions in PermDock's catalog/,
+    expect(() => bucket("x.read", "organization", undefined, null)).toThrow(
+      /needs sql templates/,
     );
-    expect(() => bucket("files.share")).toThrow(
-      /"files\.share" has no rowConditions flag in PermDock's catalog.*current `permdock catalog`/,
-    );
-    expect(() => bucket("files.unknown")).toThrow(
-      /"files\.unknown" is not in PermDock's catalog/,
-    );
-    expect(bucket("files.list").sql()).toContain("permitted_organization_ids");
   });
 
   it("rejects policies that cannot be enforced", () => {
@@ -437,18 +419,19 @@ describe("defineBucket options", () => {
     ).toBeUndefined();
   });
 
-  it("uses an explicit PermDock segment", () => {
+  it("uses an explicit access segment", () => {
     const sql = defineBucket({
       id: "a",
       path: "files/{teamId}/{file}",
       policy: {
-        permdock: { read: "f.read", write: "f.write" },
+        access: { read: "f.read", write: "f.write" },
         scope: "team",
         segment: 2,
+        sql: SQL,
       },
     }).sql();
     expect(sql).toContain(
-      `split_part(name, '/', 2) in (select t.id::text from "permdock"."permitted_team_ids"('f.read') as t(id))`,
+      `split_part(name, '/', 2) in (select t.id::text from authz.ids_team('f.read') as t(id))`,
     );
   });
 

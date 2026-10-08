@@ -59,7 +59,7 @@ export type AuthSession<C = unknown, P = unknown> =
       /**
        * Who acts for the user: an OAuth client or agent (`client_id`, or an
        * `act` chain without `kind`), a support session or an impersonated
-       * session, as PermDock's `actorOf` reads it.
+       * session, read from the `act` and `client_id` claims.
        */
       readonly actor?: SessionActor;
       /**

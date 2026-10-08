@@ -11,7 +11,11 @@ import type {
   WebhookSigner,
   WebhookTransport,
 } from "../../src/blocks/webhooks/index.ts";
-import type { Generator } from "../../src/config/index.ts";
+import type {
+  AuthorizationProvider,
+  BetterSupabaseConfig,
+  Generator,
+} from "../../src/config/index.ts";
 import type { CacheAdapter } from "../../src/core/cache.ts";
 import type { Compiler } from "../../src/core/compiler.ts";
 import type { Executor } from "../../src/core/executor.ts";
@@ -115,6 +119,29 @@ describe("extension interfaces", () => {
     expectTypeOf<
       NonNullable<AnyPlugin["context"]>
     >().returns.toEqualTypeOf<RequestContext>();
+  });
+});
+
+describe("AuthorizationProvider", () => {
+  it("is versioned plain data on the config", () => {
+    expectTypeOf<AuthorizationProvider["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<BetterSupabaseConfig["authorization"]>().toEqualTypeOf<
+      AuthorizationProvider | undefined
+    >();
+    const minimal = {
+      apiVersion: 1,
+      name: "minimal",
+      scopes: [{ name: "tenant" }],
+      tenantScope: "tenant",
+      functions: {
+        idsWith: "authz.ids_with({permission}, '{scope}')",
+        isPlatform: "authz.is_platform({permission})",
+      },
+    } as const satisfies AuthorizationProvider;
+    expectTypeOf(minimal).toExtend<AuthorizationProvider>();
+    const accepts = (provider: AuthorizationProvider) => provider;
+    // @ts-expect-error a provider needs the two caller templates
+    accepts({ ...minimal, functions: {} });
   });
 });
 

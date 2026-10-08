@@ -48,8 +48,8 @@ describe.skipIf(!live)("organizations member guards", () => {
     const s = await BlockSession.open(pool);
     try {
       const schema = await teamSchema(s);
-      // An external guard that, like PermDock's assignment triggers, checks
-      // client writes only, so it never sees a security definer function's.
+      // An external guard, like an authorization system's assignment trigger,
+      // that checks client writes only, so it never sees a security definer function's.
       await s.client.query(`
         create function ${schema}.client_guard() returns trigger language plpgsql as $$
         begin
@@ -182,7 +182,7 @@ describe.skipIf(!live)("organizations member guards", () => {
     const s = await BlockSession.open(pool);
     try {
       const schema = await teamSchema(s);
-      // Like PermDock's transferOnly: a statement may not change how many
+      // A transfer-only guard: a statement may not change how many
       // owners an organization has.
       await s.client.query(`
         create table ${schema}.profiles (id uuid primary key, disabled_at timestamptz);
@@ -371,16 +371,24 @@ describe.skipIf(!live)("organizations member guards", () => {
           language sql stable as $$
             select m.organization_id from ${schema}.team_members m
             where m.user_id = auth.uid() and m.role = 'owner' $$;
-        create function ${schema}.permdock_has(permission text) returns boolean
+        create function ${schema}.is_platform(permission text) returns boolean
           language sql stable as $$
             select auth.uid() = '${staff.id}' and permission in ('platform.members.update_role', 'platform.members.remove') $$;
       `);
       const layout = (permissions: Record<string, string>): ModuleLayout => ({
-        accessPermdock: { schema, scope: "organization", idType: "uuid" },
+        accessProvider: {
+          name: "test",
+          scope: "organization",
+          idType: "uuid",
+          functions: {
+            idsWith: `${schema}.permitted_{scope}_ids({permission})`,
+            isPlatform: `${schema}.is_platform({permission})`,
+          },
+        },
         modules: {
           ...adopted(schema).modules,
           access: {
-            model: "permdock",
+            model: "provider",
             // Staff may assign every role but owner; members follow ownership.
             functions: { canAssign: `{role} <> 'owner'` },
           },

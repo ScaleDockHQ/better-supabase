@@ -4,7 +4,7 @@ import { sqlString } from "../../core/template.ts";
 import {
   accessModel,
   MODULE_PERMISSIONS,
-  permdockPlatformRoles,
+  providerPlatformRoles,
   roleNames,
   roleScopeIs,
 } from "./access-model.ts";
@@ -54,7 +54,7 @@ export interface PlatformAssignment {
  * `sql.modules.tenant.options.roleThrough`. `undefined` when it doesn't.
  */
 export function platformRolesProblem(ctx: ModuleContext): string | undefined {
-  const through = permdockPlatformRoles(ctx)?.through;
+  const through = providerPlatformRoles(ctx)?.through;
   if (!through || through.where) return undefined;
   if (roleThroughTable(ctx.of("tenant"))?.table !== through.table)
     return undefined;
@@ -62,9 +62,9 @@ export function platformRolesProblem(ctx: ModuleContext): string | undefined {
 }
 
 export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
-  const permdock = permdockPlatformRoles(ctx);
-  if (permdock) {
-    const through = permdock.through;
+  const platform = providerPlatformRoles(ctx);
+  if (platform) {
+    const through = platform.through;
     const problem = platformRolesProblem(ctx);
     if (problem) throw new TypeError(problem);
     const platformOnly = through?.where
@@ -83,20 +83,20 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
         return this.value(stored);
       },
       canAssign: (member, stored) =>
-        permdock.canAssign === undefined
+        platform.canAssign === undefined
           ? undefined
-          : `coalesce((${permdock.canAssign.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`,
+          : `coalesce((${platform.canAssign.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`,
       inviterCanAssign: (member, stored) => {
-        const template = permdock.canAssign?.includes("{user}")
-          ? permdock.canAssign
-          : permdock.canAssignFor;
+        const template = platform.canAssign?.includes("{user}")
+          ? platform.canAssign
+          : platform.canAssignFor;
         return template === undefined
           ? undefined
           : `coalesce((${template.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`;
       },
-      table: permdock.table,
-      user: permdock.user,
-      role: permdock.role,
+      table: platform.table,
+      user: platform.user,
+      role: platform.role,
       recheck: false,
     };
   }
@@ -116,25 +116,25 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
 }
 
 /**
- * The `bs_role_scope` trigger on `platformRoles.table` under the `permdock`
+ * The `bs_role_scope` trigger on `platformRoles.table` under the `provider`
  * model: with `platformRoles.through.where`, every write (the service role's
  * too) stores a role that the condition names. Removed when `where` is unset.
  */
 export function platformRoleScope(ctx: ModuleContext): string {
-  const permdock = permdockPlatformRoles(ctx);
-  if (!permdock) return "";
-  const through = permdock.through;
+  const platform = providerPlatformRoles(ctx);
+  if (!platform) return "";
+  const through = platform.through;
   const fn = ctx.fn("platform_role_scope");
   const trigger = ctx.trigger("role_scope");
   if (!through?.where) {
     return `
-drop trigger if exists ${trigger} on ${permdock.table};
+drop trigger if exists ${trigger} on ${platform.table};
 drop function if exists ${fn}();
 `;
   }
   return `
 -- sql.modules.invitations.options.platformRoles.through.where names the
--- platform roles. Every write to ${permdock.table} stores one of them,
+-- platform roles. Every write to ${platform.table} stores one of them,
 -- whoever writes it: a client policy, the service role or an admin connection.
 create or replace function ${fn}()
 returns trigger
@@ -143,19 +143,19 @@ security definer
 set search_path = ''
 as $$
 begin
-  if new.${permdock.role} is not null and not exists (
+  if new.${platform.role} is not null and not exists (
     select 1 from ${through.table} r
-    where r.${through.id}::text = new.${permdock.role}::text and (${through.where.replaceAll("{row}", "r")})
+    where r.${through.id}::text = new.${platform.role}::text and (${through.where.replaceAll("{row}", "r")})
   ) then
-    raise exception 'Role % is not a platform role', new.${permdock.role}
+    raise exception 'Role % is not a platform role', new.${platform.role}
       using errcode = '23514', hint = 'PLATFORM_ROLE_SCOPE';
   end if;
   return new;
 end;
 $$;
 revoke execute on function ${fn}() from public, anon, authenticated;
-drop trigger if exists ${trigger} on ${permdock.table};
-create trigger ${trigger} before insert or update of ${permdock.role} on ${permdock.table}
+drop trigger if exists ${trigger} on ${platform.table};
+create trigger ${trigger} before insert or update of ${platform.role} on ${platform.table}
   for each row execute function ${fn}();
 `;
 }
@@ -180,7 +180,7 @@ export function tenantRole(ctx: ModuleContext): {
   const unknownRole =
     model === "catalog" || through
       ? `${stored} is null`
-      : model === "permdock"
+      : model === "provider"
         ? "false"
         : `not (invitee_role = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[]))`;
   return { stored, unknownRole };

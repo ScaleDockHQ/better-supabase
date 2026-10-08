@@ -2,10 +2,10 @@ import type {
   AccessBucketPolicy,
   BucketPolicyName,
   Casing,
-  PermdockBucketPolicy,
   SchemaMeta,
 } from "../schema/types.ts";
 import type { BucketLifecycle } from "../storage/versioning.ts";
+import type { AuthorizationProvider } from "./authorization.ts";
 import type { ModulesConfig } from "./modules.ts";
 import type { GeneratorMetadata, SnapshotExtras } from "./snapshot.ts";
 
@@ -118,10 +118,7 @@ export interface TenantConfig {
   readonly column?: string;
 }
 
-/**
- * Claim names shared by the SQL modules, codegen and the runtime defaults. They
- * follow PermDock's claim contract.
- */
+/** Claim names shared by the SQL modules, codegen and the runtime defaults. */
 export interface ClaimsConfig {
   /** Top-level claim holding the active tenant id. Defaults to `tenant_id`. */
   readonly tenant?: string;
@@ -154,14 +151,8 @@ export interface BucketConfig {
    * segment `{...rest}` matches one or more segments.
    */
   readonly path: string | readonly [string, ...string[]];
-  /**
-   * Generated storage policy, a PermDock policy (`{ permdock, scope }`) or
-   * an access contract policy (`{ access }`).
-   */
-  readonly policy?:
-    | BucketPolicyName
-    | PermdockBucketPolicy
-    | AccessBucketPolicy;
+  /** Generated storage policy, or an access contract policy (`{ access }`). */
+  readonly policy?: BucketPolicyName | AccessBucketPolicy;
   readonly fileSizeLimit?: string;
   readonly allowedMimeTypes?: readonly string[];
   /** Keep earlier object versions. `bucket.apply()` sets it; doctor (BS302) compares it. */
@@ -224,10 +215,9 @@ export interface DoctorConfig {
    */
   readonly policyHelperLimit?: number;
   /**
-   * The BS405 limit in bytes. With a `permdock.config.ts` it is PermDock's
-   * budget for `memberships` plus `attrs` (default 1024, matching
-   * `supabase.hook.budget`) and the whole token keeps 2048. Without one it
-   * limits the whole token's claims (default 2048).
+   * The BS405 limit in bytes. When the authorization provider's token hook
+   * has a budget, it replaces that budget and the whole token keeps 2048.
+   * Otherwise it limits the whole token's claims (default 2048).
    */
   readonly claimsLimit?: number;
 }
@@ -371,14 +361,12 @@ export interface EntitlementsConfig {
   /** The tenant id column of that table. Defaults to `id`. */
   readonly key?: string;
   /**
-   * With a PermDock manifest, `has_entitlement` and `feature_claims` read
-   * PermDock's memberships (`member_<scope>_ids()` and
-   * `member_<scope>_ids_for(user)`) instead of `better_supabase.memberships`.
-   * `scope` is the PermDock scope tenants are. It defaults to the manifest's
-   * root scope (the `rls.scopes` entry without `within`); `false` keeps the
-   * module's memberships table.
+   * Where `has_entitlement` and `feature_claims` read memberships from.
+   * `"provider"` calls the authorization provider's `memberIds` and
+   * `memberIdsFor` functions; `"tenant"` reads `better_supabase.memberships`.
+   * Defaults to `"provider"` when `authorization` is set, else `"tenant"`.
    */
-  readonly permdock?: false | { readonly scope?: string };
+  readonly memberships?: "tenant" | "provider";
   /**
    * Where each tenant's entitlements come from. `"stripe-sync"` (the
    * default) reads the Stripe Sync Engine's `stripe.active_entitlements`
@@ -434,13 +422,6 @@ export interface EntitlementPlansSource {
       readonly value?: string;
     };
   };
-}
-
-export interface PermdockPathsConfig {
-  /** What `permdock supabase inspect --out` writes. Defaults to `permdock.manifest.json`. */
-  readonly manifest?: string;
-  /** What `permdock catalog` writes. Defaults to `permissions.catalog.json`. */
-  readonly catalog?: string;
 }
 
 /** pgvector distance: `<=>` (cosine), `<->` (l2) or `<#>` (negative inner product). */
@@ -596,8 +577,12 @@ export interface BetterSupabaseConfig {
   readonly topics?: Readonly<Record<string, string>>;
   readonly realtime?: RealtimeConfig;
   readonly entitlements?: EntitlementsConfig;
-  /** Where PermDock's JSON outputs are, for doctor, `gen` and the SQL modules. */
-  readonly permdock?: PermdockPathsConfig;
+  /**
+   * An authorization system the SQL modules, policies and doctor delegate
+   * to: the `provider` access model, `entitlements.memberships` and the
+   * hook and policy checks.
+   */
+  readonly authorization?: AuthorizationProvider;
   /**
    * Embedding columns, keyed by `table` or `schema.table`. The
    * `vector-search` SQL module writes `search_<table>(query, k)` for each,
@@ -612,6 +597,7 @@ export interface BetterSupabaseConfig {
 
 function entitlementsOf(
   config: EntitlementsConfig = {},
+  provider: boolean,
 ): ResolvedConfig["entitlements"] {
   const customer = config.customer;
   const dot = customer?.lastIndexOf(".") ?? -1;
@@ -625,12 +611,7 @@ function entitlementsOf(
       ? {}
       : { table: customer.slice(0, dot), column: customer.slice(dot + 1) }),
     key: config.key ?? "id",
-    permdock:
-      config.permdock === false
-        ? false
-        : config.permdock?.scope === undefined
-          ? {}
-          : { scope: config.permdock.scope },
+    memberships: config.memberships ?? (provider ? "provider" : "tenant"),
     source: config.source ?? "stripe-sync",
     ...(config.claim === undefined ? {} : { claim: config.claim }),
   };
@@ -715,11 +696,11 @@ export interface ResolvedConfig {
     readonly table?: string;
     readonly column?: string;
     readonly key: string;
-    readonly permdock: false | { readonly scope?: string };
+    readonly memberships: "tenant" | "provider";
     readonly source: NonNullable<EntitlementsConfig["source"]>;
     readonly claim?: NonNullable<EntitlementsConfig["claim"]>;
   };
-  readonly permdock: Required<PermdockPathsConfig>;
+  readonly authorization?: AuthorizationProvider;
   readonly vectorSearch: readonly ({
     readonly table: string;
     readonly column: string;
@@ -835,6 +816,18 @@ function generatorsOf(
   return generators ?? [];
 }
 
+function authorizationOf(
+  provider: AuthorizationProvider,
+): AuthorizationProvider {
+  const version: unknown = provider.apiVersion;
+  if (version !== 1) {
+    throw new TypeError(
+      `authorization "${provider.name}" targets authorization provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`,
+    );
+  }
+  return provider;
+}
+
 /** Applies defaults. Paths stay relative to `root`. */
 export function resolveConfig(
   config: BetterSupabaseConfig,
@@ -898,11 +891,13 @@ export function resolveConfig(
         ? {}
         : { policies: config.realtime.policies }),
     },
-    entitlements: entitlementsOf(config.entitlements),
-    permdock: {
-      manifest: config.permdock?.manifest ?? "permdock.manifest.json",
-      catalog: config.permdock?.catalog ?? "permissions.catalog.json",
-    },
+    entitlements: entitlementsOf(
+      config.entitlements,
+      config.authorization !== undefined,
+    ),
+    ...(config.authorization === undefined
+      ? {}
+      : { authorization: authorizationOf(config.authorization) }),
     vectorSearch: vectorSearchOf(config.vectorSearch),
     sql: {
       dir: config.sql?.dir ?? "supabase/schemas",

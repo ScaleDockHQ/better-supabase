@@ -1,12 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { PermdockCatalog } from "../core/permdock-sql.ts";
 import type { RequestContext } from "../core/plugin.ts";
-import type {
-  AccessBucketPolicy,
-  BucketPolicyName,
-  PermdockBucketPolicy,
-} from "../schema/types.ts";
+import type { AccessBucketPolicy, BucketPolicyName } from "../schema/types.ts";
 import type { PathIn, StoragePath } from "./path.ts";
 import type { TtlPreset } from "./ttl.ts";
 
@@ -39,10 +34,7 @@ import {
   type VersioningStatus,
 } from "./versioning.ts";
 
-export type BucketPolicy =
-  | BucketPolicyName
-  | PermdockBucketPolicy
-  | AccessBucketPolicy;
+export type BucketPolicy = BucketPolicyName | AccessBucketPolicy;
 
 /** Storage operations that list objects; every other `select` is a read. */
 const LIST_OPERATIONS = ["object.list", "object.list_v2", "s3.object.list"];
@@ -68,24 +60,16 @@ export interface BucketConfig<
    * segment against the JWT; `public` allows reads (on a `public: true`
    * bucket the public URLs need no policy, so none is written and nobody can
    * list the objects); `none` leaves access to
-   * the secret key; `{ permdock, scope }` calls PermDock's SQL helpers;
-   * `{ access }` calls the SQL modules' access contract (`tenant_ids_with`).
-   * Defaults to `none`.
+   * the secret key; `{ access }` calls the SQL modules' access contract
+   * (`tenant_ids_with`), or the `sql` templates it is given. Defaults to
+   * `none`.
    *
-   * The helpers check role and scope only. Use `permdock` just for
-   * permissions whose grants have no row conditions beyond the scope: for a
-   * permission with row conditions (e.g. `ownerId = principal.id`) the bucket
-   * would grant every object in the scope. Pass `catalog` to refuse those
-   * keys here; `better-supabase doctor` (BS214) refuses them from the
-   * catalog file.
+   * The access checks decide by role and scope only: for a permission with
+   * row conditions (e.g. `ownerId = principal.id`) the bucket would grant
+   * every object in the scope. `better-supabase doctor` (BS214) refuses
+   * keys the authorization provider doesn't mark `sqlComplete: true`.
    */
   readonly policy?: BucketPolicy;
-  /**
-   * PermDock's `permissions.catalog.json`. With it, a `permdock` policy
-   * naming a permission without `rowConditions: false` (including one the
-   * catalog doesn't list) throws.
-   */
-  readonly catalog?: PermdockCatalog;
   /** `'5MiB'`, `'500KB'` or bytes. */
   readonly fileSizeLimit?: string | number;
   /** `['image/png', 'image/*']`. */
@@ -547,12 +531,7 @@ export function defineBucket<
   if (tenantParam !== undefined)
     layouts.requireParam(tenantParam, "tenant.param");
   const tenantClaim = config.tenant?.claim;
-  const mode =
-    typeof policy === "string"
-      ? policy
-      : "permdock" in policy
-        ? "permdock"
-        : "access";
+  const mode = typeof policy === "string" ? policy : "access";
   const accessCheck = ((): string | undefined => {
     switch (mode) {
       case "tenant": {
@@ -571,7 +550,6 @@ export function defineBucket<
       }
       case "public":
       case "none":
-      case "permdock":
       case "access":
         return undefined;
       default: {
@@ -582,7 +560,7 @@ export function defineBucket<
       }
     }
   })();
-  const permdock = policyChecks(config, policy, (kind) =>
+  const permission = policyChecks(config, policy, (kind) =>
     segmentFor(config.tenant?.param ?? "organizationId", kind),
   );
 
@@ -706,22 +684,22 @@ export function defineBucket<
           inBucket,
           undefined,
         ]);
-      } else if (permdock) {
+      } else if (permission) {
         const listing = `storage.allow_any_operation(array[${LIST_OPERATIONS.map(sqlString).join(", ")}])`;
-        if (permdock.list) {
+        if (permission.list) {
           policies.push(
             [
               "select",
               "select",
               "authenticated",
-              `${inBucket} and not ${listing} and ${permdock.read}`,
+              `${inBucket} and not ${listing} and ${permission.read}`,
               undefined,
             ],
             [
               "list",
               "select",
               "authenticated",
-              `${inBucket} and ${listing} and ${permdock.list}`,
+              `${inBucket} and ${listing} and ${permission.list}`,
               undefined,
             ],
           );
@@ -730,11 +708,11 @@ export function defineBucket<
             "select",
             "select",
             "authenticated",
-            `${inBucket} and ${permdock.read}`,
+            `${inBucket} and ${permission.read}`,
             undefined,
           ]);
         }
-        const write = `${inBucket} and ${permdock.write}`;
+        const write = `${inBucket} and ${permission.write}`;
         policies.push(
           [
             "insert",
@@ -754,7 +732,7 @@ export function defineBucket<
             "delete",
             "delete",
             "authenticated",
-            `${inBucket} and ${permdock.delete}`,
+            `${inBucket} and ${permission.delete}`,
             undefined,
           ],
         );
@@ -769,7 +747,7 @@ export function defineBucket<
           }${withCheck ? `\n  with check (${withCheck})` : ""};`,
         );
       }
-      if (permdock && !permdock.list) {
+      if (permission && !permission.list) {
         lines.push(
           "",
           `drop policy if exists ${sqlIdent(`bs_${name}_list`)} on storage.objects;`,

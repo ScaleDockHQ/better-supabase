@@ -202,13 +202,13 @@ describe("compilePostgrest filters", () => {
     ],
     [
       "a json path",
-      pathCol("metadata", "eq", "u1", ["permdock", "subject", "id"]),
-      filter("metadata->permdock->subject->>id", "eq", "u1"),
+      pathCol("metadata", "eq", "u1", ["authz", "subject", "id"]),
+      filter("metadata->authz->subject->>id", "eq", "u1"),
     ],
     [
       "a json path null check",
-      { kind: "not", item: pathCol("metadata", "is", null, ["permdock"]) },
-      filter("metadata->>permdock", "not.is", "null"),
+      { kind: "not", item: pathCol("metadata", "is", null, ["authz"]) },
+      filter("metadata->>authz", "not.is", "null"),
     ],
     [
       "a json path in list",

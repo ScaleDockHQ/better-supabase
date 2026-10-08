@@ -31,7 +31,7 @@ const betterSupabase = defineSupabase(schema);
 type ToolHandler = (...params: never[]) => unknown;
 
 /**
- * A structural stand-in for permdock's `protectServer`: it takes a
+ * A structural stand-in for an authorization library's `protectServer`: it takes a
  * `permission` key in the tool config, checks it against the caller's
  * `authInfo`, and registers the remaining config on the wrapped server.
  */
@@ -230,7 +230,7 @@ describe("createMcpAuth", () => {
   });
 });
 
-describe("withBetterSupabaseMcp after permdock's protectServer", () => {
+describe("withBetterSupabaseMcp after a protectServer wrapper", () => {
   const app = build(true);
 
   it("runs the tool when the permission check passes", async () => {

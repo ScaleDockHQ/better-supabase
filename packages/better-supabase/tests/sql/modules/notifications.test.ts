@@ -7,6 +7,7 @@ import {
   moduleBody,
   renderModules,
 } from "../../../src/sql/registry.ts";
+import { callerOnlyProvider } from "../../fixtures/authorization-provider.ts";
 
 const body = (modules: ModulesConfig = {}) =>
   moduleBody("notifications", { modules })!;
@@ -312,24 +313,24 @@ describe("notifications module", () => {
     );
   });
 
-  it("skips the recipient read filter under the permdock model", () => {
+  it("skips the recipient read filter when the provider answers for the caller only", () => {
     const notify = (modules: ModulesConfig) =>
-      renderModules(["access", "notifications"], { modules }).find((file) =>
-        file.path.includes("notifications"),
-      )!.contents;
+      renderModules(["access", "notifications"], {
+        modules,
+        accessProvider: callerOnlyProvider,
+      }).find((file) => file.path.includes("notifications"))!.contents;
     expect(notify({})).toContain("better_supabase.member_can(x, v_tenant,");
-    const permdock = notify({
+    const callerOnly = notify({
       access: {
-        model: "permdock",
-        permdock: { schema: "permdock", scope: "organization" },
+        model: "provider",
       },
     });
-    expect(permdock).not.toContain("better_supabase.member_can(x,");
-    expect(permdock).toContain(
+    expect(callerOnly).not.toContain("better_supabase.member_can(x,");
+    expect(callerOnly).toContain(
       "better_supabase.member_can(auth.uid(), v_tenant,",
     );
-    expect(permdock).toContain(
-      "-- The permdock model answers for the caller only, so recipients are not",
+    expect(callerOnly).toContain(
+      "-- The provider model answers for the caller only, so recipients are not",
     );
   });
 });

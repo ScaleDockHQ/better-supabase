@@ -27,7 +27,8 @@ utilities, `doctor`, and plugins with a versioned interface.
 
 Out of scope: hosting, a dashboard, a replacement for supabase-js or the
 Supabase CLI, an ORM that bypasses PostgREST and RLS, and a permission model
-(PermDock covers that, and better-supabase works next to it).
+(an authorization library covers that, plugged in through the versioned
+`AuthorizationProvider` interface).
 
 ## Voice
 

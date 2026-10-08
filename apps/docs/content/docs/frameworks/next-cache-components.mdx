@@ -209,11 +209,11 @@ and enforce it in the database with an `authorize(permission)` RLS helper.
 | `betterSupabase.claims(schema)`       | Validating and typing those claims on the server        |
 | `betterSupabase.userMetadata(schema)` | A typed `session.profile` for display, never for access |
 | RLS                                   | Enforcing access with the same claims (`auth.jwt()`)    |
-| Your code or PermDock                 | Mapping roles to permissions                            |
+| Your code or an authorization library | Mapping roles to permissions                            |
 
 The hook, the schema and your policies read the same claims, so agree on
-one shape. For multi-tenant apps, use PermDock's, which the `tenant` block
-module and [PermDock](/docs/auth/permdock) both emit:
+one shape. For multi-tenant apps, use the one the `tenant` block module
+emits:
 
 ```ts
 const Claims = v.looseObject({
@@ -240,23 +240,18 @@ const Claims = v.looseObject({
 `tenant_id` is the claim the [tenant plugin](/docs/plugins/tenant) and
 `current_tenant_id()` read (`claims.tenant` in the config renames it);
 `memberships` lets the UI switch tenants without another query. Use
-`v.looseObject` so the fields PermDock adds (`attrs`, `authz_ver`,
-`memberships_truncated`, and `within` or `expiresAt` on a membership) survive
-validation. Keep the list short: every claim is sent with every request, and
+`v.looseObject` so fields another hook adds, such as an authorization
+version or extra keys on a membership, survive validation. Keep the list
+short: every claim is sent with every request, and
 `better-supabase doctor --as <user id>` warns when the hook returns more than
-2 KB, and, when a `permdock.config.ts` is present, when `memberships` plus
-`attrs` pass PermDock's 1 KB budget.
+2 KB, and, with an [authorization provider](/docs/extending/authorization-providers)
+whose hook has a budget, when the claims it lists pass it.
 
-<Callout title="Using PermDock">
-  For more than a handful of roles, use
-  [PermDock](https://github.com/ScaleDockHQ/PermDock). `permdock rls generate`
-  writes `role_permissions`, `authorize()`, the RLS helpers and the table
-  policies, and `permdock supabase hook generate` writes the access token hook;
-  don't add the module's `tenant` hook next to it. On the server, build the
-  subject with `subjectFromSupabaseSession(session)`, and use `claimsFirst` so a
-  token with `memberships_truncated` falls back to a database lookup.
-  `permdock/next` and `permdock/react` replace the hand-written `can()`. See
-  [better-supabase and PermDock](/docs/auth/permdock).
+<Callout title="Using an authorization library">
+  For more than a handful of roles, an authorization library can own the roles,
+  the RLS helpers and the access token hook. Plug it in as an [authorization
+  provider](/docs/extending/authorization-providers), and don't add the module's
+  `tenant` hook next to its hook.
 </Callout>
 
 ## 5. Optimistic redirects in the proxy
@@ -331,43 +326,35 @@ that function's arguments. It:
   cache key: `getCustomers(organizationId)` calls
   `bs.cached({ tenant: organizationId })`.
 
-### PermDock snapshots
+### Permission snapshots
 
-With [PermDock](/docs/auth/permdock), cache the permission snapshot the same
-way. The snapshot needs the session, so read it first, then let
-`bs.cached()` set the tags and the lifetime: `cacheLifeFor(snapshot)` caps
-`stale` at the snapshot's expiry, and `sessionStale` caps it at the token's.
+Cache what the UI needs to know about the caller's permissions the same way.
+The snapshot needs the session, so read it first, then let `bs.cached()` set
+the tags and the lifetime:
 
 ```ts title="src/lib/access.ts"
-import { snapshotFor } from "permdock";
-import { cacheLifeFor, snapshotTag } from "permdock/next";
-import { subjectFromSupabaseSession } from "permdock/supabase";
 import { bs } from "@/lib/supabase";
-import { policy } from "@/policy";
+import { permissionsFor } from "@/lib/permissions";
 
 export async function loadSnapshot(organizationId: string) {
   "use cache: private";
   const session = await bs.session();
-  const subject = subjectFromSupabaseSession(session, {
-    memberships: "memberships",
-  });
-  const snapshot = snapshotFor(policy, subject, { tenant: organizationId });
+  const snapshot = permissionsFor(session, organizationId);
   await bs.cached({
     tags: [
-      snapshotTag(session.kind === "user" ? session.user.id : null),
+      `permissions:${session.kind === "user" ? session.user.id : "anon"}`,
       `organization:${organizationId}`,
     ],
-    life: cacheLifeFor(snapshot),
   });
   return snapshot;
 }
 ```
 
-Pass the promise to PermDock's provider (a Client Component) without awaiting
-it, so the layout stays synchronous and the snapshot streams in:
+Pass the promise to a Client Component provider without awaiting it, so the
+layout stays synchronous and the snapshot streams in:
 
 ```tsx title="src/app/[organizationSlug]/layout.tsx"
-import { PermDockProvider } from "permdock/react";
+import { PermissionsProvider } from "@/components/permissions-provider";
 import { loadSnapshot } from "@/lib/access";
 
 export default function OrganizationLayout({
@@ -378,9 +365,9 @@ export default function OrganizationLayout({
     loadSnapshot(organizationSlug),
   );
   return (
-    <PermDockProvider snapshotPromise={snapshotPromise}>
+    <PermissionsProvider snapshotPromise={snapshotPromise}>
       {children}
-    </PermDockProvider>
+    </PermissionsProvider>
   );
 }
 ```
@@ -389,11 +376,11 @@ When a role or plan changes, drop the user's cached views and their snapshot
 in the Server Action or webhook that changed it:
 
 ```ts
-bs.invalidateSession(userId, { tags: [snapshotTag(userId)] });
+bs.invalidateSession(userId, { tags: [`permissions:${userId}`] });
 ```
 
 The user's token keeps the old memberships until it refreshes. Policies that
-read the membership tables (PermDock's `database` mode) see the change
+read the membership tables instead of the token see the change
 immediately.
 
 Outside a request, `bs.contextForSession(session, { token })` builds the same

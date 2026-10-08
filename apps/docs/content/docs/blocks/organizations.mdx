@@ -17,8 +17,8 @@ pnpm better-supabase sql add organizations invitations
 Both modules need `tenant` (the memberships table) and `access` (the
 [access contract](/docs/blocks/access)), so `sql add` pulls those in too.
 Permissions are checked with `member_can()`, so the same functions work with
-the default roles, your own role and permission tables, PermDock or your own
-functions.
+the default roles, your own role and permission tables, an authorization
+provider or your own functions.
 
 ## Functions
 
@@ -53,27 +53,26 @@ writes that bypass the functions. A deferred trigger refuses a commit that
 leaves an organization without an owner (`ownerInvariant`), and a trigger on
 the memberships table stops members from changing their own role or
 assigning a role above their own. That guard checks only client writes (made
-as `anon` or `authenticated`), like PermDock's assignment triggers: the
+as `anon` or `authenticated`): the
 service role, direct admin connections and `security definer` functions pass
 it, so your own functions that write memberships (an invitation accept that
 seats the invitee, a one-statement ownership transfer) work, and check their
 own ceilings as the module's functions do.
 
-When another trigger already guards an adopted memberships table, such as
-PermDock's assignment rules (`rls.assignments`), set `assignmentGuard:
+When another trigger already guards an adopted memberships table, such as an
+authorization provider's assignment rules, set `assignmentGuard:
 "external"`: the module drops its own trigger, so a role change is checked
 once and fails with one error vocabulary. The module's functions still
 check before they write: `update_member_role` refuses a change to the
 caller's own role (`ORGANIZATION_SELF_ROLE`) and needs `can_assign` for both
 the member's current role and the new one (`ORGANIZATION_ROLE_CEILING`), and
 `remove_member` needs it for the current role. Those checks hold even when
-the external guard skips writes from `security definer` functions, as
-PermDock's assignment triggers do. A managed memberships table always keeps
+the external guard skips writes from `security definer` functions. A managed memberships table always keeps
 the module's guard.
 
 `transfer_ownership` promotes the new owner and demotes the calling owner in
-one `update`, so a statement-level rule on the number of owners (PermDock's
-`transferOnly`) sees the transfer as a whole, and it refuses a new owner
+one `update`, so a statement-level rule on the number of owners sees the
+transfer as a whole, and it refuses a new owner
 whose account is disabled (`ORGANIZATION_FORBIDDEN`).
 
 The owner check locks the organization row, so two owners who leave at the
@@ -227,8 +226,7 @@ service role, next to the members who hold `update` or `delete` in it.
 `permissions.updateRolePlatform` and `permissions.removeMemberPlatform` do the
 same for `update_member_role` and `remove_member`: platform staff with that
 key pass the permission check, and the role ceiling still applies, so the
-access model's `can_assign` must allow them the roles they change (PermDock's
-assignment rules can grant platform roles that).
+access model's `can_assign` must allow them the roles they change.
 
 `sql.modules.invitations.options` (`tokenStorage: "plain"` is migration-only: the
 config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):
@@ -242,7 +240,7 @@ config accepts it in `mode: "adopt"` only, and doctor warns about it, BS314):
 | `tokenBytes`            | `24`       | the token's random bytes                                     |
 | `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting        |
 | `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns        |
-| `platformRoles`         | none       | the platform role table under the `permdock` model           |
+| `platformRoles`         | none       | the platform role table under the `provider` model           |
 
 Accepting checks the inviter again: an inviter who lost the invite permission,
 or a permission the role grants, can no longer bring someone in with it.
@@ -259,8 +257,8 @@ and names its values in `sql.modules.access.options.tenantRoleScope` and
 invitations (rows without an organization) maps `tables.platformInvitations`
 to itself.
 
-Under the `permdock` model, name the table that holds platform role
-assignments (PermDock's `rls.roles`) in `sql.modules.invitations.options.platformRoles`:
+Under the `provider` model, name the table that holds platform role
+assignments in `sql.modules.invitations.options.platformRoles`:
 
 ```ts title="better-supabase.config.ts"
 invitations: {
@@ -296,20 +294,19 @@ With `through.where`, a `bs_role_scope` trigger on `platformRoles.table` also
 refuses a direct write of any other role, from the service role too, with
 `PLATFORM_ROLE_SCOPE`.
 
-The inviter needs `invitePlatform` through `permdock_has`. Without
+The inviter needs `invitePlatform` through the provider's `isPlatform`. Without
 `canAssign`, that permission alone lets them invite to any platform role.
 Accepting inserts the assignment into the table. Platform invitations can
 share the tenant invitations table (map `tables.platformInvitations` to the
 same table): their rows have no tenant, the role is stored in the role
 column's own type (a uuid through the roles table, say), and `prefill` is
-written when the table has that column. With
-`sql.modules.access.permdock.forUser`, accept checks the inviter again
-through PermDock's `_for` helpers, never the invitee: a `canAssign` with
-`{user}` runs with the inviter, a `canAssign` that reads the caller (no
-`{user}`, such as `permdock_can_assign({role})`) is checked only when they
-invite, unless `canAssignFor` gives the inviter's form, such as
-`"authz.permdock_can_assign_for({user}, {role})"`. Without `forUser`, the
-inviter is checked when they invite, not again at accept.
+written when the table has that column. When the provider has `isPlatformFor`,
+accept checks the inviter again through it, never the invitee: a `canAssign`
+with `{user}` runs with the inviter, a `canAssign` that reads the caller (no
+`{user}`, such as `authz.can_assign_platform({role})`) is checked only when
+they invite, unless `canAssignFor` gives the inviter's form, such as
+`"authz.can_assign_platform_for({user}, {role})"`. Without `isPlatformFor`,
+the inviter is checked when they invite, not again at accept.
 
 ### Accepting from the app
 

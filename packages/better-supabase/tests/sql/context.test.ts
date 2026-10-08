@@ -114,14 +114,14 @@ describe("createModuleContext", () => {
     expect(ctx.option("size")).toBeUndefined();
   });
 
-  it("takes the id type from sql.modules.access, then PermDock", () => {
+  it("takes the id type from sql.modules.access, then the provider", () => {
     expect(
       createModuleContext("demo", () => names, {
         modules: { access: { idType: "text" } },
       }).idType,
     ).toBe("text");
     expect(
-      createModuleContext("demo", () => names, { permdockIdType: "integer" })
+      createModuleContext("demo", () => names, { providerIdType: "integer" })
         .idType,
     ).toBe("integer");
   });
@@ -495,13 +495,13 @@ describe("module modes", () => {
   });
 
   it("pulls in tenant for the roles and catalog models only", () => {
-    const names = (model: "roles" | "catalog" | "permdock" | "custom") =>
+    const names = (model: "roles" | "catalog" | "provider" | "custom") =>
       resolveModules(["access"], { modules: { access: { model } } }).map(
         (module) => module.name,
       );
     expect(names("roles")).toEqual(["updated-at", "tenant", "access"]);
     expect(names("catalog")).toEqual(["updated-at", "tenant", "access"]);
-    expect(names("permdock")).toEqual(["access"]);
+    expect(names("provider")).toEqual(["access"]);
     expect(names("custom")).toEqual(["access"]);
   });
 });

@@ -1,11 +1,13 @@
 ---
 title: From 0.5 to 0.6
-description: What to change when upgrading to better-supabase 0.6, which renames kits to blocks, moves the feature modules under better-supabase/blocks and spells out organization.
+description: What to change when upgrading to better-supabase 0.6, which renames kits to blocks, moves the feature modules under better-supabase/blocks, spells out organization and replaces the PermDock settings with authorization providers.
 ---
 
 0.6 renames kits to blocks and moves every feature module under
 `better-supabase/blocks/<name>`. Names that said `org` now say `organization`,
-in TypeScript, in SQL and in event types. This release is a clean break: the
+in TypeScript, in SQL and in event types. The PermDock settings become one
+neutral [authorization provider](/docs/extending/authorization-providers).
+This release is a clean break: the
 old names have no aliases or SQL wrappers, so update imports, config and SQL in
 one change.
 
@@ -90,3 +92,47 @@ The schema diff drops `kit_modules` and the old functions and creates the new
 ones, and `sql data` writes the `modules` rows into a migration after it.
 A function whose parameter was renamed can't be replaced in place, so apply
 the files through the diff rather than by running them on the database.
+
+## Move to an authorization provider
+
+better-supabase no longer reads `permdock.config.ts`, `permdock.manifest.json`
+or `permissions.catalog.json`. The `authorization` key takes a provider
+object instead, and PermDock builds it from those files with
+`authorizationProvider()` from `permdock/better-supabase`:
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+import { authorizationProvider } from "permdock/better-supabase";
+
+export default defineConfig({
+  authorization: authorizationProvider(),
+  sql: { modules: { access: { model: "provider" } } },
+});
+```
+
+| 0.5                                                                | 0.6                                                                                                      |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `permdock: { manifest, catalog }` in the config                    | `authorization: authorizationProvider({ manifest, catalog })`                                            |
+| `sql.modules.access.model: "permdock"`                             | `sql.modules.access.model: "provider"`                                                                   |
+| `sql.modules.access.permdock.schema`, `.scope` and `.forUser`      | the provider's `functions`, `tenantScope` and the `idsWithFor` and `isPlatformFor` templates             |
+| `entitlements.permdock: { scope }`                                 | the provider's `tenantScope`                                                                             |
+| `entitlements.permdock: false`                                     | `entitlements.memberships: "tenant"`                                                                     |
+| `policy: { permdock: { read, write }, scope, schema }` on a bucket | `policy: { access: { read, write }, scope, sql }`, with `bucketPolicy()` from `permdock/better-supabase` |
+| `permdock: { receive, send }` on a topic                           | `access: { receive, send, scope, sql }`, with `topicPolicy()` from `permdock/better-supabase`            |
+| `catalog` on `defineBucket` and `defineTopic`                      | the provider's `permissions` (`sqlComplete`), checked by `gen` and doctor BS214                          |
+| `permdockVerifier` from `better-supabase/blocks/api-keys`          | `apiKeyVerifier` from `permdock/better-supabase`                                                         |
+| `permdock` on `apiKeyResolver` and `apiKeyClaims`                  | `claim`, or `apiKeyClaim()` from `permdock/better-supabase`                                              |
+| `options.scopes: "catalog"` on the api-keys module                 | unchanged; it reads the provider's `permissions`                                                         |
+| `PermdockBucketPolicy`, `PermdockTopicPolicy`, `PermdockCatalog`   | `AccessBucketPolicy`, `AccessTopicPolicy`, `AuthorizationProvider`                                       |
+| `ModuleAccessPermdock`, `ModulePermdock`                           | `ModuleAccessProvider`, `ModuleEntitlementsProvider`                                                     |
+| `PERMDOCK_SCHEMA`, `permdockKeys`, `permdockKeyStatus`             | removed; the provider lists its permissions                                                              |
+
+The access policies keep the key lists they had. Without `sql`, they call the
+access contract (`tenant_ids_with`, `is_platform`), so a bucket or topic on
+the tenant scope works under every access model. Doctor's BS107, BS213,
+BS214, BS324, BS404, BS405, BS407 to BS409 and BS411 keep their codes and
+read the provider; their titles no longer name PermDock.
+
+Run `better-supabase sql sync` and `better-supabase gen` after the change. The
+rendered SQL calls the same functions as before when the provider builds the
+same templates.

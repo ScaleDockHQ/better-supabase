@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
-import type { PermdockProject } from "../permdock.ts";
 import type { SupabaseToml, TomlValue } from "../supabase-toml.ts";
 import type { AdvisorSource } from "./advisors.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
@@ -29,16 +28,16 @@ import {
   tomlGet,
 } from "../supabase-toml.ts";
 import { advisorRule } from "./advisor-rules.ts";
+import {
+  accessModule,
+  AUTHORIZATION_RULES,
+  entitlementsModule,
+} from "./authorization.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LIVE_RULES } from "./live.ts";
 import { skippedForMetadata } from "./metadata.ts";
 import { MODULE_RULES } from "./modules.ts";
-import {
-  accessModule,
-  entitlementsModule,
-  PERMDOCK_RULES,
-} from "./permdock.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { POLICY_RULES } from "./policies.ts";
 import { RLS_RULES } from "./rls.ts";
@@ -120,12 +119,8 @@ export interface DoctorContext {
   readonly explain?: ExplainRequest;
   /** `--as`: the user to call the custom access token hook for (BS405). */
   readonly hookUser?: string;
-  /** The PermDock config, manifest and catalog in the project root, if any (BS213, BS214, BS405, BS407). */
-  readonly permdock?: PermdockProject;
   /** `supabase/schemas` in the diff engine's order, then migrations newest first (BS214, BS404, BS407). */
   readonly sqlFiles?: readonly TextFile[];
-  /** The keys of PermDock's permission catalog, read even without a PermDock config or manifest. */
-  readonly permissionCatalog?: readonly string[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
 }
@@ -165,7 +160,7 @@ interface ModuleFileState {
 /** The `sql.modules` files as this release renders them, next to what is on disk. */
 async function moduleFiles(context: DoctorContext): Promise<ModuleFileState[]> {
   if (context.config.sql.moduleNames.length === 0) return [];
-  // BS411 reports a permdock access model the manifest can't back; the module
+  // BS411 reports a provider access model the provider can't back; the module
   // can't render without it, so there is nothing to compare.
   const access = accessModule(context);
   if (access.kind === "invalid") return [];
@@ -179,7 +174,7 @@ async function moduleFiles(context: DoctorContext): Promise<ModuleFileState[]> {
         context.config.sql.testsDir,
         skipped ? [] : readSets,
         entitlementsModule(context),
-        access.kind === "permdock" ? access.access : undefined,
+        access.kind === "provider" ? access.access : undefined,
         permissionCatalogKeys(context),
       ),
       schemasDir: declarativeSchemasDir(context.configToml),
@@ -296,9 +291,10 @@ const AGGREGATE_USE =
 
 /**
  * A policy that reads memberships or the tenant claim: `is_member(...)`,
- * `current_tenant_id()`, `memberships`, PermDock's `permitted_*_ids()`.
+ * `current_tenant_id()`, `memberships`. The authorization provider's
+ * functions (`authorization.requires`) count too.
  */
-const TENANT_HELPER = /member|tenant|current_org|org_id|permitted_\w+_ids/i;
+const TENANT_HELPER = /member|tenant|current_org|org_id/i;
 
 /** A foreign key to the tenant table itself, whose own policies are usually read-only. */
 const TENANT_COLUMN =
@@ -417,6 +413,14 @@ const OWN_RULES: readonly Rule[] = [
       "A tenant-scoped table with policies for some commands but not all four denies the rest silently: an update or delete then affects 0 rows without an error. Add the missing policies, or a restrictive one, so the intent is explicit, and test it with `expectTenantIsolation`.",
     check: (context) => {
       const column = context.config.plugins.tenant?.column;
+      const providerFunctions = [
+        ...new Set(
+          (context.config.authorization?.requires ?? []).flatMap((entry) => [
+            entry.function,
+            entry.function.slice(entry.function.indexOf(".") + 1),
+          ]),
+        ),
+      ];
       const tables = exposed(context);
       const roots = new Set(
         tables.flatMap((table) =>
@@ -451,15 +455,17 @@ const OWN_RULES: readonly Rule[] = [
         const scoped =
           (column !== undefined &&
             table.columns.some((entry) => entry.name === column)) ||
-          granting.some((policy) =>
-            TENANT_HELPER.test(
-              [
-                policy.using ?? "",
-                policy.check ?? "",
-                ...(policy.functions ?? []),
-              ].join(" "),
-            ),
-          );
+          granting.some((policy) => {
+            const text = [
+              policy.using ?? "",
+              policy.check ?? "",
+              ...(policy.functions ?? []),
+            ].join(" ");
+            return (
+              TENANT_HELPER.test(text) ||
+              providerFunctions.some((fn) => text.includes(fn))
+            );
+          });
         if (!scoped) return [];
         const denying = table.policies.filter(
           (policy) =>
@@ -968,7 +974,7 @@ export const RULES: readonly Rule[] = [
   ...SCHEMA_DESIGN_RULES,
   ...HOOK_RULES,
   ...COOKIE_RULES,
-  ...PERMDOCK_RULES,
+  ...AUTHORIZATION_RULES,
   ...LIVE_RULES,
   ...MODULE_RULES,
   ...PGDELTA_RULES,

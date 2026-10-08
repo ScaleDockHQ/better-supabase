@@ -1,3 +1,4 @@
+import type { AuthorizationTokenHook } from "../../config/index.ts";
 import type { ExtrasHook, ExtrasHookFunction } from "../introspect/types.ts";
 import type {
   DoctorContext,
@@ -7,11 +8,7 @@ import type {
   TextFile,
 } from "./rules.ts";
 
-import {
-  parseGrantsMarker,
-  parseHookMarker,
-  permdockSource,
-} from "../permdock.ts";
+import { providerLabel } from "../authorization.ts";
 import {
   type DiffEngine,
   diffEngine,
@@ -24,57 +21,66 @@ import { lineOf } from "./shared.ts";
 
 /** Claims past this size make every request carry a large cookie and header. */
 const HOOK_CLAIMS_LIMIT = 2048;
-/** PermDock's default `supabase.hook.budget`, over `memberships` plus `attrs`. */
-const PERMDOCK_CLAIMS_LIMIT = 1024;
 
-/**
- * The BS405 limits. With PermDock, `doctor.claimsLimit` (else the manifest's
- * budget) is its budget for `memberships` plus `attrs` and the whole token
- * keeps 2048; without it, `doctor.claimsLimit` limits the whole token.
- */
-function claimsLimits(context: DoctorContext): {
+interface ClaimsLimits {
   readonly token: number;
-  readonly budget: number | undefined;
-} {
-  const configured = context.config.doctor.claimsLimit;
-  return context.permdock
-    ? {
-        token: HOOK_CLAIMS_LIMIT,
-        budget:
-          configured ??
-          context.permdock.manifest?.budget ??
-          PERMDOCK_CLAIMS_LIMIT,
-      }
-    : { token: configured ?? HOOK_CLAIMS_LIMIT, budget: undefined };
+  /** The provider's hook budget, over `claims`. */
+  readonly budget?: {
+    readonly bytes: number;
+    readonly claims: readonly string[];
+    readonly truncatedClaim?: string;
+  };
 }
 
-/** The module function that fills PermDock's `memberships` claim. */
+/**
+ * The BS405 limits. With a provider hook budget, `doctor.claimsLimit` (else
+ * the budget's bytes) limits its claims and the whole token keeps 2048;
+ * without one, `doctor.claimsLimit` limits the whole token.
+ */
+function claimsLimits(context: DoctorContext): ClaimsLimits {
+  const configured = context.config.doctor.claimsLimit;
+  const budget = providerHook(context)?.budget;
+  return budget
+    ? {
+        token: HOOK_CLAIMS_LIMIT,
+        budget: {
+          bytes: configured ?? budget.bytes,
+          claims: budget.claims,
+          ...(budget.truncatedClaim
+            ? { truncatedClaim: budget.truncatedClaim }
+            : {}),
+        },
+      }
+    : { token: configured ?? HOOK_CLAIMS_LIMIT };
+}
+
+/** The module function that fills the `memberships` claim. */
 const MODULE_MEMBERSHIPS = /better_supabase\s*\.\s*membership_claims\b/i;
-const PERMDOCK_CALL = /\bpermdock\w*\s*\(|permdock\s*\./i;
-/** Only PermDock's generated hook sets this claim, so it marks that hook's body. */
-const PERMDOCK_HOOK = /'\{\s*(?:claims\s*,\s*)?memberships_truncated\s*\}'/i;
+
+const providerHook = (
+  context: DoctorContext,
+): AuthorizationTokenHook | undefined =>
+  context.config.authorization?.tokenHook;
+
+const splitName = (
+  qualified: string,
+): { readonly schema: string; readonly name: string } => {
+  const dot = qualified.indexOf(".");
+  return { schema: qualified.slice(0, dot), name: qualified.slice(dot + 1) };
+};
 
 const escapeRegExp = (text: string): string =>
   text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * The claims PermDock's hook writes that a second writer would contradict.
- * The tenant claim is the manifest's when there is one, since that is the
- * claim PermDock's hook really writes.
+ * The claims the provider's hook writes that a second writer would
+ * contradict, with the tenant claim it writes to.
  */
-function ownedClaims(context: DoctorContext): readonly string[] {
-  const manifest = context.permdock?.manifest;
-  const tenant =
-    manifest?.rls?.tenantClaim ??
-    manifest?.tenantClaim ??
-    context.config.claims.tenant;
+function ownedClaims(hook: AuthorizationTokenHook): readonly string[] {
   return [
     ...new Set([
-      "roles",
-      "user_role",
-      "memberships",
-      tenant,
-      context.config.claims.tenant,
+      ...hook.ownedClaims,
+      ...(hook.tenantClaim ? [hook.tenantClaim] : []),
     ]),
   ];
 }
@@ -90,65 +96,37 @@ const createsFunction = (
     "i",
   );
 
-/** The SQL file that starts with PermDock's hook marker and creates `fn`. */
+/** The SQL file that has the provider's hook marker and creates `fn`. */
 function markerFileFor(
   context: DoctorContext,
   fn: Pick<ExtrasHookFunction, "schema" | "name">,
 ): TextFile | undefined {
+  const marker = providerHook(context)?.markers?.hook;
+  if (marker === undefined) return undefined;
   const creates = createsFunction(fn);
   return (context.sqlFiles ?? []).find(
-    (file) => parseHookMarker(file.text) && creates.test(file.text),
+    (file) => file.text.includes(marker) && creates.test(file.text),
   );
 }
 
-/** Whether `fn` is the hook PermDock generated: by its manifest, its marker file or its body. */
-function isPermdockHook(
+/** Whether `fn` is the provider's hook: by its name or its marker file. */
+function isProviderHook(
   context: DoctorContext,
-  fn: ExtrasHookFunction,
+  fn: Pick<ExtrasHookFunction, "schema" | "name">,
 ): boolean {
-  const hook = context.permdock?.manifest?.hook;
-  if (hook && hook.schema === fn.schema && hook.function === fn.name)
-    return true;
-  if (markerFileFor(context, fn)) return true;
-  return fn.source !== undefined && PERMDOCK_HOOK.test(fn.source);
+  const hook = providerHook(context);
+  if (!hook) return false;
+  if (hook.function === `${fn.schema}.${fn.name}`) return true;
+  return markerFileFor(context, fn) !== undefined;
 }
 
-/**
- * Extra claims PermDock's hook writes from `supabase.hook.claims`, by claim
- * name, with the function that fills each: from the manifest, else from the
- * hook marker's `claims=` list.
- */
-function registeredClaims(
-  context: DoctorContext,
-): ReadonlyMap<string, string | undefined> {
-  const claims = new Map<string, string | undefined>();
-  for (const claim of context.permdock?.manifest?.claims ?? []) {
-    if (claim.source !== "permdock") claims.set(claim.name, claim.source);
-  }
-  if (claims.size > 0) return claims;
-  const owned = new Set([
-    ...ownedClaims(context),
-    "memberships_truncated",
-    "attrs",
-    "authz_ver",
-  ]);
-  for (const file of context.sqlFiles ?? []) {
-    for (const name of parseHookMarker(file.text)?.claims ?? []) {
-      if (!owned.has(name)) claims.set(name, undefined);
-    }
-  }
-  return claims;
-}
-
-/** Whether the hook body calls PermDock's generated hook (a wrapper around it). */
-function wrapsPermdockHook(context: DoctorContext, source: string): boolean {
-  const hook = context.permdock?.manifest?.hook;
-  return (
-    hook !== undefined &&
-    new RegExp(`${quotedName(hook.schema, hook.function)}\\s*\\(`, "i").test(
-      source,
-    )
-  );
+/** Whether the hook body calls the provider's hook (a wrapper around it). */
+function wrapsProviderHook(
+  hook: AuthorizationTokenHook,
+  source: string,
+): boolean {
+  const { schema, name } = splitName(hook.function);
+  return new RegExp(`${quotedName(schema, name)}\\s*\\(`, "i").test(source);
 }
 
 /** Which of `claims` the hook body writes through `jsonb_set` or `jsonb_build_object`. */
@@ -236,13 +214,17 @@ function grantProblems(fn: ExtrasHookFunction): {
 }
 
 /**
- * What fixes a hook function's grants: SQL to add, PermDock's generator (with
- * the schema file that defines its hook, when one does), or applying the
- * file that already grants it.
+ * What fixes a hook function's grants: SQL to add, the provider's own
+ * command (it is the provider's hook), or applying the file that already
+ * grants it.
  */
 type HookGrantFix =
   | { readonly kind: "sql"; readonly sql: readonly string[] }
-  | { readonly kind: "permdock"; readonly file?: string }
+  | {
+      readonly kind: "provider";
+      readonly name: string;
+      readonly command?: string;
+    }
   | { readonly kind: "migration"; readonly file: string };
 
 export interface HookGrantProblem {
@@ -255,8 +237,8 @@ export interface HookGrantProblem {
 const MIGRATIONS = /(?:^|\/)supabase\/migrations\//;
 
 /**
- * The file that grants `fn` to `supabase_auth_admin`: a `-- permdock:grants
- * v1` migration, or under pg-delta, which carries grants, the declarative
+ * The file that grants `fn` to `supabase_auth_admin`: a migration with the
+ * provider's grants marker, or under pg-delta, which carries grants, the declarative
  * schema file that defines `fn`. `supabase db diff` drops grants, so the
  * legacy engine only counts the migration.
  */
@@ -270,21 +252,16 @@ function grantsSourceFor(
     "i",
   );
   const creates = createsFunction(fn);
+  const marker = providerHook(context)?.markers?.grants;
   return (context.sqlFiles ?? []).find(
     (file) =>
       grants.test(file.text) &&
-      (parseGrantsMarker(file.text) !== undefined ||
+      ((marker !== undefined && file.text.includes(marker)) ||
         (engine === "pg-delta" &&
           !MIGRATIONS.test(file.path) &&
           creates.test(file.text))),
   )?.path;
 }
-
-const PERMDOCK_GRANTS_COMMAND =
-  "permdock supabase hook generate --grants-out supabase/migrations/<timestamp>_permdock_hook_grants.sql";
-
-const permdockSchemaCommand = (file: string | undefined): string =>
-  `permdock supabase hook generate --out ${file ?? "<the schema file that defines it>"}`;
 
 /** Configured hook functions whose grants are wrong (BS404, `doctor --fix-grants`). */
 export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
@@ -294,7 +271,8 @@ export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
       const { problems, fix } = grantProblems(fn);
       if (problems.length === 0) return [];
       const file = grantsSourceFor(context, fn, engine);
-      const hookFile = markerFileFor(context, fn)?.path;
+      const provider = context.config.authorization;
+      const command = provider?.tokenHook?.grantsCommand;
       return [
         {
           hook: config.hook,
@@ -302,8 +280,12 @@ export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
           problems,
           fix: file
             ? { kind: "migration", file }
-            : isPermdockHook(context, fn)
-              ? { kind: "permdock", ...(hookFile ? { file: hookFile } : {}) }
+            : provider && isProviderHook(context, fn)
+              ? {
+                  kind: "provider",
+                  name: providerLabel(provider),
+                  ...(command ? { command } : {}),
+                }
               : { kind: "sql", sql: fix },
         },
       ];
@@ -318,10 +300,10 @@ function grantFixText(fix: HookGrantFix, engine: DiffEngine): string {
       return engine === "pg-delta"
         ? `Add to the schema file that defines the function, then run \`supabase db schema declarative sync\` (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`
         : `Append to the migration \`supabase db diff\` wrote (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`;
-    case "permdock":
-      return engine === "pg-delta"
-        ? `It is PermDock's hook, so let PermDock write the grants into the schema file that defines it: \`${permdockSchemaCommand(fix.file)}\`, without \`--grants-out\` so pg-delta carries them, then run \`supabase db schema declarative sync\`.`
-        : `It is PermDock's hook, so let PermDock write the grants: \`${PERMDOCK_GRANTS_COMMAND}\`.`;
+    case "provider":
+      return fix.command
+        ? `It is the hook of ${fix.name}, so let the provider write the grants: \`${fix.command}\`.`
+        : `It is the hook of ${fix.name}, so let the provider write the grants.`;
     case "migration":
       return engine === "pg-delta"
         ? `${fix.file} grants it, so the database is behind: run \`supabase db schema declarative sync\`, then apply the migrations (\`supabase migration up\`).`
@@ -352,12 +334,10 @@ export function hookGrantBlock(
       case "sql":
         lines.push("", `-- ${name}`, ...fix.sql);
         break;
-      case "permdock":
+      case "provider":
         lines.push(
           "",
-          engine === "pg-delta"
-            ? `-- ${name} is PermDock's hook: ${permdockSchemaCommand(fix.file)} (without --grants-out), then supabase db schema declarative sync`
-            : `-- ${name} is PermDock's hook: ${PERMDOCK_GRANTS_COMMAND}`,
+          `-- ${name} is the hook of ${fix.name}${fix.command ? `: ${fix.command}` : ""}`,
         );
         break;
       case "migration":
@@ -385,7 +365,7 @@ const emptySearchPath = (fn: ExtrasHookFunction): boolean => {
 interface ClaimsSize {
   readonly bytes: number;
   readonly memberships: number;
-  /** `memberships` plus `attrs`, measured as PermDock's hook measures its budget. */
+  /** The budget's claims, summed with `octet_length` of each. */
   readonly budget: number;
   readonly truncated: boolean;
 }
@@ -468,25 +448,37 @@ async function hookClaimsSize(
   db: LiveDatabase,
   fn: ExtrasHookFunction,
   userId: string,
+  budget: ClaimsLimits["budget"],
 ): Promise<ClaimsSize | undefined> {
+  const budgetSql =
+    budget && budget.claims.length > 0
+      ? budget.claims
+          .map(
+            (claim) =>
+              `coalesce(octet_length((c -> ${literal(claim)})::text), 0)`,
+          )
+          .join(" + ")
+      : "0";
+  const truncatedSql = budget?.truncatedClaim
+    ? `c ->> ${literal(budget.truncatedClaim)} = 'true'`
+    : "false";
   return withHookEvent(db, userId, async () => {
     const [row] = await db.query<{
       bytes: number | string | null;
       memberships: number | string | null;
-      attrs: number | string | null;
+      budget: number | string | null;
       truncated: boolean | null;
     }>(
       `select octet_length(c::text) as bytes,
         octet_length((c -> 'memberships')::text) as memberships,
-        octet_length((c -> 'attrs')::text) as attrs,
-        c ->> 'memberships_truncated' = 'true' as truncated
+        ${budgetSql} as budget,
+        ${truncatedSql} as truncated
       from (select ${hookCall(fn)} as c) h`,
     );
-    const memberships = Number(row?.memberships ?? 0);
     return {
       bytes: Number(row?.bytes ?? 0),
-      memberships,
-      budget: memberships + Number(row?.attrs ?? 0),
+      memberships: Number(row?.memberships ?? 0),
+      budget: Number(row?.budget ?? 0),
       truncated: row?.truncated === true,
     };
   });
@@ -558,7 +550,7 @@ export const HOOK_RULES: readonly Rule[] = [
     code: "BS405",
     severity: "warning",
     title: "Custom access token hook shape",
-    description: `Auth runs the custom access token hook on every sign-in and refresh. It should be \`stable\` with \`set search_path = ''\`, and the claims it returns end up in every request's cookie and Authorization header. With \`--as <user id>\` doctor calls it for that user in a transaction that is rolled back. It warns when the whole token's claims pass ${HOOK_CLAIMS_LIMIT} bytes (\`doctor.claimsLimit\` without PermDock). With a \`permdock.config.ts\` it also warns when \`memberships\` plus \`attrs\` pass PermDock's budget, ${PERMDOCK_CLAIMS_LIMIT} bytes or \`doctor.claimsLimit\`, measured with \`octet_length\` as PermDock's hook measures it.`,
+    description: `Auth runs the custom access token hook on every sign-in and refresh. It should be \`stable\` with \`set search_path = ''\`, and the claims it returns end up in every request's cookie and Authorization header. With \`--as <user id>\` doctor calls it for that user in a transaction that is rolled back. It warns when the whole token's claims pass ${HOOK_CLAIMS_LIMIT} bytes (\`doctor.claimsLimit\` without a provider budget). When the authorization provider's hook has a \`budget\`, it also warns when the budget's claims pass its bytes (or \`doctor.claimsLimit\`), measured with \`octet_length\` of each claim.`,
     async check(context) {
       const findings: FindingInput[] = [];
       const limits = claimsLimits(context);
@@ -597,7 +589,12 @@ export const HOOK_RULES: readonly Rule[] = [
             continue;
           }
           try {
-            const size = await hookClaimsSize(db, fn, context.hookUser);
+            const size = await hookClaimsSize(
+              db,
+              fn,
+              context.hookUser,
+              limits.budget,
+            );
             if (size === undefined) {
               findings.push({
                 severity: "info",
@@ -606,9 +603,12 @@ export const HOOK_RULES: readonly Rule[] = [
               });
               continue;
             }
-            if (limits.budget !== undefined && size.budget > limits.budget) {
+            if (
+              limits.budget !== undefined &&
+              size.budget > limits.budget.bytes
+            ) {
               findings.push({
-                message: `${signatureOf(fn)} returns ${size.budget} bytes of memberships and attrs for ${context.hookUser}, over PermDock's budget of ${limits.budget} (memberships ${size.memberships}). Raise \`supabase.hook.budget\` and \`doctor.claimsLimit\` together, or move attrs out of the token.`,
+                message: `${signatureOf(fn)} returns ${size.budget} bytes of ${limits.budget.claims.join(" and ")} for ${context.hookUser}, over the hook's budget of ${limits.budget.bytes}. Raise the provider's budget and \`doctor.claimsLimit\` together, or move claims out of the token.`,
                 target: `${signatureOf(fn)}:budget`,
                 object,
               });
@@ -623,7 +623,7 @@ export const HOOK_RULES: readonly Rule[] = [
             if (size.truncated) {
               findings.push({
                 severity: "info",
-                message: `${signatureOf(fn)} sets memberships_truncated for ${context.hookUser}: the token lists only some memberships (${size.memberships} bytes). Server checks for this user need a database lookup (PermDock's claimsFirst falls back to one).`,
+                message: `${signatureOf(fn)} sets ${limits.budget?.truncatedClaim ?? "its truncated claim"} for ${context.hookUser}: the token lists only some entries (memberships ${size.memberships} bytes). Server checks for this user need a database lookup.`,
                 target: `${signatureOf(fn)}:truncated`,
                 object,
               });
@@ -645,52 +645,32 @@ export const HOOK_RULES: readonly Rule[] = [
     severity: "error",
     title: "Two authorization hooks",
     description:
-      "A `permdock.config.ts` or `permdock.manifest.json` (or a hook that calls PermDock's functions) means PermDock writes `user_role`, `roles`, `memberships` and the tenant claim (`claims.tenant`) into the token. A custom access token hook that also calls `better_supabase.membership_claims`, or writes one of those claims itself, gives them a second source that drifts from PermDock's. Generate the hook with `permdock supabase hook generate` and drop the extra writes. Functions registered in PermDock's `supabase.hook.claims` (such as `better_supabase.feature_claims` for `features`) are PermDock's hook's own sources and are not reported; a hook that wraps PermDock's and writes one of those claims again is.",
+      "When the authorization provider's hook (`authorization.tokenHook`) owns claims such as `memberships`, `roles` or the tenant claim, a custom access token hook that also calls `better_supabase.membership_claims`, or writes one of those claims itself, gives them a second source that drifts from the provider's. Use the provider's hook and drop the extra writes. Claims the provider's hook fills from other functions (`registeredClaims`, such as `features` from `better_supabase.feature_claims`) are not reported; a hook that wraps the provider's and writes one of those claims again is.",
     check: (context) => {
-      const project = context.permdock;
+      const provider = context.config.authorization;
+      const hook = provider?.tokenHook;
+      if (!provider || !hook) return [];
+      const label = providerLabel(provider);
+      const registered = new Map(
+        (hook.registeredClaims ?? []).map((claim) => [
+          claim.name,
+          claim.function,
+        ]),
+      );
+      const owned = ownedClaims(hook);
       const findings: FindingInput[] = [];
-      if (project) {
-        findings.push(
-          ...project.problems
-            .filter((problem) => problem.startsWith(project.manifestPath))
-            .map((problem): FindingInput => ({
-              severity: "info",
-              message: `Could not read PermDock's manifest: ${problem}`,
-              target: project.manifestPath,
-            })),
-        );
-        if (
-          project.config &&
-          !project.manifest &&
-          !project.problems.some((problem) =>
-            problem.startsWith(project.manifestPath),
-          )
-        ) {
-          findings.push({
-            severity: "info",
-            message: `${project.config} is present but ${project.manifestPath} is not, so doctor and the SQL modules can't see PermDock's hook, helpers and membership sources. Run \`permdock supabase inspect --out\`, and \`permdock supabase inspect --check\` in CI.`,
-            target: project.manifestPath,
-          });
-        }
-      }
-      const registered = registeredClaims(context);
       for (const { config, extras } of configuredHooks(context)) {
         if (config.hook !== "custom_access_token" || !extras) continue;
         for (const fn of extras.functions) {
-          if (fn.source === undefined || isPermdockHook(context, fn)) continue;
-          const module = MODULE_MEMBERSHIPS.test(fn.source);
-          const wrapper = wrapsPermdockHook(context, fn.source);
+          if (fn.source === undefined || isProviderHook(context, fn)) continue;
+          const module =
+            owned.includes("memberships") && MODULE_MEMBERSHIPS.test(fn.source);
+          const wrapper = wrapsProviderHook(hook, fn.source);
           const written = writtenClaims(fn.source, [
-            ...ownedClaims(context),
+            ...owned,
             ...(wrapper ? registered.keys() : []),
           ]);
           if (!module && written.length === 0) continue;
-          const permdock = project
-            ? permdockSource(project)
-            : PERMDOCK_CALL.test(fn.source)
-              ? "the hook body"
-              : undefined;
-          if (!permdock) continue;
           const location = hookLocation(context, config.hook);
           const what = [
             ...(module ? ["calls better_supabase.membership_claims"] : []),
@@ -698,13 +678,10 @@ export const HOOK_RULES: readonly Rule[] = [
           ].join(" and ");
           const extra = written.filter((claim) => registered.has(claim));
           const sources = extra
-            .map((claim) => {
-              const source = registered.get(claim);
-              return source ? `${claim} from ${source}` : claim;
-            })
+            .map((claim) => `${claim} from ${registered.get(claim)!}`)
             .join(", ");
           findings.push({
-            message: `${signatureOf(fn)} ${what}, and ${permdock} says PermDock owns those claims${extra.length > 0 ? ` (its hook already writes ${sources} through supabase.hook.claims)` : ""}. Keep one source: run \`permdock supabase hook generate\` and remove these writes from your hook.`,
+            message: `${signatureOf(fn)} ${what}, but the hook of ${label} (${hook.function}) owns those claims${extra.length > 0 ? ` (it already writes ${sources})` : ""}. Keep one source: use the provider's hook and remove these writes from yours.`,
             target: signatureOf(fn),
             object: { kind: "function", schema: fn.schema, name: fn.name },
             ...(location ? { location } : {}),

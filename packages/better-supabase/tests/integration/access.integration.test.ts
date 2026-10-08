@@ -235,7 +235,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
     expect(active).toBeNull();
   });
 
-  it("disables tenants and users through PermDock-shaped active rows", async () => {
+  it("disables tenants and users through active rows", async () => {
     const SUSPENDED = crypto.randomUUID();
     const MISSING = crypto.randomUUID();
     const row = await inTransaction(

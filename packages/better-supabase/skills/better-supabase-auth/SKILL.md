@@ -1,6 +1,6 @@
 ---
 name: better-supabase-auth
-description: Read and check the caller in better-supabase apps, including sessions, typed claims, user profiles, OAuth clients and agents acting for a user, scopes, ended sessions and PermDock. Use when code reads auth, session or claims, when adding a custom access token hook, an OAuth or agent integration, sign-out, account deletion or role changes, or when the project has a permdock.config.ts.
+description: Read and check the caller in better-supabase apps, including sessions, typed claims, user profiles, OAuth clients and agents acting for a user, scopes, ended sessions and authorization providers. Use when code reads auth, session or claims, when adding a custom access token hook, an OAuth or agent integration, sign-out, account deletion or role changes, or when better-supabase.config.ts has an authorization key.
 ---
 
 # Auth with better-supabase
@@ -138,7 +138,7 @@ membership lasts until the next refresh. When that window matters:
   `'use cache: private'` function. It tags the entry `bs:session:<user id>`
   and caps its lifetime at the token's.
 - `bs.cached({ tags, life: { stale } })` adds tags and caps the stale time
-  further, for example for a PermDock snapshot.
+  further, for example for a permission snapshot.
 - `bs.cached({ tables: ["customers"] })` tags the entry by table, so an
   action that writes the table drops it without a hand-written tag.
 - `bs.invalidateSession(userId)` reaches the server caches and the caller's
@@ -158,12 +158,13 @@ membership lasts until the next refresh. When that window matters:
 - Keep layouts synchronous: pass the `bs.session()` promise to
   `<SessionProvider>` and read it with `useSession()`.
 
-## PermDock
+## Authorization providers
 
-When the project has a `permdock.config.ts`, PermDock owns the access token
-hook, roles, memberships and the tenant claim. Read
-[references/permdock.md](references/permdock.md) before touching the hook,
-claims, tenant or entitlements.
+When `better-supabase.config.ts` has an `authorization` key, another package
+answers permission checks and may own the access token hook, roles,
+memberships and the tenant claim. Read
+[references/authorization-providers.md](references/authorization-providers.md)
+before touching the hook, claims, tenant or entitlements.
 
 ## Don't
 
@@ -182,4 +183,4 @@ https://bettersupabase.com/docs/auth.md,
 https://bettersupabase.com/docs/frameworks/next.md (bearer callers),
 https://bettersupabase.com/docs/auth/account-deletion.md,
 https://bettersupabase.com/docs/frameworks/next-cache-components.md and
-https://bettersupabase.com/docs/auth/permdock.md.
+https://bettersupabase.com/docs/extending/authorization-providers.md.

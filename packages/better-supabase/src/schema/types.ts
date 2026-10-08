@@ -165,52 +165,25 @@ export interface RealtimeTableMeta {
   readonly user?: string;
 }
 
-/**
- * Storage policies that call PermDock's generated SQL helpers:
- * `<schema>.permitted_<scope>_ids(key)` for a scope keyed by a path segment,
- * `<schema>.permdock_has(key)` for `scope: 'global'`. Only for permissions
- * whose grants have no row conditions beyond the scope.
- */
-export interface PermdockBucketPolicy {
-  readonly permdock: {
-    /** Downloads, signed URLs, renders and metadata reads. */
-    readonly read: string;
-    /** Listing; without it `read` covers listing too. */
-    readonly list?: string;
-    /** Uploads, updates and moves; also deletes unless `delete` is set. */
-    readonly write: string;
-    readonly delete?: string;
-  };
-  /** A PermDock scope such as `organization`, or `global`. */
-  readonly scope: string;
-  /** 1-based path segment holding the scope id. Defaults to the `{organizationId}` segment. */
-  readonly segment?: number;
-  /**
-   * Schema of the helpers `permdock rls generate` writes: PermDock's
-   * `rls.schema`. Defaults to `permdock`, PermDock's default.
-   */
-  readonly schema?: string;
-}
-
-/** A PermDock topic policy: `select` (receive) and `insert` (send) on `realtime.messages`. */
-export interface PermdockTopicPolicy {
-  readonly receive: string;
-  /** Lets clients send on the topic with this permission. */
-  readonly send?: string;
-  /** A PermDock scope such as `organization`, or `global`. */
-  readonly scope: string;
-  /** 1-based `:`-separated topic segment holding the scope id. Defaults to the `{organizationId}` segment. */
-  readonly segment?: number;
-  /** Schema of PermDock's helpers (`rls.schema`). Defaults to `permdock`. */
-  readonly schema?: string;
-}
-
 export type BucketPolicyName = "tenant" | "owner" | "public" | "none";
+
+/**
+ * SQL templates a Storage or Realtime policy calls instead of the access
+ * contract, usually an authorization provider's (`authorization.functions`).
+ * `{permission}` is the key as a literal and `{scope}` the policy's scope.
+ */
+export interface AccessPolicySql {
+  /** The ids of the `{scope}` instances where the caller holds `{permission}`, as a set. */
+  readonly idsWith: string;
+  /** Whether the caller holds `{permission}` platform-wide. */
+  readonly isPlatform: string;
+}
 
 /**
  * A policy through the SQL modules' [access contract](/docs/blocks/access):
  * `tenant_ids_with(permission)` for the tenant id in the path, or
- * `is_platform(permission)`. Works with every access model.
+ * `is_platform(permission)`. Works with every access model. With `sql`, it
+ * calls those templates instead, for any scope they take.
  */
 export interface AccessBucketPolicy {
   readonly access: {
@@ -222,20 +195,33 @@ export interface AccessBucketPolicy {
     readonly write: string;
     readonly delete?: string;
   };
-  /** `tenant` (default) checks the path's tenant segment; `platform` checks platform permissions. */
-  readonly scope?: "tenant" | "platform";
-  /** 1-based path segment holding the tenant id. Defaults to the `{organizationId}` segment. */
+  /**
+   * `tenant` (default) checks the path's tenant segment; `platform` checks
+   * platform permissions. With `sql`, any scope name its templates take.
+   */
+  readonly scope?: string;
+  /** 1-based path segment holding the scope id. Defaults to the `{organizationId}` segment. */
   readonly segment?: number;
+  readonly sql?: AccessPolicySql;
+}
+
+/** An access topic policy: `select` (receive) and `insert` (send) on `realtime.messages`. */
+export interface AccessTopicPolicy {
+  readonly receive: string;
+  /** Lets clients send on the topic with this permission. */
+  readonly send?: string;
+  /** As for {@link AccessBucketPolicy}. */
+  readonly scope?: string;
+  /** 1-based `:`-separated topic segment holding the scope id. Defaults to the `{organizationId}` segment. */
+  readonly segment?: number;
+  readonly sql?: AccessPolicySql;
 }
 
 export interface BucketMeta {
   readonly id: string;
   readonly public: boolean;
   readonly path: string | readonly [string, ...string[]];
-  readonly policy?:
-    | BucketPolicyName
-    | PermdockBucketPolicy
-    | AccessBucketPolicy;
+  readonly policy?: BucketPolicyName | AccessBucketPolicy;
   /** Claim paths for the tenant policy, when `config.claims.tenant` is not the default. */
   readonly tenant?: { readonly claim: readonly string[] };
   readonly fileSizeLimit?: string;

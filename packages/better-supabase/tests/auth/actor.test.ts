@@ -7,7 +7,7 @@ import { resolveAuth } from "../../src/auth/resolve.ts";
 import { toSession } from "../../src/auth/view.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 
-// Copies of PermDock's `oauthClient` and `actChain` Supabase claim fixtures.
+// An OAuth client token and a token with a delegation chain in `act`.
 const base = {
   sub: "6f1c2c1e-5d0a-4d9e-9a51-6b1f0e7c2a10",
   aud: "authenticated",
@@ -143,7 +143,7 @@ describe("actorOf and delegationOf", () => {
 });
 
 describe("session.actor and session.delegation", () => {
-  it("follow the PermDock fixtures", () => {
+  it("follow the claim fixtures", () => {
     expect(toSession(user(oauthClient))).toMatchObject({
       actor: { id: oauthClient.client_id, kind: "oauth-client" },
       delegation: { scopes: ["openid", "email", "posts:read"] },

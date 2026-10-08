@@ -46,8 +46,8 @@ const PREFIX = /^[a-z][a-z0-9]*$/;
 
 /**
  * `sql.modules.api-keys.options.scopes`: the scopes a key may carry, every
- * scope when unset, or `"catalog"` for the keys of PermDock's
- * `permissions.catalog.json`.
+ * scope when unset, or `"catalog"` for the authorization provider's
+ * permission keys (`authorization.permissions`).
  */
 function allowedScopes(
   ctx: ModuleContext,
@@ -58,7 +58,7 @@ function allowedScopes(
   if (option === "catalog") {
     if (!layout.permissionCatalog) {
       throw new TypeError(
-        'sql.modules.api-keys.options.scopes is "catalog", but there is no PermDock permission catalog to read. Run `permdock catalog`, or list the scopes.',
+        'sql.modules.api-keys.options.scopes is "catalog", but the config has no authorization.permissions to read. Set authorization, or list the scopes.',
       );
     }
     return layout.permissionCatalog;
@@ -101,10 +101,10 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const due = (alias: string): string =>
     `(${alias}.${c("lastUsedAt")} is null or ${alias}.${c("lastUsedAt")} + interval '${touch} seconds' <= now())`;
   const wildcard =
-    allowed === undefined && accessModel(ctx) === "permdock"
+    allowed === undefined && accessModel(ctx) === "provider"
       ? `
   if '*' = any (coalesce(scopes, '{}')) then
-    ${fail("API_KEY_SCOPE_WILDCARD", "PermDock checks scopes as exact permission keys, so a key cannot carry *", "22023")}
+    ${fail("API_KEY_SCOPE_WILDCARD", "The authorization provider checks scopes as exact permission keys, so a key cannot carry *", "22023")}
   end if;`
       : "";
   const scopeCheck = allowed

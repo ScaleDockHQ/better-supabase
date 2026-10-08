@@ -105,7 +105,7 @@ function actorAt(
 }
 
 /**
- * Reads only `act` and `client_id`, the way PermDock's `actorOf` does. An
+ * Reads only `act` and `client_id`. An
  * `act` that is not a chain of objects each with a non-empty `sub`, a
  * `kind` other than `support` or `impersonation`, or a support level without
  * a `session_id` is `{ ok: false }`: the session must not pass as the user

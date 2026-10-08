@@ -231,8 +231,8 @@ work on the server over Postgres, and keep the admin signed in as themselves.
 
 `act` is the [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693#section-4.1)
 actor claim, which OAuth clients and agent chains carry too. Its `kind`
-says which of them a token is, and `session.actor` (the way PermDock's
-`actorOf` reads it) and `session.impersonator` always agree:
+says which of them a token is, and `session.actor` and `session.impersonator`
+always agree:
 
 | `act`                                                                             | `session.actor.kind`                       | `session.impersonator` | `session.delegation`            |
 | --------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------- | ------------------------------- |
@@ -251,7 +251,7 @@ session `{ kind: 'invalid', reason: 'actor' }`.
 
 `impersonatorOf(claims)` from `better-supabase/server` reads the same claim
 anywhere else, and `supabaseClaimFixtures` from `better-supabase/testing`
-holds a token of each kind, in the shape of PermDock's fixtures, for tests:
+holds a token of each kind, for tests:
 
 ```ts title="tests/support-banner.test.ts"
 import { supabaseClaimFixtures } from "better-supabase/testing";
