@@ -6,9 +6,13 @@ import { moduleBody, SQL_MODULES } from "../../src/sql/registry.ts";
 const ALLOWED = (name: string): boolean =>
   name === "credentials" || name === "vault" || name.startsWith("webhook");
 
-/** Not credentials: the domain challenge is published in a DNS TXT record. */
+/**
+ * Not credentials: the domain challenge is published in a DNS TXT record,
+ * and a chunk's token count is a number.
+ */
 const KNOWN = new Set([
   '"better_supabase"."organization_domains".verification_token',
+  '"better_supabase"."knowledge_chunks".token_count',
 ]);
 
 /** Columns named like a token that hold no third-party credential, per module. */

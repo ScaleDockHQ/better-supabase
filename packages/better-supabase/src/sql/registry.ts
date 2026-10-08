@@ -48,6 +48,8 @@ import { FLAGS } from "./modules/flags.ts";
 import { INBOX } from "./modules/inbox.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { JOBS } from "./modules/jobs.ts";
+import { KNOWLEDGE } from "./modules/knowledge.ts";
+import { MEMORY } from "./modules/memory.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
 import { ONBOARDING } from "./modules/onboarding.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
@@ -75,6 +77,7 @@ import {
   serviceOnly,
   splitTable,
 } from "./shared.ts";
+import { vectorSchemaOf } from "./vector-schema.ts";
 
 export {
   isModuleIdType,
@@ -2107,20 +2110,6 @@ const vectorSearchSql = (schema: string): string =>
 -- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
 -- (pgvector 0.8+) instead of returning fewer.`;
 
-const VECTOR_SCHEMA = /^[a-z_][a-z0-9_]{0,62}$/;
-
-function vectorSchemaOf(layout: ModuleLayout): string {
-  const option = layout.modules?.["vector-search"]?.options?.["schema"];
-  const schema =
-    option === undefined ? (layout.vectorSchema ?? "extensions") : option;
-  if (typeof schema !== "string" || !VECTOR_SCHEMA.test(schema)) {
-    throw new TypeError(
-      "sql.modules.vector-search.options.schema must be the lowercase name of the schema pgvector is installed in",
-    );
-  }
-  return schema;
-}
-
 const VECTOR_SEARCH: SqlModule = {
   name: "vector-search",
   title: "Vector search",
@@ -2246,6 +2235,8 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(INBOX),
       built(AI_CHAT),
       built(AI_FILES),
+      built(KNOWLEDGE),
+      built(MEMORY),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
