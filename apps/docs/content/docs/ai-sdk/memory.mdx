@@ -1,0 +1,79 @@
+---
+title: Memory
+description: Give the model the memory tool, Anthropic's built-in memory tool, a recall tool and its core memory, and extract facts from a conversation in a job.
+---
+
+`better-supabase/ai-sdk/memory` connects the [memory](/docs/blocks/memory)
+block to the AI SDK. The block stores what the model remembers; these
+helpers let the model read and edit it.
+
+```bash
+pnpm add ai
+```
+
+## Tools and instructions
+
+```ts title="app/api/chat/route.ts"
+import {
+  memoryTool,
+  recallTool,
+  withMemory,
+} from "better-supabase/ai-sdk/memory";
+
+const result = streamText({
+  model,
+  instructions: await withMemory(INSTRUCTIONS, memory, organizationId),
+  messages,
+  tools: {
+    memory: memoryTool(memory, organizationId),
+    recall: recallTool(memory, organizationId),
+  },
+});
+```
+
+`memoryTool` takes the commands of Anthropic's memory tool (`view`,
+`create`, `str_replace`, `insert`, `delete`, `rename`) and works with any
+model. A failed command comes back to the model as text that starts with
+`Error:`, so it can try again instead of ending the run. `recallTool`
+searches archival memory and returns up to `k` (5) facts.
+
+`withMemory` appends the caller's core memory files to the instructions
+and labels them as notes, not instructions. Without memory, or when it
+can't be read, the instructions come back unchanged.
+
+Pass a namespace as the last argument to keep memory per agent or chat:
+`memoryTool(memory, organizationId, { scope: "agent", agentId })`.
+
+## Anthropic's memory tool
+
+```ts
+import { anthropic } from "@ai-sdk/anthropic";
+import { anthropicMemory } from "better-supabase/ai-sdk/memory";
+
+const tools = {
+  memory: anthropicMemory(anthropic.tools, memory, organizationId),
+};
+```
+
+With Claude models, `anthropicMemory` backs the provider's built-in
+`memory_20250818` tool with the block, so the model uses the memory
+format it was trained on. The version is pinned in `SPEC_PINS`.
+
+## Extracting facts
+
+```ts title="lib/jobs.ts"
+import { extractMemories } from "better-supabase/ai-sdk/memory";
+
+export const handlers = {
+  extract_memories: extractMemories({
+    model: "openai/gpt-5-mini",
+    memory: serviceMemory,
+  }),
+};
+```
+
+`extractMemories` is a [jobs](/docs/blocks/jobs) handler. Enqueue it after
+a conversation with `organization_id`, `owner_id` and the conversation
+`text`; it asks the model for lasting facts about the user and saves up
+to `maxFacts` (10) that aren't already remembered. The memory block it
+gets needs a service transport, because it writes for the user.

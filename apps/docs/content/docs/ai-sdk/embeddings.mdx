@@ -1,0 +1,70 @@
+---
+title: Embeddings
+description: Embed knowledge with an AI SDK model or Supabase's built-in model, rerank hits, and give the model a search tool that cites its sources.
+---
+
+`better-supabase/ai-sdk/embeddings` connects the [knowledge](/docs/blocks/knowledge)
+and [memory](/docs/blocks/memory) blocks to the AI SDK. The blocks take
+any `Embedder`; this subpath builds one from an AI SDK model and adds the
+tool the model searches with.
+
+```bash
+pnpm add ai
+```
+
+## Embedders
+
+```ts
+import { embedWith, supabaseEmbed } from "better-supabase/ai-sdk/embeddings";
+
+const embedder = embedWith("openai/text-embedding-3-small");
+```
+
+`embedWith(model, options)` calls the SDK's `embedMany` with
+`maxParallelCalls` (4 by default) and `providerOptions`. A model string
+goes through the [AI Gateway](https://vercel.com/docs/ai-gateway). The
+embedder's `model` name (`openai/text-embedding-3-small`, or `name` when
+you pass one) is stored with each chunk, so `knowledge.reembed` can find
+what another model embedded.
+
+`supabaseEmbed()` runs Supabase's built-in `gte-small` model in an Edge
+Function, through `Supabase.ai.Session`, with no API key. It returns 384
+numbers, so install the modules with `options: { dimensions: 384 }`.
+
+## Search tool
+
+```ts title="app/api/chat/route.ts"
+import { searchTool, toSourceParts } from "better-supabase/ai-sdk/embeddings";
+
+const result = streamText({
+  model,
+  messages,
+  tools: {
+    searchKnowledge: searchTool(knowledge, organizationId, {
+      scopes: [{ scope: "organization" }, { scope: "chat", id: chatId }],
+      onHits: (hits) => sources.push(...toSourceParts(hits)),
+    }),
+  },
+});
+```
+
+`searchTool` gives the model a `query` input and returns up to `k` (8)
+chunks as `{ results: [{ id, title, content }] }`, with ids in the form
+`documentId#index` the model can cite. The search runs as the caller, so
+row level security decides what the model sees. `toSourceParts(hits)`
+returns one `source-document` part per document, for the assistant
+message.
+
+## Reranking
+
+```ts
+import { rerankWith } from "better-supabase/ai-sdk/embeddings";
+
+searchTool(knowledge, organizationId, {
+  k: 20,
+  rerank: rerankWith("cohere/rerank-v3.5", { topN: 5 }),
+});
+```
+
+`rerankWith` reorders the hits with the SDK's `rerank` and keeps the
+`topN` best, with the reranker's score.

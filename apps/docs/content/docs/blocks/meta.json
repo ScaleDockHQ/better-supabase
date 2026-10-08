@@ -29,6 +29,8 @@
     "entitlements",
     "vector-search",
     "ai-chat",
-    "ai-files"
+    "ai-files",
+    "knowledge",
+    "memory"
   ]
 }
