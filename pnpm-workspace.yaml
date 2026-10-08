@@ -168,7 +168,8 @@ catalogs:
     # 55.0.0 added setResponseHeaders, which the Expo adapter writes cookies through.
     expo-server: ">=55 <59"
     hono: ">=4 <5"
-    next: ">=16 <17"
+    # 16.3.0 added `io()`, which `better-supabase/next` awaits before reading the session.
+    next: ">=16.3 <17"
     # 0.66.0 is the version @supabase/postgrest-typegen pins; the CLI tests run
     # on the newer oxfmt in the default catalog.
     oxfmt: ">=0.66.0 <1"

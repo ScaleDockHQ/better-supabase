@@ -174,7 +174,6 @@ export const updateMemberRole = bs.action(
     });
     // The member's token still carries the old role until it refreshes.
     bs.invalidateSession(userId);
-    refresh();
     return ok(true);
   },
 );
@@ -200,7 +199,6 @@ export const removeMember = bs.action(
       record: userId,
     });
     bs.invalidateSession(userId);
-    refresh();
     return ok(true);
   },
 );

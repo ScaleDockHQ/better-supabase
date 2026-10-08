@@ -476,6 +476,25 @@ describe("createNext", () => {
     expect(mocks.after).toHaveBeenCalledTimes(2);
   });
 
+  it("hands event sends the proxy started to after()", async () => {
+    mocks.after.mockReset();
+    let release: () => void = () => undefined;
+    const protect = vi.fn((): undefined => {
+      betterSupabase.events.track(
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      );
+    });
+    await bs.proxy(page(), { protect });
+    expect(protect).toHaveBeenCalledTimes(1);
+    expect(mocks.after).toHaveBeenCalledTimes(1);
+    release();
+    await betterSupabase.events.settled();
+    await bs.proxy(page());
+    expect(mocks.after).toHaveBeenCalledTimes(1);
+  });
+
   it("runs actions with validation, FormData and serializable results", async () => {
     const save = bs.action(
       {
@@ -874,6 +893,13 @@ describe("createNext", () => {
     expect(tagFor("customers", undefined, { tenant: "t1" })).toBe(
       "bs:customers@t1",
     );
+
+    // A read across tenants carries the table tag, which t1's update above invalidated.
+    bs.cacheTag("customers", undefined, { tenant: "*" });
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      "bs:customers",
+      "bs:customers@*",
+    );
   });
 });
 
@@ -910,8 +936,10 @@ describe("next.liveCount", () => {
 
   it("returns a serializable seed from the db passed in", async () => {
     const run = vi.fn(() => AsyncResult.ok(4));
+    const before = Date.now();
     const seed = await bs.liveCount(spec, { $run: run });
-    expect(seed).toEqual({ spec, count: 4 });
+    expect(seed).toEqual({ spec, count: 4, at: expect.any(Number) });
+    expect(seed.at).toBeGreaterThanOrEqual(before);
     expect(JSON.parse(JSON.stringify(seed))).toEqual(seed);
     expect(run).toHaveBeenCalledWith(spec);
   });

@@ -6,6 +6,8 @@ import { QueryClient } from "@tanstack/query-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthSnapshot } from "../../src/client/index.ts";
+import type { SubscriptionStatus } from "../../src/realtime/index.ts";
+import type { LiveCountSeed } from "../../src/realtime/live.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
 import { useAnnouncements } from "../../src/blocks/announcements/react/index.ts";
@@ -327,10 +329,10 @@ afterEach(() => {
 });
 
 describe("BetterSupabaseProvider", () => {
-  it("drops better-supabase queries when the user changes, not on first sign-in or loading", () => {
+  it("resets better-supabase queries when the user changes, not on first sign-in or loading", () => {
     const { browser, setAuth, listeners } = fakeBrowser(LOADING);
     const { queryClient } = cachedClient(["bs", "customers"], ["other"]);
-    const remove = vi.spyOn(queryClient, "removeQueries");
+    const remove = vi.spyOn(queryClient, "resetQueries");
     const view = renderHook(() => useAuth(), undefined, {
       client: browser,
       queryClient,
@@ -683,6 +685,40 @@ describe("useLiveQuery", () => {
     view.unmount();
   });
 
+  it("keeps the spec it was given and only resubscribes on a different query", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER, { tenant_id: "t" }));
+    const { queryClient } = cachedClient();
+    const tablesOf = vi.spyOn(browser.betterSupabase, "tablesOf");
+    const first = typed.spec.customers.findMany({ include: { notes: true } });
+    const view = renderHook((next: typeof first) => useLiveQuery(next), first, {
+      client: browser,
+      queryClient,
+    });
+    expect(tablesOf.mock.calls[0]![0]).toBe(first);
+    view.rerender(typed.spec.customers.findMany({ include: { notes: true } }));
+    await flush();
+    expect(client.channel).toHaveBeenCalledTimes(2);
+    expect(tablesOf).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+
+  it("invalidates the spec's tables after rejoining the same query", async () => {
+    const { browser } = fakeBrowser(signedIn(USER, { tenant_id: "t" }));
+    const cache = cachedClient(["bs", "customers"], ["bs", "organizations"]);
+    const view = renderHook<number, SubscriptionStatus>(
+      (debounceMs) => useLiveQuery(spec, { debounceMs }),
+      1,
+      { client: browser, queryClient: cache.queryClient },
+    );
+    await flush();
+    expect(cache.invalidated(["bs", "customers"])).toBe(false);
+    view.rerender(2);
+    await flush();
+    expect(cache.invalidated(["bs", "customers"])).toBe(true);
+    expect(cache.invalidated(["bs", "organizations"])).toBe(false);
+    view.unmount();
+  });
+
   it("finds no tenant for signed-out users, so tenant tables throw", () => {
     const { browser } = fakeBrowser(SIGNED_OUT);
     const { queryClient } = cachedClient();
@@ -740,6 +776,53 @@ describe("useLiveCount", () => {
     emit("bs:t:public.notes", "change");
     await wait(10);
     expect(view.result.count).toBe(9);
+    view.unmount();
+  });
+
+  it("counts again after joining when the seed is older than a second", async () => {
+    const run = vi.fn(() => AsyncResult.ok(7));
+    const { browser } = fakeBrowser(signedIn(USER), { $run: run });
+    const fresh = renderHook(
+      () => useLiveCount({ spec, count: 3, at: Date.now() }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    expect(run).not.toHaveBeenCalled();
+    fresh.unmount();
+
+    const stale = renderHook(
+      () => useLiveCount({ spec, count: 3, at: Date.now() - 5000 }),
+      undefined,
+      { client: browser },
+    );
+    expect(stale.result.count).toBe(3);
+    await flush();
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(stale.result.count).toBe(7);
+    stale.unmount();
+  });
+
+  it("counts again after rejoining, and shows a seed newer than its count", async () => {
+    const run = vi.fn(() => AsyncResult.ok(7));
+    const { browser } = fakeBrowser(signedIn(USER), { $run: run });
+    const view = renderHook(
+      (props: { seed: LiveCountSeed; debounceMs: number }) =>
+        useLiveCount(props.seed, { debounceMs: props.debounceMs }),
+      { seed: { spec, count: 3, at: Date.now() - 5000 }, debounceMs: 1 },
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.count).toBe(7);
+
+    const later = { spec, count: 12, at: Date.now() + 1000 };
+    view.rerender({ seed: later, debounceMs: 1 });
+    expect(view.result.count).toBe(12);
+
+    run.mockClear();
+    view.rerender({ seed: later, debounceMs: 2 });
+    await flush();
+    expect(run).not.toHaveBeenCalled();
     view.unmount();
   });
 

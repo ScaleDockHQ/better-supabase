@@ -222,6 +222,10 @@ export interface BetterNext<
   /**
    * Drops every `bs.cached()` entry of a user, e.g. after a role change,
    * and the entries tagged with `tags` (such as PermDock's `snapshotTag(userId)`).
+   * In a Server Action it also re-renders the caller's page, so no
+   * `refresh()` is needed. It reaches server caches and the caller's router
+   * only: another user's browser keeps its `'use cache: private'` entries
+   * until they go stale or that user's token changes.
    */
   invalidateSession(
     userId: string,
@@ -309,10 +313,15 @@ export function supportTag(sessionId: string): string {
   return `bs:support:${sessionId}`;
 }
 
+/** The shortest time the Next.js client router keeps a prefetched entry. */
+const MIN_CLIENT_STALE = 30;
+
 export interface SessionStaleOptions {
   /**
    * With fewer seconds left on the token, the view is not reused at all (0):
-   * Next.js would not prefetch it anyway. Defaults to 30.
+   * Next.js would not prefetch it anyway. Defaults to 30, and values below
+   * 30 count as 30: the client router keeps any entry for at least 30
+   * seconds, so a shorter stale time would outlive the token.
    */
   readonly min?: number;
   /** 300 (5 minutes) joins the route's App Shell. Defaults to 300. */
@@ -331,7 +340,7 @@ export function sessionStale(
   options: SessionStaleOptions = {},
   now: number = Date.now(),
 ): number {
-  const min = options.min ?? 30;
+  const min = Math.max(MIN_CLIENT_STALE, options.min ?? MIN_CLIENT_STALE);
   const max = options.max ?? 300;
   switch (session.kind) {
     case "invalid":
@@ -410,8 +419,14 @@ export function tagFor(
     : `bs:${table}@${options.tenant}`;
 }
 
-/** The table tags of a read: the tenant's and every tenant's, or the table's. */
+/**
+ * The table tags of a read: the tenant's and every tenant's, or the table's.
+ * A read across tenants (`"*"`) also carries the table's, which every
+ * mutation invalidates, including one scoped to a single tenant.
+ */
 function tableTags(table: string, options: TagOptions): string[] {
+  if (options.tenant === "*")
+    return [tagFor(table), tagFor(table, undefined, options)];
   return options.tenant === undefined
     ? [tagFor(table)]
     : [
@@ -767,6 +782,7 @@ export function createNext<
         spec,
         count:
           result.ok && typeof result.data === "number" ? result.data : null,
+        at: Date.now(),
       };
     },
 
@@ -806,6 +822,7 @@ export function createNext<
         !proxyOptions.after &&
         !proxyOptions.serverTiming
       ) {
+        flushAfter();
         return NextResponse.next();
       }
 
@@ -843,6 +860,8 @@ export function createNext<
           }),
         );
       }
+      // A refresh or sign-out in `resolve`, or `protect`, can start sink sends.
+      flushAfter();
       return response;
     },
 

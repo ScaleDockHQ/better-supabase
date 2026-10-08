@@ -320,7 +320,9 @@ describe("sessionStale", () => {
   it("keeps a view of a token in its last seconds out of prefetches", () => {
     expect(sessionStale(user(now / 1000 + 5), {}, now)).toBe(0);
     expect(sessionStale(user(now / 1000 - 5), {}, now)).toBe(0);
-    expect(sessionStale(user(now / 1000 + 20), { min: 10 }, now)).toBe(20);
+    expect(sessionStale(user(now / 1000 + 45), { min: 10 }, now)).toBe(45);
+    // The client router keeps an entry for 30 seconds, so `min` never goes lower.
+    expect(sessionStale(user(now / 1000 + 20), { min: 10 }, now)).toBe(0);
   });
 
   it("keeps a signed-out view that a refresh or sign-in would change out of the App Shell", () => {
