@@ -19,6 +19,7 @@ export const SPEC_PINS: {
   readonly scim: "2.0";
   readonly supabaseSdkCapabilities: "1.14.0";
   readonly aiMessage: "1";
+  readonly aiSdkUiMessageStream: "v1";
 } = {
   otelSemconv: "1.37.0",
   mcp: "2026-07-28",
@@ -36,4 +37,5 @@ export const SPEC_PINS: {
   scim: "2.0",
   supabaseSdkCapabilities: "1.14.0",
   aiMessage: "1",
+  aiSdkUiMessageStream: "v1",
 };
