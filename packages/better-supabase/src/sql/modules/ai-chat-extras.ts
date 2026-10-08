@@ -4,7 +4,8 @@ import type { AiChatNames } from "./ai-chat.ts";
 import { SERVICE_CALLER } from "../shared.ts";
 import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 
-function approvalJson(names: AiChatNames, row: string): string {
+/** `jsonb_build_object` of an approval row, with stable keys. */
+export function approvalJson(names: AiChatNames, row: string): string {
   const a = names.c.approvals;
   return `jsonb_build_object('approval_id', ${row}.${a.id}, 'chat_id', ${row}.${a.chat}, 'run_id', ${row}.${a.run}, 'message_id', ${row}.${a.message}, 'tool', ${row}.${a.tool}, 'tool_call_id', ${row}.${a.toolCall}, 'input', ${row}.${a.input}, 'decision', ${row}.${a.decision}, 'reason', ${row}.${a.reason}, 'signature', ${row}.${a.signature}, 'decided_by', ${row}.${a.decidedBy}, 'decided_at', ${row}.${a.decidedAt}, 'created_at', ${row}.${a.createdAt})`;
 }

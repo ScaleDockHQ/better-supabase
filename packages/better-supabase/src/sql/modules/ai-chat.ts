@@ -9,6 +9,7 @@ import { AI_MESSAGE_PART_TYPES } from "../../blocks/ai-chat/message.ts";
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { aiChatDurable } from "./ai-chat-durable.ts";
 import { aiChatFunctions } from "./ai-chat-functions.ts";
 
 const PROJECTS = {
@@ -70,6 +71,7 @@ const RUNS = {
   message: "assistant_message_id",
   stream: "stream_id",
   engine: "engine",
+  externalRun: "external_run_id",
   model: "model",
   status: "status",
   generation: "provider_generation_id",
@@ -172,6 +174,34 @@ const MODERATION = {
   createdAt: "created_at",
 } as const;
 
+const STEPS = {
+  id: "id",
+  run: "run_id",
+  chat: "chat_id",
+  owner: "owner_id",
+  key: "step_key",
+  label: "label",
+  status: "status",
+  detail: "detail",
+  startedAt: "started_at",
+  endedAt: "ended_at",
+} as const;
+
+const HARNESS = {
+  chat: "chat_id",
+  harness: "harness_id",
+  owner: "owner_id",
+  resume: "resume_state",
+  continue: "continue_state",
+  sandbox: "sandbox_id",
+  status: "status",
+  holder: "lock_holder",
+  lockedUntil: "locked_until",
+  lastActiveAt: "last_active_at",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
+} as const;
+
 const NAMES: ModuleNames = {
   options: ["topic", "listTopic", "temporaryTtl", "staleAfter"],
   tables: {
@@ -223,6 +253,16 @@ const NAMES: ModuleNames = {
       columns: MODERATION,
       lifecycle: { user: "user", tenant: "tenant" },
     },
+    steps: {
+      name: "ai_run_steps",
+      columns: STEPS,
+      lifecycle: { user: "owner" },
+    },
+    harness: {
+      name: "ai_harness_sessions",
+      columns: HARNESS,
+      lifecycle: { user: "owner" },
+    },
   },
 };
 
@@ -254,6 +294,8 @@ export interface AiChatColumns {
   readonly shares: Columns<typeof SHARES>;
   readonly models: Columns<typeof MODELS>;
   readonly moderation: Columns<typeof MODERATION>;
+  readonly steps: Columns<typeof STEPS>;
+  readonly harness: Columns<typeof HARNESS>;
 }
 
 /** What the function builders read: names, permissions and topics. */
@@ -328,6 +370,8 @@ function namesOf(ctx: ModuleContext): AiChatNames {
       shares: columnsOf(ctx, "shares", SHARES),
       models: columnsOf(ctx, "models", MODELS),
       moderation: columnsOf(ctx, "moderation", MODERATION),
+      steps: columnsOf(ctx, "steps", STEPS),
+      harness: columnsOf(ctx, "harness", HARNESS),
     },
     t: {
       projects: ctx.table("projects"),
@@ -342,6 +386,8 @@ function namesOf(ctx: ModuleContext): AiChatNames {
       shares: ctx.table("shares"),
       models: ctx.table("models"),
       moderation: ctx.table("moderation"),
+      steps: ctx.table("steps"),
+      harness: ctx.table("harness"),
     },
     perm: {
       read: ctx.permission("read", permissions.read),
@@ -372,6 +418,8 @@ function tables(ctx: ModuleContext, names: AiChatNames): string {
   const sh = c.shares;
   const mo = c.models;
   const md = c.moderation;
+  const rs = c.steps;
+  const hs = c.harness;
   const partTypes = AI_MESSAGE_PART_TYPES.map(
     (type) => `@.type == "${type}"`,
   ).join(" || ");
@@ -482,6 +530,7 @@ create table if not exists ${t.runs} (
   ${r.message} text,
   ${r.stream} text,
   ${r.engine} text not null default 'ai-sdk' check (length(${r.engine}) between 1 and 50),
+  ${r.externalRun} text check (length(${r.externalRun}) <= 200),
   ${r.model} text,
   ${r.status} text not null default 'running' check (${r.status} in ('queued', 'running', 'cancel_requested', 'done', 'error', 'stopped')),
   ${r.generation} text,
@@ -494,6 +543,7 @@ create table if not exists ${t.runs} (
 create index if not exists ai_runs_chat_idx on ${t.runs} (${r.chat}, ${r.startedAt} desc);
 create index if not exists ai_runs_owner_idx on ${t.runs} (${r.owner});
 create index if not exists ai_runs_generation_idx on ${t.runs} (${r.generation}) where ${r.generation} is not null;
+create index if not exists ai_runs_external_idx on ${t.runs} (${r.engine}, ${r.externalRun}) where ${r.externalRun} is not null;
 ${lock(t.runs)}
 grant select on ${t.runs} to authenticated;
 drop policy if exists ai_runs_owner_read on ${t.runs};
@@ -642,7 +692,55 @@ create table if not exists ${t.moderation} (
 create index if not exists ai_moderation_events_tenant_idx on ${t.moderation} (${md.tenant}, ${md.createdAt} desc);
 create index if not exists ai_moderation_events_chat_idx on ${t.moderation} (${md.chat});
 create index if not exists ai_moderation_events_user_idx on ${t.moderation} (${md.user});
-${lock(t.moderation)}`;
+${lock(t.moderation)}
+
+-- The progress of a long run, one row per step key, so a reload shows it.
+create table if not exists ${t.steps} (
+  ${rs.id} uuid primary key default gen_random_uuid(),
+  ${rs.run} uuid not null references ${t.runs} (${r.id}) on delete cascade,
+  ${rs.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
+  ${rs.owner} uuid not null,
+  ${rs.key} text not null check (length(${rs.key}) between 1 and 200),
+  ${rs.label} text not null check (length(${rs.label}) between 1 and 300),
+  ${rs.status} text not null default 'running' check (${rs.status} in ('running', 'done', 'error', 'skipped')),
+  ${rs.detail} jsonb not null default '{}' check (jsonb_typeof(${rs.detail}) = 'object'),
+  ${rs.startedAt} timestamptz not null default now(),
+  ${rs.endedAt} timestamptz,
+  unique (${rs.run}, ${rs.key})
+);
+create index if not exists ai_run_steps_chat_idx on ${t.steps} (${rs.chat});
+create index if not exists ai_run_steps_owner_idx on ${t.steps} (${rs.owner});
+${lock(t.steps)}
+grant select on ${t.steps} to authenticated;
+drop policy if exists ai_run_steps_owner_read on ${t.steps};
+create policy ai_run_steps_owner_read on ${t.steps} for select to authenticated
+  using (${rs.owner} = (select auth.uid()));
+
+-- What a coding-agent harness needs to pick up a chat again: its resume and
+-- continue state and the sandbox it runs in. lock_holder and locked_until
+-- keep two turns from driving one sandbox. Experimental.
+create table if not exists ${t.harness} (
+  ${hs.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
+  ${hs.harness} text not null check (length(${hs.harness}) between 1 and 200),
+  ${hs.owner} uuid not null,
+  ${hs.resume} jsonb,
+  ${hs.continue} jsonb,
+  ${hs.sandbox} text check (length(${hs.sandbox}) <= 500),
+  ${hs.status} text not null default 'active' check (${hs.status} in ('active', 'idle', 'stopped', 'error')),
+  ${hs.holder} text check (length(${hs.holder}) <= 200),
+  ${hs.lockedUntil} timestamptz,
+  ${hs.lastActiveAt} timestamptz not null default now(),
+  ${hs.createdAt} timestamptz not null default now(),
+  ${hs.updatedAt} timestamptz not null default now(),
+  primary key (${hs.chat}, ${hs.harness})
+);
+create index if not exists ai_harness_sessions_owner_idx on ${t.harness} (${hs.owner});
+create index if not exists ai_harness_sessions_idle_idx on ${t.harness} (${hs.lastActiveAt}) where ${hs.status} = 'active' and ${hs.sandbox} is not null;
+${lock(t.harness)}
+grant select on ${t.harness} to authenticated;
+drop policy if exists ai_harness_sessions_owner_read on ${t.harness};
+create policy ai_harness_sessions_owner_read on ${t.harness} for select to authenticated
+  using (${hs.owner} = (select auth.uid()));`;
 }
 
 function realtime(ctx: ModuleContext, names: AiChatNames): string {
@@ -680,6 +778,8 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, names)}
 
 ${aiChatFunctions(ctx, names)}
+
+${aiChatDurable(ctx, names)}
 
 ${realtime(ctx, names)}`;
 }
@@ -722,7 +822,14 @@ function contract(): readonly ModuleContractFunction[] {
     fn("ai_message_path", ["uuid", "text", "boolean"]),
     fn("ai_message_siblings", ["uuid", "text"]),
     fn("switch_ai_branch", ["uuid", "text"]),
-    fn("claim_ai_chat_stream", ["uuid", "text", "text", "text", "text"]),
+    fn("claim_ai_chat_stream", [
+      "uuid",
+      "text",
+      "text",
+      "text",
+      "text",
+      "text",
+    ]),
     fn(
       "release_ai_chat_stream",
       ["uuid", "text", "text", "jsonb", "text", "text", "bigint"],
@@ -747,6 +854,21 @@ function contract(): readonly ModuleContractFunction[] {
     fn("record_ai_moderation_event", ["jsonb"]),
     fn("list_ai_moderation_events", ["{id}", "integer"]),
     fn("purge_ai_chats", ["integer"], "integer"),
+    fn("get_ai_run", ["uuid"]),
+    fn("list_ai_runs", ["uuid", "boolean", "integer"]),
+    fn("attach_ai_run", ["uuid", "text"], "boolean"),
+    fn("list_pending_ai_tool_approvals", ["integer"]),
+    fn("record_ai_run_step", ["uuid", "jsonb"]),
+    fn("list_ai_run_steps", ["uuid"]),
+    fn("load_ai_harness_session", ["uuid", "text"]),
+    fn("save_ai_harness_session", ["uuid", "text", "jsonb", "text"]),
+    fn(
+      "lock_ai_harness_session",
+      ["uuid", "text", "text", "integer"],
+      "boolean",
+    ),
+    fn("unlock_ai_harness_session", ["uuid", "text", "text"], "boolean"),
+    fn("idle_ai_harness_sessions", ["integer", "integer"]),
   ];
 }
 
@@ -754,7 +876,7 @@ export const AI_CHAT: ModuleDefinition = {
   name: "ai-chat",
   title: "AI chat",
   description:
-    "Chats, projects and a branching message tree in the canonical AI message format, with runs, a compare-and-set stream claim, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
+    "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
   requires: ["tenant", "access", "streams"],
   target: "schema",
   modes: ["managed", "custom"],

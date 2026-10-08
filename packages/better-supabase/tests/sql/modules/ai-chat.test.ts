@@ -63,13 +63,44 @@ describe("ai-chat module", () => {
     const sql = body();
     for (const signature of [
       '"save_ai_assistant_message"(uuid, jsonb, text, text, text, text, jsonb, uuid)',
-      '"claim_ai_chat_stream"(uuid, text, text, text, text)',
+      '"claim_ai_chat_stream"(uuid, text, text, text, text, text)',
       '"release_ai_chat_stream"(uuid, text, text, jsonb, text, text, bigint)',
       '"upsert_ai_models"(jsonb, boolean)',
       '"purge_ai_chats"(integer)',
+      '"attach_ai_run"(uuid, text)',
+      '"record_ai_run_step"(uuid, jsonb)',
+      '"load_ai_harness_session"(uuid, text)',
+      '"save_ai_harness_session"(uuid, text, jsonb, text)',
+      '"lock_ai_harness_session"(uuid, text, text, integer)',
+      '"unlock_ai_harness_session"(uuid, text, text)',
+      '"idle_ai_harness_sessions"(integer, integer)',
     ]) {
       expect(sql).toContain(
         `revoke execute on function "better_supabase".${signature} from public, anon, authenticated;`,
+      );
+    }
+  });
+
+  it("drops the claim's earlier signature so one overload remains", () => {
+    expect(body()).toContain(
+      'drop function if exists "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text);',
+    );
+  });
+
+  it("keeps durable runs, run steps and harness sessions", () => {
+    const sql = body();
+    expect(sql).toContain('"external_run_id" text');
+    expect(sql).toContain('unique ("run_id", "step_key")');
+    expect(sql).toContain('primary key ("chat_id", "harness_id")');
+    expect(sql).toContain("for update skip locked");
+    for (const signature of [
+      '"get_ai_run"(uuid)',
+      '"list_ai_runs"(uuid, boolean, integer)',
+      '"list_pending_ai_tool_approvals"(integer)',
+      '"list_ai_run_steps"(uuid)',
+    ]) {
+      expect(sql).toContain(
+        `grant execute on function "better_supabase".${signature} to authenticated, service_role;`,
       );
     }
   });

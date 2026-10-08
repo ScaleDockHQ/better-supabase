@@ -676,7 +676,10 @@ ${serviceGrant(`${fn("save_ai_assistant_message")}(uuid, jsonb, text, text, text
 -- held by a run that ended, whose stream closed, or that started more than
 -- ${names.staleAfter} ago is taken over. Returns { claimed, stream_id,
 -- run_id }: the active stream when another reply holds the chat.
-create or replace function ${fn("claim_ai_chat_stream")}(chat uuid, stream text, model text default null, message_id text default null, engine text default 'ai-sdk')
+-- external_run_id is the durable engine's own run id, such as a Workflow
+-- SDK run, so stop and resume can reach that run.
+drop function if exists ${fn("claim_ai_chat_stream")}(uuid, text, text, text, text);
+create or replace function ${fn("claim_ai_chat_stream")}(chat uuid, stream text, model text default null, message_id text default null, engine text default 'ai-sdk', external_run_id text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -712,8 +715,8 @@ begin
     update ${t.runs} x set ${r.status} = 'stopped', ${r.endedAt} = now()
     where x.${r.id} = v_chat.${ch.activeRun} and x.${r.endedAt} is null;
   end if;
-  insert into ${t.runs} (${r.chat}, ${r.owner}, ${r.message}, ${r.stream}, ${r.engine}, ${r.model})
-  values (v_chat.${ch.id}, v_chat.${ch.owner}, claim_ai_chat_stream.message_id, claim_ai_chat_stream.stream, coalesce(claim_ai_chat_stream.engine, 'ai-sdk'), coalesce(claim_ai_chat_stream.model, v_chat.${ch.model}))
+  insert into ${t.runs} (${r.chat}, ${r.owner}, ${r.message}, ${r.stream}, ${r.engine}, ${r.externalRun}, ${r.model})
+  values (v_chat.${ch.id}, v_chat.${ch.owner}, claim_ai_chat_stream.message_id, claim_ai_chat_stream.stream, coalesce(claim_ai_chat_stream.engine, 'ai-sdk'), claim_ai_chat_stream.external_run_id, coalesce(claim_ai_chat_stream.model, v_chat.${ch.model}))
   returning ${r.id} into v_run_id;
   update ${t.chats} x set ${ch.activeStream} = claim_ai_chat_stream.stream, ${ch.activeRun} = v_run_id, ${ch.updatedAt} = now()
   where x.${ch.id} = v_chat.${ch.id};
@@ -721,7 +724,7 @@ begin
   return jsonb_build_object('claimed', true, 'stream_id', claim_ai_chat_stream.stream, 'run_id', v_run_id);
 end;
 $$;
-${serviceGrant(`${fn("claim_ai_chat_stream")}(uuid, text, text, text, text)`)}
+${serviceGrant(`${fn("claim_ai_chat_stream")}(uuid, text, text, text, text, text)`)}
 
 -- Ends the claim when the stream finished (the service role only) and
 -- records the run's status, usage, gateway generation id and cost.
