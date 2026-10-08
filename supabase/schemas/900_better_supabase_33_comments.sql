@@ -106,9 +106,62 @@ create trigger "bs_comments_before_write"
   before insert or update on "better_supabase"."comments"
   for each row execute function "better_supabase"."comments_before_write"();
 
--- Without notifications or the outbox there is nothing to send after a write.
+-- Notifies newly mentioned members who can read comments in the tenant,
+-- and writes comment.created, comment.mentioned and comment.deleted to the
+-- outbox when it is installed.
+create or replace function "better_supabase"."comments_after_write"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_new uuid[];
+  v_claims text;
+begin
+  if tg_op = 'UPDATE' and new."deleted_at" is not null then
+    null;
+    return null;
+  end if;
+  v_new := array(
+    select x from unnest(new."mentions") x
+    where (tg_op = 'INSERT' or not x = any(old."mentions"))
+      and coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'comments.read'), false)
+  );
+  if tg_op = 'INSERT' then
+    null;
+  end if;
+  if cardinality(v_new) > 0 then
+    null;
+  end if;
+  -- notify() trusts only the service role, so the mention is sent as it,
+  -- with the comment's author as the actor; the claims are restored after.
+  if cardinality(v_new) > 0 then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
+      'type', 'comment.mentioned',
+      'tenant', new."organization_id",
+      'actor', new."author_id",
+      'subject_type', new."subject_type",
+      'subject_id', new."subject_id",
+      'summary', left(new."body", 140),
+      'subject_label', null::text,
+      'action_path', null::text,
+      'recipients', to_jsonb(v_new),
+      'key', 'comment.mentioned:' || new."id"::text || ':' || md5(array_to_string(v_new, ',')),
+      'data', jsonb_build_object('commentId', new."id")
+    ));
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."comments_after_write"() from public, anon, authenticated;
 drop trigger if exists "bs_comments_after_write" on "better_supabase"."comments";
-drop function if exists "better_supabase"."comments_after_write"();
+create trigger "bs_comments_after_write"
+  after insert or update of "mentions", "deleted_at" on "better_supabase"."comments"
+  for each row execute function "better_supabase"."comments_after_write"();
 
 -- The functions run as the caller, so the policies above decide.
 drop function if exists "better_supabase"."create_comment"(uuid, text, text, text, uuid[], uuid);

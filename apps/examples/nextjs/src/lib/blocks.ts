@@ -1,6 +1,7 @@
 import { createApiKeys } from "better-supabase/blocks/api-keys";
 import { createAuditLog } from "better-supabase/blocks/audit";
 import { createComments } from "better-supabase/blocks/comments";
+import { createNotifications } from "better-supabase/blocks/notifications";
 import {
   type RpcClient,
   createOrganizations,
@@ -8,6 +9,10 @@ import {
 } from "better-supabase/blocks/organizations";
 import { createUsage } from "better-supabase/blocks/usage";
 
+import {
+  notificationTypes,
+  renderNotification,
+} from "@/features/notifications/notification-types";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { settings } from "@/features/settings/settings-definition";
 
@@ -26,6 +31,11 @@ export function blocks(supabase: RpcClient) {
     apiKeys: createApiKeys(options),
     audit: createAuditLog(options),
     comments: createComments(options),
+    notifications: createNotifications({
+      ...options,
+      types: notificationTypes,
+      render: renderNotification,
+    }),
     usage: createUsage(options),
     onboarding: gettingStarted.connect(options),
     settings: settings.connect(options),

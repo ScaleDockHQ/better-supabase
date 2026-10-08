@@ -114,3 +114,15 @@ insert into better_supabase.announcements (title, body, severity, href, created_
 -- Acme has done the first step of its checklist.
 insert into better_supabase.onboarding_progress (checklist, step, organization_id, completed_by) values
   ('getting-started', 'customer', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1');
+
+-- A welcome notification for both Acme users, through the notifications
+-- module so the recipients, deliveries and realtime pings match a real send.
+select better_supabase.notify(jsonb_build_object(
+  'type', 'test.sent',
+  'tenant', '00000000-0000-4000-8000-000000000001',
+  'actor', '00000000-0000-4000-8000-0000000000a1',
+  'recipients', jsonb_build_array('00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a2'),
+  'include_actor', true,
+  'data', jsonb_build_object('title', 'Welcome to Acme'),
+  'key', 'seed-welcome-acme'
+));

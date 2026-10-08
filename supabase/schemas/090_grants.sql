@@ -17,8 +17,7 @@ revoke all on
   public.locations,
   public.tags,
   public.customer_tags,
-  public.notes,
-  public.notifications
+  public.notes
 from anon, authenticated;
 grant select on public.organizations, public.memberships to authenticated;
 grant select, insert, update, delete on
@@ -27,8 +26,7 @@ grant select, insert, update, delete on
   public.locations,
   public.tags,
   public.customer_tags,
-  public.notes,
-  public.notifications
+  public.notes
 to authenticated;
 grant all on all tables in schema public to service_role;
 

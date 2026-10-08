@@ -1,7 +1,7 @@
 -- RLS for the fixture schema, against the rows in supabase/seed.sql: Acme
 -- (…0001) has two customers, Globex (…0002) has one. Run with `supabase test db`.
 begin;
-select plan(13);
+select plan(14);
 
 select is(
   (select count(*) from pg_catalog.pg_tables where schemaname in ('public', 'rbac') and not rowsecurity),
@@ -47,9 +47,17 @@ select throws_ok('select * from rbac.user_roles', '42501', null, 'authenticated 
 -- The member carries no user_role claim, so authorize() finds no permission.
 select ok(not rbac.authorize('customers.read'), 'authorize() denies a token without a user_role claim');
 
-insert into public.notifications (organization_id, title)
-values ('00000000-0000-4000-8000-000000000001', 'For the member');
-select is((select count(*) from public.notifications), 1::bigint, 'a member sees their own notification');
+-- The seed sends both Acme users a welcome notification; this adds one more.
+select isnt(
+  better_supabase.notify('{"type":"test.sent","tenant":"00000000-0000-4000-8000-000000000001","recipients":["00000000-0000-4000-8000-0000000000a2"],"include_actor":true,"data":{"title":"For the member"}}'),
+  null,
+  'a member sends themselves a notification'
+);
+select is(
+  (select count(*) from better_supabase.notification_recipients),
+  2::bigint,
+  'a member sees their own notifications'
+);
 
 reset role;
 select set_config(
@@ -59,7 +67,10 @@ select set_config(
 );
 set local role authenticated;
 
-select is_empty('select id from public.notifications', 'another user in the same tenant does not see it');
+select is_empty(
+  $$select id from better_supabase.notification_recipients where user_id = '00000000-0000-4000-8000-0000000000a2'$$,
+  'another user in the same tenant does not see them'
+);
 select ok(rbac.authorize('users.manage'), 'authorize() grants an admin permission from the user_role claim');
 
 select * from finish();

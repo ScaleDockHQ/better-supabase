@@ -108,8 +108,10 @@ before the client joins the channel aren't broadcast to it.
 
 A seed costs a database call in the render that makes it. For a badge in
 the layout, which is part of every page, skip the seed and let the
-browser count. The [Next.js example](/docs/examples) does both: the
-header badge counts in the browser, and the inbox page seeds its count.
+browser count. For in-app notifications, the
+[notifications block](/docs/blocks/notifications) has its own tables,
+counts and private topic; the [Next.js example](/docs/examples) builds its
+header badge on it with `useNotifications`.
 
 ## Without React
 

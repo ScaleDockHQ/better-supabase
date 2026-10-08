@@ -49,7 +49,7 @@ The features and the better-supabase parts they use:
 | Sign-in, sign-up, password reset, MFA | `bs.proxy` with `protect`, the browser client, the Auth server and Mailpit                    |
 | Organizations, switcher, invitations  | the `organizations` and `invitations` SQL modules with `better-supabase/blocks/organizations` |
 | Customers list and detail             | `defineListQuery` with facets, `bs.cached()` in `"use cache: private"`, comments, logo upload |
-| Inbox                                 | notifications read per request, with an unread badge                                          |
+| Notifications                         | the `notifications` module with `better-supabase/blocks/notifications`, a live unread badge   |
 | Members, roles and permissions        | the `access` module in custom mode, `can()` in policies and the UI                            |
 | Billing and plan features             | the `entitlements` and `usage` modules                                                        |
 | API keys and audit log                | the `api-keys` and `audit` modules, with a CSV export                                         |

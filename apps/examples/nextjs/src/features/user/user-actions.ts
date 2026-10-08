@@ -103,7 +103,7 @@ export const setWeeklyDigest = bs.action(
 
 /**
  * Deletes the signed-in user, their avatars and their cached session;
- * notifications cascade. Customer logos belong to the organization, so that
+ * the notifications block's rows cascade. Customer logos belong to the organization, so that
  * bucket is left alone. Needs a verified second factor in this session.
  */
 export const deleteMyAccount = bs.action(
@@ -112,9 +112,6 @@ export const deleteMyAccount = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to delete your account"));
     }
-    return bs.deleteAccount(auth.user.id, {
-      buckets: [avatars],
-      cascades: ["notifications"],
-    });
+    return bs.deleteAccount(auth.user.id, { buckets: [avatars] });
   },
 );

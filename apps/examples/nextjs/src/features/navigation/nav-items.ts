@@ -3,7 +3,7 @@ import type { Permission } from "@/features/user/user-permissions";
 export type NavId =
   | "dashboard"
   | "customers"
-  | "inbox"
+  | "notifications"
   | "beta"
   | "members"
   | "billing"
@@ -30,7 +30,7 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "customers.read",
   },
-  { id: "inbox", href: "/inbox", group: "workspace" },
+  { id: "notifications", href: "/notifications", group: "workspace" },
   { id: "beta", href: "/beta", group: "workspace", flag: "beta-page" },
   {
     id: "members",
