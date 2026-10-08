@@ -201,7 +201,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
         owner: "user",
         connection: "linear",
       });
-      expect(perUser.credentialOwner).toBe("user");
+      expect(perUser).toMatchObject({ credentialOwner: "user" });
       await expect(
         perUser.getToken({ principal: user, connection }),
       ).rejects.toBeInstanceOf(ConnectionAuthorizationRequiredError);

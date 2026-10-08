@@ -206,7 +206,7 @@ describe("credentialAuth", () => {
       interactive: false,
     });
     expect(auth).toMatchObject({ credentialOwner: "user" });
-    expect(auth.principalType).toBeUndefined();
+    expect("principalType" in auth).toBe(false);
     expect(await auth.getToken(request(connected))).toEqual({ token: "t1" });
     expect(p.getToken).toHaveBeenCalledWith(ref, {
       subject: { type: "user", id: USER, issuer: user.issuer },
@@ -271,7 +271,7 @@ describe("credentialAuth", () => {
       owner: "user",
       scopes: ["read"],
     });
-    expect(auth.principalType).toBe("user");
+    expect(auth).toMatchObject({ principalType: "user" });
     const callbackUrl = "https://app.test/eve/v1/connections/linear/callback";
     expect(
       await auth.startAuthorization?.({ ...request(connected), callbackUrl }),
@@ -287,7 +287,7 @@ describe("credentialAuth", () => {
       await auth.completeAuthorization?.({
         ...request(connected),
         callbackUrl,
-        callback: { params: { code: "c1", state: "s1" } },
+        callback: { params: { code: "c1", state: "s1" }, method: "GET" },
       }),
     ).toEqual({ token: "t1" });
     const [, options] = complete.mock.calls[0] as unknown as [
@@ -313,7 +313,7 @@ describe("credentialAuth", () => {
       denied.completeAuthorization?.({
         ...request(connected),
         callbackUrl,
-        callback: { params: {} },
+        callback: { params: {}, method: "GET" },
       }),
     ).rejects.toBeInstanceOf(ConnectionAuthorizationFailedError);
   });
@@ -572,10 +572,9 @@ describe("supabaseMemory", () => {
       load: () => Promise.resolve({ defineTool }),
     });
     type Tool = { execute(input: Record<string, unknown>): Promise<unknown> };
-    const tools = (await provider.tools?.(memoryCtx(user, "op8"))) as Record<
-      string,
-      Tool
-    >;
+    const tools = (await provider.tools?.(
+      memoryCtx(user, "op8"),
+    )) as unknown as Record<string, Tool>;
     expect(Object.keys(tools)).toEqual(["remember", "forget"]);
     expect(await tools["remember"]?.execute({ fact: "has a cat" })).toEqual({
       id: "m2",

@@ -212,31 +212,40 @@ export interface EveAuthorizationChallenge {
     readonly displayName?: string;
     readonly instructions?: string;
   };
-  readonly resume?: Readonly<Record<string, string>>;
 }
 
-/** A connection `auth` value for eve's `defineMcpClientConnection`. */
-export interface EveConnectionAuthorization {
-  /** Set on the non-interactive form. */
-  readonly credentialOwner?: "app" | "user";
-  /** Set on the interactive form, which eve allows only for users. */
-  readonly principalType?: "user";
+/** A `getToken`-only connection `auth`: eve never runs a consent flow. */
+export interface EveTokenAuthorization {
+  readonly credentialOwner: "app" | "user";
   readonly displayName?: string;
   getToken(request: EveConnectionRequest): Promise<EveTokenResult>;
-  startAuthorization?(
+  readonly startAuthorization?: undefined;
+  readonly completeAuthorization?: undefined;
+}
+
+/** An interactive connection `auth`, which eve allows only for users. */
+export interface EveInteractiveAuthorization {
+  readonly principalType: "user";
+  readonly displayName?: string;
+  getToken(request: EveConnectionRequest): Promise<EveTokenResult>;
+  startAuthorization(
     request: EveConnectionRequest & { readonly callbackUrl: string },
   ): Promise<EveAuthorizationChallenge>;
-  completeAuthorization?(
+  completeAuthorization(
     request: EveConnectionRequest & {
       readonly callbackUrl: string;
-      readonly resume?: Readonly<Record<string, string>>;
       readonly callback: {
         readonly params: Readonly<Record<string, string>>;
-        readonly method?: string;
+        readonly method: string;
       };
     },
   ): Promise<EveTokenResult>;
 }
+
+/** A connection `auth` value for eve's `defineMcpClientConnection`. */
+export type EveConnectionAuthorization =
+  | EveTokenAuthorization
+  | EveInteractiveAuthorization;
 
 export interface CredentialAuthOptions {
   readonly provider: CredentialProvider;
@@ -425,12 +434,16 @@ interface EveModelMessage {
   readonly content: string | readonly EveMessagePart[];
 }
 
-/** The context eve passes to a memory provider's handlers. */
-export interface EveMemoryContext extends EveSessionContext {
+/** The context eve passes to a memory provider's `tools`. */
+export interface EveMemoryToolsContext extends EveSessionContext {
   readonly memory: {
     readonly scope: { readonly key: string };
     readonly slot?: string;
   };
+}
+
+/** The context eve passes to a memory provider's recall and capture handlers. */
+export interface EveMemoryContext extends EveMemoryToolsContext {
   readonly operationId: string;
   readonly messages?: readonly EveModelMessage[];
   readonly turn?: {
@@ -459,8 +472,15 @@ export interface EveMemoryProvider {
     "turn.completed"?(ctx: EveMemoryContext): Promise<void>;
   };
   tools?(
-    ctx: EveMemoryContext,
-  ): Promise<Readonly<Record<string, unknown>> | null>;
+    ctx: EveMemoryToolsContext,
+  ): Promise<Readonly<Record<string, EveMemoryTool>> | null>;
+}
+
+/** A tool from eve's `defineTool`, as a memory provider returns it. */
+export interface EveMemoryTool {
+  readonly description: string;
+  readonly inputSchema: unknown;
+  execute(input: never, context: never): unknown;
 }
 
 export interface SupabaseMemoryOptions {
@@ -518,9 +538,7 @@ function textOfMessage(message: EveModelMessage): string {
 }
 
 interface EveToolsModule {
-  readonly defineTool: (
-    definition: Readonly<Record<string, unknown>>,
-  ) => unknown;
+  readonly defineTool: (definition: EveMemoryTool) => EveMemoryTool;
 }
 
 const isToolsModule = (value: unknown): value is EveToolsModule =>
@@ -565,7 +583,7 @@ export function supabaseMemory(
     });
 
   const target = async (
-    ctx: EveMemoryContext,
+    ctx: EveMemoryToolsContext,
   ): Promise<
     | { readonly organizationId: string; readonly namespace: MemoryNamespace }
     | undefined
@@ -965,26 +983,23 @@ export interface EveChatMessage {
   readonly text: string;
 }
 
-/** The parts of eve's `chatSdkChannel()` result `routeInbox` uses. */
-export interface EveChatSdkBridge {
+/**
+ * The parts of eve's `chatSdkChannel()` result `routeInbox` uses. `T` is the
+ * Chat SDK thread, so `send` gets back the thread the handler received.
+ */
+export interface EveChatSdkBridge<T extends EveChatThread = EveChatThread> {
   readonly bot: {
     onNewMention(
-      handler: (
-        thread: EveChatThread,
-        message: EveChatMessage,
-      ) => Promise<void>,
+      handler: (thread: T, message: EveChatMessage) => Promise<void>,
     ): void;
     onSubscribedMessage(
-      handler: (
-        thread: EveChatThread,
-        message: EveChatMessage,
-      ) => Promise<void>,
+      handler: (thread: T, message: EveChatMessage) => Promise<void>,
     ): void;
   };
   send(
     message: string,
     options: {
-      readonly thread: EveChatThread;
+      readonly thread: NoInfer<T>;
       readonly auth: EveSessionAuth | null;
       readonly title?: string;
     },
@@ -1007,14 +1022,11 @@ const INBOX_PREFIX = "inbox:";
  * principal is the contact, never a user, so contacts get no user-scoped
  * connections.
  */
-export function routeInbox(
-  bridge: EveChatSdkBridge,
+export function routeInbox<T extends EveChatThread>(
+  bridge: EveChatSdkBridge<T>,
   options: RouteInboxOptions,
 ): void {
-  const handle = async (
-    thread: EveChatThread,
-    message: EveChatMessage,
-  ): Promise<void> => {
+  const handle = async (thread: T, message: EveChatMessage): Promise<void> => {
     if (!thread.id.startsWith(INBOX_PREFIX)) return;
     const conversation = await options.inbox.conversations
       .get(thread.id.slice(INBOX_PREFIX.length))

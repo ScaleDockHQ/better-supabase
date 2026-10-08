@@ -41,7 +41,7 @@ the root `agent.ts`; the World reads its connection from the environment.
 import { defineAgent } from "eve";
 
 export default defineAgent({
-  model: "anthropic/claude-sonnet-4.5",
+  model: "anthropic/claude-opus-5.5",
   experimental: {
     workflow: { world: "better-supabase/workflow-sdk/world" },
   },
@@ -89,10 +89,10 @@ session without a user is asked to sign in.
 
 ```ts title="agent/connections/linear.ts"
 import { defineMcpClientConnection } from "eve/connections";
-import { vaultCredentials } from "better-supabase/credentials/vault";
+import { vaultCredentials } from "better-supabase/credentials";
 import { credentialAuth } from "better-supabase/eve";
 
-import { transport } from "../../lib/blocks";
+import { transport } from "../lib/blocks";
 
 export default defineMcpClientConnection({
   url: "https://mcp.linear.app/mcp",
@@ -125,11 +125,11 @@ import { defineMemory, defineMemoryProvider } from "eve/memory";
 import { byPrincipal } from "eve/memory/scope";
 import { supabaseMemory } from "better-supabase/eve";
 
-import { knowledge, memory } from "../../lib/blocks";
+import { knowledge, memory } from "../lib/blocks";
 
 export default defineMemory({
   description: "What the agent knows about this user and their team",
-  scope: byPrincipal(),
+  scope: byPrincipal,
   provider: defineMemoryProvider(supabaseMemory({ memory, knowledge })),
 });
 ```
@@ -158,11 +158,11 @@ import { fileMemory } from "eve/memory/file";
 import { byPrincipal } from "eve/memory/scope";
 import { supabaseDocumentBackend } from "better-supabase/eve";
 
-import { memory } from "../../lib/blocks";
+import { memory } from "../lib/blocks";
 
 export default defineMemory({
   description: "Notes the agent keeps for itself",
-  scope: byPrincipal(),
+  scope: byPrincipal,
   provider: fileMemory({ backend: supabaseDocumentBackend({ memory }) }),
 });
 ```
@@ -177,7 +177,7 @@ read them like any other chat.
 import { defineHook } from "eve/hooks";
 import { persistSessions } from "better-supabase/eve";
 
-import { chats } from "../../lib/blocks";
+import { chats } from "../lib/blocks";
 
 export default defineHook({
   events: persistSessions({ chats, agentId: "support" }),
@@ -209,7 +209,7 @@ import { chatSdkChannel } from "eve/channels/chat-sdk";
 import { createSupabaseState, inboxAdapter } from "better-supabase/chat-sdk";
 import { routeInbox } from "better-supabase/eve";
 
-import { inbox, transport } from "../../lib/blocks";
+import { inbox, transport } from "../lib/blocks";
 
 const bridge = chatSdkChannel({
   userName: "Acme agent",
