@@ -6,6 +6,21 @@ msgstr ""
 "X-Generator: next-intl\n"
 "X-Message-Key: msgctxt\n"
 
+#: src/app/[locale]/(app)/assistant/[id]/page.tsx
+msgctxt "assistant.Ug9lgd"
+msgid "All chats"
+msgstr "Alle chats"
+
+#: src/app/[locale]/(app)/assistant/page.tsx
+msgctxt "assistant.wSAvhu"
+msgid "Assistant"
+msgstr "Assistent"
+
+#: src/app/[locale]/(app)/assistant/page.tsx
+msgctxt "assistant.p-0Iui"
+msgid "Chats on the ai-chat block. A reload resumes an answer that is still streaming."
+msgstr "Chats op het ai-chat-blok. Na herladen loopt een antwoord dat nog wordt geschreven verder."
+
 #: src/app/[locale]/(app)/beta/page.tsx
 msgctxt "beta.riw_yc"
 msgid "Beta"
@@ -264,6 +279,46 @@ msgstr "Annuleren"
 msgctxt "apiKeys.VzzYJk"
 msgid "Create"
 msgstr "Maken"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.ytL5Ck"
+msgid "The answer failed. Try again."
+msgstr "Het antwoord is mislukt. Probeer het opnieuw."
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.zf_3aa"
+msgid "Ask anything"
+msgstr "Vraag wat je wilt"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.T7Ry38"
+msgid "Message"
+msgstr "Bericht"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.q_uwLT"
+msgid "Stop"
+msgstr "Stoppen"
+
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.9WRlF4"
+msgid "Send"
+msgstr "Versturen"
+
+#: src/features/assistant/components/chat-list.tsx
+msgctxt "assistant.YfXudL"
+msgid "No chats yet"
+msgstr "Nog geen chats"
+
+#: src/features/assistant/components/chat-list.tsx
+msgctxt "assistant.huX5LS"
+msgid "Your chats show up here after the first answer."
+msgstr "Je chats verschijnen hier na het eerste antwoord."
+
+#: src/features/assistant/components/chat-list.tsx
+msgctxt "assistant.lfYALm"
+msgid "Untitled chat"
+msgstr "Chat zonder titel"
 
 #: src/features/audit/components/audit-log.tsx
 msgctxt "audit.hE7RvK"
@@ -922,6 +977,11 @@ msgstr "Klanten"
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Meldingen"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.wSAvhu"
+msgid "Assistant"
+msgstr "Assistent"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.riw_yc"

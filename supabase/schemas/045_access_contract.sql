@@ -3,8 +3,9 @@
 -- A user can belong to several organizations (public.memberships);
 -- the active one is the `tenant_id` claim that switch_organization writes.
 -- Owners hold every permission, admins everything but deleting and handing
--- over the organization, members read, comment, keep their own API keys and
--- read the settings. There are no platform roles, and nobody is disabled.
+-- over the organization, members read, comment, keep their own API keys,
+-- read the settings and use the assistant. There are no platform roles, and
+-- nobody is disabled.
 -- `rolePermissions` in apps/examples/nextjs/src/features/user/user-permissions.ts
 -- mirrors the lists for the UI.
 
@@ -25,13 +26,15 @@ as $$
       'api_keys.manage', 'api_keys.own',
       'comments.read', 'comments.create', 'comments.moderate', 'activity.read',
       'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record',
-      'notifications.send', 'notifications.read'
+      'notifications.send', 'notifications.read',
+      'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai_chat.admin'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
       'settings.read', 'api_keys.own', 'comments.read', 'comments.create', 'activity.read',
       'onboarding.read', 'usage.read', 'usage.record',
-      'notifications.send', 'notifications.read'
+      'notifications.send', 'notifications.read',
+      'ai_chat.read', 'ai_chat.create', 'ai_chat.share'
     ]
     else array[]::text[]
   end

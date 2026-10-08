@@ -4,6 +4,7 @@ export type NavId =
   | "dashboard"
   | "customers"
   | "notifications"
+  | "assistant"
   | "beta"
   | "members"
   | "billing"
@@ -31,6 +32,12 @@ export const navItems: readonly NavItem[] = [
     requires: "customers.read",
   },
   { id: "notifications", href: "/notifications", group: "workspace" },
+  {
+    id: "assistant",
+    href: "/assistant",
+    group: "workspace",
+    requires: "ai_chat.create",
+  },
   { id: "beta", href: "/beta", group: "workspace", flag: "beta-page" },
   {
     id: "members",

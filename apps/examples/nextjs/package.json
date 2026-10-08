@@ -22,12 +22,14 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/react": "catalog:",
     "@base-ui/react": "catalog:",
     "@supabase/server": "catalog:",
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@wrksz/themes": "catalog:",
+    "ai": "catalog:",
     "better-result": "catalog:",
     "better-supabase": "workspace:*",
     "class-variance-authority": "catalog:",

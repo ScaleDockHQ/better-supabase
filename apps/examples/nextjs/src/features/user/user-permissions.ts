@@ -28,6 +28,7 @@ export const PERMISSIONS = [
   "comments.create",
   "comments.moderate",
   "onboarding.complete",
+  "ai_chat.create",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -56,6 +57,7 @@ const grants = {
     "comments.create",
     "comments.moderate",
     "onboarding.complete",
+    "ai_chat.create",
   ],
   member: [
     "customers.read",
@@ -64,6 +66,7 @@ const grants = {
     "settings.read",
     "api_keys.own",
     "comments.create",
+    "ai_chat.create",
   ],
 } satisfies Readonly<Record<Role, "*" | readonly Permission[]>>;
 
