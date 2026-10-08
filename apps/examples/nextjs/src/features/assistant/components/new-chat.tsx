@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 
+import { durableAvailable } from "../assistant-server";
 import { AssistantChat } from "./assistant-chat";
 
 /**
@@ -8,5 +9,11 @@ import { AssistantChat } from "./assistant-chat";
  */
 export async function NewChat() {
   await connection();
-  return <AssistantChat id={crypto.randomUUID()} messages={[]} />;
+  return (
+    <AssistantChat
+      id={crypto.randomUUID()}
+      messages={[]}
+      durableAvailable={durableAvailable()}
+    />
+  );
 }

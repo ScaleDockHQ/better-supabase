@@ -7,7 +7,12 @@ import {
 import { searchTool } from "better-supabase/ai-sdk/embeddings";
 import { aiFileDownload } from "better-supabase/ai-sdk/files";
 import { memoryTool, withMemory } from "better-supabase/ai-sdk/memory";
-import { createAiChat, type AiChat } from "better-supabase/blocks/ai-chat";
+import {
+  type AiChat,
+  type AiRuns,
+  createAiChat,
+  createAiRuns,
+} from "better-supabase/blocks/ai-chat";
 import {
   type AiFiles,
   type AiFileStorage,
@@ -33,18 +38,30 @@ const DEFAULT_MODEL = "openai/gpt-5-mini";
 /** Without a gateway key the sample answers with a scripted model. */
 const demoMode = (): boolean => !process.env["AI_GATEWAY_API_KEY"];
 
+/** Durable chats call the model inside workflow steps, which can't run the scripted model. */
+export const durableAvailable = (): boolean => !demoMode();
+
 function languageModel(id: string): LanguageModel {
   return demoMode() ? demoModel() : id;
 }
 
 /** The service-role transport for what only the server writes. */
-function serviceTransport() {
+export function serviceTransport() {
   return rpcTransport(bs.admin().$client, { schema: API_SCHEMA });
 }
 
 /** The chat block acting as the caller, with service writes on the side. */
 export function aiChat(supabase: RpcClient): AiChat {
   return createAiChat({
+    transport: rpcTransport(supabase, { schema: API_SCHEMA }),
+    service: serviceTransport(),
+    schema: API_SCHEMA,
+  });
+}
+
+/** The chat's runs, steps and approvals as the caller; engine writes go through the service role. */
+export function aiRuns(supabase: RpcClient): AiRuns {
+  return createAiRuns({
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
     service: serviceTransport(),
     schema: API_SCHEMA,

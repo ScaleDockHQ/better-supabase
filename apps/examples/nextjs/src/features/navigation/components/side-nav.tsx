@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ActivityIcon,
   CreditCardIcon,
   FlaskConicalIcon,
   BellIcon,
@@ -41,6 +42,7 @@ const ICONS = {
   inbox: InboxIcon,
   assistant: BotIcon,
   knowledge: LibraryIcon,
+  agentActivity: ActivityIcon,
   beta: FlaskConicalIcon,
   members: UsersRoundIcon,
   billing: CreditCardIcon,
@@ -69,6 +71,8 @@ function useNavLabel() {
         return t("Assistant");
       case "knowledge":
         return t("Knowledge");
+      case "agentActivity":
+        return t("Agent activity");
       case "beta":
         return t("Beta");
       case "members":
