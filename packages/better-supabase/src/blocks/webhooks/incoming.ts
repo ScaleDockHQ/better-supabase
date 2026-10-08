@@ -215,7 +215,7 @@ const attempt = <T>(fn: () => Promise<T>): AsyncResult<T> =>
 /**
  * Tenant-owned trigger URLs over the `webhooks-in` SQL module: create
  * endpoints, then route `/hooks/<token>` to `receive`. Deliveries land in
- * the webhook inbox (`createInbox`), where a worker processes them.
+ * the webhook inbox (`createWebhookInbox`), where a worker processes them.
  */
 export function createIncomingWebhooks(
   sql: SqlClient,

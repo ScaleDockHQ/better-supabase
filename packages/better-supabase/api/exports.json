@@ -877,6 +877,7 @@
       "createInbox",
       "createJobs",
       "createRateLimit",
+      "createWebhookInbox",
       "devDrain",
       "devDrainSecret",
       "nextCronRun",
@@ -938,6 +939,14 @@
       "ScheduleInfo",
       "ScheduleOptions",
       "SqlClient",
+      "WebhookInbox",
+      "WebhookInboxEntry",
+      "WebhookInboxEvent",
+      "WebhookInboxListOptions",
+      "WebhookInboxMessage",
+      "WebhookInboxOptions",
+      "WebhookInboxProcessOptions",
+      "WebhookInboxPurgeOptions",
       "WorkOptions"
     ]
   },

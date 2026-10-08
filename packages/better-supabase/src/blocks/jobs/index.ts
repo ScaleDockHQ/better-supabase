@@ -1,15 +1,11 @@
 export { assertCron, nextCronRun } from "./cron.ts";
 export { devDrain, devDrainSecret } from "./dev.ts";
 export type { DevDrain, DevDrainOptions } from "./dev.ts";
-export { createIdempotency, createInbox, withLease } from "./jobs.ts";
+export { createIdempotency, createWebhookInbox, withLease } from "./jobs.ts";
+/* oxlint-disable typescript/no-deprecated -- the pre-0.6 webhook inbox names stay exported for one minor. */
+export { createInbox } from "./jobs.ts";
 export type {
-  Idempotency,
-  IdempotencyOptions,
-  IdempotencyState,
   Inbox,
-  Lease,
-  LeaseOptions,
-  LeaseOutcome,
   InboxEntry,
   InboxEvent,
   InboxListOptions,
@@ -17,6 +13,23 @@ export type {
   InboxOptions,
   InboxProcessOptions,
   InboxPurgeOptions,
+} from "./jobs.ts";
+/* oxlint-enable typescript/no-deprecated */
+export type {
+  Idempotency,
+  IdempotencyOptions,
+  IdempotencyState,
+  Lease,
+  LeaseOptions,
+  LeaseOutcome,
+  WebhookInbox,
+  WebhookInboxEntry,
+  WebhookInboxEvent,
+  WebhookInboxListOptions,
+  WebhookInboxMessage,
+  WebhookInboxOptions,
+  WebhookInboxProcessOptions,
+  WebhookInboxPurgeOptions,
 } from "./jobs.ts";
 export { pgmqPublicBackend, sqlQueueBackend } from "./backends.ts";
 export type {

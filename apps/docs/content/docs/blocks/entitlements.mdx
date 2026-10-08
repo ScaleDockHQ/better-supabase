@@ -299,9 +299,9 @@ import {
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
 } from "better-supabase/blocks/entitlements";
-import { createInbox } from "better-supabase/blocks/jobs";
+import { createWebhookInbox } from "better-supabase/blocks/jobs";
 
-const inbox = createInbox(postgres.admin, {
+const inbox = createWebhookInbox(postgres.admin, {
   source: "stripe-entitlements",
   verify: async (request, body) => {
     try {

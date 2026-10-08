@@ -16,7 +16,7 @@ import {
 } from "../../src/blocks/entitlements/index.ts";
 import {
   createIdempotency,
-  createInbox,
+  createWebhookInbox,
   createJobs,
   createRateLimit,
   sqlQueueBackend,
@@ -2406,7 +2406,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("stores verified webhooks once and processes them with retries", async () => {
     const secret = `whsec_${btoa("a-webhook-secret-for-the-inbox-test")}`;
-    const inbox = createInbox(postgres.admin, {
+    const inbox = createWebhookInbox(postgres.admin, {
       source: `module-${RUN}`,
       secrets: secret,
     });
@@ -2459,7 +2459,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("keeps inbox messages per tenant and resumes from a checkpoint", async () => {
     const source = `tenant-${RUN}`;
-    const inbox = createInbox(postgres.admin, {
+    const inbox = createWebhookInbox(postgres.admin, {
       source,
       verify: () => Promise.reject(new Error("store only")),
       tenantOf: (payload) => (payload as { account?: string }).account ?? null,
@@ -2511,7 +2511,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("marks inbox messages dead at the source's maxAttempts", async () => {
     const source = `attempts-${RUN}`;
-    const inbox = createInbox(postgres.admin, { source, maxAttempts: 2 });
+    const inbox = createWebhookInbox(postgres.admin, {
+      source,
+      maxAttempts: 2,
+    });
     try {
       await inbox.store({ id: "m1", payload: {} }).orThrow();
       const seen: [number, number][] = [];
@@ -2570,7 +2573,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("keeps an overlapping process() call on one worker from completing a message it lost", async () => {
     const source = `overlap-${RUN}`;
-    const inbox = createInbox(postgres.admin, { source, worker: "same" });
+    const inbox = createWebhookInbox(postgres.admin, {
+      source,
+      worker: "same",
+    });
     const status = async () =>
       (
         await pool.query<{ status: string; attempts: number }>(
