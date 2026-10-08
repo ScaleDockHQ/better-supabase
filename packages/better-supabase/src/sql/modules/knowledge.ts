@@ -270,7 +270,13 @@ begin
     if v_scope_id is null or v_scope_id is distinct from v_owner then
       ${raise("user knowledge belongs to its owner", "22023", "KNOWLEDGE_SCOPE")}
     end if;
-  elsif create_knowledge_document.scope = 'chat' and not (${SERVICE_CALLER} or ${chatReadable("v_scope_id")}) then
+  end if;
+  if create_knowledge_document.scope is null
+    or create_knowledge_document.scope not in ('organization', 'agent', 'project', 'chat', 'user')
+    or (create_knowledge_document.scope = 'organization') <> (v_scope_id is null) then
+    ${raise("% knowledge needs %", "22023", "KNOWLEDGE_SCOPE", "create_knowledge_document.scope", "case when create_knowledge_document.scope = 'organization' then 'no scope_id' else 'a scope_id' end")}
+  end if;
+  if create_knowledge_document.scope = 'chat' and not (${SERVICE_CALLER} or ${chatReadable("v_scope_id")}) then
     ${raise("chat % not found", "P0002", "AI_CHAT_NOT_FOUND", "v_scope_id")}
   end if;${fileCheck}
   insert into ${documents} (${d.tenant}, ${d.owner}, ${d.scope}, ${d.scopeId}, ${d.file}, ${d.title}, ${d.source}, ${d.metadata})
@@ -283,29 +289,32 @@ ${userGrant(`${fn("create_knowledge_document")}(${id}, text, text, uuid, uuid, t
 
 -- Replaces a document's chunks. A chunk whose text is unchanged keeps its
 -- embedding unless the model changed; the rest wait for the embed job.
+-- chunks is a list of {content, tokens, metadata}, or {"items": list}.
 create or replace function ${fn("write_knowledge_chunks")}(document_id uuid, chunks jsonb, model text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_row ${documents}%rowtype;
   v_count integer;
   v_keep boolean;
+  v_items jsonb := case when jsonb_typeof(write_knowledge_chunks.chunks) = 'object' then write_knowledge_chunks.chunks -> 'items' else write_knowledge_chunks.chunks end;
 begin
   select * into v_row from ${documents} x where x.${d.id} = write_knowledge_chunks.document_id for update;
   if not found or not ${ownDocument("v_row")} then
     ${notFound}
   end if;
-  if jsonb_typeof(write_knowledge_chunks.chunks) <> 'array' or jsonb_array_length(write_knowledge_chunks.chunks) > 10000 then
+  if coalesce(jsonb_typeof(v_items), '') <> 'array' or jsonb_array_length(v_items) > 10000 then
     ${raise("chunks must be an array of at most 10000 chunks", "22023", "KNOWLEDGE_CHUNKS")}
   end if;
-  v_count := jsonb_array_length(write_knowledge_chunks.chunks);
+  v_count := jsonb_array_length(v_items);
   v_keep := write_knowledge_chunks.model is not distinct from v_row.${d.model} or write_knowledge_chunks.model is null;
   insert into ${chunks} as t (${c.document}, ${c.index}, ${c.content}, ${c.tokens}, ${c.metadata})
   select v_row.${d.id}, (e.ord - 1)::integer, e.value ->> 'content', (e.value ->> 'tokens')::integer, coalesce(e.value -> 'metadata', '{}')
-  from jsonb_array_elements(write_knowledge_chunks.chunks) with ordinality e(value, ord)
+  from jsonb_array_elements(v_items) with ordinality e(value, ord)
   on conflict (${c.document}, ${c.index}) do update set
     ${c.content} = excluded.${c.content},
     ${c.tokens} = excluded.${c.tokens},
@@ -386,7 +395,9 @@ ${userGrant(`${fn("delete_knowledge_document")}(uuid)`)}
 -- Hybrid search over the chunks the caller can read: the vector and the
 -- full-text rankings fused with reciprocal rank fusion (k = 60). Iterative
 -- index scans keep looking until enough visible chunks turn up. scopes is a
--- list of {"scope", "id"} objects; null searches every scope.
+-- list of {"scope", "id"} objects, or {"items": list}; null searches every
+-- scope. Returns a JSON array of {document_id, idx, content, metadata,
+-- title, score}.
 create or replace function ${fn("knowledge_search")}(
   tenant ${id},
   query_embedding ${embedding.type} default null,
@@ -395,24 +406,24 @@ create or replace function ${fn("knowledge_search")}(
   k integer default 8,
   filter jsonb default null
 )
-returns table (document_id uuid, idx integer, content text, metadata jsonb, title text, score double precision)
+returns jsonb
 language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-#variable_conflict use_column
 declare
   previous_scan text := current_setting('hnsw.iterative_scan', true);
-  v_candidates integer := least(greatest(k, 1) * 4, 400);
+  v_candidates integer := least(greatest(knowledge_search.k, 1) * 4, 400);
+  v_scopes jsonb := case when jsonb_typeof(knowledge_search.scopes) = 'object' then knowledge_search.scopes -> 'items' else knowledge_search.scopes end;
+  v_rows jsonb;
 begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
-  return query
   with docs as materialized (
     select x.${d.id} as id, x.${d.title} as title from ${documents} x
     where x.${d.tenant} = knowledge_search.tenant
-      and (knowledge_search.scopes is null or exists (
-        select 1 from jsonb_array_elements(knowledge_search.scopes) s
+      and (v_scopes is null or exists (
+        select 1 from jsonb_array_elements(v_scopes) s
         where s.value ->> 'scope' = x.${d.scope}
           and (s.value ->> 'id' is null or (s.value ->> 'id')::uuid = x.${d.scopeId})
       ))
@@ -445,13 +456,18 @@ begin
       coalesce(1.0 / (60 + v.rank), 0) + coalesce(1.0 / (60 + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.document_id = v.document_id and x.idx = v.idx
   )
-  select f.document_id, f.idx, t.${c.content}, t.${c.metadata}, docs.title, f.score::double precision
-  from fused f
-  join ${chunks} t on t.${c.document} = f.document_id and t.${c.index} = f.idx
-  join docs on docs.id = f.document_id
-  order by f.score desc, f.document_id, f.idx
-  limit least(greatest(k, 1), 100);
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', r.document_id, 'idx', r.idx, 'content', r.content, 'metadata', r.metadata, 'title', r.title, 'score', r.score) order by r.score desc, r.document_id, r.idx), '[]')
+  into v_rows
+  from (
+    select f.document_id, f.idx, t.${c.content} as content, t.${c.metadata} as metadata, docs.title, f.score
+    from fused f
+    join ${chunks} t on t.${c.document} = f.document_id and t.${c.index} = f.idx
+    join docs on docs.id = f.document_id
+    order by f.score desc, f.document_id, f.idx
+    limit least(greatest(knowledge_search.k, 1), 100)
+  ) r;
   perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);
+  return v_rows;
 end;
 $$;
 ${userGrant(`${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb)`)}
@@ -474,7 +490,7 @@ as $$
 $$;
 ${serviceGrant(`${fn("pending_knowledge_chunks")}(uuid, integer)`)}
 
--- Stores embeddings ([{"idx", "embedding"}]) and marks the document ready
+-- Stores embeddings ([{"idx", "embedding"}], or {"items": list}) and marks the document ready
 -- once no chunk is missing one. Returns how many chunks still wait.
 create or replace function ${fn("set_knowledge_embeddings")}(document_id uuid, embeddings jsonb, model text default null)
 returns integer
@@ -484,11 +500,12 @@ set search_path = ''
 as $$
 declare
   v_remaining integer;
+  v_items jsonb := case when jsonb_typeof(set_knowledge_embeddings.embeddings) = 'object' then set_knowledge_embeddings.embeddings -> 'items' else set_knowledge_embeddings.embeddings end;
 begin
   update ${chunks} t set
     ${c.embedding} = (e.value ->> 'embedding')::${embedding.column},
     ${c.hash} = md5(t.${c.content})
-  from jsonb_array_elements(set_knowledge_embeddings.embeddings) e
+  from jsonb_array_elements(coalesce(v_items, '[]')) e
   where t.${c.document} = set_knowledge_embeddings.document_id and t.${c.index} = (e.value ->> 'idx')::integer;
   select count(*)::integer into v_remaining from ${chunks} t
   where t.${c.document} = set_knowledge_embeddings.document_id and t.${c.embedding} is null;
