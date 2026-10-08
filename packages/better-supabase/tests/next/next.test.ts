@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation.js";
+import { notFound, redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server.js";
 import * as v from "valibot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
