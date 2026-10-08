@@ -505,4 +505,30 @@ describe("invitation_preview_extra", () => {
       `from "better_supabase"."profiles" pr where pr."id" = created."invited_by")`,
     );
   });
+
+  it("checks revoke and view with the invite key unless they are set", () => {
+    const renamed = body({
+      invitations: { permissions: { invite: "member.invite" } },
+    });
+    expect(renamed).toContain("'member.invite'");
+    expect(renamed).not.toContain("'members.invite'");
+    const own = body({
+      invitations: {
+        permissions: {
+          invite: "member.invite",
+          revoke: "member.revoke",
+          view: "member.view",
+        },
+      },
+    });
+    expect(own).toContain("tenant_ids_with('member.view')");
+    const listing = renderModules(["organizations", "invitations"], {
+      modules: { invitations: { permissions: { invite: "member.invite" } } },
+      accessProvider: moduleProvider,
+    })
+      .map((file) => file.contents)
+      .join("\n");
+    expect(listing).not.toContain("'members.invite'");
+    expect(own).toContain("'member.revoke'");
+  });
 });

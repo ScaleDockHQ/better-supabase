@@ -14,7 +14,7 @@ import {
   SERVICE_CALLER,
   tenantIn,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 import { type PlanLookup, platformLists } from "./billing-platform.ts";
 
 const NAMES: ModuleNames = {
@@ -178,7 +178,7 @@ function build(ctx: ModuleContext): string {
   const permissions = MODULE_PERMISSIONS.billing;
   const can = (scope: string, action: "read" | "manage"): string =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${scope}, ${ctx.permission(action, permissions[action])}), false))`;
-  const viewAll = `coalesce(better_supabase.is_platform(${ctx.permission("viewAll", permissions.viewAll)}), false)`;
+  const viewAll = `coalesce(better_supabase.is_platform(${modulePermission(ctx, "viewAll", permissions.viewAll)}), false)`;
   const seatRoles = ctx.list("seatRoles", []);
   const references = ctx.manages ? tenantReference(ctx) : undefined;
   const tenantKey =

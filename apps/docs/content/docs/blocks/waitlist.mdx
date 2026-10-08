@@ -19,10 +19,10 @@ better-supabase sql add waitlist   # adds tenant and access as well
 | `invite_codes`            | The code's SHA-256, its first four characters, `max_uses`, `uses`, `expires_at`, `organization_id`, `role` |
 | `invite_code_redemptions` | Who used which code                                                                                        |
 
-| Permission        | Lets                                                   | Default roles          |
-| ----------------- | ------------------------------------------------------ | ---------------------- |
-| `waitlist.manage` | platform staff see and decide entries and create codes | platform roles with it |
-| `members.invite`  | a member create codes for their own organization       | `owner`, `admin`       |
+| Permission                                                 | Lets                                                   | Default roles          |
+| ---------------------------------------------------------- | ------------------------------------------------------ | ---------------------- |
+| `waitlist.manage`                                          | platform staff see and decide entries and create codes | platform roles with it |
+| `members.invite` (the `invitations` module's `invite` key) | a member create codes for their own organization       | `owner`, `admin`       |
 
 The service role can do everything. Only the code's hash is stored, so a
 code is shown once, when it is created.

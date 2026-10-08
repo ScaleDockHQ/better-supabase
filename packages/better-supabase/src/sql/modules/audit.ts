@@ -10,7 +10,7 @@ import {
   SCHEMA,
   SERVICE_CALLER,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 import { listEntries, reveal } from "./audit-api.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import {
@@ -756,7 +756,11 @@ drop function if exists ${ctx.fn("audit_reads_all")}();`
   }
   const c = (logical: string) => ctx.col("log", logical);
   const view = ctx.permission("view", MODULE_PERMISSIONS.audit.view);
-  const viewAll = ctx.permission("viewAll", MODULE_PERMISSIONS.audit.viewAll);
+  const viewAll = modulePermission(
+    ctx,
+    "viewAll",
+    MODULE_PERMISSIONS.audit.viewAll,
+  );
   const hidden = new Set(
     impersonators(ctx) === "hide"
       ? ["impersonatedBy", "impersonationReason", "supportSession"]

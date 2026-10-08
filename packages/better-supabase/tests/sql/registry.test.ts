@@ -2,6 +2,8 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
+import type { ModulesConfig } from "../../src/config/modules.ts";
+
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
 import { eventTriggersOf } from "../../src/sql/event-triggers.ts";
 import { moduleLayout } from "../../src/sql/layout.ts";
@@ -936,6 +938,45 @@ describe("modulePermissionKeys", () => {
         suspendMember: "member.suspend",
       }),
     ).toBe("member.suspend");
+  });
+
+  it("defaults sibling actions to the key they follow", () => {
+    const key = (modules: ModulesConfig, module: string, action: string) =>
+      modulePermissionKeys(modules, [module]).find(
+        (entry) => entry.module === module && entry.action === action,
+      )?.key;
+    const invite = {
+      invitations: { permissions: { invite: "member.invite" } },
+    };
+    expect(key(invite, "invitations", "revoke")).toBe("member.invite");
+    expect(key(invite, "invitations", "view")).toBe("member.invite");
+    expect(key(invite, "waitlist", "invite")).toBe("member.invite");
+    expect(
+      key(
+        { billing: { permissions: { read: "billing.view" } } },
+        "billing",
+        "viewAll",
+      ),
+    ).toBe("billing.view");
+    expect(
+      key(
+        { audit: { permissions: { view: "audit.view" } } },
+        "audit",
+        "viewAll",
+      ),
+    ).toBe("audit.view");
+    expect(
+      key(
+        {
+          invitations: {
+            permissions: { invite: "member.invite", view: "member.view" },
+          },
+        },
+        "invitations",
+        "view",
+      ),
+    ).toBe("member.view");
+    expect(key({}, "waitlist", "invite")).toBe("members.invite");
   });
 
   it("applies sql.modules.<module>.permissions and skips custom modules", () => {
