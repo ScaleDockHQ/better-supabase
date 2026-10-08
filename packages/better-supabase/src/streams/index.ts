@@ -16,6 +16,7 @@ export {
   teeToStore,
   type TeedStream,
   type TeeToStoreOptions,
+  writeToStore,
 } from "./tee.ts";
 export { rpcTransport, sqlTransport } from "../core/block-transport.ts";
 export type { BlockTransport } from "../core/block-transport.ts";

@@ -50,6 +50,20 @@ export function teeToStore(
   };
 }
 
+/**
+ * Stores `source` under `id` without a live copy, for a stream the caller
+ * already sends elsewhere (the second branch of its own `tee()`). Settles
+ * like `teeToStore`'s `persisted`.
+ */
+export function writeToStore(
+  store: StreamStore,
+  id: string,
+  source: ReadableStream<string>,
+  options: TeeToStoreOptions = {},
+): AsyncResult<number> {
+  return AsyncResult.from(() => persist(store, id, source, options));
+}
+
 async function persist(
   store: StreamStore,
   id: string,

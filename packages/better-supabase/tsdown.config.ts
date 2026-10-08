@@ -43,6 +43,8 @@ const entries = [
   "blocks/waitlist/index",
   "streams/index",
   "streams/redis/index",
+  "credentials/index",
+  "vercel-connect/index",
   "blocks/onboarding/index",
   "blocks/onboarding/react/index",
   "blocks/onboarding/react/server",

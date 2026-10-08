@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/react-query";
+import type { createClient } from "redis";
 
 import { describe, expectTypeOf, it } from "vitest";
 
@@ -27,9 +28,21 @@ import type {
   RequestContext,
 } from "../../src/core/plugin.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
+import type {
+  CredentialProvider,
+  CredentialRef,
+} from "../../src/credentials/index.ts";
 import type { EventSink } from "../../src/events/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
-import type { SupportSessionStore } from "../../src/server/index.ts";
+import type {
+  ServerContext,
+  SupportSessionStore,
+} from "../../src/server/index.ts";
+import type { StreamStore } from "../../src/streams/index.ts";
+import type {
+  RedisStreamClient,
+  RedisStreamSubscriber,
+} from "../../src/streams/redis/index.ts";
 
 import {
   pgmqPublicBackend,
@@ -142,6 +155,31 @@ describe("AuthorizationProvider", () => {
     const accepts = (provider: AuthorizationProvider) => provider;
     // @ts-expect-error a provider needs the two caller templates
     accepts({ ...minimal, functions: {} });
+  });
+});
+
+describe("CredentialProvider", () => {
+  it("is versioned and optional on the server context", () => {
+    expectTypeOf<CredentialProvider["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf<
+      ServerContext<never, never, never>["credentials"]
+    >().toEqualTypeOf<CredentialProvider | undefined>();
+    expectTypeOf<{
+      provider: "vault";
+      secret: "x";
+    }>().toExtend<CredentialRef>();
+    const accepts = (provider: CredentialProvider) => provider;
+    // @ts-expect-error a provider resolves tokens and revokes them
+    accepts({ apiVersion: 1, name: "partial", capabilities: () => ({}) });
+  });
+});
+
+describe("StreamStore", () => {
+  it("is versioned, and node-redis clients fit the Redis store", () => {
+    expectTypeOf<StreamStore["apiVersion"]>().toEqualTypeOf<1>();
+    type NodeRedis = ReturnType<typeof createClient>;
+    expectTypeOf<NodeRedis>().toExtend<RedisStreamClient>();
+    expectTypeOf<NodeRedis>().toExtend<RedisStreamSubscriber>();
   });
 });
 

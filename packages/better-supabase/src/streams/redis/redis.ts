@@ -32,16 +32,74 @@ export interface RedisStreamSubscriber {
   ): Promise<unknown>;
 }
 
-export interface RedisStreamStoreOptions {
-  readonly client: RedisStreamClient;
-  /** Wakes readers on each batch; without it they poll. */
-  readonly subscriber?: RedisStreamSubscriber;
+interface RedisStreamSharedOptions {
   /** Key and channel prefix. Defaults to `bs:stream`. */
-  readonly prefix?: string;
+  readonly keyPrefix?: string;
+  /** How long a stream opened without a `ttl` lives. Defaults to `'1 day'`. */
+  readonly ttl?: number | string;
   /** Milliseconds between reads of an idle stream: 250 by default, 2000 with `subscriber`. */
   readonly pollMs?: number;
   /** Chunks per read. Defaults to 1000. */
   readonly batch?: number;
+}
+
+export type RedisStreamStoreOptions = RedisStreamSharedOptions &
+  (
+    | {
+        readonly client: RedisStreamClient;
+        /** Wakes readers on each batch; without it they poll. */
+        readonly subscriber?: RedisStreamSubscriber;
+      }
+    | {
+        /**
+         * Connects with `redis` (node-redis, an optional peer) on first use,
+         * with a duplicate connection that wakes readers.
+         */
+        readonly url: string;
+      }
+  );
+
+interface Connected {
+  readonly client: RedisStreamClient;
+  readonly subscriber: RedisStreamSubscriber | undefined;
+}
+
+interface NodeRedisClient extends RedisStreamClient, RedisStreamSubscriber {
+  connect(): Promise<unknown>;
+  duplicate(): NodeRedisClient;
+}
+
+const isNodeRedis = (
+  value: unknown,
+): value is { createClient(options: { url: string }): NodeRedisClient } =>
+  isRecord(value) && typeof value["createClient"] === "function";
+
+/**
+ * Loads `redis` on first use. The specifier is a variable so bundlers leave
+ * the optional peer out of apps that pass their own client.
+ */
+async function loadRedis(): Promise<unknown> {
+  const specifier = "redis";
+  try {
+    return await import(specifier);
+  } catch {
+    return undefined;
+  }
+}
+
+async function connectUrl(
+  url: string,
+  load: () => Promise<unknown>,
+): Promise<Connected> {
+  const module = await load();
+  if (!isNodeRedis(module))
+    throw new TypeError(
+      "redisStreamStore({ url }) needs the redis package: pnpm add redis, or pass a connected client",
+    );
+  const client = module.createClient({ url });
+  const subscriber = client.duplicate();
+  await Promise.all([client.connect(), subscriber.connect()]);
+  return { client, subscriber };
 }
 
 const DAY = 86_400;
@@ -53,8 +111,7 @@ const UNITS: Readonly<Record<string, number>> = {
 };
 const INTERVAL = /^(\d+)\s*(second|minute|hour|day)s?$/;
 
-function ttlSeconds(value: number | string | undefined): number | undefined {
-  if (value === undefined) return DAY;
+function ttlSeconds(value: number | string): number | undefined {
   if (typeof value === "number")
     return value > 0 ? Math.ceil(value) : undefined;
   const match = INTERVAL.exec(value.trim());
@@ -74,10 +131,32 @@ const text = (value: unknown): string | undefined =>
  */
 export function redisStreamStore(
   options: RedisStreamStoreOptions,
+  load: () => Promise<unknown> = loadRedis,
 ): StreamStore {
-  const { client, subscriber } = options;
-  const prefix = options.prefix ?? "bs:stream";
-  const pollMs = options.pollMs ?? (subscriber ? 2000 : 250);
+  let connected: Promise<Connected> | undefined =
+    "client" in options
+      ? Promise.resolve({
+          client: options.client,
+          subscriber: options.subscriber,
+        })
+      : undefined;
+  const connection = (): Promise<Connected> => {
+    if (connected) return connected;
+    if (!("url" in options))
+      throw new TypeError("redisStreamStore needs a client or a url");
+    const pending = connectUrl(options.url, load);
+    connected = pending;
+    pending.catch(() => {
+      connected = undefined;
+    });
+    return pending;
+  };
+  const redis = async (): Promise<RedisStreamClient> =>
+    (await connection()).client;
+  const prefix = options.keyPrefix ?? "bs:stream";
+  const defaultTtl = ttlSeconds(options.ttl ?? DAY);
+  const wakes = "url" in options || options.subscriber !== undefined;
+  const pollMs = options.pollMs ?? (wakes ? 2000 : 250);
   const batch = options.batch ?? 1000;
   const meta = (id: string): string => `${prefix}:${id}:meta`;
   const list = (id: string): string => `${prefix}:${id}:chunks`;
@@ -86,7 +165,7 @@ export function redisStreamStore(
   const state = async (
     id: string,
   ): Promise<Record<string, string> | undefined> => {
-    const value = await client.hGetAll(meta(id));
+    const value = await (await redis()).hGetAll(meta(id));
     if (!isRecord(value) || text(value["created"]) === undefined)
       return undefined;
     const fields: Record<string, string> = {};
@@ -97,7 +176,7 @@ export function redisStreamStore(
     return fields;
   };
   const length = async (id: string): Promise<number> =>
-    Number(await client.lLen(list(id)));
+    Number(await (await redis()).lLen(list(id)));
   const missing = (id: string) =>
     dbError("not_found", `stream ${id} does not exist`, {
       hint: "STREAM_NOT_FOUND",
@@ -121,11 +200,15 @@ export function redisStreamStore(
       const fields = await state(id);
       if (!fields || fields[field] !== undefined) return false;
       if (field === "cancelled" && fields["closed"] !== undefined) return false;
+      const client = await redis();
       await client.hSet(meta(id), field, new Date().toISOString());
       await client.publish(
         channel(id),
         field === "closed" ? "close" : "cancel",
       );
+      // Writers on other instances subscribe here to stop generating.
+      if (field === "cancelled")
+        await client.publish(`${channel(id)}:cancel`, "cancel");
       return true;
     });
 
@@ -133,7 +216,7 @@ export function redisStreamStore(
     apiVersion: 1,
     name: "redis",
     open: (id, open = {}) => {
-      const ttl = ttlSeconds(open.ttl);
+      const ttl = open.ttl === undefined ? defaultTtl : ttlSeconds(open.ttl);
       if (ttl === undefined) {
         return AsyncResult.err(
           dbError(
@@ -143,6 +226,7 @@ export function redisStreamStore(
         );
       }
       return attempt(async () => {
+        const client = await redis();
         const created = await client.hSetNX(
           meta(id),
           "created",
@@ -184,6 +268,7 @@ export function redisStreamStore(
         }
         const fresh = chunks.slice(stored - fromIdx);
         if (fresh.length > 0) {
+          const client = await redis();
           await client.rPush(list(id), [...fresh]);
           await client.expire(list(id), Number(fields["ttl"] ?? DAY));
           await client.publish(channel(id), "append");
@@ -198,15 +283,22 @@ export function redisStreamStore(
         from: fromIdx,
         pollMs,
         signal: read.signal,
-        ...(subscriber
+        ...(wakes
           ? {
               subscribe: (wake: () => void) => {
                 const listener = (): void => {
                   wake();
                 };
-                void subscriber.subscribe(channel(id), listener);
+                const joined = connection().then(async ({ subscriber }) => {
+                  await subscriber?.subscribe(channel(id), listener);
+                  return subscriber;
+                });
                 return () => {
-                  void subscriber.unsubscribe(channel(id), listener);
+                  void joined
+                    .then((subscriber) =>
+                      subscriber?.unsubscribe(channel(id), listener),
+                    )
+                    .catch(() => {});
                 };
               },
             }
@@ -215,7 +307,9 @@ export function redisStreamStore(
           attempt(async (): Promise<StreamPage> => {
             const fields = await state(id);
             if (!fields) return { chunks: [], next: from, done: true };
-            const value = await client.lRange(list(id), from, from + batch - 1);
+            const value = await (
+              await redis()
+            ).lRange(list(id), from, from + batch - 1);
             const chunks = Array.isArray(value) ? value.map(String) : [];
             const next = from + chunks.length;
             return {

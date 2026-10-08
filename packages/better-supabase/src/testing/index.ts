@@ -76,3 +76,5 @@ export type {
 } from "./webhooks.ts";
 export { testStreamStore } from "./streams.ts";
 export type { TestStreamStoreOptions } from "./streams.ts";
+export { testCredentialProvider } from "./credentials.ts";
+export type { TestCredentialProviderOptions } from "./credentials.ts";

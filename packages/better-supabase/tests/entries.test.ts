@@ -41,6 +41,8 @@ const PURE_BARRELS = [
   "storage",
   "streams",
   "streams/redis",
+  "credentials",
+  "vercel-connect",
 ];
 
 describe("subpath entries", () => {
@@ -64,6 +66,7 @@ describe("subpath entries", () => {
     );
     const statements = source
       .replace(/^"use client";$/m, "")
+      .replaceAll(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "")
       .split(/;\s*\n/)
       .map((statement) => statement.trim())
       .filter(Boolean);

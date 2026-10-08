@@ -6,6 +6,7 @@ import {
   postgresStreamStore,
   resumeFromStore,
   teeToStore,
+  writeToStore,
 } from "../../src/streams/index.ts";
 import { redisStreamStore } from "../../src/streams/redis/index.ts";
 import { testStreamStore } from "../../src/testing/index.ts";
@@ -124,7 +125,7 @@ describe("redisStreamStore", () => {
     const { client, subscriber } = fakeRedis();
     for (const store of [
       redisStreamStore({ client, pollMs: 5 }),
-      redisStreamStore({ client, subscriber, prefix: "app:s" }),
+      redisStreamStore({ client, subscriber, keyPrefix: "app:s" }),
     ]) {
       const report = await testStreamStore(store);
       expect(report.checks.every((check) => check.ok)).toBe(true);
@@ -140,6 +141,69 @@ describe("redisStreamStore", () => {
     expect(published).toEqual(["bs:stream:r append"]);
     const bad = await store.open("x", { ttl: "soon" });
     expect(bad.ok ? undefined : bad.error.kind).toBe("invalid_input");
+    const badDefault = redisStreamStore({ client, ttl: 0 });
+    const refused = await badDefault.open("y");
+    expect(refused.ok ? undefined : refused.error.kind).toBe("invalid_input");
+  });
+
+  it("announces a cancel on its own channel", async () => {
+    const { client, published } = fakeRedis();
+    const store = redisStreamStore({ client, ttl: "5 minutes" });
+    await store.open("c").orThrow();
+    expect(await store.cancel("c").orThrow()).toBe(true);
+    expect(published).toEqual([
+      "bs:stream:c cancel",
+      "bs:stream:c:cancel cancel",
+    ]);
+  });
+
+  it("connects with redis from a url", async () => {
+    const { client, subscriber } = fakeRedis();
+    const connected: string[] = [];
+    const node = (name: string) => ({
+      ...client,
+      ...subscriber,
+      async connect() {
+        connected.push(name);
+      },
+      duplicate: () => node("subscriber"),
+    });
+    const urls: string[] = [];
+    const store = redisStreamStore(
+      { url: "redis://localhost:6379", pollMs: 5 },
+      async () => ({
+        createClient(options: { url: string }) {
+          urls.push(options.url);
+          return node("client");
+        },
+      }),
+    );
+    const report = await testStreamStore(store);
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+    expect(urls).toEqual(["redis://localhost:6379"]);
+    expect(connected.toSorted()).toEqual(["client", "subscriber"]);
+
+    const missing = redisStreamStore(
+      { url: "redis://localhost:6379" },
+      async () => undefined,
+    );
+    const result = await missing.open("m");
+    expect(result.ok ? undefined : result.error.message).toMatch(
+      /pnpm add redis/,
+    );
+  });
+});
+
+describe("writeToStore", () => {
+  it("stores a stream nobody reads live", async () => {
+    const { transport } = fakeStreamsTransport();
+    const store = postgresStreamStore({ transport, pollMs: 5 });
+    expect(
+      await writeToStore(store, "w1", fromChunks(["x", "y"]), {
+        flushMs: 1,
+      }).orThrow(),
+    ).toBe(2);
+    expect(await text(store.read("w1"))).toBe("xy");
   });
 });
 

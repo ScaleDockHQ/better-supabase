@@ -107,6 +107,7 @@ catalog:
   postcss: 8.5.28
   publint: 0.3.25
   react: 19.3.0
+  redis: 6.3.0
   react-dom: 19.3.0
   # The versions in expo@57 bundledNativeModules.json; Expo SDK 57 supports
   # React Native 0.86 only.
@@ -176,6 +177,8 @@ catalogs:
     oxfmt: ">=0.66.0 <1"
     pg: ">=8.15 <9"
     react: "^19"
+    # 5.0.0 is the first node-redis with the camelCase commands the Redis stream store sends.
+    redis: ">=5 <7"
     # 17 is the first release with createFetchHttpClient and billing.meterEvents.
     stripe: ">=17 <24"
     temporal-polyfill: ">=1"

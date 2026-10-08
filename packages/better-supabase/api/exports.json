@@ -1702,6 +1702,72 @@
       "WaitlistStatus"
     ]
   },
+  "./streams": {
+    "values": [
+      "postgresStreamStore",
+      "resumeFromStore",
+      "rpcTransport",
+      "sqlTransport",
+      "teeToStore",
+      "writeToStore"
+    ],
+    "types": [
+      "BlockTransport",
+      "PostgresStreamStoreOptions",
+      "ResumeFromStoreOptions",
+      "StreamAppendResult",
+      "StreamOpenOptions",
+      "StreamPurgeOptions",
+      "StreamReadOptions",
+      "StreamStatus",
+      "StreamStore",
+      "TeedStream",
+      "TeeToStoreOptions"
+    ]
+  },
+  "./streams/redis": {
+    "values": [
+      "redisStreamStore"
+    ],
+    "types": [
+      "RedisStreamClient",
+      "RedisStreamStoreOptions",
+      "RedisStreamSubscriber"
+    ]
+  },
+  "./credentials": {
+    "values": [
+      "rpcTransport",
+      "sqlTransport",
+      "subjectFor",
+      "vaultCredentials"
+    ],
+    "types": [
+      "BlockTransport",
+      "CompleteAuthorizationOptions",
+      "CredentialCapabilities",
+      "CredentialProvider",
+      "CredentialRef",
+      "CredentialSubject",
+      "CredentialToken",
+      "GetTokenOptions",
+      "StartAuthorizationOptions",
+      "VaultCredentialRef",
+      "VaultCredentials",
+      "VaultCredentialsOptions",
+      "VaultInboundScheme"
+    ]
+  },
+  "./vercel-connect": {
+    "values": [
+      "vercelConnectCredentials"
+    ],
+    "types": [
+      "VercelConnectCredentialsOptions",
+      "VercelConnectModule",
+      "VercelConnectRef"
+    ]
+  },
   "./blocks/announcements": {
     "values": [
       "createAnnouncements",
@@ -1911,12 +1977,14 @@
       "testAuthorizationProvider",
       "testAuthResolver",
       "testCacheAdapter",
+      "testCredentialProvider",
       "testEventSink",
       "testExecutor",
       "testGenerator",
       "testNotificationChannel",
       "testPlugin",
       "testQueueBackend",
+      "testStreamStore",
       "testSupportSessionStore",
       "testWebhookSecretStore",
       "testWebhookSigner",
@@ -1948,6 +2016,7 @@
       "TenantIsolationOptions",
       "TestAdapterOptions",
       "TestAuthResolverOptions",
+      "TestCredentialProviderOptions",
       "TestEventSinkOptions",
       "TestExecutorOptions",
       "TestGeneratorOptions",
@@ -1956,6 +2025,7 @@
       "TestPluginOptions",
       "TestQueueBackendOptions",
       "TestSigner",
+      "TestStreamStoreOptions",
       "TestSupportSessionStoreOptions",
       "TestUser",
       "TestWebhookSecretStoreOptions",

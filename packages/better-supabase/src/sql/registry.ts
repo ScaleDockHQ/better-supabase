@@ -39,6 +39,7 @@ import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
 import { COMMENTS } from "./modules/comments.ts";
+import { CREDENTIALS } from "./modules/credentials.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
@@ -2230,6 +2231,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(WAITLIST),
       built(ANNOUNCEMENTS),
       built(STREAMS),
+      built(CREDENTIALS),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );
