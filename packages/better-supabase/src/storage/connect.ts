@@ -65,26 +65,25 @@ function bodyInfo(
 }
 
 /** Rejects with the signal's reason when it aborts before `promise` settles. */
-function abortable<T>(
+async function abortable<T>(
   promise: PromiseLike<T>,
   signal: AbortSignal | undefined,
-): PromiseLike<T> {
+): Promise<T> {
   if (!signal) return promise;
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => reject(signal.reason);
-    if (signal.aborted) return abort();
+  signal.throwIfAborted();
+  let abort = () => {};
+  const aborted = new Promise<never>((_, reject) => {
+    abort = () => {
+      const reason: unknown = signal.reason;
+      reject(reason instanceof Error ? reason : new Error(String(reason)));
+    };
     signal.addEventListener("abort", abort, { once: true });
-    promise.then(
-      (value) => {
-        signal.removeEventListener("abort", abort);
-        resolve(value);
-      },
-      (cause: unknown) => {
-        signal.removeEventListener("abort", abort);
-        reject(cause);
-      },
-    );
   });
+  try {
+    return await Promise.race([promise, aborted]);
+  } finally {
+    signal.removeEventListener("abort", abort);
+  }
 }
 
 function isErrorResult(value: unknown): value is { ok: false; error: DbError } {
