@@ -56,6 +56,7 @@
   "./blocks/workflow-builder/react": 51241,
   "./workflow-sdk": 6126,
   "./workflow-sdk/world": 23078,
+  "./eve": 46315,
   "./workflow-sdk/builder": 13964,
   "./streams": 31103,
   "./streams/redis": 31192,
@@ -69,7 +70,7 @@
   "./blocks/ai-chat/react": 45555,
   "./blocks/ai-files": 32650,
   "./blocks/knowledge": 31462,
-  "./blocks/memory": 34635,
+  "./blocks/memory": 34775,
   "./blocks/agents": 29664,
   "./blocks/connectors": 30243,
   "./blocks/ai-tasks": 32484,
@@ -92,7 +93,7 @@
   "./plugins/tenant": 9177,
   "./plugins/actor": 6375,
   "./plugins/validation": 11337,
-  "./sql": 351904,
+  "./sql": 352762,
   "./testing": 106907,
   "better-supabase CLI (startup)": 12907
 }
