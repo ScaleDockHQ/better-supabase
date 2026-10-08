@@ -248,8 +248,8 @@ grant execute on function better_supabase.user_disabled(uuid) to service_role, s
  */
 /**
  * The condition that `value` is disabled: a set column (`schema.table.column`,
- * matched on `key`), or no active row (PermDock's suspension row, where a
- * missing row counts as disabled).
+ * matched on `key`), or no active row (an authorization provider's
+ * suspension row, where a missing row counts as disabled).
  */
 function disabledCheck(
   where: string,

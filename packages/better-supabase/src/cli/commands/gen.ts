@@ -21,10 +21,11 @@ import {
   renderModules,
   sameModuleFile,
 } from "../../sql/index.ts";
+import { providerLabel, unsafeKey } from "../authorization.ts";
 import { defineCliCommand } from "../command.ts";
 import { stdinDatabaseUrl } from "../config.ts";
 import { fileDiff } from "../diff.ts";
-import { configuredPermdockKeys } from "../doctor/permdock.ts";
+import { providerBucketKeys } from "../doctor/authorization.ts";
 import { emitMeta, emitModule, metaPaths } from "../gen/emit.ts";
 import { buildModel, generatorModel } from "../gen/model.ts";
 import {
@@ -51,7 +52,6 @@ import {
   sameText,
   writeIfChanged,
 } from "../io.ts";
-import { readPermdock, unsafeKey } from "../permdock.ts";
 import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter } from "../style.ts";
@@ -201,27 +201,16 @@ async function readSetFile(
 }
 
 /**
- * `buckets` keys the catalog doesn't mark `rowConditions: false`, as error
- * lines. Without a readable catalog every PermDock bucket is refused, since
- * whether its keys have row conditions is unknown.
+ * `buckets` keys that reach the authorization provider's functions but
+ * aren't marked `sqlComplete: true` in `authorization.permissions`, as
+ * error lines.
  */
-async function rowConditionedBuckets(
-  config: ResolvedConfig,
-): Promise<string[]> {
-  const configured = configuredPermdockKeys({ config });
-  if (configured.length === 0) return [];
-  const project = await readPermdock(config.root, config.permdock);
-  const catalog = project?.catalog;
-  if (!catalog) {
-    const path = project?.catalogPath ?? config.permdock.catalog;
-    const problem = project?.problems.find((entry) => entry.startsWith(path));
-    return [
-      `  ${configured.map(({ bucket }) => `buckets.${bucket}`).join(", ")}: ${problem ? `could not read PermDock's catalog (${problem})` : `there is no ${path}`}, so whether the keys have row conditions is unknown. Run \`permdock catalog\`, or set permdock.catalog in the config.`,
-    ];
-  }
-  return configured.flatMap(({ bucket, keys }) =>
+function rowConditionedBuckets(config: ResolvedConfig): string[] {
+  const provider = config.authorization;
+  if (!provider) return [];
+  return providerBucketKeys(config).flatMap(({ bucket, keys }) =>
     keys.flatMap((key) => {
-      const problem = unsafeKey(catalog, key, project.catalogPath);
+      const problem = unsafeKey(provider, key);
       return problem
         ? [`  buckets.${bucket}: "${key}" ${problem.reason}. ${problem.fix}`]
         : [];
@@ -229,16 +218,16 @@ async function rowConditionedBuckets(
   );
 }
 
-/** The exit `gen` stops with when PermDock bucket keys have row conditions. */
-async function refuseRowConditionedBuckets(
+/** The exit `gen` stops with when bucket keys aren't fully answered by the provider's SQL functions. */
+function refuseRowConditionedBuckets(
   config: ResolvedConfig,
-): Promise<CommandResult | undefined> {
-  const refused = await rowConditionedBuckets(config);
-  return refused.length === 0
+): CommandResult | undefined {
+  const refused = rowConditionedBuckets(config);
+  return refused.length === 0 || !config.authorization
     ? undefined
     : {
         code: 1,
-        error: `PermDock's SQL helpers don't check row conditions, so these bucket policies could grant every object in the scope:\n${refused.join("\n")}\nSee doctor BS214.`,
+        error: `The SQL functions of ${providerLabel(config.authorization)} decide by role and scope only, so these bucket policies could grant every object in the scope:\n${refused.join("\n")}\nSee doctor BS214.`,
       };
 }
 
@@ -310,7 +299,7 @@ async function generationNotices(
 
 export async function runGen(options: GenOptions): Promise<CommandResult> {
   const { config } = options;
-  const refused = await refuseRowConditionedBuckets(config);
+  const refused = refuseRowConditionedBuckets(config);
   if (refused) return refused;
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
@@ -625,7 +614,7 @@ async function runMetadataGen(
     });
   }
 
-  const refused = await refuseRowConditionedBuckets(config);
+  const refused = refuseRowConditionedBuckets(config);
   if (refused) return refused;
   const { contents, warnings } = await renderEmit(config, snapshot, emit);
   io.stdout(contents);

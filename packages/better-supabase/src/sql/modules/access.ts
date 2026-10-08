@@ -1,7 +1,12 @@
 import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout, ModuleDefinition } from "../registry.ts";
+import type {
+  ModuleAccessProvider,
+  ModuleLayout,
+  ModuleDefinition,
+} from "../registry.ts";
 
-import { sqlIdent, sqlString } from "../../core/template.ts";
+import { fillTemplate } from "../../core/access-sql.ts";
+import { sqlString } from "../../core/template.ts";
 import {
   addForeignKey,
   disabledHelpers,
@@ -417,10 +422,55 @@ revoke execute on function better_supabase.platform_can_assign(uuid, text) from 
 grant execute on function better_supabase.platform_can_assign(uuid, text) to service_role;`;
 }
 
-function permdockCanAssign(ctx: ModuleContext): string {
+/**
+ * The authorization provider behind the `provider` model, which `sql add`
+ * reads from the config's `authorization`. Never a default, so a project
+ * without one never gets functions that call functions that don't exist.
+ */
+function providerOf(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+): ModuleAccessProvider {
+  const provider = layout.accessProvider;
+  if (!provider) {
+    throw new TypeError(
+      "sql.modules.access.model 'provider' needs an authorization provider: set authorization in better-supabase.config.ts.",
+    );
+  }
+  if (provider.idType !== ctx.idType) {
+    throw new TypeError(
+      `sql.modules.access: the authorization provider (${provider.name}) gives scope "${provider.scope}" the type ${provider.idType}, but the access module renders ${ctx.idType} ids. Set sql.modules.access.idType to "${provider.idType}".`,
+    );
+  }
+  return provider;
+}
+
+/** A provider template with `{scope}` and `values` filled. */
+function providerSql(
+  provider: ModuleAccessProvider,
+  name: keyof ModuleAccessProvider["functions"],
+  values: Readonly<Record<string, string>>,
+): string {
+  const template = provider.functions[name];
+  if (template === undefined)
+    throw new TypeError(`authorization.functions.${name} is not set`);
+  return fillTemplate(`authorization.functions.${name}`, template, {
+    scope: provider.scope,
+    ...values,
+  });
+}
+
+function providerCanAssign(ctx: ModuleContext, layout: ModuleLayout): string {
   const template = ctx.modules.access?.functions?.canAssign;
   if (template) {
     return fill(template, {
+      tenant: "can_assign.tenant",
+      role: "can_assign.role",
+    });
+  }
+  const provider = layout.accessProvider;
+  if (provider?.functions.canAssign !== undefined) {
+    return providerSql(provider, "canAssign", {
       tenant: "can_assign.tenant",
       role: "can_assign.role",
     });
@@ -430,65 +480,40 @@ function permdockCanAssign(ctx: ModuleContext): string {
   return `can_assign.role <> ${owner} or better_supabase.has_organization_role(can_assign.tenant, array[${owner}])`;
 }
 
-/**
- * PermDock's schema and scope for the `permdock` model: from the manifest
- * (`layout.accessPermdock`, which `sql add` reads), else both set in
- * `sql.modules.access.permdock`. Never a default, so a project whose helpers live
- * elsewhere never gets functions that call helpers that don't exist.
- */
-/**
- * PermDock's helpers for a named user: those the manifest lists, or all of
- * them with `sql.modules.access.permdock.forUser`.
- */
-export function permdockForUser(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
-): {
+/** Which questions about another user the provider's templates answer. */
+export function providerForUser(layout: ModuleLayout): {
   readonly has: boolean;
   readonly permitted: boolean;
-  readonly canAssign: boolean;
-  readonly canAssignAny: boolean;
 } {
-  if (ctx.modules.access?.permdock?.forUser) {
-    return { has: true, permitted: true, canAssign: true, canAssignAny: false };
-  }
-  const manifest = layout.accessPermdock?.forUser;
+  const functions = layout.accessProvider?.functions;
   return {
-    has: manifest?.has ?? false,
-    permitted: manifest?.permitted ?? false,
-    canAssign: manifest?.canAssign ?? false,
-    canAssignAny: manifest?.canAssignAny ?? false,
+    has: functions?.isPlatformFor !== undefined,
+    permitted: functions?.idsWithFor !== undefined,
   };
 }
 
 /**
- * The body of `can_assign_as(member, tenant, role)` under the permdock and
- * custom models: `sql.modules.access.functions.canAssignFor`, else
- * PermDock's `permdock_can_assign_any_for` (declared and custom roles) or
- * `permdock_can_assign_for` when the manifest lists them. Undefined when
- * there is none, so nothing can check a stored user's authority.
+ * The body of `can_assign_as(member, tenant, role)` under the provider and
+ * custom models: `sql.modules.access.functions.canAssignFor`, else the
+ * provider's `canAssignFor`. Undefined when there is none, so nothing can
+ * check a stored user's authority.
  */
 function assignAsCheck(
   ctx: ModuleContext,
   layout: ModuleLayout,
 ): string | undefined {
+  const values = {
+    user: "can_assign_as.member",
+    tenant: "can_assign_as.tenant",
+    role: "can_assign_as.role",
+  };
   const template = ctx.modules.access?.functions?.canAssignFor;
-  if (template) {
-    return fill(template, {
-      user: "can_assign_as.member",
-      tenant: "can_assign_as.tenant",
-      role: "can_assign_as.role",
-    });
-  }
-  if (accessModel(ctx) !== "permdock") return undefined;
-  const forUser = permdockForUser(ctx, layout);
-  const schema = sqlIdent(permdockTarget(ctx, layout).schema);
-  if (forUser.canAssignAny) {
-    return `${schema}.permdock_can_assign_any_for(can_assign_as.member, can_assign_as.role, can_assign_as.tenant, ${sqlString(permdockTarget(ctx, layout).scope)}, can_assign_as.tenant::text)`;
-  }
-  return forUser.canAssign
-    ? `${schema}.permdock_can_assign_for(can_assign_as.member, can_assign_as.role, can_assign_as.tenant::text)`
-    : undefined;
+  if (template) return fill(template, values);
+  if (accessModel(ctx) !== "provider") return undefined;
+  const provider = providerOf(ctx, layout);
+  return provider.functions.canAssignFor === undefined
+    ? undefined
+    : providerSql(provider, "canAssignFor", values);
 }
 
 /** Whether `can_assign_as` exists for this access model and layout. */
@@ -504,7 +529,7 @@ export function hasCanAssignAs(
   );
 }
 
-/** `can_assign_as` for the permdock and custom models, when it has a body. */
+/** `can_assign_as` for the provider and custom models, when it has a body. */
 function assignAsFunction(ctx: ModuleContext, layout: ModuleLayout): string {
   const check = assignAsCheck(ctx, layout);
   if (check === undefined) return "";
@@ -526,50 +551,29 @@ $$;
 revoke execute on function better_supabase.can_assign_as(uuid, ${ctx.idType}, text) from public, anon, authenticated;`;
 }
 
-function permdockTarget(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
-): { readonly schema: string; readonly scope: string } {
-  const configured = ctx.modules.access?.permdock;
-  const manifest = layout.accessPermdock;
-  if (manifest) {
-    if (manifest.idType !== ctx.idType) {
-      throw new TypeError(
-        `sql.modules.access: PermDock's manifest gives scope "${manifest.scope}" the type ${manifest.idType}, but the access module renders ${ctx.idType} ids. Set sql.modules.access.idType to "${manifest.idType}".`,
-      );
-    }
-    return { schema: manifest.schema, scope: manifest.scope };
-  }
-  if (configured?.schema === undefined || configured.scope === undefined) {
-    throw new TypeError(
-      "sql.modules.access.model 'permdock' needs PermDock's manifest (`permdock supabase inspect --out`), which `better-supabase sql add` reads, or both sql.modules.access.permdock.schema and sql.modules.access.permdock.scope.",
-    );
-  }
-  return { schema: configured.schema, scope: configured.scope };
-}
-
-function permdockFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
-  const id = ctx.idType;
-  const target = permdockTarget(ctx, layout);
-  const schema = sqlIdent(target.schema);
-  const permitted = `${schema}.${sqlIdent(`permitted_${target.scope}_ids`)}`;
-  const forUser = permdockForUser(ctx, layout);
-  const permittedFor = `${schema}.${sqlIdent(`permitted_${target.scope}_ids_for`)}`;
-  const callerOnly = `raise exception 'The permdock access model answers for the caller only (modules.access.model)'
+const CALLER_ONLY = `raise exception 'The provider access model answers for the caller only (modules.access.model)'
       using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';`;
+
+function providerFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
+  const id = ctx.idType;
+  const provider = providerOf(ctx, layout);
+  const forUser = providerForUser(layout);
+  const idsWith = (permission: string) =>
+    providerSql(provider, "idsWith", { permission });
   const otherMember = forUser.permitted
     ? `return not better_supabase.user_disabled(member)
       and not better_supabase.tenant_disabled(tenant)
-      and tenant::text in (select t.id::text from ${permittedFor}(member, permission) as t(id));`
-    : callerOnly;
+      and tenant::text in (select t.id::text from ${providerSql(provider, "idsWithFor", { user: "member", permission: "permission" })} as t(id));`
+    : CALLER_ONLY;
   const platformOther = forUser.has
-    ? `when member is not null then ${NOT_ACTING} and not better_supabase.user_disabled(member) and ${schema}.permdock_has_for(member, permission)`
+    ? `when member is not null then ${NOT_ACTING} and not better_supabase.user_disabled(member) and coalesce((${providerSql(provider, "isPlatformFor", { user: "member", permission: "permission" })}), false)`
     : "";
   const assignFor = assignAsFunction(ctx, layout);
   return `
--- The permdock model: PermDock's ${permitted}() and ${schema}.permdock_has(),
--- from \`permdock rls generate\`. They read auth.uid(), so member_can() and
--- can_user() answer for ${forUser.permitted || forUser.has ? "another user through PermDock's _for helpers" : "the caller only and raise 0A000 for anyone else"}.
+-- The provider model: the authorization provider (${provider.name}) decides,
+-- through authorization.functions in better-supabase.config.ts. Its caller
+-- functions read auth.uid(), so member_can() and can_user() answer for
+-- ${forUser.permitted || forUser.has ? "another user through its idsWithFor and isPlatformFor" : "the caller only and raise 0A000 for anyone else"}.
 create or replace function better_supabase.member_can(member uuid, tenant ${id}, permission text)
 returns boolean
 language plpgsql
@@ -583,7 +587,7 @@ begin
   end if;
   return not better_supabase.user_disabled(member)
     and not better_supabase.tenant_disabled(tenant)
-    and tenant::text in (select t.id::text from ${permitted}(permission) as t(id));
+    and tenant::text in (select t.id::text from ${idsWith("permission")} as t(id));
 end;
 $$;
 
@@ -604,7 +608,7 @@ security definer
 set search_path = ''
 as $$
   select case
-    when member = auth.uid() then ${NOT_ACTING} and not better_supabase.user_disabled(member) and ${schema}.permdock_has(permission)
+    when member = auth.uid() then ${NOT_ACTING} and not better_supabase.user_disabled(member) and coalesce((${providerSql(provider, "isPlatform", { permission: "permission" })}), false)
     ${platformOther}
     else false
   end
@@ -618,15 +622,15 @@ stable
 security definer
 set search_path = ''
 as $$
-  select t.id::${id} from ${permitted}(tenant_ids_with.permission) as t(id)
+  select t.id::${id} from ${idsWith("tenant_ids_with.permission")} as t(id)
   where not better_supabase.user_disabled(auth.uid())
     and not better_supabase.tenant_disabled(t.id::${id})
 $$;
 
--- sql.modules.access.functions.canAssign decides who assigns which role, usually
--- ${schema}.permdock_can_assign({role}, {tenant}::text). Without it, only the
--- service role assigns roles, unless the tenant module is installed: then
--- only owners assign the owner role and this check passes other roles.
+-- sql.modules.access.functions.canAssign, else authorization.functions.canAssign,
+-- decides who assigns which role. Without either, only the service role
+-- assigns roles, unless the tenant module is installed: then only owners
+-- assign the owner role and this check passes other roles.
 create or replace function better_supabase.can_assign(tenant ${id}, role text)
 returns boolean
 language sql
@@ -634,7 +638,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${SERVICE} or coalesce((${permdockCanAssign(ctx)}), false)
+  select ${SERVICE} or coalesce((${providerCanAssign(ctx, layout)}), false)
 $$;
 
 create or replace function better_supabase.permission_claims(user_id uuid)
@@ -739,8 +743,7 @@ $$;`;
 function accessSql(ctx: ModuleContext, layout: ModuleLayout): string {
   const id = ctx.idType;
   const model = accessModel(ctx);
-  const forUser =
-    model === "permdock" ? permdockForUser(ctx, layout) : undefined;
+  const forUser = model === "provider" ? providerForUser(layout) : undefined;
   const answersForOthers = forUser ? forUser.permitted && forUser.has : false;
   const scope = sqlString(tenantScope(ctx));
   let body: string;
@@ -751,8 +754,8 @@ function accessSql(ctx: ModuleContext, layout: ModuleLayout): string {
     case "catalog":
       body = `${catalogTables(ctx)}\n${membershipFunctions(ctx)}`;
       break;
-    case "permdock":
-      body = permdockFunctions(ctx, layout);
+    case "provider":
+      body = providerFunctions(ctx, layout);
       break;
     case "custom":
       body = `${customFunctions(ctx)}${assignAsFunction(ctx, layout)}`;
@@ -800,23 +803,22 @@ as $$
 $$;
 
 -- The same question for another user, for checks such as an inviter's
--- authority at accept time. ${model === "permdock" ? (answersForOthers ? "The permdock model answers through PermDock's _for helpers." : "The permdock model can't answer for others.") : "Null when the model can't answer for others."}
+-- authority at accept time. ${model === "provider" ? (answersForOthers ? "The provider model answers through the provider's idsWithFor and isPlatformFor." : "The provider model can't answer for others.") : "Null when the model can't answer for others."}
 create or replace function better_supabase.can_user(member uuid, scope text, scope_id ${id}, permission text)
 returns boolean
-language ${model === "permdock" ? "plpgsql" : "sql"}
+language ${model === "provider" ? "plpgsql" : "sql"}
 stable
 security definer
 set search_path = ''
 as $$${
-    model === "permdock" && !answersForOthers
+    model === "provider" && !answersForOthers
       ? `
 begin
   if member is distinct from auth.uid() then
-    raise exception 'The permdock access model answers for the caller only (modules.access.model)'
-      using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY';
+    ${CALLER_ONLY}
   end if;
   return case`
-      : model === "permdock"
+      : model === "provider"
         ? `
 begin
   return case`
@@ -826,7 +828,7 @@ begin
     when can_user.scope = 'platform' then better_supabase.platform_can(can_user.member, can_user.permission)
     when can_user.scope in (${scope}, 'tenant') then better_supabase.member_can(can_user.member, can_user.scope_id, can_user.permission)
     else false
-  end${model === "permdock" ? ";\nend;" : ""}
+  end${model === "provider" ? ";\nend;" : ""}
 $$;
 
 create or replace function better_supabase.is_platform(permission text)
@@ -877,7 +879,7 @@ export const ACCESS: ModuleDefinition = {
   name: "access",
   title: "Access contract",
   description:
-    "can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, PermDock or the app's own functions (modules.access.model).",
+    "can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (modules.access.model).",
   requires: ["tenant"],
   dependencies: (layout) => {
     const model = layout.modules?.access?.model ?? "roles";

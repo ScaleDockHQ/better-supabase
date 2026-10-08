@@ -4,9 +4,8 @@ import type { Impersonator } from "../auth/impersonation.ts";
 /**
  * Claims of a Supabase access token where someone acts for the user, with
  * what `toSession` reads from them: `actor`, `impersonator` and
- * `delegation`. Plain data in the shape of PermDock's `supabaseClaimFixtures`
- * (`permdock/testing`), so both packages test the same `act` contract: every
- * fixture passes PermDock's `schemas/supabase-claims-v1.json`.
+ * `delegation`. Plain data, so another library that reads the same `act`
+ * claim (RFC 8693) can test against the same fixtures.
  */
 export interface SupabaseClaimFixture {
   /** Without `iat` and `exp`, so a test signer sets them. */

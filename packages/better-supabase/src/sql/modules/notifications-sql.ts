@@ -24,7 +24,7 @@ export interface NotifyNames {
 
 export function notifyNames(
   ctx: ModuleContext,
-  answersForOthers: boolean = accessModel(ctx) !== "permdock",
+  answersForOthers: boolean = accessModel(ctx) !== "provider",
 ): NotifyNames {
   return {
     answersForOthers,
@@ -255,7 +255,7 @@ function notify(ctx: ModuleContext, n: NotifyNames): string {
     );
   end if;`
     : `
-  -- The permdock model answers for the caller only, so recipients are not
+  -- The provider model answers for the caller only, so recipients are not
   -- filtered by their read permission: the sender and notification_audience
   -- decide who gets it.`;
   const members = access ? readFilter : "";

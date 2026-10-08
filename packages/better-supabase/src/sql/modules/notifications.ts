@@ -8,7 +8,7 @@ import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble, tenantIn, updatedAt } from "../shared.ts";
 import { accessModel } from "./access-model.ts";
-import { permdockForUser } from "./access.ts";
+import { providerForUser } from "./access.ts";
 import { integerMutations } from "./notifications-items.ts";
 import {
   functions,
@@ -474,7 +474,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
   const n = notifyNames(
     ctx,
-    accessModel(ctx) !== "permdock" || permdockForUser(ctx, layout).permitted,
+    accessModel(ctx) !== "provider" || providerForUser(layout).permitted,
   );
   return [
     `${schemaPreamble(ctx)}${tables(ctx, n)}`,

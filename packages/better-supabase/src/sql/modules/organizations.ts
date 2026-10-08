@@ -169,7 +169,7 @@ export function assignableRole(ctx: ModuleContext, stored: string): string {
 function checkRole(ctx: ModuleContext, expr: string, tenant: string): string {
   const model = accessModel(ctx);
   const through = roleThrough(ctx.of("tenant")) !== undefined;
-  if (!through && (model === "permdock" || model === "custom")) return "";
+  if (!through && (model === "provider" || model === "custom")) return "";
   const known =
     model === "roles" && !through
       ? `${expr} = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[])`
@@ -658,12 +658,12 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
   if (guard === "external") {
     if (ctx.of("tenant").manages) {
       throw new TypeError(
-        'sql.modules.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as PermDock\'s assignment rules, so it needs an adopted table (sql.modules.tenant.mode "adopt").',
+        'sql.modules.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so it needs an adopted table (sql.modules.tenant.mode "adopt").',
       );
     }
     return `${invariant}
 -- sql.modules.organizations.options.assignmentGuard is "external": another
--- trigger on ${n.m} (such as PermDock's assignment rules) checks role
+-- trigger on ${n.m} (such as an authorization provider's assignment rules) checks role
 -- changes, so the module's guard is removed. Its functions still check
 -- can_assign and the own-role rule before they write.
 drop trigger if exists ${ctx.trigger("organization_role_guard")} on ${n.m};
@@ -674,9 +674,9 @@ drop function if exists ${ctx.fn("guard_membership_role")}(${ctx.idType}, uuid, 
   const ceiling = `
 -- No client grants a role above their own permissions (can_assign), demotes
 -- someone above them, or changes their own role. Only writes made as anon or
--- authenticated are checked, like PermDock's assignment triggers: the
--- service role, direct admin connections and security definer functions
--- (the module's own and the app's, which check their own ceilings) pass.
+-- authenticated are checked: the service role, direct admin connections and
+-- security definer functions (the module's own and the app's, which check
+-- their own ceilings) pass.
 -- The checks, as the module's owner, so the client needs no rights on the
 -- roles tables. It only raises, so a direct call reveals nothing.
 create or replace function ${ctx.fn("guard_membership_role")}(target_tenant ${ctx.idType}, target_member uuid, target_role text, previous_tenant ${ctx.idType}, previous_role text)
@@ -868,7 +868,7 @@ begin
     raise exception 'The new owner is disabled' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   -- One statement for both rows, so a statement-level guard on the number of
-  -- owners (PermDock's transferOnly) sees the transfer as a whole.
+  -- owners sees the transfer as a whole.
   update ${n.m} m set ${n.role} = case
       when m.${n.user} = new_owner then ${roleValue(ctx, sqlString(n.ownerRole), "organization")}
       else ${roleValue(ctx, "former_role", "organization")}

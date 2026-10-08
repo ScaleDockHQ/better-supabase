@@ -25,7 +25,6 @@ export type {
   JsonSchemaSource,
   JsonTypeConfig,
   OpenApiConfig,
-  PermdockPathsConfig,
   PluginFlagsConfig,
   ColumnPrivilege,
   ExposePrivilege,
@@ -45,6 +44,16 @@ export type {
   VectorDistance,
   VectorSearchConfig,
 } from "./config.ts";
+export type {
+  AuthorizationFunctions,
+  AuthorizationMembership,
+  AuthorizationPermission,
+  AuthorizationProvider,
+  AuthorizationRequirement,
+  AuthorizationRoleSource,
+  AuthorizationScope,
+  AuthorizationTokenHook,
+} from "./authorization.ts";
 export type {
   AccessModuleConfig,
   ActiveTenantSource,

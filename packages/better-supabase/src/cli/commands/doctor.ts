@@ -42,7 +42,6 @@ import { CliError } from "../errors.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { display, writeIfChanged } from "../io.ts";
-import { readPermdock, readPermissionCatalogKeys } from "../permdock.ts";
 import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter } from "../style.ts";
@@ -453,39 +452,27 @@ export async function runDoctor(
             ? {}
             : { database: options.database }),
         };
-  const [
-    snapshot,
-    envFiles,
-    permdock,
-    permissionCatalog,
-    [configToml, sql],
-    gitignore,
-    sources,
-    readSets,
-  ] = await Promise.all([
-    options.snapshot ?? loadSnapshot(config, env, source, pg, opened.open),
-    Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
-      (files) => files.filter((file): file is TextFile => file !== undefined),
-    ),
-    readPermdock(config.root, config.permdock),
-    readPermissionCatalogKeys(config.root, config.permdock.catalog),
-    readSupabaseToml(config.root).then(
-      async (toml) => [toml, await sqlFiles(config.root, toml)] as const,
-    ),
-    readText(config.root, ".gitignore"),
-    sourceFiles(config),
-    compiledReadSets(config).catch((cause: unknown) => ({
-      skipped: cause instanceof Error ? cause.message : String(cause),
-    })),
-  ]).catch(async (cause: unknown) => {
-    await opened.close();
-    throw cause;
-  });
+  const [snapshot, envFiles, [configToml, sql], gitignore, sources, readSets] =
+    await Promise.all([
+      options.snapshot ?? loadSnapshot(config, env, source, pg, opened.open),
+      Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
+        (files) => files.filter((file): file is TextFile => file !== undefined),
+      ),
+      readSupabaseToml(config.root).then(
+        async (toml) => [toml, await sqlFiles(config.root, toml)] as const,
+      ),
+      readText(config.root, ".gitignore"),
+      sourceFiles(config),
+      compiledReadSets(config).catch((cause: unknown) => ({
+        skipped: cause instanceof Error ? cause.message : String(cause),
+      })),
+    ]).catch(async (cause: unknown) => {
+      await opened.close();
+      throw cause;
+    });
   const context: DoctorContext = {
     config,
     snapshot,
-    ...(permdock ? { permdock } : {}),
-    ...(permissionCatalog ? { permissionCatalog } : {}),
     sqlFiles: sql,
     configToml,
     envFiles,

@@ -93,9 +93,8 @@ export const DEFAULT_ACTIVE_TENANT: ActiveTenantSource = "resolver";
  * `is_platform(permission)` and `can_user(user, scope, id, permission)`.
  */
 /**
- * A table whose row says whether a tenant or a user is active, in the shape
- * of PermDock's `rls.suspension` rows. Needs `disabledAt`, `status` with
- * `active`, or both.
+ * A table whose row says whether a tenant or a user is active. Needs
+ * `disabledAt`, `status` with `active`, or both.
  */
 export interface DisabledRow {
   /** `schema.table`. */
@@ -113,11 +112,11 @@ export interface AccessModuleConfig extends ModuleConfig {
   /**
    * `roles`: a fixed role list from `roles` (the default). `catalog`: role,
    * permission and override tables (`tables.roles`, `permissions`,
-   * `rolePermissions`, `overrides`, `platformAssignments`). `permdock`:
-   * PermDock's `permitted_<scope>_ids` and `permdock_has`. `custom`:
+   * `rolePermissions`, `overrides`, `platformAssignments`). `provider`: the
+   * functions of the config's `authorization` provider. `custom`:
    * expression templates in `functions`.
    */
-  readonly model?: "roles" | "catalog" | "permdock" | "custom";
+  readonly model?: "roles" | "catalog" | "provider" | "custom";
   /**
    * `roles` model: role name to permission keys. `*` grants everything and
    * `prefix.*` a prefix. Defaults to owner, admin, member and viewer.
@@ -135,23 +134,16 @@ export interface AccessModuleConfig extends ModuleConfig {
     readonly canUser?: string;
     /**
      * `{tenant}` and `{role}`: whether the caller may assign the role.
-     * Required by the `custom` model. For the `permdock` model, use
-     * PermDock's assignment rule:
-     * `'permdock.permdock_can_assign({role}, {tenant}::text)'` (with the
-     * manifest's `rls.schema`). Without it, the `permdock` model lets only
-     * the service role assign roles: PermDock projects don't install the
-     * `tenant` module (doctor BS407), whose owner-role fallback is the only
-     * other rule, and doctor BS411 warns.
+     * Required by the `custom` model. The `provider` model defaults to the
+     * provider's `canAssign`; without either, only the service role assigns
+     * roles unless the `tenant` module is installed, and doctor BS411 warns.
      */
     readonly canAssign?: string;
     /**
      * `{user}`, `{tenant}` and `{role}`: whether that user may assign the
      * role, for SQL that acts later for a stored user (an invitation accept
-     * checking the inviter again), as `can_assign_as`. Under the `permdock`
-     * model it defaults to PermDock's
-     * `permdock_can_assign_any_for({user}, {role}, {tenant}, '<scope>', {tenant}::text)`
-     * when the manifest lists that helper, which covers custom roles, else
-     * to `permdock_can_assign_for`.
+     * checking the inviter again), as `can_assign_as`. The `provider` model
+     * defaults to the provider's `canAssignFor`.
      */
     readonly canAssignFor?: string;
     /** `{user}`: the permission claim for the access token hook. */
@@ -165,12 +157,11 @@ export interface AccessModuleConfig extends ModuleConfig {
   /**
    * What disables a tenant or a user. A string is a column that disables
    * when set, as `schema.table.column`, keyed by the table's `id` (tenant)
-   * or the column named in `userKey` (user). An object is PermDock's
-   * active-row shape (`rls.suspension`): only a row whose `disabledAt` is
-   * null and whose `status` is in `active` is active, and a missing row
-   * counts as disabled. Disabled tenants and users get no permissions.
-   * Under the `permdock` model both default to the manifest's
-   * `rls.suspension`.
+   * or the column named in `userKey` (user). An object is an active row:
+   * only a row whose `disabledAt` is null and whose `status` is in `active`
+   * is active, and a missing row counts as disabled. Disabled tenants and
+   * users get no permissions. Under the `provider` model both default to the
+   * provider's `suspension`.
    */
   readonly disabled?: {
     readonly tenant?: string | DisabledRow;
@@ -178,18 +169,6 @@ export interface AccessModuleConfig extends ModuleConfig {
     readonly userKey?: string;
   };
   readonly activeTenant?: ActiveTenantSource;
-  /**
-   * `permdock` model: PermDock's `rls.schema` and the scope tenants are.
-   * `forUser: true` says PermDock's helpers for a named user
-   * (`permdock_has_for`, `permitted_<scope>_ids_for`,
-   * `permdock_can_assign_for`, from `database` mode) exist when the manifest
-   * doesn't list them.
-   */
-  readonly permdock?: {
-    readonly schema?: string;
-    readonly scope?: string;
-    readonly forUser?: boolean;
-  };
 }
 
 /** `sql.modules` in the config, keyed by module name. */

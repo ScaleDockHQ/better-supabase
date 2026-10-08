@@ -75,9 +75,10 @@ export default defineConfig({
 
 `doctor.sources` lists the app files that checks such as BS210 scan, as globs
 relative to the project root. The default is `['src/**/*.{ts,tsx}']`.
-`doctor.claimsLimit` is a BS405 limit in bytes: PermDock's budget for
-`memberships` plus `attrs` when a `permdock.config.ts` is present (default
-1024), otherwise the limit for the whole token (default 2048).
+`doctor.claimsLimit` is a BS405 limit in bytes: the budget of the
+[authorization provider's](/docs/extending/authorization-providers) hook when
+it sets `tokenHook.budget`, otherwise the limit for the whole token (default
+2048).
 `doctor.policyHelperLimit` (default 5) is how many policies a security definer
 helper may appear in before [BS206](#bs206) reports it.
 
@@ -370,8 +371,7 @@ decide who sees a row from other rows: `better_supabase.has_organization_role` r
 `memberships.user_id` and `memberships.role`, and a contact-scoped helper reads
 `contacts.user_id` and `contacts.customer_id`. Doctor collects the columns
 that the helpers your policies call read, including the helpers those call,
-plus the `decidingColumns` in PermDock's manifest, which PermDock's PD028
-protects. It warns when `anon` or `authenticated` may insert or update one of
+plus the `decidingColumns` of the authorization provider. It warns when `anon` or `authenticated` may insert or update one of
 those columns and a policy lets them write the row: a member who can update
 their own `role`, or a portal contact who can change `customer_id`, grants
 themselves access.
@@ -392,37 +392,23 @@ version; older snapshots only show table grants.
 
 ### BS214
 
-**Error: PermDock permission with row conditions in a Storage or Realtime
-policy.** PermDock's SQL helpers (`permitted_<scope>_ids`, `permdock_has`)
-check the role and scope of a permission, not its row conditions. A bucket or
-topic policy that passes a permission whose entry in
-`permissions.catalog.json` has `rowConditions: true` grants every object or
-topic in the scope. Doctor checks the `buckets` in the config and the `bs_`
-policies on `storage.objects` and `realtime.messages` in your SQL files, and
-`better-supabase gen` refuses to write those bucket policies. Use the policies
-`permdock rls generate` writes for that permission, or a permission without
-row conditions.
+**Error: permission the provider's SQL functions don't fully answer in a
+Storage or Realtime policy.** An access policy on a bucket or topic reaches
+the [authorization provider's](/docs/extending/authorization-providers)
+functions through its `sql` templates, or through the access contract under
+the `provider` access model. Those functions decide by role and scope, so a
+permission with other conditions (such as `ownerId = principal.id`) would grant
+every object or topic in the scope. Doctor reports every key whose
+`authorization.permissions` entry isn't `sqlComplete: true`: a key marked
+`false`, a key without the flag, a key the provider doesn't list, and every
+key when the provider lists no permissions. `better-supabase gen` refuses to
+write those bucket policies.
 
-A key whose catalog entry has no boolean `rowConditions` is unknown, and so
-is a key the catalog doesn't list. Doctor reports both as errors and `gen`
-refuses them: regenerate the catalog with a current `permdock catalog`, which
-writes the flag for every permission.
-
-When the helpers are used but the catalog file is missing or can't be read,
-doctor reports an error and `gen` refuses the bucket policies, because whether
-their permissions have row conditions is unknown: run `permdock catalog` to
-write it. A catalog other than version 1 can't be read. `defineBucket` and
-`defineTopic` take the same catalog as `catalog` and throw for the same keys.
-
-With PermDock's manifest, doctor also reports a policy whose helpers are in
-another schema than the manifest's `rls.schema` (buckets default to
-`permdock`), a scope the manifest's `rls.scopes` doesn't declare (PermDock's
-`tenant` and `team` aliases name its first and second scope, but the helper
-is named after the scope itself), and a permission checked at a tenancy
-scope the catalog never grants it at. The tenancy scopes come from the
-catalog's `grants`; the `scope` on a permission entry is its OAuth scope
-(such as `invoice:read`) and is only read as a tenancy scope by catalogs
-without `grants`, when it names one.
+Doctor checks the `buckets` in the config and the `bs_` policies on
+`storage.objects` and `realtime.messages` in your SQL files, matching the
+provider's `idsWith` and `isPlatform` templates. It also reports a scope the
+provider doesn't declare, and a key checked at a scope its entry's `scopes`
+doesn't list.
 
 ### BS215
 
@@ -781,14 +767,14 @@ creates them. Run the declarative sync without `-s` from then on.
 ### BS324
 
 **Error: shared roles table without a role condition.** Under the
-`permdock` model, the tenant module's `roleThrough` and the invitations
+`provider` model, the tenant module's `roleThrough` and the invitations
 module's `platformRoles.through` name the same roles table, and one of them
 has no `where`. That side then resolves a role id or key of the other kind:
 an organization invitation, its accept or `update_member_role` can grant a
 platform role, or a platform invitation a tenant role. `better-supabase sql
 sync` refuses the config. Set `where` on both, a condition on the roles row
 `{row}` such as `{row}.scope = 'organization'` and `{row}.scope = 'system'`.
-A `roleThrough` read from PermDock's manifest has no `where`, so set
+A `roleThrough` from the provider's `roleSources` has no `where`, so set
 `sql.modules.tenant.options.roleThrough` in the config.
 
 ### BS325
@@ -865,20 +851,17 @@ supabase db diff -f auth_hook
 better-supabase doctor --fix-grants >> supabase/migrations/<timestamp>_auth_hook.sql
 ```
 
-When the function is PermDock's generated hook, the finding lets PermDock
-write the grants instead. On migra it points to
-`permdock supabase hook generate --grants-out <file>`, which writes the grants
-migration with a `-- permdock:grants v1` marker. With pg-delta it points to
-`permdock supabase hook generate --out <schema file>` without `--grants-out`,
-so the grants stay in the schema file that defines the hook, then to
-`supabase db schema declarative sync`.
+When the function is the authorization provider's hook
+(`authorization.tokenHook.function`, or a file with its `markers.hook` line),
+the finding lets the provider write the grants instead, with its
+`grantsCommand` when it sets one.
 
 When a file already grants the function, the database is behind, and the
-finding names that file. On migra only a `-- permdock:grants v1` migration
-counts, and the finding says to run `supabase migration up`. With pg-delta
-the declarative schema file that defines the hook counts too, and the finding
-says to run `supabase db schema declarative sync`, then
-`supabase migration up`.
+finding names that file. On migra only a migration with the provider's
+`markers.grants` line counts, and the finding says to run
+`supabase migration up`. With pg-delta the declarative schema file that
+defines the hook counts too, and the finding says to run
+`supabase db schema declarative sync`, then `supabase migration up`.
 
 Doctor reads the declarative schemas, then the migrations newest first, and
 points findings at the first file that declares the object. With pg-delta it
@@ -901,18 +884,17 @@ the `Authorization` header. With `--as <uuid>`, doctor calls the hook for that
 user the way Auth does, as `supabase_auth_admin` with the user's standard
 claims, in a transaction that is rolled back. Two limits apply:
 
-| Limit                                              | Measures                                                                                         | Default                                              |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| Whole token                                        | `octet_length` of all the claims                                                                 | 2048 bytes, or `doctor.claimsLimit` without PermDock |
-| PermDock budget (only with a `permdock.config.ts`) | `octet_length` of `memberships` plus `attrs`, as PermDock's hook measures `supabase.hook.budget` | 1024 bytes, or `doctor.claimsLimit`                  |
+| Limit                      | Measures                                            | Default                                                   |
+| -------------------------- | --------------------------------------------------- | --------------------------------------------------------- |
+| Whole token                | `octet_length` of all the claims                    | 2048 bytes, or `doctor.claimsLimit` without a hook budget |
+| The provider's hook budget | `octet_length` of each of `tokenHook.budget.claims` | `tokenHook.budget.bytes`, or `doctor.claimsLimit`         |
 
-Each one is a separate warning, so a normal PermDock token of 1.5 KB whose
-memberships fit the budget passes. Set `doctor.claimsLimit` to the same value
-as PermDock's `--budget` or `supabase.hook.budget` when you change it. When the
-hook sets `memberships_truncated`, doctor also reports that
-the token lists only some memberships, so server checks for that user need a
-database lookup. Keep ids and roles in the token and look everything else up.
-This needs a direct connection (local stack, `$DATABASE_URL` or `--db-url-stdin`).
+Each one is a separate warning, so a token of 1.5 KB whose budget claims fit
+the budget passes. When the hook sets `tokenHook.budget.truncatedClaim`,
+doctor also reports that the token lists only some entries, so server checks
+for that user need a database lookup. Keep ids and roles in the token and
+look everything else up. This needs a direct connection (local stack,
+`$DATABASE_URL` or `--db-url-stdin`).
 
 ### BS406
 
@@ -925,90 +907,57 @@ for records that outlive them (`created_by` on shared documents, audit rows).
 
 ### BS407
 
-**Error: two authorization hooks.** PermDock owns the token: a
-`permdock.config.ts` or `permdock.manifest.json` is in the project root, or
-the hook calls PermDock's functions. The custom access token hook also calls
-`better_supabase.membership_claims`, or writes `roles`, `user_role`,
-`memberships` or the tenant claim (`claims.tenant`, `tenant_id` by default)
-itself, through `jsonb_set` or `jsonb_build_object`. Those claims then have two
-sources that drift apart. Run `permdock supabase hook generate` and remove the
-extra writes from the hook. See
-[better-supabase and PermDock](/docs/auth/permdock).
+**Error: two authorization hooks.** The authorization provider's hook
+(`authorization.tokenHook`) owns the claims in `ownedClaims`, plus its
+`tenantClaim`. A custom access token hook that also calls
+`better_supabase.membership_claims` (when `memberships` is owned), or writes
+one of those claims itself through `jsonb_set` or `jsonb_build_object`, gives
+them two sources that drift apart. Use the provider's hook and remove the
+extra writes.
 
-PermDock's generated hook is not reported. Doctor recognizes it by the `hook`
-entry in `permdock.manifest.json`, by the `-- permdock:hook v1` marker on the
-migration that creates it, or by the `memberships_truncated` claim it sets.
-Functions that `supabase.hook.claims` registers, such as
-`better_supabase.feature_claims` for `features`, are sources of PermDock's
-own hook and are not a second writer. A hook that wraps PermDock's hook and
-then writes one of those claims again is reported, with the function that
-already fills it.
-
-When `permdock.config.ts` is present but `permdock.manifest.json` is not,
-doctor reports an info finding: run `permdock supabase inspect --out` to
-write the manifest, and `permdock supabase inspect --check` in CI to keep it
-current. `permdock.manifest` and `permdock.catalog` in the config change the
-file paths.
+The provider's own hook is not reported: doctor recognizes it by
+`tokenHook.function` or by its `markers.hook` line in the file that creates
+it. Claims in `registeredClaims`, such as `features` from
+`better_supabase.feature_claims`, are sources of the provider's hook and are
+not a second writer. A hook that wraps the provider's hook and then writes one
+of those claims again is reported, with the function that already fills it.
 
 ### BS408
 
-**Warning: PermDock helpers the entitlements module calls are missing.**
-With a `permdock.manifest.json`, the [`entitlements` block
-module](/docs/blocks/entitlements#with-permdock) reads memberships from
-PermDock's `member_<scope>_ids()` in `has_entitlement`, which runs as
-`authenticated`, and `member_<scope>_ids_for(uuid)` in `feature_claims`, which
-PermDock's hook calls. When `entitlements` is in `sql.modules`, doctor checks
-exactly those two helpers for the chosen scope and warns when:
+**Warning: the entitlements module can't read the provider's memberships.**
+With `entitlements.memberships: "provider"` (the default when the config has
+`authorization`), the [`entitlements` block
+module](/docs/blocks/entitlements) reads memberships through the provider's
+`memberIds` template in `has_entitlement`, which runs as `authenticated`, and
+`memberIdsFor` in `feature_claims`, which the provider's hook calls as
+`supabase_auth_admin`. When `entitlements` is in `sql.modules`, doctor warns
+when:
 
-- a `permdock.config.ts` is present but the manifest is missing, unreadable or
-  has no `rls` block. `sql add entitlements` refuses to fall back to the
-  tenant module then; set `entitlements.permdock: false` to use it on purpose;
-- `entitlements.permdock.scope` is not one of the manifest's scopes, or it is
-  unset and the manifest has no single root scope;
-- the scope's `type` in `rls.scopes` is missing or is not `uuid`, `text`,
-  `bigint` or `integer` (case and aliases such as `int8` are normalised).
-  `sql add entitlements` refuses to render the module then, instead of
-  guessing `uuid`;
-- the manifest has no `claims.features` claim filled by
-  `better_supabase.feature_claims`, so `hasEntitlement()` would never see the
-  plan features. The message names the `supabase.hook.claims` setting, or the
-  `claims.features` name to use when the function is registered under another
-  claim, and `entitlements.claim: false` as the alternative. With
+- the provider can't back the mode: `tenantScope` is not one of its scopes,
+  the scope has no `idType` or one other than `uuid`, `text`, `bigint` or
+  `integer`, or `memberIds` or `memberIdsFor` is missing. `sql add
+entitlements` refuses to render the module then; set
+  `entitlements.memberships: "tenant"` to use the tenant module's memberships;
+- the provider's hook doesn't fill `claims.features` from
+  `better_supabase.feature_claims` (`tokenHook.registeredClaims`), so
+  `hasEntitlement()` would never see the plan features. With
   `entitlements.claim: false` the token carries no features, so doctor skips
-  this check and keeps the helper checks below;
-- the manifest's `rls.memberships`, the tables PermDock's
-  `member_<scope>_ids_for` reads, maps no table to the scope, so
-  `entitlement_members()` finds no users to sign out after a plan change. A
-  manifest from a PermDock without `rls.memberships` falls back to the hook's
-  membership sources, with an info finding, because they can differ from the
-  tables the helpers read;
-- the manifest's `rls.helpers` lacks `member_<scope>_ids`, or doesn't let
-  `authenticated` execute it: run `permdock rls generate` with a current
-  PermDock, then `permdock supabase inspect --out`;
-- it lacks `member_<scope>_ids_for`. PermDock writes it only for a scope with
-  a membership source, so add one in `permdock.config.ts`
-  (`supabase.hook.memberships`, `rls.membershipSources` or a mapped
-  `rls.memberships` table);
-- `supabase_auth_admin` may not execute `member_<scope>_ids_for` (an info
-  finding: `feature_claims` is `security definer`, so it calls the helper as
-  its owner). PermDock grants it when the hook has claims;
-- the database lacks a helper the manifest lists: apply the migration
-  `permdock rls generate` wrote before the module's.
+  this check;
+- no `authorization.memberships` table covers the tenant scope, so
+  `entitlement_members()` finds no users to sign out after a plan change (an
+  info finding when the provider lists no memberships at all);
+- a function those templates call is missing from `authorization.requires`,
+  isn't executable by the role that calls it, or isn't in the database.
 
 ### BS409
 
-**Warning: PermDock's manifest and the better-supabase config disagree.**
-PermDock's hook and helpers read the active tenant from the manifest's
-`rls.tenantClaim`. Doctor warns when `claims.tenant` names another claim,
-because the tenant plugin, the guards and the module's RLS would then read a
-claim PermDock never writes, and BS407 checks the manifest's claim as one
-PermDock owns. Set `claims.tenant` to the manifest's claim, or change it in
-`permdock.config.ts`.
-
-It reports an error for a `-- permdock:hook` or `-- permdock:grants` marker
-other than `v1`, because doctor can't trust what an unknown version says about
-the hook, and an info finding when `claims.scope` resolves to another scope
-than the manifest's root scope (`tenant` stands for PermDock's first scope).
+**Warning: the authorization provider and the better-supabase config
+disagree.** The provider's hook writes the active tenant to
+`tokenHook.tenantClaim`. Doctor warns when `claims.tenant` names another
+claim, because the tenant plugin, the guards and the module's RLS would then
+read a claim the hook never writes. It notes when `claims.scope` is neither
+`tenant` nor the provider's `tenantScope`, and reports every entry of the
+provider's `problems`, such as a file version it can't read.
 
 ### BS410
 
@@ -1029,34 +978,27 @@ finding; verify the request there with `authHook` from
 
 ### BS411
 
-**Error: the permdock access model doesn't match PermDock's manifest.** With
-`sql.modules.access.model: 'permdock'`, `can()` and the SQL modules call PermDock's
-`<rls.schema>.permitted_<scope>_ids(permission)` for tenant checks and
-`<rls.schema>.permdock_has(permission)` for platform checks. The schema,
-scope and id type come from `permdock.manifest.json`, whatever
-`entitlements.permdock` says: `rls.schema`, the root scope (the `rls.scopes`
-entry without `within`) unless `sql.modules.access.permdock.scope` names another,
-and that scope's `type`. Doctor reports, and `sql add` refuses:
+**Error: the provider access model can't use the authorization provider.**
+With `sql.modules.access.model: "provider"`, `can()` and the SQL modules fill
+the provider's `idsWith` template for tenant checks and `isPlatform` for
+platform checks, at its `tenantScope`. Doctor reports, and `sql add` refuses:
 
-- no PermDock project, a missing or unreadable manifest, or no `rls` block;
-- no single root scope, or a `sql.modules.access.permdock.scope`,
-  `sql.modules.access.permdock.schema` or `sql.modules.access.idType` the manifest doesn't
-  declare;
-- a scope `type` other than `uuid`, `text`, `bigint` or `integer`;
-- a helper the manifest's `rls.helpers` doesn't list, doesn't let
-  `authenticated` execute, or the database lacks;
+- a config without `authorization`;
+- a `tenantScope` the provider doesn't declare, a scope `idType` other than
+  `uuid`, `text`, `bigint` or `integer`, or a `sql.modules.access.idType`
+  that differs from it;
+- a function those templates call that `authorization.requires` doesn't list,
+  doesn't let `authenticated` execute, or the database lacks;
 - a permission key a SQL module checks (`modulePermissionKeys` from
-  `better-supabase/sql` lists them) whose `permissions.catalog.json` entry
-  isn't `rowConditions: false`. PermDock's helpers check role and scope only,
-  so a key with row conditions would be granted everywhere in the scope. A key
-  without the flag, a key the catalog doesn't list and a missing catalog are
-  reported too. Map the action to another key in
-  `sql.modules.<module>.permissions`, or regenerate the catalog with `permdock catalog`.
+  `better-supabase/sql` lists them) that the provider doesn't mark
+  `sqlComplete: true`. Its functions decide by role and scope only, so a key
+  with other conditions would be granted everywhere in the scope. Map the
+  action to another key in `sql.modules.<module>.permissions`.
 
-It warns when `sql.modules.access.functions.canAssign` is not set, because only the
-service role then assigns roles, and notes a `permdock_can_assign` template
-the manifest doesn't list (PermDock writes it only when a role declares
-`assigns`). See [the access block](/docs/blocks/access#permdock) for the recipe.
+It warns when neither `sql.modules.access.functions.canAssign` nor the
+provider's `canAssign` is set and the tenant module is not installed, because
+only the service role then assigns roles. See
+[the access block](/docs/blocks/access) for the recipe.
 
 ### BS412
 

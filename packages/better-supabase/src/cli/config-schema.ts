@@ -68,7 +68,7 @@ const disabledRow = v.strictObject({
 
 const accessModule = v.strictObject({
   ...moduleEntries,
-  model: v.optional(v.picklist(["roles", "catalog", "permdock", "custom"])),
+  model: v.optional(v.picklist(["roles", "catalog", "provider", "custom"])),
   roles: v.optional(v.record(v.string(), strings)),
   functions: v.optional(
     v.strictObject({
@@ -98,13 +98,114 @@ const accessModule = v.strictObject({
       }),
     ]),
   ),
-  permdock: v.optional(
+});
+
+const SCOPE_NAME = /^[a-z][a-z0-9_]*$/;
+const scopeName = v.pipe(
+  v.string(),
+  v.regex(SCOPE_NAME, "Use lower case letters, digits and _"),
+);
+const membershipScope = v.union([
+  v.strictObject({ column: v.string() }),
+  v.strictObject({ value: v.string() }),
+]);
+
+const authorization = v.strictObject({
+  apiVersion: v.literal(1),
+  name: v.string(),
+  scopes: v.array(
     v.strictObject({
-      schema: v.optional(v.string()),
-      scope: v.optional(v.string()),
-      forUser: v.optional(v.boolean()),
+      name: scopeName,
+      idType: v.optional(v.string()),
+      parent: v.optional(v.string()),
     }),
   ),
+  tenantScope: scopeName,
+  functions: v.strictObject({
+    idsWith: v.string(),
+    isPlatform: v.string(),
+    idsWithFor: v.optional(v.string()),
+    isPlatformFor: v.optional(v.string()),
+    memberIds: v.optional(v.string()),
+    memberIdsFor: v.optional(v.string()),
+    canAssign: v.optional(v.string()),
+    canAssignFor: v.optional(v.string()),
+  }),
+  requires: v.optional(
+    v.array(
+      v.strictObject({
+        function: v.string(),
+        args: v.optional(v.string()),
+        role: v.string(),
+      }),
+    ),
+  ),
+  permissions: v.optional(
+    v.array(
+      v.strictObject({
+        key: v.string(),
+        sqlComplete: v.optional(v.boolean()),
+        scopes: v.optional(strings),
+      }),
+    ),
+  ),
+  memberships: v.optional(
+    v.array(
+      v.strictObject({
+        table: v.string(),
+        userColumn: v.string(),
+        scope: membershipScope,
+        idColumn: v.string(),
+      }),
+    ),
+  ),
+  suspension: v.optional(
+    v.strictObject({
+      user: v.optional(disabledRow),
+      tenant: v.optional(disabledRow),
+    }),
+  ),
+  roleSources: v.optional(
+    v.array(
+      v.strictObject({
+        table: v.string(),
+        role: v.strictObject({
+          column: v.string(),
+          through: v.strictObject({
+            table: v.string(),
+            id: v.string(),
+            column: v.string(),
+          }),
+        }),
+      }),
+    ),
+  ),
+  decidingColumns: v.optional(strings),
+  tokenHook: v.optional(
+    v.strictObject({
+      function: v.string(),
+      tenantClaim: v.optional(v.string()),
+      ownedClaims: strings,
+      registeredClaims: v.optional(
+        v.array(v.strictObject({ name: v.string(), function: v.string() })),
+      ),
+      budget: v.optional(
+        v.strictObject({
+          claims: strings,
+          bytes: v.number(),
+          truncatedClaim: v.optional(v.string()),
+        }),
+      ),
+      markers: v.optional(
+        v.strictObject({
+          hook: v.optional(v.string()),
+          grants: v.optional(v.string()),
+        }),
+      ),
+      grantsCommand: v.optional(v.string()),
+    }),
+  ),
+  problems: v.optional(strings),
 });
 
 const ConfigSchema = v.strictObject({
@@ -208,12 +309,7 @@ const ConfigSchema = v.strictObject({
     v.strictObject({
       customer: v.optional(v.string()),
       key: v.optional(v.string()),
-      permdock: v.optional(
-        v.union([
-          v.literal(false),
-          v.strictObject({ scope: v.optional(v.string()) }),
-        ]),
-      ),
+      memberships: v.optional(v.picklist(["tenant", "provider"])),
       source: v.optional(
         v.union([
           v.picklist(["stripe-sync", "custom"]),
@@ -248,12 +344,7 @@ const ConfigSchema = v.strictObject({
       ),
     }),
   ),
-  permdock: v.optional(
-    v.strictObject({
-      manifest: v.optional(v.string()),
-      catalog: v.optional(v.string()),
-    }),
-  ),
+  authorization: v.optional(authorization),
   vectorSearch: v.optional(
     v.record(
       v.string(),

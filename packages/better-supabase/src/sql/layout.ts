@@ -1,8 +1,8 @@
 import type { ResolvedConfig } from "../config/config.ts";
 import type {
-  ModuleAccessPermdock,
+  ModuleAccessProvider,
+  ModuleEntitlementsProvider,
   ModuleLayout,
-  ModulePermdock,
 } from "./registry.ts";
 
 import { resolveJsonSchema } from "../config/config.ts";
@@ -13,13 +13,13 @@ export function moduleLayout(
   config: ResolvedConfig,
   testsDir: string = config.sql.testsDir,
   readSets: ModuleLayout["readSets"] = [],
-  permdock?: ModulePermdock,
-  accessPermdock?: ModuleAccessPermdock,
+  entitlementsProvider?: ModuleEntitlementsProvider,
+  accessProvider?: ModuleAccessProvider,
   permissionCatalog?: readonly string[],
 ): ModuleLayout {
   return {
-    ...(permdock ? { permdock } : {}),
-    ...(accessPermdock ? { accessPermdock } : {}),
+    ...(entitlementsProvider ? { entitlementsProvider } : {}),
+    ...(accessProvider ? { accessProvider } : {}),
     ...(permissionCatalog ? { permissionCatalog } : {}),
     dir: config.sql.dir,
     prefix: config.sql.prefix,

@@ -2,7 +2,7 @@ export type {
   ApiKey,
   ApiKeyCheck,
   ApiKeyClaimsOptions,
-  ApiKeyCredential,
+  ApiKeyExtraClaim,
   ApiKeyResolverOptions,
   ApiKeyState,
   ApiKeys,
@@ -10,9 +10,6 @@ export type {
   CreateApiKeyInput,
   CreatedApiKey,
   ParsedApiKey,
-  PermdockApiKeyClaim,
-  PermdockVerifier,
-  PermdockVerifierOptions,
 } from "./api-keys.ts";
 export {
   apiKeyChecksum,
@@ -20,7 +17,6 @@ export {
   apiKeyResolver,
   createApiKeys,
   parseApiKey,
-  permdockVerifier,
 } from "./api-keys.ts";
 export {
   type ApiKeyAuth,

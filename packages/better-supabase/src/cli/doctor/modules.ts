@@ -14,9 +14,9 @@ import {
   sharedRolesProblems,
 } from "../../sql/index.ts";
 import { tomlGet } from "../supabase-toml.ts";
+import { accessModule, entitlementsModule } from "./authorization.ts";
 import { configuredHooks, hookClaims, isRecord, signatureOf } from "./hooks.ts";
 import { errorText, literal } from "./live.ts";
-import { accessModule, entitlementsModule } from "./permdock.ts";
 import {
   catalogOf,
   exposedSchemas,
@@ -683,7 +683,7 @@ function migrationOptions(context: DoctorContext): FindingInput[] {
 function sharedRoleTables(context: DoctorContext): FindingInput[] {
   if (context.config.sql.moduleNames.length === 0) return [];
   const access = accessModule(context);
-  if (access.kind !== "permdock") return [];
+  if (access.kind !== "provider") return [];
   let problems: ReturnType<typeof sharedRolesProblems>;
   try {
     problems = sharedRolesProblems(
@@ -808,7 +808,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "error",
     title: "Shared roles table without a role condition",
     description:
-      "Under the `permdock` model, the tenant module's `roleThrough` and the invitations module's `platformRoles.through` name the same roles table, and one of them has no `where` condition on `{row}`. That side then resolves a role id or key of the other kind: an organization invitation, accept or `update_member_role` can grant a platform role, or a platform invitation a tenant role. `sql sync` refuses the config; set `where` on both, such as `{row}.scope = 'organization'` and `{row}.scope = 'system'`.",
+      "Under the `provider` model, the tenant module's `roleThrough` and the invitations module's `platformRoles.through` name the same roles table, and one of them has no `where` condition on `{row}`. That side then resolves a role id or key of the other kind: an organization invitation, accept or `update_member_role` can grant a platform role, or a platform invitation a tenant role. `sql sync` refuses the config; set `where` on both, such as `{row}.scope = 'organization'` and `{row}.scope = 'system'`.",
     check: sharedRoleTables,
   },
   {

@@ -117,7 +117,7 @@ export interface McpTool<
 /** What the `authorize` and `visible` hooks see of a tool. */
 export interface ToolRef {
   readonly info: ToolInfo;
-  /** The tool's `meta`, e.g. a PermDock permission. For table tools, the resource's `meta` for that operation. */
+  /** The tool's `meta`, e.g. a permission. For table tools, the resource's `meta` for that operation. */
   readonly meta: unknown;
 }
 
@@ -161,7 +161,7 @@ export type ToolResourceOptions<
   T extends TableKey<M>,
 > = ResourceRouteOptions<M, T> & {
   /**
-   * Opaque data per operation, e.g. a PermDock permission, passed to
+   * Opaque data per operation, e.g. a permission, passed to
    * `authorize` and `visible` as the table tool's `meta`. Never sent to
    * clients. An operation without an entry gets `undefined`.
    */

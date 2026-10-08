@@ -6,7 +6,7 @@ import { SCHEMA, SERVICE_CALLER } from "../shared.ts";
 import {
   hasPlatformRoles,
   MODULE_PERMISSIONS,
-  permdockPlatformRoles,
+  providerPlatformRoles,
 } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -111,10 +111,10 @@ function platformTarget(ctx: ModuleContext): string {
     where u.id = target and jsonb_typeof(u.raw_app_meta_data -> ${claim}) = 'array'
       and jsonb_array_length(u.raw_app_meta_data -> ${claim}) > 0
   )`;
-  const permdock = permdockPlatformRoles(ctx);
-  if (permdock) {
+  const platform = providerPlatformRoles(ctx);
+  if (platform) {
     return `(${claimed} or exists (
-    select 1 from ${permdock.table} a where a.${permdock.user} = target
+    select 1 from ${platform.table} a where a.${platform.user} = target
   ))`;
   }
   if (!hasPlatformRoles(ctx)) return claimed;

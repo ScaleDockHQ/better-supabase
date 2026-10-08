@@ -10,16 +10,16 @@ import {
 import type { BetterSupabase } from "../core/define.ts";
 import type {
   AnyFunctions,
+  AccessTopicPolicy,
   AnyModels,
-  PermdockTopicPolicy,
   Row,
   TableKey,
   TableMeta,
 } from "../schema/types.ts";
 
+import { accessCheck } from "../core/access-sql.ts";
 import { tenantClaimPaths } from "../core/claims.ts";
 import { dbError, type DbError, type ValidationIssue } from "../core/errors.ts";
-import { type PermdockCatalog, permdockCheck } from "../core/permdock-sql.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import {
   parseTemplate,
@@ -62,23 +62,17 @@ export interface TopicOptions<
   /** Owner check. Defaults to `{userId}` against `auth.uid()` when the template has `{userId}`. */
   readonly owner?: false | { readonly param?: string };
   /**
-   * Authorize with PermDock's SQL helpers instead of the tenant claim:
-   * `permitted_<scope>_ids(receive)` on the scope segment (or
-   * `permdock_has` for `scope: 'global'`), and `send` for broadcasting.
+   * Authorize with the SQL modules' access contract instead of the tenant
+   * claim: `tenant_ids_with(receive)` on the tenant segment (or
+   * `is_platform` for `scope: 'platform'`), or the `sql` templates it is
+   * given, and `send` for broadcasting.
    *
-   * The helpers check role and scope only. Use this just for permissions
-   * whose grants have no row conditions beyond the scope: for a permission
-   * with row conditions (e.g. `authorId = principal.id`) every member of the
-   * scope could join. Pass `catalog` to refuse those keys here;
-   * `better-supabase doctor` (BS214) refuses them from the catalog file.
+   * The checks decide by role and scope only: for a permission with row
+   * conditions (e.g. `authorId = principal.id`) every member of the scope
+   * could join. `better-supabase doctor` (BS214) refuses keys the
+   * authorization provider doesn't mark `sqlComplete: true`.
    */
-  readonly permdock?: PermdockTopicPolicy;
-  /**
-   * PermDock's `permissions.catalog.json`. With it, a `permdock` policy
-   * naming a permission without `rowConditions: false` (including one the
-   * catalog doesn't list) throws.
-   */
-  readonly catalog?: PermdockCatalog;
+  readonly access?: AccessTopicPolicy;
   /** Let clients broadcast on the topic, not only receive. Defaults to `false`. */
   readonly send?: boolean;
   /**
@@ -616,35 +610,29 @@ export function defineTopic<
     return index;
   };
   const checks: string[] = [];
-  const permdock = options.permdock;
+  const access = options.access;
   const tenantParam =
     options.tenant === false
       ? undefined
       : (options.tenant?.param ?? "organizationId");
-  const permdockChecks = ((): { receive: string; send: string } | undefined => {
-    if (!permdock) return undefined;
+  const accessChecks = ((): { receive: string; send: string } | undefined => {
+    if (!access) return undefined;
     const where = `defineTopic(${template})`;
     const id =
-      permdock.scope === "global"
+      access.scope === "platform"
         ? undefined
-        : `split_part((select realtime.topic()), ':', ${String(permdock.segment ?? segment(tenantParam ?? "organizationId", "PermDock"))})`;
-    const receive = permdockCheck(
-      where,
-      permdock,
-      permdock.receive,
-      id,
-      options.catalog,
-    );
+        : `split_part((select realtime.topic()), ':', ${String(access.segment ?? segment(tenantParam ?? "organizationId", "access"))})`;
+    const receive = accessCheck(where, access, access.receive, id);
     return {
       receive,
       send:
-        permdock.send === undefined
+        access.send === undefined
           ? receive
-          : permdockCheck(where, permdock, permdock.send, id, options.catalog),
+          : accessCheck(where, access, access.send, id),
     };
   })();
   if (
-    !permdock &&
+    !access &&
     tenantParam &&
     (options.tenant || parsed.params.includes(tenantParam))
   ) {
@@ -687,14 +675,14 @@ export function defineTopic<
         ].join("\n    and ");
       const lines = [`-- better-supabase: topic ${template}`];
       const policies: [string, string, "using" | "with check", string][] = [
-        ["receive", "select", "using", condition(permdockChecks?.receive)],
+        ["receive", "select", "using", condition(accessChecks?.receive)],
       ];
-      if (options.send || hasPresence || permdock?.send !== undefined)
+      if (options.send || hasPresence || access?.send !== undefined)
         policies.push([
           "send",
           "insert",
           "with check",
-          condition(permdockChecks?.send),
+          condition(accessChecks?.send),
         ]);
       for (const [suffix, command, clause, check] of policies) {
         const policy = sqlIdent(`bs_topic_${name}_${suffix}`);

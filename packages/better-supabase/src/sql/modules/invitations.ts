@@ -15,7 +15,7 @@ import {
   roleNames,
   tenantScope,
 } from "./access-model.ts";
-import { hasCanAssignAs, permdockForUser } from "./access.ts";
+import { hasCanAssignAs, providerForUser } from "./access.ts";
 import {
   invitePlatform,
   platformAssignment,
@@ -219,7 +219,7 @@ function platformInvite(
   if (!p) {
     return fail(
       "INVITATION_SCOPE_UNSUPPORTED",
-      "Platform invitations need platform roles: sql.modules.access.model 'catalog' with platform assignments, or sql.modules.invitations.options.platformRoles under 'permdock'",
+      "Platform invitations need platform roles: sql.modules.access.model 'catalog' with platform assignments, or sql.modules.invitations.options.platformRoles under 'provider'",
     );
   }
   const c = (logical: string) => p.col(logical);
@@ -644,8 +644,7 @@ function accept(
   // The inviter's authority is checked again: a role or permission they
   // lost after inviting must not reach the invitee.
   const inviter = t.has("invitedBy") ? `invite.${c("invitedBy")}` : undefined;
-  const forUser =
-    model === "permdock" ? permdockForUser(ctx, layout) : undefined;
+  const forUser = model === "provider" ? providerForUser(layout) : undefined;
   const assignAs = hasCanAssignAs(ctx, layout)
     ? `
     if ${inviter} is not null
@@ -654,9 +653,9 @@ function accept(
     end if;`
     : "";
   const recheck =
-    inviter && model === "permdock" && !(forUser?.permitted && forUser.has)
+    inviter && model === "provider" && !(forUser?.permitted && forUser.has)
       ? `
-    -- The permdock model answers for the caller only, so the inviter's
+    -- The provider model answers for the caller only, so the inviter's
     -- invite permission was checked when they invited, not here.${assignAs}`
       : inviter
         ? `

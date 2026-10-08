@@ -279,7 +279,7 @@ export interface BetterNext<
   ): Promise<CachedContext<M, F, E, C, P>>;
   /**
    * Drops every `bs.cached()` entry of a user, e.g. after a role change,
-   * and the entries tagged with `tags` (such as PermDock's `snapshotTag(userId)`).
+   * and the entries tagged with `tags` (such as a permission snapshot's tag).
    * In a Server Action it also re-renders the caller's page, so no
    * `refresh()` is needed. It reaches server caches and the caller's router
    * only: another user's browser keeps its `'use cache: private'` entries
@@ -454,7 +454,7 @@ export interface CachedOptions<T extends string = string> extends ScopeOptions {
   readonly tenant?: string;
   /**
    * `cacheLife` for the entry. `stale` is `sessionStale`, and never more than
-   * `stale` when it is set: pass PermDock's `cacheLifeFor(snapshot)` so the
+   * `stale` when it is set: pass a permission snapshot's lifetime so the
    * entry goes stale with the snapshot too.
    */
   readonly life?: SessionStaleOptions & {

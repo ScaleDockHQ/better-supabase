@@ -140,7 +140,7 @@ export interface BetterToolConfig<
   readonly icons?: Icon[];
   readonly scopeChallenge?: ScopeChallengeHandler;
   readonly _meta?: Record<string, unknown>;
-  /** Extra keys for wrappers registered in between, like permdock's `permission`. */
+  /** Extra keys for wrappers registered in between, such as an authorization library's `permission`. */
   readonly [key: string]: unknown;
 }
 
@@ -354,7 +354,7 @@ export function createMcpAuth<
 
 /**
  * Wraps `server.registerTool` so every tool callback gets `db`, `auth` and
- * `bs` for the caller on its context. Wrap after permdock's `protectServer`
+ * `bs` for the caller on its context. Wrap after an authorization wrapper
  * so permissions are checked before the context is built.
  */
 export function withBetterSupabaseMcp<

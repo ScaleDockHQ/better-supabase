@@ -12,12 +12,12 @@ import {
   contractSignature,
   customContracts,
   type InstalledModule,
-  type ModuleAccessPermdock,
+  type ModuleAccessProvider,
   type ModuleExtension,
   type ModuleFile,
   moduleFileVersion,
   type ModuleLayout,
-  type ModulePermdock,
+  type ModuleEntitlementsProvider,
   moduleFilePaths,
   moduleLayout,
   modulePermissionKeys,
@@ -34,17 +34,15 @@ import {
   SQL_MODULES,
   upgradePlan,
 } from "../../sql/index.ts";
+import {
+  accessProviderMode,
+  entitlementsMode,
+  moduleKeyProblems,
+  providerLabel,
+} from "../authorization.ts";
 import { defineCliCommand } from "../command.ts";
 import { fileDiff } from "../diff.ts";
 import { display, sameText, writeIfChanged } from "../io.ts";
-import {
-  accessPermdockMode,
-  entitlementsMode,
-  moduleKeyProblems,
-  permdockSource,
-  readPermdock,
-  readPermissionCatalogKeys,
-} from "../permdock.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter, plain } from "../style.ts";
 import {
@@ -75,7 +73,8 @@ const SQL_ARGS = {
   "dry-run": { type: "boolean", description: "Show what would be written" },
   force: {
     type: "boolean",
-    description: "Write tenant even though a permdock.config.ts is present",
+    description:
+      "Write tenant even though the authorization provider's hook owns the memberships claim",
   },
 } as const;
 
@@ -83,28 +82,29 @@ export type SqlArgs = CliArgs<typeof SQL_ARGS>;
 
 const USAGE = "Run `better-supabase sql --help` for the actions.";
 
-/** Modules that fill a claim PermDock's hook also writes (`memberships`). */
-const PERMDOCK_OWNED: ReadonlySet<string> = new Set(["tenant"]);
+/** Modules that fill the `memberships` claim, which a provider's hook may own. */
+const MEMBERSHIP_CLAIM_MODULES: ReadonlySet<string> = new Set(["tenant"]);
+
+/** Whether the provider's access token hook writes the `memberships` claim itself. */
+const providerOwnsMemberships = (config: ResolvedConfig): boolean =>
+  config.authorization?.tokenHook?.ownedClaims.includes("memberships") ?? false;
 
 /**
- * PermDock's helpers for the `entitlements` module. When `names` resolve to
- * that module, an invalid PermDock mode (no manifest, a scope it lacks, an
- * unknown id type) throws instead of falling back to the tenant module.
+ * The provider's memberships for the `entitlements` module. When `names`
+ * resolve to that module, an invalid mode (no provider, a scope it lacks,
+ * an unknown id type) throws instead of falling back to the tenant module.
  * Without `names` (`sql list`) it only describes the modules, so it doesn't.
  */
-async function permdockFor(
+function entitlementsProviderFor(
   config: ResolvedConfig,
   names?: readonly string[],
-): Promise<ModulePermdock | undefined> {
-  const mode = entitlementsMode(
-    config,
-    await readPermdock(config.root, config.permdock),
-  );
+): ModuleEntitlementsProvider | undefined {
+  const mode = entitlementsMode(config);
   switch (mode.kind) {
     case "tenant":
       return undefined;
-    case "permdock":
-      return mode.permdock;
+    case "provider":
+      return mode.provider;
     case "invalid":
       if (
         names === undefined ||
@@ -122,30 +122,27 @@ async function permdockFor(
 }
 
 /**
- * PermDock's helpers for the `access` module's `permdock` model, read from
- * the manifest whatever `entitlements` says. When `names` resolve to
- * `access`, an invalid mode throws, and so does a module permission key the
- * catalog doesn't mark `rowConditions: false`. `sql list` (no `names`)
- * doesn't render, so it doesn't throw.
+ * The provider for the `access` module's `provider` model. When `names`
+ * resolve to `access`, an invalid mode throws, and so does a module
+ * permission key the provider doesn't mark `sqlComplete: true`. `sql list`
+ * (no `names`) doesn't render, so it doesn't throw.
  */
-async function accessPermdockFor(
+function accessProviderFor(
   config: ResolvedConfig,
   names?: readonly string[],
-): Promise<ModuleAccessPermdock | undefined> {
-  const project = await readPermdock(config.root, config.permdock);
-  const mode = accessPermdockMode(config, project);
+): ModuleAccessProvider | undefined {
+  const mode = accessProviderMode(config);
   const renders =
     names !== undefined &&
     resolveModules(names, {}).some((module) => module.name === "access");
   switch (mode.kind) {
     case "off":
       return undefined;
-    case "permdock": {
-      if (!renders || !project) return mode.access;
+    case "provider": {
+      if (!renders || !config.authorization) return mode.access;
       const problems = moduleKeyProblems(
-        project,
+        config.authorization,
         modulePermissionKeys(config.sql.modules, names),
-        mode.access,
       );
       if (problems.length > 0) {
         throw new TypeError(
@@ -164,12 +161,11 @@ async function accessPermdockFor(
   }
 }
 
-/** The keys of PermDock's permission catalog, for `api-keys` scopes. */
-function permissionCatalogFor(
+/** The provider's permission keys, for `api-keys` scopes. */
+const permissionKeysFor = (
   config: ResolvedConfig,
-): Promise<readonly string[] | undefined> {
-  return readPermissionCatalogKeys(config.root, config.permdock.catalog);
-}
+): readonly string[] | undefined =>
+  config.authorization?.permissions?.map((permission) => permission.key);
 
 async function layout(
   config: ResolvedConfig,
@@ -181,9 +177,9 @@ async function layout(
       config,
       args["tests-dir"],
       [],
-      await permdockFor(config, names),
-      await accessPermdockFor(config, names),
-      await permissionCatalogFor(config),
+      entitlementsProviderFor(config, names),
+      accessProviderFor(config, names),
+      permissionKeysFor(config),
     ),
     schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
   };
@@ -243,10 +239,10 @@ async function layoutFor(
   args: SqlArgs,
   names: readonly string[],
 ): Promise<ModuleLayout> {
-  const permdock = await permdockFor(config, names);
+  const entitlementsProvider = entitlementsProviderFor(config, names);
   const resolved = new Set(
     resolveModules(names, {
-      ...(permdock ? { permdock } : {}),
+      ...(entitlementsProvider ? { entitlementsProvider } : {}),
     }).map((module) => module.name),
   );
   const adopted = adoptedColumnProblems(
@@ -260,9 +256,9 @@ async function layoutFor(
       config,
       args["tests-dir"],
       resolved.has("read-sets") ? await compiledReadSets(config) : [],
-      permdock,
-      await accessPermdockFor(config, names),
-      await permissionCatalogFor(config),
+      entitlementsProvider,
+      accessProviderFor(config, names),
+      permissionKeysFor(config),
     ),
     schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
     ...(resolved.has("audit")
@@ -693,8 +689,8 @@ export async function runSql(
         const mark =
           path === undefined ? "◇" : installed ? (tracked ? "●" : "○") : " ";
         const requires =
-          sqlLayout.permdock && module.permdockRequires
-            ? module.permdockRequires
+          sqlLayout.entitlementsProvider && module.providerRequires
+            ? module.providerRequires
             : module.requires;
         const needs =
           requires.length > 0 ? ` (needs ${requires.join(", ")})` : "";
@@ -716,15 +712,19 @@ export async function runSql(
           error: `Unknown module ${unknown.join(", ")}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
         };
       }
-      const project = await readPermdock(config.root, config.permdock);
-      const permdock = project ? permdockSource(project) : undefined;
-      const hookModules = names.filter((name) => PERMDOCK_OWNED.has(name));
-      if (permdock && hookModules.length > 0 && args.force !== true) {
+      const owner =
+        config.authorization && providerOwnsMemberships(config)
+          ? providerLabel(config.authorization)
+          : undefined;
+      const hookModules = names.filter((name) =>
+        MEMBERSHIP_CLAIM_MODULES.has(name),
+      );
+      if (owner && hookModules.length > 0 && args.force !== true) {
         return {
           code: 1,
           error: [
-            `${permdock} is present, so PermDock owns the access token hook and the memberships claim.`,
-            `${hookModules.join(" and ")} would add a second source for them. Use \`permdock supabase hook generate\` instead,`,
+            `The access token hook of ${owner} writes the memberships claim.`,
+            `${hookModules.join(" and ")} would add a second source for it. Use the provider's hook instead,`,
             "or pass --force to write the modules anyway.",
           ].join("\n"),
         };
@@ -743,13 +743,15 @@ export async function runSql(
       const lines = await write(config, args, listed, sqlLayout, added);
       const pulledIn = resolveModules(names, sqlLayout)
         .map((module) => module.name)
-        .filter((name) => PERMDOCK_OWNED.has(name) && !names.includes(name));
-      if (permdock && pulledIn.length > 0) {
+        .filter(
+          (name) => MEMBERSHIP_CLAIM_MODULES.has(name) && !names.includes(name),
+        );
+      if (owner && pulledIn.length > 0) {
         lines.push(
           "",
           `${pulledIn.join(" and ")} came along as a dependency: its memberships table backs has_organization_role() and has_entitlement().`,
-          `PermDock's hook still owns the memberships claim, so don't call better_supabase.membership_claims from a hook.`,
-          "List better_supabase.memberships as a PermDock membership source if both should agree.",
+          `The hook of ${owner} still writes the memberships claim, so don't call better_supabase.membership_claims from a hook.`,
+          "Make better_supabase.memberships one of the provider's membership sources if both should agree.",
         );
       }
       const untracked = resolveModules(names, sqlLayout)

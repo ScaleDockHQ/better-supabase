@@ -114,8 +114,8 @@ export const MODULE_PERMISSIONS = {
 
 /**
  * Where each module action checks its key: `tenant` through `member_can`,
- * `can` or `tenant_ids_with` (PermDock's `permitted_<scope>_ids`), and
- * `platform` through `is_platform` or `platform_can` (`permdock_has`).
+ * `can` or `tenant_ids_with` (a provider's `idsWith`), and `platform`
+ * through `is_platform` or `platform_can` (a provider's `isPlatform`).
  */
 export const MODULE_PERMISSION_SCOPES: {
   readonly [M in keyof typeof MODULE_PERMISSIONS]: {
@@ -190,11 +190,11 @@ export const tenantScope = (ctx: ModuleContext): string =>
   ctx.of("access").text("scope", "organization");
 
 /**
- * `sql.modules.invitations.options.platformRoles` under the `permdock` model:
- * the app's table of platform role assignments (PermDock's `rls.roles`), so
- * platform invitations insert into it.
+ * `sql.modules.invitations.options.platformRoles` under the `provider` model:
+ * the app's table of platform role assignments, so platform invitations
+ * insert into it.
  */
-export interface PermdockPlatformRoles {
+export interface ProviderPlatformRoles {
   /** Quoted `schema.table`. */
   readonly table: string;
   /** Quoted columns. */
@@ -232,11 +232,11 @@ const quotedRef = (where: string, table: string, column: string) => {
   };
 };
 
-/** The `permdock` model's platform role table, or `undefined` without one. */
-export function permdockPlatformRoles(
+/** The `provider` model's platform role table, or `undefined` without one. */
+export function providerPlatformRoles(
   ctx: ModuleContext,
-): PermdockPlatformRoles | undefined {
-  if (accessModel(ctx) !== "permdock" || !ctx.installed("invitations")) {
+): ProviderPlatformRoles | undefined {
+  if (accessModel(ctx) !== "provider" || !ctx.installed("invitations")) {
     return undefined;
   }
   const value = ctx.of("invitations").option("platformRoles");
@@ -260,7 +260,7 @@ export function permdockPlatformRoles(
   const user = quotedRef(where, value["table"], value["user"]);
   const role = quotedRef(where, value["table"], value["role"]);
   const through = value["through"];
-  let lookup: PermdockPlatformRoles["through"];
+  let lookup: ProviderPlatformRoles["through"];
   if (through !== undefined) {
     if (
       !isPlain(through) ||
@@ -302,7 +302,7 @@ export function permdockPlatformRoles(
 
 /** Whether the catalog has platform roles, and so platform invitations. */
 export function hasPlatformRoles(ctx: ModuleContext): boolean {
-  if (permdockPlatformRoles(ctx)) return true;
+  if (providerPlatformRoles(ctx)) return true;
   return (
     accessModel(ctx) === "catalog" &&
     ctx.of("access").hasTable("platformAssignments")
