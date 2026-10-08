@@ -1,0 +1,276 @@
+---
+title: eve on Supabase
+description: Run eve agents on Supabase with the Workflow World on Postgres, Supabase sign-in on eve routes, connections over credential providers, memory, sessions in the chat tables and the inbox as a channel.
+---
+
+`better-supabase/eve` connects [eve](https://eve.dev/docs) agents to the
+blocks you already run. It adds no tables of its own: sessions land in the
+[AI chat](/docs/blocks/ai-chat) tables, memory in the
+[memory](/docs/blocks/memory) and [knowledge](/docs/blocks/knowledge)
+blocks, tokens in a [credential provider](/docs/extending/credentials), and the
+durable runs in the [Supabase World](/docs/blocks/workflow-sdk).
+
+```bash
+pnpm add eve @workflow/world @workflow/world-postgres pg
+pnpm better-supabase sql add workflow-sdk-world ai-chat memory knowledge credentials inbox
+```
+
+`eve` is an optional peer (`>=0.71 <1`). The entry types eve structurally
+and imports nothing from it at load time; the memory provider loads
+`eve/tools` the first time it builds its tools. eve runs on Node, so the
+entry is Node-only, like the World. The inbox channel also needs `chat`
+(see [Chat SDK](/docs/chat-sdk)).
+
+| Export                    | Plugs into                                      | Does                                                                        |
+| ------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------- |
+| `supabaseAuth`            | `eveChannel({ auth })` and other channel `auth` | verifies the Supabase session locally and maps the user to an eve principal |
+| `credentialAuth`          | `defineMcpClientConnection({ auth })`           | reads connection tokens from Vault, Vercel Connect or your provider         |
+| `supabaseMemory`          | `defineMemory({ provider })`                    | recalls core and archival memory and tenant documents per turn              |
+| `supabaseDocumentBackend` | `fileMemory({ backend })`                       | stores eve's file memory in the memory module's `memory_documents` table    |
+| `persistSessions`         | `defineHook({ events })`                        | copies each session into `ai_chats`, `ai_messages` and `ai_runs`            |
+| `routeInbox`              | `chatSdkChannel()` over `inboxAdapter`          | hands inbox conversations in bot mode to eve, with the contact as principal |
+
+The [eve example](/docs/examples) wires all of them into a Next.js app.
+
+## The World
+
+eve runs every session as a Workflow SDK run. Select the Supabase World in
+the root `agent.ts`; the World reads its connection from the environment.
+
+```ts title="agent/agent.ts"
+import { defineAgent } from "eve";
+
+export default defineAgent({
+  model: "anthropic/claude-sonnet-4.5",
+  experimental: {
+    workflow: { world: "better-supabase/workflow-sdk/world" },
+  },
+});
+```
+
+```bash title=".env"
+SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+```
+
+eve 0.71 runs Workflow spec version 8, the version the World speaks, and
+rejects a World with another one. The
+[Workflow SDK page](/docs/blocks/workflow-sdk) lists the other variables.
+
+## Sign-in on eve routes
+
+`supabaseAuth` is an eve route `AuthFn`. It reads the Supabase session from
+the cookie or the bearer token and verifies it locally against the
+project's keys, so it never calls the Auth server. A request without a
+session falls through to the next entry, and an invalid token gets a 401.
+
+```ts title="agent/channels/eve.ts"
+import { eveChannel } from "eve/channels/eve";
+import { localDev } from "eve/channels/auth";
+import { loadEnv } from "better-supabase/env";
+import { supabaseAuth } from "better-supabase/eve";
+
+export default eveChannel({
+  auth: [supabaseAuth({ env: loadEnv() }), localDev()],
+});
+```
+
+The principal is `{ principalType: "user", principalId: <user id> }`, and
+its attributes carry `tenantId` (the `tenant_id` claim, or the claim in
+`tenantClaim`), the user's `roles` in that tenant and `isAnonymous`.
+`attributes(claims)` adds your own. `principalOf(auth)` builds the same
+principal from an `AuthState` you already have.
+
+## Connections
+
+`credentialAuth` gives an MCP connection its token from a
+`CredentialProvider`. With `owner: "app"` every session shares the app's
+credential; with `owner: "user"` each signed-in user gets their own, and a
+session without a user is asked to sign in.
+
+```ts title="agent/connections/linear.ts"
+import { defineMcpClientConnection } from "eve/connections";
+import { vaultCredentials } from "better-supabase/credentials/vault";
+import { credentialAuth } from "better-supabase/eve";
+
+import { transport } from "../../lib/blocks";
+
+export default defineMcpClientConnection({
+  url: "https://mcp.linear.app/mcp",
+  description: "The team's Linear workspace",
+  auth: credentialAuth({
+    provider: vaultCredentials({ transport }),
+    ref: { provider: "vault", secret: "linear", scope: "user" },
+    owner: "user",
+    connection: "Linear",
+  }),
+});
+```
+
+A user without a stored credential gets eve's authorization flow when the
+provider can start one (Vercel Connect can, Vault can't): eve sends the
+user to the provider and resumes the turn after the callback. Pass
+`interactive: false` to report `authorization.required` instead. Provider
+errors map to eve's errors: a missing or unauthorized credential becomes
+`ConnectionAuthorizationRequiredError`, a forbidden or invalid one
+`ConnectionAuthorizationFailedError`, and anything else a `DbException`.
+
+## Memory
+
+`supabaseMemory` is a memory provider over the memory block, with
+optional tenant documents from the knowledge block. Pass both blocks on a
+service transport, since eve calls the provider outside the user's request.
+
+```ts title="agent/memory/profile.ts"
+import { defineMemory, defineMemoryProvider } from "eve/memory";
+import { byPrincipal } from "eve/memory/scope";
+import { supabaseMemory } from "better-supabase/eve";
+
+import { knowledge, memory } from "../../lib/blocks";
+
+export default defineMemory({
+  description: "What the agent knows about this user and their team",
+  scope: byPrincipal(),
+  provider: defineMemoryProvider(supabaseMemory({ memory, knowledge })),
+});
+```
+
+On `turn.started` the provider returns the user's core memory, the
+archival memories and knowledge chunks closest to the new message (`k`,
+5 by default) and stores that answer under eve's operation id, so a
+replayed step recalls the same messages. Every read and write is
+partitioned by the memory scope key and the signed-in user; sessions
+without a user and tenant recall nothing. Knowledge search defaults to
+the tenant's shared documents, because the provider searches as the
+service role; widen `knowledgeScopes` only when every member may read the
+wider scope.
+
+The model gets `remember` and `forget` tools (eve shows them as
+`<slot>__remember`). Pass `extract(messages, ctx)`, an LLM call of yours, to
+also keep facts from every finished turn; `tools: false` drops the tools.
+
+To keep eve's own file memory instead, store it in Postgres with
+`supabaseDocumentBackend`. A write with a stale version throws
+`MemoryDocumentConflictError`, and eve retries with the current document.
+
+```ts title="agent/memory/notes.ts"
+import { defineMemory } from "eve/memory";
+import { fileMemory } from "eve/memory/file";
+import { byPrincipal } from "eve/memory/scope";
+import { supabaseDocumentBackend } from "better-supabase/eve";
+
+import { memory } from "../../lib/blocks";
+
+export default defineMemory({
+  description: "Notes the agent keeps for itself",
+  scope: byPrincipal(),
+  provider: fileMemory({ backend: supabaseDocumentBackend({ memory }) }),
+});
+```
+
+## Sessions in the chat tables
+
+`persistSessions` returns hook handlers that copy eve sessions into the
+canonical chat tables, so the chat UI, search, memory recall and analytics
+read them like any other chat.
+
+```ts title="agent/hooks/persist.ts"
+import { defineHook } from "eve/hooks";
+import { persistSessions } from "better-supabase/eve";
+
+import { chats } from "../../lib/blocks";
+
+export default defineHook({
+  events: persistSessions({ chats, agentId: "support" }),
+});
+```
+
+| eve event                                         | Written                                                                  |
+| ------------------------------------------------- | ------------------------------------------------------------------------ |
+| `session.started`                                 | an `ai_chats` row with the id `chatIdOf(sessionId)`, owned by the user   |
+| `turn.started`                                    | an `ai_runs` row with the engine `eve`                                   |
+| `message.received`                                | the user message, in the canonical format                                |
+| `message.completed`                               | the assistant message, format `eve`, with eve's event as the native copy |
+| `turn.completed`, `turn.failed`, `turn.cancelled` | the run's status: `done`, `error` or `stopped`                           |
+
+Each write is keyed by the event, so a redelivered event stores nothing
+new. The chat id is a UUID derived from the session id, so a client that
+knows the chat can open the eve session with
+`useEveAgent({ initialSession: { sessionId, streamIndex: 0 } })`. Sessions
+without a signed-in user and tenant are skipped.
+
+## The inbox as a channel
+
+`routeInbox` connects the [inbox](/docs/blocks/inbox) to eve's Chat SDK
+channel. Build the channel over [`inboxAdapter`](/docs/chat-sdk/inbox-adapter)
+and the Postgres state, then hand it to `routeInbox`:
+
+```ts title="agent/channels/inbox.ts"
+import { chatSdkChannel } from "eve/channels/chat-sdk";
+import { createSupabaseState, inboxAdapter } from "better-supabase/chat-sdk";
+import { routeInbox } from "better-supabase/eve";
+
+import { inbox, transport } from "../../lib/blocks";
+
+const bridge = chatSdkChannel({
+  userName: "Acme agent",
+  adapters: {
+    inbox: inboxAdapter({
+      inbox,
+      userName: "Acme agent",
+      verify: (request) =>
+        request.headers.get("authorization") ===
+        `Bearer ${process.env.INBOX_BOT_SECRET}`,
+    }),
+  },
+  state: createSupabaseState({ transport }),
+});
+
+routeInbox(bridge, { inbox });
+
+export default bridge.channel;
+```
+
+A contact's message in a conversation in bot mode queues an `inbox_bot`
+job. Drain the queue with a route that posts each job to the adapter's
+webhook, which eve mounts at `/eve/v1/inbox`:
+
+```ts title="app/api/jobs/drain/route.ts"
+import "server-only";
+
+import { jobs } from "@/lib/jobs";
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: {
+    inbox_bot: async (payload) => {
+      const response = await fetch(`${process.env.APP_URL}/eve/v1/inbox`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${process.env.INBOX_BOT_SECRET}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error(`eve answered ${response.status}`);
+    },
+  },
+});
+```
+
+The agent's replies post back into the conversation as the bot. A message
+reaches eve only while the conversation's `bot_mode` is `bot`, so a staff
+handoff pauses the agent. The turn's principal is the contact
+(`principalType: "contact"`, with `tenantId` and `conversationId`), never a
+user, so `owner: "user"` connections and per-user memory stay closed to
+contacts.
+
+## Limitations
+
+- A `turn.started` that eve redelivers after its `turn.completed` opens a
+  second run row. Redeliveries before the turn ends are idempotent.
+- The adapter keeps no eve session id or stream index of its own: the chat
+  id comes from the session id, and a resumed session reads from stream
+  index 0.
+- Recall and capture records sit in `memory_documents` under the scope
+  `eve-ops` and expire after 7 days; `memory.documents.purge()` deletes
+  them.

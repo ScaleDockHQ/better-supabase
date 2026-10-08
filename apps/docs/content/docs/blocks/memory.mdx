@@ -105,6 +105,28 @@ stored; `recall.search(organizationId, query, { excludeChat })` returns the
 caller's closest earlier messages. Facts saved without an embedder wait
 for `embedPending()`.
 
+## Documents for agent runtimes
+
+`memory.documents` stores versioned text documents under an opaque scope
+key and a path, for runtimes that keep their own memory format, such as
+eve's file memory. Only the service role reads and writes them.
+
+```ts
+const doc = await memory.documents.read("eve", "user:42/notes.md").orThrow();
+await memory.documents
+  .write("eve", "user:42/notes.md", "- Prefers short answers", {
+    expectedVersion: doc?.version ?? null,
+  })
+  .orThrow();
+```
+
+A write names the version it read (`null` when the document must not
+exist yet); a stale version fails with the hint `MEMORY_DOCUMENT_CONFLICT`,
+so the caller reads again and retries. `expiresIn` sets a lifetime in
+seconds, and `documents.purge()` deletes expired documents.
+[eve](/docs/eve) uses the table for file memory and for its recall
+records.
+
 ## AI SDK
 
 [`better-supabase/ai-sdk/memory`](/docs/ai-sdk/memory) gives the model the
