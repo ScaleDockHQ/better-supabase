@@ -33,6 +33,8 @@ const config: KnipConfig = {
     "apps/docs/components/mdx.tsx": ["exports", "duplicates"],
     // Oxlint JS plugins load the default export; the named one is for imports.
     "packages/better-supabase/src/lint/index.ts": ["duplicates"],
+    // WORKFLOW_TARGET_WORLD loads the default export; the named one is for imports.
+    "packages/better-supabase/src/workflow-sdk/world/index.ts": ["duplicates"],
   },
   workspaces: {
     ".": {

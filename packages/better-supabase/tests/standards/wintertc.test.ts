@@ -8,7 +8,11 @@ import { describe, expect, it } from "vitest";
 // web-platform globals and modules, so they load on Node, Deno, Bun, workerd
 // and edge runtimes. Node-only entries are listed in AGENTS.md invariant 6.
 const SRC = resolve(import.meta.dirname, "../../src");
-const NODE_ENTRIES = new Set(["postgres/index", "testing/index"]);
+const NODE_ENTRIES = new Set([
+  "postgres/index",
+  "testing/index",
+  "workflow-sdk/world/index",
+]);
 const BUILTINS = new Set([
   ...builtinModules,
   ...builtinModules.map((name) => `node:${name}`),

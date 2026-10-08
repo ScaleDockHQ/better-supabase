@@ -1,7 +1,7 @@
 {
   ".": 60145,
   "./config": 12333,
-  "./cli": 240158,
+  "./cli": 240181,
   "./client": 15196,
   "./client/native": 13404,
   "./react": 10796,
@@ -24,7 +24,7 @@
   "./edge": 72264,
   "./mcp": 82743,
   "./mcp/sdk": 68883,
-  "./blocks/jobs": 52416,
+  "./blocks/jobs": 53092,
   "./blocks/audit": 40813,
   "./blocks/outbox": 38541,
   "./blocks/organizations": 32086,
@@ -50,6 +50,10 @@
   "./blocks/onboarding": 29237,
   "./blocks/onboarding/react": 15875,
   "./blocks/waitlist": 35563,
+  "./blocks/workflows": 32990,
+  "./blocks/workflows/react": 43212,
+  "./workflow-sdk": 5757,
+  "./workflow-sdk/world": 22743,
   "./streams": 31136,
   "./streams/redis": 31455,
   "./credentials": 36693,
@@ -66,7 +70,7 @@
   "./plugins/tenant": 9177,
   "./plugins/actor": 6375,
   "./plugins/validation": 11337,
-  "./sql": 252090,
+  "./sql": 263644,
   "./testing": 105958,
-  "better-supabase CLI (startup)": 12910
+  "better-supabase CLI (startup)": 12907
 }

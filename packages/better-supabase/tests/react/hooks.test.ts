@@ -15,6 +15,10 @@ import { useAnnouncements } from "../../src/blocks/announcements/react/index.ts"
 import { useNotifications } from "../../src/blocks/notifications/react/index.ts";
 import { defineChecklist } from "../../src/blocks/onboarding/index.ts";
 import { useOnboarding } from "../../src/blocks/onboarding/react/index.ts";
+import {
+  useWorkflowRun,
+  useWorkflowRuns,
+} from "../../src/blocks/workflows/react/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
@@ -1179,6 +1183,154 @@ describe("useAnnouncements", () => {
     await flush();
     expect(client.channel).not.toHaveBeenCalled();
     expect(view.result.error?.message).toBe("offline");
+    view.unmount();
+  });
+});
+
+describe("workflow run hooks", () => {
+  const run = (id: string, status = "running") => ({
+    id,
+    engine: "workflow-sdk",
+    externalId: `wrun_${id}`,
+    definition: "onboard",
+    tenant: "t1",
+    actor: USER,
+    status,
+    attributes: {},
+    error: null,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+    startedAt: null,
+    completedAt: null,
+    cancelRequestedAt: null,
+  });
+
+  it("lists a tenant's runs and reloads on status broadcasts", async () => {
+    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    let rows = [run("a")];
+    let fail = false;
+    const rpc = withRpc(client, () => {
+      if (fail) throw new Error("offline");
+      return rows;
+    });
+    const view = renderHook(
+      () =>
+        useWorkflowRuns({
+          tenant: "t1",
+          definition: "onboard",
+          status: "running",
+          limit: 10,
+          schema: "app",
+        }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.runs?.map((entry) => entry.id)).toEqual(["a"]);
+    expect(view.result.status).toBe("subscribed");
+    expect(rpc).toHaveBeenCalledWith("workflow_runs_list", {
+      tenant: "t1",
+      definition: "onboard",
+      status: "running",
+      max: 10,
+    });
+
+    rows = [run("a"), run("b")];
+    emit("workflow-runs:t1", "workflow_run_changed", { id: "b" });
+    await flush();
+    expect(view.result.runs).toHaveLength(2);
+    fail = true;
+    await view.result.refresh();
+    expect(view.result.error?.message).toBe("offline");
+    expect(view.result.runs).toHaveLength(2);
+    view.unmount();
+    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads the user's own runs once without a tenant, after sign-in", async () => {
+    const signedOut = fakeBrowser(SIGNED_OUT);
+    const idle = withRpc(signedOut.client, () => []);
+    const waiting = renderHook(() => useWorkflowRuns(), undefined, {
+      client: signedOut.browser,
+    });
+    await flush();
+    expect(idle).not.toHaveBeenCalled();
+    waiting.unmount();
+
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    withRpc(client, () => [run("a")]);
+    const view = renderHook(() => useWorkflowRuns(), undefined, {
+      client: browser,
+    });
+    await flush();
+    expect(client.channel).not.toHaveBeenCalled();
+    expect(view.result.runs).toHaveLength(1);
+    view.unmount();
+  });
+
+  it("reads one run, watches its topic and cancels it", async () => {
+    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    let status = "running";
+    let refuse = false;
+    const rpc = withRpc(client, (fn) => {
+      if (fn === "request_workflow_cancel") {
+        if (refuse) throw new Error("not allowed");
+        status = "cancelled";
+      }
+      return run("a", status);
+    });
+    const view = renderHook(
+      () => useWorkflowRun("wrun_a", { schema: "app" }),
+      undefined,
+      { client: browser },
+    );
+    await flush();
+    await flush();
+    expect(view.result.run?.status).toBe("running");
+    expect(view.result.status).toBe("subscribed");
+    expect(client.channel.mock.calls[0]?.[0]).toBe("workflow-run:a");
+
+    status = "waiting";
+    emit("workflow-run:a", "workflow_run_changed");
+    await flush();
+    expect(view.result.run?.status).toBe("waiting");
+
+    await view.result.cancel();
+    expect(view.result.run?.status).toBe("cancelled");
+    expect(rpc).toHaveBeenCalledWith("request_workflow_cancel", {
+      run: "wrun_a",
+    });
+    refuse = true;
+    await view.result.cancel();
+    expect(view.result.error?.message).toBe("not allowed");
+    view.unmount();
+  });
+
+  it("does nothing for a null run", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const rpc = withRpc(client, () => null);
+    const view = renderHook(() => useWorkflowRun(null), undefined, {
+      client: browser,
+    });
+    await flush();
+    await view.result.refresh();
+    await view.result.cancel();
+    expect(rpc).not.toHaveBeenCalled();
+    expect(view.result.run).toBeUndefined();
+    view.unmount();
+  });
+
+  it("keeps the error when a run can't be read", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    withRpc(client, () => {
+      throw new Error("denied");
+    });
+    const view = renderHook(() => useWorkflowRun("a"), undefined, {
+      client: browser,
+    });
+    await flush();
+    expect(view.result.error?.message).toBe("denied");
     view.unmount();
   });
 });

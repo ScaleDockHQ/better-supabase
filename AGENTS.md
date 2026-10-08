@@ -103,8 +103,9 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
 5. Event handlers (`sb.on`) and sinks can never change a result.
 6. Runtime entries (everything except `cli`, `postgres` and `testing`) import no
    Node built-ins, so they run on every WinterTC runtime. The CLI is Node-only.
-   SDK adapters whose SDK needs Node (`workflow-sdk/world`, `eve`) join that
-   list (`NODE_ENTRIES` in `tests/bundle/bundle.test.ts`) when they ship.
+   SDK adapters whose SDK needs Node join that list (`NODE_ENTRIES` in
+   `tests/bundle/bundle.test.ts` and `tests/standards/wintertc.test.ts`):
+   `workflow-sdk/world` (it imports `pg`), and `eve` when it ships.
    `streams/redis` stays a runtime entry: it imports nothing from Node and
    loads `redis` only for its `url` option.
 7. Auth never calls the Auth server when the access token is still valid,
