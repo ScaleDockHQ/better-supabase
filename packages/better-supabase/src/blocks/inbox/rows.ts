@@ -211,7 +211,7 @@ export function messageOf(value: unknown): InboxMessage {
   };
 }
 
-export const deliveryStatusOf = (value: unknown): DeliveryStatus =>
+const deliveryStatusOf = (value: unknown): DeliveryStatus =>
   oneOf<DeliveryStatus>(
     value,
     ["queued", "sent", "delivered", "read", "failed"],

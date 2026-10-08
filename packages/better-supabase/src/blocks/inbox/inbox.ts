@@ -315,7 +315,7 @@ export interface Inbox {
   purgeContact(contactId: string): AsyncResult<PurgedContact>;
 }
 
-export function contactArg(
+function contactArg(
   input: ContactInput & { readonly externalId?: string },
 ): Record<string, unknown> {
   return {
@@ -334,7 +334,7 @@ export function contactArg(
   };
 }
 
-export function messageArg(input: MessageInput): Record<string, unknown> {
+function messageArg(input: MessageInput): Record<string, unknown> {
   return {
     body: input.body,
     kind: input.kind,
@@ -356,9 +356,7 @@ export function messageArg(input: MessageInput): Record<string, unknown> {
 }
 
 /** Drops `undefined` so the jsonb input only carries what the caller set. */
-export function compact(
-  value: Record<string, unknown>,
-): Record<string, unknown> {
+function compact(value: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value)) {
     if (item === undefined) continue;

@@ -43,7 +43,10 @@ function provider(): CredentialProvider & { revoke: ReturnType<typeof vi.fn> } {
 }
 
 function setup(answers: Record<string, unknown>) {
-  const call = vi.fn(async (_schema: string, fn: string) => answers[fn]);
+  const call = vi.fn(
+    async (_schema: string, fn: string, _args?: Record<string, unknown>) =>
+      answers[fn],
+  );
   const credentials = provider();
   return {
     call,
@@ -131,7 +134,7 @@ describe("createChatInstallations", () => {
   it("reads installs", async () => {
     const { installations } = setup({
       chat_installation: row(
-        { secret: "no provider" },
+        { secret: "no provider" } as unknown as CredentialRef,
         { tenant_id: null, uninstalled_at: AT, metadata: null },
       ),
       list_chat_installations: "not a list",

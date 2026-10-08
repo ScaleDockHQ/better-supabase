@@ -4,7 +4,9 @@ import type { BlockTransport } from "../../../src/blocks/inbox/index.ts";
 
 export const AT = "2026-01-01T00:00:00Z";
 
-export const inboxRow = {
+type Row = Readonly<Record<string, unknown>>;
+
+export const inboxRow: Row = {
   id: "i1",
   tenant_id: "org",
   name: "Support",
@@ -17,7 +19,7 @@ export const inboxRow = {
   archived_at: null,
 };
 
-export const contactRow = {
+export const contactRow: Row = {
   id: "ct1",
   tenant_id: "org",
   user_id: null,
@@ -28,7 +30,7 @@ export const contactRow = {
   metadata: { plan: "pro" },
 };
 
-export const conversationRow = {
+export const conversationRow: Row = {
   id: "c1",
   tenant_id: "org",
   inbox_id: "i1",
@@ -53,7 +55,7 @@ export const conversationRow = {
   unread: true,
 };
 
-export const messageRow = {
+export const messageRow: Row = {
   id: "m1",
   conversation_id: "c1",
   direction: "inbound",
@@ -76,7 +78,7 @@ export const messageRow = {
   delivery: null,
 };
 
-export const templateRow = {
+export const templateRow: Row = {
   id: "t1",
   tenant_id: "org",
   inbox_id: null,
@@ -88,7 +90,7 @@ export const templateRow = {
   external_id: null,
 };
 
-export const storedEventRow = {
+export const storedEventRow: Row = {
   id: "e1",
   adapter: "whatsapp",
   external_id: null,

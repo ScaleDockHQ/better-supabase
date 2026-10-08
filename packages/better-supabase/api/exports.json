@@ -1967,6 +1967,7 @@
       "MessageInput",
       "MessageKind",
       "MessageTemplate",
+      "PurgedContact",
       "RpcClient",
       "StartConversationInput",
       "StoredInboundEvent",

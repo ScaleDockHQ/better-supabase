@@ -184,7 +184,7 @@ describe("inboxAdapter", () => {
     await adapter.removeReaction("inbox:c1", "m1", "👍");
     await adapter.startTyping("inbox:c1");
     await adapter.endTyping?.("inbox:c1");
-    await adapter.markAsRead?.("inbox:c1");
+    await adapter.markAsRead?.("inbox:c1", "m1");
     const sends = call.mock.calls
       .filter(([, fn]) => fn === "send_message")
       .map(([, , args]) => args["input"]);

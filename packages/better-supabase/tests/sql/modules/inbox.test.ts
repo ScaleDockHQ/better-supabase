@@ -97,13 +97,14 @@ describe("inbox module", () => {
   });
 
   it("creates its private bucket", () => {
-    const data = INBOX.data?.(moduleContext("inbox", { modules: {} }));
+    const data = INBOX.data?.(moduleContext("inbox", { modules: {} }), {});
     expect(data).toContain(
       "values ('inbox-files', 'inbox-files', false, 26214400)",
     );
     expect(
       INBOX.data?.(
         moduleContext("inbox", { modules: { inbox: { mode: "custom" } } }),
+        {},
       ),
     ).toBe("");
   });

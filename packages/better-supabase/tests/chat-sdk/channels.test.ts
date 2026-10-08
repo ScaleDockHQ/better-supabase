@@ -45,7 +45,11 @@ function provider(inbound?: boolean | "error"): CredentialProvider {
       : {
           verifyInbound: () =>
             inbound === "error"
-              ? AsyncResult.err({ kind: "unknown", message: "down" })
+              ? AsyncResult.err({
+                  kind: "network",
+                  message: "down",
+                  status: 503,
+                })
               : AsyncResult.ok(inbound),
         }),
   };

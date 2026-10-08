@@ -4,7 +4,7 @@ import { sqlString } from "../../core/template.ts";
 import { updatedAt } from "../shared.ts";
 import { topics } from "./inbox-names.ts";
 
-export const CHANNELS = [
+const CHANNELS = [
   "in_app",
   "email",
   "slack",
