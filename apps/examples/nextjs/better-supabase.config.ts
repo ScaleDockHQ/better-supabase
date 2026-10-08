@@ -20,7 +20,6 @@ export default defineConfig({
     notes: crud,
     tags: crud,
     customer_tags: crud,
-    notifications: crud,
     organizations: ["select"],
     plans: ["select"],
     plan_features: ["select"],
@@ -47,13 +46,7 @@ export default defineConfig({
       },
     },
   },
-  // Tenant tables broadcast per organization; notifications per user
-  // (`bs:t:public.notifications:u:<user id>`).
   plugins: { tenant: { column: "organization_id" } },
-  realtime: {
-    tables: ["notifications"],
-    users: { notifications: "user_id" },
-  },
   buckets: {
     customerLogos: {
       path: "{organizationId}/{customerId}/logo/{version}.webp",
@@ -133,6 +126,9 @@ export default defineConfig({
       onboarding: { api: "api", options: { checklists: [gettingStarted] } },
       entitlements: { api: "api" },
       usage: { api: "api" },
+      // In-app notifications behind the unread badge and /notifications,
+      // on the recipient's private topic `notifications:<user id>`.
+      notifications: { api: "api" },
     },
   },
 });

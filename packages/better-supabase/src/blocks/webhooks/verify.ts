@@ -333,7 +333,7 @@ export async function verifyStripeWebhook<T = unknown>(
 }
 
 /**
- * `createInbox({ source: 'stripe', verify: stripeInboxVerify(secret) })`:
+ * `createWebhookInbox({ source: 'stripe', verify: stripeInboxVerify(secret) })`:
  * stores Stripe events keyed by their event id.
  */
 export function stripeInboxVerify(

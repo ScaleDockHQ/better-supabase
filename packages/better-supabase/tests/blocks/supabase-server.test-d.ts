@@ -8,7 +8,7 @@ import { purgeAuditLog } from "../../src/blocks/audit/index.ts";
 import { entitlementMembers } from "../../src/blocks/entitlements/index.ts";
 import {
   createIdempotency,
-  createInbox,
+  createWebhookInbox,
   createJobs,
 } from "../../src/blocks/jobs/index.ts";
 import { createOutbox } from "../../src/blocks/outbox/index.ts";
@@ -23,7 +23,7 @@ describe("blocks on @supabase/server's Postgres clients", () => {
     sqlTransport(postgres);
     createJobs(postgresAdmin, {});
     createIdempotency(postgresAdmin);
-    createInbox(postgresAdmin, { source: "stripe", secrets: "whsec_x" });
+    createWebhookInbox(postgresAdmin, { source: "stripe", secrets: "whsec_x" });
     purgeAuditLog(postgresAdmin);
     createOutbox(postgresAdmin, { source: "app" });
     void entitlementMembers(postgresAdmin, "cus_1");

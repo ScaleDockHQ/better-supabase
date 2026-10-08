@@ -339,7 +339,7 @@ export function withLease<T>(
 // ---------------------------------------------------------------------------
 // Webhook inbox (SQL module `webhook-inbox`)
 
-export interface InboxMessage<T = unknown> {
+export interface WebhookInboxMessage<T = unknown> {
   readonly id: number;
   readonly source: string;
   readonly messageId: string;
@@ -368,7 +368,7 @@ export interface InboxMessage<T = unknown> {
 }
 
 /** A verified event to store, from `verify` or from `store` for a provider SDK that verifies itself. */
-export interface InboxEvent {
+export interface WebhookInboxEvent {
   /** The sender's message id; the inbox stores each one once. */
   readonly id: string;
   readonly payload: unknown;
@@ -379,7 +379,7 @@ export interface InboxEvent {
   readonly headers?: Readonly<Record<string, string>>;
 }
 
-export interface InboxOptions
+export interface WebhookInboxOptions
   extends BlockProblemOptions, BlockTemporalOptions {
   /** Name of the sender, e.g. `stripe` or `supabase-auth`. */
   readonly source: string;
@@ -419,7 +419,7 @@ export interface InboxOptions
   readonly maxBodyBytes?: number;
 }
 
-export interface InboxProcessOptions {
+export interface WebhookInboxProcessOptions {
   /** Messages claimed at once. Defaults to 10. */
   readonly batch?: number;
   /**
@@ -436,7 +436,7 @@ export interface InboxProcessOptions {
   readonly budgetMs?: number;
 }
 
-export interface InboxListOptions {
+export interface WebhookInboxListOptions {
   readonly tenant: string;
   /** Only this status: `pending`, `processing`, `processed` or `dead`. */
   readonly status?: "pending" | "processing" | "processed" | "dead";
@@ -445,7 +445,7 @@ export interface InboxListOptions {
 }
 
 /** A stored message as `list` returns it. */
-export interface InboxEntry {
+export interface WebhookInboxEntry {
   readonly id: number;
   readonly messageId: string;
   readonly type: string | null;
@@ -458,7 +458,7 @@ export interface InboxEntry {
   readonly processedAt: Temporal.Instant | null;
 }
 
-export interface InboxPurgeOptions {
+export interface WebhookInboxPurgeOptions {
   /** Defaults to `30 days`; `0` with `tenant` removes all of that tenant's processed messages. */
   readonly olderThan?: number | string;
   readonly includeDead?: boolean;
@@ -466,7 +466,7 @@ export interface InboxPurgeOptions {
   readonly batch?: number;
 }
 
-export interface Inbox {
+export interface WebhookInbox {
   /**
    * Verifies and stores a webhook; answers 202, or 200 for a duplicate
    * delivery. Throws a `TypeError` when the inbox has neither `secrets` nor
@@ -478,23 +478,25 @@ export interface Inbox {
    * verifies and parses in one call). `duplicate` when the id was stored
    * before.
    */
-  store(event: InboxEvent): AsyncResult<{ id: number; duplicate: boolean }>;
+  store(
+    event: WebhookInboxEvent,
+  ): AsyncResult<{ id: number; duplicate: boolean }>;
   /**
    * Processes stored messages until none are ready, or until `budgetMs`
    * is spent. A message whose lease another claim took over is skipped,
    * and its outcome is not counted.
    */
   process<T = unknown>(
-    handler: (message: InboxMessage<T>) => unknown,
-    options?: InboxProcessOptions,
+    handler: (message: WebhookInboxMessage<T>) => unknown,
+    options?: WebhookInboxProcessOptions,
   ): Promise<DrainResult>;
   /** A tenant's messages of this source, newest first. */
-  list(options: InboxListOptions): AsyncResult<InboxEntry[]>;
+  list(options: WebhookInboxListOptions): AsyncResult<WebhookInboxEntry[]>;
   /** Deletes old processed (and, with `includeDead`, dead) messages of this source's table; returns how many. */
-  purge(options?: InboxPurgeOptions): AsyncResult<number>;
+  purge(options?: WebhookInboxPurgeOptions): AsyncResult<number>;
 }
 
-interface InboxRow {
+interface WebhookInboxRow {
   id: string | number;
   source: string;
   message_id: string;
@@ -506,7 +508,7 @@ interface InboxRow {
   received_at: Date | string;
   tenant?: string | null;
   checkpoint?: Record<string, unknown> | null;
-  status?: InboxEntry["status"];
+  status?: WebhookInboxEntry["status"];
   last_error?: string | null;
   processed_at?: Date | string | null;
 }
@@ -519,20 +521,23 @@ function defaultType(payload: unknown): string | null {
 }
 
 /** Store-then-process webhooks: acknowledge fast, process with retries, never twice. */
-export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
+export function createWebhookInbox(
+  sql: SqlClient,
+  options: WebhookInboxOptions,
+): WebhookInbox {
   applyTemporal(options);
   const worker = options.worker ?? workerId();
   const format = options.problem;
   const maxAttempts = options.maxAttempts ?? 8;
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
     throw new TypeError(
-      `createInbox maxAttempts must be a positive integer, not ${String(maxAttempts)}`,
+      `createWebhookInbox maxAttempts must be a positive integer, not ${String(maxAttempts)}`,
     );
   }
   const maxBodyBytes = options.maxBodyBytes ?? 1_048_576;
   if (!Number.isInteger(maxBodyBytes) || maxBodyBytes < 1) {
     throw new TypeError(
-      `createInbox maxBodyBytes must be a positive integer, not ${String(maxBodyBytes)}`,
+      `createWebhookInbox maxBodyBytes must be a positive integer, not ${String(maxBodyBytes)}`,
     );
   }
 
@@ -552,7 +557,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
       : result;
   };
 
-  const save = (event: InboxEvent) =>
+  const save = (event: WebhookInboxEvent) =>
     run(async () => {
       const [row] = await sql.queryRaw<{
         id: string | number;
@@ -580,7 +585,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
     store: save,
     list: (listOptions) =>
       run(async () => {
-        const rows = await sql.queryRaw<InboxRow>(
+        const rows = await sql.queryRaw<WebhookInboxRow>(
           "select * from better_supabase.list_webhooks($1, $2, $3, $4)",
           [
             listOptions.tenant,
@@ -675,7 +680,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
       for (;;) {
         if (deadline !== undefined && Date.now() >= deadline)
           return { succeeded, failed };
-        const rows = await sql.queryRaw<InboxRow>(
+        const rows = await sql.queryRaw<WebhookInboxRow>(
           "select * from better_supabase.claim_webhooks($1, $2, $3, $4::interval)",
           [options.source, worker, processOptions.batch ?? 10, lease],
         );
@@ -694,7 +699,7 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
           };
           const leaseSeconds = await extend();
           if (leaseSeconds === undefined) continue;
-          const message: InboxMessage<never> = {
+          const message: WebhookInboxMessage<never> = {
             id,
             source: row.source,
             messageId: row.message_id,
@@ -756,6 +761,28 @@ export function createInbox(sql: SqlClient, options: InboxOptions): Inbox {
     },
   };
 }
+
+/**
+ * @deprecated Use `createWebhookInbox`; `createInbox` is removed in the next minor.
+ * @alias
+ */
+export const createInbox: typeof createWebhookInbox = createWebhookInbox;
+/** @deprecated Use `WebhookInbox`. */
+export type Inbox = WebhookInbox;
+/** @deprecated Use `WebhookInboxOptions`. */
+export type InboxOptions = WebhookInboxOptions;
+/** @deprecated Use `WebhookInboxEntry`. */
+export type InboxEntry = WebhookInboxEntry;
+/** @deprecated Use `WebhookInboxEvent`. */
+export type InboxEvent = WebhookInboxEvent;
+/** @deprecated Use `WebhookInboxMessage`. */
+export type InboxMessage<T = unknown> = WebhookInboxMessage<T>;
+/** @deprecated Use `WebhookInboxListOptions`. */
+export type InboxListOptions = WebhookInboxListOptions;
+/** @deprecated Use `WebhookInboxProcessOptions`. */
+export type InboxProcessOptions = WebhookInboxProcessOptions;
+/** @deprecated Use `WebhookInboxPurgeOptions`. */
+export type InboxPurgeOptions = WebhookInboxPurgeOptions;
 
 // ---------------------------------------------------------------------------
 // Audit retention (SQL module `audit`)

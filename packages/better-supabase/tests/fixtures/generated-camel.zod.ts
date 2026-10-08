@@ -179,32 +179,6 @@ export const notesUpdate: z.ZodType<UpdateOf<'notes'>> = z.object({
   embedding: z.string().nullable().exactOptional(),
 }).meta({ title: "Notes update" });
 
-export const notificationsRow: z.ZodType<RowOf<'notifications'>> = z.object({
-  id: z.int(),
-  organizationId: z.guid(),
-  userId: z.guid(),
-  title: z.string(),
-  readAt: z.iso.datetime({ offset: true }).nullable(),
-  createdAt: z.iso.datetime({ offset: true }),
-  updatedAt: z.iso.datetime({ offset: true }),
-}).meta({ title: "Notifications" });
-export const notificationsInsert: z.ZodType<InsertOf<'notifications'>> = z.object({
-  organizationId: z.guid(),
-  userId: z.guid().exactOptional(),
-  title: z.string(),
-  readAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
-  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
-  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-}).meta({ title: "Notifications insert" });
-export const notificationsUpdate: z.ZodType<UpdateOf<'notifications'>> = z.object({
-  organizationId: z.guid().exactOptional(),
-  userId: z.guid().exactOptional(),
-  title: z.string().exactOptional(),
-  readAt: z.iso.datetime({ offset: true }).nullable().exactOptional(),
-  createdAt: z.iso.datetime({ offset: true }).exactOptional(),
-  updatedAt: z.iso.datetime({ offset: true }).exactOptional(),
-}).meta({ title: "Notifications update" });
-
 export const organizationsRow: z.ZodType<RowOf<'organizations'>> = z.object({
   id: z.guid(),
   name: z.string(),
@@ -320,7 +294,6 @@ export const validators: {
   readonly locations: { readonly insert: typeof locationsInsert; readonly update: typeof locationsUpdate };
   readonly memberships: { readonly insert: typeof membershipsInsert; readonly update: typeof membershipsUpdate };
   readonly notes: { readonly insert: typeof notesInsert; readonly update: typeof notesUpdate };
-  readonly notifications: { readonly insert: typeof notificationsInsert; readonly update: typeof notificationsUpdate };
   readonly organizations: { readonly insert: typeof organizationsInsert; readonly update: typeof organizationsUpdate };
   readonly planFeatures: { readonly insert: typeof planFeaturesInsert; readonly update: typeof planFeaturesUpdate };
   readonly plans: { readonly insert: typeof plansInsert; readonly update: typeof plansUpdate };
@@ -333,7 +306,6 @@ export const validators: {
   locations: { insert: locationsInsert, update: locationsUpdate },
   memberships: { insert: membershipsInsert, update: membershipsUpdate },
   notes: { insert: notesInsert, update: notesUpdate },
-  notifications: { insert: notificationsInsert, update: notificationsUpdate },
   organizations: { insert: organizationsInsert, update: organizationsUpdate },
   planFeatures: { insert: planFeaturesInsert, update: planFeaturesUpdate },
   plans: { insert: plansInsert, update: plansUpdate },

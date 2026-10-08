@@ -1,0 +1,65 @@
+---
+title: AI messages
+description: The canonical message format the AI blocks store, published as a JSON Schema and checked with a Standard Schema validator.
+---
+
+`better-supabase/blocks/ai-chat` defines the message format the AI blocks
+store. A message has an `id`, a `role` (`system`, `user`, `assistant` or
+`tool`), a list of `parts` and optional `metadata`. The format belongs to
+better-supabase, not to one SDK: an adapter for the AI SDK or another SDK
+converts its own messages to these parts and back, so the stored history,
+search and memory work the same whichever SDK wrote them.
+
+```ts
+import {
+  aiMessageSchema,
+  type AiMessage,
+} from "better-supabase/blocks/ai-chat";
+
+const message: AiMessage = {
+  id: "msg_1",
+  role: "assistant",
+  parts: [
+    { type: "text", text: "Here is the invoice." },
+    {
+      type: "tool-call",
+      toolCallId: "call_1",
+      toolName: "getInvoice",
+      input: { id: 42 },
+    },
+  ],
+};
+
+const result = await aiMessageSchema["~standard"].validate(message);
+```
+
+`aiMessageSchema` is a [Standard Schema](https://standardschema.dev), so it
+works anywhere a Zod or Valibot schema does. `isAiMessage(value)` is the
+type guard.
+
+## Parts
+
+| Type            | Fields                                                                              |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `text`          | `text`, `state` (`streaming` or `done`)                                             |
+| `reasoning`     | `text`, `state`                                                                     |
+| `file`          | `mediaType`, `url`, `filename`                                                      |
+| `tool-call`     | `toolCallId`, `toolName`, `input`, `providerExecuted`                               |
+| `tool-result`   | `toolCallId`, `toolName`, `output`, `isError`                                       |
+| `tool-approval` | `toolCallId`, `approvalId`, `state` (`requested`, `approved` or `denied`), `reason` |
+| `source`        | `sourceType` (`url` or `document`), `id`, `url`, `title`, `mediaType`               |
+| `data`          | `name`, `id`, `data`                                                                |
+| `step`          | `boundary` (`start` or `finish`), `stepId`                                          |
+
+Every part can carry `providerMetadata`, an object the adapter passes
+through unchanged. Unknown fields are rejected. An SDK part with no
+counterpart becomes a `data` part, so a conversion never drops content.
+
+## JSON Schema
+
+The same format is published as JSON Schema 2020-12 at
+`https://unpkg.com/better-supabase/schemas/ai-message-v1.json`
+(`AI_MESSAGE_SCHEMA_ID`). Use it to validate messages outside TypeScript or
+in a `jsonb` check constraint. The version is pinned as
+`SPEC_PINS.aiMessage`; a change to the format ships as a new schema file and
+a new pin, never as an edit to version 1. See [Standards](/docs/standards).

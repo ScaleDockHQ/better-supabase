@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
-import { createInbox } from "../../src/blocks/jobs/index.ts";
+import { createWebhookInbox } from "../../src/blocks/jobs/index.ts";
 import {
   createIncomingWebhooks,
   INCOMING_ENDPOINT_HEADER,
@@ -210,7 +210,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       );
       expect(stats[0]).toEqual({ receive_count: "4", last_status: 429 });
 
-      const inbox = createInbox(sql, {
+      const inbox = createWebhookInbox(sql, {
         source,
         verify: () => Promise.reject(new Error("process only")),
       });

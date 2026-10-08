@@ -1,4 +1,4 @@
-import { InboxIcon } from "lucide-react";
+import { BellIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 
 import { Badge } from "@/components/ui/badge";
@@ -11,13 +11,13 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { getNotifications } from "../inbox-queries";
+import { getNotifications } from "../notifications-queries";
 
 /** Render inside `<Suspense>`. */
 export async function NotificationList() {
   const [notifications, t, format] = await Promise.all([
     getNotifications(),
-    getExtracted("inbox"),
+    getExtracted("notifications"),
     getFormatter(),
   ]);
   if (notifications.length === 0) {
@@ -25,7 +25,7 @@ export async function NotificationList() {
       <Empty className="border">
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <InboxIcon />
+            <BellIcon />
           </EmptyMedia>
           <EmptyTitle>{t("Nothing here yet")}</EmptyTitle>
           <EmptyDescription>

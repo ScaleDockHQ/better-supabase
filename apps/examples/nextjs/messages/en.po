@@ -67,21 +67,21 @@ msgctxt "app.BFhud5"
 msgid "Back to the dashboard"
 msgstr "Back to the dashboard"
 
-#: src/app/[locale]/(app)/inbox/page.tsx
-msgctxt "inbox.VCMKbt"
-msgid "Inbox"
-msgstr "Inbox"
-
-#: src/app/[locale]/(app)/inbox/page.tsx
-msgctxt "inbox.bT5l3i"
-msgid "Every signed-in user has one. The count stays live over Realtime."
-msgstr "Every signed-in user has one. The count stays live over Realtime."
-
 #: src/app/[locale]/(app)/layout.tsx
 #: src/features/navigation/components/app-header.tsx
 msgctxt "navigation.6D4Ghb"
 msgid "Toggle sidebar"
 msgstr "Toggle sidebar"
+
+#: src/app/[locale]/(app)/notifications/page.tsx
+msgctxt "notifications.NAidKb"
+msgid "Notifications"
+msgstr "Notifications"
+
+#: src/app/[locale]/(app)/notifications/page.tsx
+msgctxt "notifications.vdNnuz"
+msgid "Sent by the notifications block. The count stays live over Realtime."
+msgstr "Sent by the notifications block. The count stays live over Realtime."
 
 #: src/app/[locale]/(app)/page.tsx
 msgctxt "dashboard.hzSNj4"
@@ -908,61 +908,6 @@ msgctxt "beta.2jXw4s"
 msgid "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh."
 msgstr "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh."
 
-#: src/features/inbox/components/inbox-actions.tsx
-msgctxt "inbox.OCmHfl"
-msgid "Notification sent"
-msgstr "Notification sent"
-
-#: src/features/inbox/components/inbox-actions.tsx
-msgctxt "inbox.wMC6M8"
-msgid "All caught up"
-msgstr "All caught up"
-
-#: src/features/inbox/components/inbox-actions.tsx
-msgctxt "inbox.aFRo3k"
-msgid "Hello from the inbox"
-msgstr "Hello from the inbox"
-
-#: src/features/inbox/components/inbox-actions.tsx
-msgctxt "inbox.ipGe-B"
-msgid "Notify me"
-msgstr "Notify me"
-
-#: src/features/inbox/components/inbox-actions.tsx
-msgctxt "inbox.ShdEie"
-msgid "Mark all read"
-msgstr "Mark all read"
-
-#: src/features/inbox/components/notification-list.tsx
-msgctxt "inbox.KjR3ZD"
-msgid "Nothing here yet"
-msgstr "Nothing here yet"
-
-#: src/features/inbox/components/notification-list.tsx
-msgctxt "inbox.5L9NEw"
-msgid "Send yourself a notification to see it arrive."
-msgstr "Send yourself a notification to see it arrive."
-
-#: src/features/inbox/components/notification-list.tsx
-msgctxt "inbox.bW7B87"
-msgid "New"
-msgstr "New"
-
-#: src/features/inbox/components/unread-badge.tsx
-msgctxt "inbox.Z6J1K8"
-msgid "Inbox, {count, number} unread"
-msgstr "Inbox, {count, number} unread"
-
-#: src/features/inbox/components/unread-badge.tsx
-msgctxt "inbox.jrdovp"
-msgid "Counting…"
-msgstr "Counting…"
-
-#: src/features/inbox/components/unread-badge.tsx
-msgctxt "inbox.94cCzv"
-msgid "{count, number} unread"
-msgstr "{count, number} unread"
-
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.hzSNj4"
 msgid "Dashboard"
@@ -974,9 +919,9 @@ msgid "Customers"
 msgstr "Customers"
 
 #: src/features/navigation/components/side-nav.tsx
-msgctxt "navigation.VCMKbt"
-msgid "Inbox"
-msgstr "Inbox"
+msgctxt "navigation.NAidKb"
+msgid "Notifications"
+msgstr "Notifications"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.riw_yc"
@@ -1032,6 +977,61 @@ msgstr "Similar notes"
 msgctxt "notes.XMSvnd"
 msgid "Nearest to “{body}”, found by the vector-search module."
 msgstr "Nearest to “{body}”, found by the vector-search module."
+
+#: src/features/notifications/components/notification-actions.tsx
+msgctxt "notifications.OCmHfl"
+msgid "Notification sent"
+msgstr "Notification sent"
+
+#: src/features/notifications/components/notification-actions.tsx
+msgctxt "notifications.wMC6M8"
+msgid "All caught up"
+msgstr "All caught up"
+
+#: src/features/notifications/components/notification-actions.tsx
+msgctxt "notifications.DWczdD"
+msgid "Hello from notifications"
+msgstr "Hello from notifications"
+
+#: src/features/notifications/components/notification-actions.tsx
+msgctxt "notifications.ipGe-B"
+msgid "Notify me"
+msgstr "Notify me"
+
+#: src/features/notifications/components/notification-actions.tsx
+msgctxt "notifications.ShdEie"
+msgid "Mark all read"
+msgstr "Mark all read"
+
+#: src/features/notifications/components/notification-list.tsx
+msgctxt "notifications.KjR3ZD"
+msgid "Nothing here yet"
+msgstr "Nothing here yet"
+
+#: src/features/notifications/components/notification-list.tsx
+msgctxt "notifications.5L9NEw"
+msgid "Send yourself a notification to see it arrive."
+msgstr "Send yourself a notification to see it arrive."
+
+#: src/features/notifications/components/notification-list.tsx
+msgctxt "notifications.bW7B87"
+msgid "New"
+msgstr "New"
+
+#: src/features/notifications/components/unread-badge.tsx
+msgctxt "notifications.43pi5p"
+msgid "Notifications, {count, number} unread"
+msgstr "Notifications, {count, number} unread"
+
+#: src/features/notifications/components/unread-badge.tsx
+msgctxt "notifications.jrdovp"
+msgid "Counting…"
+msgstr "Counting…"
+
+#: src/features/notifications/components/unread-badge.tsx
+msgctxt "notifications.94cCzv"
+msgid "{count, number} unread"
+msgstr "{count, number} unread"
 
 #: src/features/organization/components/create-organization-dialog.tsx
 msgctxt "organization.lehIHr"

@@ -110,6 +110,7 @@ describe("shipped JSON Schemas", () => {
       file.endsWith(".json"),
     );
     expect(files.toSorted((a, b) => a.localeCompare(b))).toEqual([
+      "ai-message-v1.json",
       "config-v1.json",
       "doctor-report-v1.json",
       "snapshot-v2.json",

@@ -9,6 +9,7 @@
     "audit",
     "jobs",
     "outbox",
+    "streams",
     "notifications",
     "webhooks-out",
     "webhooks-in",
@@ -26,6 +27,7 @@
     "waitlist",
     "announcements",
     "entitlements",
-    "vector-search"
+    "vector-search",
+    "ai-chat"
   ]
 }

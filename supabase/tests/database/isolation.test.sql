@@ -3,12 +3,11 @@
 -- hook, the kit functions' grants and the avatars bucket. A Globex member (tenant …0002) aims at
 -- Acme (…0001), whose rows come from supabase/seed.sql.
 begin;
-select plan(26);
+select plan(25);
 
--- The insert broadcasts on the recipient's topic through the realtime-tables
--- trigger (realtime.users maps notifications to user_id).
-insert into public.notifications (organization_id, user_id, title)
-values ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', 'For the member');
+-- The send pings the recipient's private topic (`notifications:<user id>`)
+-- through the notifications module's trigger.
+select better_supabase.notify('{"type":"test.sent","tenant":"00000000-0000-4000-8000-000000000001","recipients":["00000000-0000-4000-8000-0000000000a2"],"data":{"title":"For the member"}}');
 insert into storage.objects (bucket_id, name)
 values ('customer-logos', '00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-00000000a001/logo/1.webp');
 
@@ -19,11 +18,10 @@ select set_config(
   true
 );
 set local role authenticated;
-set local realtime.topic = 'bs:t:public.notifications:u:00000000-0000-4000-8000-0000000000a2';
+set local realtime.topic = 'notifications:00000000-0000-4000-8000-0000000000a2';
 
-select is(
-  (select count(*)::int from realtime.messages where topic = 'bs:t:public.notifications:u:00000000-0000-4000-8000-0000000000a2'),
-  1,
+select ok(
+  (select count(*)::int from realtime.messages where topic = 'notifications:00000000-0000-4000-8000-0000000000a2') > 0,
   'a member receives their own notification topic'
 );
 select is(
@@ -68,7 +66,7 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (select count(*)::int from realtime.messages where topic = 'bs:t:public.notifications:u:00000000-0000-4000-8000-0000000000a2'),
+  (select count(*)::int from realtime.messages where topic = 'notifications:00000000-0000-4000-8000-0000000000a2'),
   0,
   'another user does not receive the member''s topic'
 );
@@ -81,7 +79,7 @@ select is_empty(
   format('select 1 from public.%I where organization_id = %L', t, '00000000-0000-4000-8000-000000000001'),
   format('another tenant''s member cannot read public.%s', t)
 )
-from unnest(array['contacts', 'customers', 'locations', 'tags', 'customer_tags', 'notes', 'notifications']) as t;
+from unnest(array['contacts', 'customers', 'locations', 'tags', 'customer_tags', 'notes']) as t;
 
 select is_empty(
   $$select id from storage.objects where bucket_id = 'customer-logos'$$,

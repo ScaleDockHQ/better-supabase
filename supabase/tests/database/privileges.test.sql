@@ -3,18 +3,18 @@
 -- checks bypass RLS, so only the tenant column in the key stops a member from
 -- attaching a row to another organization's customer.
 begin;
-select plan(17);
+select plan(15);
 
 select table_privs_are('public', t, 'anon', '{}'::text[], format('anon has no privileges on public.%s', t))
 from unnest(array[
-  'organizations', 'contacts', 'customers', 'locations', 'tags', 'customer_tags', 'notes', 'notifications'
+  'organizations', 'contacts', 'customers', 'locations', 'tags', 'customer_tags', 'notes'
 ]) as t;
 
 select table_privs_are('public', 'organizations', 'authenticated', array['SELECT'],
   'authenticated only reads organizations');
 select table_privs_are('public', t, 'authenticated', array['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
   format('authenticated has no TRUNCATE, REFERENCES or TRIGGER on public.%s', t))
-from unnest(array['customers', 'notes', 'notifications']) as t;
+from unnest(array['customers', 'notes']) as t;
 
 select function_privs_are('rbac', 'authorize', array['rbac.app_permission'], 'anon', '{}'::text[],
   'anon cannot call rbac.authorize');

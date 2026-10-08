@@ -67,10 +67,10 @@ event. Pass an array while rolling the endpoint secret. For the webhook
 inbox, `stripeInboxVerify(secret)` is the `verify` option:
 
 ```ts
-import { createInbox } from "better-supabase/blocks/jobs";
+import { createWebhookInbox } from "better-supabase/blocks/jobs";
 import { stripeInboxVerify } from "better-supabase/blocks/webhooks";
 
-const inbox = createInbox(postgres.admin, {
+const inbox = createWebhookInbox(postgres.admin, {
   source: "stripe",
   verify: stripeInboxVerify(process.env.STRIPE_WEBHOOK_SECRET!),
 });

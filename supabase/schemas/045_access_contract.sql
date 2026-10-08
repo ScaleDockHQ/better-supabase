@@ -24,12 +24,14 @@ as $$
       'settings.read', 'settings.update', 'settings.manage',
       'api_keys.manage', 'api_keys.own',
       'comments.read', 'comments.create', 'comments.moderate', 'activity.read',
-      'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record'
+      'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record',
+      'notifications.send', 'notifications.read'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
       'settings.read', 'api_keys.own', 'comments.read', 'comments.create', 'activity.read',
-      'onboarding.read', 'usage.read', 'usage.record'
+      'onboarding.read', 'usage.read', 'usage.record',
+      'notifications.send', 'notifications.read'
     ]
     else array[]::text[]
   end

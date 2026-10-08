@@ -183,32 +183,6 @@ export const notesUpdate: v.GenericSchema<UpdateOf<'notes'>> = v.pipe(v.object({
   embedding: v.exactOptional(v.nullable(v.string())),
 }), v.title("Notes update"));
 
-export const notificationsRow: v.GenericSchema<RowOf<'notifications'>> = v.pipe(v.object({
-  id: v.pipe(v.number(), v.integer()),
-  organizationId: v.pipe(v.string(), v.uuid()),
-  userId: v.pipe(v.string(), v.uuid()),
-  title: v.string(),
-  readAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())),
-  createdAt: v.pipe(v.string(), v.isoTimestamp()),
-  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
-}), v.title("Notifications"));
-export const notificationsInsert: v.GenericSchema<InsertOf<'notifications'>> = v.pipe(v.object({
-  organizationId: v.pipe(v.string(), v.uuid()),
-  userId: v.exactOptional(v.pipe(v.string(), v.uuid())),
-  title: v.string(),
-  readAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
-  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
-  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
-}), v.title("Notifications insert"));
-export const notificationsUpdate: v.GenericSchema<UpdateOf<'notifications'>> = v.pipe(v.object({
-  organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
-  userId: v.exactOptional(v.pipe(v.string(), v.uuid())),
-  title: v.exactOptional(v.string()),
-  readAt: v.exactOptional(v.nullable(v.pipe(v.string(), v.isoTimestamp()))),
-  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
-  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
-}), v.title("Notifications update"));
-
 export const organizationsRow: v.GenericSchema<RowOf<'organizations'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),
   name: v.string(),
@@ -324,7 +298,6 @@ export const validators: {
   readonly locations: { readonly insert: typeof locationsInsert; readonly update: typeof locationsUpdate };
   readonly memberships: { readonly insert: typeof membershipsInsert; readonly update: typeof membershipsUpdate };
   readonly notes: { readonly insert: typeof notesInsert; readonly update: typeof notesUpdate };
-  readonly notifications: { readonly insert: typeof notificationsInsert; readonly update: typeof notificationsUpdate };
   readonly organizations: { readonly insert: typeof organizationsInsert; readonly update: typeof organizationsUpdate };
   readonly planFeatures: { readonly insert: typeof planFeaturesInsert; readonly update: typeof planFeaturesUpdate };
   readonly plans: { readonly insert: typeof plansInsert; readonly update: typeof plansUpdate };
@@ -337,7 +310,6 @@ export const validators: {
   locations: { insert: locationsInsert, update: locationsUpdate },
   memberships: { insert: membershipsInsert, update: membershipsUpdate },
   notes: { insert: notesInsert, update: notesUpdate },
-  notifications: { insert: notificationsInsert, update: notificationsUpdate },
   organizations: { insert: organizationsInsert, update: organizationsUpdate },
   planFeatures: { insert: planFeaturesInsert, update: planFeaturesUpdate },
   plans: { insert: plansInsert, update: plansUpdate },

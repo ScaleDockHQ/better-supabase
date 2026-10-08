@@ -299,45 +299,6 @@ export type Models = {
       tenant: "organizationId";
     };
   };
-  notifications: {
-    Row: {
-      id: bigint;
-      organizationId: string;
-      userId: string;
-      title: string;
-      readAt: string | null;
-      createdAt: string;
-      updatedAt: string;
-    };
-    Insert: {
-      id?: never;
-      organizationId: string;
-      userId?: string;
-      title: string;
-      readAt?: string | null;
-      createdAt?: string;
-      updatedAt?: string;
-    };
-    Update: {
-      id?: never;
-      organizationId?: string;
-      userId?: string;
-      title?: string;
-      readAt?: string | null;
-      createdAt?: string;
-      updatedAt?: string;
-    };
-    Relations: {
-      organization: { table: "organizations"; kind: "one"; nullable: false };
-    };
-    PrimaryKey: "id";
-    UniqueKeys: Record<never, never>;
-    Checks: never;
-    ForeignKeys: "notifications_organization_id_fkey" | "notifications_user_id_fkey";
-    Flags: {
-      tenant: "organizationId";
-    };
-  };
   organizations: {
     Row: {
       id: string;
@@ -367,7 +328,6 @@ export type Models = {
       locations: { table: "locations"; kind: "many"; nullable: true };
       memberships: { table: "memberships"; kind: "many"; nullable: true };
       notes: { table: "notes"; kind: "many"; nullable: true };
-      notifications: { table: "notifications"; kind: "many"; nullable: true };
       subscription: { table: "subscriptions"; kind: "one"; nullable: true };
       tags: { table: "tags"; kind: "many"; nullable: true };
     };

@@ -7,24 +7,26 @@ Every integration point is a small interface. The built-in behavior is one
 implementation of it, and yours can replace or sit next to it. Each interface
 has a [conformance kit](/docs/extending/conformance).
 
-| Interface                                         | Built in                                                  | Plug in with                                                            |
-| ------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------- |
-| [`Executor`](#executor)                           | `postgrestExecutor`, `postgresExecutor`                   | `betterSupabase.connect(executor)`                                      |
-| [`Compiler`](#compiler)                           | `postgrestCompiler`, `sqlCompiler`                        | your executor                                                           |
-| [`CacheAdapter`](#cacheadapter)                   | `nextCache()`, `queryCache(client)`, `memoryCache()`      | `betterSupabase.cache(adapter)`                                         |
-| [`EventSink`](#eventsink)                         | `httpSink()`                                              | `forwardMutations(betterSupabase, sink, { source })`                    |
-| [`AuthResolver`](#authresolver)                   | Bearer and cookie resolution; `localAuth()` in `/testing` | `createServer(betterSupabase, { auth: { resolvers } })`                 |
-| [`Generator`](#generator)                         | `zod()`, `valibot()`, `jsonSchema()`                      | `generators` in the config                                              |
-| [`Logger`](#logger)                               | `consoleLogger`, `silentLogger`                           | `defineSupabase(schema, { logger })`                                    |
-| [`QueueBackend`](#queuebackend)                   | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`       | `createJobs(backend, queues)`                                           |
-| [`SupportSessionStore`](#supportsessionstore)     | `sqlSupportStore(postgres)`                               | `createServer(betterSupabase, { support: supportSessions({ store }) })` |
-| [`NotificationChannel`](#notificationchannel)     | none (bring your email or push provider)                  | `createNotifications({ channels })`                                     |
-| [`WebhookSigner`](#webhooksigner)                 | `standardWebhooks()`, `hmacSigner(options)`               | `createWebhooks({ signer })`                                            |
-| [`WebhookTransport`](#webhooktransport)           | `fetchTransport({ allowUrl })`                            | `createWebhooks({ http })`                                              |
-| [`WebhookSecretStore`](#webhooksecretstore)       | `sqlSecretStore(transport)`                               | `createWebhooks({ secrets })`                                           |
-| [`AuthorizationProvider`](#authorizationprovider) | none (built by your authorization system)                 | `authorization` in the config                                           |
-| `EnvSource`                                       | `process.env`, `Deno.env.toObject()`                      | `parseEnv(source)`                                                      |
-| [`Plugin`](/docs/extending/plugins)               | timestamps, soft delete, tenant, actor, validation        | `betterSupabase.use(plugin)`                                            |
+| Interface                                         | Built in                                                    | Plug in with                                                            |
+| ------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [`Executor`](#executor)                           | `postgrestExecutor`, `postgresExecutor`                     | `betterSupabase.connect(executor)`                                      |
+| [`Compiler`](#compiler)                           | `postgrestCompiler`, `sqlCompiler`                          | your executor                                                           |
+| [`CacheAdapter`](#cacheadapter)                   | `nextCache()`, `queryCache(client)`, `memoryCache()`        | `betterSupabase.cache(adapter)`                                         |
+| [`EventSink`](#eventsink)                         | `httpSink()`                                                | `forwardMutations(betterSupabase, sink, { source })`                    |
+| [`AuthResolver`](#authresolver)                   | Bearer and cookie resolution; `localAuth()` in `/testing`   | `createServer(betterSupabase, { auth: { resolvers } })`                 |
+| [`Generator`](#generator)                         | `zod()`, `valibot()`, `jsonSchema()`                        | `generators` in the config                                              |
+| [`Logger`](#logger)                               | `consoleLogger`, `silentLogger`                             | `defineSupabase(schema, { logger })`                                    |
+| [`QueueBackend`](#queuebackend)                   | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`         | `createJobs(backend, queues)`                                           |
+| [`SupportSessionStore`](#supportsessionstore)     | `sqlSupportStore(postgres)`                                 | `createServer(betterSupabase, { support: supportSessions({ store }) })` |
+| [`NotificationChannel`](#notificationchannel)     | none (bring your email or push provider)                    | `createNotifications({ channels })`                                     |
+| [`WebhookSigner`](#webhooksigner)                 | `standardWebhooks()`, `hmacSigner(options)`                 | `createWebhooks({ signer })`                                            |
+| [`WebhookTransport`](#webhooktransport)           | `fetchTransport({ allowUrl })`                              | `createWebhooks({ http })`                                              |
+| [`WebhookSecretStore`](#webhooksecretstore)       | `sqlSecretStore(transport)`                                 | `createWebhooks({ secrets })`                                           |
+| [`StreamStore`](#streamstore)                     | `postgresStreamStore(options)`, `redisStreamStore(options)` | `teeToStore(store, id, stream)`, `resumeFromStore(store, id)`           |
+| [`CredentialProvider`](#credentialprovider)       | `vaultCredentials(options)`, `vercelConnectCredentials()`   | `createServer(betterSupabase, { credentials })`                         |
+| [`AuthorizationProvider`](#authorizationprovider) | none (built by your authorization system)                   | `authorization` in the config                                           |
+| `EnvSource`                                       | `process.env`, `Deno.env.toObject()`                        | `parseEnv(source)`                                                      |
+| [`Plugin`](/docs/extending/plugins)               | timestamps, soft delete, tenant, actor, validation          | `betterSupabase.use(plugin)`                                            |
 
 ## Executor
 
@@ -158,6 +160,22 @@ Where destination signing secrets live. It has `apiVersion: 1`,
 `secrets(endpointId)`, which returns the live secrets newest first, and an
 optional `rotate(endpointId, { overlap, secret })` that returns the new
 secret and keeps the previous ones live for `overlap`.
+
+## StreamStore
+
+Durable, resumable output. It has `apiVersion: 1`, `open`, `append(id,
+fromIdx, chunks)` that skips indexes already stored and reports a cancel,
+`read(id, fromIdx)` that waits for new chunks until the stream closes,
+`status`, `close`, `cancel` and `purge`. See
+[Durable streams](/docs/blocks/streams).
+
+## CredentialProvider
+
+Turns a `credential_ref` into a token. It has `apiVersion: 1`, a `name`,
+`capabilities(ref)`, `getToken(ref, { subject, scopes })` and
+`revoke(ref, { subject })`, and optionally `startAuthorization`,
+`completeAuthorization` and `verifyInbound`. See
+[Credentials](/docs/extending/credentials).
 
 ## AuthorizationProvider
 

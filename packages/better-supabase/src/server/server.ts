@@ -9,6 +9,7 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { EventHub } from "../core/events.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
+import type { CredentialProvider } from "../credentials/provider.ts";
 import type {
   BetterPostgres,
   SessionOptions,
@@ -40,6 +41,7 @@ import {
 } from "../core/postgrest-executor.ts";
 import { AsyncResult, ok } from "../core/result.ts";
 import { type DbStats, StatsRecorder } from "../core/stats.ts";
+import { credentialProviderOf } from "../credentials/provider.ts";
 import {
   type BetterSupabaseEnv,
   type EnvSource,
@@ -168,6 +170,12 @@ export interface ServerOptions {
   ) => SqlClaims | PromiseLike<SqlClaims>;
   /** PostgREST request settings: `timeout`, `retry` and `urlLengthLimit`. */
   readonly db?: ServerDbOptions;
+  /**
+   * Resolves the `credential_ref`s third-party calls use, e.g.
+   * `vaultCredentials()` from `better-supabase/credentials`. It becomes
+   * `ctx.credentials`; pass `subjectFor(ctx)` as the subject.
+   */
+  readonly credentials?: CredentialProvider;
 }
 
 export interface ForContextOptions {
@@ -216,6 +224,8 @@ export interface ServerContext<
    * `sql` are the target's, and `resolution` stays the admin's.
    */
   readonly support?: ActiveSupport;
+  /** `options.credentials`, when the server has one. */
+  readonly credentials?: CredentialProvider;
 }
 
 export interface ContextOptions {
@@ -396,6 +406,10 @@ export function createServer<
   betterSupabase: BetterSupabase<M, D, F, E, C, P>,
   options: ServerOptions = {},
 ): BetterServer<M, F, E, C, P> {
+  const credentials =
+    options.credentials === undefined
+      ? {}
+      : { credentials: credentialProviderOf(options.credentials) };
   let loaded: BetterSupabaseEnv | undefined;
   const env = (): BetterSupabaseEnv =>
     (loaded ??= options.env ?? loadEnv(RUNTIME_ENV));
@@ -706,6 +720,7 @@ export function createServer<
     let db: Db<M, F, E, SupabaseClient> | undefined;
     let sql: Db<M, F, E, undefined> | undefined;
     return {
+      ...credentials,
       auth,
       resolution,
       support: active,
@@ -756,6 +771,7 @@ export function createServer<
     let db: Db<M, F, E, SupabaseClient> | undefined;
     let sql: Db<M, F, E, undefined> | undefined;
     return {
+      ...credentials,
       auth: resolution.auth,
       resolution,
       get supabase(): SupabaseClient {
@@ -826,6 +842,7 @@ export function createServer<
       return url;
     };
     return {
+      ...credentials,
       auth,
       resolution,
       get supabase() {

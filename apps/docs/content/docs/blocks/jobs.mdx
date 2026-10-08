@@ -557,9 +557,9 @@ worker then processes it, with the same retries as jobs. This way your
 provider never times out, and a redelivered webhook is only handled once.
 
 ```ts
-import { createInbox } from "better-supabase/blocks/jobs";
+import { createWebhookInbox } from "better-supabase/blocks/jobs";
 
-const inbox = createInbox(postgres.admin, {
+const inbox = createWebhookInbox(postgres.admin, {
   source: "billing",
   secrets: process.env.BILLING_WEBHOOK_SECRET!,
 });
@@ -571,6 +571,11 @@ await inbox.process(async (message) => {
 });
 ```
 
+`createWebhookInbox` was called `createInbox` before 0.6, and its types were
+`Inbox`, `InboxOptions` and so on. The old names still work as deprecated
+aliases until the next minor; `createInbox` then names the conversation inbox
+block.
+
 `secrets` verifies [Standard Webhooks](/docs/standards) signatures. Pass
 `verify` to use a provider's own scheme instead. `receive` answers `202` for
 a new message and `200` for a duplicate. A message id is unique per source
@@ -579,13 +584,13 @@ verification gets a Problem Details response, and a body over `maxBodyBytes`
 (1 MiB by default) gets `413` before it is read in full.
 
 A failed message is retried with exponential backoff until `maxAttempts`
-(8 by default, set per source on `createInbox`), then marked dead. Each
+(8 by default, set per source on `createWebhookInbox`), then marked dead. Each
 message stores the limit it arrived with. The handler sees `attempts` (1 on
 the first) and `maxAttempts`, so it can tell its last attempt, for example
 to notify someone before the message is given up:
 
 ```ts
-const crm = createInbox(postgres.admin, {
+const crm = createWebhookInbox(postgres.admin, {
   source: "crm",
   secrets,
   maxAttempts: 3,
@@ -646,7 +651,7 @@ messages newest first (an integration's delivery log), and
 `purge({ tenant, olderThan: 0 })` removes them when the tenant goes.
 
 ```ts
-const inbox = createInbox(postgres.admin, {
+const inbox = createWebhookInbox(postgres.admin, {
   source: "chat-provider",
   secrets: process.env.CHAT_WEBHOOK_SECRET!,
   tenantOf: (payload) => connectionTenant(payload),
@@ -701,7 +706,7 @@ requests, needs neither `secrets` nor `verify`. Its `process`, `list` and
 request is never stored:
 
 ```ts
-const chat = createInbox(postgres.admin, { source: "chat" });
+const chat = createWebhookInbox(postgres.admin, { source: "chat" });
 
 await chat.store({ id: event.id, type: event.type, payload: event });
 ```

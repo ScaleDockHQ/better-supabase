@@ -299,6 +299,31 @@
       "types": "./dist/blocks/waitlist/index.d.ts",
       "default": "./dist/blocks/waitlist/index.js"
     },
+    "./streams": {
+      "@better-supabase/source": "./src/streams/index.ts",
+      "types": "./dist/streams/index.d.ts",
+      "default": "./dist/streams/index.js"
+    },
+    "./streams/redis": {
+      "@better-supabase/source": "./src/streams/redis/index.ts",
+      "types": "./dist/streams/redis/index.d.ts",
+      "default": "./dist/streams/redis/index.js"
+    },
+    "./credentials": {
+      "@better-supabase/source": "./src/credentials/index.ts",
+      "types": "./dist/credentials/index.d.ts",
+      "default": "./dist/credentials/index.js"
+    },
+    "./vercel-connect": {
+      "@better-supabase/source": "./src/vercel-connect/index.ts",
+      "types": "./dist/vercel-connect/index.d.ts",
+      "default": "./dist/vercel-connect/index.js"
+    },
+    "./blocks/ai-chat": {
+      "@better-supabase/source": "./src/blocks/ai-chat/index.ts",
+      "types": "./dist/blocks/ai-chat/index.d.ts",
+      "default": "./dist/blocks/ai-chat/index.js"
+    },
     "./blocks/announcements": {
       "@better-supabase/source": "./src/blocks/announcements/index.ts",
       "types": "./dist/blocks/announcements/index.d.ts",
@@ -577,6 +602,26 @@
         "types": "./dist/blocks/waitlist/index.d.ts",
         "default": "./dist/blocks/waitlist/index.js"
       },
+      "./streams": {
+        "types": "./dist/streams/index.d.ts",
+        "default": "./dist/streams/index.js"
+      },
+      "./streams/redis": {
+        "types": "./dist/streams/redis/index.d.ts",
+        "default": "./dist/streams/redis/index.js"
+      },
+      "./credentials": {
+        "types": "./dist/credentials/index.d.ts",
+        "default": "./dist/credentials/index.js"
+      },
+      "./vercel-connect": {
+        "types": "./dist/vercel-connect/index.d.ts",
+        "default": "./dist/vercel-connect/index.js"
+      },
+      "./blocks/ai-chat": {
+        "types": "./dist/blocks/ai-chat/index.d.ts",
+        "default": "./dist/blocks/ai-chat/index.js"
+      },
       "./blocks/announcements": {
         "types": "./dist/blocks/announcements/index.d.ts",
         "default": "./dist/blocks/announcements/index.js"
@@ -696,6 +741,7 @@
     "publint": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "redis": "catalog:",
     "smol-toml": "catalog:",
     "stripe": "catalog:",
     "temporal-polyfill": "catalog:",
@@ -721,6 +767,7 @@
     "oxfmt": "catalog:peers",
     "pg": "catalog:peers",
     "react": "catalog:peers",
+    "redis": "catalog:peers",
     "stripe": "catalog:peers",
     "temporal-polyfill": "catalog:peers"
   },
@@ -762,6 +809,9 @@
       "optional": true
     },
     "react": {
+      "optional": true
+    },
+    "redis": {
       "optional": true
     },
     "stripe": {

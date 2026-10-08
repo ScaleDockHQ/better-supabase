@@ -11,6 +11,7 @@ const entryOf = (subpath: string): string =>
 const PURE_BARRELS = [
   "blocks/audit",
   "blocks/entitlements",
+  "blocks/ai-chat",
   "blocks/announcements",
   "blocks/waitlist",
   "blocks/onboarding",
@@ -39,6 +40,10 @@ const PURE_BARRELS = [
   "realtime",
   "sql",
   "storage",
+  "streams",
+  "streams/redis",
+  "credentials",
+  "vercel-connect",
 ];
 
 describe("subpath entries", () => {
@@ -62,6 +67,7 @@ describe("subpath entries", () => {
     );
     const statements = source
       .replace(/^"use client";$/m, "")
+      .replaceAll(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "")
       .split(/;\s*\n/)
       .map((statement) => statement.trim())
       .filter(Boolean);

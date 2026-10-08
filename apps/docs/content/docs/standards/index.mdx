@@ -56,6 +56,7 @@ validates the output against a vendored copy of it.
 | [OpenFeature 0.9.0](https://github.com/open-feature/spec/tree/v0.9.0)                                                                                                                                    | Adopted (pinned) | `createFlagsProvider()` and `createFlagClient()` in the [flags block](/docs/blocks/flags)                                                       | `openfeature.test.ts`                     |
 | [SCIM 2.0 (RFC 7643, RFC 7644)](https://www.rfc-editor.org/rfc/rfc7644)                                                                                                                                  | Adopted (pinned) | `scimHandler()` in the [SSO block](/docs/blocks/sso) serves `/Users`, `/Groups` and discovery                                                   | `scim.test.ts`                            |
 | [Supabase SDK diagnostic logging (capability matrix 1.14.0)](https://github.com/supabase/sdk/blob/capability-matrix/v1.14.0/packages/capability-matrix/specs/client/observability/diagnostic_logging.md) | Adopted (pinned) | `defineSupabase(schema, { diagnostics: true })` writes redacted debug records to `logger` ([events](/docs/extending/events#diagnostics))        | `supabase-sdk-diagnostic-logging.test.ts` |
+| [better-supabase AI message v1](/docs/blocks/ai-chat)                                                                                                                                                    | Adopted (pinned) | `ai_messages.parts` in the [AI chat block](/docs/blocks/ai-chat), `schemas/ai-message-v1.json`                                                  | `ai-message.test.ts`                      |
 | [AsyncAPI 3](https://www.asyncapi.com/docs/reference/specification/v3.0.0)                                                                                                                               | Tracked          | describing realtime topics                                                                                                                      |                                           |
 
 ## Pins
@@ -78,4 +79,5 @@ SPEC_PINS.standardWebhooks; // Standard Webhooks version `/webhooks` verifies
 SPEC_PINS.sarif; // SARIF version of `doctor --format sarif`
 SPEC_PINS.jsonSchema; // JSON Schema dialect of generated schemas
 SPEC_PINS.supabaseSdkCapabilities; // Supabase SDK capability matrix the `diagnostics` option follows
+SPEC_PINS.aiMessage; // version of the canonical AI message (`schemas/ai-message-v1.json`)
 ```

@@ -91,15 +91,15 @@ native bundle and the server render use the same code path. See
 
 ## Where Temporal appears
 
-| API                                     | Temporal type                                                                                 |
-| --------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `codecs.timestamptz: 'instant'`         | `timestamptz` rows decode to `Temporal.Instant`, `timestamp` rows to `Temporal.PlainDateTime` |
-| `defineSupabase({ now })`, plugin hooks | `now: () => Temporal.Instant`                                                                 |
-| `defineSupabase({ temporal })`          | the `Temporal` namespace every other API reads                                                |
-| `Job`, `EnqueueOptions`, `InboxMessage` | `enqueuedAt`, `visibleUntil`, `runAt`, `receivedAt`                                           |
-| `verifyWebhook`, `signWebhook`          | `timestamp` and `now`                                                                         |
-| `bucket.sweep`                          | `olderThan: Temporal.Instant` or `Temporal.Duration`                                          |
-| `toCloudEvents`, `forwardMutations`     | `now`                                                                                         |
+| API                                            | Temporal type                                                                                 |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `codecs.timestamptz: 'instant'`                | `timestamptz` rows decode to `Temporal.Instant`, `timestamp` rows to `Temporal.PlainDateTime` |
+| `defineSupabase({ now })`, plugin hooks        | `now: () => Temporal.Instant`                                                                 |
+| `defineSupabase({ temporal })`                 | the `Temporal` namespace every other API reads                                                |
+| `Job`, `EnqueueOptions`, `WebhookInboxMessage` | `enqueuedAt`, `visibleUntil`, `runAt`, `receivedAt`                                           |
+| `verifyWebhook`, `signWebhook`                 | `timestamp` and `now`                                                                         |
+| `bucket.sweep`                                 | `olderThan: Temporal.Instant` or `Temporal.Duration`                                          |
+| `toCloudEvents`, `forwardMutations`            | `now`                                                                                         |
 
 Auth keeps `now: () => number` in epoch milliseconds, the unit JWT `exp` and
 `iat` math uses.

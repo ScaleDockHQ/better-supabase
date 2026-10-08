@@ -8,10 +8,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { markAllRead, notifyMe } from "../inbox-actions";
+import { markAllRead, notifyMe } from "../notifications-actions";
 
-export function InboxActions() {
-  const t = useExtracted("inbox");
+export function NotificationActions() {
+  const t = useExtracted("notifications");
   const errorMessage = useErrorMessage();
   const notify = useAction(notifyMe, {
     onSuccess: () => {
@@ -35,7 +35,7 @@ export function InboxActions() {
         variant="outline"
         disabled={notify.pending}
         onClick={() => {
-          void notify.run({ title: t("Hello from the inbox") });
+          void notify.run({ title: t("Hello from notifications") });
         }}
       >
         <BellPlusIcon />

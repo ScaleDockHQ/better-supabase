@@ -215,10 +215,10 @@ Deliveries are inbox messages of source `webhook-in` (or `source`), with the
 endpoint's tenant and its id in the `x-bs-endpoint-id` header:
 
 ```ts
-import { createInbox } from "better-supabase/blocks/jobs";
+import { createWebhookInbox } from "better-supabase/blocks/jobs";
 import { INCOMING_ENDPOINT_HEADER } from "better-supabase/blocks/webhooks";
 
-const inbox = createInbox(postgres.admin, {
+const inbox = createWebhookInbox(postgres.admin, {
   source: "webhook-in",
   verify: () =>
     Promise.reject(

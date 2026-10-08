@@ -68,7 +68,7 @@ describe("Stripe signatures", () => {
     });
   });
 
-  it("adapts to createInbox's verify option", async () => {
+  it("adapts to createWebhookInbox's verify option", async () => {
     const verify = stripeInboxVerify(secret, { now });
     const header = await signStripeWebhook(secret, body, at);
     const request = new Request("https://app.test", {

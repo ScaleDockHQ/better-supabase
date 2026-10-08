@@ -128,9 +128,6 @@ create policy bs_realtime_tables_receive on realtime.messages for select to auth
     )
   );
 
--- config.realtime.tables
-select better_supabase.track_realtime('public.notifications', tenant_column => null, user_column => 'user_id');
-
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,

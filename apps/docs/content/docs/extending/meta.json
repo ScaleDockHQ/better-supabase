@@ -5,6 +5,7 @@
     "repositories",
     "interfaces",
     "authorization-providers",
+    "credentials",
     "events",
     "conformance",
     "stability"

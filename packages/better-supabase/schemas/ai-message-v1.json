@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/better-supabase/schemas/ai-message-v1.json",
+  "title": "better-supabase AI message",
+  "description": "A chat message in the SDK-neutral format the ai-chat block stores in ai_messages.parts (version 1). Adapters map their SDK's parts onto these; a part with no counterpart becomes a data part.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "role", "parts"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "enum": ["system", "user", "assistant", "tool"]
+    },
+    "parts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/part"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "part": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/textPart"
+        },
+        {
+          "$ref": "#/$defs/reasoningPart"
+        },
+        {
+          "$ref": "#/$defs/filePart"
+        },
+        {
+          "$ref": "#/$defs/toolCallPart"
+        },
+        {
+          "$ref": "#/$defs/toolResultPart"
+        },
+        {
+          "$ref": "#/$defs/toolApprovalPart"
+        },
+        {
+          "$ref": "#/$defs/sourcePart"
+        },
+        {
+          "$ref": "#/$defs/dataPart"
+        },
+        {
+          "$ref": "#/$defs/stepPart"
+        }
+      ]
+    },
+    "textPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "text"],
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "text": {
+          "type": "string"
+        },
+        "state": {
+          "enum": ["streaming", "done"]
+        },
+        "providerMetadata": {
+          "type": "object"
+        }
+      }
+    },
+    "reasoningPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "text"],
+      "properties": {
+        "type": {
+          "const": "reasoning"
+        },
+        "text": {
+          "type": "string"
+        },
+        "state": {
+          "enum": ["streaming", "done"]
+        },
+        "providerMetadata": {
+          "type": "object"
+        }
+      }
+    },
+    "filePart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "mediaType", "url"],
+      "properties": {
+        "type": {
+          "const": "file"
+        },
+        "mediaType": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        },
+        "providerMetadata": {
+          "type": "object"
+        }
+      }
+    },
+    "toolCallPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "toolCallId", "toolName", "input"],
+      "properties": {
+        "type": {
+          "const": "tool-call"
+        },
+        "toolCallId": {
+          "type": "string"
+        },
+        "toolName": {
+          "type": "string"
+        },
+        "input": {},
+        "providerExecuted": {
+          "type": "boolean"
+        },
+        "providerMetadata": {
+          "type": "object"
+        }
+      }
+    },
+    "toolResultPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "toolCallId", "toolName", "output"],
+      "properties": {
+        "type": {
+          "const": "tool-result"
+        },
+        "toolCallId": {
+          "type": "string"
+        },
+        "toolName": {
+          "type": "string"
+        },
+        "output": {},
+        "isError": {
+          "type": "boolean"
+        },
+        "providerMetadata": {
+          "type": "object"
+        }
+      }
+    },
+    "toolApprovalPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "toolCallId", "approvalId", "state"],
+      "properties": {
+        "type": {
+          "const": "tool-approval"
+        },
+        "toolCallId": {
+          "type": "string"
+        },
+        "approvalId": {
+          "type": "string"
+        },
+        "state": {
+          "enum": ["requested", "approved", "denied"]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "providerMetadata": {
+          "type": "object"
+        }
+      }
+    },
+    "sourcePart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "sourceType", "id"],
+      "properties": {
+        "type": {
+          "const": "source"
+        },
+        "sourceType": {
+          "enum": ["url", "document"]
+        },
+        "id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "mediaType": {
+          "type": "string"
+        },
+        "providerMetadata": {
+          "type": "object"
+        }
+      }
+    },
+    "dataPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "name", "data"],
+      "properties": {
+        "type": {
+          "const": "data"
+        },
+        "name": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "data": {},
+        "providerMetadata": {
+          "type": "object"
+        }
+      }
+    },
+    "stepPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "boundary"],
+      "properties": {
+        "type": {
+          "const": "step"
+        },
+        "boundary": {
+          "enum": ["start", "finish"]
+        },
+        "stepId": {
+          "type": "string"
+        },
+        "providerMetadata": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

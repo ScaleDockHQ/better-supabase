@@ -6,8 +6,9 @@ import type { Executor } from "../../../src/core/executor.ts";
 
 import {
   createIdempotency,
-  withLease,
   createInbox,
+  withLease,
+  createWebhookInbox,
   createJobs,
   type Job,
   pgmqPublicBackend,
@@ -2069,7 +2070,7 @@ describe("createIdempotency", () => {
   });
 });
 
-describe("createInbox", () => {
+describe("createWebhookInbox", () => {
   const secret = `whsec_${btoa("inbox-test-secret-key")}`;
 
   async function signed(
@@ -2088,9 +2089,14 @@ describe("createInbox", () => {
     });
   }
 
+  it("keeps createInbox as a deprecated alias", () => {
+    // oxlint-disable-next-line typescript/no-deprecated -- checks the alias.
+    expect(createInbox).toBe(createWebhookInbox);
+  });
+
   it("stores events without secrets or verify, and refuses to receive", async () => {
     const fake = fakeSql([["receive_webhook", [{ id: 3, duplicate: false }]]]);
-    const inbox = createInbox(fake.sql, { source: "chat" });
+    const inbox = createWebhookInbox(fake.sql, { source: "chat" });
     expect(
       await inbox.store({ id: "e1", payload: { type: "message" } }).orThrow(),
     ).toEqual({ id: 3, duplicate: false });
@@ -2106,7 +2112,7 @@ describe("createInbox", () => {
 
   it("answers 405 to anything but POST", async () => {
     const fake = fakeSql();
-    const response = await createInbox(fake.sql, {
+    const response = await createWebhookInbox(fake.sql, {
       source: "stripe",
       secrets: secret,
     }).receive(new Request("https://api.test/webhooks/stripe"));
@@ -2119,7 +2125,7 @@ describe("createInbox", () => {
     const fake = fakeSql([
       ["receive_webhook", [{ id: "5", duplicate: false }]],
     ]);
-    const inbox = createInbox(fake.sql, {
+    const inbox = createWebhookInbox(fake.sql, {
       source: "stripe",
       secrets: [secret],
       keepHeaders: ["X-Request-Id", "x-missing"],
@@ -2149,7 +2155,10 @@ describe("createInbox", () => {
 
   it("answers 200 for a duplicate delivery and stores a null type without one", async () => {
     const fake = fakeSql([["receive_webhook", [{ id: 5, duplicate: true }]]]);
-    const inbox = createInbox(fake.sql, { source: "stripe", secrets: secret });
+    const inbox = createWebhookInbox(fake.sql, {
+      source: "stripe",
+      secrets: secret,
+    });
     const response = await inbox.receive(await signed({ type: 7 }));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: 5, duplicate: true });
@@ -2171,7 +2180,7 @@ describe("createInbox", () => {
       headers: request.headers,
       body: '{"type":"forged"}',
     });
-    const response = await createInbox(fake.sql, {
+    const response = await createWebhookInbox(fake.sql, {
       source: "stripe",
       secrets: secret,
     }).receive(forged);
@@ -2187,7 +2196,7 @@ describe("createInbox", () => {
     const verify = vi.fn(async (_request: Request, body: string) =>
       ok({ id: "evt_9", payload: JSON.parse(body) as unknown }),
     );
-    const inbox = createInbox(fake.sql, {
+    const inbox = createWebhookInbox(fake.sql, {
       source: "github",
       verify,
       typeOf: () => "push",
@@ -2243,7 +2252,7 @@ describe("createInbox", () => {
       ],
       ["purge_webhooks", [{ purged: 3 }]],
     ]);
-    const inbox = createInbox(fake.sql, {
+    const inbox = createWebhookInbox(fake.sql, {
       source: "chat",
       secrets: secret,
       tenantOf: (payload) =>
@@ -2321,7 +2330,7 @@ describe("createInbox", () => {
       ["checkpoint_webhook", [{ saved: true }]],
       ["extend_webhook", [{ lease: 300 }]],
     ]);
-    const inbox = createInbox(fake.sql, {
+    const inbox = createWebhookInbox(fake.sql, {
       source: "chat",
       verify: () =>
         Promise.resolve(ok({ id: "d1", payload: {}, tenant: "t9" })),
@@ -2345,7 +2354,7 @@ describe("createInbox", () => {
   it("answers 413 for a body over maxBodyBytes without reading it all", async () => {
     const fake = fakeSql();
     const seen: string[] = [];
-    const inbox = createInbox(fake.sql, {
+    const inbox = createWebhookInbox(fake.sql, {
       source: "forms",
       maxBodyBytes: 8,
       verify: (_request, body) => {
@@ -2368,7 +2377,7 @@ describe("createInbox", () => {
     expect(fake.calls).toHaveLength(1);
     for (const maxBodyBytes of [0, 2.5]) {
       expect(() =>
-        createInbox(fake.sql, { source: "forms", maxBodyBytes }),
+        createWebhookInbox(fake.sql, { source: "forms", maxBodyBytes }),
       ).toThrow(/maxBodyBytes must be a positive integer/);
     }
   });
@@ -2377,7 +2386,7 @@ describe("createInbox", () => {
     const fake = fakeSql([
       ["receive_webhook", { throws: pgError("42501", "permission denied") }],
     ]);
-    const response = await createInbox(fake.sql, {
+    const response = await createWebhookInbox(fake.sql, {
       source: "stripe",
       secrets: secret,
     }).receive(await signed({ type: "x" }));
@@ -2409,7 +2418,7 @@ describe("createInbox", () => {
       ["extend_webhook", [{ lease: 300 }]],
     ]);
     const seen: unknown[] = [];
-    const inbox = createInbox(fake.sql, {
+    const inbox = createWebhookInbox(fake.sql, {
       source: "stripe",
       secrets: secret,
       worker: "w1",
@@ -2483,7 +2492,7 @@ describe("createInbox", () => {
       ["complete_webhook", [{ done: false }]],
     ]);
     const handled: number[] = [];
-    const result = await createInbox(fake.sql, {
+    const result = await createWebhookInbox(fake.sql, {
       source: "stripe",
       worker: "w1",
     }).process((message) => {
@@ -2517,7 +2526,7 @@ describe("createInbox", () => {
       const renewals = () =>
         fake.calls.filter((call) => call.text.includes("extend_webhook"))
           .length;
-      await createInbox(fake.sql, { source: "crm" }).process(
+      await createWebhookInbox(fake.sql, { source: "crm" }).process(
         async () => {
           expect(renewals()).toBe(1);
           await vi.advanceTimersByTimeAsync(4500);
@@ -2553,7 +2562,10 @@ describe("createInbox", () => {
       ],
       ["extend_webhook", [{ lease: 300 }]],
     ]);
-    const inbox = createInbox(fake.sql, { source: "crm", maxAttempts: 3 });
+    const inbox = createWebhookInbox(fake.sql, {
+      source: "crm",
+      maxAttempts: 3,
+    });
     await inbox.store({ id: "m1", payload: {} }).orThrow();
     expect(fake.calls[0]!.values[6]).toBe(3);
     const last: boolean[] = [];
@@ -2563,7 +2575,7 @@ describe("createInbox", () => {
     expect(last).toEqual([true]);
     for (const maxAttempts of [0, 1.5]) {
       expect(() =>
-        createInbox(fake.sql, { source: "crm", maxAttempts }),
+        createWebhookInbox(fake.sql, { source: "crm", maxAttempts }),
       ).toThrow(/maxAttempts must be a positive integer/);
     }
   });
@@ -2588,7 +2600,7 @@ describe("createInbox", () => {
       ],
       ["extend_webhook", [{ lease: 300 }]],
     ]);
-    const inbox = createInbox(fake.sql, { source: "crm" });
+    const inbox = createWebhookInbox(fake.sql, { source: "crm" });
     const result = await inbox.process(
       () => {
         vi.setSystemTime(Date.now() + 600);
@@ -2607,7 +2619,7 @@ describe("createInbox", () => {
 
   it("claims ten messages for 300 seconds with a generated worker id by default", async () => {
     const fake = fakeSql();
-    const result = await createInbox(fake.sql, {
+    const result = await createWebhookInbox(fake.sql, {
       source: "stripe",
       secrets: secret,
     }).process(() => undefined);

@@ -3,7 +3,7 @@
 import {
   CreditCardIcon,
   FlaskConicalIcon,
-  InboxIcon,
+  BellIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
   type LucideIcon,
@@ -30,7 +30,7 @@ import { type NavId, activeNavId, navItems } from "../nav-items";
 const ICONS = {
   dashboard: LayoutDashboardIcon,
   customers: UsersIcon,
-  inbox: InboxIcon,
+  notifications: BellIcon,
   beta: FlaskConicalIcon,
   members: UsersRoundIcon,
   billing: CreditCardIcon,
@@ -47,8 +47,8 @@ function useNavLabel() {
         return t("Dashboard");
       case "customers":
         return t("Customers");
-      case "inbox":
-        return t("Inbox");
+      case "notifications":
+        return t("Notifications");
       case "beta":
         return t("Beta");
       case "members":
