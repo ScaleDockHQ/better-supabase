@@ -387,6 +387,32 @@ schedule and queue runs that failed as a whole). Keep `budgetMs` below the
 function's maximum duration. `drain` takes the same `budgetMs` when you call
 it yourself.
 
+Nothing calls the route under `next dev` or another local server, so
+outbox relays and queued jobs wait until a deploy. `devDrain` calls it on an
+interval (every minute by default) in development, and `devDrainSecret`
+generates the route's secret when none is set. Call both before the route
+reads the secret, for example in Next.js `instrumentation.ts`:
+
+```ts title="instrumentation.ts"
+import { devDrain, devDrainSecret } from "better-supabase/blocks/jobs";
+
+export function register() {
+  if (process.env.NODE_ENV !== "development") return;
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  devDrain({
+    url: `http://localhost:${process.env.PORT ?? "3000"}/api/jobs/drain`,
+    secret: devDrainSecret(process.env),
+  });
+}
+```
+
+`devDrain` sends `GET` with `Authorization: Bearer <secret>`, skips a call
+while the previous one still runs, and reports a failed call or an answer
+other than 2xx to `onError` (`console.warn` by default) without stopping.
+`every` sets the interval in milliseconds; `stop()` or an aborted `signal`
+ends it, and `tick()` calls the route once. `devDrainSecret(env, name)`
+returns `env[name]` (`CRON_SECRET` by default) or writes a random one there.
+
 `monitor` hooks around each authorized drain report to a cron monitor
 without wrapping the route. `onStart` returns a value, such as a check-in
 id, that `onFinish` receives with the result. A hook that throws goes to
