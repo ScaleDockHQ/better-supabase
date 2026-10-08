@@ -6,6 +6,7 @@ import {
   BellIcon,
   BotIcon,
   KeyRoundIcon,
+  LibraryIcon,
   LayoutDashboardIcon,
   type LucideIcon,
   ScrollTextIcon,
@@ -33,6 +34,7 @@ const ICONS = {
   customers: UsersIcon,
   notifications: BellIcon,
   assistant: BotIcon,
+  knowledge: LibraryIcon,
   beta: FlaskConicalIcon,
   members: UsersRoundIcon,
   billing: CreditCardIcon,
@@ -53,6 +55,8 @@ function useNavLabel() {
         return t("Notifications");
       case "assistant":
         return t("Assistant");
+      case "knowledge":
+        return t("Knowledge");
       case "beta":
         return t("Beta");
       case "members":

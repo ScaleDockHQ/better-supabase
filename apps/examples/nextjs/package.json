@@ -45,7 +45,8 @@
     "tailwind-merge": "catalog:",
     "temporal-polyfill": "catalog:",
     "tw-animate-css": "catalog:",
-    "valibot": "catalog:"
+    "valibot": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",
