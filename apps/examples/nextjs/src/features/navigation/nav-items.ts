@@ -8,6 +8,7 @@ export type NavId =
   | "workflowBuilder"
   | "inbox"
   | "assistant"
+  | "knowledge"
   | "beta"
   | "members"
   | "billing"
@@ -51,6 +52,12 @@ export const navItems: readonly NavItem[] = [
   {
     id: "assistant",
     href: "/assistant",
+    group: "workspace",
+    requires: "ai_chat.create",
+  },
+  {
+    id: "knowledge",
+    href: "/knowledge",
     group: "workspace",
     requires: "ai_chat.create",
   },

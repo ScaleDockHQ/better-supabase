@@ -394,6 +394,16 @@
       "types": "./dist/blocks/ai-files/index.d.ts",
       "default": "./dist/blocks/ai-files/index.js"
     },
+    "./blocks/knowledge": {
+      "@better-supabase/source": "./src/blocks/knowledge/index.ts",
+      "types": "./dist/blocks/knowledge/index.d.ts",
+      "default": "./dist/blocks/knowledge/index.js"
+    },
+    "./blocks/memory": {
+      "@better-supabase/source": "./src/blocks/memory/index.ts",
+      "types": "./dist/blocks/memory/index.d.ts",
+      "default": "./dist/blocks/memory/index.js"
+    },
     "./ai-sdk": {
       "@better-supabase/source": "./src/ai-sdk/index.ts",
       "types": "./dist/ai-sdk/index.d.ts",
@@ -408,6 +418,16 @@
       "@better-supabase/source": "./src/ai-sdk/files/index.ts",
       "types": "./dist/ai-sdk/files/index.d.ts",
       "default": "./dist/ai-sdk/files/index.js"
+    },
+    "./ai-sdk/embeddings": {
+      "@better-supabase/source": "./src/ai-sdk/embeddings/index.ts",
+      "types": "./dist/ai-sdk/embeddings/index.d.ts",
+      "default": "./dist/ai-sdk/embeddings/index.js"
+    },
+    "./ai-sdk/memory": {
+      "@better-supabase/source": "./src/ai-sdk/memory/index.ts",
+      "types": "./dist/ai-sdk/memory/index.d.ts",
+      "default": "./dist/ai-sdk/memory/index.js"
     },
     "./ai-sdk/react": {
       "@better-supabase/source": "./src/ai-sdk/react/index.ts",
@@ -770,6 +790,14 @@
         "types": "./dist/blocks/ai-files/index.d.ts",
         "default": "./dist/blocks/ai-files/index.js"
       },
+      "./blocks/knowledge": {
+        "types": "./dist/blocks/knowledge/index.d.ts",
+        "default": "./dist/blocks/knowledge/index.js"
+      },
+      "./blocks/memory": {
+        "types": "./dist/blocks/memory/index.d.ts",
+        "default": "./dist/blocks/memory/index.js"
+      },
       "./ai-sdk": {
         "types": "./dist/ai-sdk/index.d.ts",
         "default": "./dist/ai-sdk/index.js"
@@ -781,6 +809,14 @@
       "./ai-sdk/files": {
         "types": "./dist/ai-sdk/files/index.d.ts",
         "default": "./dist/ai-sdk/files/index.js"
+      },
+      "./ai-sdk/embeddings": {
+        "types": "./dist/ai-sdk/embeddings/index.d.ts",
+        "default": "./dist/ai-sdk/embeddings/index.js"
+      },
+      "./ai-sdk/memory": {
+        "types": "./dist/ai-sdk/memory/index.d.ts",
+        "default": "./dist/ai-sdk/memory/index.js"
       },
       "./ai-sdk/react": {
         "types": "./dist/ai-sdk/react/index.d.ts",

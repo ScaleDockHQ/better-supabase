@@ -92,6 +92,32 @@ msgctxt "inbox.DRlmpk"
 msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
 msgstr "Customer conversations from the Help widget and chat channels, kept live over Realtime."
 
+#: src/app/[locale]/(app)/knowledge/page.tsx
+msgctxt "knowledge.5OteMI"
+msgid "Knowledge"
+msgstr "Knowledge"
+
+#: src/app/[locale]/(app)/knowledge/page.tsx
+msgctxt "knowledge.mp26Fu"
+msgid "Documents on the knowledge block, chunked and embedded after you add them. The assistant searches them with a tool."
+msgstr "Documents on the knowledge block, chunked and embedded after you add them. The assistant searches them with a tool."
+
+#: src/app/[locale]/(app)/knowledge/page.tsx
+msgctxt "knowledge.mmqGl4"
+msgid "Add a document"
+msgstr "Add a document"
+
+#: src/app/[locale]/(app)/knowledge/page.tsx
+msgctxt "knowledge.vBlT6y"
+msgid "Documents"
+msgstr "Documents"
+
+#: src/app/[locale]/(app)/knowledge/page.tsx
+#: src/features/knowledge/components/search-form.tsx
+msgctxt "knowledge.xmcVZ0"
+msgid "Search"
+msgstr "Search"
+
 #: src/app/[locale]/(app)/layout.tsx
 #: src/features/navigation/components/app-header.tsx
 msgctxt "navigation.6D4Ghb"
@@ -1249,6 +1275,82 @@ msgctxt "inbox.bW7B87"
 msgid "New"
 msgstr "New"
 
+#: src/features/knowledge/components/add-document-form.tsx
+#: src/features/knowledge/components/document-table.tsx
+msgctxt "knowledge.9a9-ww"
+msgid "Title"
+msgstr "Title"
+
+#: src/features/knowledge/components/add-document-form.tsx
+msgctxt "knowledge.aA8bDw"
+msgid "Text"
+msgstr "Text"
+
+#: src/features/knowledge/components/add-document-form.tsx
+msgctxt "knowledge.aL0Y5b"
+msgid "Paste a policy, a guide or meeting notes"
+msgstr "Paste a policy, a guide or meeting notes"
+
+#: src/features/knowledge/components/add-document-form.tsx
+msgctxt "knowledge.fr30KR"
+msgid "Add document"
+msgstr "Add document"
+
+#: src/features/knowledge/components/document-table.tsx
+msgctxt "knowledge.8bOGQm"
+msgid "Embedding"
+msgstr "Embedding"
+
+#: src/features/knowledge/components/document-table.tsx
+msgctxt "knowledge.IZFEUg"
+msgid "Ready"
+msgstr "Ready"
+
+#: src/features/knowledge/components/document-table.tsx
+msgctxt "knowledge.vXCeIi"
+msgid "Failed"
+msgstr "Failed"
+
+#: src/features/knowledge/components/document-table.tsx
+msgctxt "knowledge.7Tjxsg"
+msgid "No documents yet. Add one above."
+msgstr "No documents yet. Add one above."
+
+#: src/features/knowledge/components/document-table.tsx
+msgctxt "knowledge.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/knowledge/components/document-table.tsx
+msgctxt "knowledge.2pSEuC"
+msgid "Chunks"
+msgstr "Chunks"
+
+#: src/features/knowledge/components/document-table.tsx
+msgctxt "knowledge.rIAJlE"
+msgid "Added"
+msgstr "Added"
+
+#: src/features/knowledge/components/document-table.tsx
+msgctxt "knowledge.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/knowledge/components/document-table.tsx
+msgctxt "knowledge.9UM9_8"
+msgid "Delete {title}"
+msgstr "Delete {title}"
+
+#: src/features/knowledge/components/search-form.tsx
+msgctxt "knowledge.qj71j1"
+msgid "Query"
+msgstr "Query"
+
+#: src/features/knowledge/components/search-form.tsx
+msgctxt "knowledge.ElELsL"
+msgid "Nothing matches yet. A new document is searchable once it is ready."
+msgstr "Nothing matches yet. A new document is searchable once it is ready."
+
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.hzSNj4"
 msgid "Dashboard"
@@ -1283,6 +1385,11 @@ msgstr "Inbox"
 msgctxt "navigation.wSAvhu"
 msgid "Assistant"
 msgstr "Assistant"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.5OteMI"
+msgid "Knowledge"
+msgstr "Knowledge"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.riw_yc"

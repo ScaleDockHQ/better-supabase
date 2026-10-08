@@ -50,7 +50,8 @@
     "temporal-polyfill": "catalog:",
     "tw-animate-css": "catalog:",
     "valibot": "catalog:",
-    "workflow": "catalog:"
+    "workflow": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",
