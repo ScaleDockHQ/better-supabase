@@ -28,6 +28,7 @@
     "announcements",
     "entitlements",
     "vector-search",
-    "ai-chat"
+    "ai-chat",
+    "ai-files"
   ]
 }
