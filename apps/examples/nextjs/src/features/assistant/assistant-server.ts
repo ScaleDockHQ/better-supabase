@@ -77,7 +77,7 @@ export function aiRuns(supabase: RpcClient): AiRuns {
 let providersInstance: AiProviders | undefined;
 
 /** The organizations' own provider keys, read from Vault as the service role. */
-export function aiProviders(): AiProviders {
+function aiProviders(): AiProviders {
   if (providersInstance) return providersInstance;
   const service = serviceTransport();
   providersInstance = createAiProviders({
