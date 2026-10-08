@@ -11,7 +11,7 @@ export type WorkflowNodeKind =
   | "approval"
   | "condition";
 
-export const WORKFLOW_NODE_KINDS: readonly WorkflowNodeKind[] = [
+const WORKFLOW_NODE_KINDS: readonly WorkflowNodeKind[] = [
   "trigger",
   "step",
   "sleep",
