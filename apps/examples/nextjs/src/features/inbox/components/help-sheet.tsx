@@ -25,7 +25,7 @@ import { unwrap } from "../inbox-load";
 
 const TYPING_EVERY_MS = 2000;
 
-/** The customer side of the Help inbox: staff answer in /inbox. */
+/** The customer side of the Help inbox: the assistant answers until staff take over in /inbox. */
 export function HelpSheet() {
   const t = useExtracted("inbox");
   const [open, setOpen] = useState(false);
@@ -43,7 +43,9 @@ export function HelpSheet() {
         <SheetHeader className="border-b">
           <SheetTitle>{t("Help")}</SheetTitle>
           <SheetDescription>
-            {t("Ask a question. Acme's support team answers here.")}
+            {t(
+              "Ask a question. The assistant answers first, and Acme's support team can take over.",
+            )}
           </SheetDescription>
         </SheetHeader>
         {open ? <HelpChat /> : null}

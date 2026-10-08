@@ -3,12 +3,14 @@
 import type { ConversationFilter } from "better-supabase/blocks/inbox";
 
 import { ok } from "better-supabase";
+import { after } from "next/server";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { blocks } from "@/lib/blocks";
 import { bs } from "@/lib/supabase/server";
 
+import { answerHelp } from "./help-bot";
 import {
   AssigneeFilter,
   ConversationStatus,
@@ -122,25 +124,38 @@ export const setStatus = bs.action(
   },
 );
 
-/** The Help sheet's first message: opens a conversation as the visitor. */
+/**
+ * The Help sheet's first message: opens a conversation as the visitor, with
+ * the `/assistant` bot answering until staff take over.
+ */
 export const askForHelp = bs.action(
   { input: v.object({ message: Body }) },
-  async ({ message }, { supabase }) => {
+  async ({ message }, { auth, supabase }) => {
     const opened = await blocks(supabase).inbox.conversations.open(
       HELP_INBOX_ID,
-      { subject: message.slice(0, 80), message },
+      { subject: message.slice(0, 80), message, botMode: "bot" },
     );
-    return opened.ok ? ok(opened.data.id) : opened;
+    if (!opened.ok) return opened;
+    if (auth.kind === "user") {
+      const userId = auth.user.id;
+      after(() => answerHelp(supabase, userId, opened.data.id, message));
+    }
+    return ok(opened.data.id);
   },
 );
 
 /** The Help sheet's later messages, as the conversation's contact. */
 export const sendHelp = bs.action(
   { input: v.object({ conversationId: Id, message: Body }) },
-  async ({ conversationId, message }, { supabase }) => {
+  async ({ conversationId, message }, { auth, supabase }) => {
     const sent = await blocks(supabase).inbox.messages.send(conversationId, {
       body: message,
     });
-    return sent.ok ? ok(sent.data.id) : sent;
+    if (!sent.ok) return sent;
+    if (auth.kind === "user") {
+      const userId = auth.user.id;
+      after(() => answerHelp(supabase, userId, conversationId, message));
+    }
+    return ok(sent.data.id);
   },
 );

@@ -1301,9 +1301,9 @@ msgid "Help"
 msgstr "Help"
 
 #: src/features/inbox/components/help-sheet.tsx
-msgctxt "inbox.T-R8HB"
-msgid "Ask a question. Acme's support team answers here."
-msgstr "Stel een vraag. Het supportteam van Acme antwoordt hier."
+msgctxt "inbox.6gQcSa"
+msgid "Ask a question. The assistant answers first, and Acme's support team can take over."
+msgstr "Stel een vraag. De assistent antwoordt eerst, en het supportteam van Acme kan het overnemen."
 
 #: src/features/inbox/components/help-sheet.tsx
 msgctxt "inbox.FL9tvT"

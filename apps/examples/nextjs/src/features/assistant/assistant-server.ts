@@ -1,5 +1,6 @@
 import "server-only";
 import { stepCountIs, streamText, type LanguageModel, type ToolSet } from "ai";
+import { byokOptions } from "better-supabase/ai-sdk";
 import {
   type AssistantContext,
   createAssistant,
@@ -19,9 +20,14 @@ import {
   createAiFiles,
 } from "better-supabase/blocks/ai-files";
 import {
+  type AiProviders,
+  createAiProviders,
+} from "better-supabase/blocks/ai-providers";
+import {
   type RpcClient,
   rpcTransport,
 } from "better-supabase/blocks/organizations";
+import { vaultCredentials } from "better-supabase/credentials";
 import { postgresStreamStore } from "better-supabase/streams";
 import { after } from "next/server";
 
@@ -66,6 +72,35 @@ export function aiRuns(supabase: RpcClient): AiRuns {
     service: serviceTransport(),
     schema: API_SCHEMA,
   });
+}
+
+let providersInstance: AiProviders | undefined;
+
+/** The organizations' own provider keys, read from Vault as the service role. */
+export function aiProviders(): AiProviders {
+  if (providersInstance) return providersInstance;
+  const service = serviceTransport();
+  providersInstance = createAiProviders({
+    transport: service,
+    service,
+    credentials: vaultCredentials({ transport: service, schema: API_SCHEMA }),
+    schema: API_SCHEMA,
+  });
+  return providersInstance;
+}
+
+/** Adds the organization's own keys (BYOK) to the gateway options, when it saved any. */
+async function withTenantKeys<T extends { readonly gateway: object }>(
+  providerOptions: T,
+  organizationId: string,
+): Promise<T> {
+  if (demoMode()) return providerOptions;
+  const keys = await aiProviders().keys.resolve(organizationId);
+  if (!keys.ok || keys.data.length === 0) return providerOptions;
+  return {
+    ...providerOptions,
+    gateway: { ...providerOptions.gateway, ...byokOptions(keys.data) },
+  };
 }
 
 /** The caller's client: RPC for the blocks, Storage for the files. */
@@ -115,7 +150,10 @@ export function assistant(): ReturnType<typeof createAssistant> {
           : INSTRUCTIONS,
         messages,
         abortSignal,
-        providerOptions,
+        providerOptions: await withTenantKeys(
+          providerOptions,
+          context.organizationId,
+        ),
         tools: scope?.tools ?? {},
         stopWhen: stepCountIs(5),
         experimental_download: scope ? aiFileDownload(scope.files) : undefined,
