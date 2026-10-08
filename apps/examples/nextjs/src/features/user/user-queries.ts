@@ -3,6 +3,7 @@ import type { AuthSession } from "better-supabase/next";
 
 import type { Claims, Profile } from "@/lib/claims";
 
+import { avatars, avatarSrc } from "@/lib/buckets";
 import { bs } from "@/lib/supabase/server";
 
 /**
@@ -22,7 +23,10 @@ export interface MyProfile {
   readonly fullName: string | null;
   readonly email: string | null;
   readonly username: string | null;
+  /** The uploaded avatar's public URL, else the provider's picture. */
   readonly avatarUrl: string | null;
+  /** The uploaded avatar's object path in the avatars bucket. */
+  readonly avatarPath: string | null;
 }
 
 /**
@@ -31,8 +35,16 @@ export interface MyProfile {
  */
 export async function getMyProfile(): Promise<MyProfile | null> {
   "use cache: private";
-  const { db, session } = await bs.cached();
+  const { db, session, supabase } = await bs.cached();
   if (session.kind !== "user") return null;
   const rows = await db.$rpc("my_profile").orThrow();
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    fullName: row.fullName,
+    email: row.email,
+    username: row.username,
+    avatarUrl: avatarSrc(avatars.connect(supabase), row),
+    avatarPath: row.avatarPath,
+  };
 }

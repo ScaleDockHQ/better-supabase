@@ -27,16 +27,18 @@ export default {
     "customer_note_counts": {"name":"customer_note_counts","schema":"public","args":[{"name":"p_customer_ids","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"customer_id","name":"customerId"},{"db":"last_note_at","name":"lastNoteAt"},{"db":"note_count","name":"noteCount","codec":"bigint"}]}},
     "customers_by_status": {"name":"customers_by_status","schema":"public","args":[{"name":"p_limit","type":"int4"},{"name":"p_status","type":"text"}],"returns":"customers","returnsSet":true,"volatility":"stable","result":{"table":"customers"}},
     "my_organizations": {"name":"my_organizations","schema":"public","args":[],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"id"},{"db":"last_used_at","name":"lastUsedAt"},{"db":"name"},{"db":"plan"},{"db":"role"},{"db":"slug"}]}},
-    "my_profile": {"name":"my_profile","schema":"public","args":[],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"avatar_url","name":"avatarUrl"},{"db":"email"},{"db":"full_name","name":"fullName"},{"db":"username"}]}},
+    "my_profile": {"name":"my_profile","schema":"public","args":[],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"avatar_path","name":"avatarPath"},{"db":"avatar_url","name":"avatarUrl"},{"db":"email"},{"db":"full_name","name":"fullName"},{"db":"username"}]}},
     "organization_invitations": {"name":"organization_invitations","schema":"public","args":[{"name":"organization","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"created_at","name":"createdAt"},{"db":"email"},{"db":"expires_at","name":"expiresAt"},{"db":"id"},{"db":"invited_by","name":"invitedBy"},{"db":"role"}]}},
-    "organization_members": {"name":"organization_members","schema":"public","args":[{"name":"organization","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"avatar_url","name":"avatarUrl"},{"db":"email"},{"db":"full_name","name":"fullName"},{"db":"joined_at","name":"joinedAt"},{"db":"role"},{"db":"user_id","name":"userId"}]}},
+    "organization_members": {"name":"organization_members","schema":"public","args":[{"name":"organization","type":"uuid"}],"returns":"record","returnsSet":true,"volatility":"stable","result":{"columns":[{"db":"avatar_path","name":"avatarPath"},{"db":"avatar_url","name":"avatarUrl"},{"db":"email"},{"db":"full_name","name":"fullName"},{"db":"joined_at","name":"joinedAt"},{"db":"role"},{"db":"user_id","name":"userId"}]}},
     "rs_workspace_summary": {"name":"rs_workspace_summary","schema":"public","args":[{"name":"p","type":"jsonb"}],"returns":"jsonb","returnsSet":false,"volatility":"stable"},
     "search_notes": {"name":"search_notes","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"notes","returnsSet":true,"volatility":"stable","result":{"table":"notes"}},
     "search_notes_scores": {"name":"search_notes_scores","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"record","returnsSet":true,"volatility":"stable"},
+    "set_my_avatar_path": {"name":"set_my_avatar_path","schema":"public","args":[{"name":"avatar_path","type":"text"}],"returns":"void","returnsSet":false,"volatility":"volatile"},
     "update_my_profile": {"name":"update_my_profile","schema":"public","args":[{"name":"full_name","type":"text"}],"returns":"void","returnsSet":false,"volatility":"volatile"}
   },
   "buckets": {
-    "customerLogos": {"id":"customer-logos","public":true,"path":"{organizationId}/{customerId}/logo/{version}.webp","policy":"tenant","fileSizeLimit":"5MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp"]}
+    "customerLogos": {"id":"customer-logos","public":true,"path":"{organizationId}/{customerId}/logo/{version}.webp","policy":"tenant","fileSizeLimit":"5MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp"]},
+    "avatars": {"id":"avatars","public":true,"path":"{userId}/avatar-{version}.{ext}","policy":"owner","fileSizeLimit":"2MiB","allowedMimeTypes":["image/png","image/jpeg","image/webp","image/gif","image/avif"]}
   },
   "realtime": {
     "notifications": {"user":"userId"}

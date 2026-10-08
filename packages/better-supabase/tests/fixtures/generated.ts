@@ -546,7 +546,7 @@ export type Functions = {
   };
   my_profile: {
     Args: Record<never, never>;
-    Returns: { "avatar_url": string | null; "email": string | null; "full_name": string | null; "username": string | null }[];
+    Returns: { "avatar_path": string | null; "avatar_url": string | null; "email": string | null; "full_name": string | null; "username": string | null }[];
   };
   organization_invitations: {
     Args: {
@@ -558,7 +558,7 @@ export type Functions = {
     Args: {
       organization: string | null;
     };
-    Returns: { "avatar_url": string | null; "email": string | null; "full_name": string | null; "joined_at": string | null; "role": string | null; "user_id": string | null }[];
+    Returns: { "avatar_path": string | null; "avatar_url": string | null; "email": string | null; "full_name": string | null; "joined_at": string | null; "role": string | null; "user_id": string | null }[];
   };
   rs_workspace_summary: {
     Args: {
@@ -579,6 +579,12 @@ export type Functions = {
       query: string | null;
     };
     Returns: { "id": Json; "score": number | null }[];
+  };
+  set_my_avatar_path: {
+    Args: {
+      avatar_path: string | null;
+    };
+    Returns: undefined;
   };
   update_my_profile: {
     Args: {

@@ -1440,6 +1440,26 @@ msgctxt "settings.ED9RG5"
 msgid "Audit log"
 msgstr "Auditlog"
 
+#: src/features/user/components/avatar-form.tsx
+msgctxt "user.6V-aAL"
+msgid "Avatar updated"
+msgstr "Avatar bijgewerkt"
+
+#: src/features/user/components/avatar-form.tsx
+msgctxt "user.VnXp8Z"
+msgid "Avatar"
+msgstr "Avatar"
+
+#: src/features/user/components/avatar-form.tsx
+msgctxt "user.22KMRw"
+msgid "PNG, JPEG, WebP, GIF or AVIF, up to 2 MB."
+msgstr "PNG, JPEG, WebP, GIF of AVIF, tot 2 MB."
+
+#: src/features/user/components/avatar-form.tsx
+msgctxt "user.mqa6CF"
+msgid "Upload avatar"
+msgstr "Avatar uploaden"
+
 #: src/features/user/components/connected-agents-card.tsx
 msgctxt "security.i_IILR"
 msgid "{client} is disconnected."
