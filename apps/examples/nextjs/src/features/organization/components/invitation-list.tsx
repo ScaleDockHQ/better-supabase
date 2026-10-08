@@ -1,13 +1,14 @@
 "use client";
 
+import { useAction } from "better-supabase/react";
 import { XIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { RoleBadge } from "@/features/user/components/role-badge";
 import { useErrorMessage } from "@/lib/use-error-message";
+import { cn } from "@/lib/utils";
 
 import type { PendingInvitation } from "../organization-queries";
 
@@ -25,7 +26,16 @@ export function InvitationList({
   const t = useExtracted("organization");
   const errorMessage = useErrorMessage();
   const format = useFormatter();
-  const [pending, startTransition] = useTransition();
+  const revoke = useAction(revokeInvitation, {
+    onSuccess: () => {
+      toast.success(t("Invitation revoked"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+  const revoking = (id: string) =>
+    revoke.pendingInputs.some((input) => input.invitationId === id);
   if (invitations.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -38,7 +48,11 @@ export function InvitationList({
       {invitations.map((invitation) => (
         <li
           key={invitation.id}
-          className="flex items-center gap-3 py-2 text-sm"
+          aria-busy={revoking(invitation.id) ? true : undefined}
+          className={cn(
+            "flex items-center gap-3 py-2 text-sm",
+            revoking(invitation.id) && "opacity-50",
+          )}
         >
           <span className="flex-1 truncate font-medium">
             {invitation.email}
@@ -56,18 +70,12 @@ export function InvitationList({
           <Button
             variant="ghost"
             size="icon-sm"
-            disabled={pending}
+            disabled={revoking(invitation.id)}
             aria-label={t("Revoke invitation for {email}", {
               email: invitation.email,
             })}
             onClick={() => {
-              startTransition(async () => {
-                const result = await revokeInvitation({
-                  invitationId: invitation.id,
-                });
-                if (result.ok) toast.success(t("Invitation revoked"));
-                else toast.error(errorMessage(result.error));
-              });
+              void revoke.run({ invitationId: invitation.id });
             }}
           >
             <XIcon />

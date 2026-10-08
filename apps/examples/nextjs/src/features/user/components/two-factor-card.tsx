@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionChange } from "better-supabase/next/client";
 import { ShieldCheckIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import Image from "next/image";
@@ -47,6 +48,10 @@ export function TwoFactorCard() {
   const t = useExtracted("security");
   const fieldId = useId();
   const supabase = useSupabase();
+  const changeSession = useSessionChange(sessionChanged);
+  const refreshAndChange = useSessionChange(sessionChanged, undefined, {
+    refreshToken: supabase,
+  });
   const [factorId, setFactorId] = useState<string | null | undefined>(
     undefined,
   );
@@ -97,7 +102,7 @@ export function TwoFactorCard() {
         setError(t("That code didn't work. Try the next one."));
         return;
       }
-      await sessionChanged();
+      await changeSession();
       setFactorId(enrollment.factorId);
       setEnrollment(null);
       setCode("");
@@ -115,8 +120,7 @@ export function TwoFactorCard() {
         toast.error(removeError.message);
         return;
       }
-      await supabase.auth.refreshSession();
-      await sessionChanged();
+      await refreshAndChange();
       setFactorId(null);
       toast.success(t("Two-factor authentication is off"));
     });

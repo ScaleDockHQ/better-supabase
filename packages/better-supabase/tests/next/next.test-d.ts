@@ -5,6 +5,7 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { ActionResult, AuthSession } from "../../src/next/index.ts";
+import type { ActionInputOf } from "../../src/react/index.ts";
 
 import { createClient } from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
@@ -171,5 +172,56 @@ describe("next.action", () => {
     >();
     const plain = bs.action({}, () => "done" as const);
     expectTypeOf(plain).returns.resolves.toEqualTypeOf<ActionResult<"done">>();
+  });
+});
+
+describe("authorize and requireTenant", () => {
+  it("narrows ctx.tenant to a string only with requireTenant", () => {
+    bs.action({ requireTenant: true }, (_input, ctx) => {
+      expectTypeOf(ctx.tenant).toEqualTypeOf<string>();
+      expectTypeOf(ctx.session).toEqualTypeOf<AuthSession>();
+    });
+    bs.action({}, (_input, ctx) => {
+      expectTypeOf(ctx.tenant).toEqualTypeOf<string | undefined>();
+    });
+    bs.action(
+      {
+        input: v.object({ id: v.string() }),
+        authorize: (session, input) => {
+          expectTypeOf(session).toEqualTypeOf<AuthSession>();
+          expectTypeOf(input).toEqualTypeOf<{ id: string }>();
+          return true;
+        },
+      },
+      () => undefined,
+    );
+    bs.route(
+      (_request, ctx) => {
+        expectTypeOf(ctx.tenant).toEqualTypeOf<string>();
+      },
+      { requireTenant: true },
+    );
+    expectTypeOf(bs.require({ requireTenant: true }))
+      .resolves.toHaveProperty("tenant")
+      .toEqualTypeOf<string>();
+  });
+
+  it("types bs.cached tables by the schema", () => {
+    void bs.cached({ tables: ["customers"], id: "c1" });
+    // @ts-expect-error not a table
+    void bs.cached({ tables: ["nope"] });
+  });
+});
+
+describe("ActionInputOf", () => {
+  it("drops FormData from a schema action's input", () => {
+    const save = bs.action(
+      { input: v.object({ id: v.string() }) },
+      () => "saved" as const,
+    );
+    expectTypeOf<ActionInputOf<Parameters<typeof save>[0]>>().toEqualTypeOf<{
+      id: string;
+    }>();
+    expectTypeOf<ActionInputOf<FormData>>().toEqualTypeOf<FormData>();
   });
 });

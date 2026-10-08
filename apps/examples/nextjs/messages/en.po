@@ -31,6 +31,42 @@ msgctxt "customers.BOCaFq"
 msgid "Everyone your organization works with."
 msgstr "Everyone your organization works with."
 
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.JqiqNj"
+msgid "Something went wrong"
+msgstr "Something went wrong"
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.urqbAH"
+msgid "Try again in a moment. Reference: {digest}"
+msgstr "Try again in a moment. Reference: {digest}"
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.FazwRl"
+msgid "Try again"
+msgstr "Try again"
+
+#: src/app/[locale]/(app)/forbidden.tsx
+msgctxt "app.yO2v_w"
+msgid "You don't have access"
+msgstr "You don't have access"
+
+#: src/app/[locale]/(app)/forbidden.tsx
+msgctxt "app.hE61Ab"
+msgid "Ask an admin of this organization for access."
+msgstr "Ask an admin of this organization for access."
+
+#: src/app/[locale]/(app)/forbidden.tsx
+#: src/app/[locale]/not-found.tsx
+msgctxt "app.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Back to the dashboard"
+
 #: src/app/[locale]/(app)/inbox/page.tsx
 msgctxt "inbox.VCMKbt"
 msgid "Inbox"
@@ -68,6 +104,21 @@ msgctxt "settings.59uu8y"
 msgid "Your account and your organization."
 msgstr "Your account and your organization."
 
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.szo7Rq"
+msgid "Sign in to continue"
+msgstr "Sign in to continue"
+
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.TwBTyU"
+msgid "Your session has ended."
+msgstr "Your session has ended."
+
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.SQJto2"
+msgid "Sign in"
+msgstr "Sign in"
+
 #: src/app/[locale]/layout.tsx
 msgctxt "app.pZg_tf"
 msgid "A multi-tenant SaaS example built on better-supabase."
@@ -83,15 +134,15 @@ msgctxt "app.HetEY5"
 msgid "It moved, or it isn't available to your organization."
 msgstr "It moved, or it isn't available to your organization."
 
-#: src/app/[locale]/not-found.tsx
-msgctxt "app.BFhud5"
-msgid "Back to the dashboard"
-msgstr "Back to the dashboard"
-
 #: src/features/announcements/components/announcement-banner.tsx
 msgctxt "announcements.TDaF6J"
 msgid "Dismiss"
 msgstr "Dismiss"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.5CT3F9"
+msgid "Key revoked"
+msgstr "Key revoked"
 
 #: src/features/api-keys/components/api-key-table.tsx
 msgctxt "apiKeys.5bo-CW"
@@ -133,11 +184,6 @@ msgstr "Personal"
 msgctxt "apiKeys.f0W26f"
 msgid "Revoked"
 msgstr "Revoked"
-
-#: src/features/api-keys/components/api-key-table.tsx
-msgctxt "apiKeys.5CT3F9"
-msgid "Key revoked"
-msgstr "Key revoked"
 
 #: src/features/api-keys/components/api-key-table.tsx
 msgctxt "apiKeys.tnRDuU"
@@ -454,6 +500,31 @@ msgid "Already have an account?"
 msgstr "Already have an account?"
 
 #: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.ZBALng"
+msgid "Current plan"
+msgstr "Current plan"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.wL4Olp"
+msgid "Renews {date}"
+msgstr "Renews {date}"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.lyN_DP"
+msgid "No renewal date"
+msgstr "No renewal date"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.n1Whvj"
+msgid "Switch"
+msgstr "Switch"
+
+#: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.tf1lIh"
 msgid "Free"
 msgstr "Free"
@@ -485,31 +556,6 @@ msgstr "Audit log"
 msgctxt "billing.YQJkxw"
 msgid "Single sign-on"
 msgstr "Single sign-on"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.ZBALng"
-msgid "Current plan"
-msgstr "Current plan"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.wL4Olp"
-msgid "Renews {date}"
-msgstr "Renews {date}"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.lyN_DP"
-msgid "No renewal date"
-msgstr "No renewal date"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.450Fty"
-msgid "None"
-msgstr "None"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.n1Whvj"
-msgid "Switch"
-msgstr "Switch"
 
 #: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.1Z5h3H"
@@ -552,14 +598,14 @@ msgid "Write a comment"
 msgstr "Write a comment"
 
 #: src/features/customers/components/create-customer-form.tsx
-msgctxt "customers.7vI2x3"
-msgid "Too many new customers. Try again in {seconds, number} seconds."
-msgstr "Too many new customers. Try again in {seconds, number} seconds."
-
-#: src/features/customers/components/create-customer-form.tsx
 msgctxt "customers.ckQ_gN"
 msgid "{name} added"
 msgstr "{name} added"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.7vI2x3"
+msgid "Too many new customers. Try again in {seconds, number} seconds."
+msgstr "Too many new customers. Try again in {seconds, number} seconds."
 
 #: src/features/customers/components/create-customer-form.tsx
 msgctxt "customers.e7e8yl"
@@ -818,24 +864,24 @@ msgid "Turn it off with better_supabase.set_flag_override, and this page and its
 msgstr "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh."
 
 #: src/features/inbox/components/inbox-actions.tsx
-msgctxt "inbox.aFRo3k"
-msgid "Hello from the inbox"
-msgstr "Hello from the inbox"
-
-#: src/features/inbox/components/inbox-actions.tsx
 msgctxt "inbox.OCmHfl"
 msgid "Notification sent"
 msgstr "Notification sent"
 
 #: src/features/inbox/components/inbox-actions.tsx
-msgctxt "inbox.ipGe-B"
-msgid "Notify me"
-msgstr "Notify me"
-
-#: src/features/inbox/components/inbox-actions.tsx
 msgctxt "inbox.wMC6M8"
 msgid "All caught up"
 msgstr "All caught up"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.aFRo3k"
+msgid "Hello from the inbox"
+msgstr "Hello from the inbox"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.ipGe-B"
+msgid "Notify me"
+msgstr "Notify me"
 
 #: src/features/inbox/components/inbox-actions.tsx
 msgctxt "inbox.ShdEie"
@@ -1022,6 +1068,11 @@ msgid "I already have one"
 msgstr "I already have one"
 
 #: src/features/organization/components/invitation-list.tsx
+msgctxt "organization.SpBqjJ"
+msgid "Invitation revoked"
+msgstr "Invitation revoked"
+
+#: src/features/organization/components/invitation-list.tsx
 msgctxt "organization.HAhXzK"
 msgid "No open invitations."
 msgstr "No open invitations."
@@ -1035,11 +1086,6 @@ msgstr "Expires {date}"
 msgctxt "organization.Hvn8PP"
 msgid "Revoke invitation for {email}"
 msgstr "Revoke invitation for {email}"
-
-#: src/features/organization/components/invitation-list.tsx
-msgctxt "organization.SpBqjJ"
-msgid "Invitation revoked"
-msgstr "Invitation revoked"
 
 #: src/features/organization/components/invitation-response.tsx
 msgctxt "invitation.pvtgR2"
@@ -1144,6 +1190,16 @@ msgid "Leave"
 msgstr "Leave"
 
 #: src/features/organization/components/member-table.tsx
+msgctxt "organization.U_vZbF"
+msgid "Role updated"
+msgstr "Role updated"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.6tBv0v"
+msgid "Member removed"
+msgstr "Member removed"
+
+#: src/features/organization/components/member-table.tsx
 #: src/features/organization/use-role-label.ts
 msgctxt "organization.7L86Z5"
 msgid "Member"
@@ -1160,19 +1216,9 @@ msgid "you"
 msgstr "you"
 
 #: src/features/organization/components/member-table.tsx
-msgctxt "organization.U_vZbF"
-msgid "Role updated"
-msgstr "Role updated"
-
-#: src/features/organization/components/member-table.tsx
 msgctxt "organization.T0e6Lh"
 msgid "Remove {name}"
 msgstr "Remove {name}"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.6tBv0v"
-msgid "Member removed"
-msgstr "Member removed"
 
 #: src/features/organization/components/members-section.tsx
 msgctxt "organization.-a-2ug"
@@ -1195,14 +1241,14 @@ msgid "There is no mailer in this example: copy the link and send it yourself."
 msgstr "There is no mailer in this example: copy the link and send it yourself."
 
 #: src/features/organization/components/organization-form.tsx
-msgctxt "organization.-_Neko"
-msgid "That URL is taken. Pick another one."
-msgstr "That URL is taken. Pick another one."
-
-#: src/features/organization/components/organization-form.tsx
 msgctxt "organization.ABbHiq"
 msgid "Organization saved"
 msgstr "Organization saved"
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.-_Neko"
+msgid "That URL is taken. Pick another one."
+msgstr "That URL is taken. Pick another one."
 
 #: src/features/organization/components/organization-form.tsx
 msgctxt "organization.bWjdfa"
@@ -1608,34 +1654,9 @@ msgid "A Monday summary of your customers. Saved by the settings module."
 msgstr "A Monday summary of your customers. Saved by the settings module."
 
 #: src/lib/use-error-message.ts
-msgctxt "errors.p0Vi70"
-msgid "Sign in again to continue."
-msgstr "Sign in again to continue."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.7GZhCN"
-msgid "You don't have permission to do that."
-msgstr "You don't have permission to do that."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.ZT3lBq"
-msgid "That item no longer exists."
-msgstr "That item no longer exists."
-
-#: src/lib/use-error-message.ts
 msgctxt "errors.JI3eca"
 msgid "That already exists."
 msgstr "That already exists."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.GhZx8v"
-msgid "Too many requests. Wait a moment and try again."
-msgstr "Too many requests. Wait a moment and try again."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.L-85Jk"
-msgid "Your plan's limit is reached. Upgrade to continue."
-msgstr "Your plan's limit is reached. Upgrade to continue."
 
 #: src/lib/use-error-message.ts
 msgctxt "errors.U8S-VX"
@@ -1656,3 +1677,28 @@ msgstr "The server didn't answer. Try again."
 msgctxt "errors.3kJE8G"
 msgid "Something went wrong. Try again."
 msgstr "Something went wrong. Try again."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.p0Vi70"
+msgid "Sign in again to continue."
+msgstr "Sign in again to continue."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.7GZhCN"
+msgid "You don't have permission to do that."
+msgstr "You don't have permission to do that."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.ZT3lBq"
+msgid "That item no longer exists."
+msgstr "That item no longer exists."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.GhZx8v"
+msgid "Too many requests. Wait a moment and try again."
+msgstr "Too many requests. Wait a moment and try again."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.L-85Jk"
+msgid "Your plan's limit is reached. Upgrade to continue."
+msgstr "Your plan's limit is reached. Upgrade to continue."

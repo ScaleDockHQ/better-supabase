@@ -1,3 +1,4 @@
+import { tenantOf } from "better-supabase/next";
 import { getExtracted, getFormatter } from "next-intl/server";
 
 import {
@@ -9,14 +10,13 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { activeOrganizationId } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 import { getUsage } from "../dashboard-queries";
 
 /** Render inside `<Suspense>`: this period's usage per meter. */
 export async function UsageCard() {
-  const organizationId = activeOrganizationId(await getSession());
+  const organizationId = tenantOf(await getSession());
   if (!organizationId) return null;
   const [meters, t, format] = await Promise.all([
     getUsage(organizationId),

@@ -1,7 +1,7 @@
 "use client";
 
+import { useAction } from "better-supabase/react";
 import { useExtracted } from "next-intl";
-import { useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -12,18 +12,21 @@ import { markPlanReviewed } from "../billing-actions";
 export function MarkPlanReviewedButton() {
   const t = useExtracted("billing");
   const errorMessage = useErrorMessage();
-  const [pending, startTransition] = useTransition();
+  const review = useAction(markPlanReviewed, {
+    onSuccess: () => {
+      toast.success(t("Onboarding step done"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
   return (
     <Button
       variant="outline"
       size="sm"
-      disabled={pending}
+      disabled={review.pending}
       onClick={() => {
-        startTransition(async () => {
-          const result = await markPlanReviewed({});
-          if (result.ok) toast.success(t("Onboarding step done"));
-          else toast.error(errorMessage(result.error));
-        });
+        void review.run({});
       }}
     >
       {t("Mark as reviewed")}

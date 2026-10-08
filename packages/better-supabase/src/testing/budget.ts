@@ -46,6 +46,12 @@ export interface DbBudgetExpectation {
   /** How long to wait for a streamed response to finish. Defaults to 10 seconds. */
   readonly timeoutMs?: number;
   /**
+   * How long to keep listening once `during` resolves and no new response
+   * arrives, for renders it started that answer later (the dynamic render
+   * after an `instant()` lock releases). Defaults to 500 ms.
+   */
+  readonly settleMs?: number;
+  /**
    * When no document or RSC response carries `x-bs-request-id`, throw
    * (the default) or return `[]`. Cache-only navigations never hit the
    * proxy, so they have no request id.
@@ -66,6 +72,12 @@ function isPrefetch(response: BudgetResponse): boolean {
     headers["purpose"] === "prefetch" ||
     (headers["sec-purpose"]?.includes("prefetch") ?? false)
   );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((done) => {
+    setTimeout(done, ms);
+  });
 }
 
 function settle(promise: Promise<unknown>, ms: number): Promise<unknown> {
@@ -90,13 +102,27 @@ export async function expectDbBudget(
   expectation: DbBudgetExpectation,
 ): Promise<readonly MeasuredRender[]> {
   const seen: { response: BudgetResponse; url: string; id: string }[] = [];
+  let lastSeen = 0;
   const listener = (response: BudgetResponse): void => {
     const headers = response.headers();
     const id = headers["x-bs-request-id"];
     const stats = headers["x-bs-stats"];
     if (!id || !stats || (!expectation.prefetches && isPrefetch(response)))
       return;
+    lastSeen = Date.now();
     seen.push({ response, id, url: new URL(stats, response.url()).href });
+  };
+  const settleMs = expectation.settleMs ?? 500;
+  const timeoutMs = expectation.timeoutMs ?? 10_000;
+  /** Waits until no response has arrived for `settleMs`, at most `timeoutMs`. */
+  const quiet = async (): Promise<void> => {
+    const start = Date.now();
+    lastSeen = Math.max(lastSeen, start);
+    for (;;) {
+      const left = lastSeen + settleMs - Date.now();
+      if (left <= 0 || Date.now() - start >= timeoutMs) return;
+      await sleep(left);
+    }
   };
   const failed = new WeakSet<BudgetRequest>();
   const aborts = new Map<BudgetRequest, () => void>();
@@ -119,6 +145,7 @@ export async function expectDbBudget(
   try {
     try {
       await (expectation.during ? expectation.during() : page.reload());
+      await quiet();
     } finally {
       page.off("response", listener);
     }
@@ -129,9 +156,7 @@ export async function expectDbBudget(
       );
     }
     await Promise.all(
-      seen.map(({ response }) =>
-        settle(ended(response), expectation.timeoutMs ?? 10_000),
-      ),
+      seen.map(({ response }) => settle(ended(response), timeoutMs)),
     );
   } finally {
     page.off("requestfailed", onFailed);

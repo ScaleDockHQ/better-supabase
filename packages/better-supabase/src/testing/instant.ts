@@ -40,10 +40,16 @@ export interface InstantExpectation {
   readonly visible: readonly InstantLocator[];
   /** Locators that must not exist while the lock holds. */
   readonly absent?: readonly InstantLocator[];
-  /** Fails when one render of the navigation makes more database calls. */
+  /**
+   * Fails when one render of the navigation makes more database calls, or
+   * when no render reached the proxy (a navigation the client cache served
+   * has nothing to measure: drop the budget for it).
+   */
   readonly maxCalls?: number;
   /** Fails when one render of the navigation makes more sequential waves. */
   readonly maxWaves?: number;
+  /** How long to wait for the render that streams in after the lock releases. Defaults to 500 ms. */
+  readonly settleMs?: number;
   /** Scopes the lock on a page that has not loaded yet. */
   readonly baseURL?: string;
   /** How long each `visible` locator may take. Defaults to 5 seconds. */
@@ -131,7 +137,9 @@ export async function expectInstant(
   }
   return expectDbBudget(page, {
     during: run,
-    requireRequest: false,
+    ...(expectation.settleMs === undefined
+      ? {}
+      : { settleMs: expectation.settleMs }),
     ...(expectation.maxCalls === undefined
       ? {}
       : { maxCalls: expectation.maxCalls }),

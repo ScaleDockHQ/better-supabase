@@ -1,16 +1,12 @@
 "use server";
 
-import { dbError, err, ok } from "better-supabase";
-import { toSession } from "better-supabase/next";
+import { ok } from "better-supabase";
 import { refresh } from "next/cache";
+import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
-import {
-  activeOrganizationId,
-  can,
-  canAssign,
-} from "@/features/user/user-permissions";
+import { can, canAssign } from "@/features/user/user-permissions";
 import { blocks } from "@/lib/blocks";
 import { Role } from "@/lib/claims";
 import { bs } from "@/lib/supabase/server";
@@ -51,26 +47,27 @@ export const createOrganization = bs.action(
     const { organizations } = blocks(supabase);
     const created = await organizations.create({ name, slug: slugify(name) });
     if (!created.ok) return created;
-    await recordAudit(supabase, {
-      eventType: "organization.created",
-      category: "organization",
-      organizationId: created.data.id,
-      targetType: "organization",
-      record: created.data.id,
-      targetLabel: name,
-    });
+    after(() =>
+      recordAudit(supabase, {
+        eventType: "organization.created",
+        category: "organization",
+        organizationId: created.data.id,
+        targetType: "organization",
+        record: created.data.id,
+        targetLabel: name,
+      }),
+    );
     return organizations.switch(created.data.id);
   },
 );
 
 export const updateOrganization = bs.action(
-  { input: v.object({ name: Name, slug: Slug }) },
-  async ({ name, slug }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "organization.update")) {
-      return err(dbError("forbidden", "You cannot change this organization"));
-    }
+  {
+    input: v.object({ name: Name, slug: Slug }),
+    requireTenant: true,
+    authorize: (session) => can(session, "organization.update"),
+  },
+  async ({ name, slug }, { tenant: organizationId, supabase }) => {
     const updated = await blocks(supabase).organizations.update(
       organizationId,
       {
@@ -79,14 +76,16 @@ export const updateOrganization = bs.action(
       },
     );
     if (!updated.ok) return updated;
-    await recordAudit(supabase, {
-      eventType: "organization.updated",
-      category: "organization",
-      organizationId,
-      targetType: "organization",
-      record: organizationId,
-      targetLabel: name,
-    });
+    after(() =>
+      recordAudit(supabase, {
+        eventType: "organization.updated",
+        category: "organization",
+        organizationId,
+        targetType: "organization",
+        record: organizationId,
+        targetLabel: name,
+      }),
+    );
     refresh();
     return ok(true);
   },
@@ -102,25 +101,24 @@ export const inviteMember = bs.action(
       email: v.pipe(v.string(), v.trim(), v.toLowerCase(), v.email()),
       role: Role,
     }),
+    requireTenant: true,
+    authorize: (session, { role }) => canAssign(session, role),
   },
-  async ({ email, role }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !canAssign(session, role)) {
-      return err(dbError("forbidden", "You cannot invite with this role"));
-    }
+  async ({ email, role }, { tenant: organizationId, supabase }) => {
     const { organizations, onboarding } = blocks(supabase);
     const sent = await organizations.invite({ organizationId, email, role });
     if (!sent.ok) return sent;
-    await recordAudit(supabase, {
-      eventType: "invitation.created",
-      category: "membership",
-      organizationId,
-      targetType: "invitation",
-      record: sent.data.invitation.id,
-      targetLabel: email,
-      metadata: { role },
-    });
+    after(() =>
+      recordAudit(supabase, {
+        eventType: "invitation.created",
+        category: "membership",
+        organizationId,
+        targetType: "invitation",
+        record: sent.data.invitation.id,
+        targetLabel: email,
+        metadata: { role },
+      }),
+    );
     await onboarding.complete("invite", organizationId);
     refresh();
     return ok({ token: sent.data.token });
@@ -128,79 +126,80 @@ export const inviteMember = bs.action(
 );
 
 export const revokeInvitation = bs.action(
-  { input: v.object({ invitationId: Id }) },
-  async ({ invitationId }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "members.invite")) {
-      return err(dbError("forbidden", "You cannot revoke invitations"));
-    }
+  {
+    input: v.object({ invitationId: Id }),
+    requireTenant: true,
+    authorize: (session) => can(session, "members.invite"),
+  },
+  async ({ invitationId }, { tenant: organizationId, supabase }) => {
     const revoked =
       await blocks(supabase).organizations.revokeInvitation(invitationId);
     if (!revoked.ok) return revoked;
-    await recordAudit(supabase, {
-      eventType: "invitation.revoked",
-      category: "membership",
-      organizationId,
-      targetType: "invitation",
-      record: invitationId,
-    });
+    after(() =>
+      recordAudit(supabase, {
+        eventType: "invitation.revoked",
+        category: "membership",
+        organizationId,
+        targetType: "invitation",
+        record: invitationId,
+      }),
+    );
     refresh();
     return ok(revoked.data);
   },
 );
 
 export const updateMemberRole = bs.action(
-  { input: v.object({ userId: Id, role: Role }) },
-  async ({ userId, role }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !canAssign(session, role)) {
-      return err(dbError("forbidden", "You cannot give this role"));
-    }
+  {
+    input: v.object({ userId: Id, role: Role }),
+    requireTenant: true,
+    authorize: (session, { role }) => canAssign(session, role),
+  },
+  async ({ userId, role }, { tenant: organizationId, supabase }) => {
     const updated = await blocks(supabase).organizations.updateMemberRole(
       organizationId,
       userId,
       role,
     );
     if (!updated.ok) return updated;
-    await recordAudit(supabase, {
-      eventType: "membership.role_changed",
-      category: "membership",
-      organizationId,
-      targetType: "user",
-      record: userId,
-      metadata: { role },
-    });
+    after(() =>
+      recordAudit(supabase, {
+        eventType: "membership.role_changed",
+        category: "membership",
+        organizationId,
+        targetType: "user",
+        record: userId,
+        metadata: { role },
+      }),
+    );
     // The member's token still carries the old role until it refreshes.
     bs.invalidateSession(userId);
-    refresh();
     return ok(true);
   },
 );
 
 export const removeMember = bs.action(
-  { input: v.object({ userId: Id }) },
-  async ({ userId }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "members.remove")) {
-      return err(dbError("forbidden", "You cannot remove members"));
-    }
+  {
+    input: v.object({ userId: Id }),
+    requireTenant: true,
+    authorize: (session) => can(session, "members.remove"),
+  },
+  async ({ userId }, { tenant: organizationId, supabase }) => {
     const removed = await blocks(supabase).organizations.removeMember(
       organizationId,
       userId,
     );
     if (!removed.ok) return removed;
-    await recordAudit(supabase, {
-      eventType: "membership.removed",
-      category: "membership",
-      organizationId,
-      targetType: "user",
-      record: userId,
-    });
+    after(() =>
+      recordAudit(supabase, {
+        eventType: "membership.removed",
+        category: "membership",
+        organizationId,
+        targetType: "user",
+        record: userId,
+      }),
+    );
     bs.invalidateSession(userId);
-    refresh();
     return ok(true);
   },
 );
@@ -212,25 +211,16 @@ export const updateOrganizationSettings = bs.action(
       defaultRole: v.picklist(["member", "admin"]),
       weekStart: v.picklist(["monday", "sunday"]),
     }),
+    requireTenant: true,
+    authorize: (session) => can(session, "settings.update"),
   },
-  async ({ defaultRole, weekStart }, { auth, supabase }) => {
-    const session = toSession(auth);
-    const organizationId = activeOrganizationId(session);
-    if (!organizationId || !can(session, "settings.update")) {
-      return err(dbError("forbidden", "You cannot change these settings"));
-    }
+  async ({ defaultRole, weekStart }, { tenant: organizationId, supabase }) => {
     const { settings } = blocks(supabase);
-    const role = await settings.organization.set(
-      organizationId,
-      "defaultRole",
-      defaultRole,
-    );
+    const [role, week] = await Promise.all([
+      settings.organization.set(organizationId, "defaultRole", defaultRole),
+      settings.organization.set(organizationId, "weekStart", weekStart),
+    ]);
     if (!role.ok) return role;
-    const week = await settings.organization.set(
-      organizationId,
-      "weekStart",
-      weekStart,
-    );
     if (!week.ok) return week;
     refresh();
     return ok(true);
@@ -239,14 +229,9 @@ export const updateOrganizationSettings = bs.action(
 
 /** Leaves the active organization; the owner has to transfer ownership first. */
 export const leaveOrganization = bs.action(
-  {},
-  async (_input, { auth, supabase }) => {
-    const organizationId = activeOrganizationId(toSession(auth));
-    if (!organizationId) {
-      return err(dbError("forbidden", "You are not in an organization"));
-    }
-    return blocks(supabase).organizations.leave(organizationId);
-  },
+  { requireTenant: true },
+  async (_input, { tenant: organizationId, supabase }) =>
+    blocks(supabase).organizations.leave(organizationId),
 );
 
 export const declineInvitation = bs.action(
@@ -273,9 +258,11 @@ export const acceptInvitation = bs.action(
       targetType: "organization",
       record: organizationId,
     };
-    await recordAudit(
-      supabase,
-      v.is(v.string(), name) ? { ...event, targetLabel: name } : event,
+    after(() =>
+      recordAudit(
+        supabase,
+        v.is(v.string(), name) ? { ...event, targetLabel: name } : event,
+      ),
     );
     return organizations.switch(organizationId);
   },

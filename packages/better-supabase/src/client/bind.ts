@@ -8,6 +8,7 @@ import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import { userContext } from "../auth/impersonation.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
 import { createQueries, type BetterQueries } from "../query/index.ts";
+import { identityKey } from "../query/user-change.ts";
 
 export interface AuthUser {
   readonly id: string;
@@ -15,7 +16,11 @@ export interface AuthUser {
   readonly role?: string;
 }
 
-/** What the UI needs to know. Claims are decoded, not verified: RLS enforces access. */
+/**
+ * What the UI needs to know. Claims are decoded, not verified: RLS enforces
+ * access. A token refresh that changes only `exp`, `iat`, `nbf` or `jti`
+ * keeps the previous snapshot, so read expiry from the session, not here.
+ */
 export type AuthSnapshot =
   | { readonly status: "loading"; readonly user: null; readonly claims: null }
   | {
@@ -124,13 +129,13 @@ export function bindClient<
 
   supabase.auth.onAuthStateChange((_event, session) => {
     const next = snapshotOf(session);
-    const changed =
-      next.status !== snapshot.status ||
-      next.user?.id !== snapshot.user?.id ||
-      (next.status === "signed-in" &&
-        snapshot.status === "signed-in" &&
-        next.claims["exp"] !== snapshot.claims["exp"]);
-    if (!changed) return;
+    // A refresh only moves the time claims: keeping the snapshot keeps `db`
+    // and spares every `useAuth` consumer a render once an hour.
+    if (
+      next.status === snapshot.status &&
+      identityKey(next) === identityKey(snapshot)
+    )
+      return;
     snapshot = next;
     db = undefined;
     for (const listener of listeners) listener();

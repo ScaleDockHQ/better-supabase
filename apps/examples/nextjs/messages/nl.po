@@ -31,6 +31,42 @@ msgctxt "customers.BOCaFq"
 msgid "Everyone your organization works with."
 msgstr "Iedereen met wie je organisatie werkt."
 
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.JqiqNj"
+msgid "Something went wrong"
+msgstr "Er ging iets mis"
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.urqbAH"
+msgid "Try again in a moment. Reference: {digest}"
+msgstr "Probeer het zo opnieuw. Referentie: {digest}"
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.FazwRl"
+msgid "Try again"
+msgstr "Opnieuw proberen"
+
+#: src/app/[locale]/(app)/forbidden.tsx
+msgctxt "app.yO2v_w"
+msgid "You don't have access"
+msgstr "Je hebt geen toegang"
+
+#: src/app/[locale]/(app)/forbidden.tsx
+msgctxt "app.hE61Ab"
+msgid "Ask an admin of this organization for access."
+msgstr "Vraag een beheerder van deze organisatie om toegang."
+
+#: src/app/[locale]/(app)/forbidden.tsx
+#: src/app/[locale]/not-found.tsx
+msgctxt "app.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Terug naar het dashboard"
+
 #: src/app/[locale]/(app)/inbox/page.tsx
 msgctxt "inbox.VCMKbt"
 msgid "Inbox"
@@ -68,6 +104,21 @@ msgctxt "settings.59uu8y"
 msgid "Your account and your organization."
 msgstr "Je account en je organisatie."
 
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.szo7Rq"
+msgid "Sign in to continue"
+msgstr "Log in om verder te gaan"
+
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.TwBTyU"
+msgid "Your session has ended."
+msgstr "Je sessie is verlopen."
+
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.SQJto2"
+msgid "Sign in"
+msgstr "Inloggen"
+
 #: src/app/[locale]/layout.tsx
 msgctxt "app.pZg_tf"
 msgid "A multi-tenant SaaS example built on better-supabase."
@@ -83,15 +134,15 @@ msgctxt "app.HetEY5"
 msgid "It moved, or it isn't available to your organization."
 msgstr "Ze is verplaatst, of niet beschikbaar voor je organisatie."
 
-#: src/app/[locale]/not-found.tsx
-msgctxt "app.BFhud5"
-msgid "Back to the dashboard"
-msgstr "Terug naar het dashboard"
-
 #: src/features/announcements/components/announcement-banner.tsx
 msgctxt "announcements.TDaF6J"
 msgid "Dismiss"
 msgstr "Sluiten"
+
+#: src/features/api-keys/components/api-key-table.tsx
+msgctxt "apiKeys.5CT3F9"
+msgid "Key revoked"
+msgstr "Sleutel ingetrokken"
 
 #: src/features/api-keys/components/api-key-table.tsx
 msgctxt "apiKeys.5bo-CW"
@@ -133,11 +184,6 @@ msgstr "Persoonlijk"
 msgctxt "apiKeys.f0W26f"
 msgid "Revoked"
 msgstr "Ingetrokken"
-
-#: src/features/api-keys/components/api-key-table.tsx
-msgctxt "apiKeys.5CT3F9"
-msgid "Key revoked"
-msgstr "Sleutel ingetrokken"
 
 #: src/features/api-keys/components/api-key-table.tsx
 msgctxt "apiKeys.tnRDuU"
@@ -454,6 +500,31 @@ msgid "Already have an account?"
 msgstr "Heb je al een account?"
 
 #: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.ZBALng"
+msgid "Current plan"
+msgstr "Huidig abonnement"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.wL4Olp"
+msgid "Renews {date}"
+msgstr "Verlengt op {date}"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.lyN_DP"
+msgid "No renewal date"
+msgstr "Geen verlengdatum"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.450Fty"
+msgid "None"
+msgstr "Geen"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.n1Whvj"
+msgid "Switch"
+msgstr "Overstappen"
+
+#: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.tf1lIh"
 msgid "Free"
 msgstr "Gratis"
@@ -485,31 +556,6 @@ msgstr "Auditlog"
 msgctxt "billing.YQJkxw"
 msgid "Single sign-on"
 msgstr "Single sign-on"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.ZBALng"
-msgid "Current plan"
-msgstr "Huidig abonnement"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.wL4Olp"
-msgid "Renews {date}"
-msgstr "Verlengt op {date}"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.lyN_DP"
-msgid "No renewal date"
-msgstr "Geen verlengdatum"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.450Fty"
-msgid "None"
-msgstr "Geen"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.n1Whvj"
-msgid "Switch"
-msgstr "Overstappen"
 
 #: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.1Z5h3H"
@@ -552,14 +598,14 @@ msgid "Write a comment"
 msgstr "Schrijf een reactie"
 
 #: src/features/customers/components/create-customer-form.tsx
-msgctxt "customers.7vI2x3"
-msgid "Too many new customers. Try again in {seconds, number} seconds."
-msgstr "Te veel nieuwe klanten. Probeer het over {seconds, number} seconden opnieuw."
-
-#: src/features/customers/components/create-customer-form.tsx
 msgctxt "customers.ckQ_gN"
 msgid "{name} added"
 msgstr "{name} toegevoegd"
+
+#: src/features/customers/components/create-customer-form.tsx
+msgctxt "customers.7vI2x3"
+msgid "Too many new customers. Try again in {seconds, number} seconds."
+msgstr "Te veel nieuwe klanten. Probeer het over {seconds, number} seconden opnieuw."
 
 #: src/features/customers/components/create-customer-form.tsx
 msgctxt "customers.e7e8yl"
@@ -818,24 +864,24 @@ msgid "Turn it off with better_supabase.set_flag_override, and this page and its
 msgstr "Zet hem uit met better_supabase.set_flag_override, en deze pagina en het menu-item verdwijnen bij de volgende sessievernieuwing."
 
 #: src/features/inbox/components/inbox-actions.tsx
-msgctxt "inbox.aFRo3k"
-msgid "Hello from the inbox"
-msgstr "Hallo vanuit de inbox"
-
-#: src/features/inbox/components/inbox-actions.tsx
 msgctxt "inbox.OCmHfl"
 msgid "Notification sent"
 msgstr "Melding verstuurd"
 
 #: src/features/inbox/components/inbox-actions.tsx
-msgctxt "inbox.ipGe-B"
-msgid "Notify me"
-msgstr "Stuur me een melding"
-
-#: src/features/inbox/components/inbox-actions.tsx
 msgctxt "inbox.wMC6M8"
 msgid "All caught up"
 msgstr "Helemaal bij"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.aFRo3k"
+msgid "Hello from the inbox"
+msgstr "Hallo vanuit de inbox"
+
+#: src/features/inbox/components/inbox-actions.tsx
+msgctxt "inbox.ipGe-B"
+msgid "Notify me"
+msgstr "Stuur me een melding"
 
 #: src/features/inbox/components/inbox-actions.tsx
 msgctxt "inbox.ShdEie"
@@ -1022,6 +1068,11 @@ msgid "I already have one"
 msgstr "Ik heb er al een"
 
 #: src/features/organization/components/invitation-list.tsx
+msgctxt "organization.SpBqjJ"
+msgid "Invitation revoked"
+msgstr "Uitnodiging ingetrokken"
+
+#: src/features/organization/components/invitation-list.tsx
 msgctxt "organization.HAhXzK"
 msgid "No open invitations."
 msgstr "Geen openstaande uitnodigingen."
@@ -1035,11 +1086,6 @@ msgstr "Verloopt op {date}"
 msgctxt "organization.Hvn8PP"
 msgid "Revoke invitation for {email}"
 msgstr "Uitnodiging voor {email} intrekken"
-
-#: src/features/organization/components/invitation-list.tsx
-msgctxt "organization.SpBqjJ"
-msgid "Invitation revoked"
-msgstr "Uitnodiging ingetrokken"
 
 #: src/features/organization/components/invitation-response.tsx
 msgctxt "invitation.pvtgR2"
@@ -1144,6 +1190,16 @@ msgid "Leave"
 msgstr "Verlaten"
 
 #: src/features/organization/components/member-table.tsx
+msgctxt "organization.U_vZbF"
+msgid "Role updated"
+msgstr "Rol bijgewerkt"
+
+#: src/features/organization/components/member-table.tsx
+msgctxt "organization.6tBv0v"
+msgid "Member removed"
+msgstr "Lid verwijderd"
+
+#: src/features/organization/components/member-table.tsx
 #: src/features/organization/use-role-label.ts
 msgctxt "organization.7L86Z5"
 msgid "Member"
@@ -1160,19 +1216,9 @@ msgid "you"
 msgstr "jij"
 
 #: src/features/organization/components/member-table.tsx
-msgctxt "organization.U_vZbF"
-msgid "Role updated"
-msgstr "Rol bijgewerkt"
-
-#: src/features/organization/components/member-table.tsx
 msgctxt "organization.T0e6Lh"
 msgid "Remove {name}"
 msgstr "{name} verwijderen"
-
-#: src/features/organization/components/member-table.tsx
-msgctxt "organization.6tBv0v"
-msgid "Member removed"
-msgstr "Lid verwijderd"
 
 #: src/features/organization/components/members-section.tsx
 msgctxt "organization.-a-2ug"
@@ -1195,14 +1241,14 @@ msgid "There is no mailer in this example: copy the link and send it yourself."
 msgstr "Dit voorbeeld heeft geen mailer: kopieer de link en stuur hem zelf."
 
 #: src/features/organization/components/organization-form.tsx
-msgctxt "organization.-_Neko"
-msgid "That URL is taken. Pick another one."
-msgstr "Die URL is al bezet. Kies een andere."
-
-#: src/features/organization/components/organization-form.tsx
 msgctxt "organization.ABbHiq"
 msgid "Organization saved"
 msgstr "Organisatie opgeslagen"
+
+#: src/features/organization/components/organization-form.tsx
+msgctxt "organization.-_Neko"
+msgid "That URL is taken. Pick another one."
+msgstr "Die URL is al bezet. Kies een andere."
 
 #: src/features/organization/components/organization-form.tsx
 msgctxt "organization.bWjdfa"
@@ -1608,34 +1654,9 @@ msgid "A Monday summary of your customers. Saved by the settings module."
 msgstr "Elke maandag een overzicht van je klanten. Opgeslagen door de settings-module."
 
 #: src/lib/use-error-message.ts
-msgctxt "errors.p0Vi70"
-msgid "Sign in again to continue."
-msgstr "Log opnieuw in om door te gaan."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.7GZhCN"
-msgid "You don't have permission to do that."
-msgstr "Je hebt geen toestemming om dat te doen."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.ZT3lBq"
-msgid "That item no longer exists."
-msgstr "Dat item bestaat niet meer."
-
-#: src/lib/use-error-message.ts
 msgctxt "errors.JI3eca"
 msgid "That already exists."
 msgstr "Dat bestaat al."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.GhZx8v"
-msgid "Too many requests. Wait a moment and try again."
-msgstr "Te veel verzoeken. Wacht even en probeer het opnieuw."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.L-85Jk"
-msgid "Your plan's limit is reached. Upgrade to continue."
-msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
 
 #: src/lib/use-error-message.ts
 msgctxt "errors.U8S-VX"
@@ -1656,3 +1677,28 @@ msgstr "De server antwoordde niet. Probeer het opnieuw."
 msgctxt "errors.3kJE8G"
 msgid "Something went wrong. Try again."
 msgstr "Er ging iets mis. Probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.p0Vi70"
+msgid "Sign in again to continue."
+msgstr "Log opnieuw in om door te gaan."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.7GZhCN"
+msgid "You don't have permission to do that."
+msgstr "Je hebt geen toestemming om dat te doen."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.ZT3lBq"
+msgid "That item no longer exists."
+msgstr "Dat item bestaat niet meer."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.GhZx8v"
+msgid "Too many requests. Wait a moment and try again."
+msgstr "Te veel verzoeken. Wacht even en probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.L-85Jk"
+msgid "Your plan's limit is reached. Upgrade to continue."
+msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."

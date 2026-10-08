@@ -1,3 +1,4 @@
+import { tenantOf } from "better-supabase/next";
 import { getExtracted, getFormatter } from "next-intl/server";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getMembers } from "@/features/organization/organization-queries";
-import { activeOrganizationId, can } from "@/features/user/user-permissions";
+import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { initials } from "@/lib/initials";
 
@@ -28,7 +29,7 @@ export async function CustomerDetail({
   params: Promise<{ id: string }>;
 }) {
   const [{ id }, session] = await Promise.all([params, getSession()]);
-  const organizationId = activeOrganizationId(session);
+  const organizationId = tenantOf(session);
   if (!organizationId) notFound();
   const [customer, comments, members, t, format] = await Promise.all([
     getCustomer(id),

@@ -1,7 +1,8 @@
 "use client";
 
+import { useActionForm } from "better-supabase/react";
 import { useExtracted } from "next-intl";
-import { useActionState, useId } from "react";
+import { useId } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -36,15 +37,15 @@ export function OrganizationSettingsForm({
   const fieldId = useId();
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
-  const [, submit, pending] = useActionState(
-    async (_previous: null, form: FormData) => {
-      const result = await updateOrganizationSettings(form);
-      if (result.ok) toast.success(t("Settings saved"));
-      else toast.error(errorMessage(result.error));
-      return null;
+  const form = useActionForm(updateOrganizationSettings, {
+    resetOnSuccess: false,
+    onSuccess: () => {
+      toast.success(t("Settings saved"));
     },
-    null,
-  );
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
   const roles = [
     { value: "member", label: roleLabel("member") },
     { value: "admin", label: roleLabel("admin") },
@@ -54,7 +55,7 @@ export function OrganizationSettingsForm({
     { value: "sunday", label: t("Sunday") },
   ];
   return (
-    <form action={submit} className="space-y-6">
+    <form {...form.formProps} className="space-y-6">
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor={`${fieldId}-default-role`}>
@@ -105,7 +106,7 @@ export function OrganizationSettingsForm({
         </Field>
       </FieldGroup>
       {canEdit ? (
-        <Button type="submit" variant="outline" disabled={pending}>
+        <Button type="submit" variant="outline" disabled={form.pending}>
           {t("Save settings")}
         </Button>
       ) : null}

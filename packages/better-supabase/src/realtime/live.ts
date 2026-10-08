@@ -46,6 +46,8 @@ export interface LiveSubscription extends Disposable, AsyncDisposable {
 export interface LiveCountSeed<T extends string = string> {
   readonly spec: QuerySpec<T, "count", number>;
   readonly count: number | null;
+  /** When the count was taken (epoch ms). `useLiveCount` counts again after joining when it is older than a second. */
+  readonly at?: number;
 }
 
 /**
@@ -264,6 +266,12 @@ export interface LiveCountOptions extends Omit<LiveQueryOptions, "onChange"> {
   readonly onError?: (error: DbError) => void;
   /** Count right away. Defaults to `true`; pass `false` when you have a seed. */
   readonly immediate?: boolean;
+  /**
+   * When the count you already have was taken (epoch ms). Counts again once
+   * the channel joins when that is more than a second ago, so a change made
+   * before the join is not lost.
+   */
+  readonly since?: number;
 }
 
 /**
@@ -306,6 +314,15 @@ export function liveCount(
     ...(options.onStatus ? { onStatus: options.onStatus } : {}),
   });
   if (options.immediate ?? true) refetch();
+  const since = options.since;
+  if (since !== undefined) {
+    live.ready.then(
+      () => {
+        if (!closed && Date.now() - since > 1000) refetch();
+      },
+      () => undefined,
+    );
+  }
   const unsubscribe = async (): Promise<void> => {
     closed = true;
     await live.unsubscribe();

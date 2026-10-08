@@ -1,10 +1,10 @@
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
+import { tenantOf } from "better-supabase/next";
 import { CheckIcon, MinusIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
 import type { Entitlement } from "@/lib/claims";
 
-import { activeOrganizationId } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 /**
@@ -12,10 +12,12 @@ import { getSession } from "@/features/user/user-queries";
  * `better_supabase.has_entitlement()` enforces them in RLS.
  */
 export async function PlanFeatures() {
-  const session = await getSession();
-  const organizationId = activeOrganizationId(session);
+  const [session, t] = await Promise.all([
+    getSession(),
+    getExtracted("billing"),
+  ]);
+  const organizationId = tenantOf(session);
   if (!organizationId) return null;
-  const t = await getExtracted("billing");
   const features = [
     ["exports", t("CSV exports")],
     ["audit", t("Audit log")],

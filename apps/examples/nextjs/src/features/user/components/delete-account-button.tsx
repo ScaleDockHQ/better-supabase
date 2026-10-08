@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionChange } from "better-supabase/next/client";
 import { useExtracted } from "next-intl";
 import { useTransition } from "react";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ export function DeleteAccountCard() {
   const errorMessage = useErrorMessage();
   const supabase = useSupabase();
   const router = useRouter();
+  const changeSession = useSessionChange(sessionChanged, router);
   const [pending, startTransition] = useTransition();
   return (
     <Card className="ring-destructive/30">
@@ -77,8 +79,7 @@ export function DeleteAccountCard() {
                     }
                     // The user is gone: drop the session without calling Auth.
                     await supabase.auth.signOut({ scope: "local" });
-                    await sessionChanged();
-                    router.push("/login");
+                    await changeSession("/login");
                   });
                 }}
               >

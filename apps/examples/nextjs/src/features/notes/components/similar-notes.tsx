@@ -14,9 +14,11 @@ import { getSimilarNotes } from "../note-queries";
 
 /** Render inside `<Suspense>`: vector search over the organization's notes. */
 export async function SimilarNotes() {
-  const result = await getSimilarNotes();
+  const [result, t] = await Promise.all([
+    getSimilarNotes(),
+    getExtracted("notes"),
+  ]);
   if (!result) return null;
-  const t = await getExtracted("notes");
   return (
     <Card>
       <CardHeader>

@@ -18,9 +18,11 @@ import { getEnabledFlags } from "../flag-queries";
  * off; this answers 404 for a direct visit too.
  */
 export async function BetaContent() {
-  const flags = await getEnabledFlags();
+  const [flags, t] = await Promise.all([
+    getEnabledFlags(),
+    getExtracted("beta"),
+  ]);
   if (!flags.includes("beta-page")) notFound();
-  const t = await getExtracted("beta");
   return (
     <Card data-testid="beta">
       <CardHeader>

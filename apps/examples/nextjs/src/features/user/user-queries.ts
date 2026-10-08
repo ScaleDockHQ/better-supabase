@@ -1,6 +1,5 @@
 import "server-only";
-import { type AuthSession, sessionStale } from "better-supabase/next";
-import { cacheLife } from "next/cache";
+import type { AuthSession } from "better-supabase/next";
 
 import type { Claims, Profile } from "@/lib/claims";
 
@@ -9,13 +8,13 @@ import { bs } from "@/lib/supabase/server";
 /**
  * The verified session, cached per browser session. The proxy refreshes the
  * token; this only verifies it locally against the JWKS, so it never calls
- * the Auth server. Call it inside a `<Suspense>` boundary.
+ * the Auth server. `bs.cached()` tags the entry with the session tag, so
+ * `bs.invalidateSession` drops it, and keeps it no longer than the token.
+ * Call it inside a `<Suspense>` boundary.
  */
 export async function getSession(): Promise<AuthSession<Claims, Profile>> {
   "use cache: private";
-  const session = await bs.session();
-  // Five minutes joins the App Shell; never past the token's expiry.
-  cacheLife({ stale: sessionStale(session) });
+  const { session } = await bs.cached();
   return session;
 }
 

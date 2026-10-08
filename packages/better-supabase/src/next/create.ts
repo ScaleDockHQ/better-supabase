@@ -8,6 +8,9 @@ import {
   updateTag,
 } from "next/cache.js";
 import { cookies, headers } from "next/headers.js";
+// Bare specifier: Next aliases `next/navigation` to its react-server build,
+// but not `next/navigation.js`, which breaks route handlers at build time.
+import { forbidden, notFound, unauthorized } from "next/navigation";
 import { after, type NextRequest, NextResponse } from "next/server.js";
 import { cache } from "react";
 
@@ -23,11 +26,13 @@ import type { SupportStartRequest } from "../server/support.ts";
 
 import { type Aal, checkAal } from "../auth/mfa.ts";
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
-import { toSession } from "../auth/view.ts";
-import { dbError } from "../core/errors.ts";
+import { tenantOf, toSession } from "../auth/view.ts";
+import { claimsOf } from "../core/claims.ts";
+import { dbError, DbException } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
 import { problemResponse } from "../core/problem.ts";
 import { isReadSet, type ReadSet } from "../core/read-set.ts";
+import { err } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { type DbStats, EMPTY_STATS } from "../core/stats.ts";
 import { bearerRequest, flushEvents, handle } from "../server/adapter.ts";
@@ -129,9 +134,37 @@ export type ActionResult<T> =
   | { readonly ok: true; readonly data: T; readonly error: null }
   | { readonly ok: false; readonly data: null; readonly error: DbError };
 
+/**
+ * Checks after `allow`, `aal` and `scopes`. A caller who fails one gets
+ * `forbidden`: an `ActionResult` error, a 403, or `forbidden()`.
+ */
+export interface AuthorizeOptions<I, C, P, R extends boolean> {
+  /** Refuse callers without an active tenant, so `ctx.tenant` is a string. */
+  readonly requireTenant?: R;
+  /** Return `false` to refuse the caller, e.g. `(session) => can(session, 'members.invite')`. */
+  readonly authorize?: (
+    session: AuthSession<C, P>,
+    input: I,
+  ) => boolean | Promise<boolean>;
+}
+
+/** What `requireTenant` and `authorize` add to the context. */
+export interface AuthorizedContext<C, P, R extends boolean> {
+  readonly session: AuthSession<C, P>;
+  /**
+   * The active tenant: the action's `tenant`, then `NextOptions.tenant`,
+   * then the tenant claim (`tenantOf(session)`).
+   */
+  readonly tenant: R extends true ? string : string | undefined;
+}
+
 export interface ActionOptions<
   S extends StandardSchemaV1 | undefined,
-> extends GuardOptions {
+  C = unknown,
+  P = unknown,
+  R extends boolean = boolean,
+>
+  extends GuardOptions, AuthorizeOptions<ActionParsed<S>, C, P, R> {
   /** Validates the input (plain object or `FormData`) with any Standard Schema. */
   readonly input?: S;
   /**
@@ -141,6 +174,23 @@ export interface ActionOptions<
    * caller belongs to.
    */
   readonly tenant?: (input: ActionParsed<S>) => string | undefined;
+}
+
+export interface RouteOptions<
+  C = unknown,
+  P = unknown,
+  R extends boolean = boolean,
+>
+  extends GuardOptions, AuthorizeOptions<NextRequest, C, P, R> {}
+
+export interface RequireOptions<
+  C = unknown,
+  P = unknown,
+  R extends boolean = boolean,
+>
+  extends GuardOptions, AuthorizeOptions<undefined, C, P, R> {
+  /** The active tenant, as for `bs.context({ tenant })`. */
+  readonly tenant?: string;
 }
 
 export interface ScopeOptions {
@@ -218,10 +268,16 @@ export interface BetterNext<
    * }
    * ```
    */
-  cached(options?: CachedOptions): Promise<CachedContext<M, F, E, C, P>>;
+  cached(
+    options?: CachedOptions<Extract<keyof M, string>>,
+  ): Promise<CachedContext<M, F, E, C, P>>;
   /**
    * Drops every `bs.cached()` entry of a user, e.g. after a role change,
    * and the entries tagged with `tags` (such as PermDock's `snapshotTag(userId)`).
+   * In a Server Action it also re-renders the caller's page, so no
+   * `refresh()` is needed. It reaches server caches and the caller's router
+   * only: another user's browser keeps its `'use cache: private'` entries
+   * until they go stale or that user's token changes.
    */
   invalidateSession(
     userId: string,
@@ -239,24 +295,47 @@ export interface BetterNext<
     db?: CountRunner,
   ): Promise<LiveCountSeed<T>>;
   /** Route handler with auth, Result unwrapping and Problem Details errors. */
-  route<Params = Record<string, string | string[]>>(
+  route<Params = Record<string, string | string[]>, R extends boolean = false>(
     handler: (
       request: NextRequest,
-      ctx: ServerContext<M, F, E, C, P> & { readonly params: Params },
+      ctx: ServerContext<M, F, E, C, P> &
+        AuthorizedContext<C, P, R> & { readonly params: Params },
     ) => unknown,
-    options?: GuardOptions,
+    options?: RouteOptions<C, P, R>,
   ): (
     request: NextRequest,
     segment: { readonly params: Promise<Params> },
   ) => Promise<Response>;
-  /** Server action returning a serializable `ActionResult`. */
-  action<S extends StandardSchemaV1 | undefined, T>(
-    options: ActionOptions<S>,
+  /**
+   * Server action returning a serializable `ActionResult`.
+   *
+   * ```ts
+   * export const invite = bs.action(
+   *   { input: Invite, requireTenant: true, authorize: (session) => can(session, 'members.invite') },
+   *   async (input, { db, tenant }) => db.invitations.create({ ...input, organizationId: tenant }),
+   * );
+   * ```
+   */
+  action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
+    options: ActionOptions<S, C, P, R>,
     fn: (
       input: ActionParsed<S>,
-      ctx: ServerContext<M, F, E, C, P>,
+      ctx: ServerContext<M, F, E, C, P> & AuthorizedContext<C, P, R>,
     ) => Promise<T> | T,
   ): (input: ActionInput<S>) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
+  /**
+   * For Server Components: the caller's context, or the Next.js interrupt
+   * for a refused caller. `unauthorized` calls `unauthorized()`, `forbidden`
+   * calls `forbidden()` (both need `experimental.authInterrupts`, else
+   * `notFound()`), and `not_found` calls `notFound()`.
+   *
+   * ```ts
+   * const { db, tenant } = await bs.require({ requireTenant: true, authorize: (s) => can(s, 'billing.read') });
+   * ```
+   */
+  require<R extends boolean = false>(
+    options?: RequireOptions<C, P, R>,
+  ): Promise<ServerContext<M, F, E, C, P> & AuthorizedContext<C, P, R>>;
   /**
    * Tags the current `"use cache"` scope with a table (and row) tag. With a
    * `tenant`, mutations in other tenants leave the entry cached.
@@ -309,10 +388,15 @@ export function supportTag(sessionId: string): string {
   return `bs:support:${sessionId}`;
 }
 
+/** The shortest time the Next.js client router keeps a prefetched entry. */
+const MIN_CLIENT_STALE = 30;
+
 export interface SessionStaleOptions {
   /**
    * With fewer seconds left on the token, the view is not reused at all (0):
-   * Next.js would not prefetch it anyway. Defaults to 30.
+   * Next.js would not prefetch it anyway. Defaults to 30, and values below
+   * 30 count as 30: the client router keeps any entry for at least 30
+   * seconds, so a shorter stale time would outlive the token.
    */
   readonly min?: number;
   /** 300 (5 minutes) joins the route's App Shell. Defaults to 300. */
@@ -331,7 +415,7 @@ export function sessionStale(
   options: SessionStaleOptions = {},
   now: number = Date.now(),
 ): number {
-  const min = options.min ?? 30;
+  const min = Math.max(MIN_CLIENT_STALE, options.min ?? MIN_CLIENT_STALE);
   const max = options.max ?? 300;
   switch (session.kind) {
     case "invalid":
@@ -355,7 +439,7 @@ export function sessionStale(
   }
 }
 
-export interface CachedOptions extends ScopeOptions {
+export interface CachedOptions<T extends string = string> extends ScopeOptions {
   /**
    * The active tenant, as for `bs.context({ tenant })`. Next.js keys the
    * private cache on your function's arguments, so take the tenant as an
@@ -374,6 +458,14 @@ export interface CachedOptions extends ScopeOptions {
   };
   /** More `cacheTag`s for the entry, e.g. `snapshotTag(sub)` or `organization:<id>`. */
   readonly tags?: readonly string[];
+  /**
+   * Tables the entry reads, so the `updateTag` after a mutation drops it:
+   * `bs:<table>`, or with an active tenant `bs:<table>@<tenant>` and
+   * `bs:<table>@*`, so other tenants' writes leave it cached.
+   */
+  readonly tables?: readonly T[];
+  /** With `tables`, also tags the row `bs:<first table>:<id>`. */
+  readonly id?: string | number;
 }
 
 export type CachedContext<
@@ -410,8 +502,14 @@ export function tagFor(
     : `bs:${table}@${options.tenant}`;
 }
 
-/** The table tags of a read: the tenant's and every tenant's, or the table's. */
+/**
+ * The table tags of a read: the tenant's and every tenant's, or the table's.
+ * A read across tenants (`"*"`) also carries the table's, which every
+ * mutation invalidates, including one scoped to a single tenant.
+ */
 function tableTags(table: string, options: TagOptions): string[] {
+  if (options.tenant === "*")
+    return [tagFor(table), tagFor(table, undefined, options)];
   return options.tenant === undefined
     ? [tagFor(table)]
     : [
@@ -477,6 +575,36 @@ export function nextCache(options: NextCacheOptions = {}): CacheAdapter {
       invalidateAll(tags, options.revalidate);
     },
   };
+}
+
+/** Whether `cause` is one of Next's own control-flow errors (they carry a `digest`). */
+function isNextInterrupt(cause: unknown): boolean {
+  return (
+    cause instanceof Error &&
+    "digest" in cause &&
+    typeof cause.digest === "string"
+  );
+}
+
+/**
+ * `unauthorized()` and `forbidden()` throw a plain error without
+ * `experimental.authInterrupts`; `notFound()` is the fallback then.
+ */
+function authInterrupt(fn: () => never): never {
+  try {
+    fn();
+  } catch (cause) {
+    if (isNextInterrupt(cause)) throw cause;
+  }
+  notFound();
+}
+
+/** The Next.js interrupt for a refused Server Component render. */
+function interrupt(error: DbError): never {
+  if (error.kind === "unauthorized") authInterrupt(unauthorized);
+  if (error.kind === "forbidden") authInterrupt(forbidden);
+  if (error.kind === "not_found") notFound();
+  throw new DbException(error);
 }
 
 function formDataObject(form: FormData): Record<string, unknown> {
@@ -652,6 +780,41 @@ export function createNext<
     },
   );
 
+  const tenantClaim = claimsOf(betterSupabase.meta).tenant;
+  /** The tenant `scoped` resolved for a context, when it wasn't the claim. */
+  const scopedTenants = new WeakMap<object, string>();
+  const tenantFor = (
+    ctx: ServerContext<M, F, E, C, P>,
+    view: AuthSession<C, P>,
+  ): string | undefined =>
+    scopedTenants.get(ctx) ?? tenantOf(view, tenantClaim);
+  /** `requireTenant` and `authorize`: the session and tenant, or why the caller is refused. */
+  const authorizeCaller = async <I>(
+    ctx: ServerContext<M, F, E, C, P>,
+    checks: AuthorizeOptions<I, C, P, boolean>,
+    input: I,
+  ): Promise<
+    | {
+        readonly session: AuthSession<C, P>;
+        readonly tenant: string | undefined;
+      }
+    | DbError
+  > => {
+    const view = toSession(ctx.auth);
+    const tenant = tenantFor(ctx, view);
+    if (checks.requireTenant && tenant === undefined) {
+      return dbError("forbidden", "Choose an organization first", {
+        code: "NO_TENANT",
+      });
+    }
+    if (checks.authorize && !(await checks.authorize(view, input))) {
+      return dbError("forbidden", "You are not allowed to do this", {
+        code: "NOT_AUTHORIZED",
+      });
+    }
+    return { session: view, tenant };
+  };
+
   /** `null` runs `NextOptions.tenant`; a string is the caller's explicit tenant. */
   const scoped = cache(
     async (explicit: string | null): Promise<ServerContext<M, F, E, C, P>> => {
@@ -661,12 +824,14 @@ export function createNext<
         base.support.current(request, resolution.auth),
       ]);
       // Both tenants take the resolver's path, so they get the same checks.
-      return core.context(
+      const ctx = core.context(
         resolution,
         request,
         { ...statsFor(request), ...(support ? { support } : {}) },
         tenant,
       );
+      if (tenant !== undefined) scopedTenants.set(ctx, tenant);
+      return ctx;
     },
   );
   const current = (tenant?: string): Promise<ServerContext<M, F, E, C, P>> =>
@@ -747,10 +912,19 @@ export function createNext<
           : { revalidate: life.revalidate }),
         ...(life?.expire === undefined ? {} : { expire: life.expire }),
       });
+      const tables = cachedOptions.tables ?? [];
+      const tenant = tables.length > 0 ? tenantFor(ctx, view) : undefined;
+      const first = tables[0];
       const tags = [
         ...(view.kind === "user" ? [sessionTag(view.user.id)] : []),
         ...(ctx.support ? [supportTag(ctx.support.session.id)] : []),
         ...(cachedOptions.tags ?? []),
+        ...tables.flatMap((table) =>
+          tableTags(table, tenant === undefined ? {} : { tenant }),
+        ),
+        ...(first !== undefined && cachedOptions.id !== undefined
+          ? [tagFor(first, cachedOptions.id)]
+          : []),
       ];
       if (tags.length > 0) cacheTag(...tags);
       return withExtra(ctx, { session: view });
@@ -767,6 +941,7 @@ export function createNext<
         spec,
         count:
           result.ok && typeof result.data === "number" ? result.data : null,
+        at: Date.now(),
       };
     },
 
@@ -806,6 +981,7 @@ export function createNext<
         !proxyOptions.after &&
         !proxyOptions.serverTiming
       ) {
+        flushAfter();
         return NextResponse.next();
       }
 
@@ -843,6 +1019,8 @@ export function createNext<
           }),
         );
       }
+      // A refresh or sign-out in `resolve`, or `protect`, can start sink sends.
+      flushAfter();
       return response;
     },
 
@@ -858,8 +1036,16 @@ export function createNext<
             async (ctx) => {
               current = ctx;
               stats = () => ctx.stats();
-              const params = await segment.params;
-              return handler(request, withExtra(ctx, { params }));
+              const [params, caller] = await Promise.all([
+                segment.params,
+                authorizeCaller(ctx, guardOptions, request),
+              ]);
+              if ("kind" in caller) return err(caller);
+              // SAFETY: requireTenant refused a missing tenant.
+              return handler(
+                request,
+                withExtra(ctx, { ...caller, params }) as never,
+              );
             },
             {
               ...guardOptions,
@@ -934,11 +1120,21 @@ export function createNext<
         // action has no schema.
         const tenant = actionOptions.tenant?.(parsed as never);
         if (tenant !== undefined) ctx = await current(tenant);
+        // SAFETY: as above, parsed is the action's input.
+        const caller = await authorizeCaller(
+          ctx,
+          actionOptions,
+          parsed as never,
+        );
+        if ("kind" in caller) return { ok: false, data: null, error: caller };
+        const scope = ctx;
         let settled: Settled;
         try {
           // SAFETY: parsed is the validated input, or the raw input when the
-          // action has no schema.
-          settled = await settle(() => fn(parsed as never, ctx));
+          // action has no schema; requireTenant refused a missing tenant.
+          settled = await settle(() =>
+            fn(parsed as never, withExtra(scope, caller) as never),
+          );
         } finally {
           // Also when redirect() or notFound() follows a write.
           flushAfter();
@@ -951,6 +1147,21 @@ export function createNext<
             : { ok: false, data: null, error: settled.error }
         ) as Out;
       };
+    },
+
+    require: async (requireOptions = {}) => {
+      const ctx = await current(requireOptions.tenant);
+      const denied = guard(
+        ctx.auth,
+        requireOptions.allow,
+        requireOptions.aal,
+        requireOptions.scopes,
+      );
+      const caller =
+        denied ?? (await authorizeCaller(ctx, requireOptions, undefined));
+      if ("kind" in caller) interrupt(caller);
+      // SAFETY: requireTenant refused a missing tenant.
+      return withExtra(ctx, caller) as never;
     },
 
     async startSupport(request) {

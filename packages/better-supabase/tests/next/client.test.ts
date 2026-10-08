@@ -49,4 +49,29 @@ describe("useSessionChange", () => {
     expect(refresh).toHaveBeenCalledOnce();
     expect(mocks.push).not.toHaveBeenCalled();
   });
+
+  it("refreshes the token before the change when asked", async () => {
+    const order: string[] = [];
+    const refreshSession = vi.fn(async () => {
+      order.push("token");
+      return { error: null };
+    });
+    const go = useSessionChange(
+      async () => {
+        order.push("changed");
+      },
+      undefined,
+      { refreshToken: { auth: { refreshSession } } },
+    );
+    await go("/en");
+    expect(order).toEqual(["token", "changed"]);
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+
+    const failing = useSessionChange(async () => undefined, undefined, {
+      refreshToken: {
+        auth: { refreshSession: async () => ({ error: new Error("expired") }) },
+      },
+    });
+    await expect(failing()).rejects.toThrow("expired");
+  });
 });

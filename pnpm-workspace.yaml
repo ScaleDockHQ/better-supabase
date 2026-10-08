@@ -62,6 +62,7 @@ catalog:
   ai: 7.0.127
   ajv: 8.20.0
   ajv-formats: 3.0.1
+  babel-plugin-react-compiler: 1.0.0
   "@vitest/coverage-v8": 5.0.3
   better-result: 3.0.1
   botid: 1.5.11
@@ -168,7 +169,8 @@ catalogs:
     # 55.0.0 added setResponseHeaders, which the Expo adapter writes cookies through.
     expo-server: ">=55 <59"
     hono: ">=4 <5"
-    next: ">=16 <17"
+    # 16.3.0 added `io()`, which `better-supabase/next` awaits before reading the session.
+    next: ">=16.3 <17"
     # 0.66.0 is the version @supabase/postgrest-typegen pins; the CLI tests run
     # on the newer oxfmt in the default catalog.
     oxfmt: ">=0.66.0 <1"

@@ -12,6 +12,8 @@ import {
 import { type Impersonator, impersonatorOf } from "./impersonation.ts";
 import { type Aal, aalOf, type AmrEntry, amrOf } from "./mfa.ts";
 
+export { tenantOf } from "./tenant.ts";
+
 /**
  * The verified caller as plain data: no token, no clients. Safe to return
  * from a `'use cache: private'` function and to pass to Client Components.

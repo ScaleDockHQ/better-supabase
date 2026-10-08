@@ -20,6 +20,17 @@ export type {
   LiveQueryHookOptions,
   ProfileOf,
 } from "./hooks.ts";
+export { useAction, useActionForm } from "./actions.ts";
+export { fieldErrorsOf } from "./field-errors.ts";
+export { tenantOf } from "../auth/tenant.ts";
+export type {
+  ActionForm,
+  ActionHandle,
+  ActionInputOf,
+  ActionResultOf,
+  UseActionFormOptions,
+  UseActionOptions,
+} from "./actions.ts";
 export { SessionProvider, useSession, useSupportSession } from "./session.ts";
 export type { SessionProviderProps } from "./session.ts";
 export type { AuthSession } from "../auth/view.ts";

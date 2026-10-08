@@ -44,9 +44,11 @@ function Stat({
 
 /** Render inside `<Suspense>`; the fallback is `WorkspaceSummarySkeleton`. */
 export async function WorkspaceSummary() {
-  const summary = await getWorkspaceSummary();
+  const [summary, t] = await Promise.all([
+    getWorkspaceSummary(),
+    getExtracted("dashboard"),
+  ]);
   if (!summary) return null;
-  const t = await getExtracted("dashboard");
   return (
     <div
       className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"

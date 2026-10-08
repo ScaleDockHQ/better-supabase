@@ -1,7 +1,8 @@
 "use client";
 
+import { useAction } from "better-supabase/react";
 import { useExtracted } from "next-intl";
-import { useId, useOptimistic, useTransition } from "react";
+import { useId } from "react";
 import { toast } from "sonner";
 
 import {
@@ -19,8 +20,11 @@ export function WeeklyDigestSwitch({ enabled }: { enabled: boolean }) {
   const t = useExtracted("user");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
-  const [optimistic, setOptimistic] = useOptimistic(enabled);
-  const [, startTransition] = useTransition();
+  const save = useAction(setWeeklyDigest, {
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
   return (
     <Field orientation="horizontal">
       <FieldContent>
@@ -35,13 +39,9 @@ export function WeeklyDigestSwitch({ enabled }: { enabled: boolean }) {
       </FieldContent>
       <Switch
         id={`${fieldId}-weekly-digest`}
-        checked={optimistic}
+        checked={save.pendingInput?.enabled ?? enabled}
         onCheckedChange={(checked: boolean) => {
-          startTransition(async () => {
-            setOptimistic(checked);
-            const result = await setWeeklyDigest({ enabled: checked });
-            if (!result.ok) toast.error(errorMessage(result.error));
-          });
+          void save.run({ enabled: checked });
         }}
       />
     </Field>

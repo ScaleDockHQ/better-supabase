@@ -1,7 +1,10 @@
 # instant-nav rig: Next.js example
 
 - BUILD: `pnpm --filter better-supabase build` once (the example imports its
-  `dist`), then Playwright's `webServer` runs `next build && next start -p 3100`.
+  `dist`), then Playwright's `webServer` runs `node e2e/serve.ts`: one
+  `next build`, then `next start` on 3100 and, once that answers, a second
+  `next start` on 3101 with `BS_FETCH_DELAY_MS=3000`, where every Supabase
+  request from the server (`src/lib/latency.ts`) waits 3 s.
 - EXPOSE: `EXPOSE_TESTING_API=1`, which `webServer` sets for the build and
   `next start`. It turns on `experimental.exposeTestingApiInProductionBuild`
   in `next.config.ts` and `debug.enabled` in `src/lib/supabase/server.ts`
@@ -10,7 +13,8 @@
   local stack (`pnpm supabase:reset`), then runs `playwright test`. Use
   `pnpm exec playwright test e2e/<file>` from `apps/examples/nextjs` to run one
   contract without a reset; the flows spec creates users and invitations, so
-  reset before running it twice. `baseURL` is `http://127.0.0.1:3100`.
+  reset before running it twice. `baseURL` is `http://127.0.0.1:3100`; the
+  `latency` project (`--project=latency`, only `latency.spec.ts`) uses 3101.
 - TEST USERS (`e2e/users.ts`, password `password123`, from `supabase/seed.sql`):
   `admin@acme.test` (owner of Acme, member of Globex), `member@acme.test`
   (member of Acme) and `owner@globex.test` (owner of Globex). The setup
@@ -44,6 +48,15 @@
     organization, password reset through Mailpit, the organization switch
     without a reload, the language switch, the theme before first paint, and
     invite, sign-up and accept (`flows.spec.ts`).
+  - Latency, on 3101 (`latency.spec.ts`, timed from the navigation until the
+    locator is visible; page loads wait for `commit`, not `load`, because
+    `load` waits for the whole stream): `/login` under 1 s; a cold dashboard
+    `h1` under 1.5 s and its summary after 2.5 s or more; Customers 2.5 s or
+    more on a full load, under 1 s on the next sidebar visit and 2.5 s or
+    more again on reload; the plan grid under 1 s on reload and for another
+    user while their subscription takes 2.5 s or more; a customer search 2.5
+    s or more the first time (`page.route()` delays the browser's
+    `/rest/v1/customers` calls) and under 1 s for the same search again.
 - LOOP: local build, start and test through `webServer`, edit, repeat. The
   agent can run every step.
 - LIVENESS: n/a; local build and start.
@@ -53,7 +66,16 @@
   `ms-playwright` cache, or run `pnpm exec playwright install chromium`.
   A database budget only works on a navigation that reaches the server: one
   served from the client cache has no `x-bs-request-id` response and fails.
+- TIMINGS (one local run, 3 s delay): login 27 ms; dashboard shell 62 ms,
+  summary 3397 ms; Customers full load 3333 ms, warm visit 40 ms, reload
+  3356 ms; search 3323 ms, again 14 ms; plans 63 ms on the first load (a
+  sidebar prefetch on the same server had already filled the shared cache),
+  76 ms on reload and 63 ms for another user, whose subscription took
+  3403 ms.
 - DIFFERENTIAL: replacing `"use cache: private"` and `bs.cached()` in
   `getCustomers` with `bs.context()` turns both Customers list contracts RED
   ("not in the prefetched UI"); restoring it turns them GREEN. Removing only
   the directive fails the render, because `bs.cached()` calls `cacheLife()`.
+  With the delay, removing `"use cache"` from `getPlans` turns the shared
+  plan catalog contract RED (the reload waits for the database); restoring
+  it turns it GREEN.

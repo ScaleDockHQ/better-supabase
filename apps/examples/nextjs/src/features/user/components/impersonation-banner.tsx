@@ -10,9 +10,8 @@ import { getSession } from "../user-queries";
  * the user, and the audit log records who acted. Render inside `<Suspense>`.
  */
 export async function ImpersonationBanner() {
-  const session = await getSession();
+  const [session, t] = await Promise.all([getSession(), getExtracted("user")]);
   if (session.kind !== "user" || !session.impersonator) return null;
-  const t = await getExtracted("user");
   const { id, reason } = session.impersonator;
   return (
     <Alert variant="destructive" data-testid="impersonation">

@@ -325,6 +325,27 @@ function claimedTenant(
   return undefined;
 }
 
+function specKey(spec: QuerySpec): string {
+  return JSON.stringify(spec, (_key, value: unknown) =>
+    typeof value === "bigint" ? { $bigint: value.toString() } : value,
+  );
+}
+
+/**
+ * The spec from the render whose key last changed, so effects keep the
+ * original values (`bigint`, Temporal) and only rerun on a different query.
+ */
+function useHeldSpec<S extends QuerySpec>(
+  spec: S | null | undefined,
+): { readonly key: string | null; readonly spec: S | null } {
+  const key = spec ? specKey(spec) : null;
+  const [held, setHeld] = useState({ key, spec: spec ?? null });
+  if (held.key === key) return held;
+  const next = { key, spec: spec ?? null };
+  setHeld(next);
+  return next;
+}
+
 /**
  * Keeps a query fresh: invalidates every cached query that read a table the
  * spec touches whenever one of them changes. Pass `null` to pause. It
@@ -348,31 +369,36 @@ export function useLiveQuery(
       "better-supabase: useLiveQuery needs <BetterSupabaseProvider queryClient={...}>",
     );
   }
-  const key = spec ? JSON.stringify(spec) : null;
+  const held = useHeldSpec(spec);
+  const joined = useRef<string | null>(null);
   const tenant =
     options.tenant ?? claimedTenant(auth, client.betterSupabase.meta);
   const userId = auth.user?.id ?? null;
   const debounceMs = options.debounceMs;
 
   useEffect(() => {
-    if (!key || !queryClient || auth.status === "loading") return;
-    // SAFETY: key is JSON.stringify of the QuerySpec this hook received.
-    const live = liveQuery(
-      client.betterSupabase,
-      client.supabase,
-      JSON.parse(key) as QuerySpec,
-      {
-        onChange: (tables) => void invalidateTables(queryClient, tables),
-        onStatus: setStatus,
-        ...(tenant === undefined ? {} : { tenant }),
-        ...(userId === null ? {} : { user: userId }),
-        ...(debounceMs === undefined ? {} : { debounceMs }),
-      },
-    );
+    if (!held.spec || !queryClient || auth.status === "loading") return;
+    // A rejoin with the same spec (an <Activity> shown again) missed the
+    // changes made while it was hidden.
+    const resumed = joined.current === held.key;
+    joined.current = held.key;
+    const live = liveQuery(client.betterSupabase, client.supabase, held.spec, {
+      onChange: (tables) => void invalidateTables(queryClient, tables),
+      onStatus: setStatus,
+      ...(tenant === undefined ? {} : { tenant }),
+      ...(userId === null ? {} : { user: userId }),
+      ...(debounceMs === undefined ? {} : { debounceMs }),
+    });
+    if (resumed) {
+      live.ready.then(
+        () => void invalidateTables(queryClient, live.tables),
+        () => undefined,
+      );
+    }
     return () => {
       void live.unsubscribe();
     };
-  }, [client, queryClient, key, tenant, userId, auth.status, debounceMs]);
+  }, [client, queryClient, held, tenant, userId, auth.status, debounceMs]);
 
   return status;
 }
@@ -414,33 +440,49 @@ export function useLiveCount(
   const [state, setState] = useState<{
     readonly key: string | null;
     readonly count: number | undefined;
+    readonly at: number;
     readonly error: DbError | undefined;
-  }>({ key: null, count: undefined, error: undefined });
+  }>({ key: null, count: undefined, at: 0, error: undefined });
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
-  const key = spec ? JSON.stringify(spec) : null;
+  // SAFETY: a seed holds a count spec, and a plain source is one.
+  const held = useHeldSpec(
+    spec as QuerySpec<string, "count", number> | null | undefined,
+  );
+  const joined = useRef<{ key: string | null; at: number } | null>(null);
   const tenant =
     options.tenant ?? claimedTenant(auth, client.betterSupabase.meta);
   const userId = auth.user?.id ?? null;
   const debounceMs = options.debounceMs;
   const hasInitial = initial !== undefined;
+  const seedAt = seed?.at;
 
   useEffect(() => {
-    if (!key || auth.status === "loading") return;
-    // SAFETY: the client db runs count specs, and key is JSON.stringify of a count spec.
+    if (!held.spec || auth.status === "loading") return;
+    const key = held.key;
+    // A rejoin with the same spec (an <Activity> shown again) counts again
+    // once joined: changes made while it was hidden were missed.
+    const previous = joined.current?.key === key ? joined.current : null;
+    joined.current = { key, at: previous?.at ?? seedAt ?? 0 };
+    const since = previous ? previous.at : seedAt;
+    // SAFETY: the client db runs count specs.
     const live = liveCount(
       client.betterSupabase,
       client.supabase,
       client.db as CountRunner,
-      JSON.parse(key) as QuerySpec<string, "count", number>,
+      held.spec,
       {
-        immediate: !hasInitial,
+        immediate: !hasInitial && !previous,
+        ...(since === undefined ? {} : { since }),
         onCount: (count) => {
-          setState({ key, count, error: undefined });
+          const at = Date.now();
+          if (joined.current?.key === key) joined.current = { key, at };
+          setState({ key, count, at, error: undefined });
         },
         onError: (error) => {
-          setState((previous) => ({
+          setState((last) => ({
             key,
-            count: previous.key === key ? previous.count : undefined,
+            count: last.key === key ? last.count : undefined,
+            at: last.key === key ? last.at : 0,
             error,
           }));
         },
@@ -453,11 +495,24 @@ export function useLiveCount(
     return () => {
       void live.unsubscribe();
     };
-  }, [client, key, tenant, userId, auth.status, debounceMs, hasInitial]);
+  }, [
+    client,
+    held,
+    tenant,
+    userId,
+    auth.status,
+    debounceMs,
+    hasInitial,
+    seedAt,
+  ]);
 
-  const fresh = state.key === key;
+  const fresh = state.key === held.key;
+  // A seed rendered after the last client count (a router.refresh()) wins.
+  const seedNewer =
+    seedAt !== undefined && seed?.count !== null && seedAt > state.at;
   return {
-    count: fresh && state.count !== undefined ? state.count : initial,
+    count:
+      fresh && state.count !== undefined && !seedNewer ? state.count : initial,
     status,
     error: fresh ? state.error : undefined,
   };

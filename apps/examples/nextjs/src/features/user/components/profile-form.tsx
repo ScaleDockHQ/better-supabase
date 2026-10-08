@@ -1,7 +1,8 @@
 "use client";
 
+import { useActionForm } from "better-supabase/react";
 import { useExtracted } from "next-intl";
-import { useActionState, useId } from "react";
+import { useId } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -27,17 +28,15 @@ export function ProfileForm({
   const t = useExtracted("user");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
-  const [error, submit, pending] = useActionState(
-    async (_previous: string | null, form: FormData) => {
-      const result = await updateProfile(form);
-      if (!result.ok) return errorMessage(result.error);
+  const form = useActionForm(updateProfile, {
+    resetOnSuccess: false,
+    onSuccess: () => {
       toast.success(t("Profile saved"));
-      return null;
     },
-    null,
-  );
+  });
+  const error = form.error === undefined ? null : errorMessage(form.error);
   return (
-    <form action={submit} className="space-y-6">
+    <form {...form.formProps} className="space-y-6">
       <FieldGroup>
         <Field data-invalid={error ? true : undefined}>
           <FieldLabel htmlFor={`${fieldId}-profile-name`}>
@@ -68,7 +67,7 @@ export function ProfileForm({
           </FieldDescription>
         </Field>
       </FieldGroup>
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={form.pending}>
         {t("Save")}
       </Button>
     </form>

@@ -3,10 +3,16 @@ import type { AuthSession } from "../auth/view.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { LiveCountSeed } from "../realtime/live.ts";
 import type {
+  ActionForm,
+  ActionHandle,
+  ActionInputOf,
+  ActionResultOf,
   BetterHooks,
   ClientLike,
   LiveCount,
   LiveCountHookOptions,
+  UseActionFormOptions,
+  UseActionOptions,
 } from "./index.ts";
 
 export {
@@ -19,6 +25,16 @@ export {
 // Kept external by tsdown so it stays a `'use client'` module: a Server
 // Component layout can render it and pass the session promise across.
 export { SessionProvider } from "./session.js";
+export { fieldErrorsOf } from "./field-errors.ts";
+export { tenantOf } from "../auth/tenant.ts";
+export type {
+  ActionForm,
+  ActionHandle,
+  ActionInputOf,
+  ActionResultOf,
+  UseActionFormOptions,
+  UseActionOptions,
+} from "./index.ts";
 export type {
   BetterHooks,
   BetterSupabaseProviderProps,
@@ -59,6 +75,18 @@ export const useLiveCount: (
   source: QuerySpec<string, "count", number> | LiveCountSeed | null | undefined,
   options?: LiveCountHookOptions,
 ) => LiveCount = clientOnly("useLiveCount");
+
+/** The `react-server` build of `useAction`: call the Server Action directly instead. */
+export const useAction: <I, T>(
+  action: (input: I) => Promise<ActionResultOf<T>>,
+  options?: UseActionOptions<ActionInputOf<I>, T>,
+) => ActionHandle<ActionInputOf<I>, T> = clientOnly("useAction");
+
+/** The `react-server` build of `useActionForm`: render the form in a Client Component. */
+export const useActionForm: <T>(
+  action: (input: FormData) => Promise<ActionResultOf<T>>,
+  options?: UseActionFormOptions<T>,
+) => ActionForm<T> = clientOnly("useActionForm");
 
 /**
  * The `react-server` build of `createHooks`: importing a module that creates

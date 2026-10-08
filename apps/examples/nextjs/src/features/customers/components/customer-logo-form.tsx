@@ -1,8 +1,9 @@
 "use client";
 
+import { useActionForm } from "better-supabase/react";
 import { UploadIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { useActionState, useId } from "react";
+import { useId } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -21,17 +22,14 @@ export function CustomerLogoForm({ customerId }: { customerId: string }) {
   const t = useExtracted("customers");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
-  const [error, submit, pending] = useActionState(
-    async (_previous: string | null, form: FormData) => {
-      const result = await uploadCustomerLogo(form);
-      if (!result.ok) return errorMessage(result.error);
+  const form = useActionForm(uploadCustomerLogo, {
+    onSuccess: () => {
       toast.success(t("Logo updated"));
-      return null;
     },
-    null,
-  );
+  });
+  const error = form.error === undefined ? null : errorMessage(form.error);
   return (
-    <form action={submit} className="space-y-3">
+    <form {...form.formProps} className="space-y-3">
       <input type="hidden" name="customerId" value={customerId} />
       <Field data-invalid={error ? true : undefined}>
         <FieldLabel htmlFor={`${fieldId}-customer-logo`}>
@@ -49,7 +47,7 @@ export function CustomerLogoForm({ customerId }: { customerId: string }) {
         </FieldDescription>
         {error ? <FieldError>{error}</FieldError> : null}
       </Field>
-      <Button type="submit" variant="outline" size="sm" disabled={pending}>
+      <Button type="submit" variant="outline" size="sm" disabled={form.pending}>
         <UploadIcon />
         {t("Upload logo")}
       </Button>

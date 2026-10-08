@@ -1,3 +1,4 @@
+import { tenantOf } from "better-supabase/next";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
@@ -11,7 +12,6 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { activeOrganizationId } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
@@ -19,11 +19,14 @@ import { type OnboardingStepId, getOnboarding } from "../dashboard-queries";
 
 /** Render inside `<Suspense>`; hidden once every step is done. */
 export async function OnboardingCard() {
-  const organizationId = activeOrganizationId(await getSession());
+  const [session, t] = await Promise.all([
+    getSession(),
+    getExtracted("dashboard"),
+  ]);
+  const organizationId = tenantOf(session);
   if (!organizationId) return null;
   const progress = await getOnboarding(organizationId);
   if (progress.done) return null;
-  const t = await getExtracted("dashboard");
   const titles = {
     customer: t("Add your first customer"),
     invite: t("Invite a teammate"),

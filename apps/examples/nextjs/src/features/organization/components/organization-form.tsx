@@ -1,7 +1,8 @@
 "use client";
 
+import { useActionForm } from "better-supabase/react";
 import { useExtracted } from "next-intl";
-import { useActionState, useId } from "react";
+import { useId } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -29,21 +30,20 @@ export function OrganizationForm({
   const t = useExtracted("organization");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
-  const [error, submit, pending] = useActionState(
-    async (_previous: string | null, form: FormData) => {
-      const result = await updateOrganization(form);
-      if (!result.ok) {
-        return result.error.kind === "conflict"
-          ? t("That URL is taken. Pick another one.")
-          : errorMessage(result.error);
-      }
+  const form = useActionForm(updateOrganization, {
+    resetOnSuccess: false,
+    onSuccess: () => {
       toast.success(t("Organization saved"));
-      return null;
     },
-    null,
-  );
+  });
+  const error =
+    form.error === undefined
+      ? null
+      : form.error.kind === "conflict"
+        ? t("That URL is taken. Pick another one.")
+        : errorMessage(form.error);
   return (
-    <form action={submit} className="space-y-6">
+    <form {...form.formProps} className="space-y-6">
       <fieldset disabled={!canEdit}>
         <FieldGroup>
           <Field>
@@ -80,7 +80,7 @@ export function OrganizationForm({
         </FieldGroup>
       </fieldset>
       {canEdit ? (
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={form.pending}>
           {t("Save")}
         </Button>
       ) : (

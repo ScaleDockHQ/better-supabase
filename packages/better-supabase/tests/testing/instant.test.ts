@@ -185,4 +185,29 @@ describe("expectInstant", () => {
       expectInstant(fake.page, { during: navigate, visible: [], maxWaves: 2 }),
     ).rejects.toThrow(/over the budget of ∞ calls and 2 waves/);
   });
+
+  it("measures the render that streams in after the lock releases", async () => {
+    const fake = fakePage({ renders: { late: stats(9, 3) } });
+    const navigate = (): Promise<void> => {
+      setTimeout(() => {
+        fake.respond("late", "/customers?_rsc=1");
+      }, 20);
+      return Promise.resolve();
+    };
+    await expect(
+      expectInstant(fake.page, { during: navigate, visible: [], maxCalls: 2 }),
+    ).rejects.toThrow(/over the budget of 2 calls/);
+  });
+
+  it("fails a budget when no render was measured", async () => {
+    const fake = fakePage();
+    await expect(
+      expectInstant(fake.page, {
+        during: () => Promise.resolve(),
+        visible: [],
+        maxCalls: 0,
+        settleMs: 10,
+      }),
+    ).rejects.toThrow(/no response carried x-bs-request-id/);
+  });
 });

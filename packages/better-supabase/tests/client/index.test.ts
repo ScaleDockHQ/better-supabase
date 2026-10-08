@@ -190,26 +190,28 @@ describe("createClient", () => {
     });
   });
 
-  it("notifies subscribers only when the user or the token expiry changes", () => {
+  it("notifies subscribers when the user or a claim changes, not on a refresh", () => {
     const { browser, emit } = setup();
     const listener = vi.fn();
     const unsubscribe = browser.auth.subscribe(listener);
     const user = { id: "u1" };
 
-    emit(session(token({ exp: 1 }), user));
+    emit(session(token({ exp: 1, tenant_id: "t1" }), user));
     const db = browser.db;
+    const snapshot = browser.auth.current();
     expect(listener).toHaveBeenCalledTimes(1);
 
-    emit(session(token({ exp: 1, extra: true }), user));
+    emit(session(token({ exp: 2, iat: 1, jti: "j", tenant_id: "t1" }), user));
     expect(listener).toHaveBeenCalledTimes(1);
     expect(browser.db).toBe(db);
+    expect(browser.auth.current()).toBe(snapshot);
 
-    emit(session(token({ exp: 2 }), user));
+    emit(session(token({ exp: 3, tenant_id: "t2" }), user));
     expect(listener).toHaveBeenCalledTimes(2);
     expect(browser.db).not.toBe(db);
-    expect(browser.auth.current().claims).toEqual({ exp: 2 });
+    expect(browser.auth.current().claims).toEqual({ exp: 3, tenant_id: "t2" });
 
-    emit(session(token({ exp: 2 }), { id: "u2" }));
+    emit(session(token({ exp: 3, tenant_id: "t2" }), { id: "u2" }));
     expect(listener).toHaveBeenCalledTimes(3);
     expect(browser.auth.current().user?.id).toBe("u2");
 
