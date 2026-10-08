@@ -1,16 +1,23 @@
 import { Suspense } from "react";
 
 import {
-  BillingOverview,
-  BillingOverviewSkeleton,
+  CurrentPlan,
+  CurrentPlanSkeleton,
+  PlanGrid,
+  PlanGridSkeleton,
 } from "@/features/billing/components/billing-overview";
 
 export const instant = true;
 
 export default function BillingSettingsPage() {
   return (
-    <Suspense fallback={<BillingOverviewSkeleton />}>
-      <BillingOverview />
-    </Suspense>
+    <div className="space-y-6">
+      <Suspense fallback={<CurrentPlanSkeleton />}>
+        <CurrentPlan />
+      </Suspense>
+      <Suspense fallback={<PlanGridSkeleton />}>
+        <PlanGrid />
+      </Suspense>
+    </div>
   );
 }

@@ -9,6 +9,7 @@
         "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
         "NEXT_PUBLIC_SUPABASE_URL"
       ],
+      "passThroughEnv": ["BS_FETCH_DELAY_MS"],
       "inputs": ["$TURBO_DEFAULT$", ".env.production"]
     }
   }

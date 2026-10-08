@@ -500,6 +500,31 @@ msgid "Already have an account?"
 msgstr "Heb je al een account?"
 
 #: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.ZBALng"
+msgid "Current plan"
+msgstr "Huidig abonnement"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.wL4Olp"
+msgid "Renews {date}"
+msgstr "Verlengt op {date}"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.lyN_DP"
+msgid "No renewal date"
+msgstr "Geen verlengdatum"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.450Fty"
+msgid "None"
+msgstr "Geen"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.n1Whvj"
+msgid "Switch"
+msgstr "Overstappen"
+
+#: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.tf1lIh"
 msgid "Free"
 msgstr "Gratis"
@@ -531,31 +556,6 @@ msgstr "Auditlog"
 msgctxt "billing.YQJkxw"
 msgid "Single sign-on"
 msgstr "Single sign-on"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.ZBALng"
-msgid "Current plan"
-msgstr "Huidig abonnement"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.wL4Olp"
-msgid "Renews {date}"
-msgstr "Verlengt op {date}"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.lyN_DP"
-msgid "No renewal date"
-msgstr "Geen verlengdatum"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.450Fty"
-msgid "None"
-msgstr "Geen"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.n1Whvj"
-msgid "Switch"
-msgstr "Overstappen"
 
 #: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.1Z5h3H"

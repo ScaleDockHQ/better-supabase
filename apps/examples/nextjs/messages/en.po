@@ -500,6 +500,31 @@ msgid "Already have an account?"
 msgstr "Already have an account?"
 
 #: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.ZBALng"
+msgid "Current plan"
+msgstr "Current plan"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.wL4Olp"
+msgid "Renews {date}"
+msgstr "Renews {date}"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.lyN_DP"
+msgid "No renewal date"
+msgstr "No renewal date"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/billing/components/billing-overview.tsx
+msgctxt "billing.n1Whvj"
+msgid "Switch"
+msgstr "Switch"
+
+#: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.tf1lIh"
 msgid "Free"
 msgstr "Free"
@@ -531,31 +556,6 @@ msgstr "Audit log"
 msgctxt "billing.YQJkxw"
 msgid "Single sign-on"
 msgstr "Single sign-on"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.ZBALng"
-msgid "Current plan"
-msgstr "Current plan"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.wL4Olp"
-msgid "Renews {date}"
-msgstr "Renews {date}"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.lyN_DP"
-msgid "No renewal date"
-msgstr "No renewal date"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.450Fty"
-msgid "None"
-msgstr "None"
-
-#: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.n1Whvj"
-msgid "Switch"
-msgstr "Switch"
 
 #: src/features/billing/components/billing-overview.tsx
 msgctxt "billing.1Z5h3H"
