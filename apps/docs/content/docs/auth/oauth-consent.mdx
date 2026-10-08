@@ -1,0 +1,111 @@
+---
+title: OAuth consent and connected agents
+description: Serve the consent page for the Supabase Auth OAuth server from your app, and let users see and disconnect the agents they approved.
+---
+
+When the Supabase Auth OAuth server is on, an MCP client or another OAuth
+client signs a user in by sending them to a consent page in your app. The
+user approves or denies, and Auth redirects back to the client with a code or
+an `access_denied` error. The Next.js example serves that page at
+`/oauth/consent` and lists the approved clients under Settings, Security.
+Both run in the browser with the Supabase client the app already has.
+
+## Configuration
+
+Auth sends users to `authorization_url_path`, relative to the Auth Site URL:
+
+```toml title="supabase/config.toml"
+[auth.oauth_server]
+enabled = true
+authorization_url_path = "/oauth/consent"
+```
+
+The page needs a signed-in user. Leave it out of the proxy's public paths:
+a signed-out visitor goes to sign-in with the consent URL (including
+`authorization_id`) in `next`, and the login form returns them to it through
+`safeNext`. The [MCP blocks guide](/docs/guides/supabase-blocks#requirements)
+covers the rest of the OAuth server setup.
+
+## The consent page
+
+The page reads `authorization_id` from the URL and asks Auth for the request.
+Auth answers with the client, the user and the requested scopes, or with a
+`redirect_url` when the user approved this client before:
+
+```tsx title="src/features/auth/components/oauth-consent-form.tsx"
+"use client";
+
+// A request the user consented to before is used up by the first read, so a
+// second effect run (Strict Mode) has to share it.
+const reads = new Map<string, Promise<AuthOAuthAuthorizationDetailsResponse>>();
+
+useEffect(() => {
+  const id = new URLSearchParams(window.location.search).get(
+    "authorization_id",
+  );
+  if (!id) return;
+  let read = reads.get(id);
+  if (!read) {
+    read = supabase.auth.oauth.getAuthorizationDetails(id);
+    reads.set(id, read);
+  }
+  void read.then((result) => {
+    if (result.error) return showError(result.error.message);
+    if (!("authorization_id" in result.data)) {
+      window.location.replace(result.data.redirect_url);
+      return;
+    }
+    showConsent(result.data); // client.name, user.email, scope, redirect_uri
+  });
+}, [supabase]);
+```
+
+Share the read per `authorization_id`. For a client the user already
+approved, the first read uses up the request, and a second read (React
+Strict Mode runs effects twice in development) fails with "authorization
+request cannot be processed".
+
+Approve and Deny pass `skipBrowserRedirect` so the page decides when to
+leave, and keep the buttons disabled until it does:
+
+```ts
+const result = approve
+  ? await supabase.auth.oauth.approveAuthorization(id, {
+      skipBrowserRedirect: true,
+    })
+  : await supabase.auth.oauth.denyAuthorization(id, {
+      skipBrowserRedirect: true,
+    });
+if (result.error) return showError(result.error.message);
+window.location.assign(result.data.redirect_url);
+```
+
+The browser only ever goes to a `redirect_url` that Auth returned, which
+points at a redirect URI the client registered. Show the host of
+`redirect_uri` on the page so the user sees where approving sends them.
+
+The approved client acts as the user: its tokens carry the user's `sub`, so
+RLS and every repository call see the same rows the user does. The page says
+so next to the scopes.
+
+## Connected agents
+
+`listGrants` returns every client the user approved, with its scopes and
+`granted_at`. `revokeGrant` disconnects one:
+
+```tsx title="src/features/user/components/connected-agents-card.tsx"
+const { data: grants } = await supabase.auth.oauth.listGrants();
+
+const { error } = await supabase.auth.oauth.revokeGrant({
+  clientId: grant.client.id,
+});
+```
+
+Revoking ends the client's sessions and invalidates its refresh tokens. An
+access token it already holds is verified locally and stays valid until it
+expires, one hour by default, so say that in the UI. If that window matters,
+add the `session_active()` policy from
+[Ended sessions](/docs/auth/account-deletion#ended-sessions): the revoked
+client's session is gone, so the policy refuses its writes right away.
+
+A denied request creates no grant, so the client never appears in the list.

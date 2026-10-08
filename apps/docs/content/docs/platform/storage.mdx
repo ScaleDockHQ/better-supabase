@@ -497,6 +497,52 @@ const reservation = await logos
 await logos.connect(supabase).uploadReserved(reservation, file).orThrow();
 ```
 
+### Several files and progress
+
+The dropzone block in the Supabase library uploads every file again when one
+fails and reports no byte progress. Since `upload` returns a `Result` per
+file, keep the files that failed and retry only those:
+
+```ts
+const storage = files.connect(supabase); // path: "{organizationId}/{file}"
+const results = await Promise.all(
+  selected.map(async (file) => ({
+    file,
+    result: await storage.upload({ organizationId, file: file.name }, file),
+  })),
+);
+const failed = results
+  .filter(({ result }) => !result.ok)
+  .map(({ file }) => file);
+// show the errors, then call the same code with `failed` when the user retries
+```
+
+A retry can find the object already there when an earlier attempt reached
+Storage but its response didn't reach the browser. That is a `conflict`; pass
+`upsert: true` when overwriting is fine.
+
+`upload` and `uploadReserved` send the file with `fetch`, which reports no
+upload progress. For a progress bar, reserve the path on the server and send
+the file to `reservation.signedUrl` with `XMLHttpRequest`:
+
+```ts
+const body = new FormData();
+body.append("cacheControl", "3600");
+body.append("", file);
+
+const request = new XMLHttpRequest();
+request.upload.onprogress = (event) => setProgress(event.loaded / event.total);
+request.open("PUT", reservation.signedUrl);
+request.send(body);
+```
+
+This skips the client-side size and type checks, so Storage's
+`fileSizeLimit` and `allowedMimeTypes` are the ones that apply. For files
+large enough to need resuming, use a TUS client against Storage's
+[resumable uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads)
+endpoint. The [attachments block](/docs/blocks/attachments) records each
+upload as a row and scans it before anyone can download it.
+
 ### Orphan sweep
 
 Run it from a job to remove objects nothing references anymore:

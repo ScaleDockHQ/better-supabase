@@ -41,15 +41,21 @@ function fakeClient(
     : new Error("Unauthorized"),
 ) {
   const listeners: Listener[] = [];
+  const syncs: (() => void)[] = [];
   const removed: unknown[] = [];
   const open: unknown[] = [];
+  let presence: Record<string, Record<string, unknown>[]> = {};
   let report: ((status: string, error?: Error) => void) | undefined;
   const channel = {
     topic: "",
-    on: (_type: string, _filter: unknown, listener: Listener) => {
-      listeners.push(listener);
+    on: vi.fn((type: string, _filter: unknown, listener: Listener) => {
+      if (type === "presence") syncs.push(listener as () => void);
+      else listeners.push(listener);
       return channel;
-    },
+    }),
+    presenceState: () => presence,
+    track: vi.fn(async (_state: unknown): Promise<string> => "ok"),
+    untrack: vi.fn(async (): Promise<string> => "ok"),
     subscribe: vi.fn((callback: (status: string, error?: Error) => void) => {
       open.push(channel);
       report = callback;
@@ -81,11 +87,16 @@ function fakeClient(
   const emit = (event: string, payload: unknown) => {
     for (const listener of listeners) listener({ event, payload });
   };
+  const sync = (state: Record<string, Record<string, unknown>[]>) => {
+    presence = state;
+    for (const listener of syncs) listener();
+  };
   return {
     client: client as unknown as RealtimeClient,
     raw: client,
     channel,
     emit,
+    sync,
     removed,
   };
 }
@@ -412,7 +423,7 @@ describe("defineTopic", () => {
 
   it("joins public topics without setAuth and passes self", async () => {
     const room = defineTopic("room:{roomId}", { private: false });
-    const { client, raw } = fakeClient();
+    const { client, raw, channel } = fakeClient();
     const subscription = room.subscribe(
       client,
       { roomId: "r1" },
@@ -420,6 +431,7 @@ describe("defineTopic", () => {
       { self: true },
     );
     await subscription.ready;
+    expect(channel.subscribe).toHaveBeenCalledTimes(1);
     expect(raw.realtime.setAuth).not.toHaveBeenCalled();
     expect(raw.channel).toHaveBeenCalledWith("room:r1", {
       config: { private: false, broadcast: { self: true } },
@@ -543,6 +555,180 @@ describe("defineTopic", () => {
       await subscription.ready;
     }
     expect(removed).toHaveLength(1);
+  });
+});
+
+describe("presence", () => {
+  const cursor: StandardSchemaV1<unknown, { name: string }> = {
+    "~standard": {
+      version: 1,
+      vendor: "test",
+      validate: (value) =>
+        typeof (value as { name?: unknown } | null)?.name === "string"
+          ? { value: { name: (value as { name: string }).name } }
+          : { issues: [{ message: "name is required" }] },
+    },
+  };
+  const room = defineTopic("room:{roomId}", { presence: cursor });
+  const values = { roomId: "r1" };
+
+  it("listens for presence only on presence topics", async () => {
+    const { client, channel } = fakeClient();
+    using plain = defineTopic("plain:{roomId}").subscribe(client, values, {});
+    await plain.ready;
+    expect(channel.on).not.toHaveBeenCalledWith(
+      "presence",
+      expect.anything(),
+      expect.anything(),
+    );
+    expect("track" in plain).toBe(false);
+    expect(room.presence).toBe(true);
+  });
+
+  it("delivers validated members on sync and reports invalid states", async () => {
+    const { client, sync } = fakeClient();
+    const onPresence = vi.fn();
+    const onInvalid = vi.fn();
+    using subscription = room.subscribe(
+      client,
+      values,
+      {},
+      { onPresence, onInvalid },
+    );
+    await subscription.ready;
+    sync({
+      a: [{ presence_ref: "1", name: "Ada", extra: true }],
+      b: [{ presence_ref: "2", nope: 1 }],
+    });
+    await flush();
+    expect(onPresence).toHaveBeenCalledWith([
+      { key: "a", state: { name: "Ada" } },
+    ]);
+    expect(subscription.members()).toEqual([
+      { key: "a", state: { name: "Ada" } },
+    ]);
+    expect(onInvalid).toHaveBeenCalledWith(
+      { event: "presence", payload: { nope: 1 }, topic: "room:r1" },
+      [{ message: "name is required" }],
+    );
+  });
+
+  it("gives a late subscriber the last synced state", async () => {
+    const { client, sync } = fakeClient();
+    using first = room.subscribe(client, values, {});
+    await first.ready;
+    sync({ a: [{ presence_ref: "1", name: "Ada" }] });
+    const onPresence = vi.fn();
+    using second = room.subscribe(client, values, {}, { onPresence });
+    await flush();
+    expect(onPresence).toHaveBeenCalledWith([
+      { key: "a", state: { name: "Ada" } },
+    ]);
+    expect(second.members()).toHaveLength(1);
+  });
+
+  it("keeps only the newest sync when validation finishes out of order", async () => {
+    const { client, sync } = fakeClient();
+    let release: (() => void) | undefined;
+    const slow: StandardSchemaV1<unknown, unknown> = {
+      "~standard": {
+        version: 1,
+        vendor: "test",
+        validate: (value) =>
+          (value as { slow?: boolean }).slow
+            ? new Promise((resolve) => {
+                release = () => {
+                  resolve({ value });
+                };
+              })
+            : { value },
+      },
+    };
+    const onPresence = vi.fn();
+    using subscription = defineTopic("slow:{roomId}", {
+      presence: slow,
+    }).subscribe(client, values, {}, { onPresence });
+    await subscription.ready;
+    sync({ a: [{ presence_ref: "1", slow: true }] });
+    sync({ b: [{ presence_ref: "2" }] });
+    await flush();
+    release?.();
+    await flush();
+    expect(onPresence).toHaveBeenCalledTimes(1);
+    expect(subscription.members()).toEqual([{ key: "b", state: {} }]);
+  });
+
+  it("validates, then tracks and untracks after the join", async () => {
+    const { client, channel } = fakeClient();
+    using subscription = room.subscribe(client, values, {});
+    const bad = await subscription.track({ name: 1 });
+    expect(bad.ok ? null : bad.error.kind).toBe("validation");
+    expect(channel.track).not.toHaveBeenCalled();
+    expect((await subscription.track({ name: "Ada" })).ok).toBe(true);
+    expect(channel.track).toHaveBeenCalledWith({ name: "Ada" });
+    expect((await subscription.untrack()).ok).toBe(true);
+    expect(channel.untrack).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps a refused join, a failed send and a closed subscription to errors", async () => {
+    const refused = fakeClient("CHANNEL_ERROR");
+    const failed = room.subscribe(refused.client, values, {});
+    await failed.ready.catch(() => undefined);
+    const join = await failed.track({ name: "Ada" });
+    expect(join.ok ? null : join.error).toMatchObject({
+      kind: "network",
+      details: "Unauthorized",
+    });
+    await failed.unsubscribe();
+
+    const { client, channel } = fakeClient();
+    const subscription = room.subscribe(client, values, {});
+    channel.track.mockResolvedValueOnce("timed out");
+    const timedOut = await subscription.track({ name: "Ada" });
+    expect(timedOut.ok ? null : timedOut.error.message).toBe(
+      "Presence track timed out on room:r1",
+    );
+    await subscription.unsubscribe();
+    const closed = await subscription.untrack();
+    expect(closed.ok ? null : closed.error.kind).toBe("invalid_request");
+  });
+
+  it("untracks a leaving tracker while others stay on the channel", async () => {
+    const { client, channel, removed } = fakeClient();
+    const tracker = room.subscribe(client, values, {});
+    const other = room.subscribe(client, values, {});
+    await tracker.track({ name: "Ada" });
+    await other.unsubscribe();
+    expect(channel.untrack).not.toHaveBeenCalled();
+    const again = room.subscribe(client, values, {});
+    await tracker.unsubscribe();
+    expect(channel.untrack).toHaveBeenCalledTimes(1);
+    await again.unsubscribe();
+    expect(removed).toHaveLength(1);
+  });
+
+  it("refuses to share a topic between presence and plain definitions", async () => {
+    const { client } = fakeClient();
+    using subscription = room.subscribe(client, values, {});
+    expect(subscription.topic).toBe("room:r1");
+    expect(() =>
+      defineTopic("room:{roomId}").subscribe(client, values, {}),
+    ).toThrow(/same `presence`/);
+  });
+
+  it("accepts any object state with presence: true", async () => {
+    const { client, channel, sync } = fakeClient();
+    const onPresence = vi.fn();
+    using subscription = defineTopic("open:{roomId}", {
+      presence: true,
+    }).subscribe(client, values, {}, { onPresence });
+    await subscription.track({ anything: 1 });
+    expect(channel.track).toHaveBeenCalledWith({ anything: 1 });
+    sync({ k: [{ presence_ref: "1", anything: 1 }] });
+    await flush();
+    expect(onPresence).toHaveBeenCalledWith([
+      { key: "k", state: { anything: 1 } },
+    ]);
   });
 });
 

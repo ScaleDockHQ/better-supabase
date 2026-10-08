@@ -35,9 +35,10 @@ the Edge Function, so the URLs in the OAuth metadata are the public ones.
   tokens itself, and the gateway's own 401 has no `WWW-Authenticate`
   challenge, so MCP clients could not discover how to sign in.
 - The Supabase Auth OAuth server, so external MCP clients can sign users in.
-  It sends users to the consent page of the
-  [OAuth Consent block](https://supabase.com/library/docs/nextjs/oauth-consent)
-  (or the headless app's own), served from the Auth Site URL.
+  It sends users to a consent page served from the Auth Site URL: the
+  headless app's own, or one in your app (see
+  [OAuth consent](/docs/auth/oauth-consent) for the page and a
+  connected-agents list that revokes grants).
 
 ```toml title="supabase/config.toml"
 [functions.mcp]
@@ -194,7 +195,9 @@ Deno.serve(bs.fetch);
 
 The headless app's consent page, connected-agents page and `tasks` table keep
 working; only the tool code changes. See
-[MCP servers](/docs/frameworks/mcp) for custom tools, `authorize` and scopes.
+[MCP servers](/docs/frameworks/mcp) for custom tools, `authorize` and scopes,
+and [OAuth consent](/docs/auth/oauth-consent) to build those two pages in an
+app that doesn't use the headless template.
 
 To keep the block's `McpServer` and its tools instead, use `createMcpAuth`
 and `withBetterSupabaseMcp` from `better-supabase/mcp/sdk`. They need

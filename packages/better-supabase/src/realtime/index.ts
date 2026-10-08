@@ -1,6 +1,12 @@
 export { defineTopic, rowChange } from "./topic.ts";
 export type {
   EventSchemas,
+  PresenceInput,
+  PresenceMember,
+  PresenceOptions,
+  PresenceOutput,
+  PresenceSchema,
+  PresenceSubscription,
   RealtimeClient,
   RowChange,
   SubscribeOptions,
@@ -12,6 +18,8 @@ export type {
   TopicMessage,
   TopicOptions,
   TopicPayload,
+  TopicSubscribeOptions,
+  TopicSubscription,
   TriggerLookup,
   TriggerOptions,
   TriggerValue,

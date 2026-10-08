@@ -2,7 +2,12 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expectTypeOf, it } from "vitest";
 
-import { defineTopic, type RealtimeClient } from "../../src/realtime/index.ts";
+import { useBroadcast } from "../../src/react/index.ts";
+import {
+  defineTopic,
+  type PresenceMember,
+  type RealtimeClient,
+} from "../../src/realtime/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { buckets, topics } from "../fixtures/generated-camel.ts";
 
@@ -63,6 +68,41 @@ describe("topic types", () => {
       { anything: (payload) => expectTypeOf(payload).toBeUnknown() },
     );
     void room.send(client, { roomId: "r" }, "ping", { at: 1 });
+  });
+
+  it("types presence state from its schema", () => {
+    const room = defineTopic("room:{roomId}", { presence: title });
+    const subscription = room.subscribe(
+      client,
+      { roomId: "r" },
+      {},
+      {
+        onPresence: (members) =>
+          expectTypeOf(members).toEqualTypeOf<
+            readonly PresenceMember<{ title: string; at: Date }>[]
+          >(),
+      },
+    );
+    void subscription.track({ title: "x" });
+    // @ts-expect-error wrong state
+    void subscription.track({ name: "x" });
+    expectTypeOf(subscription.members()).toEqualTypeOf<
+      readonly PresenceMember<{ title: string; at: Date }>[]
+    >();
+
+    const open = defineTopic("open:{roomId}", { presence: true });
+    void open.subscribe(client, { roomId: "r" }, {}).track({ anything: 1 });
+
+    const plain = defineTopic("plain:{roomId}").subscribe(
+      client,
+      { roomId: "r" },
+      {},
+      // @ts-expect-error no presence on this topic
+      { onPresence: () => undefined },
+    );
+    // @ts-expect-error no presence on this topic
+    void plain.track({});
+    useBroadcast(room, { roomId: "r" });
   });
 
   it("keeps generated bucket paths typed", () => {

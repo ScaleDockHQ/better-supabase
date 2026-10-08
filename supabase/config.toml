@@ -50,6 +50,8 @@ enable_signup = true
 # Lets MCP clients sign in through OAuth (apps/examples/mcp).
 [auth.oauth_server]
 enabled = true
+# Relative to `site_url`: the Next.js example's consent page.
+authorization_url_path = "/oauth/consent"
 
 # The MCP example verifies tokens itself; the gateway's own 401 carries no
 # OAuth challenge, so clients could not discover how to sign in.
