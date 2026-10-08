@@ -33,6 +33,10 @@ export const PERMISSIONS = [
   "workflow.edit",
   "workflow.publish",
   "workflow.admin",
+  "inbox.read",
+  "inbox.reply",
+  "inbox.assign",
+  "inbox.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -66,6 +70,10 @@ const grants = {
     "workflow.edit",
     "workflow.publish",
     "workflow.admin",
+    "inbox.read",
+    "inbox.reply",
+    "inbox.assign",
+    "inbox.manage",
   ],
   member: [
     "customers.read",
@@ -76,6 +84,8 @@ const grants = {
     "comments.create",
     "workflow.read",
     "workflow.run",
+    "inbox.read",
+    "inbox.reply",
   ],
 } satisfies Readonly<Record<Role, "*" | readonly Permission[]>>;
 

@@ -137,6 +137,12 @@ export default defineConfig({
       "workflow-builder": { api: "api" },
       // Vault-backed secrets behind the builder's credential references.
       credentials: { api: "api" },
+      // The support inbox behind /inbox and the Help sheet: jobs carry bot
+      // turns and channel replies, streams hold the bot's resumable output.
+      jobs: {},
+      streams: {},
+      inbox: { api: "api" },
+      "chat-sdk-state": {},
     },
   },
 });
