@@ -144,8 +144,9 @@ export default defineConfig({
       inbox: { api: "api" },
       "chat-sdk-state": {},
       // The /assistant sample: chats in `ai-chat` on private Realtime topics,
-      // with resumable answers in `streams`.
+      // resumable answers in `streams` and attachments in `ai-files`.
       "ai-chat": { api: "api" },
+      "ai-files": { api: "api" },
     },
   },
 });
