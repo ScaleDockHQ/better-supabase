@@ -97,12 +97,16 @@ export default defineConfig({
         // The CLI reads its environment: DATABASE_URL, SUPABASE_BIN and CI.
         "src/cli/run.ts",
         "src/cli/bin.ts",
+        // The Supabase World reads its options as the Workflow SDK's worlds do.
+        "src/workflow-sdk/world/world.ts",
+        "scripts/gen-workflow-ddl.ts",
       ],
       rules: { "node/no-process-env": "off" },
     },
     {
-      // ESLint and oxlint load plugins from the module's default export.
-      files: ["src/lint/index.ts"],
+      // ESLint and oxlint load plugins from the module's default export, and
+      // WORKFLOW_TARGET_WORLD loads a World factory from it.
+      files: ["src/lint/index.ts", "src/workflow-sdk/world/index.ts"],
       rules: {
         "import/no-default-export": "off",
       },

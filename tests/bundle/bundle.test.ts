@@ -55,7 +55,12 @@ export { BetterSupabaseProvider, invalidateOnMutation };
 /** Growth allowed before the size check fails: 5% or 256 bytes, whichever is larger. */
 const TOLERANCE = { ratio: 0.05, bytes: 256 };
 /** Entries that may use Node built-ins. Everything else must run on any WinterTC runtime. */
-const NODE_ENTRIES = new Set(["./cli", "./postgres", "./testing"]);
+const NODE_ENTRIES = new Set([
+  "./cli",
+  "./postgres",
+  "./testing",
+  "./workflow-sdk/world",
+]);
 
 const BUILTINS = new Set([
   ...builtinModules,
