@@ -197,8 +197,7 @@ Route handlers serve OAuth clients, agents and other apps that send
 `Authorization: Bearer <token>`. A token from the
 [Supabase OAuth server](https://supabase.com/docs/guides/auth/oauth-server)
 carries `client_id` and `scope`; a token exchanged for an agent carries an
-RFC 8693 `act` chain. The session names who acts for the user, the way
-PermDock's `actorOf` and `delegationOf` read the same claims:
+RFC 8693 `act` chain. The session names who acts for the user:
 
 | Token                                                  | `session.actor`                                | `session.delegation`                       |
 | ------------------------------------------------------ | ---------------------------------------------- | ------------------------------------------ |

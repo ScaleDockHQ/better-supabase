@@ -81,7 +81,7 @@ lists the steps to move to pg-delta.
 | `actor`            | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin                                                                                                                          |
 | `audit`            | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `plugins.tenant.column` and any impersonating admin                                                                   |
 | `tenant`           | `memberships`, `current_tenant_id()`, `member_organization_ids(roles)` and `has_organization_role(organization, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                                                                 |
-| `access`           | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, PermDock or your functions. See [Access contract](/docs/blocks/access)                                                                                                     |
+| `access`           | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, an authorization provider or your functions. See [Access contract](/docs/blocks/access)                                                                                    |
 | `invitations`      | `invite_member(tenant, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email. See [Organizations](/docs/blocks/organizations)                                                                             |
 | `reserved-slugs`   | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs, also for `service_role` writes; `options.minLength` and `options.maxLength` (1 and 63 by default) bound the length, and `options.slugs` adds the app's own words, such as its route names, to the data file |
 | `jobs`             | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/blocks/jobs`](/docs/blocks/jobs)                                                                                         |
@@ -126,16 +126,17 @@ The roles come from `sql.modules.access.roles`. Change modules through `sql.modu
 [below](#existing-tables-managed-adopt-and-custom)) rather than by editing
 the files: `sql sync` rewrites them, and doctor reports a hand edit.
 
-When a `permdock.config.ts` is in the project root, PermDock owns the access
-token hook and the `memberships` claim. `sql add tenant` then stops and points
-you at `permdock supabase hook generate`. Pass `--force` to write it anyway,
+When the config's [authorization provider](/docs/extending/authorization-providers)
+has a token hook that owns the `memberships` claim (`tokenHook.ownedClaims`),
+`sql add tenant` stops, because two hooks would write that claim. Pass
+`--force` to write it anyway,
 for example to keep the helpers while you migrate. Modules that need `tenant`,
 such as `invitations`, are written without `--force`, with `tenant` as a
 dependency and a note: its memberships table backs `has_organization_role()`, and no
 hook should call `membership_claims()`. `entitlements` needs `tenant` only
-without a `permdock.manifest.json`: with one, it reads PermDock's
-`member_<scope>_ids` helpers instead. See
-[Entitlements with PermDock](/docs/blocks/entitlements#with-permdock).
+with `entitlements.memberships: "tenant"`: with a provider, it reads the
+provider's `memberIds` functions instead. See
+[entitlements with an authorization provider](/docs/blocks/entitlements#with-an-authorization-provider).
 
 ```sql
 select better_supabase.track_updated_at('public.customers');
@@ -908,20 +909,19 @@ and mode in a file's header.
 schema and test paths without rendering it. `modulePermissionKeys(blocks, names)`
 lists the permission keys those modules check, with the action, the key after
 `sql.modules.<module>.permissions` and whether a tenant or a platform check asks for
-it. Under `sql.modules.access.model: 'permdock'`, `sql add` and doctor (BS411) check
-each key against `permissions.catalog.json`; a script can do the same:
+it. Under `sql.modules.access.model: 'provider'`, `sql add` and doctor (BS411) check
+each key against the provider's `permissions`; a script can do the same:
 
 ```ts title="scripts/check-module-keys.ts"
 import { resolveConfig } from "better-supabase/config";
 import { modulePermissionKeys } from "better-supabase/sql";
 
 import config from "../better-supabase.config.ts";
-import catalog from "../permissions.catalog.json" with { type: "json" };
 
-const { sql } = resolveConfig(config, process.cwd());
+const { sql, authorization } = resolveConfig(config, process.cwd());
 const scopeOnly = new Set(
-  catalog.permissions
-    .filter((entry) => entry.rowConditions === false)
+  (authorization?.permissions ?? [])
+    .filter((entry) => entry.sqlComplete === true)
     .map((entry) => entry.key),
 );
 for (const { module, action, key } of modulePermissionKeys(

@@ -90,12 +90,12 @@ eight characters), or leave it out for a random one. `maxUses: null` allows
 any number of uses. A code can't grant the owner role.
 
 The roles a code may grant are every role but the owner under the `roles`
-and `catalog` access models. Under the `permdock` and `custom` models list
+and `catalog` access models. Under the `provider` and `custom` models list
 them in `sql.modules.waitlist.options.roles`; without it codes grant no
 role, and a redeemed tenant code adds its user with `defaultRole`. Creating a
 code with a role also needs `can_assign(tenant, role)` for callers other than
 platform staff and the service role (`WAITLIST_ROLE_FORBIDDEN`), which is
-PermDock's assignment rule under the permdock model.
+the provider's `canAssign` under the provider model.
 
 The client passes the code in the user metadata at sign-up:
 

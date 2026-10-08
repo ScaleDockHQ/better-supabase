@@ -1,13 +1,13 @@
 ---
 title: Access contract
-description: One permission check for RLS policies and SQL modules, over a role list, your own role tables, PermDock or functions you already have.
+description: One permission check for RLS policies and SQL modules, over a role list, your own role tables, an authorization provider or functions you already have.
 ---
 
 The `access` SQL module gives policies and the other SQL modules one way to
 ask "may the caller do this": `can(scope, id, permission)`. The functions behind
 it come from the access model you pick in `sql.modules.access`, so the same policies
 work over a fixed role list, a role and permission catalog you already have,
-PermDock, or functions your app already wrote.
+an authorization provider, or functions your app already wrote.
 
 ```bash
 better-supabase sql add access
@@ -151,105 +151,63 @@ export default defineConfig({
 `null` marks an optional table or column you don't have. With
 `overrides: null`, role defaults are the only source.
 
-### permdock
+### provider
 
-With [PermDock](/docs/auth/permdock), `can()` and `tenant_ids_with()` call
-PermDock's `<schema>.permitted_<scope>_ids(permission)`, and `platform_can()`
-calls `<schema>.permdock_has(permission)`. `better-supabase sql add` reads the
-schema, the scope and its id type from `permdock.manifest.json` (written by
-`permdock supabase inspect --out`), whether or not the entitlements module
-uses PermDock:
-
-| Setting | From the manifest                                          |
-| ------- | ---------------------------------------------------------- |
-| Schema  | `rls.schema`                                               |
-| Scope   | the `rls.scopes` entry without `within` (the root scope)   |
-| Id type | that scope's `type`: `uuid`, `text`, `bigint` or `integer` |
-
-A manifest with `rls.schema: "authz"` and a root scope `tenant` renders
-`authz.permitted_tenant_ids`. `sql.modules.access.permdock.scope` picks another
-declared scope. `sql add` refuses, instead of guessing, when the manifest is
-missing, has no `rls` block or no single root scope, names a scope it doesn't
-declare, or disagrees with `sql.modules.access.permdock.schema` or
-`sql.modules.access.idType`. Code that renders the block without the CLI
-(`renderModules`, `moduleBody`) sets both `sql.modules.access.permdock.schema` and
-`sql.modules.access.permdock.scope`.
-
-PermDock's helpers check role and scope, never row conditions. Every
-permission key a SQL module checks must be `rowConditions: false` in
-`permissions.catalog.json`, or `sql add` and [doctor](/docs/cli/doctor#bs411)
-stop. Map an action to another key with `sql.modules.<module>.permissions`.
-
-PermDock has no role catalog the block can compare roles against, so set
-`canAssign` to PermDock's assignment rule, `permdock_can_assign` (PermDock
-writes it when a role declares `assigns`):
+With an [authorization provider](/docs/extending/authorization-providers) in
+the config's `authorization` key, `can()` and `tenant_ids_with()` call the
+provider's `idsWith` template at its `tenantScope`, and `platform_can()` calls
+its `isPlatform`. The id type is that scope's `idType`.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
+  authorization: authorizationProvider(),
   sql: {
     modules: {
       organizations: {},
       invitations: {},
-      access: {
-        model: "permdock",
-        functions: {
-          canAssign: "permdock.permdock_can_assign({role}, {tenant}::text)",
-        },
-      },
+      access: { model: "provider" },
     },
   },
 });
 ```
 
-Use the manifest's `rls.schema` in place of `permdock`. Without `canAssign`,
-only the service role assigns roles: PermDock projects don't install the
-`tenant` module (doctor BS407), whose owner-role rule is the only other
-fallback, and doctor BS411 warns.
+`sql add` refuses, instead of guessing, when the config has no
+`authorization`, or when `sql.modules.access.idType` disagrees with the tenant
+scope's `idType`.
 
-Under the permdock model, `can_user()` and `member_can()` answer for the
-caller only, because PermDock's helpers read `auth.uid()`. For another user
-they raise SQLSTATE `0A000` instead of returning `null`, unless PermDock's
-helpers for a named user exist. PermDock writes them in `database` mode:
-`permdock_has_for(user, key)`, `permitted_<scope>_ids_for(user, key)` and
-`permdock_can_assign_for(user, role, scope_id)`. `sql add` uses those the
-manifest lists under `rls.helpers`; set
-`sql.modules.access.permdock.forUser: true` when your helpers exist but the
-manifest doesn't list them. With them, `can_user()`, `member_can()` and
-`platform_can()` answer for any user.
+The provider's functions check role and scope, never row conditions. Every
+permission key a SQL module checks must be `sqlComplete: true` in the
+provider's `permissions`, or `sql add` and [doctor](/docs/cli/doctor#bs411)
+stop. Map an action to another key with `sql.modules.<module>.permissions`.
 
-`can_assign_as(user, tenant, role)` checks a stored user's authority, such as
-the inviter's when an invitation is accepted. Under the permdock model it
-calls `permdock_can_assign_any_for(user, role, tenant, '<scope>', tenant::text)`
-when the manifest lists it, which covers declared and tenant custom roles,
-else `permdock_can_assign_for(user, role, scope_id)`, which knows only the
-declared roles, so an invitation to a custom role would be refused at
-accept. `sql.modules.access.functions.canAssignFor` replaces both with your
-own template (`{user}`, `{tenant}` and `{role}`), under the permdock and
-custom models:
+`can_assign()` calls the provider's `canAssign`, and
+`sql.modules.access.functions.canAssign` replaces it. Without either, only the
+service role assigns roles, unless the `tenant` module is installed, and doctor
+BS411 warns.
 
-```ts title="better-supabase.config.ts"
-functions: {
-  canAssign: "permdock.permdock_can_assign_any({role}, {tenant}, 'organization', {tenant}::text)",
-  canAssignFor:
-    "permdock.permdock_can_assign_any_for({user}, {role}, {tenant}, 'organization', {tenant}::text)",
-},
-```
+`can_user()` and `member_can()` answer for another user through `idsWithFor`
+and `isPlatformFor`. A provider without them answers for the caller only:
+called for another user, they raise SQLSTATE `0A000` instead of returning
+`null`. `can_assign_as(user, tenant, role)` checks a stored user's authority,
+such as the inviter's when an invitation is accepted, through `canAssignFor`;
+`sql.modules.access.functions.canAssignFor` replaces it with your own template
+(`{user}`, `{tenant}` and `{role}`), under the provider and custom models.
 
-### Blocks next to PermDock
+### Blocks next to a provider
 
-PermDock already guards memberships and answers permission questions, so
-some module checks change under the permdock model:
+A provider already answers permission questions and may guard memberships, so
+some module checks change under the provider model:
 
-| Module          | Check                                        | Under `permdock`                                                                                              |
-| --------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `organizations` | Role ceiling trigger on memberships          | Kept, or dropped with `assignmentGuard: "external"` when PermDock's assignment rules guard the table          |
-| `organizations` | Owner check (`ownerInvariant`)               | Kept; turn it off when PermDock's `transferOnly` ownership rule already keeps an owner                        |
-| `invitations`   | Inviter still holds the permission at accept | Runs with `permitted_<scope>_ids_for` and `permdock_has_for`; skipped without them                            |
-| `invitations`   | Inviter may still assign the role at accept  | Runs with `canAssignFor`, `permdock_can_assign_any_for` or `permdock_can_assign_for`; skipped without them    |
-| `invitations`   | Platform invitations                         | Need `invitations.options.platformRoles` (PermDock's `rls.roles` table); the inviter is checked when inviting |
-| `notifications` | Each recipient may read the notification     | Runs with `permitted_<scope>_ids_for`; without it, the sender and `notification_audience` decide              |
-| `tenant`        | Role names on memberships                    | Read through the manifest's `through` roles table                                                             |
-| `access`        | Disabled tenants and users                   | Read from the manifest's `rls.suspension` rows; an explicit `sql.modules.access.disabled` wins per subject    |
+| Module          | Check                                        | Under `provider`                                                                                         |
+| --------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `organizations` | Role ceiling trigger on memberships          | Kept, or dropped with `assignmentGuard: "external"` when the provider's assignment rules guard the table |
+| `organizations` | Owner check (`ownerInvariant`)               | Kept; turn it off when the provider already keeps an owner                                               |
+| `invitations`   | Inviter still holds the permission at accept | Runs with `idsWithFor` and `isPlatformFor`; skipped without them                                         |
+| `invitations`   | Inviter may still assign the role at accept  | Runs with `canAssignFor`; skipped without it                                                             |
+| `invitations`   | Platform invitations                         | Need `invitations.options.platformRoles`; the inviter is checked when inviting                           |
+| `notifications` | Each recipient may read the notification     | Runs with `idsWithFor`; without it, the sender and `notification_audience` decide                        |
+| `tenant`        | Role names on memberships                    | Read through the provider's `roleSources`                                                                |
+| `access`        | Disabled tenants and users                   | Read from the provider's `suspension`; an explicit `sql.modules.access.disabled` wins per subject        |
 
 ### custom
 
@@ -290,8 +248,7 @@ them.
 
 An adopted memberships table often stores a foreign key to a roles table
 instead of the role name. `sql.modules.tenant.options.roleThrough` names that
-table, its key column and the column with the role name, in the same shape as
-PermDock's `through` membership roles:
+table, its key column and the column with the role name:
 
 ```ts title="better-supabase.config.ts"
 sql: {
@@ -344,11 +301,10 @@ The invitations module does the same on `platformRoles.table` with
 writes only; rows stored before you set `where` stay until they change.
 Removing `where` drops the trigger.
 
-Under the permdock model, `sql add` reads the setting from the manifest: when
-a membership source of the tenant scope is the adopted memberships table and
-its role column reads `through` a roles table, the tenant module uses the same
-lookup. An explicit `roleThrough` wins; set one to add `where`, which the
-manifest doesn't carry.
+Under the provider model, `sql add` reads the setting from the provider's
+`roleSources`: when one of them is the adopted memberships table, the tenant
+module uses its `role.through` lookup. An explicit `roleThrough` wins; set one
+to add `where`, which `roleSources` doesn't carry.
 
 ## References within one tenant
 
@@ -488,11 +444,10 @@ The checks are `better_supabase.tenant_disabled(id)` and
 them; the `tenant` module's file defines them only when `access` isn't
 installed (or runs in custom mode), so each function lives in one schema file.
 
-Either subject also takes an active row in the shape of PermDock's
-`rls.suspension`: a table, the id column, and a nullable `disabledAt` column,
-a `status` column with its `active` values, or both. Only a row that matches
-counts as active, so a tenant or user without a row is disabled, the same as
-in PermDock's helpers.
+Either subject also takes an active row: a table, the id column, and a
+nullable `disabledAt` column, a `status` column with its `active` values, or
+both. Only a row that matches counts as active, so a tenant or user without a
+row is disabled.
 
 ```ts
 disabled: {
@@ -506,9 +461,8 @@ disabled: {
 },
 ```
 
-Under the permdock model, `sql add` and `sql sync` read both from the
-manifest: `rls.suspension.users` for users, and the row of the tenant scope
-in `rls.suspension.scopes` for tenants. A subject set in
+Under the provider model, `sql add` and `sql sync` read both from the
+provider's `suspension`. A subject set in
 `sql.modules.access.disabled` keeps its own setting. The data-lifecycle
 module disables a tenant awaiting deletion by setting the `disabledAt`
 column, so a tenant row with only a `status` column is not switched off
@@ -606,5 +560,5 @@ end $$;
 ```
 
 `sql.modules.tenant.options.claimFormat` picks the memberships claim's form:
-`'array'` (the default, PermDock's `[{ scope, id, roles }]`) or `'map'`
+`'array'` (the default, `[{ scope, id, roles }]`) or `'map'`
 (`{ "<tenant id>": "<role>" }`).

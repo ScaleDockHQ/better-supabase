@@ -51,10 +51,9 @@ The `realtime-tables` SQL module sends them no change signals.
 | `['anonymous']`          | 403        | admitted             | 401        |
 
 `'anon'` is the caller without a session and never admits an anonymous
-sign-in; until 0.5.1 it did. PermDock draws the same line in the database:
-`rls.anonymousSignIns: 'deny'` in `permdock.config.ts` keeps an
-`is_anonymous` token out of every policy branch except `anyone()`'s. Pair it
-with an `allow` without `'anonymous'` (see [PermDock](/docs/auth/permdock)).
+sign-in; until 0.5.1 it did. Draw the same line in your RLS policies: a
+policy that should not serve a guest session checks
+`(select (auth.jwt() ->> 'is_anonymous')::boolean) is not true`.
 
 ```ts
 app.use("/cart/*", bs.middleware({ allow: ["user", "anonymous"] }));
@@ -169,14 +168,12 @@ export const betterSupabase = defineSupabase(schema)
 The tenant plugin, `current_tenant_id()` and the storage and realtime policies
 read the active tenant from `tenant_id` (or `app_metadata.tenant_id`).
 `claims.tenant` in the config renames it for all of them at once. Memberships
-follow PermDock's shape, `{ scope, id, roles }` (see
-[the claims contract](/docs/auth/permdock#who-owns-what)),
-and roles and memberships are never read from `user_metadata`, which users can
-edit. Use `v.looseObject` so claims your schema doesn't list, such as
-PermDock's `attrs`, `authz_ver` and `memberships_truncated`, stay on the
-session. With PermDock, pass its own schema instead:
-`betterSupabase.claims(supabaseClaims().extend(appClaims))` (see
-[Validate the claims with PermDock's schema](/docs/auth/permdock#validate-the-claims-with-permdocks-schema)).
+have the shape `{ scope, id, roles }`, and roles and memberships are never
+read from `user_metadata`, which users can edit. Use `v.looseObject` so claims
+your schema doesn't list, such as fields another hook adds, stay on the
+session. `claims(schema)` takes any Standard Schema, so an authorization
+library can publish the schema for the claims its hook writes, and you pass
+that one instead.
 
 - `createServer`, `createNext`, `createHono` and friends validate after the
   signature check, on every request, including tokens served from the
@@ -258,7 +255,7 @@ policy come from the verified claims, never from `profile` or
 - `session.profile` is typed `Profile | undefined` in `ctx.auth`,
   `bs.session()` and the `useSession` from `createHooks<typeof bs>()`.
 - Supabase Auth copies `user_metadata` into the access token. A custom access
-  token hook, PermDock's included, must keep that claim for `profile` to be
+  token hook must keep that claim for `profile` to be
   set. The claims budget ([BS405](/docs/cli/doctor#bs405)) counts it, so
   keep large or frequently changing fields in a `profiles` table instead.
 

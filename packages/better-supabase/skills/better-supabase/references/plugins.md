@@ -62,10 +62,10 @@ member of. In Next.js Server Components and actions there is no request URL:
 pass the route's tenant with `bs.context({ tenant })`, `bs.cached({ tenant })`
 or `bs.action({ tenant: (input) => input.organizationId })`, which take the
 resolver's path and get the same check. Never trust a tenant from
-`user_metadata`, and never use one from a request body outside those options. When the project
-has a `permdock.config.ts`, PermDock's hook writes that claim and the
-memberships: don't run `sql add tenant`, and follow the PermDock reference of
-the `better-supabase-auth` skill
-(https://bettersupabase.com/docs/auth/permdock.md).
+`user_metadata`, and never use one from a request body outside those options. When the config
+has an `authorization` provider whose hook owns `memberships`, that hook
+writes the claim and the memberships: don't run `sql add tenant`, and follow
+the authorization providers reference of the `better-supabase-auth` skill
+(https://bettersupabase.com/docs/extending/authorization-providers.md).
 
 Docs: https://bettersupabase.com/docs/plugins.md

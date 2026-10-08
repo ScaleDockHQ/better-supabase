@@ -127,12 +127,12 @@ Policies and block functions ask one question, `better_supabase.can(scope, id,
 permission)`, and [`sql.modules.access.model`](/docs/blocks/access#models) decides
 where the answer comes from.
 
-| Your app has                                             | Model      |
-| -------------------------------------------------------- | ---------- |
-| a role per membership and no permission tables           | `roles`    |
-| roles, permissions and role-permission tables of its own | `catalog`  |
-| PermDock                                                 | `permdock` |
-| something else                                           | `custom`   |
+| Your app has                                                         | Model      |
+| -------------------------------------------------------------------- | ---------- |
+| a role per membership and no permission tables                       | `roles`    |
+| roles, permissions and role-permission tables of its own             | `catalog`  |
+| an [authorization provider](/docs/extending/authorization-providers) | `provider` |
+| something else                                                       | `custom`   |
 
 With `catalog`, map your tables (`roles`, `permissions`, `role_permissions`,
 per-tenant overrides) and the columns that disable a tenant or a user. A

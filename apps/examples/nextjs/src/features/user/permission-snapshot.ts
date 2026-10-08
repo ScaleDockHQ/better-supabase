@@ -5,14 +5,13 @@ import { bs } from "@/lib/supabase/server";
 
 import { PERMISSIONS, type Permission, can } from "./user-permissions";
 
-// Stand-ins for `snapshotFor` from `permdock` and `snapshotTag` and
-// `cacheLifeFor` from `permdock/next`, until permdock is on npm. With
-// PermDock, import those instead and keep the `bs.cached()` call.
-// See https://bettersupabase.com/docs/frameworks/next-cache-components#permdock-snapshots.
+// An authorization library with its own snapshot replaces `can` here and
+// keeps the `bs.cached()` call.
+// See https://bettersupabase.com/docs/frameworks/next-cache-components#permission-snapshots.
 
-/** PermDock's tag for a user's snapshot entries. */
+/** The tag of a user's snapshot entries. */
 function snapshotTag(sub: string | null): string {
-  return `permdock:${sub ?? "anon"}`;
+  return `permissions:${sub ?? "anon"}`;
 }
 
 interface PermissionSnapshot {

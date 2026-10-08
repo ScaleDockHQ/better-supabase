@@ -1,10 +1,10 @@
 ---
 title: From 0.1 to 0.2
-description: What to change when upgrading to better-supabase 0.2, which follows PermDock's claim contract.
+description: What to change when upgrading to better-supabase 0.2, which renames claims and SQL functions to one claim contract.
 ---
 
-0.2 renames claims and SQL functions to match
-[PermDock's claim contract](/docs/auth/permdock). There are no compatibility
+0.2 renames claims and SQL functions to one claim contract, shared with
+authorization libraries that write the same claims. There are no compatibility
 options: follow the steps below, regenerate, and run your tests.
 
 ## Claims
@@ -53,15 +53,14 @@ claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims(u
 claims := jsonb_set(claims, '{features}', better_supabase.feature_claims(uid));
 ```
 
-`sql add tenant` stops when the project has a `permdock.config.ts`, because
-PermDock's hook writes the `memberships` claim. Pass `--force` to write it
-anyway. `sql add entitlements` doesn't stop: `features` is not a PermDock
-claim. See [Entitlements with PermDock](/docs/blocks/entitlements#with-permdock)
-for what works without the claim.
+`sql add tenant` stops when another access token hook owns the `memberships`
+claim. Pass `--force` to write it anyway. Since 0.6 that hook is declared by
+an [authorization provider](/docs/extending/authorization-providers); see
+[From 0.5 to 0.6](/docs/migration/0.5-to-0.6).
 
 ## TypeScript
 
-- `MembershipClaim` has PermDock's shape (`scope`, `id`, `roles`, and
+- `MembershipClaim` has the shape `{ scope, id, roles }` (and
   optional `within`, `via`, `expiresAt`). Code that read `tenant_id` or
   `entitlements` from a membership reads `id` and the `features` claim.
 - `hasEntitlement(session, tenantId, key)` reads the `features` claim. Pass
@@ -80,8 +79,8 @@ for what works without the claim.
 
 Bucket and topic policies with `policy: 'tenant'` compare the configured
 tenant claim, so they read `tenant_id` after `sql sync` and `gen`. Buckets
-and topics can also use PermDock permissions: see
-[storage](/docs/platform/storage#permdock-permissions).
+and topics can also check permissions: see
+[storage](/docs/platform/storage#access-contract-permissions).
 
 ## Testing
 
@@ -94,13 +93,11 @@ test tokens can drop it, since ES256 tokens verify against the stack's JWKS.
 
 ## Doctor
 
-- BS405 measures the whole token against 2 KB. When the project has a
-  `permdock.config.ts`, it also measures `memberships` plus `attrs` against
-  PermDock's 1 KB budget, as a separate warning. `doctor.claimsLimit` changes
-  the PermDock budget, or the whole-token limit without PermDock.
-- BS407 is new: next to PermDock, it reports a hook that calls
-  `membership_claims()` or writes `roles`, `user_role`, `memberships` or the
-  tenant claim itself. The `features` claim is not reported.
+- BS405 measures the whole token against 2 KB, and an authorization hook's
+  own budget as a separate warning. `doctor.claimsLimit` changes the limit.
+- BS407 is new: next to another authorization hook, it reports a hook that
+  calls `membership_claims()` or writes the claims that hook owns. The
+  `features` claim is not reported.
 
 ## MCP
 

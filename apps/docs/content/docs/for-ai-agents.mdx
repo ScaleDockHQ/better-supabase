@@ -12,7 +12,7 @@ agents the conventions in these docs:
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `better-supabase`         | Queries, writes, Results, cursors, Temporal values, the codegen loop after a schema change, and upgrades |
 | `better-supabase-api`     | Adapters, `allow` and `scopes`, REST resources, MCP tools, jobs and their cleanup, idempotency, webhooks |
-| `better-supabase-auth`    | Sessions, typed claims, OAuth clients and agents, `checkSession`, claim changes, PermDock                |
+| `better-supabase-auth`    | Sessions, typed claims, OAuth clients and agents, `checkSession`, claim changes, authorization providers |
 | `better-supabase-testing` | `asUser`, `signLocalJwt`, delegated-token tests, Temporal in tests, typed seeds, pgTAP, doctor in CI     |
 
 Install them with the [`skills`](https://skills.sh) CLI, which supports
@@ -115,9 +115,9 @@ reads:
   with 1 on drift, so agents can verify their own changes.
 - `better-supabase doctor` reports security and performance findings with
   stable codes, so an agent can fix them one by one and rerun it.
-- Claims follow PermDock's contract: the active tenant in `tenant_id` (the
+- Claims follow one contract: the active tenant in `tenant_id` (the
   `claims` block renames it), `memberships` as `{ scope, id, roles }`, and
   plan features in `features`. Roles, memberships and the tenant never come
-  from `user_metadata` or from request input. In a project with a
-  `permdock.config.ts`, PermDock writes the access token hook; don't add the
-  `tenant` or `entitlements` SQL modules ([better-supabase and PermDock](/docs/auth/permdock)).
+  from `user_metadata` or from request input. When the config has an
+  `authorization` provider whose hook owns `memberships`, don't add the
+  `tenant` SQL module ([authorization providers](/docs/extending/authorization-providers)).

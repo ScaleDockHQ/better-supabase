@@ -115,6 +115,6 @@ token hook adds, so the session cookie grows with them and every request
 sends them twice (cookie and `Authorization` header). Keep ids and roles in
 the token, validate and type them with
 [`betterSupabase.claims(schema)`](/docs/auth#typed-claims), and let
-`better-supabase doctor --as <user id>` warn when they pass 2 KB, and when
-`memberships` plus `attrs` pass PermDock's 1 KB budget if a
-`permdock.config.ts` is present ([BS405](/docs/cli/doctor#bs405)).
+`better-supabase doctor --as <user id>` warn when they pass 2 KB, and when the
+claims an [authorization provider's](/docs/extending/authorization-providers)
+hook budgets pass that budget ([BS405](/docs/cli/doctor#bs405)).
