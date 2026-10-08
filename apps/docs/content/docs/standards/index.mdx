@@ -58,6 +58,7 @@ validates the output against a vendored copy of it.
 | [Supabase SDK diagnostic logging (capability matrix 1.14.0)](https://github.com/supabase/sdk/blob/capability-matrix/v1.14.0/packages/capability-matrix/specs/client/observability/diagnostic_logging.md) | Adopted (pinned) | `defineSupabase(schema, { diagnostics: true })` writes redacted debug records to `logger` ([events](/docs/extending/events#diagnostics))        | `supabase-sdk-diagnostic-logging.test.ts` |
 | [better-supabase AI message v1](/docs/blocks/ai-chat)                                                                                                                                                    | Adopted (pinned) | `ai_messages.parts` in the [AI chat block](/docs/blocks/ai-chat), `schemas/ai-message-v1.json`                                                  | `ai-message.test.ts`                      |
 | [AI SDK UI message stream protocol v1](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol)                                                                                                                | Adopted (pinned) | `createAssistant()` in [`better-supabase/ai-sdk/chat`](/docs/ai-sdk/chat), resumed from the stream store                                        | `ai-sdk-ui-message-stream.test.ts`        |
+| [Anthropic memory tool `memory_20250818`](https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool)                                                                                         | Adopted (pinned) | `memoryTool()` and `anthropicMemory()` in [`better-supabase/ai-sdk/memory`](/docs/ai-sdk/memory), on the [memory block](/docs/blocks/memory)    | `anthropic-memory-tool.test.ts`           |
 | [AsyncAPI 3](https://www.asyncapi.com/docs/reference/specification/v3.0.0)                                                                                                                               | Tracked          | describing realtime topics                                                                                                                      |                                           |
 
 ## Pins
@@ -82,4 +83,5 @@ SPEC_PINS.jsonSchema; // JSON Schema dialect of generated schemas
 SPEC_PINS.supabaseSdkCapabilities; // Supabase SDK capability matrix the `diagnostics` option follows
 SPEC_PINS.aiMessage; // version of the canonical AI message (`schemas/ai-message-v1.json`)
 SPEC_PINS.aiSdkUiMessageStream; // AI SDK UI message stream protocol that `createAssistant` writes
+SPEC_PINS.anthropicMemoryTool; // version of Anthropic's memory tool whose commands the memory block runs
 ```

@@ -1885,6 +1885,51 @@
       "StoredAiFile"
     ]
   },
+  "./blocks/knowledge": {
+    "values": [
+      "chunk",
+      "createKnowledge",
+      "rpcTransport",
+      "sqlTransport",
+      "vectorLiteral"
+    ],
+    "types": [
+      "BlockTransport",
+      "ChunkOptions",
+      "Embedder",
+      "Knowledge",
+      "KnowledgeChunk",
+      "KnowledgeDocument",
+      "KnowledgeHit",
+      "KnowledgeOptions",
+      "KnowledgeQuery",
+      "KnowledgeScope",
+      "KnowledgeSearchOptions",
+      "KnowledgeStatus",
+      "NewKnowledgeDocument"
+    ]
+  },
+  "./blocks/memory": {
+    "values": [
+      "createMemory",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Embedder",
+      "Memory",
+      "MemoryCommand",
+      "MemoryHit",
+      "MemoryKind",
+      "MemoryNamespace",
+      "MemoryOptions",
+      "MemoryRecord",
+      "MemoryScope",
+      "MemoryView",
+      "RecalledMessage"
+    ]
+  },
   "./ai-sdk": {
     "values": [
       "AI_SDK_UI_FORMAT",
@@ -1942,6 +1987,44 @@
       "GeneratedFileLike",
       "ProviderFileUpload",
       "SaveGeneratedOptions"
+    ]
+  },
+  "./ai-sdk/embeddings": {
+    "values": [
+      "embedWith",
+      "modelName",
+      "rerankWith",
+      "searchTool",
+      "supabaseEmbed",
+      "toSourceParts"
+    ],
+    "types": [
+      "Embedder",
+      "EmbedWithOptions",
+      "KnowledgeHit",
+      "Reranker",
+      "SearchToolOptions",
+      "SearchToolResult",
+      "SupabaseAiSession",
+      "SupabaseEmbedOptions"
+    ]
+  },
+  "./ai-sdk/memory": {
+    "values": [
+      "anthropicMemory",
+      "extractMemories",
+      "memoryTool",
+      "recallTool",
+      "withMemory"
+    ],
+    "types": [
+      "AnthropicMemoryTools",
+      "ExtractMemoriesOptions",
+      "ExtractMemoriesPayload",
+      "MemoryCommand",
+      "MemoryNamespace",
+      "RecallToolOptions",
+      "RecallToolResult"
     ]
   },
   "./ai-sdk/react": {
