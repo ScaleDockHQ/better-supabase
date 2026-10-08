@@ -86,7 +86,7 @@ export function BetterSupabaseProvider(
   return createElement(ClientContext.Provider, { value }, props.children);
 }
 
-export function useClientContext(): ContextValue {
+function useClientContext(): ContextValue {
   const value = useContext(ClientContext);
   if (!value) {
     throw new Error(

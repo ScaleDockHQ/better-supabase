@@ -94,7 +94,7 @@ export function around(entries: readonly AnyEntry[]): Around {
 export interface HandlerResponseInit {
   readonly status?: number | undefined;
   readonly statusText?: string | undefined;
-  readonly headers?: HeadersInit | undefined;
+  readonly headers?: ConstructorParameters<typeof Headers>[0] | undefined;
 }
 
 /**

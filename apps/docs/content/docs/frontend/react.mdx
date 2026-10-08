@@ -88,14 +88,14 @@ export function SignInForm() {
 }
 ```
 
-| Hook | What it returns |
-| --- | --- |
-| `useSignIn()` | `password`, `otp`, `verifyOtp` and `oauth`, with `pending` and the last `error` |
-| `useSignOut()` | `signOut(options)`, with `pending` and `error`; the provider then clears cached queries |
+| Hook                                       | What it returns                                                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `useSignIn()`                              | `password`, `otp`, `verifyOtp` and `oauth`, with `pending` and the last `error`                              |
+| `useSignOut()`                             | `signOut(options)`, with `pending` and `error`; the provider then clears cached queries                      |
 | `useDebouncedSearch(initial, { delayMs })` | `value` and `setValue` for the input, the settled `term`, and `pattern` with `%` and `_` escaped for `ilike` |
-| `useSignedUrl(bucket, target, { ttl })` | a signed URL that is signed again before it expires; `null` pauses |
-| `useUpload(bucket)` | `upload(target, body)`, `progress` from 0 to 1, `status`, `abort` and `reset` |
-| `usePresence(topic, values, { state })` | the `members` on a presence topic, `track` and `untrack` |
+| `useSignedUrl(bucket, target, { ttl })`    | a signed URL that is signed again before it expires; `null` pauses                                           |
+| `useUpload(bucket)`                        | `upload(target, body)`, `progress` from 0 to 1, `status`, `abort` and `reset`                                |
+| `usePresence(topic, values, { state })`    | the `members` on a presence topic, `track` and `untrack`                                                     |
 
 `useDebouncedSearch` pairs with `contains`, which escapes the term itself:
 `where: search.term ? { name: { contains: search.term } } : {}`. `escapeLike`
