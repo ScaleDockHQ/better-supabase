@@ -7,7 +7,7 @@ import { aiChatExtras } from "./ai-chat-extras.ts";
 import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 
 /** `jsonb_build_object` of a chat row, with stable keys whatever the column names. */
-export function chatJson(names: AiChatNames, row: string): string {
+function chatJson(names: AiChatNames, row: string): string {
   const ch = names.c.chats;
   const keys: readonly (readonly [string, string])[] = [
     ["id", ch.id],

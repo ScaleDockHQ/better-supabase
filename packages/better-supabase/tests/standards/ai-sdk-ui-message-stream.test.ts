@@ -5,7 +5,7 @@ import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { post, setup, userMessage } from "../ai-sdk/chat/fakes.ts";
 
 /** The SSE body as UI message chunks, the way `DefaultChatTransport` reads it. */
-function chunks(body: ReadableStream<Uint8Array>) {
+function chunks(body: ReadableStream<Uint8Array<ArrayBuffer>>) {
   return body.pipeThrough(new TextDecoderStream()).pipeThrough(
     new TransformStream<string, unknown>({
       transform(text, controller) {
