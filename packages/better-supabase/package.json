@@ -331,6 +331,11 @@
       "types": "./dist/workflow-sdk/world/index.d.ts",
       "default": "./dist/workflow-sdk/world/index.js"
     },
+    "./eve": {
+      "@better-supabase/source": "./src/eve/index.ts",
+      "types": "./dist/eve/index.d.ts",
+      "default": "./dist/eve/index.js"
+    },
     "./workflow-sdk/builder": {
       "@better-supabase/source": "./src/workflow-sdk/builder/index.ts",
       "types": "./dist/workflow-sdk/builder/index.d.ts",
@@ -764,6 +769,10 @@
         "types": "./dist/workflow-sdk/world/index.d.ts",
         "default": "./dist/workflow-sdk/world/index.js"
       },
+      "./eve": {
+        "types": "./dist/eve/index.d.ts",
+        "default": "./dist/eve/index.js"
+      },
       "./workflow-sdk/builder": {
         "types": "./dist/workflow-sdk/builder/index.d.ts",
         "default": "./dist/workflow-sdk/builder/index.js"
@@ -1023,6 +1032,7 @@
     "@workflow/world-postgres": "catalog:peers",
     "ai": "catalog:peers",
     "chat": "catalog:peers",
+    "eve": "catalog:peers",
     "expo-server": "catalog:peers",
     "hono": "catalog:peers",
     "next": "catalog:peers",
@@ -1072,6 +1082,9 @@
       "optional": true
     },
     "chat": {
+      "optional": true
+    },
+    "eve": {
       "optional": true
     },
     "expo-server": {

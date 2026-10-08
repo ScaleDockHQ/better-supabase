@@ -80,6 +80,7 @@ const entries = [
   "blocks/workflow-builder/react/server",
   "workflow-sdk/index",
   "workflow-sdk/world/index",
+  "eve/index",
   "workflow-sdk/builder/index",
   "blocks/sso/index",
   "blocks/data-lifecycle/index",

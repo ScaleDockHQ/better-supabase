@@ -60,6 +60,7 @@ const NODE_ENTRIES = new Set([
   "./postgres",
   "./testing",
   "./workflow-sdk/world",
+  "./eve",
 ]);
 
 const BUILTINS = new Set([

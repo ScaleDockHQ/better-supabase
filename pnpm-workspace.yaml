@@ -189,6 +189,8 @@ catalogs:
     ai: ">=7 <8"
     # 55.0.0 added setResponseHeaders, which the Expo adapter writes cookies through.
     expo-server: ">=55 <59"
+    # 0.71 is the memory provider, hook and connection contract better-supabase/eve is typed against.
+    eve: ">=0.71 <1"
     hono: ">=4 <5"
     # 16.3.0 added `io()`, which `better-supabase/next` awaits before reading the session.
     next: ">=16.3 <17"
