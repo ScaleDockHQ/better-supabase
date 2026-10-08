@@ -1247,7 +1247,8 @@
       "MiddlewareOptions",
       "ResourceMap",
       "ResourceRouteOptions",
-      "ResourcesOptions"
+      "ResourcesOptions",
+      "RouteParams"
     ]
   },
   "./mcp": {

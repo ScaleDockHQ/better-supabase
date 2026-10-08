@@ -1,13 +1,18 @@
-import { os } from "@orpc/server";
-import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
+import { createOrpc } from "better-supabase/orpc";
 import * as v from "valibot";
 
 import { betterSupabase } from "./lib/supabase";
 
 export const bs = createOrpc(betterSupabase);
 
-const base = os.$context<OrpcRequestContext>();
-const authed = base.use(bs.middleware());
+const authed = bs.authed();
+
+/** The fixture's token hook writes the role to the top-level `user_role` claim. */
+const admin = bs.authed({
+  roles: ["admin"],
+  roleClaim: "user_role",
+  requireTenant: true,
+});
 
 const customer = ["id", "name", "status", "organizationId"] as const;
 
@@ -28,7 +33,7 @@ export const router = {
         bs.unwrap(
           context.db.customers.findMany({
             select: customer,
-            where: input.q ? { name: { ilike: `%${input.q}%` } } : {},
+            where: input.q ? { name: { contains: input.q } } : {},
             orderBy: { name: "asc" },
             limit: input.limit,
           }),
@@ -50,6 +55,17 @@ export const router = {
       )
       .handler(({ context, input }) =>
         bs.unwrap(context.db.customers.create(input, { select: customer })),
+      ),
+    archive: admin
+      .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
+      .handler(({ context, input }) =>
+        bs.unwrap(
+          context.db.customers.update(
+            input.id,
+            { status: "archived" },
+            { select: customer },
+          ),
+        ),
       ),
     remove: authed
       .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))

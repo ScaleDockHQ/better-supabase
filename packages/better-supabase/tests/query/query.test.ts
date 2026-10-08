@@ -376,7 +376,7 @@ describe("query helpers", () => {
     const rewrite = optimistic<Row[], string>([empty], (rows) => rows);
     const snapshot = await rewrite.onMutate("x", context);
     expect(queryClient.getQueryData<Row[]>(empty.queryKey)).toBeUndefined();
-    rewrite.onError(null, "x", snapshot, context);
+    rewrite.onError(new Error("failed"), "x", snapshot, context);
     expect(queryClient.getQueryData<Row[]>(empty.queryKey)).toBeUndefined();
   });
 

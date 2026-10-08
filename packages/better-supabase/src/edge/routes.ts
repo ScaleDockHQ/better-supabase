@@ -1,12 +1,20 @@
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
-import type { EdgeRoute, EdgeRouteHandler, EdgeRoutes } from "./index.ts";
+import type { EdgeRoute, EdgeRouteHandler } from "./index.ts";
+
+/** Each route types its own params, so the compiled list holds them as `never`. */
+type AnyRoutes<M extends AnyModels, F extends AnyFunctions, E, C, P> = Readonly<
+  Record<
+    string,
+    EdgeRouteHandler<M, F, E, C, P, never> | EdgeRoute<M, F, E, C, P, never>
+  >
+>;
 
 interface CompiledRoute<M extends AnyModels, F extends AnyFunctions, E, C, P> {
   readonly method: string | undefined;
   readonly segments: readonly string[];
   readonly rest: boolean;
-  readonly handler: EdgeRouteHandler<M, F, E, C, P>;
-  readonly options: Omit<EdgeRoute<M, F, E, C, P>, "handler">;
+  readonly handler: EdgeRouteHandler<M, F, E, C, P, never>;
+  readonly options: Omit<EdgeRoute<M, F, E, C, P, never>, "handler">;
 }
 
 /** A matched route and its decoded params. */
@@ -34,7 +42,7 @@ export function compileRoutes<
   E,
   C,
   P,
->(routes: EdgeRoutes<M, F, E, C, P>): CompiledRoute<M, F, E, C, P>[] {
+>(routes: AnyRoutes<M, F, E, C, P>): CompiledRoute<M, F, E, C, P>[] {
   const compiled: CompiledRoute<M, F, E, C, P>[] = [];
   for (const [key, value] of Object.entries(routes)) {
     const matched = METHOD.exec(key.trim());

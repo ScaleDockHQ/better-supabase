@@ -19,7 +19,7 @@ export const contractRouter = os.router({
       bs.unwrap(
         context.db.customers.findMany({
           select,
-          where: input.q ? { name: { ilike: `%${input.q}%` } } : {},
+          where: input.q ? { name: { contains: input.q } } : {},
           orderBy: { name: "asc" },
           limit: input.limit,
         }),

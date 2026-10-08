@@ -67,6 +67,24 @@ export interface ResourcesOptions extends MiddlewareOptions {
   readonly basePath?: string;
 }
 
+type ParamNames<K extends string> =
+  K extends `${string}:${infer Name}/${infer Rest}`
+    ? Name | ParamNames<Rest>
+    : K extends `${string}:${infer Name}`
+      ? Name
+      : never;
+
+/**
+ * The params a route key declares: one per `:name` segment, and `*` for a
+ * final wildcard. `RouteParams<"GET /orgs/:org/files/*">` is
+ * `{ org: string; "*": string }`.
+ */
+export type RouteParams<K extends string> = {
+  readonly [
+    N in ParamNames<K> | (K extends `${string}/*` ? "*" : never)
+  ]: string;
+};
+
 /** A route handler: the request, the caller's context and the path params. */
 export type EdgeRouteHandler<
   M extends AnyModels,
@@ -74,10 +92,11 @@ export type EdgeRouteHandler<
   E,
   C = unknown,
   P = unknown,
+  Params = Readonly<Record<string, string>>,
 > = (
   request: Request,
   ctx: ServerContext<M, F, E, C, P> & {
-    readonly params: Readonly<Record<string, string>>;
+    readonly params: Params;
     readonly session: AuthSession<C, P>;
     readonly tenant: string | undefined;
   },
@@ -90,8 +109,9 @@ export interface EdgeRoute<
   E,
   C = unknown,
   P = unknown,
+  Params = Readonly<Record<string, string>>,
 > extends KitRequireOptions<C, P> {
-  readonly handler: EdgeRouteHandler<M, F, E, C, P>;
+  readonly handler: EdgeRouteHandler<M, F, E, C, P, Params>;
 }
 
 /**
@@ -126,7 +146,8 @@ export interface BetterEdge<
   /**
    * A router: each route runs as the caller, behind the shared guard in
    * `options` and its own. An unknown path answers 404 and a known path
-   * with another method 405, both before auth resolves.
+   * with another method 405, both before auth resolves. `ctx.params` is
+   * typed from the key: `"GET /customers/:id"` gets `params.id`.
    *
    * ```ts
    * Deno.serve(bs.routes({
@@ -136,8 +157,12 @@ export interface BetterEdge<
    * }, { basePath: '/api' }))
    * ```
    */
-  routes(
-    routes: EdgeRoutes<M, F, E, C, P>,
+  routes<K extends string>(
+    routes: {
+      readonly [Key in K]:
+        | EdgeRouteHandler<M, F, E, C, P, RouteParams<Key>>
+        | EdgeRoute<M, F, E, C, P, RouteParams<Key>>;
+    },
     options?: ResourcesOptions,
   ): EdgeHandler;
   /** REST resources matching `createOpenApi`, e.g. `Deno.serve(bs.resources({ customers: true }))`. */
@@ -240,7 +265,7 @@ export function createEdge<
 
     routes(routes, routesOptions = {}) {
       const base = (routesOptions.basePath ?? "").replace(/\/$/, "");
-      const compiled = compileRoutes(routes);
+      const compiled = compileRoutes<M, F, E, C, P>(routes);
       const { allow, aal, scopes, ...middlewareOptions } = routesOptions;
       const shared = {
         ...(allow === undefined ? {} : { allow }),
@@ -300,7 +325,13 @@ export function createEdge<
           if ("kind" in caller) return err(caller);
           return route.handler(
             request,
-            withExtra(ctx, { params, session: caller.session, tenant }),
+            withExtra(ctx, {
+              // SAFETY: matchRoute sets every `:name` segment of the route's
+              // key, and `*` for a final wildcard: the params its handler names.
+              params: params as never,
+              session: caller.session,
+              tenant,
+            }),
           );
         },
         { ...middlewareOptions, allow: EVERY_CALLER },

@@ -11,9 +11,8 @@ describe("tenantOf", () => {
   it("reads the tenant of a server user session", () => {
     const session = { kind: "user", claims } as unknown as AuthSession;
     expect(tenantOf(session)).toBe("org-1");
-    expect(tenantOf({ kind: "anon", reason: "missing" } as AuthSession)).toBe(
-      undefined,
-    );
+    const anon = { kind: "anon", reason: "no-token" } as unknown as AuthSession;
+    expect(tenantOf(anon)).toBeUndefined();
   });
 
   it("reads the tenant of a client auth snapshot", () => {
