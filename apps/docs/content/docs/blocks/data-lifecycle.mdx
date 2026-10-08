@@ -40,8 +40,9 @@ endpoints and deliveries, incoming webhook endpoints, announcement dismissals, w
 audit trail. A module added in a later release joins exports and purges
 when you run `sql sync`, and a table you map to another name in
 `sql.modules.<name>.tables` is read under that name. Webhook secrets and the
-module's own export and deletion records stay out, and incoming webhook
-endpoints are exported without their token hash and secrets. Add your own tables with their user column (for user
+module's own export and deletion records stay out, API keys are never
+exported, and incoming webhook endpoints and invitations are exported without
+their token hashes and secrets. Add your own tables with their user column (for user
 exports) and tenant column (for organization exports and the purge):
 
 ```ts title="better-supabase.config.ts"
@@ -67,7 +68,11 @@ export default defineConfig({
 `purge: false` keeps a table's rows in the purge, for records you must
 retain. `omit: ["api_token", "password_hash"]` leaves columns out of every
 export file of that table, for credentials the export must not hand out;
-the purge still deletes the rows. The audit trail is never purged; its
+the purge still deletes the rows. `export: false` keeps the whole table out
+of exports, for tables that hold only credentials, while the purge still
+deletes its rows. An entry for a table a module already contributes, such as
+`"better_supabase.invitations"`, replaces that module's entry, so you can
+leave out more columns or keep it out of exports. The audit trail is never purged; its
 [retention](/docs/blocks/audit) removes old events.
 
 A schema with many tenant tables doesn't need a list. `autoTables` adds every
