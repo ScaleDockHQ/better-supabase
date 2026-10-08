@@ -2,11 +2,10 @@
 -- table, the custom access token hook copies the user's role into a top-level
 -- `user_role` claim, and `authorize()` checks a permission for RLS. The hook
 -- also writes the per-organization `memberships` and `features` claims the
--- Next.js example reads. It is a
--- minimal fixture, not PermDock's model: apps that use PermDock run
--- `permdock supabase hook generate` for the hook, `role_permissions`,
--- `authorize()` and the policies, and keep none of this. The permission rows
--- are data, so they live in the baseline migration.
+-- Next.js example reads. It is a minimal fixture: apps with an authorization
+-- provider take the hook, `role_permissions`, `authorize()` and the policies
+-- from the provider and keep none of this. The permission rows are data, so
+-- they live in the baseline migration.
 
 create table rbac.user_roles (
   user_id uuid primary key references auth.users on delete cascade,
