@@ -1512,9 +1512,13 @@ describe("ai-chat hooks", () => {
           return { leaf_id: "a2" };
       }
     });
-    const view = renderHook((id: string | null) => useAiChatTree(id), "c1", {
-      client: browser,
-    });
+    const view = renderHook<string | null, ReturnType<typeof useAiChatTree>>(
+      (id) => useAiChatTree(id),
+      "c1",
+      {
+        client: browser,
+      },
+    );
     await flush();
     await flush();
     expect(view.result.path?.map((item) => item.id)).toEqual(["u1", "a1"]);
@@ -1616,9 +1620,13 @@ describe("ai-chat hooks", () => {
           return shares;
       }
     });
-    const view = renderHook((id: string | null) => useAiShare(id), "c1", {
-      client: browser,
-    });
+    const view = renderHook<string | null, ReturnType<typeof useAiShare>>(
+      (id) => useAiShare(id),
+      "c1",
+      {
+        client: browser,
+      },
+    );
     await flush();
     expect(view.result.shares).toEqual([]);
     expect((await view.result.create())?.token).toBe("tok");
