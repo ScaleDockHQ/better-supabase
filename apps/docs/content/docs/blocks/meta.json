@@ -9,6 +9,8 @@
     "audit",
     "jobs",
     "outbox",
+    "workflows",
+    "workflow-sdk",
     "streams",
     "notifications",
     "webhooks-out",

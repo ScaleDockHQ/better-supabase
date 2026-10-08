@@ -27,6 +27,8 @@
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@workflow/world": "catalog:",
+    "@workflow/world-postgres": "catalog:",
     "@wrksz/themes": "catalog:",
     "better-result": "catalog:",
     "better-supabase": "workspace:*",
@@ -36,6 +38,7 @@
     "lucide-react": "catalog:",
     "next": "catalog:",
     "next-intl": "catalog:",
+    "pg": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "server-only": "catalog:",
@@ -43,7 +46,8 @@
     "tailwind-merge": "catalog:",
     "temporal-polyfill": "catalog:",
     "tw-animate-css": "catalog:",
-    "valibot": "catalog:"
+    "valibot": "catalog:",
+    "workflow": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",

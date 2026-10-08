@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 import createNextIntlPlugin from "next-intl/plugin";
+import { withWorkflow } from "workflow/next";
 
 // `next dev` and `next build` extract every `useExtracted` and `getExtracted`
 // message into messages/en.po and keep messages/nl.po in step; the app
@@ -41,4 +42,6 @@ const config: NextConfig = {
   },
 };
 
-export default withNextIntl(config);
+// Compiles the "use workflow" and "use step" functions and adds the
+// /.well-known/workflow routes the World delivers runs to.
+export default withWorkflow(withNextIntl(config));

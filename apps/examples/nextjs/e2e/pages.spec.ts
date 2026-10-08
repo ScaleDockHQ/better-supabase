@@ -35,6 +35,12 @@ const routes: readonly Route[] = [
     visibleTo: everyone,
   },
   {
+    path: "/workflows",
+    label: { en: "Workflows", nl: "Workflows" },
+    heading: { en: "Workflows", nl: "Workflows" },
+    visibleTo: everyone,
+  },
+  {
     // The `beta-page` flag is on for Acme only.
     path: "/beta",
     label: { en: "Beta", nl: "Bèta" },

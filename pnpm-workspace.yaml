@@ -58,6 +58,9 @@ catalog:
   "@vercel/analytics": 2.0.1
   "@vercel/speed-insights": 2.0.0
   "@vitejs/plugin-react": 6.1.1
+  "@workflow/world": 5.0.2
+  "@workflow/world-postgres": 5.0.2
+  "@workflow/world-testing": 5.0.2
   "@wrksz/themes": 2.0.3
   ai: 7.0.127
   ajv: 8.20.0
@@ -135,6 +138,7 @@ catalog:
   valibot: 1.5.0
   vite: 8.3.2
   vitest: 5.0.3
+  workflow: 5.1.0
   # Only the core package's zod generator fixture imports Zod, and `ai` needs it
   # as a peer (docs/decisions/0002). Lint rejects `zod` imports everywhere else.
   zod: 4.6.5
@@ -182,6 +186,11 @@ catalogs:
     # 17 is the first release with createFetchHttpClient and billing.meterEvents.
     stripe: ">=17 <24"
     temporal-polyfill: ">=1"
+    # 5.1.0 adds the dynamic workflows the builder compiles to.
+    workflow: ">=5.1 <6"
+    # The Supabase World speaks the 5.0 world protocol; world-postgres moves with it.
+    "@workflow/world": ">=5.0.2 <5.1"
+    "@workflow/world-postgres": ">=5.0.2 <5.1"
 
 catalogMode: strict
 nodeLinker: isolated
@@ -230,6 +239,13 @@ overrides:
   # uuid <11.1.1 (moderate) arrives through @expo/config-plugins > xcode, which
   # requires the CommonJS build that 11 still ships.
   "xcode>uuid": 11.1.1
+  # devalue <=5.9.2 (high), nanoid 4 to 5.1.15 (high), hono <4.13.7 and
+  # @hono/node-server <1.19.15 (moderate) arrive through the Workflow SDK
+  # (@workflow/core, @workflow/world-testing).
+  "devalue@<5.9.3": ^5.9.3
+  "nanoid@>=4.0.0 <5.1.16": ^5.1.16
+  "hono@<4.13.7": ^4.13.7
+  "@hono/node-server@<1.19.15": ^1.19.15
 
 peerDependencyRules:
   allowedVersions:
@@ -239,6 +255,13 @@ peerDependencyRules:
     # Expo SDK 57's @expo/ui depends on worklets 0.13 while expo-modules-core
     # still lists an optional peer range that ends at 0.10.
     "expo-modules-core>react-native-worklets": "0.13.0"
+    # workflow 5.1 depends on @workflow/nest, which brings NestJS 12;
+    # @supabase/server lists NestJS 10 or 11 as an optional peer it never
+    # loads on our paths.
+    "@supabase/server>@nestjs/common": "12.1.2"
+    # The World conformance suite peers on Vitest 4; it runs on the repo's
+    # Vitest 5 through the same describe and test API.
+    "@workflow/world-testing>vitest": "5.0.3"
     # The Expo example overrides React to 19.2.3 (see overrides); the global
     # React override rewrites every React peer range to the catalog version.
     react: 19.2.3
@@ -268,6 +291,9 @@ allowBuilds:
   # from source as a fallback.
   "@parcel/watcher": false
   "@swc/core": false
+  # cbor-x (through @workflow/world-postgres) falls back to its JavaScript
+  # decoder without the native extension.
+  cbor-extract: false
   # Installs the git hooks from lefthook.yml.
   lefthook: true
   # next/image in docs and marketing needs the sharp native binary.

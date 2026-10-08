@@ -10,13 +10,20 @@ const TestSent = v.object({
   title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
 });
 
+/** Sent by the sample workflows (`/workflows`). */
+const WorkflowMessage = TestSent;
+
 /** Each notification type and the schema `send` checks its `data` against. */
 export const notificationTypes = {
   "test.sent": TestSent,
+  "workflow.message": WorkflowMessage,
 };
 
 export function renderNotification(item: NotificationItem): RenderedText {
   if (item.type === "test.sent" && v.is(TestSent, item.data)) {
+    return { title: item.data.title };
+  }
+  if (item.type === "workflow.message" && v.is(WorkflowMessage, item.data)) {
     return { title: item.data.title };
   }
   return { title: item.summary ?? item.type };
