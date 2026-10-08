@@ -319,6 +319,11 @@
       "types": "./dist/vercel-connect/index.d.ts",
       "default": "./dist/vercel-connect/index.js"
     },
+    "./blocks/ai-chat": {
+      "@better-supabase/source": "./src/blocks/ai-chat/index.ts",
+      "types": "./dist/blocks/ai-chat/index.d.ts",
+      "default": "./dist/blocks/ai-chat/index.js"
+    },
     "./blocks/announcements": {
       "@better-supabase/source": "./src/blocks/announcements/index.ts",
       "types": "./dist/blocks/announcements/index.d.ts",
@@ -612,6 +617,10 @@
       "./vercel-connect": {
         "types": "./dist/vercel-connect/index.d.ts",
         "default": "./dist/vercel-connect/index.js"
+      },
+      "./blocks/ai-chat": {
+        "types": "./dist/blocks/ai-chat/index.d.ts",
+        "default": "./dist/blocks/ai-chat/index.js"
       },
       "./blocks/announcements": {
         "types": "./dist/blocks/announcements/index.d.ts",

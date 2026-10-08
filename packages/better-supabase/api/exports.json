@@ -1768,6 +1768,29 @@
       "VercelConnectRef"
     ]
   },
+  "./blocks/ai-chat": {
+    "values": [
+      "AI_MESSAGE_PART_TYPES",
+      "AI_MESSAGE_SCHEMA_ID",
+      "aiMessageSchema",
+      "isAiMessage"
+    ],
+    "types": [
+      "AiDataPart",
+      "AiFilePart",
+      "AiMessage",
+      "AiMessagePart",
+      "AiMessagePartType",
+      "AiMessageRole",
+      "AiReasoningPart",
+      "AiSourcePart",
+      "AiStepPart",
+      "AiTextPart",
+      "AiToolApprovalPart",
+      "AiToolCallPart",
+      "AiToolResultPart"
+    ]
+  },
   "./blocks/announcements": {
     "values": [
       "createAnnouncements",
