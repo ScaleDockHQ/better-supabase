@@ -38,6 +38,8 @@ const entries = [
   "blocks/webhooks/index",
   "blocks/entitlements/index",
   "blocks/ai-chat/index",
+  "blocks/ai-chat/react/index",
+  "blocks/ai-chat/react/server",
   "blocks/announcements/index",
   "blocks/announcements/react/index",
   "blocks/announcements/react/server",
