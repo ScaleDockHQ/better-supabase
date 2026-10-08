@@ -171,7 +171,7 @@ function setup(options: Setup = {}) {
           parentId: "u1",
           uiMessages: [],
           messages: [{ role: "user", content: "Hi" }],
-          providerOptions: {},
+          providerOptions: { gateway: {} },
           ...options.turn,
         };
   const prepare = vi.fn(async () => turn);

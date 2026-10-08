@@ -164,7 +164,15 @@ describe("durable steps", () => {
         streamId: "s1",
         organizationId: "org",
         status: "done",
-        usage: { inputTokens: 1, outputTokens: 2, generationId: "gen_1" },
+        usage: {
+          inputTokens: 1,
+          outputTokens: 2,
+          totalTokens: 3,
+          cachedInputTokens: 0,
+          reasoningTokens: 0,
+          generationId: "gen_1",
+          costMicroUsd: undefined,
+        },
       },
       { enqueueCostBackfill },
     );
@@ -173,7 +181,13 @@ describe("durable steps", () => {
       "s1",
       {
         status: "done",
-        usage: { inputTokens: 1, outputTokens: 2 },
+        usage: {
+          inputTokens: 1,
+          outputTokens: 2,
+          totalTokens: 3,
+          cachedInputTokens: 0,
+          reasoningTokens: 0,
+        },
         generationId: "gen_1",
       },
     ]);

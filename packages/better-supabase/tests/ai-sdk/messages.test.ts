@@ -480,14 +480,12 @@ describe("fromModelMessages", () => {
     const message = fromModelMessages("m1", turn, {
       sources: [
         {
-          type: "source",
           sourceType: "url",
           id: "s1",
           url: "https://a.b",
           title: "A",
         },
         {
-          type: "source",
           sourceType: "document",
           id: "s2",
           mediaType: "application/pdf",
