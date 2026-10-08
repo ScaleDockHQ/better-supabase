@@ -178,4 +178,35 @@ describe.skipIf(!live)("api-keys", () => {
       await s.close();
     }
   });
+  it("needs the own permission in every tenant for a key without a tenant", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "api-keys"]);
+      const owner = await s.user("owner");
+      const both = await s.user("both");
+      const member = await s.user("member");
+      const outsider = await s.user("outsider");
+      await s.organization(owner, { viewer: both });
+      await s.organization(owner, { member: both, member2: member });
+      const keys = createApiKeys({ transport: sqlTransport(s.sql) });
+
+      await s.as(both);
+      expect(await keys.create({ name: "All", personal: true })).toMatchObject({
+        ok: false,
+        error: { kind: "forbidden", hint: "API_KEY_FORBIDDEN" },
+      });
+
+      await s.as(member);
+      expect(
+        (await keys.create({ name: "All", personal: true }).orThrow()).key,
+      ).toMatchObject({ userId: member.id });
+
+      await s.as(outsider);
+      expect(
+        (await keys.create({ name: "Own", personal: true }).orThrow()).key,
+      ).toMatchObject({ userId: outsider.id });
+    } finally {
+      await s.close();
+    }
+  });
 });

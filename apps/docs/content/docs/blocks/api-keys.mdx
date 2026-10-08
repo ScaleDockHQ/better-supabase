@@ -28,8 +28,12 @@ A key acts in one of three ways:
 | Personal key limited to a tenant | `personal: true` and `organizationId` | The user, only while they are still a member |
 
 Creating a tenant key needs `api_keys.manage` in the tenant; a personal key
-in a tenant needs `api_keys.own`. The default roles give `admin` both and
-`member` the second. Rename the keys with `sql.modules.api-keys.permissions`.
+in a tenant needs `api_keys.own`. A personal key without a tenant acts in
+every tenant its user belongs to, so it needs `api_keys.own` in each of them;
+a user without any membership can still create one. The default roles give
+`admin` both and `member` the second. API keys are never part of a
+[data export](/docs/blocks/data-lifecycle); the purge still deletes a
+tenant's keys. Rename the keys with `sql.modules.api-keys.permissions`.
 
 ## Managing keys
 
