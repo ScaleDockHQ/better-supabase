@@ -41,7 +41,12 @@ const available =
   spawnSync("docker", ["info"], { stdio: "ignore" }).status === 0;
 
 const supabase = (cwd: string, args: string[]) => {
-  const run = spawnSync(SUPABASE, args, { cwd, encoding: "utf8" });
+  // The plan for every module is printed in full and is over the 1 MiB default.
+  const run = spawnSync(SUPABASE, args, {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
   if (run.status !== 0)
     throw new Error(`supabase ${args.join(" ")}:\n${run.stdout}${run.stderr}`);
   return run.stdout;
