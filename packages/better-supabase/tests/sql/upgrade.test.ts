@@ -90,7 +90,7 @@ describe("upgradePlan", () => {
     ]);
   });
 
-  it("renders steps with PermDock's scope id type", () => {
+  it("renders steps with the provider's scope id type", () => {
     const typed: SqlModule = {
       ...widget,
       upgrades: [
@@ -101,15 +101,15 @@ describe("upgradePlan", () => {
         },
       ],
     };
-    const permdock = {
-      schema: "authz",
+    const accessProvider = {
+      name: "stub",
       scope: "organization",
       idType: "bigint",
-      memberships: [],
+      functions: { idsWith: "authz.ids({permission})", isPlatform: "false" },
     } as const;
     const [plan] = upgradePlan(
       [{ module: "widget", version: 3 }],
-      { permdock },
+      { accessProvider },
       { widget: typed },
     );
     expect(plan!.steps[0]!.sql).toBe(

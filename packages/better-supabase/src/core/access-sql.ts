@@ -107,10 +107,3 @@ export function accessCheck(
     throw new TypeError(`${where}: scope "${scope}" needs a segment`);
   return `${id} in (select t.id::text from ${fillTemplate(`${where} sql.idsWith`, target.sql.idsWith, { permission, scope })} as t(id))`;
 }
-
-/** The keys a bucket or topic access policy names. */
-export function accessKeys(keys: object): string[] {
-  return Object.values(keys).filter(
-    (key): key is string => typeof key === "string",
-  );
-}

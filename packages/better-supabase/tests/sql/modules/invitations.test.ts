@@ -1,15 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
+import type { ModuleAccessProvider } from "../../../src/sql/registry.ts";
 
 import {
   moduleBody,
   renderModules,
   upgradePlan,
 } from "../../../src/sql/registry.ts";
+import {
+  callerOnlyProvider,
+  moduleProvider,
+} from "../../fixtures/authorization-provider.ts";
 
-const body = (modules: ModulesConfig) =>
-  moduleBody("invitations", { modules })!;
+const body = (
+  modules: ModulesConfig,
+  accessProvider: ModuleAccessProvider = callerOnlyProvider,
+) => moduleBody("invitations", { modules, accessProvider })!;
 
 describe("invitations module", () => {
   it("keeps the 0.4 table and create_invitation signature", () => {
@@ -122,11 +129,10 @@ describe("invitations module", () => {
     expect(sql).not.toContain("'viewer'");
   });
 
-  it("lets the permdock model accept tenant custom roles", () => {
+  it("lets the provider model accept tenant custom roles", () => {
     const sql = body({
       access: {
-        model: "permdock",
-        permdock: { schema: "authz", scope: "organization" },
+        model: "provider",
       },
     });
     expect(sql).toContain("if invitee_role is not null and false then");
@@ -155,30 +161,31 @@ describe("invitations module", () => {
     expect(plan.map((step) => step.module)).toContain("invitations");
   });
 
-  it("skips the inviter re-check under the permdock model", () => {
+  it("skips the inviter re-check when the provider answers for the caller only", () => {
     const accept = (modules: ModulesConfig) =>
-      renderModules(["access", "invitations"], { modules })
+      renderModules(["access", "invitations"], {
+        modules,
+        accessProvider: callerOnlyProvider,
+      })
         .map((file) => file.contents)
         .join("\n");
     expect(accept({})).toContain("better_supabase.can_user(invite.");
-    const permdock = accept({
+    const callerOnly = accept({
       access: {
-        model: "permdock",
-        permdock: { schema: "permdock", scope: "organization" },
+        model: "provider",
       },
     });
-    expect(permdock).not.toContain("better_supabase.can_user(invite.");
-    expect(permdock).toContain(
-      "-- The permdock model answers for the caller only, so the inviter's",
+    expect(callerOnly).not.toContain("better_supabase.can_user(invite.");
+    expect(callerOnly).toContain(
+      "-- The provider model answers for the caller only, so the inviter's",
     );
   });
 });
 
-describe("platform invitations under the permdock model", () => {
-  const PERMDOCK: ModulesConfig = {
+describe("platform invitations under the provider model", () => {
+  const PROVIDER: ModulesConfig = {
     access: {
-      model: "permdock",
-      permdock: { schema: "authz", scope: "organization" },
+      model: "provider",
     },
   };
   const roles = {
@@ -189,7 +196,7 @@ describe("platform invitations under the permdock model", () => {
 
   it("assigns the app's platform role table on accept", () => {
     const sql = body({
-      ...PERMDOCK,
+      ...PROVIDER,
       invitations: {
         options: {
           platformRoles: {
@@ -215,14 +222,16 @@ describe("platform invitations under the permdock model", () => {
 
   it("checks the inviter at accept with canAssignFor when canAssign reads the caller", () => {
     const forUser = {
-      ...PERMDOCK,
+      ...PROVIDER,
       access: {
-        model: "permdock" as const,
-        permdock: { schema: "authz", scope: "organization", forUser: true },
+        model: "provider" as const,
       },
     };
     const sql = (platformRoles: Record<string, unknown>) =>
-      body({ ...forUser, invitations: { options: { platformRoles } } });
+      body(
+        { ...forUser, invitations: { options: { platformRoles } } },
+        moduleProvider,
+      );
     const callerOnly = sql({
       ...roles,
       canAssign: "authz.can_grant({role})",
@@ -243,10 +252,10 @@ describe("platform invitations under the permdock model", () => {
     expect(() =>
       sql({ ...roles, canAssignFor: "authz.can_grant({role})" }),
     ).toThrow(/canAssignFor/);
-    expect(body({ ...forUser })).toContain(
+    expect(body({ ...forUser }, moduleProvider)).toContain(
       'create or replace function "better_supabase"."accept_invitation_by_id"(invitation_id uuid)',
     );
-    expect(body({ ...forUser })).toContain(
+    expect(body({ ...forUser }, moduleProvider)).toContain(
       'create or replace function "better_supabase"."decline_invitation_by_id"(invitation_id uuid)',
     );
   });
@@ -255,7 +264,7 @@ describe("platform invitations under the permdock model", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
     const sql = (where?: string, tenantWhere?: string) =>
       body({
-        ...PERMDOCK,
+        ...PROVIDER,
         tenant: {
           mode: "adopt" as const,
           tables: { memberships: "public.team_members" },
@@ -295,7 +304,7 @@ describe("platform invitations under the permdock model", () => {
   it("resolves tenant roles only among the roles roleThrough.where names", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
     const modules = (tenantWhere?: string): ModulesConfig => ({
-      ...PERMDOCK,
+      ...PROVIDER,
       tenant: {
         mode: "adopt" as const,
         tables: { memberships: "public.team_members" },
@@ -340,7 +349,7 @@ describe("platform invitations under the permdock model", () => {
   it("checks every write to the roles tables against where with bs_role_scope", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
     const modules = (where: boolean): ModulesConfig => ({
-      ...PERMDOCK,
+      ...PROVIDER,
       tenant: {
         mode: "adopt" as const,
         tables: { memberships: "public.team_members" },
@@ -398,9 +407,9 @@ describe("platform invitations under the permdock model", () => {
   });
 
   it("refuses platform invitations without platformRoles and checks its shape", () => {
-    expect(body(PERMDOCK)).toContain("INVITATION_SCOPE_UNSUPPORTED");
+    expect(body(PROVIDER)).toContain("INVITATION_SCOPE_UNSUPPORTED");
     const plain = body({
-      ...PERMDOCK,
+      ...PROVIDER,
       invitations: { options: { platformRoles: roles } },
     });
     expect(plain).toContain(
@@ -408,13 +417,13 @@ describe("platform invitations under the permdock model", () => {
     );
     expect(() =>
       body({
-        ...PERMDOCK,
+        ...PROVIDER,
         invitations: { options: { platformRoles: "public.user_roles" } },
       }),
     ).toThrow(/platformRoles must be/);
     expect(() =>
       body({
-        ...PERMDOCK,
+        ...PROVIDER,
         invitations: {
           options: { platformRoles: { ...roles, through: { table: "x" } } },
         },
@@ -422,7 +431,7 @@ describe("platform invitations under the permdock model", () => {
     ).toThrow(/through must be/);
     expect(() =>
       body({
-        ...PERMDOCK,
+        ...PROVIDER,
         invitations: {
           options: { platformRoles: { ...roles, table: "user_roles" } },
         },

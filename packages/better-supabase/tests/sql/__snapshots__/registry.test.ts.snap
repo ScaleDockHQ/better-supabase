@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`entitlements in PermDock mode > renders the bigint scope id type in every tenant signature 1`] = `
+exports[`entitlements with provider memberships > renders the bigint scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bs-module entitlements@1 managed
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
@@ -53,8 +53,8 @@ $$;
 revoke execute on function better_supabase.tenant_entitlement_value(bigint, text) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlement_value(bigint, text) to service_role;
 
--- PermDock mode: memberships come from PermDock's organization scope
--- ("authz"."member_organization_ids"() and "authz"."member_organization_ids_for"(uuid), from \`permdock rls generate\`).
+-- Memberships come from the authorization provider (stub), in its
+-- organization scope: authorization.functions.memberIds and memberIdsFor.
 
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
 create or replace function better_supabase.has_entitlement(tenant bigint, key text)
@@ -64,7 +64,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select tenant in (select "authz"."member_organization_ids"())
+  select tenant::text in (select t.id::text from authz.member_organization_ids() as t(id))
     and key = any (better_supabase.tenant_entitlements(tenant))
 $$;
 
@@ -81,7 +81,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select case when tenant in (select "authz"."member_organization_ids"()) then better_supabase.tenant_entitlement_value(tenant, key) end
+  select case when tenant::text in (select t.id::text from authz.member_organization_ids() as t(id)) then better_supabase.tenant_entitlement_value(tenant, key) end
 $$;
 
 revoke execute on function better_supabase.entitlement_value(bigint, text) from public, anon;
@@ -98,18 +98,17 @@ stable
 security definer
 set search_path = ''
 as $$
-  select t.id from "authz"."member_organization_ids"() as t(id)
-  where key = any (better_supabase.tenant_entitlements(t.id))
+  select t.id::bigint from authz.member_organization_ids() as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id::bigint))
 $$;
 
 revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
 grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
 
 -- The \`features\` claim: { [organization id]: lookup keys }, read by
--- hasEntitlement(). Register it with PermDock instead of writing a hook:
---   supabase: { hook: { claims: { features: 'better_supabase.feature_claims' } } }
--- \`permdock supabase hook generate --grants-out\` then grants "authz"."member_organization_ids_for"
--- to supabase_auth_admin.
+-- hasEntitlement(). Register it with the provider's access token hook, which
+-- runs as supabase_auth_admin, so that role needs execute on what
+-- memberIdsFor calls.
 create or replace function better_supabase.feature_claims(user_id uuid)
 returns jsonb
 language sql
@@ -120,8 +119,8 @@ as $$
   select coalesce(jsonb_object_agg(r.tenant, to_jsonb(r.keys)), '{}'::jsonb)
   from (
     select t.id::text as tenant, e.keys
-    from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
-    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    from authz.member_organization_ids_for(feature_claims.user_id) as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id::bigint) as keys) e
     where cardinality(e.keys) > 0
     order by 1
   ) r
@@ -185,7 +184,7 @@ grant select on better_supabase.modules to service_role;
 "
 `;
 
-exports[`entitlements in PermDock mode > renders the integer scope id type in every tenant signature 1`] = `
+exports[`entitlements with provider memberships > renders the integer scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bs-module entitlements@1 managed
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
@@ -238,8 +237,8 @@ $$;
 revoke execute on function better_supabase.tenant_entitlement_value(integer, text) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlement_value(integer, text) to service_role;
 
--- PermDock mode: memberships come from PermDock's organization scope
--- ("authz"."member_organization_ids"() and "authz"."member_organization_ids_for"(uuid), from \`permdock rls generate\`).
+-- Memberships come from the authorization provider (stub), in its
+-- organization scope: authorization.functions.memberIds and memberIdsFor.
 
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
 create or replace function better_supabase.has_entitlement(tenant integer, key text)
@@ -249,7 +248,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select tenant in (select "authz"."member_organization_ids"())
+  select tenant::text in (select t.id::text from authz.member_organization_ids() as t(id))
     and key = any (better_supabase.tenant_entitlements(tenant))
 $$;
 
@@ -266,7 +265,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select case when tenant in (select "authz"."member_organization_ids"()) then better_supabase.tenant_entitlement_value(tenant, key) end
+  select case when tenant::text in (select t.id::text from authz.member_organization_ids() as t(id)) then better_supabase.tenant_entitlement_value(tenant, key) end
 $$;
 
 revoke execute on function better_supabase.entitlement_value(integer, text) from public, anon;
@@ -283,18 +282,17 @@ stable
 security definer
 set search_path = ''
 as $$
-  select t.id from "authz"."member_organization_ids"() as t(id)
-  where key = any (better_supabase.tenant_entitlements(t.id))
+  select t.id::integer from authz.member_organization_ids() as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id::integer))
 $$;
 
 revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
 grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
 
 -- The \`features\` claim: { [organization id]: lookup keys }, read by
--- hasEntitlement(). Register it with PermDock instead of writing a hook:
---   supabase: { hook: { claims: { features: 'better_supabase.feature_claims' } } }
--- \`permdock supabase hook generate --grants-out\` then grants "authz"."member_organization_ids_for"
--- to supabase_auth_admin.
+-- hasEntitlement(). Register it with the provider's access token hook, which
+-- runs as supabase_auth_admin, so that role needs execute on what
+-- memberIdsFor calls.
 create or replace function better_supabase.feature_claims(user_id uuid)
 returns jsonb
 language sql
@@ -305,8 +303,8 @@ as $$
   select coalesce(jsonb_object_agg(r.tenant, to_jsonb(r.keys)), '{}'::jsonb)
   from (
     select t.id::text as tenant, e.keys
-    from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
-    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    from authz.member_organization_ids_for(feature_claims.user_id) as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id::integer) as keys) e
     where cardinality(e.keys) > 0
     order by 1
   ) r
@@ -370,7 +368,7 @@ grant select on better_supabase.modules to service_role;
 "
 `;
 
-exports[`entitlements in PermDock mode > renders the text scope id type in every tenant signature 1`] = `
+exports[`entitlements with provider memberships > renders the text scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bs-module entitlements@1 managed
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
@@ -423,8 +421,8 @@ $$;
 revoke execute on function better_supabase.tenant_entitlement_value(text, text) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlement_value(text, text) to service_role;
 
--- PermDock mode: memberships come from PermDock's organization scope
--- ("authz"."member_organization_ids"() and "authz"."member_organization_ids_for"(uuid), from \`permdock rls generate\`).
+-- Memberships come from the authorization provider (stub), in its
+-- organization scope: authorization.functions.memberIds and memberIdsFor.
 
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
 create or replace function better_supabase.has_entitlement(tenant text, key text)
@@ -434,7 +432,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select tenant in (select "authz"."member_organization_ids"())
+  select tenant::text in (select t.id::text from authz.member_organization_ids() as t(id))
     and key = any (better_supabase.tenant_entitlements(tenant))
 $$;
 
@@ -451,7 +449,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select case when tenant in (select "authz"."member_organization_ids"()) then better_supabase.tenant_entitlement_value(tenant, key) end
+  select case when tenant::text in (select t.id::text from authz.member_organization_ids() as t(id)) then better_supabase.tenant_entitlement_value(tenant, key) end
 $$;
 
 revoke execute on function better_supabase.entitlement_value(text, text) from public, anon;
@@ -468,18 +466,17 @@ stable
 security definer
 set search_path = ''
 as $$
-  select t.id from "authz"."member_organization_ids"() as t(id)
-  where key = any (better_supabase.tenant_entitlements(t.id))
+  select t.id::text from authz.member_organization_ids() as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id::text))
 $$;
 
 revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
 grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
 
 -- The \`features\` claim: { [organization id]: lookup keys }, read by
--- hasEntitlement(). Register it with PermDock instead of writing a hook:
---   supabase: { hook: { claims: { features: 'better_supabase.feature_claims' } } }
--- \`permdock supabase hook generate --grants-out\` then grants "authz"."member_organization_ids_for"
--- to supabase_auth_admin.
+-- hasEntitlement(). Register it with the provider's access token hook, which
+-- runs as supabase_auth_admin, so that role needs execute on what
+-- memberIdsFor calls.
 create or replace function better_supabase.feature_claims(user_id uuid)
 returns jsonb
 language sql
@@ -490,8 +487,8 @@ as $$
   select coalesce(jsonb_object_agg(r.tenant, to_jsonb(r.keys)), '{}'::jsonb)
   from (
     select t.id::text as tenant, e.keys
-    from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
-    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    from authz.member_organization_ids_for(feature_claims.user_id) as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id::text) as keys) e
     where cardinality(e.keys) > 0
     order by 1
   ) r
@@ -555,7 +552,7 @@ grant select on better_supabase.modules to service_role;
 "
 `;
 
-exports[`entitlements in PermDock mode > renders the uuid scope id type in every tenant signature 1`] = `
+exports[`entitlements with provider memberships > renders the uuid scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bs-module entitlements@1 managed
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
@@ -608,8 +605,8 @@ $$;
 revoke execute on function better_supabase.tenant_entitlement_value(uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.tenant_entitlement_value(uuid, text) to service_role;
 
--- PermDock mode: memberships come from PermDock's organization scope
--- ("authz"."member_organization_ids"() and "authz"."member_organization_ids_for"(uuid), from \`permdock rls generate\`).
+-- Memberships come from the authorization provider (stub), in its
+-- organization scope: authorization.functions.memberIds and memberIdsFor.
 
 -- using ((select better_supabase.has_entitlement(organization_id, 'exports')))
 create or replace function better_supabase.has_entitlement(tenant uuid, key text)
@@ -619,7 +616,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select tenant in (select "authz"."member_organization_ids"())
+  select tenant::text in (select t.id::text from authz.member_organization_ids() as t(id))
     and key = any (better_supabase.tenant_entitlements(tenant))
 $$;
 
@@ -636,7 +633,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select case when tenant in (select "authz"."member_organization_ids"()) then better_supabase.tenant_entitlement_value(tenant, key) end
+  select case when tenant::text in (select t.id::text from authz.member_organization_ids() as t(id)) then better_supabase.tenant_entitlement_value(tenant, key) end
 $$;
 
 revoke execute on function better_supabase.entitlement_value(uuid, text) from public, anon;
@@ -653,18 +650,17 @@ stable
 security definer
 set search_path = ''
 as $$
-  select t.id from "authz"."member_organization_ids"() as t(id)
-  where key = any (better_supabase.tenant_entitlements(t.id))
+  select t.id::uuid from authz.member_organization_ids() as t(id)
+  where key = any (better_supabase.tenant_entitlements(t.id::uuid))
 $$;
 
 revoke execute on function better_supabase.tenant_ids_with_entitlement(text) from public, anon;
 grant execute on function better_supabase.tenant_ids_with_entitlement(text) to authenticated, service_role;
 
 -- The \`features\` claim: { [organization id]: lookup keys }, read by
--- hasEntitlement(). Register it with PermDock instead of writing a hook:
---   supabase: { hook: { claims: { features: 'better_supabase.feature_claims' } } }
--- \`permdock supabase hook generate --grants-out\` then grants "authz"."member_organization_ids_for"
--- to supabase_auth_admin.
+-- hasEntitlement(). Register it with the provider's access token hook, which
+-- runs as supabase_auth_admin, so that role needs execute on what
+-- memberIdsFor calls.
 create or replace function better_supabase.feature_claims(user_id uuid)
 returns jsonb
 language sql
@@ -675,8 +671,8 @@ as $$
   select coalesce(jsonb_object_agg(r.tenant, to_jsonb(r.keys)), '{}'::jsonb)
   from (
     select t.id::text as tenant, e.keys
-    from "authz"."member_organization_ids_for"(feature_claims.user_id) as t(id)
-    cross join lateral (select better_supabase.tenant_entitlements(t.id) as keys) e
+    from authz.member_organization_ids_for(feature_claims.user_id) as t(id)
+    cross join lateral (select better_supabase.tenant_entitlements(t.id::uuid) as keys) e
     where cardinality(e.keys) > 0
     order by 1
   ) r

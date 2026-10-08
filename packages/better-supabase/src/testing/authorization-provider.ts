@@ -11,7 +11,6 @@ import {
   conform,
   expect,
   hasName,
-  same,
 } from "./conformance.ts";
 
 const ID_TYPES: ReadonlySet<string> = new Set([
@@ -20,6 +19,21 @@ const ID_TYPES: ReadonlySet<string> = new Set([
   "bigint",
   "integer",
 ]);
+function isPlainJson(value: unknown): boolean {
+  if (value === null || typeof value === "string" || typeof value === "boolean")
+    return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isPlainJson);
+  if (typeof value !== "object") return false;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return (
+    (prototype === Object.prototype || prototype === null) &&
+    Object.values(value).every(
+      (entry) => entry === undefined || isPlainJson(entry),
+    )
+  );
+}
+
 const QUALIFIED = /^[a-z_][\w$]*\.[a-z_][\w${}]*$/i;
 
 /**
@@ -50,10 +64,7 @@ export function testAuthorizationProvider(
     [
       "is plain JSON",
       () => {
-        expect(
-          same(JSON.parse(JSON.stringify(provider)), provider),
-          "it doesn't survive a JSON round trip",
-        );
+        expect(isPlainJson(provider), "it doesn't survive a JSON round trip");
       },
     ],
     [

@@ -408,7 +408,7 @@ describe("flagContext", () => {
     expect(flagContext({})).toEqual({});
   });
 
-  it("reads roles from PermDock's memberships entries", () => {
+  it("reads roles from a provider's memberships entries", () => {
     const jwtClaims = {
       sub: USER,
       tenant_id: "org-1",

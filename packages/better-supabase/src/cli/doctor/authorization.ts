@@ -5,7 +5,6 @@ import type {
 import type { ModuleEntitlementsProvider } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { accessKeys } from "../../core/access-sql.ts";
 import { modulePermissionKeys, resolveModules } from "../../sql/index.ts";
 import {
   accessProviderMode,
@@ -45,9 +44,10 @@ function templatePattern(template: string): RegExp {
         return String.raw`(?:\w+\s*=>\s*)?'((?:[^']|'')*)'`;
       if (part === "{scope}") return "([a-z][a-z0-9_]*)";
       if (/^\{\w+\}$/.test(part)) return String.raw`[\s\S]*?`;
-      return escapeRegExp(part).replaceAll(/\s+/g, String.raw`\s*`);
+      return escapeRegExp(part.trim()).replaceAll(/\s+/g, String.raw`\s*`);
     })
-    .join("");
+    .filter((part) => part !== "")
+    .join(String.raw`\s*`);
   return new RegExp(source, "gi");
 }
 
@@ -153,7 +153,13 @@ export function providerBucketKeys(
     return [
       {
         bucket,
-        keys: accessKeys(policy.access),
+        keys: [
+          ...new Set(
+            Object.values(policy.access).filter(
+              (key): key is string => typeof key === "string",
+            ),
+          ),
+        ],
         scope: scope === "tenant" ? provider.tenantScope : scope,
       },
     ];

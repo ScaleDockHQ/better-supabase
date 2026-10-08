@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
 import { renderModules } from "../../../src/sql/registry.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const sqlOf = (names: readonly string[], modules: ModulesConfig = {}): string =>
-  renderModules(names, { modules })
+  renderModules(names, { modules, accessProvider: moduleProvider })
     .filter((file) => file.contents.includes("waitlist_entries"))
     .map((file) => file.contents)
     .join("\n");
@@ -70,10 +71,7 @@ describe("waitlist module", () => {
 
   it("grants the roles in options.roles under any model, checked with can_assign", () => {
     const modules: ModulesConfig = {
-      access: {
-        model: "permdock",
-        permdock: { schema: "authz", scope: "organization" },
-      },
+      access: { model: "provider" },
       waitlist: {
         options: { roles: ["staff", "viewer"], defaultRole: "viewer" },
       },

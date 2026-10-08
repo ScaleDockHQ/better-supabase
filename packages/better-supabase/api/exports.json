@@ -1843,6 +1843,7 @@
       "sameModuleFile",
       "sharedRolesProblems",
       "SQL_MODULES",
+      "templateFunctions",
       "upgradePlan"
     ],
     "types": [

@@ -12,8 +12,11 @@ import type {
   ModulePermissionKey,
 } from "../sql/index.ts";
 
-import { templateFunctions } from "../core/access-sql.ts";
-import { MODULE_ID_TYPES, moduleIdType } from "../sql/index.ts";
+import {
+  MODULE_ID_TYPES,
+  moduleIdType,
+  templateFunctions,
+} from "../sql/index.ts";
 
 /** How findings name the provider. */
 export const providerLabel = (provider: AuthorizationProvider): string =>

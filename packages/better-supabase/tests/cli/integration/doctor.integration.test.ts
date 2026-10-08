@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { LiveDatabase } from "../../../src/cli/doctor/live.ts";
 import type { IntrospectionSource } from "../../../src/cli/introspect/source.ts";
 import type { Snapshot } from "../../../src/cli/introspect/types.ts";
-import type { PermdockProject } from "../../../src/cli/permdock.ts";
+import type { AuthorizationProvider } from "../../../src/config/index.ts";
 
 import {
   type DoctorContext,
@@ -14,6 +14,10 @@ import { introspect } from "../../../src/cli/introspect/index.ts";
 import { pgSource } from "../../../src/cli/introspect/source.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import {
+  stubProvider,
+  withProvider,
+} from "../../fixtures/authorization-provider.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??
@@ -276,14 +280,20 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       fn: string,
       codes: string[],
       hookUser?: string,
-      permdock?: PermdockProject,
+      authorization?: AuthorizationProvider,
     ) => {
       const snapshot = await introspect(db.queryable, ["public"], {
         hooks: [{ hook: "custom_access_token", schema: HOOKS, name: fn }],
       });
       return runRules(
         {
-          config: resolveConfig({ schemas: ["public"] }, "/project"),
+          config: resolveConfig(
+            {
+              schemas: ["public"],
+              ...(authorization ? { authorization } : {}),
+            },
+            "/project",
+          ),
           snapshot,
           configToml: toml(fn),
           envFiles: [],
@@ -291,7 +301,6 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
           sources: [],
           database,
           ...(hookUser ? { hookUser } : {}),
-          ...(permdock ? { permdock } : {}),
         },
         RULES.filter((rule) => codes.includes(rule.code)),
       );
@@ -311,8 +320,8 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       create function ${HOOKS}.bad(event jsonb) returns jsonb
         language plpgsql
         as $$ begin return event; end $$;
-      -- PermDock-shaped: about 1.5 KB of token, memberships and attrs within 1024.
-      create function ${HOOKS}.permdock_fits(event jsonb) returns jsonb
+      -- A provider-shaped token: about 1.5 KB of token, memberships and attrs within 1024.
+      create function ${HOOKS}.provider_fits(event jsonb) returns jsonb
         language plpgsql stable set search_path = ''
         as $$ begin
           event := jsonb_set(event, '{claims,memberships}', jsonb_build_array(
@@ -321,7 +330,7 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
           return jsonb_set(event, '{claims,profile}', to_jsonb(repeat('x', 500)));
         end $$;
       -- Memberships and attrs over 1024, the whole token under 2048.
-      create function ${HOOKS}.permdock_over(event jsonb) returns jsonb
+      create function ${HOOKS}.provider_over(event jsonb) returns jsonb
         language plpgsql stable set search_path = ''
         as $$ begin
           event := jsonb_set(event, '{claims,memberships}', jsonb_build_array(
@@ -329,8 +338,8 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
           return jsonb_set(event, '{claims,attrs}', jsonb_build_object('plan', repeat('p', 300)));
         end $$;
       grant usage on schema ${HOOKS} to supabase_auth_admin;
-      grant execute on function ${HOOKS}.permdock_fits(jsonb), ${HOOKS}.permdock_over(jsonb) to supabase_auth_admin;
-      revoke execute on function ${HOOKS}.permdock_fits(jsonb), ${HOOKS}.permdock_over(jsonb) from authenticated, anon, public;
+      grant execute on function ${HOOKS}.provider_fits(jsonb), ${HOOKS}.provider_over(jsonb) to supabase_auth_admin;
+      revoke execute on function ${HOOKS}.provider_fits(jsonb), ${HOOKS}.provider_over(jsonb) from authenticated, anon, public;
       insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data)
         values ('${USER}', 'authenticated', 'authenticated', 'hook-${USER}@example.com', '{}', '{}');
     `);
@@ -397,24 +406,24 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       expect(who?.role).toBe("postgres");
     });
 
-    it("measures PermDock's budget apart from the whole token", async () => {
-      const permdock: PermdockProject = {
-        config: "permdock.config.ts",
-        manifestPath: "permdock.manifest.json",
-        catalogPath: "permissions.catalog.json",
-        problems: [],
-      };
-      expect(await run("permdock_fits", ["BS405"], USER, permdock)).toEqual([]);
-      const findings = await run("permdock_over", ["BS405"], USER, permdock);
+    it("measures the provider's hook budget apart from the whole token", async () => {
+      const provider = withProvider({
+        tokenHook: {
+          ...stubProvider.tokenHook,
+          budget: { claims: ["memberships", "attrs"], bytes: 1024 },
+        },
+      });
+      expect(await run("provider_fits", ["BS405"], USER, provider)).toEqual([]);
+      const findings = await run("provider_over", ["BS405"], USER, provider);
       expect(findings).toMatchObject([
         {
           code: "BS405",
           message: expect.stringMatching(
-            /returns \d{4} bytes of memberships and attrs .*over PermDock's budget of 1024/,
+            /returns \d{4} bytes of memberships and attrs .*over the hook's budget of 1024/,
           ),
         },
       ]);
-      expect(await run("permdock_over", ["BS405"], USER)).toEqual([]);
+      expect(await run("provider_over", ["BS405"], USER)).toEqual([]);
     });
   },
 );

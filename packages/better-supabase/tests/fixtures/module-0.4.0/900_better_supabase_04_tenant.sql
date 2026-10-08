@@ -73,9 +73,8 @@ revoke execute on function better_supabase.has_org_role(uuid, text[]) from publi
 grant execute on function better_supabase.member_org_ids(text[]) to authenticated, service_role;
 grant execute on function better_supabase.has_org_role(uuid, text[]) to authenticated, service_role;
 
--- The memberships claim in PermDock's shape: [{ scope, id, roles }]. With
--- PermDock, `permdock supabase hook generate` writes the hook instead.
--- Otherwise call it from your custom access token hook:
+-- The memberships claim: [{ scope, id, roles }]. When an authorization
+-- provider writes the hook, it fills the claim instead. Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
 --     better_supabase.membership_claims((event ->> 'user_id')::uuid));
 create or replace function better_supabase.membership_claims(user_id uuid)

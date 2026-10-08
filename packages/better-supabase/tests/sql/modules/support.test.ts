@@ -7,6 +7,7 @@ import {
   renderModules,
   resolveModules,
 } from "../../../src/sql/registry.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const support = (config: ModuleConfig = {}) =>
   moduleBody("support-sessions", { modules: { "support-sessions": config } })!;
@@ -102,14 +103,11 @@ describe("support-sessions module", () => {
   });
 });
 
-describe("support-sessions next to permdock platform roles", () => {
+describe("support-sessions next to provider platform roles", () => {
   it("counts a row in the platform role table as a platform target", () => {
     const files = renderModules(["support-sessions", "invitations"], {
       modules: {
-        access: {
-          model: "permdock",
-          permdock: { schema: "authz", scope: "organization" },
-        },
+        access: { model: "provider" },
         invitations: {
           options: {
             platformRoles: {
@@ -120,6 +118,7 @@ describe("support-sessions next to permdock platform roles", () => {
           },
         },
       },
+      accessProvider: moduleProvider,
     });
     const sql = files.find(
       (file) => file.module === "support-sessions" && file.kind === "schema",

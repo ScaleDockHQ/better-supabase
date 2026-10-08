@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type {
-  AccessModuleConfig,
-  ModulesConfig,
-} from "../../../src/config/modules.ts";
+import type { AccessModuleConfig } from "../../../src/config/modules.ts";
+import type { ModuleAccessProvider } from "../../../src/sql/registry.ts";
 
 import { DEFAULT_ROLES } from "../../../src/sql/modules/access-model.ts";
 import {
@@ -11,10 +9,26 @@ import {
   renderModules,
   SQL_MODULES,
 } from "../../../src/sql/registry.ts";
+import {
+  callerOnlyProvider,
+  moduleProvider,
+} from "../../fixtures/authorization-provider.ts";
 
 const access = (config: AccessModuleConfig, tenant?: object) =>
   moduleBody("access", {
     modules: { access: config, ...(tenant ? { tenant } : {}) },
+  })!;
+
+const PROVIDER = moduleProvider;
+const CALLER_ONLY = callerOnlyProvider;
+
+const provider = (
+  config: AccessModuleConfig = {},
+  accessProvider: ModuleAccessProvider = PROVIDER,
+) =>
+  moduleBody("access", {
+    modules: { access: { model: "provider", ...config } },
+    accessProvider,
   })!;
 
 const CATALOG: AccessModuleConfig = {
@@ -93,38 +107,38 @@ describe("access module", () => {
     );
   });
 
-  it("maps the permdock model onto PermDock's helpers", () => {
-    const sql = access({
-      model: "permdock",
-      permdock: { schema: "permdock", scope: "team" },
-    });
-    expect(sql).toContain('"permdock"."permitted_team_ids"(permission)');
-    expect(sql).toContain('"permdock".permdock_has(permission)');
-    const custom = access({
-      model: "permdock",
-      permdock: { schema: "authz", scope: "organization" },
-      functions: { canAssign: "public.may_assign({tenant}, {role})" },
-    });
-    expect(custom).toContain('"authz"."permitted_organization_ids"');
+  it("maps the provider model onto the provider's templates", () => {
+    const sql = provider();
+    expect(sql).toContain("authz.ids_organization(permission)");
+    expect(sql).toContain("authz.is_platform(permission)");
+    expect(sql).toContain(
+      "-- The provider model: the authorization provider (stub) decides",
+    );
+    const custom = provider(
+      { functions: { canAssign: "public.may_assign({tenant}, {role})" } },
+      CALLER_ONLY,
+    );
     expect(custom).toContain(
       "public.may_assign(can_assign.tenant, can_assign.role)",
     );
+    expect(provider()).toContain(
+      "authz.can_assign(can_assign.tenant, can_assign.role)",
+    );
   });
 
-  it("takes the permdock model's schema, scope and id type from the manifest", () => {
+  it("takes the provider's scope and id type", () => {
     const sql = moduleBody("access", {
-      modules: { access: { model: "permdock" } },
-      accessPermdock: { schema: "authz", scope: "tenant", idType: "text" },
+      modules: { access: { model: "provider", idType: "text" } },
+      accessProvider: { ...PROVIDER, scope: "tenant", idType: "text" },
     })!;
-    expect(sql).toContain('"authz"."permitted_tenant_ids"(permission)');
-    expect(sql).toContain('"authz".permdock_has(permission)');
+    expect(sql).toContain("authz.ids_tenant(permission)");
     expect(sql).toContain("can(scope text, scope_id text, permission text)");
-    expect(sql).not.toContain("permitted_organization_ids");
+    expect(sql).not.toContain("ids_organization");
   });
 
-  it("disables tenants and users from the manifest's suspension rows", () => {
+  it("disables tenants and users from the provider's suspension rows", () => {
     const suspension = {
-      users: { table: "public.profiles", id: "id", disabledAt: "banned_at" },
+      user: { table: "public.profiles", id: "id", disabledAt: "banned_at" },
       tenant: {
         table: "public.organizations",
         id: "id",
@@ -133,13 +147,8 @@ describe("access module", () => {
       },
     };
     const sql = moduleBody("access", {
-      modules: { access: { model: "permdock" } },
-      accessPermdock: {
-        schema: "authz",
-        scope: "tenant",
-        idType: "text",
-        suspension,
-      },
+      modules: { access: { model: "provider" } },
+      accessProvider: { ...PROVIDER, suspension },
     })!;
     expect(sql).toContain(
       `not exists (select 1 from "public"."organizations" t where t."id" = tenant_disabled.tenant and t."state"::text in ('active', 'trial'))`,
@@ -150,16 +159,11 @@ describe("access module", () => {
     const explicit = moduleBody("access", {
       modules: {
         access: {
-          model: "permdock",
+          model: "provider",
           disabled: { user: "public.accounts.disabled_at", userKey: "owner" },
         },
       },
-      accessPermdock: {
-        schema: "authz",
-        scope: "tenant",
-        idType: "text",
-        suspension,
-      },
+      accessProvider: { ...PROVIDER, suspension },
     })!;
     expect(explicit).toContain(
       `exists (select 1 from "public"."accounts" u where u."owner" = user_disabled.user_id and u."disabled_at" is not null)`,
@@ -167,12 +171,7 @@ describe("access module", () => {
     expect(explicit).toContain(`t."state"::text in ('active', 'trial')`);
     const roles = moduleBody("access", {
       modules: { access: { model: "roles" } },
-      accessPermdock: {
-        schema: "authz",
-        scope: "tenant",
-        idType: "text",
-        suspension,
-      },
+      accessProvider: { ...PROVIDER, suspension },
     })!;
     expect(roles).not.toContain("banned_at");
   });
@@ -205,31 +204,18 @@ describe("access module", () => {
     ).toThrow(/must be "schema.table"/);
   });
 
-  it("checks a stored user's assignments with canAssignFor or permdock_can_assign_any_for", () => {
-    const any = moduleBody("access", {
-      modules: { access: { model: "permdock" } },
-      accessPermdock: {
-        schema: "authz",
-        scope: "organization",
-        idType: "uuid",
-        forUser: {
-          has: false,
-          permitted: false,
-          canAssign: true,
-          canAssignAny: true,
+  it("checks a stored user's assignments with canAssignFor", () => {
+    expect(provider()).toContain(
+      "coalesce((authz.can_assign_for(can_assign_as.member, can_assign_as.tenant, can_assign_as.role)), false)",
+    );
+    const template = provider(
+      {
+        functions: {
+          canAssignFor: "app.can_assign_for({user}, {tenant}, {role})",
         },
       },
-    })!;
-    expect(any).toContain(
-      `"authz".permdock_can_assign_any_for(can_assign_as.member, can_assign_as.role, can_assign_as.tenant, 'organization', can_assign_as.tenant::text)`,
+      CALLER_ONLY,
     );
-    const template = access({
-      model: "permdock",
-      permdock: { schema: "authz", scope: "organization" },
-      functions: {
-        canAssignFor: "app.can_assign_for({user}, {tenant}, {role})",
-      },
-    });
     expect(template).toContain(
       "coalesce((app.can_assign_for(can_assign_as.member, can_assign_as.tenant, can_assign_as.role)), false)",
     );
@@ -246,52 +232,25 @@ describe("access module", () => {
     expect(custom).toContain(
       "create or replace function better_supabase.can_assign_as(member uuid, tenant uuid, role text)",
     );
-    expect(
-      access({
-        model: "permdock",
-        permdock: { schema: "authz", scope: "organization" },
-      }),
-    ).not.toContain("can_assign_as(");
+    expect(provider({}, CALLER_ONLY)).not.toContain("can_assign_as(");
   });
 
-  it("answers for another user through PermDock's _for helpers", () => {
-    const callerOnly = access({
-      model: "permdock",
-      permdock: { schema: "authz", scope: "organization" },
-    });
+  it("answers for another user through the provider's _for templates", () => {
+    const callerOnly = provider({}, CALLER_ONLY);
     expect(callerOnly).toContain("hint = 'ACCESS_CALLER_ONLY'");
     expect(callerOnly).not.toContain("_for(");
-    const sql = access({
-      model: "permdock",
-      permdock: { schema: "authz", scope: "organization", forUser: true },
-    });
-    expect(sql).toContain(
-      '"authz"."permitted_organization_ids_for"(member, permission)',
-    );
-    expect(sql).toContain('"authz".permdock_has_for(member, permission)');
-    expect(sql).toContain(
-      '"authz".permdock_can_assign_for(can_assign_as.member, can_assign_as.role, can_assign_as.tenant::text)',
-    );
+    const sql = provider();
+    expect(sql).toContain("authz.ids_organization_for(member, permission)");
+    expect(sql).toContain("authz.is_platform_for(member, permission)");
     expect(sql).not.toContain("hint = 'ACCESS_CALLER_ONLY'");
-    const partial = moduleBody("access", {
-      modules: { access: { model: "permdock" } },
-      accessPermdock: {
-        schema: "authz",
-        scope: "tenant",
-        idType: "text",
-        forUser: { has: false, permitted: true, canAssign: false },
-      },
-    })!;
-    expect(partial).toContain('"authz"."permitted_tenant_ids_for"');
-    expect(partial).not.toContain("permdock_can_assign_for");
+    const { isPlatformFor: _, ...partialFunctions } = PROVIDER.functions;
+    const partial = provider({}, { ...PROVIDER, functions: partialFunctions });
+    expect(partial).toContain("authz.ids_organization_for");
+    expect(partial).not.toContain("is_platform_for");
     expect(partial).toContain("hint = 'ACCESS_CALLER_ONLY'");
     const invitations = moduleBody("invitations", {
-      modules: {
-        access: {
-          model: "permdock",
-          permdock: { schema: "authz", scope: "organization", forUser: true },
-        },
-      },
+      modules: { access: { model: "provider" } },
+      accessProvider: PROVIDER,
     })!;
     expect(invitations).toContain(
       "better_supabase.can_user(invite.\"invited_by\", 'organization'",
@@ -299,49 +258,37 @@ describe("access module", () => {
     expect(invitations).toContain(
       'better_supabase.can_assign_as(invite."invited_by"',
     );
-    const permdock = {
-      access: {
-        model: "permdock" as const,
-        permdock: { schema: "authz", scope: "organization" },
-      },
-    };
-    const notifications = (modules: ModulesConfig) =>
-      renderModules(["notifications", "access"], { modules }).find(
+    const notifications = (accessProvider: ModuleAccessProvider) =>
+      renderModules(["notifications", "access"], {
+        modules: { access: { model: "provider" } },
+        accessProvider,
+      }).find(
         (file) => file.module === "notifications" && file.kind === "schema",
       )!.contents;
-    expect(notifications(permdock)).toContain(
+    expect(notifications(CALLER_ONLY)).toContain(
       "recipients are not\n  -- filtered by their read permission",
     );
-    expect(
-      notifications({
-        access: {
-          ...permdock.access,
-          permdock: { ...permdock.access.permdock, forUser: true },
-        },
-      }),
-    ).toContain("coalesce(better_supabase.member_can(x, v_tenant,");
+    expect(notifications(PROVIDER)).toContain(
+      "coalesce(better_supabase.member_can(x, v_tenant,",
+    );
   });
 
-  it("never guesses the permdock model's helpers", () => {
-    for (const permdock of [undefined, { scope: "team" }, { schema: "authz" }])
-      expect(() =>
-        access({ model: "permdock", ...(permdock ? { permdock } : {}) }),
-      ).toThrow(/needs PermDock's manifest/);
+  it("never renders the provider model without a provider", () => {
+    expect(() => access({ model: "provider" })).toThrow(
+      /needs an authorization provider/,
+    );
     expect(() =>
       moduleBody("access", {
-        modules: { access: { model: "permdock", idType: "uuid" } },
-        accessPermdock: { schema: "authz", scope: "tenant", idType: "text" },
+        modules: { access: { model: "provider", idType: "uuid" } },
+        accessProvider: { ...PROVIDER, scope: "tenant", idType: "text" },
       }),
     ).toThrow(
       /gives scope "tenant" the type text, but the access module renders uuid ids/,
     );
   });
 
-  it("raises 0A000 when the permdock model is asked about another user", () => {
-    const sql = access({
-      model: "permdock",
-      permdock: { schema: "permdock", scope: "organization" },
-    });
+  it("raises 0A000 when the provider model is asked about another user", () => {
+    const sql = provider({}, CALLER_ONLY);
     const caller = (name: string) =>
       sql
         .slice(sql.indexOf(`function better_supabase.${name}(`))
@@ -400,12 +347,13 @@ describe("access module", () => {
     ).toThrow(/\{nope\} is not available/);
   });
 
-  it("fails closed when the permdock model has no assignment rule", () => {
-    const permdock = { schema: "permdock", scope: "organization" };
-    const alone = access({ model: "permdock", permdock });
-    expect(alone).toMatch(/or coalesce\(\(false\), false\)/);
+  it("fails closed when the provider model has no assignment rule", () => {
+    expect(provider({}, CALLER_ONLY)).toMatch(
+      /or coalesce\(\(false\), false\)/,
+    );
     const withTenant = renderModules(["tenant", "access"], {
-      modules: { access: { model: "permdock", permdock } },
+      modules: { access: { model: "provider" } },
+      accessProvider: CALLER_ONLY,
     })
       .map((file) => file.contents)
       .join("\n");

@@ -1,5 +1,4 @@
 import {
-  cp,
   mkdir,
   mkdtemp,
   readdir,
@@ -29,8 +28,10 @@ import {
   SQL_MODULES,
 } from "../../../src/sql/index.ts";
 import { moduleLayout } from "../../../src/sql/index.ts";
-
-const fixtures = resolve(import.meta.dirname, "../fixtures");
+import {
+  stubProvider,
+  withProvider,
+} from "../../fixtures/authorization-provider.ts";
 
 describe("moduleLayout", () => {
   it("turns expose into grants per role and json schemas into column checks", () => {
@@ -74,7 +75,7 @@ describe("moduleLayout", () => {
       version: VERSION,
       tenantColumn: "org_id",
     });
-    expect(layout).not.toHaveProperty("permdock");
+    expect(layout).not.toHaveProperty("accessProvider");
   });
 });
 
@@ -586,7 +587,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     await sql(["sync"], config);
     await mkdir(join(root, "supabase/migrations"), { recursive: true });
     await writeFile(
-      join(root, "supabase/migrations/39991231235959-permdock_seeds.sql"),
+      join(root, "supabase/migrations/39991231235959-authz_seeds.sql"),
       "",
     );
     await writeFile(join(root, "supabase/migrations/40000101000000.sql"), "");
@@ -699,135 +700,89 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     );
   });
 
-  it("stops on an entitlements scope the manifest lacks", async () => {
-    await writeFile(join(root, "permdock.config.ts"), "export default {};\n");
-    await cp(
-      join(fixtures, "permdock.manifest.json"),
-      join(root, "permdock.manifest.json"),
+  it("stops on an entitlements scope the provider lacks", async () => {
+    const config = { authorization: withProvider({ tenantScope: "team" }) };
+    await expect(sql(["print", "entitlements"], config)).rejects.toThrow(
+      /authorization\.tenantScope is "team"/,
     );
-    await expect(
-      sql(["print", "entitlements"], {
-        entitlements: { permdock: { scope: "team" } },
-      }),
-    ).rejects.toThrow(/entitlements\.permdock\.scope is "team"/);
-    expect(
-      await sql(["list"], { entitlements: { permdock: { scope: "team" } } }),
-    ).toMatchObject({ code: 0 });
-    expect(
-      await sql(["print", "audit"], {
-        entitlements: { permdock: { scope: "team" } },
-      }),
-    ).toMatchObject({ code: 0 });
+    expect(await sql(["list"], config)).toMatchObject({ code: 0 });
+    expect(await sql(["print", "audit"], config)).toMatchObject({ code: 0 });
   });
 
-  it("guards the tenant module when only PermDock's manifest is present", async () => {
-    await cp(
-      join(fixtures, "permdock.manifest.json"),
-      join(root, "permdock.manifest.json"),
-    );
-    expect(await sql(["add", "tenant"])).toMatchObject({
+  it("guards the tenant module when the provider's hook owns the memberships claim", async () => {
+    expect(
+      await sql(["add", "tenant"], { authorization: stubProvider }),
+    ).toMatchObject({
       code: 1,
       error: expect.stringContaining(
-        "permdock.manifest.json is present, so PermDock owns the access token hook",
+        "The access token hook of the authorization provider (stub) writes the memberships claim.",
       ),
     });
   });
 
-  describe("the permdock access model", () => {
-    const writeProject = async (
-      edit: (manifest: { rls: { scopes: unknown[] } }) => void = () => {},
-      permissions?: readonly { key: string; rowConditions?: boolean }[],
-    ) => {
-      const manifest = JSON.parse(
-        await readFile(join(fixtures, "permdock.manifest.json"), "utf8"),
-      );
-      manifest.rls.schema = "authz";
-      manifest.rls.scopes = [
-        { name: "tenant", type: "uuid" },
-        { name: "team", type: "uuid", within: "tenant" },
-      ];
-      edit(manifest);
-      await writeFile(
-        join(root, "permdock.manifest.json"),
-        JSON.stringify(manifest),
-      );
-      const keys = modulePermissionKeys(
-        { access: { model: "permdock" } },
-        Object.keys(SQL_MODULES),
-      ).map((entry) => ({ key: entry.key, rowConditions: false }));
-      await writeFile(
-        join(root, "permissions.catalog.json"),
-        JSON.stringify({ version: 1, permissions: permissions ?? keys }),
-      );
-    };
-    const permdock = (
+  describe("the provider access model", () => {
+    const provider = (
+      authorization:
+        | BetterSupabaseConfig["authorization"]
+        | null = stubProvider,
       extra: BetterSupabaseConfig = {},
     ): BetterSupabaseConfig => ({
-      sql: { modules: { access: { model: "permdock" } } },
+      sql: { modules: { access: { model: "provider" } } },
+      ...(authorization ? { authorization } : {}),
       ...extra,
     });
+    const complete = withProvider({
+      permissions: modulePermissionKeys(
+        { access: { model: "provider" } },
+        Object.keys(SQL_MODULES),
+      ).map((entry) => ({ key: entry.key, sqlComplete: true })),
+    });
 
-    it("renders the manifest's schema and root scope, whatever entitlements says", async () => {
-      await writeProject();
+    it("renders the provider's functions, whatever entitlements says", async () => {
       for (const config of [
-        permdock(),
-        permdock({ entitlements: { permdock: false } }),
+        provider(complete),
+        provider(complete, { entitlements: { memberships: "tenant" } }),
       ]) {
         const printed = await sql(["print", "access"], config);
-        expect(printed.output).toContain('"authz"."permitted_tenant_ids"');
-        expect(printed.output).not.toContain("permitted_organization_ids");
+        expect(printed.output).toContain("authz.ids_organization(");
       }
     });
 
-    it("stops on a manifest it can't read a root scope from", async () => {
-      await writeProject((manifest) => {
-        manifest.rls.scopes = [
-          { name: "tenant", type: "uuid" },
-          { name: "workspace", type: "uuid" },
-        ];
-      });
-      await expect(sql(["print", "access"], permdock())).rejects.toThrow(
-        /no single root scope \(tenant, workspace\)/,
+    it("stops without an authorization provider", async () => {
+      await expect(sql(["print", "access"], provider(null))).rejects.toThrow(
+        /the config has no authorization/,
       );
-      await expect(
-        sql(["add", "organizations", "--dry-run"], permdock()),
-      ).rejects.toThrow(/no single root scope/);
-      expect(await sql(["list"], permdock())).toMatchObject({ code: 0 });
-      expect(await sql(["print", "audit"], permdock())).toMatchObject({
+      expect(await sql(["list"], provider(null))).toMatchObject({
+        code: 0,
+      });
+      expect(await sql(["print", "audit"], provider(null))).toMatchObject({
         code: 0,
       });
     });
 
-    it("stops without a PermDock project", async () => {
-      await expect(sql(["print", "access"], permdock())).rejects.toThrow(
-        /no PermDock project here/,
-      );
-    });
-
-    it("stops on a module permission key the catalog doesn't mark scope-only", async () => {
-      await writeProject(undefined, [
-        { key: "organization.update", rowConditions: true },
-      ]);
+    it("stops on a module permission key the provider doesn't mark sqlComplete", async () => {
       await expect(
-        sql(["add", "organizations", "--dry-run"], permdock()),
+        sql(
+          ["add", "organizations", "--dry-run"],
+          provider(
+            withProvider({
+              permissions: [{ key: "organization.update", sqlComplete: false }],
+            }),
+          ),
+        ),
       ).rejects.toThrow(
-        /checks "organization\.update" \(update\) with authz\.permitted_tenant_ids, but it has row conditions[\s\S]*"organization\.delete" \(delete\).*is not in permissions\.catalog\.json/,
+        /checks "organization\.update" \(update\) with authorization\.functions\.idsWith, but it has conditions[\s\S]*"organization\.delete" \(delete\).*is not in authorization\.permissions/,
       );
     });
   });
 
   it("refuses to render entitlements for a scope id type it doesn't support", async () => {
-    const manifest = JSON.parse(
-      await readFile(join(fixtures, "permdock.manifest.json"), "utf8"),
-    );
-    manifest.rls.scopes[0].type = "numeric";
-    await writeFile(join(root, "permdock.config.ts"), "export default {};\n");
-    await writeFile(
-      join(root, "permdock.manifest.json"),
-      JSON.stringify(manifest),
-    );
-    await expect(sql(["print", "entitlements"])).rejects.toThrow(
-      /scope "organization" the type numeric/,
-    );
+    await expect(
+      sql(["print", "entitlements"], {
+        authorization: withProvider({
+          scopes: [{ name: "organization", idType: "numeric" }],
+        }),
+      }),
+    ).rejects.toThrow(/scope "organization" the type numeric/);
   });
 });

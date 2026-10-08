@@ -13,6 +13,11 @@ import { schema, topics } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
 
+const SQL = {
+  idsWith: "authz.ids_{scope}({permission})",
+  isPlatform: "authz.is_platform({permission})",
+};
+
 const title: StandardSchemaV1<unknown, { title: string }> = {
   "~standard": {
     version: 1,
@@ -149,16 +154,17 @@ describe("defineTopic", () => {
     expect(open).not.toContain("for insert");
   });
 
-  it("compiles PermDock receive and send policies", () => {
+  it("compiles access receive and send policies", () => {
     const board = defineTopic("organization:{organizationId}:board", {
-      permdock: {
+      access: {
         receive: "board.read",
         send: "board.write",
         scope: "organization",
+        sql: SQL,
       },
     }).sql();
     const ids = (key: string) =>
-      `split_part((select realtime.topic()), ':', 2) in (select t.id::text from "permdock"."permitted_organization_ids"('${key}') as t(id))`;
+      `split_part((select realtime.topic()), ':', 2) in (select t.id::text from authz.ids_organization('${key}') as t(id))`;
     expect(board).toContain(
       `for select to authenticated\n  using (\n    (select realtime.topic()) ~ '^organization:[^:]+:board$'\n    and realtime.messages.extension in ('broadcast')\n    and ${ids("board.read")}\n  );`,
     );
@@ -168,52 +174,22 @@ describe("defineTopic", () => {
     expect(board).not.toContain("service_role");
 
     const receiveOnly = defineTopic("announcements", {
-      permdock: { receive: "announcements.read", scope: "global" },
+      access: { receive: "announcements.read", scope: "platform", sql: SQL },
     }).sql();
     expect(receiveOnly).toContain(
-      `(select "permdock".permdock_has('announcements.read'))`,
+      `(select authz.is_platform('announcements.read'))`,
     );
     expect(receiveOnly).not.toContain("for insert");
     expect(() =>
       defineTopic("organization:{organizationId}", {
-        permdock: { receive: "x.read#1", scope: "organization" },
+        access: { receive: "", scope: "organization", sql: SQL },
       }),
-    ).toThrow(/splits by row condition/);
-    const catalog = {
-      permissions: [
-        { key: "board.write", rowConditions: true },
-        { key: "board.read", rowConditions: false },
-        { key: "board.watch" },
-      ],
-    };
+    ).toThrow(/empty/);
     expect(() =>
-      defineTopic("organization:{organizationId}:board", {
-        permdock: { receive: "board.watch", scope: "organization" },
-        catalog,
+      defineTopic("organization:{organizationId}", {
+        access: { receive: "x.read", scope: "org; drop", sql: SQL },
       }),
-    ).toThrow(/"board\.watch" has no rowConditions flag/);
-    expect(() =>
-      defineTopic("organization:{organizationId}:board", {
-        permdock: { receive: "board.other", scope: "organization" },
-        catalog,
-      }),
-    ).toThrow(/"board\.other" is not in PermDock's catalog/);
-    expect(() =>
-      defineTopic("organization:{organizationId}:board", {
-        permdock: {
-          receive: "board.read",
-          send: "board.write",
-          scope: "organization",
-        },
-        catalog,
-      }),
-    ).toThrow(/"board\.write" has row conditions/);
-    expect(
-      defineTopic("organization:{organizationId}:board", {
-        permdock: { receive: "board.read", scope: "organization" },
-        catalog,
-      }).sql(),
-    ).toContain("board.read");
+    ).toThrow(/invalid scope/);
   });
 
   it("generates a row-change trigger with database column names", () => {
@@ -766,9 +742,9 @@ describe("defineTopic policies", () => {
     );
     expect(() =>
       defineTopic("organization-{organizationId}", {
-        permdock: { receive: "a.read", scope: "organization" },
+        access: { receive: "a.read", scope: "organization", sql: SQL },
       }),
-    ).toThrow(/the PermDock check needs \{organizationId\}/);
+    ).toThrow(/the access check needs \{organizationId\}/);
   });
 
   it("drops the tenant and owner checks when disabled", () => {
@@ -779,16 +755,21 @@ describe("defineTopic policies", () => {
     expect(sql).not.toContain("split_part");
   });
 
-  it("uses an explicit PermDock segment and the default organizationId without a tenant", () => {
+  it("uses an explicit access segment and the default organizationId without a tenant", () => {
     expect(
       defineTopic("x:{a}:{organizationId}", {
         tenant: false,
-        permdock: { receive: "a.read", scope: "organization" },
+        access: { receive: "a.read", scope: "organization", sql: SQL },
       }).sql(),
     ).toContain("split_part((select realtime.topic()), ':', 3) in");
     expect(
       defineTopic("x:{a}:{b}", {
-        permdock: { receive: "a.read", scope: "organization", segment: 2 },
+        access: {
+          receive: "a.read",
+          scope: "organization",
+          segment: 2,
+          sql: SQL,
+        },
       }).sql(),
     ).toContain("split_part((select realtime.topic()), ':', 2) in");
   });

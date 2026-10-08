@@ -139,11 +139,9 @@ describe("AuthorizationProvider", () => {
       },
     } as const satisfies AuthorizationProvider;
     expectTypeOf(minimal).toExtend<AuthorizationProvider>();
+    const accepts = (provider: AuthorizationProvider) => provider;
     // @ts-expect-error a provider needs the two caller templates
-    expectTypeOf({
-      ...minimal,
-      functions: {},
-    }).toExtend<AuthorizationProvider>();
+    accepts({ ...minimal, functions: {} });
   });
 });
 

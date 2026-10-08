@@ -75,7 +75,7 @@ describe("sso module", () => {
     expect(() => sqlOf(["sso"], options)).toThrow(message);
   });
 
-  it("needs roleOrder under the permdock and custom models", () => {
+  it("needs roleOrder under the provider and custom models", () => {
     const custom = {
       access: {
         model: "custom",

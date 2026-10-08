@@ -33,6 +33,28 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 
+/** A provider over `schema`'s stand-in functions; `forUser` adds the `_for` and assignment templates. */
+const testProvider = (
+  schema: string,
+  forUser = false,
+): NonNullable<ModuleLayout["accessProvider"]> => ({
+  name: "test",
+  scope: "organization",
+  idType: "uuid",
+  functions: {
+    idsWith: `${schema}.permitted_{scope}_ids({permission})`,
+    isPlatform: `${schema}.is_platform({permission})`,
+    ...(forUser
+      ? {
+          idsWithFor: `${schema}.permitted_{scope}_ids_for({user}, {permission})`,
+          isPlatformFor: `${schema}.is_platform_for({user}, {permission})`,
+          canAssign: `${schema}.can_assign({role}, {tenant}::text)`,
+          canAssignFor: `${schema}.can_assign_for({user}, {role}, {tenant}::text)`,
+        }
+      : {}),
+  },
+});
+
 const USERS = {
   owner: crypto.randomUUID(),
   admin: crypto.randomUUID(),
@@ -666,10 +688,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
-  it("invites to platform roles under the permdock model", async () => {
+  it("invites to platform roles under the provider model", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_pdplat_${USERS.owner.slice(0, 8)}`;
+    const schema = `bs_authzplat_${USERS.owner.slice(0, 8)}`;
     const support = "00000000-0000-4000-8000-00000000d001";
     try {
       await client.query("begin");
@@ -699,17 +721,15 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
         create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
           language sql stable as $$ select null::uuid where false $$;
-        create function ${schema}.permdock_has(permission text) returns boolean
+        create function ${schema}.is_platform(permission text) returns boolean
           language sql stable as $$ select auth.uid() = '${USERS.owner}' and permission = 'platform.invite' $$;
         create function ${schema}.can_assign_platform(member uuid, role text) returns boolean
           language sql stable as $$ select role <> 'superadmin' $$;
       `);
       const layout: ModuleLayout = {
+        accessProvider: testProvider(schema),
         modules: {
-          access: {
-            model: "permdock",
-            permdock: { schema, scope: "organization" },
-          },
+          access: { model: "provider" },
           tenant: {
             schema,
             mode: "adopt",
@@ -778,7 +798,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("checks a platform invitation's inviter, not the invitee, and accepts or declines by id", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_pdbyid_${USERS.owner.slice(0, 8)}`;
+    const schema = `bs_authzbyid_${USERS.owner.slice(0, 8)}`;
     const support = "00000000-0000-4000-8000-00000000e001";
     const organization = crypto.randomUUID();
     try {
@@ -816,23 +836,21 @@ describe.skipIf(!live)("organizations and invitations", () => {
           language sql stable as $$
             select m.organization_id from ${schema}.team_members m
             where m.user_id = p_user and m.role = 'owner' $$;
-        create function ${schema}.permdock_has(permission text) returns boolean
+        create function ${schema}.is_platform(permission text) returns boolean
           language sql stable as $$ select auth.uid() = '${USERS.owner}' $$;
-        create function ${schema}.permdock_has_for(p_user uuid, p_grant text) returns boolean
+        create function ${schema}.is_platform_for(p_user uuid, p_grant text) returns boolean
           language sql stable as $$ select p_user = '${USERS.owner}' $$;
         create function ${schema}.caller_can_assign(role text) returns boolean
           language sql stable as $$ select auth.uid() = '${USERS.owner}' $$;
-        create function ${schema}.permdock_can_assign(p_role text, p_scope_id text) returns boolean
+        create function ${schema}.can_assign(p_role text, p_scope_id text) returns boolean
           language sql stable as $$ select true $$;
-        create function ${schema}.permdock_can_assign_for(p_user uuid, p_role text, p_scope_id text) returns boolean
+        create function ${schema}.can_assign_for(p_user uuid, p_role text, p_scope_id text) returns boolean
           language sql stable as $$ select p_user = '${USERS.owner}' $$;
       `);
       const layout: ModuleLayout = {
+        accessProvider: testProvider(schema, true),
         modules: {
-          access: {
-            model: "permdock",
-            permdock: { schema, scope: "organization", forUser: true },
-          },
+          access: { model: "provider" },
           tenant: {
             schema,
             mode: "adopt",
@@ -956,10 +974,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
     }
   });
 
-  it("checks the inviter again at accept through PermDock's _for helpers", async () => {
+  it("checks the inviter again at accept through the provider's _for templates", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_pdfor_${USERS.owner.slice(0, 8)}`;
+    const schema = `bs_authzfor_${USERS.owner.slice(0, 8)}`;
     const organization = crypto.randomUUID();
     try {
       await client.query("begin");
@@ -995,24 +1013,19 @@ describe.skipIf(!live)("organizations and invitations", () => {
             select m.organization_id from ${schema}.team_members m
             join ${schema}.grants g on g.user_id = m.user_id and g.permission = p_grant
             where m.user_id = p_user $$;
-        create function ${schema}.permdock_has(permission text) returns boolean
+        create function ${schema}.is_platform(permission text) returns boolean
           language sql stable as $$ select false $$;
-        create function ${schema}.permdock_has_for(p_user uuid, p_grant text) returns boolean
+        create function ${schema}.is_platform_for(p_user uuid, p_grant text) returns boolean
           language sql stable as $$ select false $$;
-        create function ${schema}.permdock_can_assign(p_role text, p_scope_id text) returns boolean
+        create function ${schema}.can_assign(p_role text, p_scope_id text) returns boolean
           language sql stable as $$ select p_role <> 'owner' $$;
-        create function ${schema}.permdock_can_assign_for(p_user uuid, p_role text, p_scope_id text) returns boolean
+        create function ${schema}.can_assign_for(p_user uuid, p_role text, p_scope_id text) returns boolean
           language sql stable as $$ select p_role <> 'owner' and p_user <> '${USERS.admin}' $$;
       `);
       const layout: ModuleLayout = {
+        accessProvider: testProvider(schema, true),
         modules: {
-          access: {
-            model: "permdock",
-            permdock: { schema, scope: "organization", forUser: true },
-            functions: {
-              canAssign: `${schema}.permdock_can_assign({role}, {tenant}::text)`,
-            },
-          },
+          access: { model: "provider" },
           tenant: {
             schema,
             mode: "adopt",
