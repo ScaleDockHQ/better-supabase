@@ -3,6 +3,7 @@
 import { dbError, err, fromBetterResult, ok } from "better-supabase";
 import { toSession } from "better-supabase/next";
 import { refresh } from "next/cache";
+import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
@@ -41,14 +42,16 @@ export const createCustomer = bs.action(
       { select: ["id", "name", "status"] },
     );
     if (!created.ok) return created;
-    await recordAudit(supabase, {
-      eventType: "customer.created",
-      category: "customers",
-      organizationId,
-      targetType: "customer",
-      record: created.data.id,
-      targetLabel: name,
-    });
+    after(() =>
+      recordAudit(supabase, {
+        eventType: "customer.created",
+        category: "customers",
+        organizationId,
+        targetType: "customer",
+        record: created.data.id,
+        targetLabel: name,
+      }),
+    );
     await onboarding.complete("customer", organizationId);
     return created;
   },

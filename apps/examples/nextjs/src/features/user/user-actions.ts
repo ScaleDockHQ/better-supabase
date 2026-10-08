@@ -38,8 +38,14 @@ export const updateProfile = bs.action(
 /** A user setting from `settings-definition.ts` (the settings SQL module). */
 export const setWeeklyDigest = bs.action(
   { input: v.object({ enabled: v.boolean() }) },
-  async ({ enabled }, { supabase }) =>
-    blocks(supabase).settings.user.set("weeklyDigest", enabled),
+  async ({ enabled }, { supabase }) => {
+    const saved = await blocks(supabase).settings.user.set(
+      "weeklyDigest",
+      enabled,
+    );
+    if (saved.ok) refresh();
+    return saved;
+  },
 );
 
 /**

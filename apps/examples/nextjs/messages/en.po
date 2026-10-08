@@ -31,6 +31,42 @@ msgctxt "customers.BOCaFq"
 msgid "Everyone your organization works with."
 msgstr "Everyone your organization works with."
 
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.JqiqNj"
+msgid "Something went wrong"
+msgstr "Something went wrong"
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.urqbAH"
+msgid "Try again in a moment. Reference: {digest}"
+msgstr "Try again in a moment. Reference: {digest}"
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.FazwRl"
+msgid "Try again"
+msgstr "Try again"
+
+#: src/app/[locale]/(app)/forbidden.tsx
+msgctxt "app.yO2v_w"
+msgid "You don't have access"
+msgstr "You don't have access"
+
+#: src/app/[locale]/(app)/forbidden.tsx
+msgctxt "app.hE61Ab"
+msgid "Ask an admin of this organization for access."
+msgstr "Ask an admin of this organization for access."
+
+#: src/app/[locale]/(app)/forbidden.tsx
+#: src/app/[locale]/not-found.tsx
+msgctxt "app.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Back to the dashboard"
+
 #: src/app/[locale]/(app)/inbox/page.tsx
 msgctxt "inbox.VCMKbt"
 msgid "Inbox"
@@ -68,6 +104,21 @@ msgctxt "settings.59uu8y"
 msgid "Your account and your organization."
 msgstr "Your account and your organization."
 
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.szo7Rq"
+msgid "Sign in to continue"
+msgstr "Sign in to continue"
+
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.TwBTyU"
+msgid "Your session has ended."
+msgstr "Your session has ended."
+
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.SQJto2"
+msgid "Sign in"
+msgstr "Sign in"
+
 #: src/app/[locale]/layout.tsx
 msgctxt "app.pZg_tf"
 msgid "A multi-tenant SaaS example built on better-supabase."
@@ -82,11 +133,6 @@ msgstr "Page not found"
 msgctxt "app.HetEY5"
 msgid "It moved, or it isn't available to your organization."
 msgstr "It moved, or it isn't available to your organization."
-
-#: src/app/[locale]/not-found.tsx
-msgctxt "app.BFhud5"
-msgid "Back to the dashboard"
-msgstr "Back to the dashboard"
 
 #: src/features/announcements/components/announcement-banner.tsx
 msgctxt "announcements.TDaF6J"

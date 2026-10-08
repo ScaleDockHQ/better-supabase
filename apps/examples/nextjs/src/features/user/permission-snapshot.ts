@@ -1,5 +1,5 @@
 import "server-only";
-import { sessionStale } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 
 import { bs } from "@/lib/supabase/server";
 
@@ -28,14 +28,10 @@ interface PermissionSnapshot {
  */
 export async function getPermissionSnapshot(): Promise<PermissionSnapshot> {
   "use cache: private";
-  const session = await bs.session();
-  const snapshot: PermissionSnapshot = {
+  const { session } = await bs.cached();
+  cacheTag(snapshotTag(session.kind === "user" ? session.user.id : null));
+  return {
     permissions: PERMISSIONS.filter((permission) => can(session, permission)),
     expiresAt: session.kind === "user" ? session.expiresAt : null,
   };
-  await bs.cached({
-    tags: [snapshotTag(session.kind === "user" ? session.user.id : null)],
-    life: { stale: sessionStale(session) },
-  });
-  return snapshot;
 }

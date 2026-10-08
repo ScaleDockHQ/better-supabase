@@ -3,6 +3,7 @@
 import { dbError, err, ok } from "better-supabase";
 import { toSession } from "better-supabase/next";
 import { refresh } from "next/cache";
+import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
@@ -33,14 +34,16 @@ export const createApiKey = bs.action(
       personal: !can(session, "api_keys.manage"),
     });
     if (!created.ok) return created;
-    await recordAudit(supabase, {
-      eventType: "api_key.created",
-      category: "security",
-      organizationId,
-      targetType: "api_key",
-      record: created.data.key.id,
-      targetLabel: name,
-    });
+    after(() =>
+      recordAudit(supabase, {
+        eventType: "api_key.created",
+        category: "security",
+        organizationId,
+        targetType: "api_key",
+        record: created.data.key.id,
+        targetLabel: name,
+      }),
+    );
     await onboarding.complete("api-key", organizationId);
     refresh();
     return ok({ token: created.data.token });
@@ -56,13 +59,15 @@ export const revokeApiKey = bs.action(
     }
     const revoked = await blocks(supabase).apiKeys.revoke(id);
     if (!revoked.ok) return revoked;
-    await recordAudit(supabase, {
-      eventType: "api_key.revoked",
-      category: "security",
-      organizationId,
-      targetType: "api_key",
-      record: id,
-    });
+    after(() =>
+      recordAudit(supabase, {
+        eventType: "api_key.revoked",
+        category: "security",
+        organizationId,
+        targetType: "api_key",
+        record: id,
+      }),
+    );
     refresh();
     return ok(revoked.data);
   },

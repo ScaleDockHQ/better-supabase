@@ -12,10 +12,12 @@ import { getSession } from "@/features/user/user-queries";
  * `better_supabase.has_entitlement()` enforces them in RLS.
  */
 export async function PlanFeatures() {
-  const session = await getSession();
+  const [session, t] = await Promise.all([
+    getSession(),
+    getExtracted("billing"),
+  ]);
   const organizationId = activeOrganizationId(session);
   if (!organizationId) return null;
-  const t = await getExtracted("billing");
   const features = [
     ["exports", t("CSV exports")],
     ["audit", t("Audit log")],

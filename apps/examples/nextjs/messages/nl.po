@@ -31,6 +31,42 @@ msgctxt "customers.BOCaFq"
 msgid "Everyone your organization works with."
 msgstr "Iedereen met wie je organisatie werkt."
 
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.JqiqNj"
+msgid "Something went wrong"
+msgstr "Er ging iets mis"
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.urqbAH"
+msgid "Try again in a moment. Reference: {digest}"
+msgstr "Probeer het zo opnieuw. Referentie: {digest}"
+
+#: src/app/[locale]/(app)/error.tsx
+msgctxt "app.FazwRl"
+msgid "Try again"
+msgstr "Opnieuw proberen"
+
+#: src/app/[locale]/(app)/forbidden.tsx
+msgctxt "app.yO2v_w"
+msgid "You don't have access"
+msgstr "Je hebt geen toegang"
+
+#: src/app/[locale]/(app)/forbidden.tsx
+msgctxt "app.hE61Ab"
+msgid "Ask an admin of this organization for access."
+msgstr "Vraag een beheerder van deze organisatie om toegang."
+
+#: src/app/[locale]/(app)/forbidden.tsx
+#: src/app/[locale]/not-found.tsx
+msgctxt "app.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Terug naar het dashboard"
+
 #: src/app/[locale]/(app)/inbox/page.tsx
 msgctxt "inbox.VCMKbt"
 msgid "Inbox"
@@ -68,6 +104,21 @@ msgctxt "settings.59uu8y"
 msgid "Your account and your organization."
 msgstr "Je account en je organisatie."
 
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.szo7Rq"
+msgid "Sign in to continue"
+msgstr "Log in om verder te gaan"
+
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.TwBTyU"
+msgid "Your session has ended."
+msgstr "Je sessie is verlopen."
+
+#: src/app/[locale]/(app)/unauthorized.tsx
+msgctxt "app.SQJto2"
+msgid "Sign in"
+msgstr "Inloggen"
+
 #: src/app/[locale]/layout.tsx
 msgctxt "app.pZg_tf"
 msgid "A multi-tenant SaaS example built on better-supabase."
@@ -82,11 +133,6 @@ msgstr "Pagina niet gevonden"
 msgctxt "app.HetEY5"
 msgid "It moved, or it isn't available to your organization."
 msgstr "Ze is verplaatst, of niet beschikbaar voor je organisatie."
-
-#: src/app/[locale]/not-found.tsx
-msgctxt "app.BFhud5"
-msgid "Back to the dashboard"
-msgstr "Terug naar het dashboard"
 
 #: src/features/announcements/components/announcement-banner.tsx
 msgctxt "announcements.TDaF6J"

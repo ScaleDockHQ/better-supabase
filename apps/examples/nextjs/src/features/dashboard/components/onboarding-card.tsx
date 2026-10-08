@@ -19,11 +19,14 @@ import { type OnboardingStepId, getOnboarding } from "../dashboard-queries";
 
 /** Render inside `<Suspense>`; hidden once every step is done. */
 export async function OnboardingCard() {
-  const organizationId = activeOrganizationId(await getSession());
+  const [session, t] = await Promise.all([
+    getSession(),
+    getExtracted("dashboard"),
+  ]);
+  const organizationId = activeOrganizationId(session);
   if (!organizationId) return null;
   const progress = await getOnboarding(organizationId);
   if (progress.done) return null;
-  const t = await getExtracted("dashboard");
   const titles = {
     customer: t("Add your first customer"),
     invite: t("Invite a teammate"),
