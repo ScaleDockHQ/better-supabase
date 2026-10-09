@@ -374,14 +374,3 @@ describe("createAiProviders batches", () => {
     });
   });
 });
-
-describe("createAiProviders sandboxes", () => {
-  it("keeps sandboxes as an alias of the ai-chat registry", async () => {
-    const { transport, calls } = fakeTransport({
-      touch_ai_sandbox: () => true,
-    });
-    const { sandboxes } = createAiProviders({ transport });
-    expect(await sandboxes.touch("s1").orThrow()).toBe(true);
-    expect(calls).toEqual([{ fn: "touch_ai_sandbox", args: { id: "s1" } }]);
-  });
-});

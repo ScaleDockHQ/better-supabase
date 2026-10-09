@@ -36,9 +36,6 @@ included. Changing organization memory needs the manage permission.
 | `ai.read`  | use memory in the tenant         | `owner`, `admin`, `member` |
 | `ai.admin` | change the organization's memory | `owner`, `admin`           |
 
-Before 0.7 these keys were `ai_chat.read`, `ai_chat.create` and so on; a
-grant or a config that names the old keys keeps working until 0.8.
-
 Rename the keys with `sql.modules.memory.permissions.read` and `.manage`.
 The `maxContent` option (100,000 characters by default) limits one memory,
 and `dimensions` and `type` set the embedding column as in

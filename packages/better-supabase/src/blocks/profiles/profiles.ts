@@ -7,7 +7,6 @@ import {
   blockCall,
   type BlockTemporalOptions,
   isRecord,
-  mappersOf,
 } from "../shared.ts";
 
 export interface ProfilesOptions extends BlockTemporalOptions {
@@ -16,8 +15,6 @@ export interface ProfilesOptions extends BlockTemporalOptions {
   readonly schema?: string;
   /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
   readonly mappers?: readonly ErrorMapper[];
-  /** @deprecated Use `mappers`. Removed in 0.8. */
-  readonly errorMappers?: readonly ErrorMapper[];
 }
 
 /** The caller's profile columns, by database name. */
@@ -34,7 +31,11 @@ export interface Profiles {
  */
 export function createProfiles(options: ProfilesOptions): Profiles {
   applyTemporal(options);
-  const run = blockCall(options.transport, options.schema, mappersOf(options));
+  const run = blockCall(
+    options.transport,
+    options.schema,
+    options.mappers ?? [],
+  );
 
   return {
     mine() {

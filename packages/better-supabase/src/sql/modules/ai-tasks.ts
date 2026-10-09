@@ -408,7 +408,8 @@ $$;
 ${serviceGrant(`${fn("finish_ai_task_run")}(uuid, boolean, text, uuid)`)}`;
 }
 
-// Task runs end completed since 0.7, the word ai-chat and workflow runs use.
+// Version 1 ended task runs succeeded; version 2 uses completed, the word
+// ai-chat and workflow runs use.
 function upgradeRunStates(ctx: ModuleContext): string {
   const runs = ctx.table("runs");
   const status = ctx.col("runs", "status");

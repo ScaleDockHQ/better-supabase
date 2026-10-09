@@ -26,7 +26,6 @@ import {
   DEFAULT_BLOCK_SCHEMA,
   errorText,
   isRecord,
-  mappersOf,
   optionalInstant,
   optionalText,
   pageOf,
@@ -92,10 +91,6 @@ export interface ListOptions<
    * previous page; a bare instant skips items created at that same instant.
    */
   readonly cursor?:
-    | Temporal.Instant
-    | Pick<NotificationItem, "createdAt" | "id">;
-  /** @deprecated Use `cursor`. Removed in 0.8. */
-  readonly before?:
     | Temporal.Instant
     | Pick<NotificationItem, "createdAt" | "id">;
   /** Up to 200. Defaults to 50. */
@@ -244,8 +239,6 @@ export interface NotificationsOptions<
   readonly context?: RequestContext;
   /** Error mappers that run before the built-in ones. */
   readonly mappers?: readonly ErrorMapper[];
-  /** @deprecated Use `mappers`. Removed in 0.8. */
-  readonly errorMappers?: readonly ErrorMapper[];
 }
 
 /**
@@ -425,7 +418,7 @@ export function createNotifications<
   applyTemporal(options);
   const { transport } = options;
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
-  const mappers = mappersOf(options);
+  const mappers = options.mappers ?? [];
   const run = blockCall(transport, schema, mappers);
 
   const call = async (

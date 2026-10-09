@@ -1,12 +1,11 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { FinalRunState, LegacyRunState } from "../../core/run-state.ts";
+import type { FinalRunState } from "../../core/run-state.ts";
 import type { AiRunState, AiRuns } from "./durable.ts";
 import type { AiMessage, AiMessageRole } from "./message.ts";
 import type { AiSandboxes } from "./sandboxes.ts";
 
-import { sharedRunState } from "../../core/run-state.ts";
 import {
   applyTemporal,
   blockCall,
@@ -103,10 +102,6 @@ export interface AiChatQuery {
   /** The `next` cursor of the previous page. */
   readonly cursor?: string;
   readonly limit?: number;
-  /** @deprecated Use `cursor`. Removed in 0.8. */
-  readonly after?: string;
-  /** @deprecated Use `limit`. Removed in 0.8. */
-  readonly size?: number;
 }
 
 export interface AiChatPage {
@@ -198,8 +193,7 @@ export interface AiStreamClaim {
 export type AiRunStatus = Extract<AiRunState, FinalRunState>;
 
 export interface AiRunRelease {
-  /** `done`, `error` and `stopped` still work but are deprecated (removed in 0.8). */
-  readonly status?: AiRunStatus | Exclude<LegacyRunState, "succeeded">;
+  readonly status?: AiRunStatus;
   readonly usage?: Readonly<Record<string, unknown>>;
   readonly generationId?: string;
   readonly error?: string;
@@ -686,10 +680,7 @@ export function createAiChat(options: AiChatOptions): AiChat {
           {
             chat: chatId,
             stream: streamId,
-            status:
-              release.status === undefined
-                ? undefined
-                : sharedRunState(release.status),
+            status: release.status,
             usage: release.usage,
             generation_id: release.generationId,
             error: release.error,

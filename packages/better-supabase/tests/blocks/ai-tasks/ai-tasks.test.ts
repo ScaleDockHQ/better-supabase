@@ -116,7 +116,7 @@ describe("createAiTasks", () => {
     const { transport, calls } = fakeTransport({
       list_ai_tasks: () => [
         taskRow({
-          last_run: runRow({ status: "succeeded", chat_id: "c1" }),
+          last_run: runRow({ status: "completed", chat_id: "c1" }),
           enabled: false,
           created_at: new Date(AT),
         }),

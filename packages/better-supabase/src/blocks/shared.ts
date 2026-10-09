@@ -10,7 +10,6 @@ export {
   injectableOf,
   instantArg,
   isRecord,
-  mappersOf,
   notFoundError,
   oneOf,
   optionalInstant,

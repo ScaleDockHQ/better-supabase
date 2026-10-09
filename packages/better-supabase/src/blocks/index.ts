@@ -9,9 +9,5 @@ export type {
 export type { BlockOptions, CursorPageOptions } from "./shared.ts";
 export { rpcTransport, sqlTransport } from "../core/block-transport.ts";
 export type { BlockTransport, RpcClient } from "../core/block-transport.ts";
-export { FINAL_RUN_STATES, LEGACY_RUN_STATES } from "../core/run-state.ts";
-export type {
-  FinalRunState,
-  LegacyRunState,
-  RunState,
-} from "../core/run-state.ts";
+export { FINAL_RUN_STATES } from "../core/run-state.ts";
+export type { FinalRunState, RunState } from "../core/run-state.ts";

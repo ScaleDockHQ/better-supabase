@@ -59,9 +59,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
  * The permission key each module action checks by default, overridable per
  * module in `sql.modules.<name>.permissions`. Keys are `<area>.<verb>`, with `read`
  * for viewing; platform-wide actions use the `platform` area or a key that
- * `is_platform()` checks. The AI blocks other than ai-chat check `ai.*` keys;
- * before 0.7 they checked the `ai_chat.*` ones, which `AI_KEY_ALIASES` still
- * accepts.
+ * `is_platform()` checks. The AI blocks other than ai-chat check `ai.*` keys.
  */
 export const MODULE_PERMISSIONS = {
   organizations: {
@@ -259,19 +257,6 @@ export const MODULE_PERMISSION_SCOPES: {
   connectors: { read: "tenant", use: "tenant", manage: "tenant" },
   "ai-tasks": { create: "tenant", manage: "tenant" },
   "ai-providers": { use: "tenant", manage: "tenant" },
-};
-
-/**
- * Deprecated since 0.7: a grant of `ai_chat.<verb>` (or `ai_chat.*`) still
- * answers the `ai.<verb>` key the non-chat AI blocks check, in the `roles`
- * and `catalog` models (`permission_matches`). Removed in 0.8.
- */
-export const AI_KEY_ALIASES: Readonly<Record<string, string>> = {
-  "ai.read": "ai_chat.read",
-  "ai.create": "ai_chat.create",
-  "ai.share": "ai_chat.share",
-  "ai.moderate": "ai_chat.moderate",
-  "ai.admin": "ai_chat.admin",
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

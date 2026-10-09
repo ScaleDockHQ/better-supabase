@@ -6,7 +6,7 @@ description: Each tenant's own provider keys as credential references, and a reg
 The `ai-providers` block holds what an app tracks about the model providers
 it calls on a tenant's behalf: the tenant's own API keys (bring your own
 key) and batch jobs that run at the provider for hours. Code sandboxes live
-in the [ai-chat](/docs/blocks/ai-chat#sandboxes) block since 0.7. It stores
+in the [ai-chat](/docs/blocks/ai-chat#sandboxes) block. It stores
 no secret and imports no SDK; the
 [AI SDK helpers](/docs/ai-sdk/providers) and [batches](/docs/ai-sdk/batches)
 connect it to the AI SDK.
@@ -32,7 +32,6 @@ purge in [data lifecycle](/docs/blocks/data-lifecycle#credentials) revokes each 
 | Option      | Default | Sets                                                                 |
 | ----------- | ------- | -------------------------------------------------------------------- |
 | `pollEvery` | 60      | Seconds between two polls of a batch; the first poll waits this long |
-| `idleAfter` | 600     | Deprecated: ai-chat's `sandboxIdleAfter` default when that is unset  |
 
 ## Creating the client
 
@@ -94,16 +93,3 @@ The poll job claims due batches with `due({ batch, leaseSeconds })`, so two
 workers never poll the same one, and writes the outcome with `update` and
 `saveItems`. `items(batchId, { cursor, limit })` pages the results by request
 id. [`aiBatches`](/docs/ai-sdk/batches) does all of this for AI SDK batches.
-
-## Sandboxes
-
-The sandbox registry moved to [ai-chat](/docs/blocks/ai-chat#sandboxes) in
-0.7, so chat and harness sandboxes share one table and one idle-stop job.
-`providers.sandboxes` still works as an alias of `createAiChat(...).sandboxes`
-until 0.8. It calls the functions in this client's `schema`, so ai-chat has
-to be installed there.
-
-Upgrading a database with sandboxes needs ai-chat in `sql.modules`: the
-ai-providers upgrade stops with an error while `ai_sandboxes` holds rows and
-ai-chat is not installed. A schema that moves between the two modules is not
-handled; keep both in one schema.

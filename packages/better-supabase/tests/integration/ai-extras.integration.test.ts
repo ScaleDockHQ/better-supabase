@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { createAiCache } from "../../src/blocks/ai-cache/index.ts";
+import { createAiChat } from "../../src/blocks/ai-chat/index.ts";
 import {
   createAiProviders,
   sqlTransport,
@@ -222,15 +223,15 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
   it("stops idle sandboxes and keeps used ones", async () => {
     const s = await BlockSession.open(pool);
     try {
-      await s.install(["organizations", "ai-providers"]);
+      await s.install(["organizations", "outbox", "ai-chat"]);
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
       const otherTenant = await s.organization(await s.user("rival"));
-      const providers = createAiProviders({ transport: sqlTransport(s.sql) });
+      const { sandboxes } = createAiChat({ transport: sqlTransport(s.sql) });
       const chatId = crypto.randomUUID();
 
       await s.service();
-      const idle = await providers.sandboxes
+      const idle = await sandboxes
         .register(tenant, {
           provider: "vercel",
           sandboxId: "sbx_idle",
@@ -238,29 +239,29 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
           idleSeconds: 60,
         })
         .orThrow();
-      const busy = await providers.sandboxes
+      const busy = await sandboxes
         .register(tenant, { provider: "vercel", sandboxId: "sbx_busy" })
         .orThrow();
-      const taken = await providers.sandboxes.register(otherTenant, {
+      const taken = await sandboxes.register(otherTenant, {
         provider: "vercel",
         sandboxId: "sbx_idle",
       });
       expect(taken.ok ? undefined : taken.error.hint).toBe(
         "AI_SANDBOX_FORBIDDEN",
       );
-      expect(
-        (await providers.sandboxes.forChat(chatId, "vercel").orThrow())?.id,
-      ).toBe(idle.id);
+      expect((await sandboxes.forChat(chatId, "vercel").orThrow())?.id).toBe(
+        idle.id,
+      );
 
       await s.rows(
         "update better_supabase.ai_sandboxes set last_used_at = now() - interval '2 hours' where id = $1",
         [idle.id],
       );
-      expect(await providers.sandboxes.touch(busy.id).orThrow()).toBe(true);
+      expect(await sandboxes.touch(busy.id).orThrow()).toBe(true);
 
       const stopped: string[] = [];
       expect(
-        await providers.sandboxes
+        await sandboxes
           .stopIdle(async (sandbox) => {
             stopped.push(sandbox.sandboxId);
           })
@@ -269,7 +270,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
       expect(stopped).toEqual(["sbx_idle"]);
 
       await s.asRole(owner);
-      const listed = await providers.sandboxes.list(tenant).orThrow();
+      const listed = await sandboxes.list(tenant).orThrow();
       expect(
         Object.fromEntries(listed.map((row) => [row.sandboxId, row.status])),
       ).toEqual({ sbx_idle: "stopped", sbx_busy: "running" });

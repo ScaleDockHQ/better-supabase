@@ -13,7 +13,6 @@ import {
   credentialRefInTenant,
   foreignCredentialRef,
 } from "../../credentials/provider.ts";
-import { aiSandboxes } from "../ai-chat/sandboxes.ts";
 import {
   applyTemporal,
   blockCall,
@@ -255,6 +254,5 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
           (value) => Number(value ?? 0),
         ),
     },
-    sandboxes: aiSandboxes(call, service),
   };
 }

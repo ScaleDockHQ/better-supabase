@@ -6,7 +6,6 @@ import type { BlockTransport } from "../../src/blocks/ai-chat/index.ts";
 import {
   createAiChat,
   createHarnessSessions,
-  idleSandboxStop,
   sqlTransport,
 } from "../../src/blocks/ai-chat/index.ts";
 import {
@@ -369,9 +368,6 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
         "better_supabase.unlock_ai_harness_session($1, 'claude', 'me')",
       ])
         expect(await s.hint(call, [chat])).toBe("AI_CHAT_FORBIDDEN");
-      expect(await s.hint("better_supabase.idle_ai_harness_sessions()")).toBe(
-        "AI_CHAT_FORBIDDEN",
-      );
 
       await s.asRole(owner);
       expect(
@@ -379,77 +375,6 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
           "select harness_id from better_supabase.ai_harness_sessions",
         ),
       ).not.toBe("no error");
-    } finally {
-      await s.close();
-    }
-  });
-
-  it("stops idle sandboxes through the job handler", async () => {
-    const s = await BlockSession.open(pool);
-    try {
-      const { owner, chat } = await setUp(s);
-      const { user, service } = transports(s, () => owner);
-      const sessions = createHarnessSessions({ transport: user, service });
-
-      await sessions
-        .save(chat, "claude", { sandboxId: "sbx_ok", resumeState: { a: 1 } })
-        .orThrow();
-      await sessions.save(chat, "codex", { sandboxId: "sbx_bad" }).orThrow();
-      await sessions.save(chat, "busy", { sandboxId: "sbx_busy" }).orThrow();
-      await sessions.save(chat, "fresh", { sandboxId: "sbx_new" }).orThrow();
-      expect(await sessions.lock(chat, "busy", "turn-1").orThrow()).toBe(true);
-      await s.service();
-      await s.rows(
-        "update better_supabase.ai_harness_sessions set last_active_at = now() - interval '1 hour' where chat_id = $1 and harness_id <> 'fresh'",
-        [chat],
-      );
-      await s.as(owner);
-
-      const loaded = await sessions.load(chat, "claude").orThrow();
-      expect(loaded).toMatchObject({
-        harnessId: "claude",
-        sandboxId: "sbx_ok",
-        resumeState: { a: 1 },
-        status: "active",
-      });
-      expect(await sessions.load(chat, "none").orThrow()).toBeUndefined();
-
-      const stopped: string[] = [];
-      const job = idleSandboxStop({
-        sessions,
-        idleSeconds: 600,
-        stop: async (session) => {
-          if (session.sandboxId === "sbx_bad") throw new Error("gone");
-          stopped.push(session.sandboxId ?? "");
-        },
-      });
-      const result = await job(
-        undefined,
-        never(),
-        new AbortController().signal,
-      );
-      expect(result).toEqual({
-        stopped: 1,
-        failed: 1,
-        skipped: 0,
-        errors: ["sbx_bad: gone"],
-      });
-      expect(stopped).toEqual(["sbx_ok"]);
-
-      const after = async (harness: string) =>
-        sessions.load(chat, harness).orThrow();
-      expect(await after("claude")).toMatchObject({
-        status: "stopped",
-        sandboxId: undefined,
-        resumeState: { a: 1 },
-      });
-      expect(await after("codex")).toMatchObject({
-        status: "error",
-        sandboxId: "sbx_bad",
-      });
-      expect(await after("busy")).toMatchObject({ status: "active" });
-      expect(await after("fresh")).toMatchObject({ status: "active" });
-      expect(await sessions.idle({ idleSeconds: 600 }).orThrow()).toEqual([]);
     } finally {
       await s.close();
     }
@@ -465,15 +390,13 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       await sessions.save(chat, "claude", { sandboxId: "sbx_race" }).orThrow();
       await s.service();
       await s.rows(
-        "update better_supabase.ai_harness_sessions set last_active_at = now() - interval '1 hour' where chat_id = $1",
+        "update better_supabase.ai_harness_sessions set status = 'idle' where chat_id = $1",
         [chat],
       );
       await s.as(owner);
-      expect(
-        (await sessions.idle({ idleSeconds: 600 }).orThrow()).map(
-          (session) => session.status,
-        ),
-      ).toEqual(["idle"]);
+      expect(await sessions.load(chat, "claude").orThrow()).toMatchObject({
+        status: "idle",
+      });
 
       expect(await sessions.lock(chat, "claude", "turn-1").orThrow()).toBe(
         true,
@@ -492,8 +415,3 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
     }
   });
 });
-
-function never<T>(): T {
-  // SAFETY: the idle-sandbox handler never reads its job argument.
-  return undefined as T;
-}

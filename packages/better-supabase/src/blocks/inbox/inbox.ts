@@ -153,8 +153,6 @@ export interface ConversationFilter extends CursorPageOptions<
   readonly search?: string;
   /** The last item of the previous page. */
   readonly cursor?: Pick<Conversation, "id" | "lastMessageAt">;
-  /** @deprecated Use `cursor`. Removed in 0.8. */
-  readonly before?: Pick<Conversation, "id" | "lastMessageAt">;
   /** Up to 200. Defaults to 50. */
   readonly limit?: number;
 }
@@ -252,10 +250,7 @@ export interface Inbox {
     ): AsyncResult<InboxMessage>;
     list(
       conversationId: string,
-      options?: CursorPageOptions<Temporal.Instant> & {
-        /** @deprecated Use `cursor`. Removed in 0.8. */
-        readonly before?: Temporal.Instant;
-      },
+      options?: CursorPageOptions<Temporal.Instant>,
     ): AsyncResult<readonly InboxMessage[]>;
     get(messageId: string): AsyncResult<InboxMessage | null>;
     edit(messageId: string, body: string): AsyncResult<InboxMessage>;

@@ -98,8 +98,7 @@ stream's cancel flag; the writer sees it on its next append.
 A run is `queued`, `running`, `cancel_requested`, `completed`, `failed` or
 `cancelled`. AI tasks and workflow runs use the same names, and
 `FINAL_RUN_STATES` from `better-supabase/blocks` lists the three final
-ones. Before 0.7 a run ended as `done`, `error` or `stopped`; `release`
-still accepts those names until 0.8 and stores the new ones.
+ones.
 
 ## Durable runs
 
@@ -122,9 +121,6 @@ const inbox = await runs.pendingApprovals().orThrow();
 | `steps.record`, `steps.list` | Records a step by its key (service role); the same key updates it     |
 | `pendingApprovals`           | The caller's undecided approvals across chats, with each chat's title |
 
-`createAiRuns` returns the same lookups on their own; it is deprecated and
-goes in 0.8.
-
 Members read the runs and steps of the chats they can read; only the
 service role writes them.
 
@@ -146,9 +142,6 @@ so a harness reads and writes `sandboxId` as before. The
 [idle-stop job](#sandboxes) stops harness sandboxes with the rest, skips one
 whose session a turn holds the lock of, and marks the session `stopped` once
 its last sandbox stopped.
-
-`idleSandboxStop`, the harness-only stop job from 0.6, still works on the new
-table; it is deprecated and goes in 0.8.
 
 ## Sandboxes
 
@@ -191,10 +184,6 @@ next run tries again.
 | Option             | Default | Sets                                                         |
 | ------------------ | ------- | ------------------------------------------------------------ |
 | `sandboxIdleAfter` | 600     | Seconds without use before the idle-stop job stops a sandbox |
-
-With [ai-providers](/docs/blocks/ai-providers) installed and no
-`sandboxIdleAfter`, its `idleAfter` option sets the default, as it did before
-0.7.
 
 ## Share links
 

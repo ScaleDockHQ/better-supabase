@@ -14,7 +14,7 @@ import type {
   AiChatRecord,
   AiToolApproval,
 } from "../../blocks/ai-chat/ai-chat.ts";
-import type { AiRun, AiRuns } from "../../blocks/ai-chat/durable.ts";
+import type { AiRun } from "../../blocks/ai-chat/durable.ts";
 import type { StreamStore } from "../../streams/store.ts";
 import type { Assistant, AssistantContext } from "../chat/assistant.ts";
 import type { DurableResume, DurableTurnInput } from "./turn.ts";
@@ -27,17 +27,7 @@ import { WORKFLOW_ATTRIBUTES } from "../../workflow-sdk/attributes.ts";
 import { durableStopToken, durableTurnToken } from "./turn.ts";
 
 /** Who asks, for one request. */
-export interface DurableChatContext extends AssistantContext {
-  /**
-   * @deprecated `chats.runs` has the run lookups; this is only read when set.
-   * Removed in 0.8.
-   */
-  readonly runs?: AiRuns;
-}
-
-const runsOf = (context: DurableChatContext): AiRuns =>
-  // oxlint-disable-next-line typescript/no-deprecated -- contexts from 0.6 still pass their own run lookups.
-  context.runs ?? context.chats.runs;
+export type DurableChatContext = AssistantContext;
 
 export interface DurableChatOptions {
   /** The assistant whose `prepare` checks and stores the user's turn. */
@@ -338,7 +328,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         }),
       );
     }
-    const attached = await runsOf(context).attach(runId, workflowRunId);
+    const attached = await context.chats.runs.attach(runId, workflowRunId);
     if (!attached.ok) {
       // Without the link, stop and resume can't find the run: end it.
       await getRun(workflowRunId)
@@ -360,7 +350,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
   ): Promise<AiRun | Response> {
     const runId = decided.find((row) => row.runId !== undefined)?.runId;
     if (runId === undefined) return notDurable();
-    const run = await runsOf(context).get(runId);
+    const run = await context.chats.runs.get(runId);
     if (!run.ok) return problemResponse(run.error);
     return run.data.engine === WORKFLOW_ENGINE &&
       run.data.externalRunId !== undefined
@@ -478,11 +468,11 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     chat: AiChatRecord,
   ): Promise<AiRun | undefined | Response> {
     if (chat.activeRunId !== undefined) {
-      const run = await runsOf(context).get(chat.activeRunId);
+      const run = await context.chats.runs.get(chat.activeRunId);
       if (!run.ok) return problemResponse(run.error);
       return run.data;
     }
-    const runs = await runsOf(context).list({ chatId: chat.id, limit: 1 });
+    const runs = await context.chats.runs.list({ chatId: chat.id, limit: 1 });
     if (!runs.ok) return problemResponse(runs.error);
     return runs.data[0];
   }
@@ -543,7 +533,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     const stopped = await context.chats.runs.stop(chatId);
     if (!stopped.ok) return problemResponse(stopped.error);
     if (stopped.data === undefined) return new Response(null, { status: 204 });
-    const run = await runsOf(context).get(stopped.data.runId);
+    const run = await context.chats.runs.get(stopped.data.runId);
     if (!run.ok) return problemResponse(run.error);
     const workflowRunId = run.data.externalRunId;
     if (workflowRunId === undefined) return new Response(null, { status: 204 });

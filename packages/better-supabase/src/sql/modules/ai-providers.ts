@@ -73,7 +73,7 @@ const EVENTS: ModuleEvents = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["pollEvery", "idleAfter"],
+  options: ["pollEvery"],
   tables: {
     keys: {
       name: "ai_provider_keys",
@@ -108,16 +108,10 @@ function build(ctx: ModuleContext): string {
   const use = ctx.permission("use", permissions.use);
   const manage = ctx.permission("manage", permissions.manage);
   const pollEvery = ctx.number("pollEvery", 60);
-  const idleAfter = ctx.number("idleAfter", 600);
-  for (const [option, value] of [
-    ["pollEvery", pollEvery],
-    ["idleAfter", idleAfter],
-  ] as const) {
-    if (!Number.isInteger(value) || value < 1) {
-      throw new TypeError(
-        `sql.modules.ai-providers.options.${option} must be a whole number of seconds`,
-      );
-    }
+  if (!Number.isInteger(pollEvery) || pollEvery < 1) {
+    throw new TypeError(
+      "sql.modules.ai-providers.options.pollEvery must be a whole number of seconds",
+    );
   }
   const keyJson = (row: string): string => rowJson(KEYS, k, row);
   const keyEvent = (type: string, row: string): string =>
@@ -496,15 +490,15 @@ $$;
 ${userGrant(`${fn("list_ai_batch_items")}(uuid, text, integer)`)}`;
 }
 
-// ai-chat owns ai_sandboxes since 0.7. Without ai-chat the table would go
-// with this module's old file, so the upgrade stops while it holds rows.
+// Version 2 leaves ai_sandboxes to ai-chat. Without ai-chat the table would
+// go with this module's old file, so the upgrade stops while it holds rows.
 function upgradeSandboxes(ctx: ModuleContext): string {
   if (ctx.installed("ai-chat")) return "";
   const table = `${ctx.schema}.ai_sandboxes`;
   return `do $$
 begin
   if to_regclass(${sqlString(table)}) is not null and exists (select 1 from ${table}) then
-    raise exception 'ai_sandboxes moved to the ai-chat module in 0.7: add ai-chat to sql.modules before upgrading, or delete the rows';
+    raise exception 'ai_sandboxes moved to the ai-chat module: add ai-chat to sql.modules before upgrading, or delete the rows';
   end if;
 end;
 $$;`;

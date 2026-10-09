@@ -300,7 +300,7 @@ begin
     ${h.resume} = case when save_ai_harness_session.fields ? 'resume_state' then save_ai_harness_session.fields -> 'resume_state' else x.${h.resume} end,
     ${h.continue} = case when save_ai_harness_session.fields ? 'continue_state' then save_ai_harness_session.fields -> 'continue_state' else x.${h.continue} end,
     -- A save without a status is a turn using the sandbox: an idle session
-    -- turns active again, so a later idle_ai_harness_sessions finds it.
+    -- turns active again.
     ${h.status} = coalesce(v_status, case when x.${h.status} = 'idle' then 'active' else x.${h.status} end),
     ${h.lastActiveAt} = now(),
     ${h.updatedAt} = now()
@@ -365,49 +365,7 @@ begin
   return v_count > 0;
 end;
 $$;
-${serviceGrant(`${fn("unlock_ai_harness_session")}(uuid, text, text)`)}
-
--- Marks active sessions whose sandbox sat unused for idle_seconds as idle
--- and returns them, so a job stops their sandboxes (the service role only).
--- Deprecated since 0.7 and removed in 0.8: idle_ai_sandboxes claims harness
--- sandboxes too.
--- Locked sessions are skipped.
-create or replace function ${fn("idle_ai_harness_sessions")}(idle_seconds integer default 900, size integer default 100)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_variable
-declare
-  v_result jsonb;
-begin
-  if not ${SERVICE_CALLER} then
-    ${serviceOnly}
-  end if;
-  with picked as (
-    select x.${h.chat}, x.${h.harness} from ${t.harness} x
-    where x.${h.status} = 'active'
-      and exists (
-        select 1 from ${t.sandboxes} y
-        where y.${names.c.sandboxes.chat} = x.${h.chat} and y.${names.c.sandboxes.harness} = x.${h.harness} and y.${names.c.sandboxes.status} = 'running'
-      )
-      and x.${h.lastActiveAt} < now() - make_interval(secs => greatest(coalesce(idle_ai_harness_sessions.idle_seconds, 900), 1))
-      and (x.${h.lockedUntil} is null or x.${h.lockedUntil} <= now())
-    order by x.${h.lastActiveAt}
-    limit ${pageSize("idle_ai_harness_sessions.size", 100, 1000)}
-    for update skip locked
-  ), marked as (
-    update ${t.harness} x set ${h.status} = 'idle', ${h.updatedAt} = now()
-    from picked
-    where x.${h.chat} = picked.${h.chat} and x.${h.harness} = picked.${h.harness}
-    returning x.*
-  )
-  select coalesce(jsonb_agg(${harnessJson(names, "marked")}), '[]'::jsonb) into v_result from marked;
-  return v_result;
-end;
-$$;
-${serviceGrant(`${fn("idle_ai_harness_sessions")}(integer, integer)`)}`;
+${serviceGrant(`${fn("unlock_ai_harness_session")}(uuid, text, text)`)}`;
 }
 
 /**

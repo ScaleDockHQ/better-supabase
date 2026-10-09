@@ -37,7 +37,7 @@ function sandboxJson(names: AiChatNames, row: string): string {
  * The sandboxes table: every sandbox or provider container a chat started,
  * a harness session's included (`harness_id`), so one idle-stop claim
  * covers them all. `create table if not exists`, so the upgrade step can run
- * it on a database where ai-providers created the table before 0.7; `adapt`
+ * it on a database where ai-providers 1 created the table; `adapt`
  * runs between the table and its indexes.
  */
 export function sandboxTable(
@@ -319,7 +319,7 @@ export function upgradeSandboxes(
   const h = names.c.harness;
   const ch = names.c.chats;
   const harness = names.t.harness;
-  // The pre-0.7 column, which the current layout no longer names.
+  // The ai-chat 1 column, which the current layout no longer names.
   const sandbox = "sandbox_id";
   return `${sandboxTable(
     ctx,

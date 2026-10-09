@@ -184,15 +184,15 @@ if (!result.ok && result.error.hint === "ORGANIZATION_SLUG_TAKEN") {
 }
 ```
 
-| Option      | What it does                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------- |
-| `transport` | `sqlTransport(client)`, `rpcTransport(client)` or your own `call(schema, fn, args)`               |
-| `schema`    | the modules' schema, or one per module (`better_supabase`)                                        |
-| `events`    | `betterSupabase.events`; each change emits `organization.*` or `invitation.*`                     |
-| `actorId`   | the user acting, recorded on the events                                                           |
-| `canInvite` | runs before `invite_member`; return `false` for seat limits or plans                              |
-| `onInvite`  | runs after an invite or resend with the token, to send the email; when it throws, resend later    |
-| `mappers`   | your own error mapping, as in `betterSupabase.mapError()` (`errorMappers` is the deprecated name) |
+| Option      | What it does                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| `transport` | `sqlTransport(client)`, `rpcTransport(client)` or your own `call(schema, fn, args)`            |
+| `schema`    | the modules' schema, or one per module (`better_supabase`)                                     |
+| `events`    | `betterSupabase.events`; each change emits `organization.*` or `invitation.*`                  |
+| `actorId`   | the user acting, recorded on the events                                                        |
+| `canInvite` | runs before `invite_member`; return `false` for seat limits or plans                           |
+| `onInvite`  | runs after an invite or resend with the token, to send the email; when it throws, resend later |
+| `mappers`   | your own error mapping, as in `betterSupabase.mapError()`                                      |
 
 The token is only in the `onInvite` argument and the `invite` result. It is
 never part of an event, and by default only its SHA-256 hash is stored.

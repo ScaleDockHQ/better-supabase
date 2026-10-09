@@ -30,9 +30,6 @@ organization.
 | `ai.share`    | publish an agent              | `owner`, `admin`, `member` |
 | `ai.moderate` | change or delete any agent    | `owner`, `admin`           |
 
-Before 0.7 these keys were `ai_chat.read`, `ai_chat.create` and so on; a
-grant or a config that names the old keys keeps working until 0.8.
-
 Rename the keys with `sql.modules.agents.permissions.read`, `.create`,
 `.publish` and `.moderate`. The `maxInstructions` option (100,000
 characters by default) limits the instructions.

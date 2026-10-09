@@ -418,13 +418,8 @@ function intervalOption(
   return value;
 }
 
-// ai-providers owned the sandboxes before 0.7; its idleAfter option still
-// sets the default when ai-chat's own option is absent.
 function sandboxIdleAfter(ctx: ModuleContext): number {
-  const fallback = ctx.installed("ai-providers")
-    ? ctx.of("ai-providers").number("idleAfter", 600)
-    : 600;
-  const value = ctx.number("sandboxIdleAfter", fallback);
+  const value = ctx.number("sandboxIdleAfter", 600);
   if (!Number.isInteger(value) || value < 1) {
     throw new TypeError(
       "sql.modules.ai-chat.options.sandboxIdleAfter must be a whole number of seconds",
@@ -959,7 +954,6 @@ function contract(): readonly ModuleContractFunction[] {
       "boolean",
     ),
     fn("unlock_ai_harness_session", ["uuid", "text", "text"], "boolean"),
-    fn("idle_ai_harness_sessions", ["integer", "integer"]),
     fn("register_ai_sandbox", ["{id}", "text", "text", "jsonb"]),
     fn("touch_ai_sandbox", ["uuid"], "boolean"),
     fn("ai_sandbox_for", ["uuid", "text"]),
@@ -969,8 +963,8 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-// Runs end completed, failed or cancelled since 0.7, the words ai-tasks and
-// workflow runs use.
+// Version 1 ended runs done, error or stopped; version 2 uses the words
+// ai-tasks and workflow runs use.
 function upgradeRunStates(ctx: ModuleContext): string {
   const runs = ctx.table("runs");
   const status = ctx.col("runs", "status");
@@ -1008,7 +1002,7 @@ export const AI_CHAT: ModuleDefinition = {
       description:
         "Runs end completed, failed or cancelled instead of done, error or stopped, and harness sessions keep their sandbox in ai_sandboxes, which ai-chat now owns, so one idle-stop claim covers every sandbox.",
       sql: (ctx) =>
-        `${upgradeRunStates(ctx)}\n${upgradeSandboxes(ctx, namesOf(ctx))}`,
+        `${upgradeRunStates(ctx)}\n${upgradeSandboxes(ctx, namesOf(ctx))}\ndrop function if exists ${ctx.fn("idle_ai_harness_sessions")}(integer, integer);`,
     },
   ],
   contract,

@@ -74,7 +74,6 @@ describe("ai-chat module", () => {
       '"save_ai_harness_session"(uuid, text, jsonb, text)',
       '"lock_ai_harness_session"(uuid, text, text, integer)',
       '"unlock_ai_harness_session"(uuid, text, text)',
-      '"idle_ai_harness_sessions"(integer, integer)',
     ]) {
       expect(sql).toContain(
         `revoke execute on function "better_supabase".${signature} from public, anon, authenticated;`,

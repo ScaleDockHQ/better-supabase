@@ -70,8 +70,6 @@ export interface WorkflowRunsQuery extends CursorPageOptions<Temporal.Instant> {
   readonly limit?: number;
   /** Runs created before this instant, for the next page. */
   readonly cursor?: Temporal.Instant;
-  /** @deprecated Use `cursor`. Removed in 0.8. */
-  readonly before?: Temporal.Instant;
 }
 
 /** What an engine reports about a run (service role). */

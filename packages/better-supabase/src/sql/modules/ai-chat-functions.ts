@@ -749,9 +749,7 @@ $$;
 ${serviceGrant(`${fn("claim_ai_chat_stream")}(uuid, text, text, text, text, text)`)}
 
 -- Ends the claim when the stream finished (the service role only) and
--- records the run's status, usage, gateway generation id and cost. The
--- pre-0.7 statuses done, error and stopped are deprecated and still map to
--- completed, failed and cancelled.
+-- records the run's status, usage, gateway generation id and cost.
 create or replace function ${fn("release_ai_chat_stream")}(chat uuid, stream text, status text default 'completed', usage jsonb default null, generation_id text default null, error text default null, cost_micro_usd bigint default null)
 returns boolean
 language plpgsql
@@ -760,9 +758,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_status text := case coalesce(release_ai_chat_stream.status, 'completed')
-    when 'done' then 'completed' when 'error' then 'failed' when 'stopped' then 'cancelled'
-    else coalesce(release_ai_chat_stream.status, 'completed') end;
+  v_status text := coalesce(release_ai_chat_stream.status, 'completed');
   v_found boolean := false;
 begin
   if not ${SERVICE_CALLER} then

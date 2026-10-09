@@ -5,7 +5,6 @@ import type {
   CredentialProvider,
   CredentialRef,
 } from "../../credentials/provider.ts";
-import type { AiSandboxes } from "../ai-chat/sandboxes.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 
 /** A tenant's own key for a provider. The key itself stays in the credential provider. */
@@ -170,10 +169,7 @@ export interface AiProviders {
     ): AsyncResult<readonly AiBatch[]>;
     items(
       batchId: string,
-      options?: CursorPageOptions<string> & {
-        /** @deprecated Use `cursor`. Removed in 0.8. */
-        readonly after?: string;
-      },
+      options?: CursorPageOptions<string>,
     ): AsyncResult<readonly AiBatchItem[]>;
     /** Claims batches to poll for `leaseSeconds` (service role). */
     due(options?: {
@@ -186,10 +182,4 @@ export interface AiProviders {
       items: readonly AiBatchItemInput[],
     ): AsyncResult<number>;
   };
-  /**
-   * The sandbox registry, which lives in the ai-chat module since 0.7. It
-   * calls `options.schema`, so that schema needs ai-chat installed. Use
-   * `createAiChat(...).sandboxes`; this alias goes in 0.8.
-   */
-  readonly sandboxes: AiSandboxes;
 }

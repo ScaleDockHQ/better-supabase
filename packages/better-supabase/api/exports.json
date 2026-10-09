@@ -1374,7 +1374,6 @@
       "BLOCK_EVENT_SOURCE",
       "createBlocks",
       "FINAL_RUN_STATES",
-      "LEGACY_RUN_STATES",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -1388,7 +1387,6 @@
       "CreateBlocksOptions",
       "CursorPageOptions",
       "FinalRunState",
-      "LegacyRunState",
       "RpcClient",
       "RunState"
     ]
@@ -2581,9 +2579,7 @@
       "aiChatTopic",
       "aiMessageSchema",
       "createAiChat",
-      "createAiRuns",
       "createHarnessSessions",
-      "idleSandboxStop",
       "INTERRUPTED_TOOL_OUTPUT",
       "isAiMessage",
       "pathToHistory",
@@ -2659,8 +2655,6 @@
       "AiToolResultPart",
       "AiUserMessageTrigger",
       "BlockTransport",
-      "IdleSandboxStopOptions",
-      "IdleSandboxStopResult",
       "NewAiSandbox",
       "SharedAiChat"
     ]
@@ -2716,8 +2710,7 @@
       "chunk",
       "createKnowledge",
       "rpcTransport",
-      "sqlTransport",
-      "vectorLiteral"
+      "sqlTransport"
     ],
     "types": [
       "BlockTransport",
@@ -2848,13 +2841,8 @@
       "AiProviderKeyInput",
       "AiProviders",
       "AiProvidersOptions",
-      "AiSandbox",
-      "AiSandboxes",
-      "AiSandboxStatus",
-      "AiSandboxStopper",
       "BlockTransport",
       "NewAiBatch",
-      "NewAiSandbox",
       "ResolvedProviderKey"
     ]
   },

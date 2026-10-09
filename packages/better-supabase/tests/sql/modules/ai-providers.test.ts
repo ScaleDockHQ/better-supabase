@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
-import {
-  moduleBody,
-  renderModules,
-  upgradePlan,
-} from "../../../src/sql/registry.ts";
+import { moduleBody, upgradePlan } from "../../../src/sql/registry.ts";
 
 const body = (modules: ModulesConfig = {}) =>
   moduleBody("ai-providers", { modules })!;
@@ -57,19 +53,6 @@ describe("ai-providers module", () => {
     expect(() =>
       body({ "ai-providers": { options: { pollEvery: -1 } } }),
     ).toThrow(/pollEvery/);
-  });
-
-  it("passes its idleAfter to ai-chat's sandboxes", () => {
-    const chat = renderModules(["ai-chat", "ai-providers"], {
-      modules: { "ai-providers": { options: { idleAfter: 900 } } },
-    })
-      .map((file) => file.contents)
-      .find((contents) =>
-        contents.includes(
-          'create table if not exists "better_supabase"."ai_sandboxes"',
-        ),
-      );
-    expect(chat).toContain("default 900");
   });
 
   it("stops the upgrade while sandboxes have no ai-chat to move to", () => {

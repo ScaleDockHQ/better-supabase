@@ -94,8 +94,6 @@ export interface AuditListOptions {
   readonly until?: Temporal.Instant;
   /** `page.next` of the previous page; `undefined` starts at the newest. */
   readonly cursor?: AuditCursor | undefined;
-  /** @deprecated Use `cursor`. Removed in 0.8. */
-  readonly before?: AuditCursor | undefined;
   /** Default 50, at most 1000. */
   readonly limit?: number;
   readonly offset?: number;

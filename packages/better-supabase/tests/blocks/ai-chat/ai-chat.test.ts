@@ -465,7 +465,7 @@ describe("createAiChat", () => {
     expect(
       await chat.runs
         .release("c1", "s1", {
-          status: "error",
+          status: "failed",
           usage: { tokens: 1 },
           generationId: "g",
           error: "boom",
@@ -482,7 +482,7 @@ describe("createAiChat", () => {
       error: "boom",
       cost_micro_usd: 5,
     });
-    await chat.runs.release("c1", "s1", { status: "stopped" }).orThrow();
+    await chat.runs.release("c1", "s1", { status: "cancelled" }).orThrow();
     expect(lastArgs(server)).toMatchObject({ status: "cancelled" });
     await chat.runs.release("c1", "s1").orThrow();
     expect(await chat.runs.stop("c1").orThrow()).toEqual({
