@@ -14,10 +14,12 @@ export interface ScimSqlNames {
   readonly serviceOnly: (what: string) => string;
   /** Whether the email's domain is verified for the tenant. */
   readonly verifiedFor: (tenant: string, email: string) => string;
+  /** Records a SCIM write: `ctx.record` with the tenant and the row's id. */
+  readonly record: (type: string, tenant: string, id: string) => string;
 }
 
 export function scimSql(names: ScimSqlNames): string {
-  const { id, fn, cu, cg, cm, serviceOnly, verifiedFor } = names;
+  const { id, fn, cu, cg, cm, serviceOnly, verifiedFor, record } = names;
   const u = names.users;
   const g = names.groups;
   const gm = names.members;
@@ -133,6 +135,7 @@ begin
     end if;
   end if;
   perform ${fn("scim_sync_member")}(v_row.${cu("id")});
+  ${record("scim_user.saved", "scim_save_user.tenant", `v_row.${cu("id")}`)}
   return (select ${userJson("x")} from ${u} x where x.${cu("id")} = v_row.${cu("id")});
 end;
 $$;
@@ -156,6 +159,7 @@ begin
   end if;
   perform ${fn("scim_sync_member")}(v_id);
   delete from ${u} x where x.${cu("id")} = v_id;
+  ${record("scim_user.deleted", "scim_delete_user.tenant", "v_id")}
   return true;
 end;
 $$;
@@ -253,6 +257,7 @@ begin
   for v_member in select distinct w.member from unnest(v_before || v_members) w(member) loop
     perform ${fn("scim_sync_member")}(v_member);
   end loop;
+  ${record("scim_group.saved", "scim_save_group.tenant", `v_row.${cg("id")}`)}
   return (select ${groupJson("x")} from ${g} x where x.${cg("id")} = v_row.${cg("id")});
 end;
 $$;
@@ -278,6 +283,7 @@ begin
   foreach v_member in array v_members loop
     perform ${fn("scim_sync_member")}(v_member);
   end loop;
+  ${record("scim_group.deleted", "scim_delete_group.tenant", "scim_delete_group.id")}
   return true;
 end;
 $$;`;

@@ -26,7 +26,7 @@ describe("support-sessions module", () => {
     expect(sql).toContain("ttl > '4 hours'::interval");
     expect(sql).toContain("return base -> 'claims';");
     expect(sql).toContain(
-      "event_type => 'support.started',\n    category => 'support',",
+      "event_type => 'support.started',\n    category => 'security',",
     );
     expect(sql).toContain(
       'revoke execute on function "better_supabase"."support_target_claims"(uuid) from public, anon, authenticated;',

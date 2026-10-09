@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
@@ -8,7 +9,23 @@ import type { ModuleDefinition } from "../registry.ts";
 import { schemaPreamble } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "flag.saved": {
+    subject: "flags",
+    payload: ["key"],
+  },
+  "flag.deleted": {
+    subject: "flags",
+    payload: ["key"],
+  },
+  "flag.override_set": {
+    subject: "flags",
+    payload: ["key", "variant", "organizationId", "userId"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [],
   tables: {
     flags: {
@@ -55,6 +72,25 @@ function build(ctx: ModuleContext): string {
   const denied = `if not ${manage} then
     raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
   end if;`;
+  const flagEvent = (type: string, key: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('key', ${key})`,
+      subject: `'flags/' || ${key}`,
+      audit: { category: "configuration", targetType: "flag", recordId: key },
+    });
+  const overrideEvent = ctx.record({
+    type: "flag.override_set",
+    payload:
+      "jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member)",
+    subject: "'flags/' || set_flag_override.key",
+    tenant: "set_flag_override.tenant",
+    audit: {
+      category: "configuration",
+      targetType: "flag",
+      recordId: "set_flag_override.key",
+    },
+  });
   const plans = ctx.entitlements("tenant", "'{}'::text[]");
 
   return `${schemaPreamble(ctx)}
@@ -277,6 +313,7 @@ begin
     ${f("rolloutPercentage")} = case when d ? 'rollout_percentage' then excluded.${f("rolloutPercentage")} else x.${f("rolloutPercentage")} end,
     ${f("rolloutVariant")} = case when d ? 'rollout_variant' then excluded.${f("rolloutVariant")} else x.${f("rolloutVariant")} end,
     ${f("updatedAt")} = now();
+  ${flagEvent("flag.saved", "save_flag.key")}
   return (select v from jsonb_array_elements(${fn("flag_definitions")}()) v where v ->> 'key' = save_flag.key);
 end;
 $$;
@@ -290,7 +327,11 @@ as $$
 begin
   ${denied}
   delete from ${flags} x where x.${f("key")} = delete_flag.key;
-  return found;
+  if not found then
+    return false;
+  end if;
+  ${flagEvent("flag.deleted", "delete_flag.key")}
+  return true;
 end;
 $$;
 
@@ -312,11 +353,16 @@ begin
     where v.${o("flag")} = set_flag_override.key
       and v.${o("tenant")} is not distinct from set_flag_override.tenant
       and v.${o("user")} is not distinct from set_flag_override.member;
-    return found;
+    if not found then
+      return false;
+    end if;
+    ${overrideEvent}
+    return true;
   end if;
   insert into ${overrides} (${o("flag")}, ${o("tenant")}, ${o("user")}, ${o("variant")})
   values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.variant)
   on conflict (${o("flag")}, ${o("tenant")}, ${o("user")}) do update set ${o("variant")} = excluded.${o("variant")};
+  ${overrideEvent}
   return true;
 end;
 $$;

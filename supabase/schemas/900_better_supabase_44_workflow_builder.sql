@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-builder (0.5.1)
 -- @bs-module workflow-builder@1 managed
--- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow.alert outbox events.
+-- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -147,7 +147,7 @@ create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs" 
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
 -- run is still unfinished after threshold (check_workflow_alerts). Each
--- fires once per run and writes a workflow.alert outbox event.
+-- fires once per run and writes a workflow_alert.triggered outbox event.
 create table if not exists "better_supabase"."workflow_alerts" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
@@ -448,6 +448,15 @@ begin
   update "better_supabase"."workflow_versions" x set "status" = 'published', "compiled" = compiled, "published_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform better_supabase.audit_event(
+    event_type => 'workflow.published',
+    category => 'configuration',
+    target_type => 'workflow_version',
+    record_id => v_row."id"::text,
+    tenant => (v_tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant::text, 'definitionId', v_row."definition_id", 'versionId', v_row."id", 'version', v_row."version"),
+    idempotency_key => 'workflow.published:' || v_row."id"::text
+  );
   return jsonb_build_object(
     'id', v_row."id",
     'definition', v_row."definition_id",

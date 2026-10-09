@@ -35,8 +35,8 @@ A run's status is `queued`, `running`, `waiting`, `completed`, `failed` or
 `cancelled`. Every status change sends a payload-free Realtime message on
 `workflow-run:<id>` and, for a run with a tenant, on
 `workflow-runs:<tenant>`. With the [outbox](/docs/blocks/outbox) installed,
-a run that ends emits `workflow.run.completed`, `workflow.run.failed` or
-`workflow.run.cancelled`.
+a run that ends emits `workflow_run.completed`, `workflow_run.failed` or
+`workflow_run.cancelled`.
 
 ## Reading runs
 

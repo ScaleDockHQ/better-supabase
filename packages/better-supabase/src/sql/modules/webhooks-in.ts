@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { ModuleContext, ModuleEvents } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -96,6 +96,24 @@ create trigger ${cleanupTrigger} after delete on ${t}
 drop trigger if exists ${cleanupTrigger} on ${t};`;
   const can = (tenant: string, action: "create" | "update" | "delete") =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${key(action)}), false))`;
+  const hookEvent = (
+    type: string,
+    endpoint: string,
+    tenant: string,
+    category: "integration" | "security",
+    extra = "",
+  ): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', ${tenant}::text, 'endpointId', ${endpoint}${extra})`,
+      subject: `'organizations/' || ${tenant}::text || '/incoming-webhooks/' || ${endpoint}::text`,
+      tenant,
+      audit: {
+        category,
+        targetType: "incoming_webhook",
+        recordId: `${endpoint}::text`,
+      },
+    });
   const subjects = subjectsOption(ctx);
   const readable = subjectReadable(subjects, {
     type: "subject_type",
@@ -264,6 +282,7 @@ begin
     ${headerFor("verify", "signature_header", "null")},
     coalesce(metadata, '{}'), subject_type, subject_id, auth.uid())
   returning * into created;
+  ${hookEvent("incoming_webhook.created", "created.id", "created.tenant", "integration", ", 'name', created.name")}
   return jsonb_build_object('id', created.id, 'tenant', created.tenant, 'name', created.name,
     'verify', created.verify, 'token', token, 'secret', secret, 'signatureHeader', created.signature_header,
     'subjectType', created.subject_type, 'subjectId', created.subject_id);
@@ -306,6 +325,7 @@ begin
   end if;`
       : ""
   }
+  ${hookEvent("incoming_webhook.token_rotated", "updated.id", "updated.tenant", "security", ", 'secretRotated', rotate_secret")}
   return jsonb_build_object('id', updated.id, 'token', token, 'secret', v_secret);
 end;
 $$;
@@ -345,6 +365,7 @@ begin
   where vs.id = previous.previous_secret_id or (not v_keep and vs.id = previous.secret_id);`
       : ""
   }
+  ${hookEvent("incoming_webhook.secret_rotated", "updated.id", "updated.tenant", "security")}
   return jsonb_build_object('id', updated.id, 'secret', v_secret, 'previousSecretExpiresAt', updated.previous_secret_expires_at);
 end;
 $$;
@@ -404,6 +425,7 @@ begin
   end if;`
       : ""
   }
+  ${hookEvent("incoming_webhook.updated", "updated.id", "updated.tenant", "integration", ", 'name', updated.name, 'verify', updated.verify")}
   return jsonb_build_object('id', updated.id, 'tenant', updated.tenant, 'name', updated.name,
     'verify', updated.verify, 'secret', v_secret, 'signatureHeader', updated.signature_header,
     'metadata', updated.metadata);
@@ -425,6 +447,7 @@ begin
     return false;
   end if;
   update ${t} e set enabled = set_incoming_webhook_enabled.enabled where e.id = endpoint;
+  ${hookEvent("incoming_webhook.enabled_set", "endpoint", "tenant", "integration", ", 'enabled', set_incoming_webhook_enabled.enabled")}
   return true;
 end;
 $$;
@@ -444,6 +467,7 @@ begin
     return false;
   end if;
   delete from ${t} e where e.id = endpoint;
+  ${hookEvent("incoming_webhook.deleted", "endpoint", "tenant", "integration")}
   return true;
 end;
 $$;
@@ -493,6 +517,33 @@ revoke execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) f
 grant execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) to service_role;`;
 }
 
+const EVENTS: ModuleEvents = {
+  "incoming_webhook.created": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId", "name"],
+  },
+  "incoming_webhook.token_rotated": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId", "secretRotated"],
+  },
+  "incoming_webhook.secret_rotated": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId"],
+  },
+  "incoming_webhook.updated": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId", "name", "verify"],
+  },
+  "incoming_webhook.enabled_set": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId", "enabled"],
+  },
+  "incoming_webhook.deleted": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId"],
+  },
+};
+
 export const WEBHOOKS_IN: ModuleDefinition = {
   internal: [
     "incoming_webhook_tenant_ids",
@@ -505,6 +556,7 @@ export const WEBHOOKS_IN: ModuleDefinition = {
   requires: ["access", "updated-at", "webhook-inbox"],
   target: "schema",
   names: {
+    events: EVENTS,
     tables: {
       endpoints: {
         name: "incoming_webhooks",

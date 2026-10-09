@@ -49,8 +49,9 @@ export {
   scopeProblems,
   templateFunctions,
 } from "../core/access-sql.ts";
-export { contractSignature } from "./context.ts";
+export { AUDIT_CATEGORIES, contractSignature } from "./context.ts";
 export type {
+  AuditCategory,
   ModuleAction,
   ModuleAudit,
   ModuleContext,

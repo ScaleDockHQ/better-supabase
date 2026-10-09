@@ -272,7 +272,7 @@ await serviceBuilder.alerts.check(); // from a cron route
 A `failed` alert fires when a run of the definition fails. A `slow` alert
 fires from `alerts.check()` when a run is still unfinished `threshold`
 seconds after it started. Each alert fires once per run and emits a
-`workflow.alert` outbox event with the alert, its `channel` and the run.
+`workflow_alert.triggered` outbox event with the alert, its `channel` and the run.
 Your outbox consumer sends it; the module only stores the channel. Runs
 match a definition on their `bs.definition` attribute, which
 `graphStarter` sets.

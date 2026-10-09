@@ -391,12 +391,14 @@ ${keyed}
   from unnest(v_recipients) x
   on conflict do nothing;${deliveries}
   ${ctx.hook("after_notify", [["uuid", "v_event"]])}
-  ${ctx.emit({
+  ${ctx.record({
     type: "notification.created",
     payload:
-      "jsonb_build_object('notificationId', v_event, 'type', v_type, 'recipientIds', to_jsonb(v_recipients))",
+      "jsonb_build_object('notificationId', v_event, 'organizationId', v_tenant::text, 'type', v_type, 'recipientIds', to_jsonb(v_recipients))",
     subject: "'notifications/' || v_event::text",
     tenant: "v_tenant",
+    key: "'notification.created:' || v_event::text",
+    audit: false,
   })}
   return jsonb_build_object('id', v_event, 'recipients', to_jsonb(v_recipients));
 end;

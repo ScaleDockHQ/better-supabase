@@ -43,17 +43,20 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const enqueue = (queue: string, payload: string, dedupe: string): string =>
     ctx.enqueue(queue, payload, dedupe);
   const conversationEvent = (type: string, extra: string): string =>
-    ctx.emit({
+    ctx.record({
       type,
       payload: `jsonb_build_object('conversationId', v_conv.${cv("id")}, 'organizationId', v_conv.${cv("tenant")}::text, 'inboxId', v_conv.${cv("inbox")}, 'contactId', v_conv.${cv("contact")}, 'assigneeId', v_conv.${cv("assignee")}, 'status', v_conv.${cv("status")}${extra})`,
       subject: `'conversations/' || v_conv.${cv("id")}::text`,
       tenant: `v_conv.${cv("tenant")}`,
+      audit: false,
     });
-  const received = ctx.emit({
-    type: "inbox.message.received",
+  const received = ctx.record({
+    type: "inbox_message.received",
     payload: `jsonb_build_object('conversationId', v_conv.${cv("id")}, 'organizationId', v_conv.${cv("tenant")}::text, 'messageId', v_msg.${ms("id")}, 'inboxId', v_conv.${cv("inbox")}, 'contactId', v_conv.${cv("contact")})`,
     subject: `'conversations/' || v_conv.${cv("id")}::text`,
     tenant: `v_conv.${cv("tenant")}`,
+    key: `'inbox_message.received:' || v_msg.${ms("id")}::text`,
+    audit: false,
   });
   const log = (type: string, data = "'{}'::jsonb"): string =>
     `insert into ${T("events")} (${ev("tenant")}, ${ev("conversation")}, ${ev("type")}, ${ev("actor")}, ${ev("data")})
@@ -362,7 +365,7 @@ begin
     returning * into v_conv;
     if v_reopened then
       ${log("reopened", "jsonb_build_object('by', 'contact')")}
-      ${conversationEvent("inbox.conversation.reopened", "")}
+      ${conversationEvent("inbox_conversation.reopened", "")}
     end if;
   end if;
   if inbox_add_message.author is not null and inbox_add_message.author_type = 'agent' then
@@ -469,7 +472,7 @@ begin
     returning * into v_conv;
   end if;
   ${log("opened")}
-  ${conversationEvent("inbox.conversation.opened", "")}
+  ${conversationEvent("inbox_conversation.opened", "")}
   if input ? 'message' then
     perform ${fn("inbox_add_message")}(
       v_conv.${cv("id")},
@@ -565,7 +568,7 @@ begin
     returning * into v_conv;
     v_created := true;
     ${log("opened", "jsonb_build_object('by', 'channel')")}
-    ${conversationEvent("inbox.conversation.opened", "")}
+    ${conversationEvent("inbox_conversation.opened", "")}
   end if;
   if v_message ? 'external_id' then
     v_duplicate := exists (select 1 from ${T("messages")} m where m.${ms("conversation")} = v_conv.${cv("id")} and m.${ms("externalId")} = v_message ->> 'external_id');
@@ -616,7 +619,7 @@ begin
   returning * into v_conv;
   if v_before is distinct from assignee then
     ${log("assigned", "jsonb_build_object('from', v_before, 'to', assign_conversation.assignee)")}
-    ${conversationEvent("inbox.conversation.assigned", ", 'previousAssigneeId', v_before")}
+    ${conversationEvent("inbox_conversation.assigned", ", 'previousAssigneeId', v_before")}
     if assignee is not null then
       insert into ${T("participants")} (${pa("conversation")}, ${pa("user")}) values (v_conv.${cv("id")}, assignee)
       on conflict do nothing;
@@ -667,9 +670,9 @@ begin
   if v_before is distinct from status then
     ${log("status", "jsonb_build_object('from', v_before, 'to', set_conversation_status.status)")}
     if status = 'resolved' then
-      ${conversationEvent("inbox.conversation.resolved", "")}
+      ${conversationEvent("inbox_conversation.resolved", "")}
     elsif v_before = 'resolved' then
-      ${conversationEvent("inbox.conversation.reopened", "")}
+      ${conversationEvent("inbox_conversation.reopened", "")}
     end if;
   end if;
   return ${conversationJson}(v_conv.${cv("id")});

@@ -30,7 +30,7 @@ describe("workflows module", () => {
       "when 'completed' then",
     );
     expect(schemaOf(["workflows", "outbox"])).toContain(
-      "'workflow.run.failed:' || new.\"id\"",
+      "'workflow_run.failed:' || new.\"id\"",
     );
   });
 

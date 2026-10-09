@@ -82,7 +82,14 @@ begin
         using organization, owner;
     end if;
   end;
-  
+  perform better_supabase.audit_event(
+    event_type => 'organization.created',
+    category => 'configuration',
+    target_type => 'organization',
+    record_id => organization::text,
+    tenant => (organization)::uuid,
+    metadata => jsonb_build_object('organizationId', organization::text, 'userId', owner, 'role', 'owner')
+  );
   return organization;
 end;
 $$;
@@ -115,7 +122,14 @@ begin
   if not found then
     raise exception 'No organization %', organization using errcode = 'P0002', hint = 'ORGANIZATION_NOT_FOUND';
   end if;
-  
+  perform better_supabase.audit_event(
+    event_type => 'organization.updated',
+    category => 'configuration',
+    target_type => 'organization',
+    record_id => organization::text,
+    tenant => (organization)::uuid,
+    metadata => jsonb_build_object('organizationId', organization::text, 'userId', auth.uid())
+  );
   return true;
 end;
 $$;
@@ -139,11 +153,12 @@ begin
   delete from "public"."memberships" where "organization_id" = organization;
   perform better_supabase.audit_event(
     event_type => 'organization.deleted',
-    category => 'organization',
-    tenant => organization,
+    category => 'configuration',
+    target_type => 'organization',
+    record_id => organization::text,
+    tenant => (organization)::uuid,
     metadata => jsonb_build_object('mode', 'hard')
   );
-  
   return true;
 end;
 $$;
@@ -272,7 +287,14 @@ begin
         using organization, member, 'role';
     end if;
   end;
-  
+  perform better_supabase.audit_event(
+    event_type => 'organization.role_changed',
+    category => 'membership',
+    target_type => 'user',
+    record_id => member::text,
+    tenant => (organization)::uuid,
+    metadata => jsonb_build_object('organizationId', organization::text, 'userId', member, 'role', role, 'previousRole', previous)
+  );
   return true;
 end;
 $$;
@@ -309,7 +331,14 @@ begin
         using organization, member, 'removed';
     end if;
   end;
-  
+  perform better_supabase.audit_event(
+    event_type => 'organization.member_removed',
+    category => 'membership',
+    target_type => 'user',
+    record_id => member::text,
+    tenant => (organization)::uuid,
+    metadata => jsonb_build_object('organizationId', organization::text, 'userId', member)
+  );
   return true;
 end;
 $$;
@@ -336,7 +365,14 @@ begin
         using organization, me, 'left';
     end if;
   end;
-  
+  perform better_supabase.audit_event(
+    event_type => 'organization.member_left',
+    category => 'membership',
+    target_type => 'user',
+    record_id => me::text,
+    tenant => (organization)::uuid,
+    metadata => jsonb_build_object('organizationId', organization::text, 'userId', me)
+  );
   return true;
 end;
 $$;
@@ -392,7 +428,14 @@ begin
         using organization, new_owner, 'owner';
     end if;
   end;
-  
+  perform better_supabase.audit_event(
+    event_type => 'organization.ownership_transferred',
+    category => 'membership',
+    target_type => 'user',
+    record_id => new_owner::text,
+    tenant => (organization)::uuid,
+    metadata => jsonb_build_object('organizationId', organization::text, 'userId', new_owner, 'role', 'owner')
+  );
   return true;
 end;
 $$;
@@ -437,7 +480,7 @@ begin
   set raw_app_meta_data = coalesce(raw_app_meta_data, '{}') || jsonb_build_object('tenant_id', organization::text)
   where id = me;
   update "public"."memberships" set "last_used_at" = now() where "organization_id" = organization and "user_id" = me;
-  
+  null;
   return jsonb_build_object('organization_id', organization, 'refresh', true);
 end;
 $$;

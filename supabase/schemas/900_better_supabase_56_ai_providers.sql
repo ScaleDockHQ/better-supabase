@@ -164,6 +164,15 @@ begin
     "enabled" = excluded."enabled",
     "updated_at" = now()
   returning * into v_row;
+  perform better_supabase.audit_event(
+    event_type => 'ai_provider_key.saved',
+    category => 'security',
+    target_type => 'ai_provider_key',
+    record_id => v_row."id"::text,
+    target_label => v_row."provider" || '/' || v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name")
+  );
   return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;
@@ -186,6 +195,15 @@ begin
     return null;
   end if;
   delete from "better_supabase"."ai_provider_keys" x where x."id" = v_row."id";
+  perform better_supabase.audit_event(
+    event_type => 'ai_provider_key.deleted',
+    category => 'security',
+    target_type => 'ai_provider_key',
+    record_id => v_row."id"::text,
+    target_label => v_row."provider" || '/' || v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name")
+  );
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;

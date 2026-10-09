@@ -120,7 +120,14 @@ declare
   v_claims text;
 begin
   if tg_op = 'UPDATE' and new."deleted_at" is not null then
-    null;
+    perform better_supabase.audit_event(
+    event_type => 'comment.deleted',
+    category => 'data',
+    target_type => 'comment',
+    record_id => new."id"::text,
+    tenant => (new."organization_id")::uuid,
+    metadata => jsonb_build_object('commentId', new."id", 'organizationId', new."organization_id"::text, 'subjectType', new."subject_type", 'subjectId', new."subject_id", 'authorId', new."author_id")
+  );
     return null;
   end if;
   v_new := array(

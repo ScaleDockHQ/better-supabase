@@ -174,6 +174,13 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
+  perform better_supabase.audit_event(
+    event_type => 'announcement.saved',
+    category => 'configuration',
+    target_type => 'announcement',
+    record_id => v_row."id"::text,
+    metadata => jsonb_build_object('announcementId', v_row."id")
+  );
   return to_jsonb(v_row);
 end;
 $$;
@@ -192,6 +199,15 @@ begin
   end if;
   delete from "better_supabase"."announcements" x where x."id" = delete_announcement.id;
   get diagnostics v_count = row_count;
+  if v_count > 0 then
+    perform better_supabase.audit_event(
+    event_type => 'announcement.deleted',
+    category => 'configuration',
+    target_type => 'announcement',
+    record_id => delete_announcement.id::text,
+    metadata => jsonb_build_object('announcementId', delete_announcement.id)
+  );
+  end if;
   return v_count > 0;
 end;
 $$;

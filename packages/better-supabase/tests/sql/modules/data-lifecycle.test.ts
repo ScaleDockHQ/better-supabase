@@ -112,7 +112,7 @@ describe("data-lifecycle module", () => {
     );
     expect(sql).toMatch(/delete from "better_supabase"."organizations"/);
     expect(sql).toMatch(/emit_event\('organization\.purged'/);
-    expect(sql).toMatch(/emit_event\('data_export\.ready'/);
+    expect(sql).toMatch(/emit_event\('data_export\.completed'/);
   });
 
   it("reads the tables from each module's lifecycle declarations", () => {

@@ -163,8 +163,8 @@ describe.skipIf(!live)("data lifecycle", () => {
       expect(events.map((event) => event.type)).toEqual([
         "data_export.requested",
         "data_export.requested",
-        "data_export.ready",
-        "data_export.ready",
+        "data_export.completed",
+        "data_export.completed",
       ]);
       const organizationFile = memory.files.get(
         `${theirs.id}/better_supabase.memberships.ndjson`,

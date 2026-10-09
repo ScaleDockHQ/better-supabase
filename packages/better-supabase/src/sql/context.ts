@@ -1,3 +1,4 @@
+import type { BlockEventMap, BlockEventType } from "../core/block-events.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 
 import {
@@ -8,7 +9,9 @@ import {
 } from "../config/modules.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
-import { SERVICE_CALLER } from "./shared.ts";
+import { NOTHING, SERVICE_CALLER } from "./shared.ts";
+
+export { NOTHING };
 
 /** The scope id types SQL modules render. */
 export const MODULE_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
@@ -65,7 +68,35 @@ export interface ModuleNames {
   readonly hooks?: readonly string[];
   /** The `sql.modules.<name>.options` keys the module reads; any other key is rejected. */
   readonly options?: readonly string[];
+  /** The events the module records; `record` rejects any other type. */
+  readonly events?: ModuleEvents;
 }
+
+/** An event in a module's catalog, checked against what `record` renders. */
+export interface ModuleEventSpec<K extends BlockEventType = BlockEventType> {
+  /** The kebab-case collection every subject starts with, e.g. `organizations`. */
+  readonly subject: string;
+  /** The payload keys, all of them in the event's `BlockEventMap` data. */
+  readonly payload: readonly PayloadKey<K>[];
+  /** A job, a webhook or an engine may call the writer again, so the event needs a `key`. */
+  readonly retries?: boolean;
+}
+
+type PayloadKey<K extends BlockEventType> = K extends BlockEventType
+  ? keyof BlockEventMap[K] & string
+  : never;
+
+export type ModuleEvents = {
+  readonly [K in BlockEventType]?: ModuleEventSpec<K>;
+};
+
+interface CheckedEventSpec {
+  readonly subject: string;
+  readonly payload: readonly string[];
+  readonly retries?: boolean;
+}
+
+const SUBJECT_COLLECTION = /^[a-z]+(-[a-z]+)*s$/;
 
 /** An event a module writes to the outbox, as SQL expressions. */
 export interface ModuleEmit {
@@ -81,10 +112,27 @@ export interface ModuleEmit {
   readonly key?: string;
 }
 
+/**
+ * The categories module actions are audited under. An adopted log with its
+ * own names maps them through `sql.modules.audit.options.values.category`.
+ */
+export const AUDIT_CATEGORIES = [
+  "membership",
+  "access",
+  "security",
+  "configuration",
+  "billing",
+  "data",
+  "ai",
+  "integration",
+] as const;
+
+export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
+
 /** How `record` writes an action to the audit log, as SQL expressions. */
 export interface ModuleAudit {
   /** The audit category, mapped through `sql.modules.audit.options.values`. */
-  readonly category: string;
+  readonly category: AuditCategory;
   /** What the action changed, e.g. `user` or `api_key`. */
   readonly targetType?: string;
   /** A `text` expression for the changed record's id. */
@@ -104,16 +152,16 @@ export interface ModuleAudit {
  * audit log as an entry, each when its module is installed.
  */
 export interface ModuleAction extends ModuleEmit {
-  /** `false` keeps the action out of the audit log. */
-  readonly audit?: ModuleAudit | false;
+  /**
+   * How the action is audited, or `false` for an event that is not an
+   * audited action, such as a chat message or a run status.
+   */
+  readonly audit: ModuleAudit | false;
 }
 
 // access and jobs write their functions into better_supabase whatever
 // sql.modules.<name>.schema says; the schema only places access's tables.
 const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set(["access", "jobs"]);
-
-/** What `record` and the other statement helpers return when there is nothing to do. */
-export const NOTHING = "null;";
 
 /** A function of a module's contract: what other modules and the TypeScript side call. */
 export interface ModuleContractFunction {
@@ -414,7 +462,41 @@ export function createModuleContext(
       );
     }
   };
+  const checkEvent = (event: ModuleEmit): void => {
+    if (!names.events) return;
+    const spec: CheckedEventSpec | undefined = Object.entries(
+      names.events,
+    ).find(([type]) => type === event.type)?.[1];
+    if (!spec) {
+      throw new TypeError(
+        `Module "${module}" records "${event.type}", which its names.events doesn't declare`,
+      );
+    }
+    const fault = (problem: string): never => {
+      throw new TypeError(
+        `Module "${module}" event "${event.type}" ${problem}`,
+      );
+    };
+    if (!SUBJECT_COLLECTION.test(spec.subject)) {
+      fault(`has subject "${spec.subject}", not a kebab-case plural`);
+    }
+    if (!event.subject?.startsWith(`'${spec.subject}/`)) {
+      fault(`needs a subject that starts with '${spec.subject}/'`);
+    }
+    const missing = spec.payload.filter(
+      (key) => !event.payload.includes(`'${key}'`),
+    );
+    if (missing.length > 0) fault(`payload lacks ${missing.join(", ")}`);
+    const tenanted = event.tenant !== undefined && event.tenant !== "null";
+    if (tenanted && !spec.payload.includes("organizationId")) {
+      fault("has a tenant, so its payload needs organizationId");
+    }
+    if (spec.retries === true && event.key === undefined) {
+      fault("is written by a writer that retries, so it needs a key");
+    }
+  };
   const outbox = (event: ModuleEmit): string => {
+    checkEvent(event);
     if (!config.events || !installed.has("outbox")) return "";
     const outboxConfig = resolveModule(modules["outbox"]);
     const template =
@@ -435,15 +517,32 @@ export function createModuleContext(
   };
   const auditEntry = (action: ModuleAction): string => {
     const audit = action.audit;
-    if (!audit || !installed.has("audit")) return "";
+    if (!audit || !config.audit || !installed.has("audit")) return "";
+    // auditCategory is the deprecated per-module override of every category.
+    const legacy = declared.has("auditCategory")
+      ? config.options["auditCategory"]
+      : undefined;
+    if (legacy !== undefined && typeof legacy !== "string") {
+      throw new TypeError(`${where}.options.auditCategory must be a string`);
+    }
+    const auditIdType =
+      modules["audit"]?.idType ??
+      modules.access?.idType ??
+      source.providerIdType ??
+      "uuid";
     const args: [string, string | undefined][] = [
       ["event_type", sqlString(action.type)],
-      ["category", sqlString(audit.category)],
+      ["category", sqlString(legacy ?? audit.category)],
       ["target_type", audit.targetType && sqlString(audit.targetType)],
       ["record_id", audit.recordId],
       ["target_label", audit.targetLabel],
       ["summary", audit.summary],
-      ["tenant", action.tenant],
+      [
+        "tenant",
+        action.tenant === undefined
+          ? undefined
+          : `(${action.tenant})::${auditIdType}`,
+      ],
       ["metadata", audit.metadata ?? action.payload],
       ["idempotency_key", action.key],
       ["actor_id", audit.actor],

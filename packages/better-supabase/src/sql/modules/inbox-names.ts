@@ -1,10 +1,70 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "inbox_conversation.reopened": {
+    subject: "conversations",
+    payload: [
+      "conversationId",
+      "organizationId",
+      "inboxId",
+      "contactId",
+      "assigneeId",
+      "status",
+    ],
+  },
+  "inbox_message.received": {
+    subject: "conversations",
+    payload: [
+      "conversationId",
+      "organizationId",
+      "messageId",
+      "inboxId",
+      "contactId",
+    ],
+    retries: true,
+  },
+  "inbox_conversation.opened": {
+    subject: "conversations",
+    payload: [
+      "conversationId",
+      "organizationId",
+      "inboxId",
+      "contactId",
+      "assigneeId",
+      "status",
+    ],
+  },
+  "inbox_conversation.assigned": {
+    subject: "conversations",
+    payload: [
+      "conversationId",
+      "organizationId",
+      "inboxId",
+      "contactId",
+      "assigneeId",
+      "status",
+      "previousAssigneeId",
+    ],
+  },
+  "inbox_conversation.resolved": {
+    subject: "conversations",
+    payload: [
+      "conversationId",
+      "organizationId",
+      "inboxId",
+      "contactId",
+      "assigneeId",
+      "status",
+    ],
+  },
+};
+
 export const INBOX_NAMES: ModuleNames = {
+  events: EVENTS,
   options: [
     "topic",
     "bucket",

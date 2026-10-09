@@ -127,7 +127,7 @@ describe("ai-chat module", () => {
 
   it("emits outbox events when the outbox is installed", () => {
     const sql = withModules(["outbox"]);
-    expect(sql).toContain("emit_event('ai_chat.message.completed'");
+    expect(sql).toContain("emit_event('ai_chat_message.completed'");
     expect(sql).toContain("emit_event('ai_chat.shared'");
     expect(body()).not.toContain("emit_event(");
   });

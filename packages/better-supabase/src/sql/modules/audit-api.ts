@@ -285,14 +285,20 @@ begin
   end if;
   select jsonb_build_object('entry', entry${fields}) into details
   from ${ctx.table("restricted")} d where d.${r("entry")}::text = entry;
-  perform better_supabase.audit_event(
-    event_type => 'audit.revealed',
-    category => 'audit',
-    target_type => 'audit_entry',
-    record_id => entry,
-    tenant => owner,
-    actor_id => auth.uid()
-  );
+  ${ctx.record({
+    type: "audit.revealed",
+    payload:
+      "jsonb_build_object('organizationId', owner::text, 'entries', jsonb_build_array(entry))",
+    subject: "'audit-entries/' || entry",
+    tenant: "owner",
+    audit: {
+      category: "security",
+      targetType: "audit_entry",
+      recordId: "entry",
+      metadata: "'{}'::jsonb",
+      actor: "auth.uid()",
+    },
+  })}
   return coalesce(details, jsonb_build_object('entry', entry));
 end;
 $$;
@@ -327,14 +333,19 @@ begin
     from jsonb_array_elements(visible) v
     group by v ->> 'owner'
   loop
-    perform better_supabase.audit_event(
-      event_type => 'audit.revealed',
-      category => 'audit',
-      target_type => 'audit_entry',
-      tenant => (revealed.owner)::${ctx.idType},
-      actor_id => auth.uid(),
-      metadata => jsonb_build_object('entries', revealed.ids)
-    );
+    ${ctx.record({
+      type: "audit.revealed",
+      payload:
+        "jsonb_build_object('organizationId', revealed.owner, 'entries', revealed.ids)",
+      subject: "'audit-entries/' || coalesce(revealed.owner, 'platform')",
+      tenant: `(revealed.owner)::${ctx.idType}`,
+      audit: {
+        category: "security",
+        targetType: "audit_entry",
+        metadata: "jsonb_build_object('entries', revealed.ids)",
+        actor: "auth.uid()",
+      },
+    })}
   end loop;
   return details;
 end;

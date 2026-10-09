@@ -88,6 +88,42 @@ The organization events are now `organization.created`,
 `organization.switched`. Update `sb.on` patterns, outbox consumers and
 webhook subscriptions that name an `org.*` type.
 
+Every event type is now `<entity>.<past_tense_verb>`, with a snake_case
+entity and no third segment. These types were renamed:
+
+| 0.5                                               | 0.6                                               |
+| ------------------------------------------------- | ------------------------------------------------- |
+| `org.*`                                           | `organization.*`                                  |
+| `ai_chat.message.completed`                       | `ai_chat_message.completed`                       |
+| `inbox.conversation.*`                            | `inbox_conversation.*`                            |
+| `inbox.message.received`                          | `inbox_message.received`                          |
+| `incoming_webhook.rotated`                        | `incoming_webhook.token_rotated`                  |
+| `workflow.alert`                                  | `workflow_alert.triggered`                        |
+| `workflow.run.completed`, `.failed`, `.cancelled` | `workflow_run.completed`, `.failed`, `.cancelled` |
+| `data_export.ready`                               | `data_export.completed`                           |
+
+`BLOCK_EVENT_RENAMES` from `better-supabase/events` maps each old
+organization type to its new name, for a consumer that reads events written
+before the upgrade. The full list of types and their data keys is on the
+[events page](/docs/extending/events#block-events).
+
+Payloads and subjects changed too:
+
+- `support.started` and `support.ended` carry a camelCase payload
+  (`sessionId`, `adminId`, `targetUserId`, `reason`, `readOnly`,
+  `expiresAt`, `organizationId`, and `endedBy` on `support.ended`), and their
+  subject is `support-sessions/<id>`.
+- Subjects are kebab-case plurals: `push-devices/<id>`,
+  `waitlist-entries/<id>` and `audit-entries/<id>`.
+- `scim.user_*` and `scim.group_*` name the SCIM resource `scimUserId` or
+  `scimGroupId` instead of `id`.
+- `support.*`, `notification.created`, `webhook.disabled` and the workflow
+  events carry `organizationId`.
+- `notification.created`, `webhook.disabled`, `attachment.scanned`,
+  `inbox_message.received`, `data_export.completed`, `data_export.failed` and
+  `organization.purged` have an idempotency key, so a retried call writes
+  one event.
+
 ## Regenerate the SQL modules
 
 The module files now start with `-- @bs-module` (`-- @bs-module-data` for the
@@ -255,14 +291,30 @@ These apply once `better-supabase sql sync` rewrites the module files:
 - `webhooks-in` installs `updated-at`.
 - `support.ended` carries the session's tenant in its audit entry and outbox
   event.
+- Module actions write their audit entries under the shared categories
+  (`membership`, `access`, `security`, `configuration`, `billing`, `data`,
+  `ai`, `integration`; see [Audit](/docs/blocks/audit#module-actions)).
+  Organization entries were `organization`, support entries `support` and
+  revealed details `audit`. An adopted log with a category check maps the new
+  names with `sql.modules.audit.options.values.category`.
+  `options.auditCategory` is deprecated.
+- Settings, flags, billing customers, credentials, connectors, agents,
+  provider keys, tool policies and approvals, chat shares, incoming webhooks,
+  webhook secrets, announcements, published workflows and revealed audit
+  details now write an audit entry and an outbox event, as do the access
+  catalog's tables (audit entry only). Set `audit: false` on a module to
+  leave it out of the log.
+- `support.started` carries the session's tenant in its audit entry and
+  outbox event.
 - `sql.modules.jobs.schema` is an error. Remove it: the jobs functions were
   always in `better_supabase`.
 
 ## Run the codemod
 
 `better-supabase codemod 0.6` renames the `Kit` and `Org` exports from the
-rename table where your code imports them, and `maxUrlLength` to
-`urlLengthLimit`, and lists the lines it can't rewrite for review:
+rename table where your code imports them, `maxUrlLength` to
+`urlLengthLimit`, and string literals that are exactly a renamed event type
+(`"org.member_added"`, `"org.*"`) to the new name. It lists the lines it can't rewrite for review:
 `$rpc` calls, `publicUrl()` and `path()` calls, and imports from the removed
 subpaths. It does not move an import to its new subpath, rewrite SQL or
 change config keys. Run it after `better-supabase gen`, then fix what the

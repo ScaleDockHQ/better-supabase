@@ -221,6 +221,81 @@ grant execute on function "better_supabase"."get_organization_settings"(uuid) to
 grant execute on function "better_supabase"."set_organization_setting"(uuid, text, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."reset_organization_setting"(uuid, text) to authenticated, service_role;
 
+-- Records organization and platform setting changes; user settings are not
+-- recorded.
+create or replace function "better_supabase"."record_organization_setting"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."organization_settings";
+begin
+  if tg_op = 'DELETE' then
+    v_row := old;
+    perform better_supabase.audit_event(
+    event_type => 'organization_setting.reset',
+    category => 'configuration',
+    target_type => 'setting',
+    record_id => v_row."key",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'key', v_row."key")
+  );
+  else
+    v_row := new;
+    perform better_supabase.audit_event(
+    event_type => 'organization_setting.updated',
+    category => 'configuration',
+    target_type => 'setting',
+    record_id => v_row."key",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'key', v_row."key")
+  );
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."record_organization_setting"() from public, anon, authenticated;
+drop trigger if exists "bs_record_organization_setting" on "better_supabase"."organization_settings";
+create trigger "bs_record_organization_setting" after insert or update or delete on "better_supabase"."organization_settings"
+  for each row execute function "better_supabase"."record_organization_setting"();
+create or replace function "better_supabase"."record_platform_setting"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."platform_settings";
+begin
+  if tg_op = 'DELETE' then
+    v_row := old;
+    perform better_supabase.audit_event(
+    event_type => 'platform_setting.reset',
+    category => 'configuration',
+    target_type => 'setting',
+    record_id => v_row."key",
+    metadata => jsonb_build_object('key', v_row."key")
+  );
+  else
+    v_row := new;
+    perform better_supabase.audit_event(
+    event_type => 'platform_setting.updated',
+    category => 'configuration',
+    target_type => 'setting',
+    record_id => v_row."key",
+    metadata => jsonb_build_object('key', v_row."key")
+  );
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."record_platform_setting"() from public, anon, authenticated;
+drop trigger if exists "bs_record_platform_setting" on "better_supabase"."platform_settings";
+create trigger "bs_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
+  for each row execute function "better_supabase"."record_platform_setting"();
+
 -- sql.modules.settings.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
