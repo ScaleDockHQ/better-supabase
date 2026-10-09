@@ -346,18 +346,26 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  -- pg_cron is optional: its functions are looked up, not named, so
+  -- plpgsql_check (supabase db lint) passes without the extension.
+  v_schedule regprocedure := pg_catalog.to_regprocedure('cron.schedule(text, text, text)');
+  v_id bigint;
 begin
   if tenant is not null then
     raise exception 'pg_cron schedules have no tenant; set sql.modules.jobs.options.scheduler to "drain" to keep one per schedule';
   end if;
-  if pg_catalog.to_regnamespace('cron') is null then
+  if v_schedule is null then
     raise exception 'schedule_job needs pg_cron: create extension pg_cron with schema pg_catalog, or set sql.modules.jobs.options.scheduler to "drain"';
   end if;
   if timezone <> 'UTC' then
     raise exception 'pg_cron runs schedules in cron.timezone, not %; set sql.modules.jobs.options.scheduler to "drain" for per-schedule time zones', timezone;
   end if;
   perform better_supabase.ensure_job_queue(queue);
-  return cron.schedule(job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text));
+  execute format('select %s($1::text, $2::text, $3::text)', v_schedule::oid::regproc)
+    into v_id
+    using job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text);
+  return v_id;
 end;
 $$;
 
@@ -367,11 +375,17 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_unschedule regprocedure := pg_catalog.to_regprocedure('cron.unschedule(text)');
+  v_removed boolean;
 begin
-  if pg_catalog.to_regnamespace('cron') is null then
+  if v_unschedule is null then
     return false;
   end if;
-  return cron.unschedule(job_name);
+  execute format('select %s($1::text)', v_unschedule::oid::regproc)
+    into v_removed
+    using job_name;
+  return v_removed;
 end;
 $$;
 
@@ -403,13 +417,15 @@ stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
 begin
-  if pg_catalog.to_regnamespace('cron') is null or list_schedules.for_tenant is not null then
+  if v_jobs is null or list_schedules.for_tenant is not null then
     return;
   end if;
-  return query execute
+  return query execute format(
     'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz
-     from cron.job j where $1 is null or starts_with(j.jobname, $1) order by j.jobname'
+     from %s j where $1 is null or starts_with(j.jobname, $1) order by j.jobname', v_jobs)
     using name_prefix;
 end;
 $$;
