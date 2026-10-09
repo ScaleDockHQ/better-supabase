@@ -92,7 +92,12 @@ describe("workflow-sdk-world module", () => {
     expect(body).toContain(
       "claim_jobs('wf_q', 40, greatest(coalesce(batch, 5), 1))",
     );
-    expect(body).toContain("timeout_milliseconds := 10000");
+    expect(body).toContain(
+      "to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)')",
+    );
+    expect(body).toContain("timeout_milliseconds := $4)");
+    expect(body).toContain("), 10000;");
+    expect(body).not.toContain("perform net.http_post");
   });
 
   it("rejects an unknown delivery mode or queue name", () => {

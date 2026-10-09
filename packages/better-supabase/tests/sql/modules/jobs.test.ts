@@ -13,7 +13,9 @@ describe("jobs module", () => {
   it("defaults to pgmq and pg_cron", () => {
     const sql = jobs();
     expect(sql).toContain("create extension if not exists pgmq;");
-    expect(sql).toContain("return cron.schedule(");
+    expect(sql).toContain("to_regprocedure('cron.schedule(text, text, text)')");
+    expect(sql).toContain("to_regprocedure('cron.unschedule(text)')");
+    expect(sql).not.toMatch(/(return|perform) cron\./);
     expect(sql).not.toContain("job_messages");
     expect(sql).not.toContain("job_schedules");
     expect(sql).toContain(
@@ -106,7 +108,9 @@ describe("jobs module", () => {
     expect(drain).toContain("where s.tenant = unschedule_tenant.tenant");
     const cron = jobs();
     expect(cron).toContain("pg_cron schedules have no tenant");
-    expect(cron).toContain("from cron.job j where $1 is null");
+    expect(cron).toContain("to_regclass('cron.job')");
+    expect(cron).toContain("from %s j where $1 is null");
+    expect(cron).not.toContain("from cron.job");
   });
 
   it("dead-letters lost last attempts, jitters retries and replays dead letters", () => {

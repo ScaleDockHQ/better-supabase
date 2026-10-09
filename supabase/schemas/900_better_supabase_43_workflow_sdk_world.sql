@@ -370,8 +370,11 @@ declare
   v_t text;
   v_job_header text;
   v_count integer := 0;
+  -- pg_net is optional: http_post is looked up, not named, so plpgsql_check
+  -- (supabase db lint) passes without the extension.
+  v_post regprocedure := pg_catalog.to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)');
 begin
-  if pg_catalog.to_regnamespace('net') is null then
+  if v_post is null then
     raise exception 'dispatch_workflow_deliveries needs pg_net: create extension pg_net, or deliver with the poll mode';
   end if;
   select ds.decrypted_secret into v_url from vault.decrypted_secrets ds where ds.name = 'workflow_flow_url';
@@ -383,16 +386,12 @@ begin
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := 'workflow_deliveries' || ':' || v_job.id::text || ':' || v_job.attempts::text;
-    perform net.http_post(
-      url := v_url,
-      body := v_body,
-      headers := jsonb_build_object(
+    execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
+      using v_url, v_body, jsonb_build_object(
         'content-type', 'application/json',
         'x-bs-job', v_job_header,
         'x-bs-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
-      ),
-      timeout_milliseconds := 30000
-    );
+      ), 30000;
     v_count := v_count + 1;
   end loop;
   return v_count;
