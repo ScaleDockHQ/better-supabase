@@ -106,7 +106,9 @@ app.use(
 
 The guard checks `scopes` against the key's scopes; `*` grants every scope.
 An invalid, expired or revoked key answers 401, and a key over its rate limit
-answers 429 with `Retry-After`. Each verification counts against the key's
+answers 429 with `Retry-After`. A personal key also answers 401 while its user
+is disabled, banned in Supabase Auth (`auth.users.banned_until` in the future)
+or soft-deleted, the same as the user's sign-in. Each verification counts against the key's
 limit and updates `last_used_at` at most once a minute
 (`sql.modules.api-keys.options.touchInterval`, in seconds).
 

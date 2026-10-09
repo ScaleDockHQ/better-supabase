@@ -330,6 +330,10 @@ begin
     or (found."expires_at" is not null and found."expires_at" <= now())
     or (found."revoked_at" is not null and found."revoked_at" <= now())
     or (found."user_id" is not null and better_supabase.user_disabled(found."user_id"))
+    or (found."user_id" is not null and exists (
+      select 1 from auth.users u
+      where u.id = found."user_id" and (u.banned_until > now() or u.deleted_at is not null)
+    ))
     or (found."organization_id" is not null and better_supabase.tenant_disabled(found."organization_id"))
     or (found."user_id" is not null and found."organization_id" is not null
       and better_supabase.organization_member_role(found."organization_id", found."user_id") is null)

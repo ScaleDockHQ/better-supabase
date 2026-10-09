@@ -49,7 +49,7 @@ describe("api-keys module", () => {
     expect(sql).toContain(
       `'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = k."id" order by s."created_at" desc limit 1)`,
     );
-    const verify = sql.slice(sql.indexOf("verify_api_key(public_id text"));
+    const verify = sql.slice(sql.indexOf('verify_api_key"(public_id text'));
     expect(verify.slice(0, verify.indexOf("$$;"))).not.toContain(
       "successor_id",
     );
@@ -65,6 +65,14 @@ describe("api-keys module", () => {
       select 1 from better_supabase.member_organization_ids() as m(id)
       where m.id not in (select better_supabase.tenant_ids_with('apiKey.own'))
     ) then`,
+    );
+  });
+
+  it("refuses a personal key whose user is banned or deleted", () => {
+    const sql = render({});
+    const verify = sql.slice(sql.indexOf('verify_api_key"(public_id text'));
+    expect(verify.slice(0, verify.indexOf("$$;"))).toContain(
+      `where u.id = found."user_id" and (u.banned_until > now() or u.deleted_at is not null)`,
     );
   });
 
