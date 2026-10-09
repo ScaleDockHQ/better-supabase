@@ -92,12 +92,17 @@ const NAMES: ModuleNames = {
     servers: {
       name: "connector_servers",
       columns: SERVERS,
-      lifecycle: { tenant: "tenant" },
+      lifecycle: { tenant: "tenant", credentials: ["credentialRef"] },
     },
     grants: {
       name: "connector_grants",
       columns: GRANTS,
-      lifecycle: { user: "user", tenant: "tenant" },
+      lifecycle: {
+        user: "user",
+        tenant: "tenant",
+        credentials: ["credentialRef"],
+        credentialSubject: "user",
+      },
     },
     sessions: {
       name: "connector_sessions",

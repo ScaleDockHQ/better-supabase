@@ -76,6 +76,7 @@ export const INBOX_NAMES: ModuleNames = {
   tables: {
     inboxes: {
       name: "inboxes",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -92,6 +93,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     members: {
       name: "inbox_members",
+      lifecycle: { user: "user" },
       columns: {
         inbox: "inbox_id",
         user: "user_id",
@@ -101,6 +103,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     teams: {
       name: "inbox_teams",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -110,6 +113,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     teamMembers: {
       name: "inbox_team_members",
+      lifecycle: { user: "user" },
       columns: { team: "team_id", user: "user_id", createdAt: "created_at" },
     },
     contacts: {
@@ -130,6 +134,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     identities: {
       name: "contact_identities",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -166,6 +171,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     participants: {
       name: "conversation_participants",
+      lifecycle: { user: "user" },
       columns: {
         conversation: "conversation_id",
         user: "user_id",
@@ -175,6 +181,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     events: {
       name: "conversation_events",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -187,6 +194,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     reads: {
       name: "conversation_reads",
+      lifecycle: { user: "user" },
       columns: {
         conversation: "conversation_id",
         user: "user_id",
@@ -219,6 +227,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     deliveries: {
       name: "message_deliveries",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -234,6 +243,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     mentions: {
       name: "inbox_mentions",
+      lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         message: "message_id",
         user: "user_id",
@@ -243,6 +253,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     inbound: {
       name: "inbound_events",
+      lifecycle: { tenant: "tenant", omit: ["headers"] },
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -260,6 +271,7 @@ export const INBOX_NAMES: ModuleNames = {
     },
     templates: {
       name: "message_templates",
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "tenant_id",

@@ -83,7 +83,7 @@ describe("vaultCredentials", () => {
         vault.set(ref, value, { subject }).orThrow(),
     });
     expect(report.checks.every((check) => check.ok)).toBe(true);
-    expect(report.checks).toHaveLength(8);
+    expect(report.checks).toHaveLength(9);
   });
 
   it("stores a tenant's ref under tenant/<tenant>/ and refuses slash tricks", async () => {

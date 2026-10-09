@@ -60,6 +60,14 @@ export interface ModuleTableLifecycle {
   readonly purge?: boolean;
   readonly omit?: readonly string[];
   readonly export?: boolean;
+  /**
+   * Columns that hold a `credential_ref`. Exports leave them out, and the
+   * organization purger revokes each ref that carries the row's tenant
+   * through the `CredentialProvider` before the purge deletes the row.
+   */
+  readonly credentials?: readonly string[];
+  /** Revoke for the row's `user` instead of the app. Default `app`. */
+  readonly credentialSubject?: "app" | "user";
 }
 
 export interface ModuleNames {

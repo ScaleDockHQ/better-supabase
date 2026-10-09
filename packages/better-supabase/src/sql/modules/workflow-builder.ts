@@ -84,6 +84,7 @@ const NAMES: ModuleNames = {
     },
     credentials: {
       name: "workflow_credentials",
+      lifecycle: { tenant: "tenant", credentials: ["ref"] },
       columns: {
         id: "id",
         tenant: "tenant_id",

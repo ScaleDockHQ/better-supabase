@@ -22,13 +22,21 @@ const EVENTS: ModuleEvents = {
 const NAMES: ModuleNames = { tables: {}, events: EVENTS };
 
 /**
+ * True when the credential_ref `ref` doesn't carry `"tenant": <tenant>`,
+ * the SQL side of `credentialRefInTenant`.
+ */
+export function refOutsideTenant(ref: string, tenant: string): string {
+  return `jsonb_typeof(${ref} -> 'tenant') is distinct from 'string' or (${ref} ->> 'tenant') is distinct from (${tenant})::text`;
+}
+
+/**
  * PL/pgSQL that rejects a credential_ref outside `tenant` unless the service
  * role calls: a tenant admin's ref must carry `"tenant": <tenant>`, so a
  * provider resolves it only inside that tenant's namespace.
  */
 export function tenantRefGuard(ref: string, tenant: string): string {
   return `if not (${SERVICE_CALLER}) and ${ref} is not null and jsonb_typeof(${ref}) <> 'null'
-    and (jsonb_typeof(${ref} -> 'tenant') is distinct from 'string' or (${ref} ->> 'tenant') is distinct from (${tenant})::text) then
+    and (${refOutsideTenant(ref, tenant)}) then
     raise exception 'credential_ref must carry the tenant % that owns it', ${tenant}
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;`;
