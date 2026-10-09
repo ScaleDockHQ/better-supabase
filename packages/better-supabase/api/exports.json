@@ -1373,6 +1373,8 @@
     "values": [
       "BLOCK_EVENT_SOURCE",
       "createBlocks",
+      "FINAL_RUN_STATES",
+      "LEGACY_RUN_STATES",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -1385,7 +1387,10 @@
       "BlockTransport",
       "CreateBlocksOptions",
       "CursorPageOptions",
-      "RpcClient"
+      "FinalRunState",
+      "LegacyRunState",
+      "RpcClient",
+      "RunState"
     ]
   },
   "./blocks/audit": {
@@ -2634,6 +2639,10 @@
       "AiRunStep",
       "AiRunStepInput",
       "AiRunStepStatus",
+      "AiSandbox",
+      "AiSandboxes",
+      "AiSandboxStatus",
+      "AiSandboxStopper",
       "AiSaveResult",
       "AiShareLink",
       "AiSourcePart",
@@ -2652,6 +2661,7 @@
       "BlockTransport",
       "IdleSandboxStopOptions",
       "IdleSandboxStopResult",
+      "NewAiSandbox",
       "SharedAiChat"
     ]
   },
@@ -2839,6 +2849,7 @@
       "AiProviders",
       "AiProvidersOptions",
       "AiSandbox",
+      "AiSandboxes",
       "AiSandboxStatus",
       "AiSandboxStopper",
       "BlockTransport",

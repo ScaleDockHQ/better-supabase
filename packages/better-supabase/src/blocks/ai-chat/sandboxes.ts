@@ -5,7 +5,7 @@ import type { JobHandler } from "../jobs/queue.ts";
 import { errorText } from "../../core/block-helpers.ts";
 import { AsyncResult as Result, ok } from "../../core/result.ts";
 import { recordsOf } from "../shared.ts";
-import { sandboxOf } from "./rows.ts";
+import { sandboxOf } from "./sandbox-rows.ts";
 
 export type AiSandboxStatus = "running" | "stopping" | "stopped";
 
