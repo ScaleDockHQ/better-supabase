@@ -1,12 +1,14 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  memberAddedRecord,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
@@ -20,7 +22,31 @@ import {
 } from "./access-model.ts";
 import { roleValue } from "./organizations.ts";
 
+const EVENTS: ModuleEvents = {
+  "waitlist.approved": {
+    subject: "waitlist-entries",
+    payload: ["entryId", "email"],
+  },
+  "waitlist.rejected": {
+    subject: "waitlist-entries",
+    payload: ["entryId", "email"],
+  },
+  "invite_code.created": {
+    subject: "invite-codes",
+    payload: ["codeId", "organizationId", "prefix", "role"],
+  },
+  "invite_code.revoked": {
+    subject: "invite-codes",
+    payload: ["codeId", "organizationId", "prefix", "role"],
+  },
+  "organization.member_added": {
+    subject: "organizations",
+    payload: ["organizationId", "userId", "role"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["defaultRole", "codeField", "roles"],
   tables: {
     entries: {
@@ -138,7 +164,7 @@ function build(ctx: ModuleContext): string {
     ctx.record({
       type,
       payload: `jsonb_build_object('entryId', v_row.${ce("id")}::text, 'email', v_row.${ce("email")})`,
-      subject: `'waitlist/' || v_row.${ce("id")}::text`,
+      subject: `'waitlist-entries/' || v_row.${ce("id")}::text`,
       audit: {
         category: "access",
         targetType: "waitlist_entry",
@@ -159,16 +185,10 @@ function build(ctx: ModuleContext): string {
         targetLabel: `${row}.${ck("prefix")}`,
       },
     });
-  const memberAdded = ctx.record({
-    type: "organization.member_added",
-    payload: `jsonb_build_object('organizationId', v_code.${ck("tenant")}::text, 'userId', redeem_for.member, 'role', v_role)`,
-    subject: `'organizations/' || v_code.${ck("tenant")}::text`,
+  const memberAdded = memberAddedRecord(ctx, {
     tenant: `v_code.${ck("tenant")}`,
-    audit: {
-      category: "membership",
-      targetType: "user",
-      recordId: "redeem_for.member::text",
-    },
+    user: "redeem_for.member",
+    role: "v_role",
   });
 
   return `${schemaPreamble(ctx)}

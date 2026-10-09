@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
@@ -25,7 +26,44 @@ import {
 } from "../subjects.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "comment.deleted": {
+    subject: "comments",
+    payload: [
+      "commentId",
+      "organizationId",
+      "subjectType",
+      "subjectId",
+      "authorId",
+    ],
+  },
+  "comment.created": {
+    subject: "comments",
+    payload: [
+      "commentId",
+      "organizationId",
+      "subjectType",
+      "subjectId",
+      "authorId",
+      "parentId",
+      "mentionIds",
+    ],
+  },
+  "comment.mentioned": {
+    subject: "comments",
+    payload: [
+      "commentId",
+      "organizationId",
+      "subjectType",
+      "subjectId",
+      "authorId",
+      "mentionIds",
+    ],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [
     "subjects",
     "maxBodyLength",

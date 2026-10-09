@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
@@ -9,7 +10,30 @@ import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "api_key.created": {
+    subject: "api-keys",
+    payload: ["keyId", "organizationId", "userId", "name", "publicId"],
+  },
+  "api_key.revoked": {
+    subject: "api-keys",
+    payload: ["keyId", "organizationId", "userId", "name", "publicId"],
+  },
+  "api_key.rotated": {
+    subject: "api-keys",
+    payload: [
+      "keyId",
+      "organizationId",
+      "userId",
+      "name",
+      "publicId",
+      "previousKeyId",
+    ],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["scopes", "touchInterval", "prefix"],
   tables: {
     keys: {

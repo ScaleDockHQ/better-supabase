@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
@@ -15,7 +16,27 @@ import {
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "organization_setting.reset": {
+    subject: "organizations",
+    payload: ["organizationId", "key"],
+  },
+  "organization_setting.updated": {
+    subject: "organizations",
+    payload: ["organizationId", "key"],
+  },
+  "platform_setting.reset": {
+    subject: "settings",
+    payload: ["key"],
+  },
+  "platform_setting.updated": {
+    subject: "settings",
+    payload: ["key"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["schemas", "platform"],
   tables: {
     user: {

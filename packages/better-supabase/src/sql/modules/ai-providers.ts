@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import {
@@ -78,7 +78,19 @@ const SANDBOXES = {
   updatedAt: "updated_at",
 } as const;
 
+const EVENTS: ModuleEvents = {
+  "ai_provider_key.saved": {
+    subject: "organizations",
+    payload: ["organizationId", "keyId", "provider", "name"],
+  },
+  "ai_provider_key.deleted": {
+    subject: "organizations",
+    payload: ["organizationId", "keyId", "provider", "name"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["pollEvery", "idleAfter"],
   tables: {
     keys: {

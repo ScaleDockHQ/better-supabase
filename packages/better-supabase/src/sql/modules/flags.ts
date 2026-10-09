@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
@@ -8,7 +9,23 @@ import type { ModuleDefinition } from "../registry.ts";
 import { schemaPreamble } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "flag.saved": {
+    subject: "flags",
+    payload: ["key"],
+  },
+  "flag.deleted": {
+    subject: "flags",
+    payload: ["key"],
+  },
+  "flag.override_set": {
+    subject: "flags",
+    payload: ["key", "variant", "organizationId", "userId"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [],
   tables: {
     flags: {

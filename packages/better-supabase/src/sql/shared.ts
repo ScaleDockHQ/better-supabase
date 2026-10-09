@@ -16,6 +16,31 @@ grant usage on schema better_supabase to anon, authenticated, service_role;`;
 export const SERVICE_CALLER =
   "coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
 
+/**
+ * The `organization.member_added` record for a module that adds a member, so
+ * every module writes the same payload. Each value is a SQL expression.
+ */
+export function memberAddedRecord(
+  ctx: ModuleContext,
+  member: {
+    readonly tenant: string;
+    readonly user: string;
+    readonly role: string;
+  },
+): string {
+  return ctx.record({
+    type: "organization.member_added",
+    payload: `jsonb_build_object('organizationId', ${member.tenant}::text, 'userId', ${member.user}, 'role', ${member.role})`,
+    subject: `'organizations/' || ${member.tenant}::text`,
+    tenant: member.tenant,
+    audit: {
+      category: "membership",
+      targetType: "user",
+      recordId: `${member.user}::text`,
+    },
+  });
+}
+
 /** Creates the module's schema when it isn't `better_supabase`, then the module schema. */
 export function schemaPreamble(ctx: ModuleContext): string {
   if (ctx.schemaName === "better_supabase") return SCHEMA;

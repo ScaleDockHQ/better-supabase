@@ -116,6 +116,20 @@ other({ scopes: [] });
 });
 
 describe("codemod 0.6", () => {
+  it("renames the 0.5 event types in string literals only", () => {
+    const source = `onBlockEvent(sb, "org.member_added", handle);
+onBlockEvent(sb, 'org.*', handle);
+const sql = \`select * from outbox_events where type = 'org.switched'\`;
+const org = { created: "org.created.v2", key: "my.org.created" };
+`;
+    expect(applyCodemod(v06, source).text)
+      .toBe(`onBlockEvent(sb, "organization.member_added", handle);
+onBlockEvent(sb, 'organization.*', handle);
+const sql = \`select * from outbox_events where type = 'organization.switched'\`;
+const org = { created: "org.created.v2", key: "my.org.created" };
+`);
+  });
+
   it("lists $rpc calls for review and changes nothing", () => {
     const source = `const rows = await db.$rpc("list_customers", {}).orThrow();
 const typed = db.$rpc<"x">("x");
@@ -162,7 +176,7 @@ const db = defineSupabase(schema, { maxUrlLength: 4000 });
 import { onBlockEvent } from "better-supabase/events";
 import { createInbox } from "better-supabase/jobs";
 const orgs = createOrganizations(transport);
-onBlockEvent(sb, "org.created", handle);
+onBlockEvent(sb, "organization.created", handle);
 const db = defineSupabase(schema, { urlLengthLimit: 4000 });
 `);
     expect(result.review.map((entry) => entry.line)).toEqual([1, 3, 3]);

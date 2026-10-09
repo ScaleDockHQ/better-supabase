@@ -1,4 +1,9 @@
-import type { ModuleContext, ModuleIdType, ModuleNames } from "../context.ts";
+import type {
+  ModuleContext,
+  ModuleEvents,
+  ModuleIdType,
+  ModuleNames,
+} from "../context.ts";
 import type { ModuleLayout, ModuleDefinition } from "../registry.ts";
 import type { AuditInsert } from "./audit-metadata.ts";
 
@@ -23,7 +28,15 @@ import { retention } from "./audit-retention.ts";
 import { auditTests } from "./audit-tests.ts";
 import { auditWrite, tenantLabel } from "./audit-values.ts";
 
+const EVENTS: ModuleEvents = {
+  "audit.revealed": {
+    subject: "audit-entries",
+    payload: ["organizationId", "entries"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [
     "appendOnly",
     "eventCategory",

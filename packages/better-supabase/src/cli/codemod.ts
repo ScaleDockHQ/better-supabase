@@ -4,6 +4,8 @@
  * is no parser dependency, so each transform is a narrow, mechanical rename.
  */
 
+import { BLOCK_EVENT_RENAMES } from "../events/index.ts";
+
 export interface Codemod {
   readonly name: string;
   readonly description: string;
@@ -15,6 +17,8 @@ export interface Codemod {
   readonly props?: readonly PropRename[];
   /** Keys of the options object a named call takes, at its top level. */
   readonly options?: readonly OptionRename[];
+  /** Whole string literals, such as event types, renamed in strings, templates and comments. */
+  readonly strings?: Readonly<Record<string, string>>;
   /** Changes too ambiguous to rewrite; matching lines are listed for review. */
   readonly review?: readonly ReviewHint[];
 }
@@ -97,7 +101,8 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.6": {
     name: "0.6",
     description:
-      "Changes from 0.5 to 0.6: kits become blocks and modules, org becomes organization, $rpc returns table rows and records in the configured casing, and bucket publicUrl() and path() return a Result",
+      "Changes from 0.5 to 0.6: kits become blocks and modules, org becomes organization (in event types too), $rpc returns table rows and records in the configured casing, and bucket publicUrl() and path() return a Result",
+    strings: { ...BLOCK_EVENT_RENAMES, "org.*": "organization.*" },
     imports: {
       KitEvent: "BlockEvent",
       KitEventMap: "BlockEventMap",
@@ -316,6 +321,26 @@ function renameIdentifiers(
   );
 }
 
+function renameStrings(
+  text: string,
+  strings: Readonly<Record<string, string>>,
+): string {
+  const names = Object.keys(strings).map(escapeRegExp).join("|");
+  if (names === "") return text;
+  const ranges = codeRanges(text);
+  const pattern = new RegExp(`(["'\`])(${names})\\1`, "g");
+  return applyEdits(
+    text,
+    [...text.matchAll(pattern)]
+      .filter((match) => !inCode(ranges, match.index + 1))
+      .map((match) => ({
+        start: match.index + 1,
+        end: match.index + 1 + match[2]!.length,
+        text: strings[match[2]!]!,
+      })),
+  );
+}
+
 function renameMembers(text: string, members: readonly MemberRename[]): string {
   const ranges = codeRanges(text);
   const edits = members.flatMap((member) =>
@@ -494,6 +519,7 @@ export function applyCodemod(codemod: Codemod, source: string): CodemodResult {
   if (codemod.members) text = renameMembers(text, codemod.members);
   if (codemod.props) text = renameProps(text, codemod.props);
   if (codemod.options) text = renameOptions(text, codemod.options);
+  if (codemod.strings) text = renameStrings(text, codemod.strings);
   const review = (codemod.review ?? []).flatMap((hint) =>
     text
       .split("\n")

@@ -475,7 +475,7 @@ describe("createDataExporter", () => {
           specversion: "1.0",
           id: "3",
           source: "/t",
-          type: "data_export.ready",
+          type: "data_export.completed",
           data: { exportId: "x1" },
         },
         {

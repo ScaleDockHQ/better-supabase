@@ -153,7 +153,7 @@ stops the others from starting, and the export is marked failed.
 payload when you prefer a queue. A failure marks the export `failed` with
 the error, and running it again starts over.
 
-`data_export.ready` carries the requester and the files, so a
+`data_export.completed` carries the requester and the files, so a
 [notifications](/docs/blocks/notifications) consumer can tell them it's
 done. `lifecycle.download(id)` then returns a signed URL per file. The
 bucket's policy serves the files only to the requester (or members with
@@ -305,7 +305,7 @@ tenant is gone by then (its id stays in `organizationId`):
 | Event                             | When                               | Data                                                             |
 | --------------------------------- | ---------------------------------- | ---------------------------------------------------------------- |
 | `data_export.requested`           | an export is requested             | `exportId`, `subject`, `organizationId`, `userId`, `requestedBy` |
-| `data_export.ready`               | its files are written              | the same, with `files` and `expiresAt`                           |
+| `data_export.completed`           | its files are written              | the same, with `files` and `expiresAt`                           |
 | `data_export.failed`              | the exporter failed                | the same, with `error`                                           |
 | `organization.deletion_requested` | a deletion is requested            | `organizationId`, `userId`, `purgeAfter`                         |
 | `organization.deletion_cancelled` | it is cancelled                    | the same                                                         |

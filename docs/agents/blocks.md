@@ -36,6 +36,18 @@ user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
   `security definer` function or trigger (`recordTrigger` in `shared.ts`).
   `audit-everywhere.integration.test.ts` checks one entry and one event per
   action; add the action there.
+- Every outbox event type a module records is declared in `NAMES.events`
+  (`ModuleEvents`): its subject collection (a kebab-case plural), the
+  payload keys and `retries` when a retried call can record it again, which
+  then needs a `key`. `ctx.record` throws for an undeclared type or a
+  mismatch. Add the type and its data to `BlockEventMap`
+  (`src/core/block-events.ts`) and the table on `extending/events.mdx`;
+  `tests/sql/event-catalog.test.ts` checks all three. Names are
+  `<entity>.<past_tense_verb>`, the payload is camelCase and carries
+  `organizationId` when the event has a tenant. Use `memberAddedRecord`
+  from `shared.ts` for `organization.member_added`.
+- A module notifies users only through `ctx.notify`, never by writing
+  notification rows.
 - In PL/pgSQL, `perform` resets `found`, so `delete ...; ${record}; return
 found;` returns the record's `found`. Check `found` before the record.
 - A module reads another module only through `ctx.installed(name)` and

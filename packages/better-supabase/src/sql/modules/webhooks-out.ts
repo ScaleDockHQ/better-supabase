@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
@@ -14,7 +15,20 @@ import {
   WEBHOOK_STATUSES,
 } from "./webhooks-out-sql.ts";
 
+const EVENTS: ModuleEvents = {
+  "webhook.disabled": {
+    subject: "webhooks",
+    payload: ["endpointId", "organizationId", "failingSince"],
+    retries: true,
+  },
+  "webhook.secret_rotated": {
+    subject: "webhooks",
+    payload: ["endpointId", "organizationId"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [
     "allowHttp",
     "disableAfter",

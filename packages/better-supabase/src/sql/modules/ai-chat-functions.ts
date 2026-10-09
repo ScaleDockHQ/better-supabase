@@ -422,11 +422,11 @@ function messages(ctx: ModuleContext, names: AiChatNames): string {
     "AI_CHAT_FORBIDDEN",
   );
   const completed = ctx.record({
-    type: "ai_chat.message.completed",
+    type: "ai_chat_message.completed",
     payload: `jsonb_build_object('chatId', v_chat.${ch.id}, 'messageId', v_id, 'organizationId', v_chat.${ch.tenant}::text, 'ownerId', v_chat.${ch.owner}, 'model', coalesce(save_ai_assistant_message.model, v_chat.${ch.model}), 'status', v_status)`,
     subject: `'ai-chats/' || v_chat.${ch.id}::text`,
     tenant: `v_chat.${ch.tenant}`,
-    key: `'ai_chat.message.completed:' || v_chat.${ch.id}::text || ':' || v_id`,
+    key: `'ai_chat_message.completed:' || v_chat.${ch.id}::text || ':' || v_id`,
     audit: false,
   });
 

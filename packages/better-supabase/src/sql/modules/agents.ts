@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import {
@@ -57,7 +57,31 @@ const SKILLS = {
   createdAt: "created_at",
 } as const;
 
+const EVENTS: ModuleEvents = {
+  "agent.saved": {
+    subject: "organizations",
+    payload: ["organizationId", "agentId", "slug"],
+  },
+  "agent.published": {
+    subject: "organizations",
+    payload: ["organizationId", "agentId", "slug", "visibility"],
+  },
+  "agent.deleted": {
+    subject: "organizations",
+    payload: ["organizationId", "agentId", "slug"],
+  },
+  "agent.uninstalled": {
+    subject: "organizations",
+    payload: ["organizationId", "agentId", "userId"],
+  },
+  "agent.installed": {
+    subject: "organizations",
+    payload: ["organizationId", "agentId", "userId"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["maxInstructions"],
   tables: {
     agents: {

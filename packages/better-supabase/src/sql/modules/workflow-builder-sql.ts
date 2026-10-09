@@ -171,11 +171,11 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'createdAt', ${alias}.${ca("createdAt")}
   )`;
   const alertEmit = ctx.record({
-    type: "workflow.alert",
-    payload: `jsonb_build_object('alertId', v_alert.${ca("id")}, 'definition', v_alert.${ca("definition")}, 'onEvent', v_alert.${ca("onEvent")}, 'channel', v_alert.${ca("channel")}, 'runId', v_run.${cr("id")}, 'status', v_run.${cr("status")}, 'error', v_run.${cr("error")})`,
+    type: "workflow_alert.triggered",
+    payload: `jsonb_build_object('alertId', v_alert.${ca("id")}, 'organizationId', v_run.${cr("tenant")}::text, 'definition', v_alert.${ca("definition")}, 'onEvent', v_alert.${ca("onEvent")}, 'channel', v_alert.${ca("channel")}, 'runId', v_run.${cr("id")}, 'status', v_run.${cr("status")}, 'error', v_run.${cr("error")})`,
     subject: `'workflow-runs/' || v_run.${cr("id")}`,
     tenant: `v_run.${cr("tenant")}`,
-    key: `'workflow.alert:' || v_alert.${ca("id")} || ':' || v_run.${cr("id")}`,
+    key: `'workflow_alert.triggered:' || v_alert.${ca("id")} || ':' || v_run.${cr("id")}`,
     audit: false,
   });
   const fire = `insert into ${f} (${cf("alert")}, ${cf("run")}) values (v_alert.${ca("id")}, v_run.${cr("id")})

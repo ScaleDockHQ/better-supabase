@@ -574,11 +574,11 @@ describe.skipIf(!live)("workflow-builder module", () => {
         type: string;
         payload: { alertId: string; runId: string };
       }>(
-        "select type, payload from better_supabase.outbox_events where type = 'workflow.alert'",
+        "select type, payload from better_supabase.outbox_events where type = 'workflow_alert.triggered'",
       );
       expect(alerts).toEqual([
         {
-          type: "workflow.alert",
+          type: "workflow_alert.triggered",
           payload: expect.objectContaining({ alertId: failed.id, runId }),
         },
       ]);
