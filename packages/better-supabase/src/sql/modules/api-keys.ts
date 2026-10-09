@@ -92,7 +92,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const fn = (name: string): string => ctx.fn(name);
   const permissions = MODULE_PERMISSIONS["api-keys"];
   const can = (tenant: string, action: "manage" | "own"): string =>
-    `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`;
+    ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const allowed = allowedScopes(ctx, layout);
   const prefix = sqlString(prefixOf(ctx));
   const touch = Math.max(0, Math.trunc(ctx.number("touchInterval", 60)));

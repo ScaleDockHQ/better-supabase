@@ -497,16 +497,52 @@ export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
 ${statements.join("\n\n")}\n`;
 }
 
+/** SQL that grants a function to signed-in users and the service role. */
+export const userGrant = (signature: string): string =>
+  `revoke execute on function ${signature} from public, anon;
+grant execute on function ${signature} to authenticated, service_role;`;
+
+/** SQL that grants a function to the service role only. */
+export const serviceGrant = (signature: string): string =>
+  `revoke execute on function ${signature} from public, anon, authenticated;
+grant execute on function ${signature} to service_role;`;
+
 /**
- * Revokes each function from the API roles and grants it to `service_role`,
+ * `serviceGrant` for each function in `schema` (as SQL, e.g. `ctx.schema`),
  * one statement per function, so `sql.modules.<module>.api` sees the grants
  * and writes an entry point for each.
  */
-export function serviceOnly(signatures: readonly string[]): string {
+export function serviceOnly(
+  signatures: readonly string[],
+  schema = "better_supabase",
+): string {
   return signatures
-    .flatMap((signature) => [
-      `revoke execute on function better_supabase.${signature} from public, anon, authenticated;`,
-      `grant execute on function better_supabase.${signature} to service_role;`,
-    ])
+    .map((signature) => serviceGrant(`${schema}.${signature}`))
     .join("\n");
 }
+
+/** `raise exception` with an errcode and a hint the TypeScript side maps. */
+export const raise = (
+  message: string,
+  errcode: string,
+  hint: string,
+  ...args: readonly string[]
+): string =>
+  `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${errcode}', hint = '${hint}';`;
+
+/** `coalesce(can('tenant', tenant, permission), false)`. */
+export const canIn = (tenant: string, permission: string): string =>
+  `coalesce(better_supabase.can('tenant', ${tenant}, ${permission}), false)`;
+
+/** The hex SHA-256 of a `text` expression, as tokens and codes are stored. */
+export const sha256Hex = (value: string): string =>
+  `encode(extensions.digest(${value}, 'sha256'), 'hex')`;
+
+/** A page size: `value`, or `fallback` when null, clamped to `min`..`max`. */
+export const pageSize = (
+  value: string,
+  fallback: number,
+  max: number,
+  min = 1,
+): string =>
+  `least(greatest(coalesce(${value}, ${String(fallback)}), ${String(min)}), ${String(max)})`;

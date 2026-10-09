@@ -1,9 +1,16 @@
 import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
-import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
+import {
+  canIn,
+  raise,
+  schemaPreamble,
+  SERVICE_CALLER,
+  serviceGrant,
+  tenantIn,
+  userGrant,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
-import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 import { tenantRefGuard } from "./credentials.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
 

@@ -6,9 +6,16 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
+import {
+  canIn,
+  raise,
+  schemaPreamble,
+  SERVICE_CALLER,
+  serviceGrant,
+  tenantIn,
+  userGrant,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
-import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 
 const FILES = {
   id: "id",
@@ -888,6 +895,7 @@ export const AI_FILES: ModuleDefinition = {
   description:
     "Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.",
   requires: ["tenant", "access"],
+  integrates: ["ai-chat"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

@@ -2,10 +2,17 @@ import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
+import {
+  canIn,
+  raise,
+  schemaPreamble,
+  SERVICE_CALLER,
+  serviceGrant,
+  tenantIn,
+  userGrant,
+} from "../shared.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
-import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 
 const DOCUMENTS = {
   id: "id",
@@ -163,7 +170,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const enqueue = (document: string): string =>
     ctx.installed("jobs")
       ? `
-  perform ${ctx.of("jobs").fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => jsonb_build_object('document_id', ${document}), dedupe_key => 'knowledge:' || ${document}::text, dedupe_running => false);`
+  ${ctx.enqueue(queue, `jsonb_build_object('document_id', ${document})`, `'knowledge:' || ${document}::text`)}`
       : "";
   const documentJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${d.id}, 'organization_id', ${row}.${d.tenant}, 'owner_id', ${row}.${d.owner}, 'scope', ${row}.${d.scope}, 'scope_id', ${row}.${d.scopeId}, 'file_id', ${row}.${d.file}, 'title', ${row}.${d.title}, 'source', ${row}.${d.source}, 'metadata', ${row}.${d.metadata}, 'status', ${row}.${d.status}, 'error', ${row}.${d.error}, 'chunk_count', ${row}.${d.chunkCount}, 'embedding_model', ${row}.${d.model}, 'created_at', ${row}.${d.createdAt}, 'updated_at', ${row}.${d.updatedAt})`;
@@ -586,6 +593,7 @@ export const KNOWLEDGE: ModuleDefinition = {
   description:
     "Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed.",
   requires: ["tenant", "access", "vector-search"],
+  integrates: ["ai-chat", "ai-files", "jobs"],
   target: "schema",
   version: 1,
   names: NAMES,

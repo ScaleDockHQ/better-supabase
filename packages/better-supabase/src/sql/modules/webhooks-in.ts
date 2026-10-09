@@ -2,7 +2,12 @@ import type { ModuleContext } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, updatedAt } from "../shared.ts";
+import {
+  schemaPreamble,
+  SERVICE_CALLER,
+  sha256Hex,
+  updatedAt,
+} from "../shared.ts";
 import {
   qualifiedTable,
   subjectCascades,
@@ -255,7 +260,7 @@ begin
     ${fail("WEBHOOK_IN_SUBJECT_INVALID", "No such subject in this tenant", "22023")}
   end if;
   insert into ${t} (id, tenant, name, token_hash, verify, secret, secret_id, signature_header, metadata, subject_type, subject_id, created_by)
-  values (v_id, tenant, name, encode(extensions.digest(token, 'sha256'), 'hex'), verify, ${plain("secret")}, ${stored("secret", "v_id")},
+  values (v_id, tenant, name, ${sha256Hex("token")}, verify, ${plain("secret")}, ${stored("secret", "v_id")},
     ${headerFor("verify", "signature_header", "null")},
     coalesce(metadata, '{}'), subject_type, subject_id, auth.uid())
   returning * into created;
@@ -286,7 +291,7 @@ begin
   if rotate_secret then
     v_secret := ${newSecret("previous.verify")};
   end if;
-  update ${t} e set token_hash = encode(extensions.digest(token, 'sha256'), 'hex'),
+  update ${t} e set token_hash = ${sha256Hex("token")},
     secret = case when rotate_secret then ${plain("v_secret")} else e.secret end,
     secret_id = case when rotate_secret then ${stored("v_secret", "e.id")} else e.secret_id end,
     previous_secret = case when rotate_secret then null else e.previous_secret end,
@@ -455,7 +460,7 @@ as $$
   select e.id, e.tenant::text, e.enabled, e.verify, ${vault ? "coalesce(ds.decrypted_secret, e.secret)" : "e.secret"}, e.signature_header, e.max_body_bytes,
     case when e.previous_secret_expires_at > now() then ${vault ? "coalesce(dp.decrypted_secret, e.previous_secret)" : "e.previous_secret"} end
   from ${t} e${vault ? "\n  left join vault.decrypted_secrets ds on ds.id = e.secret_id\n  left join vault.decrypted_secrets dp on dp.id = e.previous_secret_id" : ""}
-  where e.token_hash = encode(extensions.digest(incoming_webhook_by_token.token, 'sha256'), 'hex')
+  where e.token_hash = ${sha256Hex("incoming_webhook_by_token.token")}
 $$;
 
 -- Counts a delivery and keeps its HTTP status.
@@ -497,7 +502,7 @@ export const WEBHOOKS_IN: ModuleDefinition = {
   title: "Incoming webhook endpoints",
   description:
     "Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.",
-  requires: ["access", "webhook-inbox"],
+  requires: ["access", "updated-at", "webhook-inbox"],
   target: "schema",
   names: {
     tables: {

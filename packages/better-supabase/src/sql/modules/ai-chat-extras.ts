@@ -3,9 +3,15 @@ import type { ModuleLayout } from "../registry.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
-import { SERVICE_CALLER } from "../shared.ts";
+import {
+  canIn,
+  raise,
+  SERVICE_CALLER,
+  serviceGrant,
+  userGrant,
+  pageSize,
+} from "../shared.ts";
 import { accessModel } from "./access-model.ts";
-import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 
 /** `jsonb_build_object` of an approval row, with stable keys. */
 export function approvalJson(names: AiChatNames, row: string): string {
@@ -467,8 +473,9 @@ function catalog(ctx: ModuleContext, names: AiChatNames): string {
   const mo = names.c.models;
   const md = names.c.moderation;
   const can = canIn;
-  const planned = ctx.installed("entitlements")
-    ? `(v_tenant is not null and x.${mo.plans} && better_supabase.tenant_entitlements(v_tenant))`
+  const entitled = ctx.entitlements("v_tenant");
+  const planned = entitled
+    ? `(v_tenant is not null and x.${mo.plans} && ${entitled})`
     : "false";
   const serviceOnly = raise(
     "Only the server records this",
@@ -597,7 +604,7 @@ begin
       select * from ${t.moderation} x
       where x.${md.tenant} = list_ai_moderation_events.tenant
       order by x.${md.createdAt} desc
-      limit least(greatest(coalesce(list_ai_moderation_events.size, 100), 1), 1000)
+      limit ${pageSize("list_ai_moderation_events.size", 100, 1000)}
     ) page
   );
 end;

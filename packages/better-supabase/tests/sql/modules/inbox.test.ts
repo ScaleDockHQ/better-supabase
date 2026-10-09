@@ -8,9 +8,15 @@ import {
   moduleContext,
   modulePermissionKeys,
   moduleTopics,
+  renderModules,
 } from "../../../src/sql/registry.ts";
 
 const body = (modules: ModulesConfig = {}) => moduleBody("inbox", { modules })!;
+const withJobs = (modules: ModulesConfig = {}) =>
+  renderModules(["inbox", "jobs"], { modules })
+    .filter((file) => file.kind === "schema" && file.module === "inbox")
+    .map((file) => file.contents)
+    .join("\n");
 
 describe("inbox module", () => {
   it("owns its tables behind RLS", () => {
@@ -45,16 +51,20 @@ describe("inbox module", () => {
     );
   });
 
-  it("queues bot and outbound jobs with dedupe keys", () => {
-    const sql = body();
-    expect(sql).toContain(`"enqueue_job"('inbox_bot',`);
-    expect(sql).toContain(`'inbox:' || v_conv."id"::text`);
-    expect(sql).toContain(`"enqueue_job"('inbox_outbound',`);
-    const custom = body({
+  it("queues bot and outbound jobs with dedupe keys when jobs is installed", () => {
+    const sql = withJobs();
+    expect(sql).toContain(`"enqueue_job"(queue => 'inbox_bot',`);
+    expect(sql).toContain(`dedupe_key => 'inbox:' || v_conv."id"::text`);
+    expect(sql).toContain(`"enqueue_job"(queue => 'inbox_outbound',`);
+    const custom = withJobs({
       inbox: { options: { botQueue: "bots", outboundQueue: "out" } },
     });
-    expect(custom).toContain(`"enqueue_job"('bots',`);
-    expect(custom).toContain(`"enqueue_job"('out',`);
+    expect(custom).toContain(`"enqueue_job"(queue => 'bots',`);
+    expect(custom).toContain(`"enqueue_job"(queue => 'out',`);
+  });
+
+  it("installs without jobs and queues nothing", () => {
+    expect(body()).not.toContain("enqueue_job");
   });
 
   it("keeps webhook and delivery functions for the service role", () => {

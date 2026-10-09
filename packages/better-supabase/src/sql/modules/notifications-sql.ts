@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER } from "../shared.ts";
+import { SERVICE_CALLER, pageSize } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 import {
   changedJson,
@@ -547,7 +547,7 @@ as $$
         select m.item, m.created_at, m.id from matched m
         order by m.created_at desc, m.id desc
         offset greatest(coalesce(notification_page.skip, 0), 0)
-        limit least(greatest(coalesce(notification_page.max_items, 50), 1), 200)
+        limit ${pageSize("notification_page.max_items", 50, 200)}
       ) p
     ), '[]'),
     'total', (select count(*) from matched)

@@ -936,6 +936,7 @@ export const ACCESS: ModuleDefinition = {
   description:
     "can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (modules.access.model).",
   requires: ["tenant"],
+  integrates: ["invitations", "organizations", "tenant"],
   dependencies: (layout) => {
     const model = layout.modules?.access?.model ?? "roles";
     return model === "roles" || model === "catalog" ? ["tenant"] : [];

@@ -282,8 +282,7 @@ export function inboxSql(ctx: ModuleContext): InboxSql {
     t: (table) => ctx.table(table),
     cols: (table) => (column) => ctx.col(table, column),
     key,
-    can: (tenant, action) =>
-      `coalesce(better_supabase.can('tenant', ${tenant}, ${key(action)}), false)`,
+    can: (tenant, action) => ctx.can("tenant", tenant, key(action)),
     staff: (tenant, action = "read") => tenantIn(tenant, key(action)),
     service: SERVICE_CALLER,
     topic,

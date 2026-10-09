@@ -424,6 +424,7 @@ export const TENANT: ModuleDefinition = {
   description:
     "Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through sql.modules.tenant.",
   requires: ["updated-at"],
+  integrates: ["access", "invitations", "organizations"],
   target: "schema",
   version: 2,
   modes: ["managed", "adopt", "custom"],

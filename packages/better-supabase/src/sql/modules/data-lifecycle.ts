@@ -368,7 +368,7 @@ function build(ctx: ModuleContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const permissions = MODULE_PERMISSIONS["data-lifecycle"];
   const can = (tenant: string, action: keyof typeof permissions): string =>
-    `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`;
+    ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const bucket = sqlString(bucketOf(ctx));
   const grace = ctx.text("grace", "30 days");
   const exportTtl = ctx.text("exportTtl", "7 days");
@@ -400,28 +400,27 @@ function build(ctx: ModuleContext): string {
     : explicitBody;
 
   const exportEvent = (type: string, extra = ""): string =>
-    ctx.emit({
+    ctx.record({
       type,
       payload: `jsonb_build_object('exportId', v_row.${ce("id")}, 'subject', v_row.${ce("subject")}, 'organizationId', v_row.${ce("tenant")}::text, 'userId', v_row.${ce("user")}, 'requestedBy', v_row.${ce("requestedBy")}${extra})`,
       subject: `'data-exports/' || v_row.${ce("id")}::text`,
       tenant: `v_row.${ce("tenant")}`,
-    }) || "null;";
+    });
   // The tenant is gone once the purge ends, so the event carries no tenant
   // partition; organizationId stays in the payload.
-  const purgedEvent =
-    ctx.emit({
-      type: "organization.purged",
-      payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'userId', null::uuid, 'purgeAfter', v_row.${cd("purgeAfter")})`,
-      subject: `'organizations/' || v_row.${cd("tenant")}::text`,
-      tenant: "null",
-    }) || "null;";
+  const purgedEvent = ctx.record({
+    type: "organization.purged",
+    payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'userId', null::uuid, 'purgeAfter', v_row.${cd("purgeAfter")})`,
+    subject: `'organizations/' || v_row.${cd("tenant")}::text`,
+    tenant: "null",
+  });
   const deletionEvent = (type: string, actor: string): string =>
-    ctx.emit({
+    ctx.record({
       type,
       payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'userId', ${actor}, 'purgeAfter', v_row.${cd("purgeAfter")})`,
       subject: `'organizations/' || v_row.${cd("tenant")}::text`,
       tenant: `v_row.${cd("tenant")}`,
-    }) || "null;";
+    });
 
   const disableSql = disable
     ? `select ${disable.column} is not null into v_disabled from ${disable.table} where ${disable.key} = request_organization_deletion.tenant;
@@ -1006,6 +1005,7 @@ export const DATA_LIFECYCLE: ModuleDefinition = {
   description:
     "Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.",
   requires: ["tenant", "access"],
+  integrates: ["*"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 4,

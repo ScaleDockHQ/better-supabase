@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER } from "../shared.ts";
+import { SERVICE_CALLER, pageSize } from "../shared.ts";
 import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import { auditRead, isAuditValueColumn } from "./audit-values.ts";
@@ -197,7 +197,7 @@ ${where}
     offset $17
   ) x$q$
   into result
-  using ${using}, cursor_at, cursor_id, least(greatest(coalesce(max_items, 50), 1), 1000), greatest(coalesce(skip, 0), 0);
+  using ${using}, cursor_at, cursor_id, ${pageSize("max_items", 50, 1000)}, greatest(coalesce(skip, 0), 0);
   return result;
 end;
 $$;

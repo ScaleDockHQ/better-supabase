@@ -6,7 +6,12 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import {
+  pageSize,
+  schemaPreamble,
+  SERVICE_CALLER,
+  sha256Hex,
+} from "../shared.ts";
 import {
   accessModel,
   MODULE_PERMISSIONS,
@@ -100,9 +105,9 @@ function build(ctx: ModuleContext): string {
   const cr = (c: string): string => ctx.col("redemptions", c);
   const permissions = MODULE_PERMISSIONS.waitlist;
   const manage = ctx.permission("manage", permissions.manage);
-  const staff = `(${SERVICE_CALLER} or coalesce(better_supabase.is_platform(${manage}), false))`;
+  const staff = ctx.staff(manage);
   const inviter = (tenant: string): string =>
-    `(${staff} or (${tenant} is not null and coalesce(better_supabase.can('tenant', ${tenant}, ${modulePermission(ctx, "invite", permissions.invite)}), false)))`;
+    `(${staff} or (${tenant} is not null and ${ctx.can("tenant", tenant, modulePermission(ctx, "invite", permissions.invite))}))`;
   const assignable = assignableRoles(ctx);
   const roles = `array[${assignable.map(sqlString).join(", ")}]::text[]`;
   const defaultRole = ctx.text("defaultRole", "member");
@@ -122,26 +127,24 @@ function build(ctx: ModuleContext): string {
   const mt = tenant.col("memberships", "tenant");
   const mu = tenant.col("memberships", "user");
   const mr = tenant.col("memberships", "role");
-  const hash = (code: string): string =>
-    `encode(extensions.digest(upper(trim(${code})), 'sha256'), 'hex')`;
+  const hash = (code: string): string => sha256Hex(`upper(trim(${code}))`);
   const usable = (row: string): string =>
     `${row}.${ck("revokedAt")} is null
       and (${row}.${ck("expiresAt")} is null or ${row}.${ck("expiresAt")} > now())
       and (${row}.${ck("maxUses")} is null or ${row}.${ck("uses")} < ${row}.${ck("maxUses")})`;
   const publicCode = (row: string): string =>
     `to_jsonb(${row}) - ${sqlString(ck("hash").replaceAll('"', ""))}`;
-  const approved = ctx.emit({
+  const approved = ctx.record({
     type: "waitlist.approved",
     payload: `jsonb_build_object('entryId', v_row.${ce("id")}::text, 'email', v_row.${ce("email")})`,
     subject: `'waitlist/' || v_row.${ce("id")}::text`,
   });
-  const memberAdded =
-    ctx.emit({
-      type: "organization.member_added",
-      payload: `jsonb_build_object('organizationId', v_code.${ck("tenant")}::text, 'userId', redeem_for.member, 'role', v_role)`,
-      subject: `'organizations/' || v_code.${ck("tenant")}::text`,
-      tenant: `v_code.${ck("tenant")}`,
-    }) || "null;";
+  const memberAdded = ctx.record({
+    type: "organization.member_added",
+    payload: `jsonb_build_object('organizationId', v_code.${ck("tenant")}::text, 'userId', redeem_for.member, 'role', v_role)`,
+    subject: `'organizations/' || v_code.${ck("tenant")}::text`,
+    tenant: `v_code.${ck("tenant")}`,
+  });
 
   return `${schemaPreamble(ctx)}
 create extension if not exists pgcrypto with schema extensions;
@@ -259,7 +262,7 @@ begin
       where (list_waitlist.status is null or w.${ce("status")} = list_waitlist.status)
         and (list_waitlist.after_position is null or w.${ce("position")} > list_waitlist.after_position)
       order by w.${ce("position")}
-      limit least(greatest(coalesce(list_waitlist.page_size, 50), 1), 500)
+      limit ${pageSize("list_waitlist.page_size", 50, 500)}
     ) x
   );
 end;
@@ -289,7 +292,7 @@ begin
     raise exception 'No open waitlist entry %', decide_waitlist_entry.id using errcode = 'P0002', hint = 'WAITLIST_NOT_FOUND';
   end if;
   if decide_waitlist_entry.approve then
-    ${approved || "null;"}
+    ${approved}
   end if;
   return to_jsonb(v_row);
 end;
@@ -549,6 +552,7 @@ export const WAITLIST: ModuleDefinition = {
   description:
     "A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.",
   requires: ["tenant", "access"],
+  integrates: ["invitations", "organizations"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

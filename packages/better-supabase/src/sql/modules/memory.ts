@@ -2,9 +2,16 @@ import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
+import {
+  canIn,
+  raise,
+  schemaPreamble,
+  SERVICE_CALLER,
+  serviceGrant,
+  tenantIn,
+  userGrant,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
-import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 import { embeddingColumn, textSearchConfig } from "./knowledge.ts";
 
 const MEMORIES = {
@@ -765,6 +772,7 @@ export const MEMORY: ModuleDefinition = {
   description:
     "Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.",
   requires: ["tenant", "access", "vector-search"],
+  integrates: ["ai-chat"],
   target: "schema",
   version: 1,
   names: NAMES,

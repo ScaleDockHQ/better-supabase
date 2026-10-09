@@ -694,7 +694,13 @@ export async function runSql(
             : module.requires;
         const needs =
           requires.length > 0 ? ` (needs ${requires.join(", ")})` : "";
-        return `${mark} ${module.name.padEnd(15)} ${module.description}${needs}`;
+        const integrates = module.integrates ?? [];
+        const works = integrates.includes("*")
+          ? " (works with every installed module)"
+          : integrates.length > 0
+            ? ` (works with ${integrates.join(", ")})`
+            : "";
+        return `${mark} ${module.name.padEnd(15)} ${module.description}${needs}${works}`;
       });
       return {
         code: 0,

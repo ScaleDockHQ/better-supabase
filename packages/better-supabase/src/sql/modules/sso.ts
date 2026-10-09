@@ -167,8 +167,7 @@ function build(ctx: ModuleContext): string {
   const cm = (c: string): string => ctx.col("scimMembers", c);
   const permissions = MODULE_PERMISSIONS.sso;
   const key = ctx.permission("manage", permissions.manage);
-  const can = (tenant: string): string =>
-    `coalesce(better_supabase.can('tenant', ${tenant}, ${key}), false)`;
+  const can = (tenant: string): string => ctx.can("tenant", tenant, key);
   const actorCan = (tenant: string, actor: string): string =>
     `(${actor} is null or coalesce(better_supabase.can_user(${actor}, 'tenant', ${tenant}, ${key}), false))`;
   const tenant = ctx.of("tenant");
@@ -187,12 +186,12 @@ function build(ctx: ModuleContext): string {
   const withRecord = (row: string): string =>
     `to_jsonb(${row}) - ${sqlString(ctx.col("domains", "token").replaceAll('"', ""))} || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', ${recordName(`${row}.${cd("domain")}`)}, 'value', 'better-supabase-domain-verification=' || ${row}.${cd("token")}))`;
   const memberEvent = (type: string, extra = ""): string =>
-    ctx.emit({
+    ctx.record({
       type,
       payload: `jsonb_build_object('organizationId', v_tenant::text, 'userId', v_user${extra})`,
       subject: "'organizations/' || v_tenant::text",
       tenant: "v_tenant",
-    }) || "null;";
+    });
   const domainEvent = ctx.emit({
     type: "organization.domain_verified",
     payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'domain', v_row.${cd("domain")}, 'userId', verify_organization_domain.actor)`,
@@ -861,6 +860,7 @@ export const SSO: ModuleDefinition = {
   description:
     "Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.",
   requires: ["tenant", "access"],
+  integrates: ["organizations"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],

@@ -6,12 +6,14 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { NOTHING } from "../context.ts";
 import {
   jsonSchemaChecks,
   quotedTable,
   SERVICE_CALLER,
   schemaPreamble,
   tenantIn,
+  pageSize,
 } from "../shared.ts";
 import {
   qualifiedTable,
@@ -147,7 +149,7 @@ function build(ctx: ModuleContext): string {
   const permission = (action: keyof typeof permissions): string =>
     ctx.permission(action, permissions[action]);
   const can = (tenant: string, action: keyof typeof permissions): string =>
-    `coalesce(better_supabase.can('tenant', ${tenant}, ${permission(action)}), false)`;
+    ctx.can("tenant", tenant, permission(action));
   const maxBody = ctx.number("maxBodyLength", 10_000);
   if (!Number.isInteger(maxBody) || maxBody < 1) {
     throw new TypeError(
@@ -334,9 +336,8 @@ function build(ctx: ModuleContext): string {
   -- notify() trusts only the service role, so the mention is sent as it,
   -- with the comment's author as the actor; the claims are restored after.
   if cardinality(v_new) > 0 then
-    v_claims := current_setting('request.jwt.claims', true);
-    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-    perform ${ctx.of("notifications").fn("notify")}(jsonb_build_object(
+    ${ctx.notify(
+      `jsonb_build_object(
       'type', 'comment.mentioned',
       'tenant', new.${c("tenant")},
       'actor', new.${c("author")},
@@ -348,15 +349,16 @@ function build(ctx: ModuleContext): string {
       'recipients', to_jsonb(v_new),
       'key', 'comment.mentioned:' || new.${c("id")}::text || ':' || md5(array_to_string(v_new, ',')),
       'data', jsonb_build_object('commentId', new.${c("id")})
-    ));
-    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    )`,
+      { indent: "    " },
+    )}
   end if;`
       : "";
   const payload = (extra: string): string =>
     `jsonb_build_object('commentId', new.${c("id")}, 'organizationId', new.${c("tenant")}::text, 'subjectType', new.${c("subjectType")}, 'subjectId', new.${c("subjectId")}, 'authorId', new.${c("author")}${extra})`;
   const subject = `'comments/' || new.${c("id")}::text`;
   const tenant = `new.${c("tenant")}`;
-  const created = ctx.emit({
+  const created = ctx.record({
     type: "comment.created",
     payload: payload(
       `, 'parentId', new.${c("parent")}, 'mentionIds', to_jsonb(new.${c("mentions")})`,
@@ -364,13 +366,13 @@ function build(ctx: ModuleContext): string {
     subject,
     tenant,
   });
-  const mentioned = ctx.emit({
+  const mentioned = ctx.record({
     type: "comment.mentioned",
     payload: payload(`, 'mentionIds', to_jsonb(v_new)`),
     subject,
     tenant,
   });
-  const deleted = ctx.emit({
+  const deleted = ctx.record({
     type: "comment.deleted",
     payload: payload(""),
     subject,
@@ -479,7 +481,7 @@ create trigger ${ctx.trigger("comments_before_write")}
   for each row execute function ${fn("comments_before_write")}();
 
 ${
-  created || mentioned || deleted || notifications
+  [created, mentioned, deleted].some((sql) => sql !== NOTHING) || notifications
     ? `-- Notifies newly mentioned members who can read comments in the tenant,
 -- and writes comment.created, comment.mentioned and comment.deleted to the
 -- outbox when it is installed.
@@ -494,17 +496,17 @@ declare
   v_claims text;
 begin
   if tg_op = 'UPDATE' and new.${c("deletedAt")} is not null then
-    ${deleted || "null;"}
+    ${deleted}
     return null;
   end if;
   v_new := array(
     ${newMentions}
   );
   if tg_op = 'INSERT' then
-    ${created || "null;"}
+    ${created}
   end if;
   if cardinality(v_new) > 0 then
-    ${mentioned || "null;"}
+    ${mentioned}
   end if;${notifications}
   return null;
 end;
@@ -641,7 +643,7 @@ as $$
       and y.${c("subjectId")} = list_comments.subject_id
       and (list_comments.after is null or y.${c("createdAt")} > list_comments.after)
     order by y.${c("createdAt")}, y.${c("id")}
-    limit least(greatest(coalesce(list_comments.max_rows, 100), 1), 500)
+    limit ${pageSize("list_comments.max_rows", 100, 500)}
     offset greatest(coalesce(list_comments.skip, 0), 0)
   ) x
 $$;
@@ -742,7 +744,7 @@ as $$
       and (list_activity.subject_id is null or y.${a("subjectId")} = list_activity.subject_id)
       and (list_activity.before is null or y.${a("occurredAt")} < list_activity.before)
     order by y.${a("occurredAt")} desc, y.${a("id")} desc
-    limit least(greatest(coalesce(list_activity.max_rows, 50), 1), 500)
+    limit ${pageSize("list_activity.max_rows", 50, 500)}
   ) x
 $$;
 ${cascades}${documentCheck}
@@ -822,6 +824,7 @@ export const COMMENTS: ModuleDefinition = {
   description:
     "Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events.",
   requires: ["tenant", "access"],
+  integrates: ["jsonb-schemas", "notifications"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],

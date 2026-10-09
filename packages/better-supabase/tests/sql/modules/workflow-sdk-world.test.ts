@@ -33,9 +33,9 @@ describe("workflow-sdk-world module", () => {
     expect(check).toBeLessThan(sql.indexOf('"record_workflow_run"('));
   });
 
-  it("claims deliveries from the jobs module's schema", () => {
-    const sql = schemaOf({ modules: { jobs: { schema: "queue_app" } } });
-    expect(sql).toContain('"queue_app"."claim_jobs"(');
-    expect(sql).not.toContain("better_supabase.claim_jobs(");
+  it("rejects a jobs schema, since the jobs functions live in better_supabase", () => {
+    expect(() =>
+      schemaOf({ modules: { jobs: { schema: "queue_app" } } }),
+    ).toThrow(/sql\.modules\.jobs\.schema/);
   });
 });

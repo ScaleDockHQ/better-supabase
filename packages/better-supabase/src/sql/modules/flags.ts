@@ -5,7 +5,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import { schemaPreamble } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -49,15 +49,13 @@ function build(ctx: ModuleContext): string {
   const f = (logical: string): string => ctx.col("flags", logical);
   const o = (logical: string): string => ctx.col("overrides", logical);
   const fn = (name: string): string => ctx.fn(name);
-  const manage = ctx.installed("access")
-    ? `(${SERVICE_CALLER} or coalesce(better_supabase.is_platform(${ctx.permission("manage", MODULE_PERMISSIONS.flags.manage)}), false))`
-    : SERVICE_CALLER;
+  const manage = ctx.staff(
+    ctx.permission("manage", MODULE_PERMISSIONS.flags.manage),
+  );
   const denied = `if not ${manage} then
     raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
   end if;`;
-  const plans = ctx.installed("entitlements")
-    ? "better_supabase.tenant_entitlements(tenant)"
-    : "'{}'::text[]";
+  const plans = ctx.entitlements("tenant", "'{}'::text[]");
 
   return `${schemaPreamble(ctx)}
 create extension if not exists pgcrypto with schema extensions;
@@ -370,6 +368,7 @@ export const FLAGS: ModuleDefinition = {
   description:
     "Feature flags with variants, targeting rules over tenant, user, plan and role, overrides and a percentage rollout bucketed by SHA-256. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature.",
   requires: ["tenant"],
+  integrates: ["access", "entitlements"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,

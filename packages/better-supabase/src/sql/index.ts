@@ -51,8 +51,11 @@ export {
 } from "../core/access-sql.ts";
 export { contractSignature } from "./context.ts";
 export type {
+  ModuleAction,
+  ModuleAudit,
   ModuleContext,
   ModuleContractFunction,
+  ModuleEmit,
   ModuleNames,
   ModuleTableSpec,
 } from "./context.ts";
