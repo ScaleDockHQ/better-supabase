@@ -10,6 +10,7 @@ import type { EventHub } from "../core/events.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Db } from "../core/repository-types.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
+import type { EventSink } from "../events/index.ts";
 import type {
   BetterPostgres,
   SessionOptions,
@@ -47,6 +48,7 @@ import {
   type EnvSource,
   loadEnv,
 } from "../env/index.ts";
+import { serverAudit } from "./audit.ts";
 import {
   deleteAccount,
   type DeleteAccountOptions,
@@ -176,6 +178,14 @@ export interface ServerOptions {
    * `ctx.credentials`; pass `subjectFor(ctx)` as the subject.
    */
   readonly credentials?: CredentialProvider;
+  /**
+   * Where the server's audit trail goes, such as `audit.sink()` from
+   * `better-supabase/blocks/audit`. `suspendAccount`, `deleteAccount` and
+   * `endSessions` send `dev.better-supabase.account.*` CloudEvents, and
+   * `support.denied` events are forwarded. A failed send is logged and never
+   * fails the action.
+   */
+  readonly audit?: EventSink;
 }
 
 export interface ForContextOptions {
@@ -651,6 +661,7 @@ export function createServer<
       "Support sessions need createServer(betterSupabase, { postgres: createPostgres(), support })",
     );
   }
+  const audit = serverAudit(betterSupabase, options.audit);
   const support = options.support
     ? options.support.create(
         betterSupabase.events,
@@ -1053,10 +1064,18 @@ export function createServer<
       deleteAccount(betterSupabase, serviceClient, userId, {
         ...(options.postgres ? { sql: options.postgres.admin } : {}),
         ...deleteOptions,
+      }).map((deleted) => {
+        audit.account("account.deleted", userId, { removed: deleted.removed });
+        return deleted;
       }),
     endSessions: (userId) =>
       options.postgres
-        ? endSessions(options.postgres.admin, userId)
+        ? endSessions(options.postgres.admin, userId).map((ended) => {
+            audit.account("account.sessions_ended", userId, {
+              ended: ended.ended,
+            });
+            return ended;
+          })
         : AsyncResult.err(needsPostgres("endSessions")),
     suspendAccount: (userId, suspendOptions) =>
       options.postgres
@@ -1065,7 +1084,19 @@ export function createServer<
             options.postgres.admin,
             userId,
             suspendOptions,
-          )
+          ).map((suspended) => {
+            audit.account(
+              suspended.suspended ? "account.suspended" : "account.unsuspended",
+              userId,
+              {
+                ended: suspended.ended,
+                ...(suspendOptions.duration === undefined
+                  ? {}
+                  : { duration: suspendOptions.duration }),
+              },
+            );
+            return suspended;
+          })
         : AsyncResult.err(needsPostgres("suspendAccount")),
     actingAs: (userId, claims = {}, impersonation) => {
       const full: SqlClaims = {

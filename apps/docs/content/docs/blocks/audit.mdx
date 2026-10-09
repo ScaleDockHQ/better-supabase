@@ -83,6 +83,36 @@ session's entries and a service call with `actorKind: "support"` store
 table (a role lookup) can't be a generated column; pass that value as a
 metadata key instead.
 
+## Recording CloudEvents
+
+`audit.sink()` returns an `EventSink` that records each CloudEvent it
+receives, so the events another part of the app already sends reach the log:
+
+```ts
+import { forwardBlockEvents } from "better-supabase/events";
+
+forwardBlockEvents(betterSupabase, audit.sink(), {
+  source: "/crm",
+  types: ["organization.*", "support.*"],
+});
+```
+
+`auditEventOf(event)` is the mapping it uses:
+
+| Audit field      | From the CloudEvent                                                    |
+| ---------------- | ---------------------------------------------------------------------- |
+| `eventType`      | `type` without the `dev.better-supabase.` prefix (`typePrefix` option) |
+| `record`         | `subject`                                                              |
+| `organizationId` | the `tenant` or `partitionkey` extension, then `data.organizationId`   |
+| `actorId`        | `data.actorId`                                                         |
+| `metadata`       | `data`                                                                 |
+| `idempotencyKey` | `source` and `id`, so a redelivered event is recorded once             |
+
+`send` throws when an entry fails, after trying the rest, so an outbox relay
+retries the batch. Build the log on a service-role transport: only the
+service role can set the actor. The server's `audit` option takes the same
+sink (see [Account deletion](/docs/auth/account-deletion#recording-account-actions-in-the-audit-log)).
+
 ## Listing entries
 
 `createAuditLog` reads the log through the module's own functions, as the

@@ -9,6 +9,8 @@ export type {
   SuspendAccountOptions,
   SuspendAccountResult,
 } from "./suspend-account.ts";
+export { SERVER_EVENT_SOURCE } from "./audit.ts";
+export type { AccountEventType } from "./audit.ts";
 export { PRIMARY_COOKIE } from "./replicas.ts";
 export type { ReplicaState } from "./replicas.ts";
 export { createServer, extendServer, TENANT_HEADER } from "./server.ts";

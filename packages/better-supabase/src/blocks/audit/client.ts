@@ -1,5 +1,6 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { EventSink } from "../../events/index.ts";
 import type { AuditEntry, OcsfProduct } from "./audit.ts";
 
 import { dbError } from "../../core/errors.ts";
@@ -19,6 +20,7 @@ import {
 } from "../shared.ts";
 import { toOcsf } from "./audit.ts";
 import { csvPage, revealsDetails, type AuditCsvOptions } from "./csv.ts";
+import { auditSink, type AuditSinkOptions } from "./sink.ts";
 
 /** The adopted log's own columns, by column name, as `metadataColumns` maps them. */
 export type AuditColumns = Readonly<Record<string, unknown>>;
@@ -213,6 +215,12 @@ export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
   exportToStorage(
     options: AuditExportToStorageOptions<Columns>,
   ): AsyncResult<{ readonly path: string; readonly url: string | undefined }>;
+  /**
+   * An `EventSink` that records CloudEvents, for `forwardBlockEvents`,
+   * `forwardMutations`, an outbox relay or the server's `audit` option.
+   * Build the log on a service-role transport so the event's actor counts.
+   */
+  sink(options?: AuditSinkOptions): EventSink;
 }
 
 const TEXT_KEYS = [
@@ -518,6 +526,7 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
 
   return {
     record,
+    sink: (sinkOptions) => auditSink(record, sinkOptions),
     list,
     reveal: (entryId) =>
       call("reveal_audit_entry", { entry: entryId }, (value) =>
