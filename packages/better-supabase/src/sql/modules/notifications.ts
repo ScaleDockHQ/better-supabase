@@ -148,7 +148,9 @@ const NAMES: ModuleNames = {
       optionalTable: true,
     },
   },
-  hooks: ["notification_audience", "after_notify"],
+  // after_notify predates the before_/after_<entity>_<action> names and keeps
+  // its name so apps that define it still get called.
+  hooks: ["notification_audience", "before_notification_send", "after_notify"],
 };
 
 const TOPIC = /^[A-Za-z0-9:_.\-{}]+$/;

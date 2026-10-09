@@ -1,7 +1,46 @@
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 
-import { membershipDisabledAt } from "../shared.ts";
+import { columnsObject, membershipDisabledAt } from "../shared.ts";
 import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
+
+/** The keys `list_my_organizations` returns, which no attribute may shadow. */
+const MEMBERSHIP_KEYS: readonly string[] = [
+  "id",
+  "name",
+  "slug",
+  "role",
+  "disabled_at",
+  "attributes",
+];
+
+/** `options.extraColumns`, which a managed organizations table gets. */
+export function organizationExtraColumns(
+  ctx: ModuleContext,
+): readonly ExtraColumn[] {
+  return ctx.extraColumns("organizations", MEMBERSHIP_KEYS);
+}
+
+/**
+ * The attribute columns, unquoted: `options.attributes` and
+ * `options.extraColumns`. `create_organization` and `update_organization`
+ * copy them from `attrs`, and `list_my_organizations` returns them.
+ */
+export function organizationAttributes(ctx: ModuleContext): readonly string[] {
+  const listed = ctx.list("attributes", []).map((column) => {
+    if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
+      throw new TypeError(
+        `sql.modules.organizations.options.attributes: "${column}" is not a valid column`,
+      );
+    }
+    return column;
+  });
+  return [
+    ...new Set([
+      ...listed,
+      ...organizationExtraColumns(ctx).map((extra) => extra.name),
+    ]),
+  ];
+}
 
 /** Columns `reads` needs from `namesOf`. */
 export interface OrganizationReadNames {
@@ -30,20 +69,27 @@ export function organizationReads(
   const disabledColumn =
     disabledAt === undefined ? "" : ",\n  disabled_at timestamptz";
   const disabledValue = disabledAt === undefined ? "" : `, m.${disabledAt}`;
+  const attributes = organizationAttributes(ctx).filter(
+    (column) => !MEMBERSHIP_KEYS.includes(column),
+  );
+  const attributesColumn =
+    attributes.length === 0 ? "" : ",\n  attributes jsonb";
+  const attributesValue =
+    attributes.length === 0 ? "" : `, ${columnsObject("o", attributes)}`;
   return `
 drop function if exists ${ctx.fn("list_my_organizations")}();
 create or replace function ${ctx.fn("list_my_organizations")}()
 returns table (
   id ${ctx.idType},
   name text${slug === undefined ? "" : ",\n  slug text"},
-  role text${disabledColumn}
+  role text${disabledColumn}${attributesColumn}
 )
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select o.${n.id}, o.${name}${slug === undefined ? "" : `, o.${slug}`}, m.${n.role}::text${disabledValue}
+  select o.${n.id}, o.${name}${slug === undefined ? "" : `, o.${slug}`}, m.${n.role}::text${disabledValue}${attributesValue}
   from ${n.m} m
   join ${n.organization} o on o.${n.id} = m.${n.tenant}
   where m.${n.user} = (select auth.uid())${flags}

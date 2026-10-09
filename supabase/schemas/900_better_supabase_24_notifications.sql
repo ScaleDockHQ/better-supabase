@@ -210,6 +210,14 @@ begin
     end if;
     v_actor := auth.uid();
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_notification_send"(jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::jsonb)', v_hook::oid::regproc)
+        using notification;
+    end if;
+  end;
   if to_regprocedure('"public"."notification_audience"(jsonb)') is not null then
     execute format('select %s($1)', to_regprocedure('"public"."notification_audience"(jsonb)')::oid::regproc) into v_extra using notification;
     v_recipients := v_recipients || coalesce(v_extra, '{}');

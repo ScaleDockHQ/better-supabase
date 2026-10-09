@@ -229,6 +229,7 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 | The splinter pin                     | `SPLINTER_COMMIT` and `SPLINTER_SHA256` together                                                                                                                                           |
 | A rule in `plugins/rules` or `lint`  | its presets or `configs.recommended`, `plugins/rules.mdx` or `plugins/lint.mdx`                                                                                                            |
 | A SQL module                         | `src/sql/registry.ts` registry, `sql-modules.integration.test.ts`, `blocks/sql.mdx`, the fixture's copy when the Next.js example uses it (`docs/agents/database.md`)                       |
+| A block's methods, hooks or fields   | its `BlockHooks` typing and `withBlockHooks` wrap, its SQL `before_`/`after_` hooks (`tests/sql/block-hooks.test.ts`), `extending/blocks.mdx` and the block's page                         |
 | A block                              | its code in `src/blocks/<name>` and subpath `better-supabase/blocks/<name>` (see A subpath), its page and the table in `apps/docs/content/docs/blocks/index.mdx`                           |
 | An SDK adapter subpath               | no SQL and no tables (ADR 0010); its converters tested against `schemas/ai-message-v1.json`; the SDK as an optional peer loaded lazily or typed structurally (invariant 12); see A subpath |
 | An engine storage module             | its SQL module (see A SQL module), the rows it writes to the run registry, and the engine's conformance tests                                                                              |
@@ -297,6 +298,7 @@ standard or sets how the repo works.
 - 0012: kits are renamed to blocks, and every feature module imports from `better-supabase/blocks/<name>`.
 - 0013: SDK adapters whose SDK needs Node (`workflow-sdk/world`, `eve`) are Node-only entries.
 - 0014: `better-supabase/nestjs` loads `@nestjs/common` with a synchronous `createRequire`.
+- 0015: blocks extend through `fields` (extra columns typed by a Standard Schema), `hooks`, transport middleware and `extendBlock`.
 
 ## Pre-release pins
 
