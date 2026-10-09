@@ -118,6 +118,11 @@ begin
   if jsonb_typeof(save_connector_server.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'CONNECTOR_INVALID';
   end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(save_connector_server.fields -> 'credential_ref') <> 'null'
+    and (jsonb_typeof(save_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (save_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (save_connector_server.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', save_connector_server.tenant
+      using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
+  end if;
   if save_connector_server.id is null then
     insert into "better_supabase"."connector_servers" ("organization_id", "name", "url", "auth_type", "credential_ref", "created_by")
     values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',

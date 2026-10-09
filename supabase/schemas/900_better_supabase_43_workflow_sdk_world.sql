@@ -310,7 +310,9 @@ grant usage, select on all sequences in schema workflow to service_role;
 create index if not exists workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
 
 -- Copies each World run into workflow_runs: its tenant and actor come from
--- the bs.tenant and bs.actor attributes that startFor sets.
+-- the bs.tenant and bs.actor attributes that startFor sets. A run with an
+-- actor keeps its tenant only when the actor holds workflow.run there; a
+-- run without one was started by the server, which is trusted.
 create or replace function "better_supabase"."workflow_sdk_mirror_run"()
 returns trigger
 language plpgsql
@@ -331,6 +333,10 @@ begin
   exception when others then
     v_actor := null;
   end;
+  if v_tenant is not null and v_actor is not null
+    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false) then
+    v_tenant := null;
+  end if;
   perform "better_supabase"."record_workflow_run"(
     'workflow-sdk',
     new.id,
@@ -382,7 +388,7 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets workflow_flow_url and workflow_delivery_secret before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
-  for v_job in select * from better_supabase.claim_jobs('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1)) loop
+  for v_job in select * from "better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := 'workflow_deliveries' || ':' || v_job.id::text || ':' || v_job.attempts::text;

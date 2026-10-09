@@ -313,7 +313,8 @@ $$;
 revoke execute on function "better_supabase"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb) from public, anon;
 grant execute on function "better_supabase"."knowledge_search"(uuid, extensions.vector, text, jsonb, integer, jsonb) to authenticated, service_role;
 
--- The chunks of a document still waiting for an embedding, for the worker.
+-- The chunks of a document still waiting for an embedding, for the worker,
+-- with the md5 of each content it passes back to set_knowledge_embeddings.
 create or replace function "better_supabase"."pending_knowledge_chunks"(document_id uuid, batch integer default 64)
 returns jsonb
 language sql
@@ -321,7 +322,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('idx', x."idx", 'content', x."content") order by x."idx"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('idx', x."idx", 'content', x."content", 'hash', md5(x."content")) order by x."idx"), '[]')
   from (
     select * from "better_supabase"."knowledge_chunks" y
     where y."document_id" = pending_knowledge_chunks.document_id and y."embedding" is null
@@ -332,8 +333,10 @@ $$;
 revoke execute on function "better_supabase"."pending_knowledge_chunks"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."pending_knowledge_chunks"(uuid, integer) to service_role;
 
--- Stores embeddings ([{"idx", "embedding"}], or {"items": list}) and marks the document ready
--- once no chunk is missing one. Returns how many chunks still wait.
+-- Stores embeddings ([{"idx", "hash", "embedding"}], or {"items": list}) and marks the
+-- document ready once no chunk is missing one. Returns how many chunks still wait.
+-- hash is the md5 of the content that was embedded: a chunk rewritten since
+-- then keeps waiting instead of taking a vector of its old text.
 create or replace function "better_supabase"."set_knowledge_embeddings"(document_id uuid, embeddings jsonb, model text default null)
 returns integer
 language plpgsql
@@ -346,9 +349,10 @@ declare
 begin
   update "better_supabase"."knowledge_chunks" t set
     "embedding" = (e.value ->> 'embedding')::extensions.vector(1536),
-    "embedding_hash" = md5(t."content")
+    "embedding_hash" = e.value ->> 'hash'
   from jsonb_array_elements(coalesce(v_items, '[]')) e
-  where t."document_id" = set_knowledge_embeddings.document_id and t."idx" = (e.value ->> 'idx')::integer;
+  where t."document_id" = set_knowledge_embeddings.document_id and t."idx" = (e.value ->> 'idx')::integer
+    and md5(t."content") = e.value ->> 'hash';
   select count(*)::integer into v_remaining from "better_supabase"."knowledge_chunks" t
   where t."document_id" = set_knowledge_embeddings.document_id and t."embedding" is null;
   update "better_supabase"."knowledge_documents" x set

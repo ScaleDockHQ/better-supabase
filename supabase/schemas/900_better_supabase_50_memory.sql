@@ -502,6 +502,8 @@ grant execute on function "better_supabase"."memory_save"(uuid, text, jsonb, ext
 
 -- Archival facts of a namespace ranked by reciprocal rank fusion of vector
 -- and full-text search, each with its cosine similarity when it has one.
+-- Volatile because it sets hnsw.iterative_scan, which it puts back before
+-- returning so the rest of the caller's transaction keeps its own setting.
 create or replace function "better_supabase"."memory_search"(
   tenant uuid,
   query_embedding extensions.vector default null,
@@ -511,7 +513,7 @@ create or replace function "better_supabase"."memory_search"(
 )
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
@@ -522,6 +524,7 @@ declare
   v_owner uuid;
   v_rows jsonb;
   v_candidates integer := least(greatest(memory_search.k, 1) * 4, 400);
+  v_scan text := current_setting('hnsw.iterative_scan', true);
 begin
   v_scope := coalesce(memory_search.ns ->> 'scope', 'user');
   v_agent := (memory_search.ns ->> 'agent_id')::uuid;
@@ -567,6 +570,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'organization_id', t."organization_id", 'owner_id', t."owner_id", 'scope', t."scope", 'agent_id', t."agent_id", 'chat_id', t."chat_id", 'kind', t."kind", 'path', t."path", 'content', t."content", 'version', t."version", 'embedding_model', t."embedding_model", 'source_message_id', t."source_message_id", 'created_at', t."created_at", 'updated_at', t."updated_at") || jsonb_build_object('score', f.score, 'similarity', 1 - f.distance) order by f.score desc), '[]')
   into v_rows
   from fused f join "better_supabase"."memories" t on t."id" = f.id;
+  perform set_config('hnsw.iterative_scan', coalesce(nullif(v_scan, ''), 'off'), true);
   return v_rows;
 end;
 $$;
@@ -599,7 +603,10 @@ $$;
 revoke execute on function "better_supabase"."memory_forget"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."memory_forget"(uuid, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."set_memory_embedding"(memory_id uuid, embedding extensions.vector, model text default null)
+-- content_hash is the md5 of the content that was embedded: a memory edited
+-- since then keeps waiting instead of taking a vector of its old text.
+drop function if exists "better_supabase"."set_memory_embedding"(uuid, extensions.vector, text);
+create or replace function "better_supabase"."set_memory_embedding"(memory_id uuid, embedding extensions.vector, model text default null, content_hash text default null)
 returns boolean
 language sql
 security definer
@@ -607,12 +614,39 @@ set search_path = ''
 as $$
   update "better_supabase"."memories" x set "embedding" = set_memory_embedding.embedding, "embedding_model" = set_memory_embedding.model
   where x."id" = set_memory_embedding.memory_id
+    and (set_memory_embedding.content_hash is null or md5(x."content") = set_memory_embedding.content_hash)
   returning true
 $$;
-revoke execute on function "better_supabase"."set_memory_embedding"(uuid, extensions.vector, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."set_memory_embedding"(uuid, extensions.vector, text) to service_role;
+revoke execute on function "better_supabase"."set_memory_embedding"(uuid, extensions.vector, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_memory_embedding"(uuid, extensions.vector, text, text) to service_role;
 
--- Memories edited since they were embedded, for the embed worker.
+-- Stores embeddings for many memories ({"items": [{"id", "hash", "embedding"}]})
+-- and returns how many it stored; one whose content no longer matches its
+-- hash keeps waiting.
+create or replace function "better_supabase"."set_memory_embeddings"(items jsonb, model text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_items jsonb := case when jsonb_typeof(set_memory_embeddings.items) = 'object' then set_memory_embeddings.items -> 'items' else set_memory_embeddings.items end;
+  v_count integer;
+begin
+  update "better_supabase"."memories" x set
+    "embedding" = (e.value ->> 'embedding')::extensions.vector(1536),
+    "embedding_model" = set_memory_embeddings.model
+  from jsonb_array_elements(case when jsonb_typeof(v_items) = 'array' then v_items else '[]' end) e
+  where x."id" = (e.value ->> 'id')::uuid and md5(x."content") = e.value ->> 'hash';
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."set_memory_embeddings"(jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."set_memory_embeddings"(jsonb, text) to service_role;
+
+-- Memories edited since they were embedded, for the embed worker, with the
+-- md5 of each content it passes back to set_memory_embeddings.
 create or replace function "better_supabase"."pending_memory_embeddings"(batch integer default 64)
 returns jsonb
 language sql
@@ -620,7 +654,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'content', x."content")), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'content', x."content", 'hash', md5(x."content"))), '[]')
   from (
     select * from "better_supabase"."memories" y where y."embedding" is null and y."superseded_by" is null
     order by y."updated_at"
@@ -658,7 +692,8 @@ $$;
 revoke execute on function "better_supabase"."set_ai_message_embedding"(uuid, text, uuid, uuid, extensions.vector, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."set_ai_message_embedding"(uuid, text, uuid, uuid, extensions.vector, text) to service_role;
 
--- The caller's earlier messages closest to a query, other than in exclude_chat.
+-- The caller's earlier messages closest to a query, other than in
+-- exclude_chat. Volatile and restores hnsw.iterative_scan, as memory_search.
 create or replace function "better_supabase"."recall_ai_messages"(
   tenant uuid,
   query_embedding extensions.vector,
@@ -668,13 +703,14 @@ create or replace function "better_supabase"."recall_ai_messages"(
 )
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
 declare
   v_user uuid := case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then recall_ai_messages.owner else auth.uid() end;
   v_rows jsonb;
+  v_scan text := current_setting('hnsw.iterative_scan', true);
 begin
   if v_user is null then
     return '[]';
@@ -690,6 +726,7 @@ begin
     order by x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding
     limit least(greatest(recall_ai_messages.k, 1), 50)
   ) r;
+  perform set_config('hnsw.iterative_scan', coalesce(nullif(v_scan, ''), 'off'), true);
   return v_rows;
 end;
 $$;
@@ -797,6 +834,8 @@ grant execute on function "better_supabase"."purge_memory_documents"(integer) to
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."set_memory_embedding"(uuid, extensions.vector, text);
+
 create or replace function "api"."memory_view"(tenant uuid, path text default '/memories', ns jsonb default '{}')
 returns jsonb
 language sql
@@ -887,14 +926,23 @@ as $$ select "better_supabase"."memory_forget"($1, $2) $$;
 revoke execute on function "api"."memory_forget"(uuid, uuid) from public, anon;
 grant execute on function "api"."memory_forget"(uuid, uuid) to authenticated, service_role;
 
-create or replace function "api"."set_memory_embedding"(memory_id uuid, embedding extensions.vector, model text default null)
+create or replace function "api"."set_memory_embedding"(memory_id uuid, embedding extensions.vector, model text default null, content_hash text default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."set_memory_embedding"($1, $2, $3) $$;
-revoke execute on function "api"."set_memory_embedding"(uuid, extensions.vector, text) from public, anon, authenticated;
-grant execute on function "api"."set_memory_embedding"(uuid, extensions.vector, text) to service_role;
+as $$ select "better_supabase"."set_memory_embedding"($1, $2, $3, $4) $$;
+revoke execute on function "api"."set_memory_embedding"(uuid, extensions.vector, text, text) from public, anon, authenticated;
+grant execute on function "api"."set_memory_embedding"(uuid, extensions.vector, text, text) to service_role;
+
+create or replace function "api"."set_memory_embeddings"(items jsonb, model text default null)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_memory_embeddings"($1, $2) $$;
+revoke execute on function "api"."set_memory_embeddings"(jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."set_memory_embeddings"(jsonb, text) to service_role;
 
 create or replace function "api"."pending_memory_embeddings"(batch integer default 64)
 returns jsonb

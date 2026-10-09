@@ -340,10 +340,9 @@ create index if not exists ai_harness_sessions_idle_idx on "better_supabase"."ai
 alter table "better_supabase"."ai_harness_sessions" enable row level security;
 revoke all on "better_supabase"."ai_harness_sessions" from anon, authenticated;
 grant all on "better_supabase"."ai_harness_sessions" to service_role;
-grant select on "better_supabase"."ai_harness_sessions" to authenticated;
+-- Resume state can carry harness credentials and sandbox ids, so only the
+-- service role reads it, through load_ai_harness_session.
 drop policy if exists ai_harness_sessions_owner_read on "better_supabase"."ai_harness_sessions";
-create policy ai_harness_sessions_owner_read on "better_supabase"."ai_harness_sessions" for select to authenticated
-  using ("owner_id" = (select auth.uid()));
 
 -- Whether the caller may read a chat: its owner, the service role, or a
 -- member with 'ai_chat.read' when the chat is shared with the organization.
@@ -1130,8 +1129,8 @@ $$;
 revoke execute on function "better_supabase"."record_ai_tool_approval"(uuid, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_ai_tool_approval"(uuid, jsonb) to service_role;
 
--- Approves or denies a waiting tool call, once; the chat's owner or the
--- service role. Repeating the same decision returns the row.
+-- Approves or denies a waiting tool call, once; the service role or the chat's owner.
+-- Repeating the same decision returns the row.
 create or replace function "better_supabase"."decide_ai_tool_approval"(approval_id text, approved boolean, reason text default null)
 returns jsonb
 language plpgsql
@@ -1842,7 +1841,9 @@ begin
     "resume_state" = case when save_ai_harness_session.fields ? 'resume_state' then save_ai_harness_session.fields -> 'resume_state' else x."resume_state" end,
     "continue_state" = case when save_ai_harness_session.fields ? 'continue_state' then save_ai_harness_session.fields -> 'continue_state' else x."continue_state" end,
     "sandbox_id" = case when save_ai_harness_session.fields ? 'sandbox_id' then save_ai_harness_session.fields ->> 'sandbox_id' else x."sandbox_id" end,
-    "status" = coalesce(v_status, x."status"),
+    -- A save without a status is a turn using the sandbox: an idle session
+    -- turns active again, so a later idle_ai_harness_sessions finds it.
+    "status" = coalesce(v_status, case when x."status" = 'idle' then 'active' else x."status" end),
     "last_active_at" = now(),
     "updated_at" = now()
   where x."chat_id" = v_row."chat_id" and x."harness_id" = v_row."harness_id"

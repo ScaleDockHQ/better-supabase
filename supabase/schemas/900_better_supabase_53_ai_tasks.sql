@@ -60,9 +60,12 @@ drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
 create policy ai_task_runs_read on "better_supabase"."ai_task_runs" for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
 
--- Creates (id null) or changes a task. next_run_at comes from the caller,
--- which computed it from cron and timezone; pausing clears it, so a resumed
--- task waits for its next occurrence.
+-- Creates (id null) or changes a task. Only the service role sets
+-- next_run_at; for anyone else a new task, or a changed cron or timezone,
+-- clears it and the scheduler computes the next occurrence on its next
+-- tick. Pausing clears it, so a resumed task waits for its next occurrence.
+-- chat_id must be a chat of the task's user in the tenant, and agent_id an
+-- agent of the tenant that user owns or that is published.
 create or replace function "better_supabase"."save_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
 returns jsonb
 language plpgsql
@@ -72,9 +75,19 @@ as $$
 declare
   v_id uuid := save_ai_task.id;
   v_row "better_supabase"."ai_scheduled_tasks"%rowtype;
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+  v_chat uuid;
+  v_agent uuid;
 begin
   if jsonb_typeof(save_ai_task.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AI_TASK_INVALID';
+  end if;
+  if save_ai_task.fields ? 'timezone' then
+    begin
+      perform now() at time zone (save_ai_task.fields ->> 'timezone');
+    exception when others then
+      raise exception '% is not a time zone', save_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
+    end;
   end if;
   if v_id is null then
     if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_task.tenant, 'ai_chat.create'), false)) or auth.uid() is null then
@@ -89,6 +102,16 @@ begin
       raise exception 'task % not found', v_id using errcode = 'P0002', hint = 'AI_TASK_NOT_FOUND';
     end if;
   end if;
+  v_chat := (save_ai_task.fields ->> 'chat_id')::uuid;
+  if v_chat is not null and not v_service and not exists (select 1 from "better_supabase"."ai_chats" c where c."id" = v_chat and c."owner_id" = v_row."user_id" and c."organization_id" = v_row."organization_id")
+  then
+    raise exception 'chat % is not a chat of this task''s user', v_chat using errcode = '42501', hint = 'AI_TASK_CHAT_FORBIDDEN';
+  end if;
+  v_agent := (save_ai_task.fields ->> 'agent_id')::uuid;
+  if v_agent is not null and not v_service and not exists (select 1 from "better_supabase"."agents" g where g."id" = v_agent and g."organization_id" = v_row."organization_id" and (g."owner_id" = v_row."user_id" or g."published_at" is not null))
+  then
+    raise exception 'agent % is not an agent this task''s user may use', v_agent using errcode = '42501', hint = 'AI_TASK_AGENT_FORBIDDEN';
+  end if;
   update "better_supabase"."ai_scheduled_tasks" x set
     "title" = coalesce(save_ai_task.fields ->> 'title', x."title"),
     "prompt" = coalesce(save_ai_task.fields ->> 'prompt', x."prompt"),
@@ -97,7 +120,11 @@ begin
     "chat_id" = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
     "agent_id" = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
     "enabled" = coalesce((save_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
-    "next_run_at" = case when (save_ai_task.fields ->> 'enabled')::boolean is false then null when save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then save_ai_task.next_run_at else x."next_run_at" end,
+    "next_run_at" = case
+      when (save_ai_task.fields ->> 'enabled')::boolean is false then null
+      when v_service and (save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone') then save_ai_task.next_run_at
+      when save_ai_task.id is null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then null
+      else x."next_run_at" end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -162,9 +189,9 @@ revoke execute on function "better_supabase"."list_ai_task_runs"(uuid, integer) 
 grant execute on function "better_supabase"."list_ai_task_runs"(uuid, integer) to authenticated, service_role;
 
 -- Claims due tasks (service role): queues a run for each, clears its
--- next_run_at until the scheduler sets the next one, fails runs that ran
--- longer than 30 minutes, and returns the runs and the enabled tasks that
--- need a next_run_at.
+-- next_run_at until the scheduler sets the next one, fails runs that ran, or
+-- waited in the queue, longer than 30 minutes, and returns the runs and
+-- the enabled tasks that need a next_run_at.
 create or replace function "better_supabase"."claim_due_ai_tasks"(batch integer default 50)
 returns jsonb
 language plpgsql
@@ -178,7 +205,8 @@ declare
   v_unscheduled jsonb;
 begin
   update "better_supabase"."ai_task_runs" y set "status" = 'failed', "error" = 'timed out', "finished_at" = now()
-  where y."status" = 'running' and y."started_at" < now() - interval '30 minutes';
+  where (y."status" = 'running' and y."started_at" < now() - interval '30 minutes')
+     or (y."status" = 'queued' and y."created_at" < now() - interval '30 minutes');
   for v_task in
     select * from "better_supabase"."ai_scheduled_tasks" x
     where x."enabled" and x."next_run_at" <= now()
@@ -215,7 +243,7 @@ declare
 begin
   update "better_supabase"."ai_scheduled_tasks" x set "next_run_at" = (item ->> 'next_run_at')::timestamptz
   from jsonb_array_elements(case when jsonb_typeof(v_items) = 'array' then v_items else '[]' end) item
-  where x."id" = (item ->> 'id')::uuid;
+  where x."id" = (item ->> 'id')::uuid and x."enabled" and x."next_run_at" is null;
   get diagnostics v_count = row_count;
   return v_count;
 end;

@@ -2,7 +2,9 @@ import type { AuthorizationProvider } from "../../src/config/index.ts";
 import type { ModuleAccessProvider } from "../../src/sql/registry.ts";
 
 type StubProvider = AuthorizationProvider & {
-  readonly functions: Required<AuthorizationProvider["functions"]>;
+  readonly functions: Required<
+    Omit<AuthorizationProvider["functions"], "permissionsFor" | "canApprove">
+  >;
   readonly memberships: NonNullable<AuthorizationProvider["memberships"]>;
   readonly requires: NonNullable<AuthorizationProvider["requires"]>;
   readonly tokenHook: NonNullable<AuthorizationProvider["tokenHook"]>;
