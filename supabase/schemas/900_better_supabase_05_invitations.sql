@@ -148,7 +148,14 @@ begin
   insert into "better_supabase"."invitations" ("organization_id", "email", "role", "token_hash", "invited_by", "expires_at")
   values (tenant, lower(btrim(invitee_email)), invitee_role, encode(extensions.digest(token, 'sha256'), 'hex'), auth.uid(), now() + valid_for)
   returning * into created;
-  
+  perform better_supabase.audit_event(
+    event_type => 'invitation.created',
+    category => 'membership',
+    target_type => 'invitation',
+    record_id => created."id"::text,
+    tenant => (tenant)::uuid,
+    metadata => jsonb_build_object('invitationId', created."id", 'organizationId', tenant::text, 'email', created."email", 'role', created."role")
+  );
   return (jsonb_build_object(
     'id', created."id",
     'tenant', created."organization_id",
@@ -207,7 +214,14 @@ begin
   if updated."id" is null then
     raise exception 'No open invitation %', invitation_id using errcode = 'P0002', hint = 'INVITATION_INVALID';
   end if;
-  
+  perform better_supabase.audit_event(
+    event_type => 'invitation.resent',
+    category => 'membership',
+    target_type => 'invitation',
+    record_id => updated."id"::text,
+    tenant => (updated."organization_id")::uuid,
+    metadata => jsonb_build_object('invitationId', updated."id", 'organizationId', updated."organization_id"::text, 'email', updated."email")
+  );
   return (jsonb_build_object(
     'id', updated."id",
     'tenant', updated."organization_id",
@@ -302,7 +316,14 @@ begin
       "role" = updated."role"
     where i."id" = invitation_id
     returning * into updated;
-  
+  perform better_supabase.audit_event(
+    event_type => 'invitation.updated',
+    category => 'membership',
+    target_type => 'invitation',
+    record_id => updated."id"::text,
+    tenant => (tenant)::uuid,
+    metadata => jsonb_build_object('invitationId', updated."id", 'organizationId', tenant::text, 'email', updated."email", 'role', updated."role")
+  );
   return (jsonb_build_object(
     'id', updated."id",
     'tenant', updated."organization_id",
@@ -335,7 +356,14 @@ begin
   update "better_supabase"."invitations" i set "revoked_at" = now() where i."id" = invitation_id and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), i."organization_id", 'members.invite'), false)) and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null
   returning i."organization_id"::text into tenant;
   if found then
-    
+    perform better_supabase.audit_event(
+    event_type => 'invitation.revoked',
+    category => 'membership',
+    target_type => 'invitation',
+    record_id => invitation_id::text,
+    tenant => (tenant)::uuid,
+    metadata => jsonb_build_object('invitationId', invitation_id, 'organizationId', tenant)
+  );
     return true;
   end if;
   return false;
@@ -357,7 +385,14 @@ begin
   update "better_supabase"."invitations" i set "declined_at" = now() where i."token_hash" = encode(extensions.digest(token, 'sha256'), 'hex') and i."expires_at" >= now() and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null
   returning i."id", i."organization_id"::text into declined_id, tenant;
   if declined_id is not null then
-    
+    perform better_supabase.audit_event(
+    event_type => 'invitation.declined',
+    category => 'membership',
+    target_type => 'invitation',
+    record_id => declined_id::text,
+    tenant => (tenant)::uuid,
+    metadata => jsonb_build_object('invitationId', declined_id, 'organizationId', tenant)
+  );
     return true;
   end if;
   return false;
@@ -385,7 +420,14 @@ begin
   update "better_supabase"."invitations" i set "declined_at" = now() where i."id" = invitation_id and lower(i."email") = invitee_email and i."expires_at" >= now() and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null
   returning i."id", i."organization_id"::text into declined_id, tenant;
   if declined_id is not null then
-    
+    perform better_supabase.audit_event(
+    event_type => 'invitation.declined',
+    category => 'membership',
+    target_type => 'invitation',
+    record_id => declined_id::text,
+    tenant => (tenant)::uuid,
+    metadata => jsonb_build_object('invitationId', declined_id, 'organizationId', tenant)
+  );
     return true;
   end if;
   return false;
@@ -503,8 +545,22 @@ begin
         using invite."id", me;
     end if;
   end;
-  
-  
+  perform better_supabase.audit_event(
+    event_type => 'invitation.accepted',
+    category => 'membership',
+    target_type => 'invitation',
+    record_id => invite."id"::text,
+    tenant => (invite."organization_id")::uuid,
+    metadata => jsonb_build_object('invitationId', invite."id", 'organizationId', invite."organization_id"::text, 'email', invite."email", 'role', invite."role")
+  );
+  perform better_supabase.audit_event(
+    event_type => 'organization.member_added',
+    category => 'membership',
+    target_type => 'user',
+    record_id => me::text,
+    tenant => (invite."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', invite."organization_id"::text, 'userId', me, 'role', invite."role")
+  );
   return invite."organization_id";
 end;
 $$;
@@ -576,8 +632,22 @@ begin
         using invite."id", me;
     end if;
   end;
-  
-  
+  perform better_supabase.audit_event(
+    event_type => 'invitation.accepted',
+    category => 'membership',
+    target_type => 'invitation',
+    record_id => invite."id"::text,
+    tenant => (invite."organization_id")::uuid,
+    metadata => jsonb_build_object('invitationId', invite."id", 'organizationId', invite."organization_id"::text, 'email', invite."email", 'role', invite."role")
+  );
+  perform better_supabase.audit_event(
+    event_type => 'organization.member_added',
+    category => 'membership',
+    target_type => 'user',
+    record_id => me::text,
+    tenant => (invite."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', invite."organization_id"::text, 'userId', me, 'role', invite."role")
+  );
   return invite."organization_id";
 end;
 $$;

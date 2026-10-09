@@ -25,9 +25,19 @@ better_supabase.tenant_ids_with(key))` in policies. Add the module's keys to
 user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
   `data-lifecycle` module exports and purges it. Leave it out for secrets
   and for rows the purge must not touch.
-- Events go through `ctx.record({ type, payload, subject, tenant, key })`,
-  which is `null;` without the `outbox` module, so it can stand alone as a
-  statement. Never pad a helper with `|| "null;"`.
+- Events go through `ctx.record({ type, payload, subject, tenant, key, audit })`,
+  which is `null;` without the `outbox` and `audit` modules, so it can stand
+  alone as a statement. Never pad a helper with `|| "null;"`, and compare
+  with `NOTHING` from `src/sql/shared.ts`, not `""`.
+- `audit` is required: a security-relevant action passes one of the shared
+  categories in `AUDIT_CATEGORIES` (`src/sql/context.ts`), and a content or
+  status event passes `audit: false`. Don't call `audit_event` by hand.
+  `audit_event` is revoked from `authenticated`, so the record must run in a
+  `security definer` function or trigger (`recordTrigger` in `shared.ts`).
+  `audit-everywhere.integration.test.ts` checks one entry and one event per
+  action; add the action there.
+- In PL/pgSQL, `perform` resets `found`, so `delete ...; ${record}; return
+found;` returns the record's `found`. Check `found` before the record.
 - A module reads another module only through `ctx.installed(name)` and
   `ctx.of(name)`, and only one it lists in `requires` or `integrates`; both
   throw for any other name. Prefer `integrates` and a helper that does

@@ -43,17 +43,19 @@ grant execute on function ${signature} to authenticated, service_role;`;
   const enqueue = (queue: string, payload: string, dedupe: string): string =>
     ctx.enqueue(queue, payload, dedupe);
   const conversationEvent = (type: string, extra: string): string =>
-    ctx.emit({
+    ctx.record({
       type,
       payload: `jsonb_build_object('conversationId', v_conv.${cv("id")}, 'organizationId', v_conv.${cv("tenant")}::text, 'inboxId', v_conv.${cv("inbox")}, 'contactId', v_conv.${cv("contact")}, 'assigneeId', v_conv.${cv("assignee")}, 'status', v_conv.${cv("status")}${extra})`,
       subject: `'conversations/' || v_conv.${cv("id")}::text`,
       tenant: `v_conv.${cv("tenant")}`,
+      audit: false,
     });
-  const received = ctx.emit({
+  const received = ctx.record({
     type: "inbox.message.received",
     payload: `jsonb_build_object('conversationId', v_conv.${cv("id")}, 'organizationId', v_conv.${cv("tenant")}::text, 'messageId', v_msg.${ms("id")}, 'inboxId', v_conv.${cv("inbox")}, 'contactId', v_conv.${cv("contact")})`,
     subject: `'conversations/' || v_conv.${cv("id")}::text`,
     tenant: `v_conv.${cv("tenant")}`,
+    audit: false,
   });
   const log = (type: string, data = "'{}'::jsonb"): string =>
     `insert into ${T("events")} (${ev("tenant")}, ${ev("conversation")}, ${ev("type")}, ${ev("actor")}, ${ev("data")})

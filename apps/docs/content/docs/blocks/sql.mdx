@@ -234,6 +234,7 @@ export default defineConfig({
 | `options`     | module options, listed on each module's page                                                                                                          |
 | `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)                                                                    |
 | `events`      | `false` stops the module writing its events to the outbox                                                                                             |
+| `audit`       | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                    |
 | `api`         | a schema for the Data API that gets entry points for the module's functions (see below)                                                               |
 
 ### Calling a module over the Data API

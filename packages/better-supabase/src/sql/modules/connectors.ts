@@ -121,6 +121,31 @@ function build(ctx: ModuleContext): string {
     `(${SERVICE_CALLER} or ${canIn(tenant, manage)})`;
   const notFound = (server: string): string =>
     raise("connector % not found", "P0002", "CONNECTOR_NOT_FOUND", server);
+  const serverEvent = (type: string, row: string, extra = ""): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', ${row}.${v.tenant}::text, 'serverId', ${row}.${v.id}, 'name', ${row}.${v.name}${extra})`,
+      subject: `'organizations/' || ${row}.${v.tenant}::text || '/connectors/' || ${row}.${v.id}::text`,
+      tenant: `${row}.${v.tenant}`,
+      audit: {
+        category: "integration",
+        targetType: "connector",
+        recordId: `${row}.${v.id}::text`,
+        targetLabel: `${row}.${v.name}`,
+      },
+    });
+  const grantEvent = (type: string, row: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', ${row}.${g.tenant}::text, 'grantId', ${row}.${g.id}, 'serverId', ${row}.${g.server}, 'userId', ${row}.${g.user})`,
+      subject: `'organizations/' || ${row}.${g.tenant}::text || '/connectors/' || ${row}.${g.server}::text`,
+      tenant: `${row}.${g.tenant}`,
+      audit: {
+        category: "integration",
+        targetType: "connector_grant",
+        recordId: `${row}.${g.id}::text`,
+      },
+    });
 
   return `${schemaPreamble(ctx)}
 -- MCP servers a tenant connects its assistants to. A server names how to
@@ -259,6 +284,7 @@ begin
     ${v.updatedAt} = now()
   where x.${v.id} = v_row.${v.id}
   returning * into v_row;
+  ${serverEvent("connector.saved", "v_row")}
   return ${serverJson("v_row")};
 end;
 $$;
@@ -283,6 +309,7 @@ begin
   select coalesce(jsonb_agg(${grantJson("y")}), '[]') into v_grants
   from ${grants} y where y.${g.server} = v_row.${v.id} and y.${g.revokedAt} is null;
   delete from ${servers} x where x.${v.id} = v_row.${v.id};
+  ${serverEvent("connector.deleted", "v_row")}
   return v_grants;
 end;
 $$;
@@ -356,6 +383,7 @@ begin
   values (record_connector_grant.owner, v_server.${v.id}, v_server.${v.tenant}, record_connector_grant.credential_ref,
     coalesce(record_connector_grant.scopes, '{}'), record_connector_grant.expires_at)
   returning * into v_row;
+  ${grantEvent("connector_grant.created", "v_row")}
   return jsonb_build_object('grant', ${grantJson("v_row")}, 'replaced', case when v_old.${g.id} is null then null else ${grantJson("v_old")} end);
 end;
 $$;
@@ -380,6 +408,7 @@ begin
     return null;
   end if;
   delete from ${sessions} z where z.${n.server} = v_row.${g.server} and z.${n.user} = v_row.${g.user};
+  ${grantEvent("connector_grant.revoked", "v_row")}
   return ${grantJson("v_row")};
 end;
 $$;
@@ -515,7 +544,15 @@ begin
     ${f.status} = case when decide_connector_fingerprint.approved then 'approved' else 'rejected' end,
     ${f.approvedBy} = auth.uid(), ${f.approvedAt} = now()
   where p.${f.server} = v_server.${v.id} and p.${f.fingerprint} = decide_connector_fingerprint.fingerprint;
-  return found;
+  if not found then
+    return false;
+  end if;
+  ${serverEvent(
+    "connector.fingerprint_decided",
+    "v_server",
+    ", 'fingerprint', decide_connector_fingerprint.fingerprint, 'approved', decide_connector_fingerprint.approved",
+  )}
+  return true;
 end;
 $$;
 ${userGrant(`${fn("decide_connector_fingerprint")}(uuid, text, boolean)`)}

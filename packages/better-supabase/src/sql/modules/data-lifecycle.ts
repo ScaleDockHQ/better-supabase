@@ -405,6 +405,11 @@ function build(ctx: ModuleContext): string {
       payload: `jsonb_build_object('exportId', v_row.${ce("id")}, 'subject', v_row.${ce("subject")}, 'organizationId', v_row.${ce("tenant")}::text, 'userId', v_row.${ce("user")}, 'requestedBy', v_row.${ce("requestedBy")}${extra})`,
       subject: `'data-exports/' || v_row.${ce("id")}::text`,
       tenant: `v_row.${ce("tenant")}`,
+      audit: {
+        category: "data",
+        targetType: "data_export",
+        recordId: `v_row.${ce("id")}::text`,
+      },
     });
   // The tenant is gone once the purge ends, so the event carries no tenant
   // partition; organizationId stays in the payload.
@@ -413,6 +418,11 @@ function build(ctx: ModuleContext): string {
     payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'userId', null::uuid, 'purgeAfter', v_row.${cd("purgeAfter")})`,
     subject: `'organizations/' || v_row.${cd("tenant")}::text`,
     tenant: "null",
+    audit: {
+      category: "data",
+      targetType: "organization",
+      recordId: `v_row.${cd("tenant")}::text`,
+    },
   });
   const deletionEvent = (type: string, actor: string): string =>
     ctx.record({
@@ -420,6 +430,11 @@ function build(ctx: ModuleContext): string {
       payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'userId', ${actor}, 'purgeAfter', v_row.${cd("purgeAfter")})`,
       subject: `'organizations/' || v_row.${cd("tenant")}::text`,
       tenant: `v_row.${cd("tenant")}`,
+      audit: {
+        category: "data",
+        targetType: "organization",
+        recordId: `v_row.${cd("tenant")}::text`,
+      },
     });
 
   const disableSql = disable

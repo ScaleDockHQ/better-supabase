@@ -28,18 +28,6 @@ drop function if exists ${ctx.fn("resume_member")}(${id}, uuid);
   }
   const allowed = `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), organization, ${modulePermission(ctx, "suspendMember", MODULE_PERMISSIONS.organizations.suspendMember)}), false))`;
   const subject = "'organizations/' || organization::text";
-  const audit = (type: string): string =>
-    ctx.installed("audit")
-      ? `
-  perform better_supabase.audit_event(
-    event_type => ${sqlString(type)},
-    category => ${sqlString(ctx.text("auditCategory", "organization"))},
-    target_type => 'user',
-    record_id => member::text,
-    tenant => organization,
-    metadata => jsonb_build_object('userId', member)
-  );`
-      : "";
   const body = (suspend: boolean): string => {
     const kind = suspend ? "suspended" : "resumed";
     const type = `organization.member_${kind}`;
@@ -91,8 +79,19 @@ begin
     [id, "organization"],
     ["uuid", "member"],
     ["text", sqlString(kind)],
-  ])}${audit(type)}
-  ${ctx.emit({ type, payload: helpers.event("organization", "member"), subject, tenant: "organization" })}
+  ])}
+  ${ctx.record({
+    type,
+    payload: helpers.event("organization", "member"),
+    subject,
+    tenant: "organization",
+    audit: {
+      category: "membership",
+      targetType: "user",
+      recordId: "member::text",
+      metadata: "jsonb_build_object('userId', member)",
+    },
+  })}
   return true;
 end;
 $$;

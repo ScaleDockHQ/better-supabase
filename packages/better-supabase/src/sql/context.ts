@@ -8,7 +8,9 @@ import {
 } from "../config/modules.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
-import { SERVICE_CALLER } from "./shared.ts";
+import { NOTHING, SERVICE_CALLER } from "./shared.ts";
+
+export { NOTHING };
 
 /** The scope id types SQL modules render. */
 export const MODULE_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
@@ -81,10 +83,27 @@ export interface ModuleEmit {
   readonly key?: string;
 }
 
+/**
+ * The categories module actions are audited under. An adopted log with its
+ * own names maps them through `sql.modules.audit.options.values.category`.
+ */
+export const AUDIT_CATEGORIES = [
+  "membership",
+  "access",
+  "security",
+  "configuration",
+  "billing",
+  "data",
+  "ai",
+  "integration",
+] as const;
+
+export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
+
 /** How `record` writes an action to the audit log, as SQL expressions. */
 export interface ModuleAudit {
   /** The audit category, mapped through `sql.modules.audit.options.values`. */
-  readonly category: string;
+  readonly category: AuditCategory;
   /** What the action changed, e.g. `user` or `api_key`. */
   readonly targetType?: string;
   /** A `text` expression for the changed record's id. */
@@ -104,16 +123,16 @@ export interface ModuleAudit {
  * audit log as an entry, each when its module is installed.
  */
 export interface ModuleAction extends ModuleEmit {
-  /** `false` keeps the action out of the audit log. */
-  readonly audit?: ModuleAudit | false;
+  /**
+   * How the action is audited, or `false` for an event that is not an
+   * audited action, such as a chat message or a run status.
+   */
+  readonly audit: ModuleAudit | false;
 }
 
 // access and jobs write their functions into better_supabase whatever
 // sql.modules.<name>.schema says; the schema only places access's tables.
 const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set(["access", "jobs"]);
-
-/** What `record` and the other statement helpers return when there is nothing to do. */
-export const NOTHING = "null;";
 
 /** A function of a module's contract: what other modules and the TypeScript side call. */
 export interface ModuleContractFunction {
@@ -435,15 +454,32 @@ export function createModuleContext(
   };
   const auditEntry = (action: ModuleAction): string => {
     const audit = action.audit;
-    if (!audit || !installed.has("audit")) return "";
+    if (!audit || !config.audit || !installed.has("audit")) return "";
+    // auditCategory is the deprecated per-module override of every category.
+    const legacy = declared.has("auditCategory")
+      ? config.options["auditCategory"]
+      : undefined;
+    if (legacy !== undefined && typeof legacy !== "string") {
+      throw new TypeError(`${where}.options.auditCategory must be a string`);
+    }
+    const auditIdType =
+      modules["audit"]?.idType ??
+      modules.access?.idType ??
+      source.providerIdType ??
+      "uuid";
     const args: [string, string | undefined][] = [
       ["event_type", sqlString(action.type)],
-      ["category", sqlString(audit.category)],
+      ["category", sqlString(legacy ?? audit.category)],
       ["target_type", audit.targetType && sqlString(audit.targetType)],
       ["record_id", audit.recordId],
       ["target_label", audit.targetLabel],
       ["summary", audit.summary],
-      ["tenant", action.tenant],
+      [
+        "tenant",
+        action.tenant === undefined
+          ? undefined
+          : `(${action.tenant})::${auditIdType}`,
+      ],
       ["metadata", audit.metadata ?? action.payload],
       ["idempotency_key", action.key],
       ["actor_id", audit.actor],

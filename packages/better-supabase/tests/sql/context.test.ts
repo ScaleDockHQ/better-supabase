@@ -525,7 +525,7 @@ describe("statement helpers", () => {
 
   it("returns a statement whatever is installed", () => {
     const bare = all();
-    expect(bare.record(event)).toBe(NOTHING);
+    expect(bare.record({ ...event, audit: false })).toBe(NOTHING);
     expect(bare.record({ ...event, audit: { category: "data" } })).toBe(
       NOTHING,
     );
@@ -546,7 +546,7 @@ describe("statement helpers", () => {
     category => 'data',
     target_type => 'item',
     record_id => new_id::text,
-    tenant => organization,
+    tenant => (organization)::uuid,
     metadata => jsonb_build_object('id', new_id),
     idempotency_key => 'item.created:' || new_id
   );`);
@@ -556,6 +556,48 @@ describe("statement helpers", () => {
     });
     expect(both.startsWith(all("outbox").emit(event))).toBe(true);
     expect(both).toContain("better_supabase.audit_event(");
+  });
+
+  it("skips the audit entry for audit: false, per action or per module", () => {
+    expect(all("audit").record({ ...event, audit: false })).toBe(NOTHING);
+    const optedOut = createModuleContext("demo", () => names, {
+      installed: ["demo", "audit", "outbox"],
+      modules: { demo: { audit: false } },
+    });
+    const statement = optedOut.record({
+      ...event,
+      audit: { category: "data" },
+    });
+    expect(statement).toBe(optedOut.emit(event));
+    expect(statement).not.toContain("audit_event");
+  });
+
+  it("casts the tenant to the audit id type and honours auditCategory", () => {
+    const legacy = createModuleContext(
+      "demo",
+      () => ({ ...names, options: [...names.options, "auditCategory"] }),
+      {
+        installed: ["demo", "audit"],
+        modules: {
+          audit: { idType: "text" },
+          demo: { options: { auditCategory: "org" } },
+        },
+      },
+    );
+    const statement = legacy.record({ ...event, audit: { category: "data" } });
+    expect(statement).toContain("category => 'org'");
+    expect(statement).toContain("tenant => (organization)::text");
+    const invalid = createModuleContext(
+      "demo",
+      () => ({ ...names, options: [...names.options, "auditCategory"] }),
+      {
+        installed: ["demo", "audit"],
+        modules: { demo: { options: { auditCategory: 1 } } },
+      },
+    );
+    expect(() =>
+      invalid.record({ ...event, audit: { category: "data" } }),
+    ).toThrow("sql.modules.demo.options.auditCategory must be a string");
   });
 
   it("notifies as the service role and restores the claims", () => {

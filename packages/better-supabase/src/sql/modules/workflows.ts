@@ -6,6 +6,7 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { NOTHING } from "../context.ts";
 import {
   schemaPreamble,
   SERVICE_CALLER,
@@ -147,17 +148,18 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'createdAt', ${alias}.${cs("createdAt")}
   )`;
   const emitTerminal = (status: string): string =>
-    ctx.emit({
+    ctx.record({
       type: `workflow.run.${status}`,
       payload: `jsonb_build_object('runId', new.${cr("id")}, 'engine', new.${cr("engine")}, 'externalId', new.${cr("externalId")}, 'definition', new.${cr("definition")}, 'status', new.${cr("status")}, 'error', new.${cr("error")})`,
       subject: `'workflow-runs/' || new.${cr("id")}`,
       tenant: `new.${cr("tenant")}`,
       key: `'workflow.run.${status}:' || new.${cr("id")}`,
+      audit: false,
     });
   const terminalEvents = ["completed", "failed", "cancelled"]
     .map((status) => {
       const emit = emitTerminal(status);
-      return emit === ""
+      return emit === NOTHING
         ? ""
         : `\n    when ${sqlString(status)} then\n      ${emit}`;
     })

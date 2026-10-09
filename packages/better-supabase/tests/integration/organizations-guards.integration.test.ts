@@ -345,7 +345,11 @@ describe.skipIf(!live)("organizations member guards", () => {
       };
       expect(
         await categories({
-          audit: audit({ values: { category: { organization: "tenancy" } } }),
+          audit: audit({
+            values: {
+              category: { configuration: "tenancy", membership: "admin" },
+            },
+          }),
         }),
       ).toBe("tenancy");
       expect(

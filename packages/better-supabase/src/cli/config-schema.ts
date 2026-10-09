@@ -50,6 +50,7 @@ const moduleEntries = {
     }),
   ),
   events: v.optional(v.boolean()),
+  audit: v.optional(v.boolean()),
   api: v.optional(
     v.union([
       v.string(),

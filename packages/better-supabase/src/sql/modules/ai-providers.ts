@@ -133,6 +133,19 @@ function build(ctx: ModuleContext): string {
     }
   }
   const keyJson = (row: string): string => rowJson(KEYS, k, row);
+  const keyEvent = (type: string, row: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', ${row}.${k.tenant}::text, 'keyId', ${row}.${k.id}, 'provider', ${row}.${k.provider}, 'name', ${row}.${k.name})`,
+      subject: `'organizations/' || ${row}.${k.tenant}::text || '/ai-provider-keys/' || ${row}.${k.id}::text`,
+      tenant: `${row}.${k.tenant}`,
+      audit: {
+        category: "security",
+        targetType: "ai_provider_key",
+        recordId: `${row}.${k.id}::text`,
+        targetLabel: `${row}.${k.provider} || '/' || ${row}.${k.name}`,
+      },
+    });
   const batchJson = (row: string): string => rowJson(BATCHES, b, row);
   const itemJson = (row: string): string => rowJson(ITEMS, i, row);
   const sandboxJson = (row: string): string => rowJson(SANDBOXES, s, row);
@@ -293,6 +306,7 @@ begin
     ${k.enabled} = excluded.${k.enabled},
     ${k.updatedAt} = now()
   returning * into v_row;
+  ${keyEvent("ai_provider_key.saved", "v_row")}
   return jsonb_build_object('key', ${keyJson("v_row")}, 'replaced', v_old);
 end;
 $$;
@@ -314,6 +328,7 @@ begin
     return null;
   end if;
   delete from ${keys} x where x.${k.id} = v_row.${k.id};
+  ${keyEvent("ai_provider_key.deleted", "v_row")}
   return ${keyJson("v_row")};
 end;
 $$;

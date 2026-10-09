@@ -450,12 +450,17 @@ function complete(ctx: ModuleContext, n: HookNames): string {
       where d.${d("id")} = v_endpoint and d.${d("enabled")};
       if found then
         v_result := 'disabled';
-        ${ctx.emit({
+        ${ctx.record({
           type: "webhook.disabled",
           payload:
             "jsonb_build_object('endpointId', v_endpoint, 'failingSince', v_since)",
           subject: "'webhooks/' || v_endpoint::text",
           tenant: "v_tenant::text",
+          audit: {
+            category: "integration",
+            targetType: "webhook_endpoint",
+            recordId: "v_endpoint::text",
+          },
         })}
       end if;
     end if;
@@ -656,6 +661,18 @@ begin
   }
   insert into ${t} (${columns.map(([column]) => column).join(", ")})
   values (${columns.map(([, expression]) => expression).join(", ")});
+  ${ctx.record({
+    type: "webhook.secret_rotated",
+    payload:
+      "jsonb_build_object('endpointId', rotate_webhook_secret.endpoint, 'organizationId', v_tenant::text)",
+    subject: "'webhooks/' || rotate_webhook_secret.endpoint::text",
+    tenant: "v_tenant",
+    audit: {
+      category: "security",
+      targetType: "webhook_endpoint",
+      recordId: "rotate_webhook_secret.endpoint::text",
+    },
+  })}
   return v_secret;
 end;
 $$;

@@ -41,11 +41,21 @@ function build(ctx: ModuleContext): string {
     type: "push.device_registered",
     payload: `jsonb_build_object('deviceId', v_id::text, 'userId', v_user::text, 'platform', register_push_device.platform, 'provider', register_push_device.provider)`,
     subject: `'push_devices/' || v_id::text`,
+    audit: {
+      category: "security",
+      targetType: "push_device",
+      recordId: "v_id::text",
+    },
   });
   const unregistered = ctx.record({
     type: "push.device_unregistered",
     payload: `jsonb_build_object('deviceId', v_id::text, 'userId', v_user::text)`,
     subject: `'push_devices/' || v_id::text`,
+    audit: {
+      category: "security",
+      targetType: "push_device",
+      recordId: "v_id::text",
+    },
   });
   const serviceOnly = (name: string): string => `
   if not (${SERVICE_CALLER}) then

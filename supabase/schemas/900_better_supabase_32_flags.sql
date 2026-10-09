@@ -229,6 +229,13 @@ begin
     "rollout_percentage" = case when d ? 'rollout_percentage' then excluded."rollout_percentage" else x."rollout_percentage" end,
     "rollout_variant" = case when d ? 'rollout_variant' then excluded."rollout_variant" else x."rollout_variant" end,
     "updated_at" = now();
+  perform better_supabase.audit_event(
+    event_type => 'flag.saved',
+    category => 'configuration',
+    target_type => 'flag',
+    record_id => save_flag.key,
+    metadata => jsonb_build_object('key', save_flag.key)
+  );
   return (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = save_flag.key);
 end;
 $$;
@@ -244,7 +251,17 @@ begin
     raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
   end if;
   delete from "better_supabase"."flags" x where x."key" = delete_flag.key;
-  return found;
+  if not found then
+    return false;
+  end if;
+  perform better_supabase.audit_event(
+    event_type => 'flag.deleted',
+    category => 'configuration',
+    target_type => 'flag',
+    record_id => delete_flag.key,
+    metadata => jsonb_build_object('key', delete_flag.key)
+  );
+  return true;
 end;
 $$;
 
@@ -268,11 +285,30 @@ begin
     where v."flag_key" = set_flag_override.key
       and v."organization_id" is not distinct from set_flag_override.tenant
       and v."user_id" is not distinct from set_flag_override.member;
-    return found;
+    if not found then
+      return false;
+    end if;
+    perform better_supabase.audit_event(
+    event_type => 'flag.override_set',
+    category => 'configuration',
+    target_type => 'flag',
+    record_id => set_flag_override.key,
+    tenant => (set_flag_override.tenant)::uuid,
+    metadata => jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member)
+  );
+    return true;
   end if;
   insert into "better_supabase"."flag_overrides" ("flag_key", "organization_id", "user_id", "variant")
   values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.variant)
   on conflict ("flag_key", "organization_id", "user_id") do update set "variant" = excluded."variant";
+  perform better_supabase.audit_event(
+    event_type => 'flag.override_set',
+    category => 'configuration',
+    target_type => 'flag',
+    record_id => set_flag_override.key,
+    tenant => (set_flag_override.tenant)::uuid,
+    metadata => jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member)
+  );
   return true;
 end;
 $$;

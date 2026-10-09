@@ -3159,6 +3159,7 @@
   "./sql": {
     "values": [
       "adoptedColumnProblems",
+      "AUDIT_CATEGORIES",
       "auditRegistrations",
       "compileReadSet",
       "compileReadSets",
@@ -3193,6 +3194,7 @@
       "upgradePlan"
     ],
     "types": [
+      "AuditCategory",
       "AuditedTable",
       "CompiledReadSet",
       "InstalledModule",

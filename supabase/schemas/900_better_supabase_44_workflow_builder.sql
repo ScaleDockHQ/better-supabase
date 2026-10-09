@@ -448,6 +448,15 @@ begin
   update "better_supabase"."workflow_versions" x set "status" = 'published', "compiled" = compiled, "published_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform better_supabase.audit_event(
+    event_type => 'workflow.published',
+    category => 'configuration',
+    target_type => 'workflow_version',
+    record_id => v_row."id"::text,
+    tenant => (v_tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant::text, 'definitionId', v_row."definition_id", 'versionId', v_row."id", 'version', v_row."version"),
+    idempotency_key => 'workflow.published:' || v_row."id"::text
+  );
   return jsonb_build_object(
     'id', v_row."id",
     'definition', v_row."definition_id",

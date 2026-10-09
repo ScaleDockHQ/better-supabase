@@ -304,7 +304,7 @@ begin
         using v_event;
     end if;
   end;
-  
+  null;
   return jsonb_build_object('id', v_event, 'recipients', to_jsonb(v_recipients));
 end;
 $$;

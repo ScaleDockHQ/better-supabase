@@ -147,6 +147,16 @@ export default defineConfig({
           eventSource: "saas",
           eventCategory: "data",
           readPolicy: true,
+          // CentraKit's category check names the shared categories its own way.
+          values: {
+            category: {
+              membership: "users",
+              access: "permissions",
+              configuration: "settings",
+              integration: "integrations",
+              ai: "system",
+            },
+          },
         },
       },
       outbox: {

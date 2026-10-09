@@ -7,6 +7,7 @@ import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  recordTrigger,
   type JsonSchemaCheck,
   jsonSchemaChecks,
   schemaPreamble,
@@ -222,6 +223,25 @@ function build(ctx: ModuleContext): string {
   const p = ctx.table("platform");
   const pc = (logical: string): string => ctx.col("platform", logical);
   const platform = platformKeys(ctx);
+  const settingEvent = (
+    type: string,
+    col: (logical: string) => string,
+  ): string => {
+    const tenant = col === oc ? `v_row.${oc("tenant")}` : undefined;
+    return ctx.record({
+      type,
+      payload: `jsonb_build_object(${tenant ? `'organizationId', ${tenant}::text, ` : ""}'key', v_row.${col("key")})`,
+      subject: tenant
+        ? `'organizations/' || ${tenant}::text || '/settings/' || v_row.${col("key")}`
+        : `'settings/' || v_row.${col("key")}`,
+      ...(tenant ? { tenant } : {}),
+      audit: {
+        category: "configuration",
+        targetType: "setting",
+        recordId: `v_row.${col("key")}`,
+      },
+    });
+  };
   const byKey = (
     pick: (entry: PlatformKey) => string,
     fallback: string,
@@ -474,6 +494,21 @@ grant execute on function ${fn("reset_user_setting")}(text) to authenticated, se
 grant execute on function ${fn("get_organization_settings")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("set_organization_setting")}(${id}, text, jsonb) to authenticated, service_role;
 grant execute on function ${fn("reset_organization_setting")}(${id}, text) to authenticated, service_role;
+
+-- Records organization and platform setting changes; user settings are not
+-- recorded.
+${recordTrigger(ctx, {
+  name: "record_organization_setting",
+  table: o,
+  written: settingEvent("organization_setting.updated", oc),
+  removed: settingEvent("organization_setting.reset", oc),
+})}
+${recordTrigger(ctx, {
+  name: "record_platform_setting",
+  table: p,
+  written: settingEvent("platform_setting.updated", pc),
+  removed: settingEvent("platform_setting.reset", pc),
+})}
 ${jsonSchemaChecks(settingsChecks(ctx))}`;
 }
 
