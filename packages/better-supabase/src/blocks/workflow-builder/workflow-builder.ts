@@ -31,6 +31,7 @@ import {
   seconds,
   stringsOf,
   textOf,
+  injectableOf,
 } from "../shared.ts";
 import {
   createWorkflows,
@@ -166,10 +167,16 @@ export interface BuilderStartCall {
 }
 
 /** Starts a run with the engine and returns the engine's run id. */
-export type BuilderStarter = (call: BuilderStartCall) => Promise<string>;
+export type BuilderStarter = ((call: BuilderStartCall) => Promise<string>) & {
+  /** The starter contract version. Omitted means 1. */
+  readonly apiVersion?: 1;
+};
 
 /** The engine's compiled form of a graph, stored with the version on publish. */
-export type GraphCompiler = (graph: WorkflowGraph) => unknown;
+export type GraphCompiler = ((graph: WorkflowGraph) => unknown) & {
+  /** The compiler contract version. Omitted means 1. */
+  readonly apiVersion?: 1;
+};
 
 export interface BuilderOptions extends BlockTemporalOptions {
   /** The caller's transport: RLS and the module's permissions apply. */
@@ -492,6 +499,8 @@ const BUILDER_PREFIX = "builder:";
  */
 export function createBuilder(options: BuilderOptions): WorkflowBuilder {
   applyTemporal(options);
+  injectableOf("workflow-builder compiler", options.compile);
+  injectableOf("workflow-builder starter", options.start);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const serviceCall = blockCall(
     options.service ?? options.transport,

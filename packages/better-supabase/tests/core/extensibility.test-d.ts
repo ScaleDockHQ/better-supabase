@@ -5,13 +5,19 @@ import type { createClient } from "redis";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthResolver } from "../../src/auth/resolve.ts";
+import type { AiTaskRunner } from "../../src/blocks/ai-tasks/index.ts";
 import type { QueueBackend } from "../../src/blocks/jobs/index.ts";
+import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 import type { NotificationChannel } from "../../src/blocks/notifications/index.ts";
 import type {
   WebhookSecretStore,
   WebhookSigner,
   WebhookTransport,
 } from "../../src/blocks/webhooks/index.ts";
+import type {
+  BuilderStarter,
+  GraphCompiler,
+} from "../../src/blocks/workflow-builder/index.ts";
 import type {
   AuthorizationProvider,
   BetterSupabaseConfig,
@@ -32,6 +38,7 @@ import type {
   CredentialProvider,
   CredentialRef,
 } from "../../src/credentials/index.ts";
+import type { EveDocumentBackend } from "../../src/eve/index.ts";
 import type { EventSink } from "../../src/events/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
 import type {
@@ -171,6 +178,24 @@ describe("CredentialProvider", () => {
     const accepts = (provider: CredentialProvider) => provider;
     // @ts-expect-error a provider resolves tokens and revokes them
     accepts({ apiVersion: 1, name: "partial", capabilities: () => ({}) });
+  });
+});
+
+describe("block injectables", () => {
+  it("carry an optional apiVersion 1, and plain functions still fit", () => {
+    expectTypeOf<Embedder["apiVersion"]>().toEqualTypeOf<1 | undefined>();
+    expectTypeOf<AiTaskRunner["apiVersion"]>().toEqualTypeOf<1 | undefined>();
+    expectTypeOf<GraphCompiler["apiVersion"]>().toEqualTypeOf<1 | undefined>();
+    expectTypeOf<BuilderStarter["apiVersion"]>().toEqualTypeOf<1 | undefined>();
+    expectTypeOf<EveDocumentBackend["apiVersion"]>().toEqualTypeOf<
+      1 | undefined
+    >();
+    expectTypeOf(async () => undefined).toExtend<AiTaskRunner>();
+    expectTypeOf(async () => "run_1").toExtend<BuilderStarter>();
+    expectTypeOf(() => ({})).toExtend<GraphCompiler>();
+    const accepts = (embedder: Embedder) => embedder;
+    // @ts-expect-error only API 1 exists
+    accepts({ apiVersion: 2, model: "m", embed: async () => [] });
   });
 });
 

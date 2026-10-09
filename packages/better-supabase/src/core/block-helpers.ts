@@ -312,3 +312,30 @@ export function errorText(error: unknown): string {
   }
   return String(error);
 }
+
+/**
+ * Returns an injectable after checking its optional `apiVersion`. An omitted
+ * version means 1; anything else throws, so an injectable built for a newer
+ * contract fails at construction instead of mid-call.
+ */
+export function injectableOf<T extends { readonly apiVersion?: 1 }>(
+  what: string,
+  value: T,
+): T;
+export function injectableOf<T extends { readonly apiVersion?: 1 }>(
+  what: string,
+  value: T | undefined,
+): T | undefined;
+export function injectableOf<T extends { readonly apiVersion?: 1 }>(
+  what: string,
+  value: T | undefined,
+): T | undefined {
+  if (value === undefined) return undefined;
+  const version: unknown = value.apiVersion;
+  if (version !== undefined && version !== 1) {
+    throw new TypeError(
+      `${what} targets API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release built for API 1.`,
+    );
+  }
+  return value;
+}

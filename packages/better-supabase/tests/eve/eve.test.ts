@@ -33,6 +33,7 @@ import {
   supabaseDocumentBackend,
   supabaseMemory,
 } from "../../src/eve/index.ts";
+import { testEveDocumentBackend } from "../../src/testing/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
@@ -384,6 +385,15 @@ describe("supabaseDocumentBackend", () => {
       backend.write({ key: "notes.md", content: "b", expectedVersion: null }),
     ).rejects.toBeInstanceOf(MemoryDocumentConflictError);
     expect(await backend.read({ key: "notes.md" })).toEqual(first);
+  });
+
+  it("passes the EveDocumentBackend kit", async () => {
+    const { documents } = documentStore();
+    const backend = supabaseDocumentBackend({
+      memory: { documents } as unknown as Memory,
+    });
+    const report = await testEveDocumentBackend(backend);
+    expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 
   it("throws other errors as DbException", async () => {

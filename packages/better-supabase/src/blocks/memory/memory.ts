@@ -18,6 +18,7 @@ import {
   run,
   textOf,
   toInstant,
+  injectableOf,
 } from "../shared.ts";
 
 export type MemoryScope = "user" | "agent" | "chat" | "organization";
@@ -386,7 +387,7 @@ export function createMemory(options: MemoryOptions): Memory {
     options.schema,
     options.mappers,
   );
-  const embedder = options.embedder;
+  const embedder = injectableOf("embedder", options.embedder);
   const maxRender = options.maxRender ?? 8000;
   const threshold = options.dedupeThreshold ?? 0.92;
 

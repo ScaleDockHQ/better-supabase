@@ -20,6 +20,7 @@ import {
   run,
   textOf,
   toInstant,
+  injectableOf,
 } from "../shared.ts";
 
 /**
@@ -27,6 +28,8 @@ import {
  * document embedded by another model can be found and embedded again.
  */
 export interface Embedder {
+  /** The embedder contract version. Omitted means 1. */
+  readonly apiVersion?: 1;
   readonly model: string;
   embed(
     values: readonly string[],
@@ -390,7 +393,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
   );
   const batchSize = options.batchSize ?? 64;
   const extract = options.extract ?? defaultExtract;
-  const embedder = options.embedder;
+  const embedder = injectableOf("embedder", options.embedder);
 
   const found = (value: unknown): AsyncResult<KnowledgeDocument> =>
     isRecord(value)

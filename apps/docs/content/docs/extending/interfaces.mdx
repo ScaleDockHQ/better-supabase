@@ -25,6 +25,11 @@ has a [conformance kit](/docs/extending/conformance).
 | [`StreamStore`](#streamstore)                     | `postgresStreamStore(options)`, `redisStreamStore(options)` | `teeToStore(store, id, stream)`, `resumeFromStore(store, id)`           |
 | [`CredentialProvider`](#credentialprovider)       | `vaultCredentials(options)`, `vercelConnectCredentials()`   | `createServer(betterSupabase, { credentials })`                         |
 | [`AuthorizationProvider`](#authorizationprovider) | none (built by your authorization system)                   | `authorization` in the config                                           |
+| [`Embedder`](#embedder)                           | `embedWith(model)`, `supabaseEmbed()`                       | `createKnowledge({ embedder })`, `createMemory({ embedder })`           |
+| [`AiTaskRunner`](#aitaskrunner)                   | none (runs your agent)                                      | `createAiTasks({ run })`                                                |
+| [`GraphCompiler`](#graphcompiler)                 | none (your engine's compiled form)                          | `createBuilder({ compile })`                                            |
+| [`BuilderStarter`](#builderstarter)               | none (starts a run on your engine)                          | `createBuilder({ start })`                                              |
+| [`EveDocumentBackend`](#evedocumentbackend)       | `supabaseDocumentBackend(options)`                          | eve's `fileMemory({ backend })`                                         |
 | `EnvSource`                                       | `process.env`, `Deno.env.toObject()`                        | `parseEnv(source)`                                                      |
 | [`Plugin`](/docs/extending/plugins)               | timestamps, soft delete, tenant, actor, validation          | `betterSupabase.use(plugin)`                                            |
 
@@ -196,6 +201,46 @@ The optional fields each turn on one integration:
 | `approvals.distinctApprover`  | the same function: the chat's owner can't decide its own tool calls                   |
 | `functions.*For`, `memberIds` | the modules doctor (BS411) lists when they are missing                                |
 | `sql: "provider"`             | bucket and topic `access` policies, rendered from `functions` at `gen` and `sql sync` |
+
+## Embedder
+
+Turns texts into vectors for the knowledge and memory blocks. It has a
+`model` name and `embed(values, { signal })`, which returns one vector per
+value, all of one length. `testEmbedder` from `better-supabase/testing` is its
+conformance block.
+
+## AiTaskRunner
+
+The function `createAiTasks` calls for each due run, with the task, the
+claimed run and an `AbortSignal`. It resolves with nothing or with the
+`chatId` the run wrote to, and throws when the signal aborts.
+`testAiTaskRunner` is its conformance block.
+
+## GraphCompiler
+
+Turns a builder graph into your engine's form when a version is published.
+It returns a JSON value, the same one for the same graph, and leaves the
+graph unchanged. `testGraphCompiler` is its conformance block.
+
+## BuilderStarter
+
+Starts a published version on your engine and returns the engine's run id.
+A repeated `idempotencyKey` returns the same run. `testBuilderStarter` is its
+conformance block.
+
+## EveDocumentBackend
+
+eve's document store for `fileMemory()`. `read` returns the content and
+version or `null`, and `write` throws when `expectedVersion` is stale.
+`testEveDocumentBackend` is its conformance block.
+
+## Versions of the block injectables
+
+These five carry an optional `apiVersion`. Omitting it means 1; the blocks
+refuse any other value when they are built. The built-in embedders and
+`supabaseDocumentBackend` set it, and the conformance blocks require it, so a
+release built for API 1 says so. A function sets it with
+`Object.assign(fn, { apiVersion: 1 })`.
 
 ## AuthResolver
 

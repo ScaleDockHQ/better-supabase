@@ -7,6 +7,7 @@ export {
   eachLimit,
   enumOrThrow,
   errorText,
+  injectableOf,
   instantArg,
   isRecord,
   mappersOf,

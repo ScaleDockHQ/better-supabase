@@ -43,6 +43,7 @@ export function embedWith(
   options: EmbedWithOptions = {},
 ): Embedder {
   return {
+    apiVersion: 1,
     model: options.name ?? modelName(model),
     embed: async (values, embedOptions) => {
       if (values.length === 0) return [];
@@ -220,6 +221,7 @@ export function supabaseEmbed(options: SupabaseEmbedOptions = {}): Embedder {
   const name = options.model ?? "gte-small";
   let session = options.session;
   return {
+    apiVersion: 1,
     model: `supabase/${name}`,
     embed: async (values) => {
       session ??= supabaseSession(name);
