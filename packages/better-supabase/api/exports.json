@@ -2527,6 +2527,9 @@
       "aiChatTopic",
       "aiMessageSchema",
       "createAiChat",
+      "createAiRuns",
+      "createHarnessSessions",
+      "idleSandboxStop",
       "INTERRUPTED_TOOL_OUTPUT",
       "isAiMessage",
       "pathToHistory",
@@ -2551,6 +2554,10 @@
       "AiDataPart",
       "AiFeedback",
       "AiFilePart",
+      "AiHarnessSession",
+      "AiHarnessSessionPatch",
+      "AiHarnessSessions",
+      "AiHarnessStatus",
       "AiMessage",
       "AiMessageCheck",
       "AiMessagePart",
@@ -2563,13 +2570,21 @@
       "AiModerationEvent",
       "AiModerationInput",
       "AiModerationStage",
+      "AiPendingApproval",
       "AiPendingInput",
       "AiPendingInputRequest",
       "AiProject",
       "AiProjectInput",
       "AiReasoningPart",
+      "AiRun",
+      "AiRunQuery",
       "AiRunRelease",
+      "AiRuns",
+      "AiRunState",
       "AiRunStatus",
+      "AiRunStep",
+      "AiRunStepInput",
+      "AiRunStepStatus",
       "AiSaveResult",
       "AiShareLink",
       "AiSourcePart",
@@ -2586,6 +2601,8 @@
       "AiToolResultPart",
       "AiUserMessageTrigger",
       "BlockTransport",
+      "IdleSandboxStopOptions",
+      "IdleSandboxStopResult",
       "SharedAiChat"
     ]
   },
@@ -2743,6 +2760,7 @@
       "AI_SDK_UI_FORMAT",
       "costBackfill",
       "DENIED_TOOL_OUTPUT",
+      "fromModelMessages",
       "fromUIMessage",
       "gatewayOptions",
       "isUIMessage",
@@ -2760,11 +2778,14 @@
       "AiUsageMeters",
       "CostBackfillOptions",
       "CostBackfillPayload",
+      "FromModelMessagesOptions",
       "GatewayClient",
       "GatewayContext",
       "GatewayModelEntry",
       "GatewayOptions",
+      "ModelApproval",
       "ModelCatalogRefreshOptions",
+      "ModelSource",
       "UsageSource"
     ]
   },
@@ -2780,7 +2801,8 @@
       "AssistantOptions",
       "AssistantRequestBody",
       "AssistantRunArgs",
-      "AssistantRunResult"
+      "AssistantRunResult",
+      "AssistantTurn"
     ]
   },
   "./ai-sdk/files": {
@@ -2875,7 +2897,56 @@
     ],
     "types": [
       "AssistantState",
+      "AssistantTransportConfig",
       "UseAssistantOptions"
+    ]
+  },
+  "./ai-sdk/workflow": {
+    "values": [
+      "durableChat",
+      "durableSteps",
+      "durableStopToken",
+      "durableTurn",
+      "durableTurnToken",
+      "runDurableStep",
+      "saveMessagesStep",
+      "WORKFLOW_RUN_ID_HEADER"
+    ],
+    "types": [
+      "DurableAgentArgs",
+      "DurableAgentResult",
+      "DurableApprovalDecision",
+      "DurableApprovalRequest",
+      "DurableApprovalsInput",
+      "DurableChat",
+      "DurableChatContext",
+      "DurableChatOptions",
+      "DurableDecision",
+      "DurableDecisionsInput",
+      "DurableHook",
+      "DurableReleaseInput",
+      "DurableResume",
+      "DurableSaveInput",
+      "DurableStep",
+      "DurableStepCalls",
+      "DurableStepInput",
+      "DurableStepName",
+      "DurableStepOptions",
+      "DurableStepOutput",
+      "DurableStop",
+      "DurableTurnDeps",
+      "DurableTurnInput",
+      "DurableTurnResult"
+    ]
+  },
+  "./ai-sdk/workflow/react": {
+    "values": [
+      "durableTransport",
+      "useDurableAssistant"
+    ],
+    "types": [
+      "AssistantState",
+      "UseDurableAssistantOptions"
     ]
   },
   "./blocks/announcements": {

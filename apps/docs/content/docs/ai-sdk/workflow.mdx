@@ -1,0 +1,192 @@
+---
+title: Durable chat
+description: Answers that run as Workflow SDK workflows with durableChat and durableTurn, tool approvals that wait for hours, stop through a hook, reconnects by chunk index and progress in ai_run_steps.
+---
+
+`better-supabase/ai-sdk/workflow` runs an answer as a
+[Workflow SDK](https://useworkflow.dev) workflow instead of inside the
+request. The answer keeps going when the user closes the tab or the
+function is redeployed, a tool call can wait hours for an approval, and a
+research agent can record its progress for an activity page. It uses the
+same [AI chat block](/docs/blocks/ai-chat) tables as
+[`createAssistant`](/docs/ai-sdk/chat), so a chat can mix both kinds of
+answers, and it owns no tables.
+
+```bash
+pnpm add ai @ai-sdk/react @ai-sdk/workflow workflow
+```
+
+`@ai-sdk/workflow` and `workflow` are optional peers. The World that stores
+the runs can be the one on Supabase
+([`better-supabase/workflow-sdk/world`](/docs/blocks/workflow-sdk)) or any
+other World.
+
+| Subpath                                 | What it gives you                                                                 |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| `better-supabase/ai-sdk/workflow`       | `durableChat` for the routes, `durableTurn` for the workflow and the turn's steps |
+| `better-supabase/ai-sdk/workflow/react` | `useDurableAssistant` and `durableTransport` for the client                       |
+
+## The workflow
+
+A turn is a `"use workflow"` function that calls `durableTurn` with the
+Workflow SDK's functions, the agent and one `"use step"` function for the
+database work. Steps run outside any request, so they use the service role.
+
+```ts title="lib/assistant/turn.ts"
+import { WorkflowAgent } from "@ai-sdk/workflow";
+import {
+  type DurableStepInput,
+  type DurableStepName,
+  type DurableStepOutput,
+  type DurableTurnInput,
+  durableTurn,
+  runDurableStep,
+} from "better-supabase/ai-sdk/workflow";
+import { createHook, getWorkflowMetadata, getWritable } from "workflow";
+
+export async function chatStep<K extends DurableStepName>(
+  name: K,
+  input: DurableStepInput<K>,
+): Promise<DurableStepOutput<K>> {
+  "use step";
+  return runDurableStep(serviceAiChat(), name, input);
+}
+
+export async function assistantTurn(input: DurableTurnInput) {
+  "use workflow";
+  return durableTurn(input, {
+    runId: getWorkflowMetadata().workflowRunId,
+    createHook,
+    getWritable,
+    step: chatStep,
+    agent: (args) =>
+      new WorkflowAgent({
+        model: args.model,
+        instructions: "You are the Acme assistant.",
+        tools,
+      }).stream(args),
+  });
+}
+```
+
+The model is a gateway string such as `"openai/gpt-5-mini"`: the agent
+passes it to a step, so it has to be serializable. `args` also carries the
+chat id and the segment's `ai_runs` id for tools that record progress.
+
+`durableTurn` runs the agent and saves the answer after each pass, always
+under the same message id, so a retried step updates the message instead
+of adding one. When the agent asks for approvals it stores them in
+`ai_tool_approvals`, releases the run and waits on a hook for as long as the
+decisions take. The decisions are read back from the database, not from the
+hook payload. Each pass writes its own stream segment and `ai_runs` row.
+
+The four steps are `save`, `approvals`, `decisions` and `release`.
+`runDurableStep(chats, name, input, options)` runs one of them;
+`durableSteps(chats)` returns them as an object, and `saveMessagesStep` is
+the save on its own. Pass `enqueueCostBackfill` in `options` to queue the
+[cost backfill](/docs/ai-sdk#jobs) when the gateway hasn't reported the cost
+yet.
+
+## Routes
+
+`durableChat` is the server half. Its `assistant` is a
+[`createAssistant`](/docs/ai-sdk/chat) instance, whose model, moderation and
+quota checks run before the workflow starts.
+
+```ts title="lib/assistant/durable.ts"
+import { durableChat } from "better-supabase/ai-sdk/workflow";
+import { createAiRuns } from "better-supabase/blocks/ai-chat";
+
+export const durable = durableChat({
+  assistant,
+  workflow: assistantTurn,
+  streams: postgresStreamStore({ transport: serviceTransport }),
+});
+
+// Per request: the assistant's context plus the chat's runs.
+const context = {
+  ...(await assistantContext()),
+  runs: createAiRuns({ transport, service: serviceTransport }),
+};
+```
+
+| Route                             | Calls                                 | Does                                                                     |
+| --------------------------------- | ------------------------------------- | ------------------------------------------------------------------------ |
+| `POST /api/chat`                  | `respond(request, context)`           | Starts the turn, or continues it with `{ id, approvals }`                |
+| `GET /api/chat/[id]/stream`       | `resume(id, context, { startIndex })` | Streams the running segment from UI chunk `startIndex`, or answers 204   |
+| `POST /api/chat/[id]/stop`        | `stop(id, context)`                   | Stops the turn through its stop hook, or cancels the run when it is gone |
+| An approval inbox (server action) | `decide(id, decisions, context)`      | Decides approvals and continues the turn; answers `{ continued }` JSON   |
+
+Every streaming response has the `x-workflow-run-id` header
+(`WORKFLOW_RUN_ID_HEADER`). The stream is the World's stream for the
+segment, converted with `normalizeUIMessageStreamParts`; a copy goes to the
+[stream store](/docs/blocks/streams), which answers a reconnect when the
+World's stream can't be read. `startIndex` counts UI chunks from the start
+of the segment; a negative index isn't supported.
+
+Errors are RFC 9457 problem details with a `code`:
+
+| Code                   | When                                                       |
+| ---------------------- | ---------------------------------------------------------- |
+| `AI_CHAT_BUSY`         | Another answer of the chat is running                      |
+| `AI_CHAT_BAD_REQUEST`  | The body has no chat id or malformed approvals             |
+| `AI_CHAT_NOT_DURABLE`  | The approvals belong to an answer that isn't a workflow    |
+| `AI_CHAT_NOT_WAITING`  | The turn already ended                                     |
+| `AI_APPROVALS_PENDING` | Other approvals of the answer still wait for a decision    |
+| `AI_CHAT_RUN_FAILED`   | The workflow could not start; the run is released as error |
+
+## Client
+
+```tsx title="app/chat/[id]/chat.tsx"
+"use client";
+
+import { useDurableAssistant } from "better-supabase/ai-sdk/workflow/react";
+
+export function Chat({ id, initial, streaming }: Props) {
+  const chat = useDurableAssistant({
+    id,
+    messages: initial,
+    resume: streaming,
+  });
+  // chat.addToolApprovalResponse({ id: approvalId, approved: true })
+}
+```
+
+`useDurableAssistant` is [`useAssistant`](/docs/ai-sdk/chat#client) on
+`durableTransport`, which reconnects with the chunk index the client already
+has. Once every approval of an answer is answered, it sends the decisions
+and streams the rest. `resume` defaults to `false`: pass
+`chat.activeStreamId !== undefined` from the chat row, read in a Server
+Component, so a reload picks up a running answer without a request for
+every chat that has none.
+
+## Progress and approvals
+
+`createAiRuns` from `better-supabase/blocks/ai-chat` reads the runs and
+their steps. A tool records a step by key, and recording the same key again
+updates it:
+
+```ts
+await runs.steps.record(args.runId, {
+  key: toolCallId,
+  label: question,
+  status: "done",
+  detail: { answer },
+});
+```
+
+`runs.list()` returns the caller's runs, `runs.steps.list(runId)` a run's
+steps and `runs.pendingApprovals()` the caller's undecided approvals across
+chats, which is what an approval inbox shows. See
+[AI chat](/docs/blocks/ai-chat#durable-runs) for the tables.
+
+## Example
+
+The Next.js example's assistant (`apps/examples/nextjs/src/features/assistant`)
+has three modes: Standard on `createAssistant`, Durable on `durableChat`,
+and Research, an agent that outlines sub-questions, answers each in a
+subagent step, records its progress in `ai_run_steps` and asks for approval
+before it sends its report. `/assistant/activity` lists the runs with their
+steps and the approvals waiting for the user. Durable modes need
+`AI_GATEWAY_API_KEY`, since the scripted model of the demo mode can't cross
+a step boundary.

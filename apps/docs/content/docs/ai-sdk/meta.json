@@ -1,4 +1,13 @@
 {
   "title": "AI SDK",
-  "pages": ["index", "chat", "files", "embeddings", "memory", "agents", "mcp"]
+  "pages": [
+    "index",
+    "chat",
+    "workflow",
+    "files",
+    "embeddings",
+    "memory",
+    "agents",
+    "mcp"
+  ]
 }

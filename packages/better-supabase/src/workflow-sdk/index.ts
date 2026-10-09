@@ -1,3 +1,4 @@
+export { WORKFLOW_ATTRIBUTES } from "./attributes.ts";
 export {
   authorizeHook,
   contextAttributes,
@@ -6,7 +7,6 @@ export {
   protectWebHandler,
   startFor,
   startOnEvent,
-  WORKFLOW_ATTRIBUTES,
   workflowContext,
   workflowStarter,
   type AuthorizeHookOptions,

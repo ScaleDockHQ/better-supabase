@@ -1,6 +1,11 @@
 import type { JSONValue, LanguageModelUsage } from "ai";
 
-import type { AiChat, AiModelInput } from "../blocks/ai-chat/ai-chat.ts";
+import type {
+  AiChat,
+  AiModelInput,
+  AiRunRelease,
+  AiRunStatus,
+} from "../blocks/ai-chat/ai-chat.ts";
 import type { JobHandler } from "../blocks/jobs/queue.ts";
 import type { Usage, UsageEntry, UsageStatus } from "../blocks/usage/usage.ts";
 import type { DbError } from "../core/errors.ts";
@@ -104,6 +109,35 @@ export function usageOf(source: UsageSource): AiUsage {
     reasoningTokens: count(usage.outputTokenDetails?.reasoningTokens),
     generationId: typeof generationId === "string" ? generationId : undefined,
     costMicroUsd: microUsd(gateway["cost"]),
+  };
+}
+
+/** What `runs.release` stores for a generation that ended. */
+export function runRelease(
+  status: AiRunStatus,
+  usage?: AiUsage,
+  error?: string,
+): AiRunRelease {
+  return {
+    status,
+    ...(usage === undefined
+      ? {}
+      : {
+          usage: {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            totalTokens: usage.totalTokens,
+            cachedInputTokens: usage.cachedInputTokens,
+            reasoningTokens: usage.reasoningTokens,
+          },
+        }),
+    ...(usage?.generationId === undefined
+      ? {}
+      : { generationId: usage.generationId }),
+    ...(usage?.costMicroUsd === undefined
+      ? {}
+      : { costMicroUsd: usage.costMicroUsd }),
+    ...(error === undefined ? {} : { error }),
   };
 }
 

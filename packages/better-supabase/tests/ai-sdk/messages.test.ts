@@ -1,10 +1,11 @@
-import type { UIMessage } from "ai";
+import type { ModelMessage, UIMessage } from "ai";
 
 import { describe, expect, it } from "vitest";
 
 import {
   AI_SDK_UI_FORMAT,
   DENIED_TOOL_OUTPUT,
+  fromModelMessages,
   fromUIMessage,
   isUIMessage,
   toUIMessage,
@@ -367,5 +368,276 @@ describe("isUIMessage", () => {
     expect(isUIMessage(ui)).toBe(true);
     expect(isUIMessage({ id: "a", role: "tool", parts: [] })).toBe(false);
     expect(isUIMessage(null)).toBe(false);
+  });
+});
+
+describe("fromModelMessages", () => {
+  const turn: ModelMessage[] = [
+    {
+      role: "assistant",
+      content: [
+        { type: "reasoning", text: "plan" },
+        { type: "text", text: "Looking." },
+        {
+          type: "file",
+          mediaType: "image/png",
+          data: new URL("https://a.b/c.png"),
+        },
+        {
+          type: "file",
+          mediaType: "image/png",
+          data: "iVBORw0K",
+          filename: "x.png",
+        },
+        {
+          type: "file",
+          mediaType: "text/plain",
+          data: "data:text/plain,hi",
+          filename: "hi.txt",
+        },
+        {
+          type: "reasoning-file",
+          mediaType: "image/png",
+          data: { type: "url", url: new URL("https://a.b/r.png") },
+        },
+        { type: "custom", kind: "openai.compaction" },
+        {
+          type: "tool-call",
+          toolCallId: "t1",
+          toolName: "search",
+          input: { q: "x" },
+          providerExecuted: true,
+        },
+        {
+          type: "tool-call",
+          toolCallId: "t2",
+          toolName: "remove",
+          input: undefined,
+        },
+        {
+          type: "tool-approval-request",
+          approvalId: "approval-t2",
+          toolCallId: "t2",
+        },
+      ],
+    },
+    {
+      role: "tool",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: "t1",
+          toolName: "search",
+          output: { type: "json", value: { hits: 1 } },
+        },
+        {
+          type: "tool-approval-response",
+          approvalId: "approval-t2",
+          approved: false,
+          reason: "no",
+        },
+        {
+          type: "tool-approval-response",
+          approvalId: "unknown",
+          approved: true,
+        },
+        {
+          type: "tool-result",
+          toolCallId: "t2",
+          toolName: "remove",
+          output: { type: "execution-denied", reason: "no" },
+        },
+      ],
+    },
+    { role: "assistant", content: "Left it." },
+    { role: "assistant", content: "" },
+    {
+      role: "tool",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: "t3",
+          toolName: "fail",
+          output: { type: "error-text", value: "bad" },
+        },
+        {
+          type: "tool-result",
+          toolCallId: "t4",
+          toolName: "gone",
+          output: { type: "execution-denied" },
+        },
+        {
+          type: "tool-result",
+          toolCallId: "t5",
+          toolName: "say",
+          output: { type: "text", value: "hi" },
+        },
+      ],
+    },
+  ];
+
+  it("converts an agent's turn into one canonical answer", () => {
+    const message = fromModelMessages("m1", turn, {
+      sources: [
+        {
+          sourceType: "url",
+          id: "s1",
+          url: "https://a.b",
+          title: "A",
+        },
+        {
+          sourceType: "document",
+          id: "s2",
+          mediaType: "application/pdf",
+          title: "D",
+          providerMetadata: meta,
+        },
+      ],
+    });
+    expect(isAiMessage(message)).toBe(true);
+    expect(message).toEqual({
+      id: "m1",
+      role: "assistant",
+      parts: [
+        { type: "step", boundary: "start", stepId: "m1:0" },
+        { type: "reasoning", text: "plan", state: "done" },
+        { type: "text", text: "Looking.", state: "done" },
+        { type: "file", mediaType: "image/png", url: "https://a.b/c.png" },
+        {
+          type: "file",
+          mediaType: "text/plain",
+          url: "data:text/plain,hi",
+          filename: "hi.txt",
+        },
+        {
+          type: "data",
+          name: "ui.reasoning-file",
+          data: { mediaType: "image/png", url: "https://a.b/r.png" },
+        },
+        {
+          type: "data",
+          name: "ui.custom",
+          data: { kind: "openai.compaction" },
+        },
+        {
+          type: "tool-call",
+          toolCallId: "t1",
+          toolName: "search",
+          input: { q: "x" },
+          providerExecuted: true,
+        },
+        { type: "tool-call", toolCallId: "t2", toolName: "remove", input: {} },
+        {
+          type: "tool-approval",
+          toolCallId: "t2",
+          approvalId: "approval-t2",
+          state: "denied",
+          reason: "no",
+        },
+        {
+          type: "tool-result",
+          toolCallId: "t1",
+          toolName: "search",
+          output: { hits: 1 },
+        },
+        {
+          type: "tool-result",
+          toolCallId: "t2",
+          toolName: "remove",
+          output: "no",
+          isError: true,
+        },
+        { type: "step", boundary: "start", stepId: "m1:1" },
+        { type: "text", text: "Left it.", state: "done" },
+        { type: "step", boundary: "start", stepId: "m1:2" },
+        {
+          type: "tool-result",
+          toolCallId: "t3",
+          toolName: "fail",
+          output: "bad",
+          isError: true,
+        },
+        {
+          type: "tool-approval",
+          toolCallId: "t4",
+          approvalId: "approval-t4",
+          state: "denied",
+          reason: DENIED_TOOL_OUTPUT,
+        },
+        {
+          type: "tool-result",
+          toolCallId: "t4",
+          toolName: "gone",
+          output: DENIED_TOOL_OUTPUT,
+          isError: true,
+        },
+        {
+          type: "tool-result",
+          toolCallId: "t5",
+          toolName: "say",
+          output: "hi",
+        },
+        {
+          type: "source",
+          sourceType: "url",
+          id: "s1",
+          url: "https://a.b",
+          title: "A",
+        },
+        {
+          type: "source",
+          sourceType: "document",
+          id: "s2",
+          title: "D",
+          mediaType: "application/pdf",
+          providerMetadata: meta,
+        },
+      ],
+    });
+  });
+
+  it("keeps decisions the agent stripped from its messages", () => {
+    const message = fromModelMessages(
+      "m1",
+      [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool-call",
+              toolCallId: "t1",
+              toolName: "remove",
+              input: {},
+            },
+          ],
+        },
+      ],
+      {
+        approvals: [
+          {
+            approvalId: "approval-t1",
+            toolCallId: "t1",
+            state: "approved",
+            reason: "fine",
+          },
+          { approvalId: "approval-t9", toolCallId: "t9", state: "requested" },
+        ],
+      },
+    );
+    expect(message.parts.slice(2)).toEqual([
+      {
+        type: "tool-approval",
+        toolCallId: "t1",
+        approvalId: "approval-t1",
+        state: "approved",
+        reason: "fine",
+      },
+      {
+        type: "tool-approval",
+        toolCallId: "t9",
+        approvalId: "approval-t9",
+        state: "requested",
+      },
+    ]);
   });
 });

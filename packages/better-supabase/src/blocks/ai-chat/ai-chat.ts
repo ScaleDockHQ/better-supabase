@@ -389,6 +389,8 @@ export interface AiChat {
         readonly model?: string;
         readonly messageId?: string;
         readonly engine?: string;
+        /** The durable engine's own run id, such as a Workflow SDK run. */
+        readonly externalRunId?: string;
       },
     ): AsyncResult<AiStreamClaim>;
     release(
@@ -585,7 +587,8 @@ function savedOf(value: unknown): AiSaveResult {
   };
 }
 
-function approvalOf(value: unknown): AiToolApproval {
+/** Reads an approval row from the module's JSON. */
+export function approvalOf(value: unknown): AiToolApproval {
   const row = recordOf(value, "ai_tool_approval");
   return {
     approvalId: textOf(row["approval_id"]),
@@ -896,6 +899,7 @@ export function createAiChat(options: AiChatOptions): AiChat {
             model: claimOptions.model,
             message_id: claimOptions.messageId,
             engine: claimOptions.engine,
+            external_run_id: claimOptions.externalRunId,
           },
           (value) => {
             const row = recordOf(value, "claim_ai_chat_stream");

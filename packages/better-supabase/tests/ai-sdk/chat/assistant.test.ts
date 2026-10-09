@@ -351,4 +351,23 @@ describe("createAssistant", () => {
     expect((await assistant.stop("missing", context)).status).toBe(403);
     expect(fake.stops).toEqual(["c1", "missing"]);
   });
+
+  it("prepares a turn without answering it", async () => {
+    const { assistant, context, fake, run } = setup();
+    const turn = await assistant.prepare(
+      { id: "c1", message: userMessage() },
+      context,
+    );
+    if (turn instanceof Response) throw new Error("expected a turn");
+    expect(turn.chat.id).toBe("c1");
+    expect(turn.model).toBe("openai/gpt-5");
+    expect(turn.parentId).toBe("u1");
+    expect(turn.messages).toEqual([
+      { role: "user", content: [{ type: "text", text: "Hi" }] },
+    ]);
+    expect(run).not.toHaveBeenCalled();
+    expect(fake.released).toEqual([]);
+    const bad = await assistant.prepare({ id: 1 }, context);
+    expect(bad instanceof Response && bad.status).toBe(400);
+  });
 });

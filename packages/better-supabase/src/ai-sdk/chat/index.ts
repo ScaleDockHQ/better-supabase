@@ -7,5 +7,6 @@ export {
   type AssistantRequestBody,
   type AssistantRunArgs,
   type AssistantRunResult,
+  type AssistantTurn,
   createAssistant,
 } from "./assistant.ts";

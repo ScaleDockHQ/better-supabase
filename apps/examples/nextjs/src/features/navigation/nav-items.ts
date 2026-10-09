@@ -9,6 +9,7 @@ export type NavId =
   | "inbox"
   | "assistant"
   | "knowledge"
+  | "agentActivity"
   | "beta"
   | "members"
   | "billing"
@@ -58,6 +59,12 @@ export const navItems: readonly NavItem[] = [
   {
     id: "knowledge",
     href: "/knowledge",
+    group: "workspace",
+    requires: "ai_chat.create",
+  },
+  {
+    id: "agentActivity",
+    href: "/assistant/activity",
     group: "workspace",
     requires: "ai_chat.create",
   },

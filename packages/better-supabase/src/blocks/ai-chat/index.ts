@@ -40,6 +40,25 @@ export {
   type SharedAiChat,
 } from "./ai-chat.ts";
 export {
+  createAiRuns,
+  createHarnessSessions,
+  idleSandboxStop,
+  type AiHarnessSession,
+  type AiHarnessSessionPatch,
+  type AiHarnessSessions,
+  type AiHarnessStatus,
+  type AiPendingApproval,
+  type AiRun,
+  type AiRunQuery,
+  type AiRuns,
+  type AiRunState,
+  type AiRunStep,
+  type AiRunStepInput,
+  type AiRunStepStatus,
+  type IdleSandboxStopOptions,
+  type IdleSandboxStopResult,
+} from "./durable.ts";
+export {
   INTERRUPTED_TOOL_OUTPUT,
   pathToHistory,
   repairDanglingToolCalls,

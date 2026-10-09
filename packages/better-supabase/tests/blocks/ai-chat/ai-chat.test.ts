@@ -452,6 +452,14 @@ describe("createAiChat", () => {
       model: "m",
       message_id: "m2",
       engine: undefined,
+      external_run_id: undefined,
+    });
+    await chat.runs
+      .claim("c1", "s1", { engine: "workflow", externalRunId: "wrun_1" })
+      .orThrow();
+    expect(lastArgs(server)).toMatchObject({
+      engine: "workflow",
+      external_run_id: "wrun_1",
     });
     await chat.runs.claim("c1", "s1").orThrow();
     expect(

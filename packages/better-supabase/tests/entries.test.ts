@@ -26,6 +26,7 @@ const PURE_BARRELS = [
   "ai-sdk/memory",
   "ai-sdk/agents",
   "ai-sdk/mcp",
+  "ai-sdk/workflow",
   "blocks/announcements",
   "blocks/waitlist",
   "blocks/onboarding",

@@ -20,10 +20,10 @@ import {
   type WorkflowGraphEdge,
   type WorkflowGraphNode,
 } from "../../blocks/workflow-builder/graph.ts";
+import { WORKFLOW_ATTRIBUTES } from "../attributes.ts";
 import {
   contextAttributes,
   runForKey,
-  WORKFLOW_ATTRIBUTES,
   type WorkflowFn,
 } from "../workflow-sdk.ts";
 

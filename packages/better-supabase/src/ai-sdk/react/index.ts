@@ -3,10 +3,15 @@
 import { type UseChatHelpers, useChat } from "@ai-sdk/react";
 import {
   type ChatOnFinishCallback,
+  type ChatTransport,
   DefaultChatTransport,
   type UIMessage,
 } from "ai";
 import { useCallback, useMemo } from "react";
+
+import { type AssistantTransportConfig, assistantBody } from "./body.ts";
+
+export type { AssistantTransportConfig } from "./body.ts";
 
 export interface UseAssistantOptions {
   /** The chat id; make one on the client for a new chat. */
@@ -26,6 +31,34 @@ export interface UseAssistantOptions {
   readonly onFinish?: ChatOnFinishCallback<UIMessage>;
   /** Custom throttle wait in ms for message updates. */
   readonly throttle?: number;
+  /**
+   * Makes the transport instead of the default one, such as
+   * `durableTransport` from `better-supabase/ai-sdk/workflow/react`. Pass a
+   * function defined outside the component, so the transport is kept.
+   */
+  readonly transport?: (
+    config: AssistantTransportConfig,
+  ) => ChatTransport<UIMessage>;
+  /** Sends again without user input, such as once every approval is answered. */
+  readonly sendAutomaticallyWhen?: (options: {
+    messages: UIMessage[];
+  }) => boolean | PromiseLike<boolean>;
+}
+
+function defaultTransport(
+  config: AssistantTransportConfig,
+): ChatTransport<UIMessage> {
+  const { api, headers } = config;
+  return new DefaultChatTransport<UIMessage>({
+    api,
+    ...(headers === undefined ? {} : { headers: { ...headers } }),
+    prepareSendMessagesRequest: (request) => ({
+      body: assistantBody(config, request),
+    }),
+    prepareReconnectToStreamRequest: (request) => ({
+      api: `${api}/${encodeURIComponent(request.id)}/stream`,
+    }),
+  });
 }
 
 export type AssistantState = UseChatHelpers<UIMessage> & {
@@ -41,34 +74,10 @@ export type AssistantState = UseChatHelpers<UIMessage> & {
 export function useAssistant(options: UseAssistantOptions): AssistantState {
   const api = options.api ?? "/api/chat";
   const { id, model, body, headers } = options;
+  const makeTransport = options.transport ?? defaultTransport;
   const transport = useMemo(
-    () =>
-      new DefaultChatTransport<UIMessage>({
-        api,
-        ...(headers === undefined ? {} : { headers: { ...headers } }),
-        prepareSendMessagesRequest: (request) => {
-          const message = request.messages.findLast(
-            (entry) => entry.role === "user",
-          );
-          return {
-            body: {
-              ...body,
-              ...request.body,
-              id: request.id,
-              message,
-              trigger: request.trigger,
-              ...(request.messageId === undefined
-                ? {}
-                : { messageId: request.messageId }),
-              ...(model === undefined ? {} : { model }),
-            },
-          };
-        },
-        prepareReconnectToStreamRequest: (request) => ({
-          api: `${api}/${encodeURIComponent(request.id)}/stream`,
-        }),
-      }),
-    [api, model, body, headers],
+    () => makeTransport({ api, model, body, headers }),
+    [makeTransport, api, model, body, headers],
   );
   const chat = useChat({
     id,
@@ -78,6 +87,9 @@ export function useAssistant(options: UseAssistantOptions): AssistantState {
     ...(options.onError === undefined ? {} : { onError: options.onError }),
     ...(options.onFinish === undefined ? {} : { onFinish: options.onFinish }),
     ...(options.throttle === undefined ? {} : { throttle: options.throttle }),
+    ...(options.sendAutomaticallyWhen === undefined
+      ? {}
+      : { sendAutomaticallyWhen: options.sendAutomaticallyWhen }),
   });
   const { stop: stopLocal } = chat;
   const stop = useCallback(async () => {

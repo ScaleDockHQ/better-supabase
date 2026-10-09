@@ -11,6 +11,16 @@ msgctxt "assistant.Ug9lgd"
 msgid "All chats"
 msgstr "Alle chats"
 
+#: src/app/[locale]/(app)/assistant/activity/page.tsx
+msgctxt "assistant.HF49ER"
+msgid "Agent activity"
+msgstr "Agentactiviteit"
+
+#: src/app/[locale]/(app)/assistant/activity/page.tsx
+msgctxt "assistant.03R8p4"
+msgid "Runs from ai_runs with their steps, and the tool calls waiting for your approval."
+msgstr "Runs uit ai_runs met hun stappen, en de toolaanroepen die op je goedkeuring wachten."
+
 #: src/app/[locale]/(app)/assistant/page.tsx
 msgctxt "assistant.wSAvhu"
 msgid "Assistant"
@@ -351,50 +361,95 @@ msgctxt "apiKeys.VzzYJk"
 msgid "Create"
 msgstr "Maken"
 
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.kjUNOW"
+msgid "Waiting for approval"
+msgstr "Wacht op goedkeuring"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.E32-Bb"
+msgid "Nothing to approve"
+msgstr "Niets om goed te keuren"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.OBHwMR"
+msgid "Tool calls that need your approval show up here."
+msgstr "Toolaanroepen die je goedkeuring nodig hebben, verschijnen hier."
+
+#: src/features/assistant/components/agent-activity.tsx
+#: src/features/assistant/components/chat-list.tsx
+msgctxt "assistant.lfYALm"
+msgid "Untitled chat"
+msgstr "Chat zonder titel"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.6gnD8M"
+msgid "Latest runs"
+msgstr "Laatste runs"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.x3qvaC"
+msgid "No runs yet"
+msgstr "Nog geen runs"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.Eu2ilY"
+msgid "Every answer the assistant writes is a run."
+msgstr "Elk antwoord van de assistent is een run."
+
+#: src/features/assistant/components/agent-activity.tsx
 #: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.ytL5Ck"
-msgid "The answer failed. Try again."
-msgstr "Het antwoord is mislukt. Probeer het opnieuw."
+msgctxt "assistant.VpOehZ"
+msgid "Durable"
+msgstr "Duurzaam"
+
+#: src/features/assistant/components/agent-activity.tsx
+#: src/features/assistant/components/assistant-chat.tsx
+msgctxt "assistant.cb2kY6"
+msgid "Standard"
+msgstr "Standaard"
+
+#: src/features/assistant/components/agent-activity.tsx
+msgctxt "assistant.bV-Ymc"
+msgid "Default model"
+msgstr "Standaardmodel"
+
+#: src/features/assistant/components/approval-buttons.tsx
+msgctxt "assistant.6XFO_C"
+msgid "Approved"
+msgstr "Goedgekeurd"
+
+#: src/features/assistant/components/approval-buttons.tsx
+msgctxt "assistant.5kp1Ie"
+msgid "Denied"
+msgstr "Afgewezen"
+
+#: src/features/assistant/components/approval-buttons.tsx
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.WCaf5C"
+msgid "Approve"
+msgstr "Goedkeuren"
+
+#: src/features/assistant/components/approval-buttons.tsx
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.htvX-Z"
+msgid "Deny"
+msgstr "Weigeren"
 
 #: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.w_8N9S"
-msgid "The file could not be attached."
-msgstr "Het bestand kon niet worden bijgevoegd."
+msgctxt "assistant.JEe7dV"
+msgid "Research"
+msgstr "Onderzoek"
 
 #: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.Vlx13n"
-msgid "Attachments"
-msgstr "Bijlagen"
+msgctxt "assistant.yhFm3Y"
+msgid "Answer mode"
+msgstr "Antwoordmodus"
 
 #: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.T0e6Lh"
-msgid "Remove {name}"
-msgstr "{name} verwijderen"
-
-#: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.ydgifD"
-msgid "Attach a file"
-msgstr "Een bestand bijvoegen"
-
-#: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.zf_3aa"
-msgid "Ask anything"
-msgstr "Vraag wat je wilt"
-
-#: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.T7Ry38"
-msgid "Message"
-msgstr "Bericht"
-
-#: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.q_uwLT"
-msgid "Stop"
-msgstr "Stoppen"
-
-#: src/features/assistant/components/assistant-chat.tsx
-msgctxt "assistant.9WRlF4"
-msgid "Send"
-msgstr "Versturen"
+msgctxt "assistant.LGXxOm"
+msgid "Durable answers need AI_GATEWAY_API_KEY."
+msgstr "Duurzame antwoorden hebben AI_GATEWAY_API_KEY nodig."
 
 #: src/features/assistant/components/chat-list.tsx
 msgctxt "assistant.YfXudL"
@@ -406,10 +461,75 @@ msgctxt "assistant.huX5LS"
 msgid "Your chats show up here after the first answer."
 msgstr "Je chats verschijnen hier na het eerste antwoord."
 
-#: src/features/assistant/components/chat-list.tsx
-msgctxt "assistant.lfYALm"
-msgid "Untitled chat"
-msgstr "Chat zonder titel"
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant._7Q2I5"
+msgid "{tool} needs your approval"
+msgstr "{tool} heeft je goedkeuring nodig"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.bpMkWa"
+msgid "{tool} was denied"
+msgstr "{tool} is afgewezen"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.8zAQZ8"
+msgid "{tool} finished"
+msgstr "{tool} is klaar"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.E_7uNY"
+msgid "{tool} failed"
+msgstr "{tool} is mislukt"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.aMB1-6"
+msgid "Running {tool}"
+msgstr "{tool} wordt uitgevoerd"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.ytL5Ck"
+msgid "The answer failed. Try again."
+msgstr "Het antwoord is mislukt. Probeer het opnieuw."
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.w_8N9S"
+msgid "The file could not be attached."
+msgstr "Het bestand kon niet worden bijgevoegd."
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.Vlx13n"
+msgid "Attachments"
+msgstr "Bijlagen"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.T0e6Lh"
+msgid "Remove {name}"
+msgstr "{name} verwijderen"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.ydgifD"
+msgid "Attach a file"
+msgstr "Een bestand bijvoegen"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.zf_3aa"
+msgid "Ask anything"
+msgstr "Vraag wat je wilt"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.T7Ry38"
+msgid "Message"
+msgstr "Bericht"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.q_uwLT"
+msgid "Stop"
+msgstr "Stoppen"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.9WRlF4"
+msgid "Send"
+msgstr "Versturen"
 
 #: src/features/audit/components/audit-log.tsx
 msgctxt "audit.hE7RvK"
@@ -1390,6 +1510,11 @@ msgstr "Assistent"
 msgctxt "navigation.5OteMI"
 msgid "Knowledge"
 msgstr "Kennis"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.HF49ER"
+msgid "Agent activity"
+msgstr "Agentactiviteit"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.riw_yc"
