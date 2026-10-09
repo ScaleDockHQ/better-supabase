@@ -326,7 +326,7 @@ describe("createAiProviders batches", () => {
       .orThrow();
     expect(listed[0]).toMatchObject({ resultsSaved: true, counts: {} });
     const items = await batches
-      .items("b1", { after: "r0", limit: 2 })
+      .items("b1", { cursor: "r0", limit: 2 })
       .orThrow();
     expect(items.map((item) => [item.status, item.output, item.error])).toEqual(
       [

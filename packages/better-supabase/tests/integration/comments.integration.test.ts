@@ -660,7 +660,7 @@ describe.skipIf(!live)("comments", () => {
       ]);
       const page = await comments
         .history(organization, undefined, {
-          before: Temporal.Instant.from("2026-10-06T10:30:00Z"),
+          cursor: Temporal.Instant.from("2026-10-06T10:30:00Z"),
           limit: 1,
         })
         .orThrow();

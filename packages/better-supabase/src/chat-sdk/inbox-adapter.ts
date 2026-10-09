@@ -313,7 +313,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       const page = await inbox.messages
         .list(conversationIdOf(threadId), {
           limit,
-          ...(before === undefined ? {} : { before }),
+          ...(before === undefined ? {} : { cursor: before }),
         })
         .orThrow();
       const visible = page.filter((message) => message.kind === "message");

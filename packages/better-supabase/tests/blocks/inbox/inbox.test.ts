@@ -132,7 +132,7 @@ describe("createInbox", () => {
       .list("org", {
         status: "all",
         assignee: "me",
-        before: { id: "c0", lastMessageAt: later },
+        cursor: { id: "c0", lastMessageAt: later },
         limit: 10,
       })
       .orThrow();
@@ -183,7 +183,7 @@ describe("createInbox", () => {
     });
     await inbox.messages.note("c1", "internal", { mentions: ["u2"] }).orThrow();
     const [message] = await inbox.messages
-      .list("c1", { before: later, limit: 5 })
+      .list("c1", { cursor: later, limit: 5 })
       .orThrow();
     expect(message).toMatchObject({
       attachments: [

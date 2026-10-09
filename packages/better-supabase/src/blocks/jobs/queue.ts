@@ -30,6 +30,8 @@ import {
   sleep,
   toInstant,
   applyTemporal,
+  type CursorPageOptions,
+  pageOf,
 } from "../shared.ts";
 import { verifySharedSecret } from "../webhooks/verify.ts";
 import {
@@ -171,10 +173,12 @@ export interface EnsureSchedulesResult {
   readonly removed: readonly string[];
 }
 
-export interface ListDeadOptions {
+export interface ListDeadOptions extends CursorPageOptions<number> {
   /** Defaults to 100, at most 1000. */
   readonly limit?: number;
   /** Only dead letters with a lower id, for the next page. */
+  readonly cursor?: number;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly before?: number;
 }
 
@@ -823,7 +827,7 @@ export function createJobs<const Q extends QueueSchemas>(
         const rows = await transport.listDead(
           queue,
           listOptions.limit ?? 100,
-          listOptions.before,
+          pageOf(listOptions).cursor,
         );
         return rows.map((row) => {
           const message = row.message ?? {};

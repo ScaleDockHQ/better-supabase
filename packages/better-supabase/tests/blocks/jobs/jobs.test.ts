@@ -1299,7 +1299,7 @@ describe("queue health", () => {
       "emails",
     ]);
     const dead = await jobs
-      .listDead("emails", { limit: 5, before: 10 })
+      .listDead("emails", { limit: 5, cursor: 10 })
       .orThrow();
     expect(dead[0]).toMatchObject({
       id: 9,

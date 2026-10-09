@@ -16,6 +16,8 @@ import {
   workerId,
   type BlockTemporalOptions,
   applyTemporal,
+  type CursorPageOptions,
+  pageOf,
 } from "../shared.ts";
 import { verifySharedSecret } from "../webhooks/verify.ts";
 
@@ -131,10 +133,12 @@ export interface OutboxRouteResult {
   readonly budgetExhausted: boolean;
 }
 
-export interface HistoryFilter {
+export interface HistoryFilter extends CursorPageOptions<number> {
   readonly subject?: string;
   readonly type?: string;
   /** Only events after this position. */
+  readonly cursor?: number;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly after?: number;
   readonly limit?: number;
 }
@@ -485,7 +489,7 @@ export function createOutbox(
           await call("outbox_history", [
             filter.subject ?? null,
             filter.type ?? null,
-            filter.after ?? 0,
+            pageOf(filter).cursor ?? 0,
             filter.limit ?? 100,
           ]),
         ),

@@ -192,7 +192,7 @@ const next = await billing
   .allSubscriptions({
     status: "past_due",
     limit: 50,
-    before: page.at(-1)?.row.created as number,
+    cursor: page.at(-1)?.row.created as number,
   })
   .orThrow();
 ```

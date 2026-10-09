@@ -101,13 +101,13 @@ const page = await audit
   .list({ organizationId, eventType: "invoice.sent", since, limit: 50 })
   .orThrow();
 // page.entries: id, occurredAt, eventType, actorId, actorLabel, summary, targetLabel, ...
-const older = await audit.list({ organizationId, before: page.next });
+const older = await audit.list({ organizationId, cursor: page.next });
 ```
 
 `list` calls `list_audit_events` with the tenant, event type, actor, target
 type, record, category, outcome, source, actor kind, correlation id and time
 filters, newest first; pass
-`page.next` as `before` for the next page. Every filter but the times takes
+`page.next` as `cursor` for the next page. Every filter but the times takes
 one value or a list, `search` matches text in the event type, summary,
 target, actor and tenant labels, record and table (case-insensitive),
 `order: "asc"` lists oldest first, and `count: true` adds `page.total`, the

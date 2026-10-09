@@ -15,6 +15,7 @@ import {
   textOf,
   type BlockTemporalOptions,
   applyTemporal,
+  pageOf,
 } from "../shared.ts";
 import { toOcsf } from "./audit.ts";
 import { csvPage, revealsDetails, type AuditCsvOptions } from "./csv.ts";
@@ -90,6 +91,8 @@ export interface AuditListOptions {
   /** Entries before this instant. */
   readonly until?: Temporal.Instant;
   /** `page.next` of the previous page; `undefined` starts at the newest. */
+  readonly cursor?: AuditCursor | undefined;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly before?: AuditCursor | undefined;
   /** Default 50, at most 1000. */
   readonly limit?: number;
@@ -356,12 +359,13 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
       since: instantArg(list.since),
       until: instantArg(list.until),
     };
+    const { cursor } = pageOf(list);
     const page = call(
       "list_audit_events",
       {
         ...filters,
-        cursor_at: instantArg(list.before?.occurredAt),
-        cursor_id: list.before?.id,
+        cursor_at: instantArg(cursor?.occurredAt),
+        cursor_id: cursor?.id,
         max_items: limit,
         ascending: list.order === "asc",
         skip: list.offset,
@@ -437,7 +441,7 @@ export function createAuditLog<Columns extends AuditColumns = AuditColumns>(
         if (done) return;
         const page = await list({
           ...filters,
-          ...(before ? { before } : {}),
+          ...(before ? { cursor: before } : {}),
           ...(offset === undefined ? {} : { offset }),
           limit: exporting.batch ?? 500,
         });

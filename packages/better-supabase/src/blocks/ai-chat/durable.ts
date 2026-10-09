@@ -14,6 +14,7 @@ import {
   textOf,
   toInstant,
   oneOf,
+  pageOf,
 } from "../shared.ts";
 import { approvalOf } from "./rows.ts";
 
@@ -52,6 +53,8 @@ export interface AiRunQuery {
   /** `true` keeps unfinished runs, `false` finished ones. */
   readonly active?: boolean;
   /** At most 200; defaults to 50. */
+  readonly limit?: number;
+  /** @deprecated Use `limit`. Removed in 0.8. */
   readonly size?: number;
 }
 
@@ -182,7 +185,7 @@ export function createAiRuns(options: AiChatOptions): AiRuns {
     list: (query = {}) =>
       call(
         "list_ai_runs",
-        { chat: query.chatId, active: query.active, size: query.size },
+        { chat: query.chatId, active: query.active, size: pageOf(query).limit },
         (value) => recordsOf(value, "list_ai_runs").map(runOf),
       ),
     attach: (runId, externalRunId) =>

@@ -475,7 +475,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       if (!run.ok) return problemResponse(run.error);
       return run.data;
     }
-    const runs = await context.runs.list({ chatId: chat.id, size: 1 });
+    const runs = await context.runs.list({ chatId: chat.id, limit: 1 });
     if (!runs.ok) return problemResponse(runs.error);
     return runs.data[0];
   }

@@ -27,6 +27,8 @@ import {
   textOf,
   type BlockTemporalOptions,
   applyTemporal,
+  type CursorPageOptions,
+  pageOf,
 } from "../shared.ts";
 import {
   lazyStripe,
@@ -180,12 +182,14 @@ export interface BillingCustomer {
   readonly created: Temporal.Instant | undefined;
 }
 
-export interface PlatformListOptions {
+export interface PlatformListOptions extends CursorPageOptions<number> {
   /** Only rows with this Stripe status, such as `active` or `open`. */
   readonly status?: string;
   /** Defaults to 100, at most 500. */
   readonly limit?: number;
   /** Only rows Stripe created before this (epoch seconds), for the next page. */
+  readonly cursor?: number;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly before?: number;
 }
 
@@ -716,7 +720,7 @@ export function createBilling(options: BillingOptions): Billing {
   const platformArgs = (list: PlatformListOptions = {}) => ({
     for_status: list.status,
     max_rows: list.limit ?? 100,
-    before_created: list.before,
+    before_created: pageOf(list).cursor,
   });
 
   const invoices = (

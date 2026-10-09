@@ -151,7 +151,7 @@ const thread = await comments
 `mentionsIn(body)` returns the user ids written as `@[Name](<user id>)`, the
 markup most mention inputs produce. The module drops the author and repeats,
 and notifies only mentioned members who hold `comments.read`. `list` returns
-the thread oldest first; `after` polls for new comments, and `offset` with
+the thread oldest first; `cursor` (an instant) polls for new comments, and `offset` with
 `limit` pages by number. `counts(organizationId, subjectType, subjectIds)`
 returns how many comments each subject has that the caller can read
 (`comment_counts`), deleted ones left out and 0 for a subject without any,

@@ -339,3 +339,32 @@ export function injectableOf<T extends { readonly apiVersion?: 1 }>(
   }
   return value;
 }
+
+/**
+ * One page of a list. `cursor` is the previous page's `next` cursor or last
+ * item, in the shape each list documents.
+ */
+export interface CursorPageOptions<Cursor> {
+  /** The most items to return. Each list documents its default and maximum. */
+  readonly limit?: number;
+  readonly cursor?: Cursor;
+}
+
+/**
+ * Reads `limit` and `cursor`, falling back to the deprecated `size`,
+ * `before` and `after` names the lists accepted before 0.7.
+ */
+export function pageOf<Cursor>(
+  options: {
+    readonly limit?: number | undefined;
+    readonly size?: number | undefined;
+    readonly cursor?: Cursor | undefined;
+    readonly before?: Cursor | undefined;
+    readonly after?: Cursor | undefined;
+  } = {},
+): { readonly limit: number | undefined; readonly cursor: Cursor | undefined } {
+  return {
+    limit: options.limit ?? options.size,
+    cursor: options.cursor ?? options.before ?? options.after,
+  };
+}

@@ -10,6 +10,7 @@ import {
   instantArg,
   mappersOf,
   notFoundError,
+  pageOf,
   optionalInstant,
   optionalText,
   randomToken,
@@ -166,5 +167,17 @@ describe("row decoders", () => {
       mapper,
     ]);
     expect(mappersOf({})).toEqual([]);
+  });
+});
+
+describe("pageOf", () => {
+  it("prefers limit and cursor, then the deprecated names", () => {
+    expect(pageOf({ limit: 5, cursor: "c", after: "a", size: 9 })).toEqual({
+      limit: 5,
+      cursor: "c",
+    });
+    expect(pageOf({ size: 9, before: 3 })).toEqual({ limit: 9, cursor: 3 });
+    expect(pageOf({ after: "a" })).toEqual({ limit: undefined, cursor: "a" });
+    expect(pageOf()).toEqual({ limit: undefined, cursor: undefined });
   });
 });

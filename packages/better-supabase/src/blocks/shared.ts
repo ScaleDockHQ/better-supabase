@@ -15,6 +15,7 @@ export {
   oneOf,
   optionalInstant,
   optionalText,
+  pageOf,
   randomToken,
   readBodyCapped,
   recordOf,
@@ -34,4 +35,5 @@ export type {
   BlockCall,
   BlockOptions,
   BlockTemporalOptions,
+  CursorPageOptions,
 } from "../core/block-helpers.ts";

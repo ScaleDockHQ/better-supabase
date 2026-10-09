@@ -274,8 +274,8 @@ describe("createAiChat", () => {
         projectId: "p1",
         pinned: true,
         archived: true,
-        after: "a",
-        size: 5,
+        cursor: "a",
+        limit: 5,
       })
       .orThrow();
     expect(lastArgs(user)).toEqual({

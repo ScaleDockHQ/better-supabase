@@ -253,7 +253,7 @@ const byUser = await usage.breakdown(organizationId, "tokens").orThrow();
 
 The actor is the caller's user id. A service transport recording on a user's
 behalf passes `actor`; other callers can't set it. Reading the history and
-the breakdown needs `usage.read`, and `history` pages with `before` (the
+the breakdown needs `usage.read`, and `history` pages with `cursor` (the
 last entry's `id`). `better_supabase.purge_usage_history(older_than, batch)`
 deletes old entries (400 days by default), and
 `better_supabase.purge_usage_events(older_than, batch)` deletes idempotency

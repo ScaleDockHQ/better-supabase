@@ -28,6 +28,8 @@ import {
   recordsOf,
   textOf,
   toInstant,
+  type CursorPageOptions,
+  pageOf,
 } from "../shared.ts";
 
 /** A tenant's own key for a provider. The key itself stays in the credential provider. */
@@ -229,7 +231,10 @@ export interface AiProviders {
     ): AsyncResult<readonly AiBatch[]>;
     items(
       batchId: string,
-      options?: { readonly after?: string; readonly limit?: number },
+      options?: CursorPageOptions<string> & {
+        /** @deprecated Use `cursor`. Removed in 0.8. */
+        readonly after?: string;
+      },
     ): AsyncResult<readonly AiBatchItem[]>;
     /** Claims batches to poll for `leaseSeconds` (service role). */
     due(options?: {
@@ -622,7 +627,7 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
           "list_ai_batch_items",
           {
             id: batchId,
-            after: itemOptions.after,
+            after: pageOf(itemOptions).cursor,
             max_rows: itemOptions.limit,
           },
           (value) => recordsOf(value, "list_ai_batch_items").map(itemOf),

@@ -609,7 +609,7 @@ describe("createBilling", () => {
     });
     expect(
       await billing
-        .allSubscriptions({ status: "active", limit: 10, before: 99 })
+        .allSubscriptions({ status: "active", limit: 10, cursor: 99 })
         .orThrow(),
     ).toEqual([
       { organizationId: "org", customerId: "cus_1", row: { id: "sub_1" } },

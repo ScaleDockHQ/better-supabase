@@ -106,7 +106,7 @@ describe("createAuditLog", () => {
       occurredAt: page.entries[1]!.occurredAt,
       id: "1",
     });
-    const last = await audit.list({ before: page.next, limit: 2 }).orThrow();
+    const last = await audit.list({ cursor: page.next, limit: 2 }).orThrow();
     expect(last.next).toBeUndefined();
     expect(calls[0]![1]).toMatchObject({
       for_tenants: ["org"],

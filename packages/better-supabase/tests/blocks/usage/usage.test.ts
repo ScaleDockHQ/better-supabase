@@ -108,7 +108,7 @@ describe("usage history", () => {
       actor: "u1",
     });
     const [first, second] = await usage
-      .history("org", { meter: "tokens", limit: 2, before: 9 })
+      .history("org", { meter: "tokens", limit: 2, cursor: 9 })
       .orThrow();
     expect(calls[1]![2]).toEqual({
       tenant: "org",

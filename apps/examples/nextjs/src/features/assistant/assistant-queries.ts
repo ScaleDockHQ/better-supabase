@@ -28,7 +28,7 @@ export async function getChats(): Promise<readonly ChatRow[]> {
   const organizationId = tenantOf(session);
   if (!organizationId) return [];
   const page = await aiChat(supabase)
-    .chats.list({ organizationId, size: 50 })
+    .chats.list({ organizationId, limit: 50 })
     .orThrow();
   return page.items.map((chat) => ({
     id: chat.id,
@@ -58,7 +58,7 @@ export async function getStoredChat(
   }
   const [path, runs] = await Promise.all([
     chats.messages.path(chatId, { native: true }).orThrow(),
-    aiRuns(supabase).list({ chatId, size: 1 }).orThrow(),
+    aiRuns(supabase).list({ chatId, limit: 1 }).orThrow(),
   ]);
   return {
     messages: toUIMessages(path),
@@ -100,7 +100,7 @@ export async function getActivity(): Promise<{
   const { supabase } = await bs.context();
   const runs = aiRuns(supabase);
   const [recent, pending] = await Promise.all([
-    runs.list({ size: 20 }).orThrow(),
+    runs.list({ limit: 20 }).orThrow(),
     runs.pendingApprovals(50).orThrow(),
   ]);
   const withSteps = await Promise.all(

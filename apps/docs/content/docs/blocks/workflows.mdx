@@ -56,8 +56,8 @@ await workflows.runs.requestCancel(runId);
 ```
 
 `runs.get` and `requestCancel` take the row's id or the engine's run id.
-`list` returns the newest runs first; pass `before` with the last run's
-`createdAt` for the next page. `requestCancel` sets `cancel_requested_at`
+`list` returns the newest runs first; pass the last run's
+`createdAt` as `cursor` for the next page. `requestCancel` sets `cancel_requested_at`
 for the run's actor, a `workflow.admin` of its tenant or the service role.
 The engine does the cancelling. The Workflow SDK adapter calls
 `run.cancel()` for you.

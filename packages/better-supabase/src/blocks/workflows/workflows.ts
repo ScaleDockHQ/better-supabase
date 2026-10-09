@@ -18,6 +18,8 @@ import {
   requiredInstant,
   seconds,
   textOf,
+  type CursorPageOptions,
+  pageOf,
 } from "../shared.ts";
 
 export type WorkflowRunStatus =
@@ -64,13 +66,15 @@ export interface WorkflowSchedule {
   readonly createdAt: Temporal.Instant;
 }
 
-export interface WorkflowRunsQuery {
+export interface WorkflowRunsQuery extends CursorPageOptions<Temporal.Instant> {
   readonly tenant?: string;
   readonly definition?: string;
   readonly status?: WorkflowRunStatus;
   /** At most this many runs, newest first (default 50, at most 500). */
   readonly limit?: number;
   /** Runs created before this instant, for the next page. */
+  readonly cursor?: Temporal.Instant;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly before?: Temporal.Instant;
 }
 
@@ -318,7 +322,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
             definition: query.definition,
             status: query.status,
             max: query.limit,
-            before: instantArg(query.before),
+            before: instantArg(pageOf(query).cursor),
           },
           (value) => recordsOf(value, "workflow_runs_list").map(workflowRunOf),
         ),

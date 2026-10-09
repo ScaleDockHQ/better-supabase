@@ -288,7 +288,7 @@ describe.skipIf(!live)("billing", () => {
       ).toEqual(["in_bs_2"]);
       expect(open.some((entry) => entry.row["id"] === "in_bs_x")).toBe(false);
       expect(
-        (await billing.allInvoices({ before: 2, limit: 5 }).orThrow()).map(
+        (await billing.allInvoices({ cursor: 2, limit: 5 }).orThrow()).map(
           (entry) => entry.row["id"],
         ),
       ).toContain("in_bs_1");

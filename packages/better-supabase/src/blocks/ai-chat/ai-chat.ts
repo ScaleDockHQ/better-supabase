@@ -13,6 +13,7 @@ import {
   recordsOf,
   textOf,
   oneOf,
+  pageOf,
 } from "../shared.ts";
 import {
   approvalOf,
@@ -94,7 +95,11 @@ export interface AiChatQuery {
   readonly pinned?: boolean;
   readonly archived?: boolean;
   /** The `next` cursor of the previous page. */
+  readonly cursor?: string;
+  readonly limit?: number;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly after?: string;
+  /** @deprecated Use `limit`. Removed in 0.8. */
   readonly size?: number;
 }
 
@@ -533,8 +538,8 @@ export function createAiChat(options: AiChatOptions): AiChat {
             project: query.projectId,
             pinned: query.pinned,
             archived: query.archived,
-            after: query.after,
-            size: query.size,
+            after: pageOf(query).cursor,
+            size: pageOf(query).limit,
           },
           (value) => {
             const row = recordOf(value, "list_ai_chats");

@@ -28,6 +28,8 @@ import {
   mappersOf,
   optionalInstant,
   optionalText,
+  pageOf,
+  type CursorPageOptions,
 } from "../shared.ts";
 
 /** Notification type to the Standard Schema of its `data`. */
@@ -71,7 +73,11 @@ export interface SendInput<D = unknown> {
   readonly exclude?: readonly string[];
 }
 
-export interface ListOptions<K extends string = string> {
+export interface ListOptions<
+  K extends string = string,
+> extends CursorPageOptions<
+  Temporal.Instant | Pick<NotificationItem, "createdAt" | "id">
+> {
   readonly tenant?: string;
   readonly status?: "all" | "unread" | "read" | "unresolved" | "settled";
   readonly read?: boolean;
@@ -84,6 +90,10 @@ export interface ListOptions<K extends string = string> {
    * Page: only notifications older than this. Pass the last item of the
    * previous page; a bare instant skips items created at that same instant.
    */
+  readonly cursor?:
+    | Temporal.Instant
+    | Pick<NotificationItem, "createdAt" | "id">;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly before?:
     | Temporal.Instant
     | Pick<NotificationItem, "createdAt" | "id">;
@@ -100,7 +110,7 @@ export interface ListOptions<K extends string = string> {
 
 export interface PageOptions<K extends string = string> extends Omit<
   ListOptions<K>,
-  "before"
+  "before" | "cursor"
 > {
   readonly offset?: number;
 }
@@ -348,7 +358,7 @@ function toItem(row: Record<string, unknown>): NotificationItem {
   };
 }
 
-function cursorOf(before: ListOptions["before"]): {
+function cursorOf(before: ListOptions["cursor"]): {
   readonly before: string | null;
   readonly before_id: string | null;
 } {
@@ -645,7 +655,7 @@ export function createNotifications<
         "list_notifications",
         {
           ...filtersOf(listOptions),
-          ...cursorOf(listOptions.before),
+          ...cursorOf(pageOf(listOptions).cursor),
           max_items: listOptions.limit ?? 50,
         },
         itemsOf,
