@@ -11,17 +11,20 @@ import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   credentialRefInTenant,
   foreignCredentialRef,
+  revokeIfConfigured,
 } from "../../credentials/provider.ts";
 import {
   applyTemporal,
   blockCall,
   type BlockTemporalOptions,
+  credentialRefOf,
   errorText,
   instantArg,
   isRecord,
   optionalInstant,
   optionalText,
   recordOf,
+  recordOrEmpty,
   recordsOf,
   textOf,
   toInstant,
@@ -300,17 +303,15 @@ const SANDBOX_STATUSES: ReadonlySet<string> = new Set([
 const instant = (value: unknown): Temporal.Instant =>
   value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
-const objectOf = (value: unknown): Readonly<Record<string, unknown>> =>
-  isRecord(value) ? value : {};
-
 const numberOf = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;
 
 function refOf(value: unknown): CredentialRef {
-  if (!isRecord(value) || typeof value["provider"] !== "string") {
+  const ref = credentialRefOf(value);
+  if (ref === undefined) {
     throw new TypeError("ai_provider_keys returned a key without a ref");
   }
-  return { ...value, provider: value["provider"] };
+  return ref;
 }
 
 function keyOf(value: unknown): AiProviderKey {
@@ -321,7 +322,7 @@ function keyOf(value: unknown): AiProviderKey {
     provider: textOf(row["provider"]),
     name: textOf(row["name"]),
     credentialRef: refOf(row["credential_ref"]),
-    settings: objectOf(row["settings"]),
+    settings: recordOrEmpty(row["settings"]),
     enabled: row["enabled"] !== false,
     createdBy: optionalText(row["created_by"]),
     createdAt: instant(row["created_at"]),
@@ -330,7 +331,7 @@ function keyOf(value: unknown): AiProviderKey {
 }
 
 function countsOf(value: unknown): AiBatchCounts {
-  const row = objectOf(value);
+  const row = recordOrEmpty(value);
   const out: Record<string, number> = {};
   for (const key of ["total", "pending", "completed", "failed"] as const)
     if (typeof row[key] === "number") out[key] = row[key];
@@ -345,14 +346,14 @@ function batchOf(value: unknown): AiBatch {
     organizationId: textOf(row["organization_id"]),
     userId: optionalText(row["user_id"]),
     provider: textOf(row["provider"]),
-    reference: objectOf(row["reference"]),
+    reference: recordOrEmpty(row["reference"]),
     // SAFETY: BATCH_STATUSES holds exactly the AiBatchStatus members.
     status: BATCH_STATUSES.has(status) ? (status as AiBatchStatus) : "failed",
     rawStatus: optionalText(row["raw_status"]),
     itemCount: numberOf(row["item_count"]),
     counts: countsOf(row["counts"]),
     error: optionalText(row["error"]),
-    metadata: objectOf(row["metadata"]),
+    metadata: recordOrEmpty(row["metadata"]),
     resultsSaved: row["results_saved"] === true,
     polls: numberOf(row["polls"]),
     nextPollAt: optionalInstant(row["next_poll_at"]),
@@ -396,7 +397,7 @@ function sandboxOf(value: unknown): AiSandbox {
     status: SANDBOX_STATUSES.has(status)
       ? (status as AiSandboxStatus)
       : "stopped",
-    metadata: objectOf(row["metadata"]),
+    metadata: recordOrEmpty(row["metadata"]),
     idleSeconds: numberOf(row["idle_seconds"]),
     error: optionalText(row["error"]),
     lastUsedAt: instant(row["last_used_at"]),
@@ -424,9 +425,10 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
     ref: CredentialRef,
     organizationId: string,
   ): AsyncResult<boolean> =>
-    credentials === undefined || !credentialRefInTenant(ref, organizationId)
-      ? AsyncResult.ok(false)
-      : credentials.revoke(ref, { subject: { type: "app" } });
+    revokeIfConfigured(credentials, ref, {
+      subject: { type: "app" },
+      tenant: organizationId,
+    });
 
   const revokeAll = (keys: readonly AiProviderKey[]): AsyncResult<number> =>
     AsyncResult.from(async () => {

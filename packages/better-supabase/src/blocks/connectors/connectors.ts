@@ -7,10 +7,12 @@ import type {
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
+import { revokeIfConfigured } from "../../credentials/provider.ts";
 import {
   applyTemporal,
   blockCall,
   type BlockTemporalOptions,
+  credentialRefOf,
   instantArg,
   isRecord,
   optionalInstant,
@@ -174,16 +176,9 @@ const STATUSES: ReadonlySet<string> = new Set([
 const instant = (value: unknown): Temporal.Instant =>
   value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
-function refOf(value: unknown): CredentialRef | undefined {
-  if (!isRecord(value) || typeof value["provider"] !== "string") {
-    return undefined;
-  }
-  return { ...value, provider: value["provider"] };
-}
-
 function grantOf(value: unknown): ConnectorGrant {
   const row = recordOf(value, "connector_grants");
-  const credentialRef = refOf(row["credential_ref"]);
+  const credentialRef = credentialRefOf(row["credential_ref"]);
   if (credentialRef === undefined) {
     throw new TypeError("connector_grants returned a grant without a ref");
   }
@@ -215,7 +210,7 @@ function serverOf(value: unknown): ConnectorServer {
       : "http",
     // SAFETY: AUTHS holds exactly the ConnectorAuth members.
     authType: AUTHS.has(authType) ? (authType as ConnectorAuth) : "none",
-    credentialRef: refOf(row["credential_ref"]),
+    credentialRef: credentialRefOf(row["credential_ref"]),
     scopes: stringsOf(row["scopes"]),
     clientMetadata: isRecord(row["client_metadata"])
       ? row["client_metadata"]
@@ -261,13 +256,9 @@ export function createConnectors(options: ConnectorsOptions): Connectors {
   const credentials = options.credentials;
 
   const revokeCredential = (grant: ConnectorGrant): AsyncResult<boolean> =>
-    credentials === undefined
-      ? AsyncResult.ok(true)
-      : credentials
-          .revoke(grant.credentialRef, {
-            subject: { type: "user", id: grant.userId },
-          })
-          .map(() => true);
+    revokeIfConfigured(credentials, grant.credentialRef, {
+      subject: { type: "user", id: grant.userId },
+    }).map(() => true);
 
   const revokeAll = (grants: readonly ConnectorGrant[]): AsyncResult<number> =>
     AsyncResult.from(async () => {

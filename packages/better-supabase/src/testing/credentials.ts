@@ -90,6 +90,17 @@ export function testCredentialProvider(
         expect(got.token === next, "returned the previous value");
       },
     ],
+    provider.set !== undefined && [
+      "stores a value through set",
+      async () => {
+        const set = provider.set?.bind(provider);
+        expect(set !== undefined, "no set");
+        const next = value();
+        await set(ref, next, { subject: APP }).orThrow();
+        const got = await provider.getToken(ref, { subject: APP }).orThrow();
+        expect(got.token === next, "getToken missed the value set stored");
+      },
+    ],
     userRef !== undefined && [
       "keeps a credential per user",
       async () => {

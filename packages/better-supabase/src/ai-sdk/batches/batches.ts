@@ -23,7 +23,7 @@ import type {
 } from "../../blocks/ai-providers/ai-providers.ts";
 import type { JobHandler } from "../../blocks/jobs/queue.ts";
 
-import { errorText } from "../../blocks/shared.ts";
+import { errorText } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";

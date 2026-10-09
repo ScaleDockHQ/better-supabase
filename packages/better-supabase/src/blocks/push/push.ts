@@ -9,8 +9,9 @@ import type {
 
 import {
   applyTemporal,
-  type BlockTemporalOptions,
   blockCall,
+  type BlockTemporalOptions,
+  recordOrEmpty,
   recordsOf,
   run,
   textOf,
@@ -281,12 +282,6 @@ function chunks<T>(items: readonly T[], size: number): T[][] {
   for (let at = 0; at < items.length; at += size)
     out.push(items.slice(at, at + size));
   return out;
-}
-
-function recordOrEmpty(value: unknown): Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? Object.fromEntries(Object.entries(value))
-    : {};
 }
 
 function errorCode(entry: Readonly<Record<string, unknown>>): string {

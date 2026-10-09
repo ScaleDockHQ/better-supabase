@@ -8,7 +8,7 @@ import { createAuditLog } from "../../src/blocks/audit/index.ts";
 import { createJobs, createRateLimit } from "../../src/blocks/jobs/index.ts";
 import { createOutbox } from "../../src/blocks/outbox/index.ts";
 import { defineSettings } from "../../src/blocks/settings/index.ts";
-import { applyTemporal } from "../../src/blocks/shared.ts";
+import { applyTemporal } from "../../src/core/block-helpers.ts";
 import { provideTemporal, providedTemporal } from "../../src/core/temporal.ts";
 
 const transport: BlockTransport = { call: async () => null };

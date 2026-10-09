@@ -761,6 +761,3 @@ export function createWebhookInbox(
     },
   };
 }
-
-// ---------------------------------------------------------------------------
-// Audit retention (SQL module `audit`)

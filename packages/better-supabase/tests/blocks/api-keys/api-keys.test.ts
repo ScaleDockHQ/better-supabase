@@ -17,7 +17,7 @@ import {
   createApiKeys,
   parseApiKey,
 } from "../../../src/blocks/api-keys/index.ts";
-import { sha256Hex } from "../../../src/blocks/shared.ts";
+import { sha256Hex } from "../../../src/core/block-helpers.ts";
 import { defineSupabase } from "../../../src/core/define.ts";
 import { ok } from "../../../src/core/result.ts";
 import { createHono, type HonoEnv } from "../../../src/hono/index.ts";

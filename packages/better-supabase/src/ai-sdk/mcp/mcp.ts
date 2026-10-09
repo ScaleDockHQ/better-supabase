@@ -27,7 +27,7 @@ import type {
 } from "../../credentials/provider.ts";
 import type { VaultCredentials } from "../../credentials/vault.ts";
 
-import { errorText, isRecord, sha256Hex } from "../../blocks/shared.ts";
+import { errorText, isRecord, sha256Hex } from "../../core/block-helpers.ts";
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { nowInstant } from "../../core/temporal.ts";

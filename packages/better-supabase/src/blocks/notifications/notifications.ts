@@ -18,7 +18,17 @@ import { dbError, mapDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { type BlockTemporalOptions, applyTemporal } from "../shared.ts";
+import {
+  applyTemporal,
+  blockCall,
+  type BlockTemporalOptions,
+  DEFAULT_BLOCK_SCHEMA,
+  errorText,
+  isRecord,
+  mappersOf,
+  optionalInstant,
+  optionalText,
+} from "../shared.ts";
 
 /** Notification type to the Standard Schema of its `data`. */
 export type NotificationTypes = Readonly<Record<string, StandardSchemaV1>>;
@@ -221,6 +231,9 @@ export interface NotificationsOptions<
   readonly events?: EventHub;
   readonly actorId?: string;
   readonly context?: RequestContext;
+  /** Error mappers that run before the built-in ones. */
+  readonly mappers?: readonly ErrorMapper[];
+  /** @deprecated Use `mappers`. Removed in 0.8. */
   readonly errorMappers?: readonly ErrorMapper[];
 }
 
@@ -305,38 +318,33 @@ export interface Notifications<K extends NotificationTypes> {
   purge(olderThan?: string, batch?: number): AsyncResult<number>;
 }
 
-const DEFAULT_SCHEMA = "better_supabase";
+const nullableText = (value: unknown): string | null =>
+  optionalText(value) ?? null;
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const textOf = (value: unknown): string | null =>
-  value === null || value === undefined ? null : String(value);
-
-const instantOf = (value: unknown): Temporal.Instant | null =>
-  typeof value === "string" ? temporal().Instant.from(value) : null;
+const nullableInstant = (value: unknown): Temporal.Instant | null =>
+  optionalInstant(value) ?? null;
 
 function toItem(row: Record<string, unknown>): NotificationItem {
-  const type = textOf(row["subject_type"]);
-  const id = textOf(row["subject_id"]);
-  const label = textOf(row["subject_label"]);
+  const type = nullableText(row["subject_type"]);
+  const id = nullableText(row["subject_id"]);
+  const label = nullableText(row["subject_label"]);
   return {
     id: String(row["id"]),
     eventId: String(row["event_id"]),
     type: String(row["type"]),
     data: row["data"] ?? {},
-    tenant: textOf(row["tenant"]),
-    actorId: textOf(row["actor_id"]),
+    tenant: nullableText(row["tenant"]),
+    actorId: nullableText(row["actor_id"]),
     subject:
       type === null || id === null
         ? null
         : { type, id, ...(label === null ? {} : { label }) },
-    summary: textOf(row["summary"]),
-    actionPath: textOf(row["action_path"]),
-    priority: textOf(row["priority"]),
-    createdAt: instantOf(row["created_at"]) ?? temporal().Now.instant(),
-    readAt: instantOf(row["read_at"]),
-    resolvedAt: instantOf(row["resolved_at"]),
+    summary: nullableText(row["summary"]),
+    actionPath: nullableText(row["action_path"]),
+    priority: nullableText(row["priority"]),
+    createdAt: nullableInstant(row["created_at"]) ?? temporal().Now.instant(),
+    readAt: nullableInstant(row["read_at"]),
+    resolvedAt: nullableInstant(row["resolved_at"]),
   };
 }
 
@@ -375,39 +383,20 @@ function filtersOf(filters: PageOptions): Record<string, unknown> {
 
 const LEVELS: readonly SubscriptionLevel[] = ["participating", "all", "ignore"];
 
-const errorText = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause);
-
 export function createNotifications<
   const K extends NotificationTypes,
   H = undefined,
 >(options: NotificationsOptions<K, H>): Notifications<K> {
   applyTemporal(options);
   const { transport } = options;
-  const schema = options.schema ?? DEFAULT_SCHEMA;
-  const mappers = options.errorMappers ?? [];
+  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
+  const mappers = mappersOf(options);
+  const run = blockCall(transport, schema, mappers);
 
   const call = async (
     fn: string,
     args: Readonly<Record<string, unknown>>,
   ): Promise<unknown> => transport.call(schema, fn, args);
-
-  function run<T>(
-    fn: string,
-    args: Readonly<Record<string, unknown>>,
-    then: (value: unknown) => T | Promise<T>,
-  ): AsyncResult<T> {
-    return AsyncResult.from(async () => {
-      let value: unknown;
-      try {
-        value = await call(fn, args);
-      } catch (cause) {
-        const raw = rawError(cause);
-        return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
-      }
-      return ok(await then(value));
-    });
-  }
 
   function emit(
     type:
@@ -523,7 +512,7 @@ export function createNotifications<
       channel: channel.name,
       attempts,
       userId: String(row["user_id"]),
-      email: textOf(row["email"]),
+      email: nullableText(row["email"]),
       notification,
       ...(options.render ? { text: options.render(notification, {}) } : {}),
     };
@@ -762,8 +751,8 @@ export function createNotifications<
                         id: String(row["subject_id"]),
                       },
                       level,
-                      tenant: textOf(row["tenant"]),
-                      createdAt: instantOf(row["created_at"]),
+                      tenant: nullableText(row["tenant"]),
+                      createdAt: nullableInstant(row["created_at"]),
                     },
                   ];
             }),
@@ -780,7 +769,7 @@ export function createNotifications<
               type: String(row["type"]),
               channel: String(row["channel"]),
               enabled: row["enabled"] === true,
-              tenant: textOf(row["tenant"]),
+              tenant: nullableText(row["tenant"]),
             })),
       );
     },

@@ -29,7 +29,7 @@ import {
   optionalText,
   randomToken,
   toInstant,
-} from "../blocks/shared.ts";
+} from "../core/block-helpers.ts";
 import { writeToStore } from "../streams/tee.ts";
 
 const PREFIX = "inbox:";

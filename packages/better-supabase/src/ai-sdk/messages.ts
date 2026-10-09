@@ -16,7 +16,7 @@ import type {
   AiToolResultPart,
 } from "../blocks/ai-chat/message.ts";
 
-import { isRecord } from "../blocks/shared.ts";
+import { isRecord } from "../core/block-helpers.ts";
 
 /** The `format` the chat tree stores next to an AI SDK message it keeps as is. */
 export const AI_SDK_UI_FORMAT = "ai-sdk-ui";

@@ -1,19 +1,22 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { AsyncResult } from "../../core/result.ts";
 
-import { rawError } from "../../core/block-transport.ts";
-import { mapDbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import {
   applyTemporal,
+  blockCall,
   type BlockTemporalOptions,
   isRecord,
+  mappersOf,
 } from "../shared.ts";
 
 export interface ProfilesOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /** `sql.modules.profiles.schema`, or the API schema of its wrappers. */
   readonly schema?: string;
+  /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
+  readonly mappers?: readonly ErrorMapper[];
+  /** @deprecated Use `mappers`. Removed in 0.8. */
   readonly errorMappers?: readonly ErrorMapper[];
 }
 
@@ -25,33 +28,13 @@ export interface Profiles {
   updateMine(attrs: Readonly<Record<string, unknown>>): AsyncResult<boolean>;
 }
 
-const DEFAULT_SCHEMA = "better_supabase";
-
 /**
  * The `profiles` SQL module as typed calls. `mine` and `updateMine` are the
  * functions a signed-in user runs on their own row.
  */
 export function createProfiles(options: ProfilesOptions): Profiles {
   applyTemporal(options);
-  const schema = options.schema ?? DEFAULT_SCHEMA;
-  const mappers = options.errorMappers ?? [];
-
-  function run<T>(
-    fn: string,
-    args: Readonly<Record<string, unknown>>,
-    then: (value: unknown) => T,
-  ): AsyncResult<T> {
-    return AsyncResult.from(async () => {
-      let value: unknown;
-      try {
-        value = await options.transport.call(schema, fn, args);
-      } catch (cause) {
-        const raw = rawError(cause);
-        return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
-      }
-      return ok(then(value));
-    });
-  }
+  const run = blockCall(options.transport, options.schema, mappersOf(options));
 
   return {
     mine() {

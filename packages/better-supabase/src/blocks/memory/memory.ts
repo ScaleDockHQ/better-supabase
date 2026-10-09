@@ -5,7 +5,8 @@ import type { Embedder } from "../knowledge/knowledge.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
-import { checkVectors, vectorLiteral } from "../knowledge/knowledge.ts";
+import { vectorLiteral } from "../../core/search.ts";
+import { checkVectors } from "../knowledge/knowledge.ts";
 import {
   applyTemporal,
   blockCall,
@@ -689,7 +690,7 @@ export function createMemory(options: MemoryOptions): Memory {
           if (!vectors.ok) return vectors;
           const invalid = checkVectors(vectors.data, contents.length);
           if (invalid) return err(invalid);
-          embeddings = vectors.data.map(vectorLiteral);
+          embeddings = vectors.data.map((vector) => vectorLiteral(vector));
         }
         for (const [index, content] of contents.entries()) {
           const embedding = embeddings[index];

@@ -19,7 +19,7 @@ import type { StreamStore } from "../../streams/store.ts";
 import type { Assistant, AssistantContext } from "../chat/assistant.ts";
 import type { DurableResume, DurableTurnInput } from "./turn.ts";
 
-import { isRecord } from "../../blocks/shared.ts";
+import { isRecord } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { resumeFromStore, teeToStore } from "../../streams/tee.ts";

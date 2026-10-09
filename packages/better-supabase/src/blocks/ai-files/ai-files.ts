@@ -8,15 +8,16 @@ import { fromStorageError } from "../../storage/errors.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   instantArg,
   isRecord,
+  notFoundError,
   optionalInstant,
   optionalText,
   recordOf,
   recordsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
 } from "../shared.ts";
 
 interface StorageReply<T> {
@@ -415,9 +416,7 @@ function suggestionOf(value: unknown): AiSuggestion {
 }
 
 const notFound = (): DbError =>
-  dbError("not_found", "No AI file you can see has this id", {
-    hint: "AI_FILE_NOT_FOUND",
-  });
+  notFoundError("No AI file you can see has this id", "AI_FILE_NOT_FOUND");
 
 const notReady = (): DbError =>
   dbError("invalid_request", "The file is not uploaded yet", {

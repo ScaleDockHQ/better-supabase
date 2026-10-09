@@ -15,6 +15,7 @@ import {
   optionalText,
   recordOf,
   recordsOf,
+  requiredInstant,
   seconds,
   textOf,
 } from "../shared.ts";
@@ -221,14 +222,6 @@ function statusOf(value: unknown): WorkflowRunStatus {
   return isStatus(text) ? text : "running";
 }
 
-function instantOf(value: unknown, field: string): Temporal.Instant {
-  const instant = optionalInstant(value);
-  if (instant === undefined) {
-    throw new TypeError(`workflows: ${field} is missing`);
-  }
-  return instant;
-}
-
 /** A run from the jsonb the module returns. */
 export function workflowRunOf(row: Record<string, unknown>): WorkflowRun {
   const attributes = row["attributes"];
@@ -242,8 +235,8 @@ export function workflowRunOf(row: Record<string, unknown>): WorkflowRun {
     status: statusOf(row["status"]),
     attributes: isRecord(attributes) ? attributes : {},
     error: optionalText(row["error"]),
-    createdAt: instantOf(row["createdAt"], "createdAt"),
-    updatedAt: instantOf(row["updatedAt"], "updatedAt"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     startedAt: optionalInstant(row["startedAt"]),
     completedAt: optionalInstant(row["completedAt"]),
     cancelRequestedAt: optionalInstant(row["cancelRequestedAt"]),
@@ -259,11 +252,11 @@ function scheduleOf(row: Record<string, unknown>): WorkflowSchedule {
     input: row["input"],
     cron: textOf(row["cron"]),
     timezone: textOf(row["timezone"]),
-    nextRunAt: instantOf(row["nextRunAt"], "nextRunAt"),
+    nextRunAt: requiredInstant(row["nextRunAt"], "nextRunAt"),
     lastRunAt: optionalInstant(row["lastRunAt"]),
     paused: row["paused"] === true,
     createdBy: optionalText(row["createdBy"]),
-    createdAt: instantOf(row["createdAt"], "createdAt"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
   };
 }
 
@@ -399,7 +392,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
       tick: (tickOptions) =>
         tick("claim_due_workflow_schedules", tickOptions, (row) => {
           const schedule = scheduleOf(row);
-          const fireAt = instantOf(row["fireAt"], "fireAt");
+          const fireAt = requiredInstant(row["fireAt"], "fireAt");
           const after =
             temporal().Instant.compare(fireAt, now()) > 0 ? fireAt : now();
           return {

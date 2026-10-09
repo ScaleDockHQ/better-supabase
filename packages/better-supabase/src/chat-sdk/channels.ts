@@ -23,7 +23,7 @@ import type {
   CredentialToken,
 } from "../credentials/provider.ts";
 
-import { errorText } from "../blocks/shared.ts";
+import { errorText } from "../core/block-helpers.ts";
 import { nowInstant } from "../core/temporal.ts";
 import {
   DELIVERY_PARSERS,

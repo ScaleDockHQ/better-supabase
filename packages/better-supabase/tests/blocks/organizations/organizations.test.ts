@@ -127,7 +127,7 @@ describe("createOrganizations", () => {
     });
     const result = await createOrganizations({
       transport,
-      errorMappers: [
+      mappers: [
         (raw, fallback) =>
           raw.hint === "ORGANIZATION_OWNER_REQUIRED"
             ? { ...fallback, message: "Transfer ownership first" }
@@ -138,6 +138,12 @@ describe("createOrganizations", () => {
       ok: false,
       error: { message: "Transfer ownership first" },
     });
+    const legacy = await createOrganizations({
+      transport,
+      // oxlint-disable-next-line typescript/no-deprecated -- covers the 0.6 option name.
+      errorMappers: [(_raw, fallback) => ({ ...fallback, message: "legacy" })],
+    }).leave("organization");
+    expect(legacy).toMatchObject({ ok: false, error: { message: "legacy" } });
   });
 
   it("turns other failures into unexpected errors", async () => {

@@ -4,17 +4,23 @@ import type { BlockTransport } from "../../src/core/block-transport.ts";
 
 import {
   blockCall,
+  credentialRefOf,
   eachLimit,
+  enumOrThrow,
   instantArg,
+  mappersOf,
+  notFoundError,
   optionalInstant,
   optionalText,
   randomToken,
   recordOf,
+  recordOrEmpty,
   recordsOf,
+  requiredInstant,
   sha256Hex,
   stringsOf,
   textOf,
-} from "../../src/blocks/shared.ts";
+} from "../../src/core/block-helpers.ts";
 
 const transport = (
   answer: () => unknown,
@@ -123,5 +129,42 @@ describe("eachLimit", () => {
     await eachLimit([], 4, async () => {
       throw new Error("never");
     });
+  });
+});
+
+describe("row decoders", () => {
+  it("reads enums, objects, refs and required instants", () => {
+    expect(enumOrThrow("a", ["a", "b"], "letter")).toBe("a");
+    expect(() => enumOrThrow("c", ["a", "b"], "letter")).toThrow(
+      'unknown letter "c"',
+    );
+    expect(recordOrEmpty({ a: 1 })).toEqual({ a: 1 });
+    expect(recordOrEmpty([1])).toEqual({});
+    expect(credentialRefOf({ provider: "vault", secret: "s" })).toEqual({
+      provider: "vault",
+      secret: "s",
+    });
+    expect(credentialRefOf({ secret: "s" })).toBeUndefined();
+    expect(
+      requiredInstant("2026-01-01T00:00:00Z", "createdAt").toString(),
+    ).toBe("2026-01-01T00:00:00Z");
+    expect(() => requiredInstant(null, "createdAt")).toThrow(
+      "createdAt is missing",
+    );
+  });
+
+  it("builds not_found errors and reads the mappers alias", () => {
+    expect(notFoundError("No such row", "ROW_NOT_FOUND")).toMatchObject({
+      kind: "not_found",
+      message: "No such row",
+      hint: "ROW_NOT_FOUND",
+    });
+    expect(notFoundError("No such row").hint).toBeUndefined();
+    const mapper = () => undefined;
+    expect(mappersOf({ errorMappers: [mapper] })).toEqual([mapper]);
+    expect(mappersOf({ mappers: [mapper], errorMappers: [] })).toEqual([
+      mapper,
+    ]);
+    expect(mappersOf({})).toEqual([]);
   });
 });

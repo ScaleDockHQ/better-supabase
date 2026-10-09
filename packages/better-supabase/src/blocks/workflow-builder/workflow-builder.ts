@@ -18,13 +18,16 @@ import {
 import {
   applyTemporal,
   blockCall,
+  enumOrThrow,
   type BlockTemporalOptions,
   isRecord,
   optionalInstant,
   optionalText,
   randomToken,
   recordOf,
+  recordOrEmpty,
   recordsOf,
+  requiredInstant,
   seconds,
   stringsOf,
   textOf,
@@ -360,29 +363,6 @@ const NODE_RUN_STATUSES: readonly WorkflowNodeRunStatus[] = [
   "skipped",
 ];
 
-function member<T extends string>(
-  values: readonly T[],
-  value: unknown,
-  what: string,
-): T {
-  const found = values.find((known) => known === value);
-  if (found === undefined) {
-    throw new TypeError(`workflow-builder: unknown ${what} "${String(value)}"`);
-  }
-  return found;
-}
-
-function instantOf(value: unknown, field: string): Temporal.Instant {
-  const instant = optionalInstant(value);
-  if (instant === undefined) {
-    throw new TypeError(`workflow-builder: ${field} is missing`);
-  }
-  return instant;
-}
-
-const recordOrEmpty = (value: unknown): Readonly<Record<string, unknown>> =>
-  isRecord(value) ? value : {};
-
 export function definitionOf(row: Record<string, unknown>): WorkflowDefinition {
   const published = row["published"];
   return {
@@ -392,8 +372,8 @@ export function definitionOf(row: Record<string, unknown>): WorkflowDefinition {
     name: textOf(row["name"]),
     description: optionalText(row["description"]),
     createdBy: optionalText(row["createdBy"]),
-    createdAt: instantOf(row["createdAt"], "createdAt"),
-    updatedAt: instantOf(row["updatedAt"], "updatedAt"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...("published" in row
       ? { published: typeof published === "number" ? published : undefined }
       : {}),
@@ -406,9 +386,9 @@ export function versionOf(row: Record<string, unknown>): WorkflowVersion {
     id: textOf(row["id"]),
     definition: textOf(row["definition"]),
     version: Number(row["version"]),
-    status: member(VERSION_STATUSES, row["status"], "version status"),
+    status: enumOrThrow(row["status"], VERSION_STATUSES, "version status"),
     createdBy: optionalText(row["createdBy"]),
-    createdAt: instantOf(row["createdAt"], "createdAt"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
     publishedAt: optionalInstant(row["publishedAt"]),
     ...("graph" in row ? { graph: graphOf(row["graph"]) } : {}),
     ...("compiled" in row && row["compiled"] !== null
@@ -421,11 +401,11 @@ export function triggerOf(row: Record<string, unknown>): WorkflowTrigger {
   return {
     id: textOf(row["id"]),
     definition: textOf(row["definition"]),
-    kind: member(TRIGGER_KINDS, row["kind"], "trigger kind"),
+    kind: enumOrThrow(row["kind"], TRIGGER_KINDS, "trigger kind"),
     config: recordOrEmpty(row["config"]),
     enabled: row["enabled"] !== false,
-    createdAt: instantOf(row["createdAt"], "createdAt"),
-    updatedAt: instantOf(row["updatedAt"], "updatedAt"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
   };
 }
 
@@ -445,7 +425,7 @@ export function credentialOf(row: Record<string, unknown>): WorkflowCredential {
     ref: refOf(row["ref"]),
     scopes: Array.isArray(row["scopes"]) ? stringsOf(row["scopes"]) : [],
     createdBy: optionalText(row["createdBy"]),
-    createdAt: instantOf(row["createdAt"], "createdAt"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
   };
 }
 
@@ -464,7 +444,7 @@ export function nodeRunOf(row: Record<string, unknown>): WorkflowNodeRun {
   return {
     run: textOf(row["run"]),
     node: textOf(row["node"]),
-    status: member(NODE_RUN_STATUSES, row["status"], "node status"),
+    status: enumOrThrow(row["status"], NODE_RUN_STATUSES, "node status"),
     attempts: Number(row["attempts"] ?? 0),
     output: row["output"] ?? undefined,
     error: optionalText(row["error"]),
@@ -485,7 +465,7 @@ function alertOf(row: Record<string, unknown>): WorkflowAlert {
         : Number(threshold),
     channel: recordOrEmpty(row["channel"]),
     createdBy: optionalText(row["createdBy"]),
-    createdAt: instantOf(row["createdAt"], "createdAt"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
   };
 }
 
@@ -834,8 +814,7 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
         if (provider === undefined) {
           return AsyncResult.err(noProvider(input.ref));
         }
-        const store = storeOf(provider);
-        if (store === undefined) {
+        if (provider.set === undefined) {
           return AsyncResult.err(
             dbError(
               "unsupported",
@@ -843,13 +822,9 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
             ),
           );
         }
-        const secret = input.secret;
-        return AsyncResult.from(async () => {
-          const stored = await store(input.ref, secret, {
-            subject: { type: "app" },
-          });
-          return stored.ok ? save() : stored;
-        });
+        return provider
+          .set(input.ref, input.secret, { subject: { type: "app" } })
+          .andThen(() => save());
       },
       authorize: (id, authorize) =>
         credentialRow(id).andThen(async (row) => {
@@ -981,26 +956,6 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
     },
   };
   return builder;
-}
-
-type SecretStore = (
-  ref: CredentialRef,
-  value: string,
-  options: { readonly subject: { readonly type: "app" } },
-) => AsyncResult<unknown>;
-
-function storeOf(provider: CredentialProvider): SecretStore | undefined {
-  if (!("set" in provider)) return undefined;
-  const set: unknown = provider.set;
-  if (typeof set !== "function") return undefined;
-  return (ref, value, options) => {
-    const result: unknown = set.call(provider, ref, value, options);
-    return result instanceof AsyncResult
-      ? result
-      : AsyncResult.err(
-          dbError("unsupported", `${provider.name}.set() returned no result`),
-        );
-  };
 }
 
 function webhookToken(request: Request): string | undefined {

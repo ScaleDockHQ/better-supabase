@@ -14,7 +14,7 @@ import type {
 
 import { resolveAuth } from "../auth/resolve.ts";
 import { isAnonymousUser } from "../auth/view.ts";
-import { isRecord } from "../blocks/shared.ts";
+import { isRecord } from "../core/block-helpers.ts";
 import { claimAt, DEFAULT_CLAIMS, tenantClaimPaths } from "../core/claims.ts";
 import { type DbError, DbException } from "../core/errors.ts";
 

@@ -102,6 +102,7 @@ describe("chunk", () => {
   });
 
   it("writes vectors in pgvector's text form", () => {
+    // oxlint-disable-next-line typescript/no-deprecated -- covers the 0.6 export.
     expect(vectorLiteral([1, 0.5, -2])).toBe("[1,0.5,-2]");
   });
 });
