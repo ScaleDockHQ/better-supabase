@@ -72,6 +72,17 @@ function build(ctx: ModuleContext): string {
     MODULE_PERMISSIONS.announcements.manage,
   );
   const staff = ctx.staff(manage);
+  const announcementEvent = (type: string, id: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('announcementId', ${id})`,
+      subject: `'announcements/' || ${id}::text`,
+      audit: {
+        category: "configuration",
+        targetType: "announcement",
+        recordId: `${id}::text`,
+      },
+    });
   const plans = ctx.entitlements("v_tenant");
   const audiences = ["all", "tenant", "role", ...(plans ? ["plan"] : [])];
   const topic = ctx.text("topic", "announcements");
@@ -256,6 +267,7 @@ begin
     where x.${ca("id")} = v_row.${ca("id")}
     returning * into v_row;
   end if;
+  ${announcementEvent("announcement.saved", "v_row." + ca("id"))}
   return to_jsonb(v_row);
 end;
 $$;
@@ -274,6 +286,9 @@ begin
   end if;
   delete from ${a} x where x.${ca("id")} = delete_announcement.id;
   get diagnostics v_count = row_count;
+  if v_count > 0 then
+    ${announcementEvent("announcement.deleted", "delete_announcement.id")}
+  end if;
   return v_count > 0;
 end;
 $$;

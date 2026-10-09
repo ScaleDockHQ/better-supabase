@@ -421,12 +421,13 @@ function messages(ctx: ModuleContext, names: AiChatNames): string {
     "42501",
     "AI_CHAT_FORBIDDEN",
   );
-  const completed = ctx.emit({
+  const completed = ctx.record({
     type: "ai_chat.message.completed",
     payload: `jsonb_build_object('chatId', v_chat.${ch.id}, 'messageId', v_id, 'organizationId', v_chat.${ch.tenant}::text, 'ownerId', v_chat.${ch.owner}, 'model', coalesce(save_ai_assistant_message.model, v_chat.${ch.model}), 'status', v_status)`,
     subject: `'ai-chats/' || v_chat.${ch.id}::text`,
     tenant: `v_chat.${ch.tenant}`,
     key: `'ai_chat.message.completed:' || v_chat.${ch.id}::text || ':' || v_id`,
+    audit: false,
   });
 
   return `-- The branch that ends at leaf, root first, with each message's place among

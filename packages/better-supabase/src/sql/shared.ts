@@ -3,6 +3,9 @@ import type { ModuleContext } from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
 
+/** What `record` and the other statement helpers return when there is nothing to do. */
+export const NOTHING = "null;";
+
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;
 
@@ -546,3 +549,50 @@ export const pageSize = (
   min = 1,
 ): string =>
   `least(greatest(coalesce(${value}, ${String(fallback)}), ${String(min)}), ${String(max)})`;
+
+/**
+ * A row trigger that records writes to a table that callers change through
+ * `security invoker` functions or policies, which can't call `emit_event` or
+ * `audit_event` themselves. `written` and `removed` are `ctx.record`
+ * statements over `v_row`, the new row (or the old one on delete). When
+ * both are `null;` the trigger and its function are dropped.
+ */
+export function recordTrigger(
+  ctx: ModuleContext,
+  options: {
+    readonly name: string;
+    readonly table: string;
+    readonly written: string;
+    readonly removed: string;
+  },
+): string {
+  const fn = ctx.fn(options.name);
+  const trigger = ctx.trigger(options.name);
+  if (options.written === NOTHING && options.removed === NOTHING) {
+    return `drop trigger if exists ${trigger} on ${options.table};
+drop function if exists ${fn}();`;
+  }
+  return `create or replace function ${fn}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${options.table};
+begin
+  if tg_op = 'DELETE' then
+    v_row := old;
+    ${options.removed}
+  else
+    v_row := new;
+    ${options.written}
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function ${fn}() from public, anon, authenticated;
+drop trigger if exists ${trigger} on ${options.table};
+create trigger ${trigger} after insert or update or delete on ${options.table}
+  for each row execute function ${fn}();`;
+}

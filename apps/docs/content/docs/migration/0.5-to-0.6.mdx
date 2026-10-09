@@ -255,6 +255,21 @@ These apply once `better-supabase sql sync` rewrites the module files:
 - `webhooks-in` installs `updated-at`.
 - `support.ended` carries the session's tenant in its audit entry and outbox
   event.
+- Module actions write their audit entries under the shared categories
+  (`membership`, `access`, `security`, `configuration`, `billing`, `data`,
+  `ai`, `integration`; see [Audit](/docs/blocks/audit#module-actions)).
+  Organization entries were `organization`, support entries `support` and
+  revealed details `audit`. An adopted log with a category check maps the new
+  names with `sql.modules.audit.options.values.category`.
+  `options.auditCategory` is deprecated.
+- Settings, flags, billing customers, credentials, connectors, agents,
+  provider keys, tool policies and approvals, chat shares, incoming webhooks,
+  webhook secrets, announcements, published workflows and revealed audit
+  details now write an audit entry and an outbox event, as do the access
+  catalog's tables (audit entry only). Set `audit: false` on a module to
+  leave it out of the log.
+- `support.started` carries the session's tenant in its audit entry and
+  outbox event.
 - `sql.modules.jobs.schema` is an error. Remove it: the jobs functions were
   always in `better_supabase`.
 

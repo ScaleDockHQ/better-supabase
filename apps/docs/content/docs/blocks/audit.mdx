@@ -83,6 +83,50 @@ session's entries and a service call with `actorKind: "support"` store
 table (a role lookup) can't be a generated column; pass that value as a
 metadata key instead.
 
+## Module actions
+
+Every SQL module records its security-relevant actions in the log once the
+`audit` module is installed: a membership change, an API key, a setting, a
+flag, a credential, a connector, a webhook secret or a support session each
+write one entry, in the same transaction as the outbox event. The modules use
+one set of categories:
+
+| Category        | Actions                                                      |
+| --------------- | ------------------------------------------------------------ |
+| `membership`    | invitations, member roles, removals, ownership, the waitlist |
+| `access`        | roles, permissions and overrides in the access catalog       |
+| `security`      | API keys, credentials, provider keys, support sessions, SSO  |
+| `configuration` | organizations, settings, flags, announcements, workflows     |
+| `billing`       | billing customers                                            |
+| `data`          | row changes from the table trigger, attachments, exports     |
+| `ai`            | agents, tool policies and approvals, chat shares             |
+| `integration`   | connectors, incoming and outgoing webhooks                   |
+
+An adopted log whose `category` column has a check of its own maps the
+shared names with `values`, the same way it maps actor kinds:
+
+```ts title="better-supabase.config.ts"
+audit: {
+  options: {
+    values: {
+      category: { membership: "users", configuration: "settings" },
+    },
+  },
+},
+```
+
+Set `audit: false` on a module to keep its actions out of the log; they
+still reach the outbox:
+
+```ts
+sql: { modules: { flags: { audit: false } } },
+```
+
+`options.auditCategory` on `organizations`, `organizations-suspension` and
+`support-sessions` still works and puts every entry of that module under one
+category, but it is deprecated: map the shared categories with `values`
+instead.
+
 ## Listing entries
 
 `createAuditLog` reads the log through the module's own functions, as the

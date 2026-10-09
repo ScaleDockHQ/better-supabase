@@ -1,6 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { NOTHING } from "../context.ts";
 import { SERVICE_CALLER, serviceGrant, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
@@ -169,17 +170,18 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'createdBy', ${alias}.${ca("createdBy")},
     'createdAt', ${alias}.${ca("createdAt")}
   )`;
-  const alertEmit = ctx.emit({
+  const alertEmit = ctx.record({
     type: "workflow.alert",
     payload: `jsonb_build_object('alertId', v_alert.${ca("id")}, 'definition', v_alert.${ca("definition")}, 'onEvent', v_alert.${ca("onEvent")}, 'channel', v_alert.${ca("channel")}, 'runId', v_run.${cr("id")}, 'status', v_run.${cr("status")}, 'error', v_run.${cr("error")})`,
     subject: `'workflow-runs/' || v_run.${cr("id")}`,
     tenant: `v_run.${cr("tenant")}`,
     key: `'workflow.alert:' || v_alert.${ca("id")} || ':' || v_run.${cr("id")}`,
+    audit: false,
   });
   const fire = `insert into ${f} (${cf("alert")}, ${cf("run")}) values (v_alert.${ca("id")}, v_run.${cr("id")})
       on conflict do nothing;
       if found then
-        v_fired := v_fired + 1;${alertEmit === "" ? "" : `\n        ${alertEmit}`}
+        v_fired := v_fired + 1;${alertEmit === NOTHING ? "" : `\n        ${alertEmit}`}
       end if;`;
   const failedTrigger = ctx.trigger("workflow_runs_alert");
   return {

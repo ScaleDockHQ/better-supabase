@@ -365,18 +365,25 @@ function build(ctx: ModuleContext): string {
     ),
     subject,
     tenant,
+    audit: false,
   });
   const mentioned = ctx.record({
     type: "comment.mentioned",
     payload: payload(`, 'mentionIds', to_jsonb(v_new)`),
     subject,
     tenant,
+    audit: false,
   });
   const deleted = ctx.record({
     type: "comment.deleted",
     payload: payload(""),
     subject,
     tenant,
+    audit: {
+      category: "data",
+      targetType: "comment",
+      recordId: `new.${c("id")}::text`,
+    },
   });
 
   return `${schemaPreamble(ctx)}

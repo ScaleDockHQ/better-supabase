@@ -573,6 +573,18 @@ begin
   update ${v} x set ${cv("status")} = 'published', ${cv("compiled")} = compiled, ${cv("publishedAt")} = now()
   where x.${cv("id")} = v_row.${cv("id")}
   returning * into v_row;
+  ${ctx.record({
+    type: "workflow.published",
+    payload: `jsonb_build_object('organizationId', v_tenant::text, 'definitionId', v_row.${cv("definition")}, 'versionId', v_row.${cv("id")}, 'version', v_row.${cv("version")})`,
+    subject: `'workflows/' || v_row.${cv("definition")}::text`,
+    tenant: "v_tenant",
+    key: `'workflow.published:' || v_row.${cv("id")}::text`,
+    audit: {
+      category: "configuration",
+      targetType: "workflow_version",
+      recordId: `v_row.${cv("id")}::text`,
+    },
+  })}
   return ${versionJson("v_row", true)};
 end;
 $$;

@@ -89,6 +89,15 @@ begin
   insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "rate_limit", "expires_at")
   values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;
+  perform better_supabase.audit_event(
+    event_type => 'api_key.created',
+    category => 'security',
+    target_type => 'api_key',
+    record_id => created."id"::text,
+    target_label => created."name",
+    tenant => (created."organization_id")::uuid,
+    metadata => jsonb_build_object('keyId', created."id", 'organizationId', created."organization_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id")
+  );
   return jsonb_build_object(
     'id', created."id",
     'organization_id', created."organization_id",
@@ -219,6 +228,15 @@ begin
   end if;
   update "better_supabase"."api_keys" k set "revoked_at" = now()
   where k."id" = found."id" and (k."revoked_at" is null or k."revoked_at" > now());
+  perform better_supabase.audit_event(
+    event_type => 'api_key.revoked',
+    category => 'security',
+    target_type => 'api_key',
+    record_id => found."id"::text,
+    target_label => found."name",
+    tenant => (found."organization_id")::uuid,
+    metadata => jsonb_build_object('keyId', found."id", 'organizationId', found."organization_id"::text, 'userId', found."user_id", 'name', found."name", 'publicId', found."public_id")
+  );
   return true;
 end;
 $$;
@@ -257,6 +275,15 @@ begin
   values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."rate_limit", old."expires_at", old."id")
   returning * into created;
   update "better_supabase"."api_keys" k set "revoked_at" = now() + grace where k."id" = old."id";
+  perform better_supabase.audit_event(
+    event_type => 'api_key.rotated',
+    category => 'security',
+    target_type => 'api_key',
+    record_id => created."id"::text,
+    target_label => created."name",
+    tenant => (created."organization_id")::uuid,
+    metadata => jsonb_build_object('keyId', created."id", 'organizationId', created."organization_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id", 'previousKeyId', old."id")
+  );
   return jsonb_build_object(
     'id', created."id",
     'organization_id', created."organization_id",

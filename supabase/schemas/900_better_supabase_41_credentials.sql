@@ -66,6 +66,13 @@ begin
   else
     perform vault.update_secret(v_id, credential_set.secret);
   end if;
+  perform better_supabase.audit_event(
+    event_type => 'credential.set',
+    category => 'security',
+    target_type => 'credential',
+    record_id => credential_set.provider || ':' || credential_set.name,
+    metadata => jsonb_build_object('provider', credential_set.provider, 'name', credential_set.name)
+  );
   return v_id;
 end;
 $$;
@@ -89,7 +96,17 @@ begin
       using errcode = 'P0001', hint = 'CREDENTIAL_NAME_INVALID';
   end if;
   delete from vault.secrets s where s.name = 'bs:cred:' || credential_delete.provider || ':' || credential_delete.name;
-  return found;
+  if not found then
+    return false;
+  end if;
+  perform better_supabase.audit_event(
+    event_type => 'credential.deleted',
+    category => 'security',
+    target_type => 'credential',
+    record_id => credential_delete.provider || ':' || credential_delete.name,
+    metadata => jsonb_build_object('provider', credential_delete.provider, 'name', credential_delete.name)
+  );
+  return true;
 end;
 $$;
 revoke execute on function "better_supabase"."credential_delete"(text, text) from public, anon, authenticated;

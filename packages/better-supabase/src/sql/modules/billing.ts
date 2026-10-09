@@ -246,6 +246,21 @@ begin
   insert into ${t} (${c("tenant")}, ${c("customer")})
   values (link_billing_customer.tenant, link_billing_customer.customer)
   on conflict (${c("tenant")}) do nothing;
+  if found then
+    ${ctx.record({
+      type: "billing.customer_linked",
+      payload:
+        "jsonb_build_object('organizationId', link_billing_customer.tenant::text, 'customerId', link_billing_customer.customer)",
+      subject: "'organizations/' || link_billing_customer.tenant::text",
+      tenant: "link_billing_customer.tenant",
+      key: "'billing.customer_linked:' || link_billing_customer.tenant::text",
+      audit: {
+        category: "billing",
+        targetType: "billing_customer",
+        recordId: "link_billing_customer.customer",
+      },
+    })}
+  end if;
   return (select b.${c("customer")} from ${t} b where b.${c("tenant")} = link_billing_customer.tenant);
 end;
 $$;

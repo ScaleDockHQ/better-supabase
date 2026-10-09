@@ -112,6 +112,33 @@ function build(ctx: ModuleContext): string {
     `(${SERVICE_CALLER} or ${row}.${a.owner} = auth.uid() or ${canIn(`${row}.${a.tenant}`, moderate)})`;
   const notFound = (agent: string): string =>
     raise("agent % not found", "P0002", "AGENT_NOT_FOUND", agent);
+  const agentEvent = (type: string, row: string, extra = ""): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', ${row}.${a.tenant}::text, 'agentId', ${row}.${a.id}, 'slug', ${row}.${a.slug}${extra})`,
+      subject: `'organizations/' || ${row}.${a.tenant}::text || '/agents/' || ${row}.${a.id}::text`,
+      tenant: `${row}.${a.tenant}`,
+      audit: {
+        category: "ai",
+        targetType: "agent",
+        recordId: `${row}.${a.id}::text`,
+        targetLabel: `${row}.${a.name}`,
+      },
+    });
+  const installEvent = (type: string): string =>
+    ctx.record({
+      type,
+      payload:
+        "jsonb_build_object('organizationId', install_agent.tenant::text, 'agentId', install_agent.agent_id, 'userId', auth.uid())",
+      subject:
+        "'organizations/' || install_agent.tenant::text || '/agents/' || install_agent.agent_id::text",
+      tenant: "install_agent.tenant",
+      audit: {
+        category: "ai",
+        targetType: "agent",
+        recordId: "install_agent.agent_id::text",
+      },
+    });
 
   return `${schemaPreamble(ctx)}
 -- Custom assistants: instructions, a model, the tools and connectors they may
@@ -245,6 +272,7 @@ begin
     ${a.updatedAt} = now()
   where x.${a.id} = v_row.${a.id}
   returning * into v_row;
+  ${agentEvent("agent.saved", "v_row")}
   return ${json("v_row")};
 exception
   when unique_violation then
@@ -281,6 +309,7 @@ begin
     ${a.updatedAt} = now()
   where x.${a.id} = v_row.${a.id}
   returning * into v_row;
+  ${agentEvent("agent.published", "v_row", ", 'visibility', publish_agent.visibility")}
   return ${json("v_row")};
 end;
 $$;
@@ -300,6 +329,7 @@ begin
     return false;
   end if;
   delete from ${agents} x where x.${a.id} = v_row.${a.id};
+  ${agentEvent("agent.deleted", "v_row")}
   return true;
 end;
 $$;
@@ -375,6 +405,9 @@ begin
     delete from ${installs} n where n.${i.agent} = install_agent.agent_id and n.${i.user} = auth.uid() and n.${i.tenant} = install_agent.tenant;
     get diagnostics v_count = row_count;
     update ${agents} x set ${a.installCount} = greatest(x.${a.installCount} - v_count, 0) where x.${a.id} = install_agent.agent_id;
+    if v_count > 0 then
+      ${installEvent("agent.uninstalled")}
+    end if;
     return v_count > 0;
   end if;
   if not exists (select 1 from ${agents} x where x.${a.id} = install_agent.agent_id and ${readable("x")}) then
@@ -384,6 +417,9 @@ begin
   on conflict do nothing;
   get diagnostics v_count = row_count;
   update ${agents} x set ${a.installCount} = x.${a.installCount} + v_count where x.${a.id} = install_agent.agent_id;
+  if v_count > 0 then
+    ${installEvent("agent.installed")}
+  end if;
   return v_count > 0;
 end;
 $$;

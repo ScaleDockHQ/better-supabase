@@ -134,16 +134,41 @@ function build(ctx: ModuleContext): string {
       and (${row}.${ck("maxUses")} is null or ${row}.${ck("uses")} < ${row}.${ck("maxUses")})`;
   const publicCode = (row: string): string =>
     `to_jsonb(${row}) - ${sqlString(ck("hash").replaceAll('"', ""))}`;
-  const approved = ctx.record({
-    type: "waitlist.approved",
-    payload: `jsonb_build_object('entryId', v_row.${ce("id")}::text, 'email', v_row.${ce("email")})`,
-    subject: `'waitlist/' || v_row.${ce("id")}::text`,
-  });
+  const decided = (type: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('entryId', v_row.${ce("id")}::text, 'email', v_row.${ce("email")})`,
+      subject: `'waitlist/' || v_row.${ce("id")}::text`,
+      audit: {
+        category: "access",
+        targetType: "waitlist_entry",
+        recordId: `v_row.${ce("id")}::text`,
+        targetLabel: `v_row.${ce("email")}`,
+      },
+    });
+  const codeEvent = (type: string, row: string, tenant: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('codeId', ${row}.${ck("id")}::text, 'organizationId', ${tenant}::text, 'prefix', ${row}.${ck("prefix")}, 'role', ${row}.${ck("role")})`,
+      subject: `'invite-codes/' || ${row}.${ck("id")}::text`,
+      tenant,
+      audit: {
+        category: "access",
+        targetType: "invite_code",
+        recordId: `${row}.${ck("id")}::text`,
+        targetLabel: `${row}.${ck("prefix")}`,
+      },
+    });
   const memberAdded = ctx.record({
     type: "organization.member_added",
     payload: `jsonb_build_object('organizationId', v_code.${ck("tenant")}::text, 'userId', redeem_for.member, 'role', v_role)`,
     subject: `'organizations/' || v_code.${ck("tenant")}::text`,
     tenant: `v_code.${ck("tenant")}`,
+    audit: {
+      category: "membership",
+      targetType: "user",
+      recordId: "redeem_for.member::text",
+    },
   });
 
   return `${schemaPreamble(ctx)}
@@ -292,7 +317,9 @@ begin
     raise exception 'No open waitlist entry %', decide_waitlist_entry.id using errcode = 'P0002', hint = 'WAITLIST_NOT_FOUND';
   end if;
   if decide_waitlist_entry.approve then
-    ${approved}
+    ${decided("waitlist.approved")}
+  else
+    ${decided("waitlist.rejected")}
   end if;
   return to_jsonb(v_row);
 end;
@@ -333,6 +360,7 @@ begin
     create_invite_code.role
   )
   returning * into v_row;
+  ${codeEvent("invite_code.created", "v_row", "v_row." + ck("tenant"))}
   return ${publicCode("v_row")};
 exception when unique_violation then
   raise exception 'That invite code exists' using errcode = '23505', hint = 'WAITLIST_CODE_TAKEN';
@@ -366,7 +394,7 @@ set search_path = ''
 as $$
 declare
   v_tenant ${id};
-  v_count integer;
+  v_code ${k};
 begin
   select x.${ck("tenant")} into v_tenant from ${k} x where x.${ck("id")} = revoke_invite_code.id;
   if not found then
@@ -376,9 +404,13 @@ begin
     raise exception 'You may not revoke this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   update ${k} x set ${ck("revokedAt")} = now()
-  where x.${ck("id")} = revoke_invite_code.id and x.${ck("revokedAt")} is null;
-  get diagnostics v_count = row_count;
-  return v_count > 0;
+  where x.${ck("id")} = revoke_invite_code.id and x.${ck("revokedAt")} is null
+  returning * into v_code;
+  if v_code.${ck("id")} is null then
+    return false;
+  end if;
+  ${codeEvent("invite_code.revoked", "v_code", "v_tenant")}
+  return true;
 end;
 $$;
 
