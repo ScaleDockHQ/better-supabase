@@ -2755,20 +2755,70 @@
       "NewAiTask"
     ]
   },
+  "./blocks/ai-cache": {
+    "values": [
+      "cacheKey",
+      "createAiCache",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "AiCache",
+      "AiCacheEntry",
+      "AiCacheKind",
+      "AiCacheOptions",
+      "AiCacheSetOptions",
+      "BlockTransport"
+    ]
+  },
+  "./blocks/ai-providers": {
+    "values": [
+      "createAiProviders",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "AiBatch",
+      "AiBatchCounts",
+      "AiBatchItem",
+      "AiBatchItemInput",
+      "AiBatchItemStatus",
+      "AiBatchPatch",
+      "AiBatchStatus",
+      "AiProviderKey",
+      "AiProviderKeyInput",
+      "AiProviders",
+      "AiProvidersOptions",
+      "AiSandbox",
+      "AiSandboxStatus",
+      "AiSandboxStopper",
+      "BlockTransport",
+      "NewAiBatch",
+      "NewAiSandbox",
+      "ResolvedProviderKey"
+    ]
+  },
   "./ai-sdk": {
     "values": [
       "AI_SDK_UI_FORMAT",
+      "BYOK_FIELD",
+      "byokOptions",
       "costBackfill",
       "DENIED_TOOL_OUTPUT",
       "fromModelMessages",
       "fromUIMessage",
       "gatewayOptions",
       "isUIMessage",
+      "meterTelemetry",
       "modelCatalogRefresh",
       "modelInputOf",
       "problem429",
+      "spendReconciliation",
+      "tenantGatewayOptions",
+      "tenantOfEvent",
       "toUIMessage",
       "toUIMessages",
+      "trackedSandbox",
       "usageEntries",
       "usageOf",
       "usageQuota"
@@ -2783,9 +2833,17 @@
       "GatewayContext",
       "GatewayModelEntry",
       "GatewayOptions",
+      "MeterTelemetryOptions",
       "ModelApproval",
       "ModelCatalogRefreshOptions",
       "ModelSource",
+      "SpendReconciliation",
+      "SpendReconciliationOptions",
+      "SpendReportClient",
+      "SpendReportRow",
+      "TelemetryMeters",
+      "TelemetryStart",
+      "TrackedSandboxOptions",
       "UsageSource"
     ]
   },
@@ -2817,6 +2875,26 @@
       "GeneratedFileLike",
       "ProviderFileUpload",
       "SaveGeneratedOptions"
+    ]
+  },
+  "./ai-sdk/cache": {
+    "values": [
+      "cacheMiddleware"
+    ],
+    "types": [
+      "CacheCall",
+      "CacheMiddlewareOptions"
+    ]
+  },
+  "./ai-sdk/batches": {
+    "values": [
+      "aiBatches",
+      "batchItemOf"
+    ],
+    "types": [
+      "AiBatches",
+      "AiBatchesOptions",
+      "BatchApi"
     ]
   },
   "./ai-sdk/embeddings": {
