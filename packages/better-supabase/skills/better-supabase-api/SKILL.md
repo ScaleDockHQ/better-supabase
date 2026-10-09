@@ -1,6 +1,6 @@
 ---
 name: better-supabase-api
-description: Build HTTP APIs, Edge Functions and MCP servers on Supabase with better-supabase adapters. Use when adding a route, REST resource, oRPC procedure, Edge Function, MCP tool, AI chat route, OAuth or agent scopes, webhook, background job, cleanup cron or idempotent endpoint.
+description: Build HTTP APIs, Edge Functions and MCP servers on Supabase with better-supabase adapters. Use when adding a route, REST resource, oRPC procedure, Edge Function, MCP tool, AI chat route, knowledge or memory, stored agent, MCP connector, eve agent, Chat SDK bot, resumable stream, third-party credential, OAuth or agent scopes, webhook, background job, cleanup cron or idempotent endpoint.
 ---
 
 # APIs with better-supabase
@@ -57,15 +57,21 @@ never limits it. RLS still decides the rows: the token's `sub` is the user.
 
 ## Adapters
 
-| Where          | Setup                                                                                                           | Handler                                                                                  |
-| -------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Next.js        | `createNext(betterSupabase)` in `lib/supabase/server.ts`                                                        | `bs.route((req, { db }) => ...)`, `bs.action({ input: schema }, (input, { db }) => ...)` |
-| Hono           | `createHono(betterSupabase)`, `.use('/api/*', bs.middleware())`                                                 | `c.var.db`; `bs.resource('customers', {...})` for REST                                   |
-| oRPC           | `createOrpc(betterSupabase)`, `base.use(bs.middleware())`                                                       | `bs.unwrap(context.db.customers.findMany(...))`                                          |
-| Expo Router    | `createExpo(betterSupabase)`, `+middleware.ts` with `bs.middleware()`                                           | `export const loader = bs.loader(({ db }) => ...)`, `bs.handler(...)` in `+api.ts`       |
-| Edge Functions | `createEdge(betterSupabase, { cors: true })`                                                                    | `Deno.serve(bs.handler((req, { db }) => ...))`                                           |
-| MCP            | `createMcp(betterSupabase, { name, version, resources })`                                                       | `.tool({ name, input, run: (args, { db }) => ... })`                                     |
-| Any other      | `withBetterSupabase(server)` in a bridge: `toSvelteKit`, `toTanStackStart`, `toReactRouter`, `toH3`, `toElysia` | the framework's context (`locals.db`, `context.db`, `event.context.db`)                  |
+| Where                                           | Setup                                                                                                   | Handler                                                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Next.js                                         | `createNext(betterSupabase)` in `lib/supabase/server.ts`                                                | `bs.route((req, { db }) => ...)`, `bs.action({ input: schema }, (input, { db }) => ...)`  |
+| Hono                                            | `createHono(betterSupabase)`, `.use('/api/*', bs.middleware())`                                         | `c.var.db`; `bs.resource('customers', {...})` for REST                                    |
+| oRPC                                            | `createOrpc(betterSupabase)`, `base.use(bs.middleware())`                                               | `bs.unwrap(context.db.customers.findMany(...))`                                           |
+| Expo Router                                     | `createExpo(betterSupabase)`, `+middleware.ts` with `bs.middleware()`                                   | `export const loader = bs.loader(({ db }) => ...)`, `bs.handler(...)` in `+api.ts`        |
+| Edge Functions                                  | `createEdge(betterSupabase, { cors: true })`                                                            | `Deno.serve(bs.handler((req, { db }) => ...))`                                            |
+| MCP                                             | `createMcp(betterSupabase, { name, version, resources })`                                               | `.tool({ name, input, run: (args, { db }) => ... })`                                      |
+| Node, Express, Fastify, Koa                     | `toNodeHandler`, `toExpress`, `toFastify`, `toKoa` from `better-supabase/node`                          | `res.locals.db`, `request.locals.db`, `ctx.state.db`; `guard`, `fastifyGuard`, `koaGuard` |
+| NestJS                                          | `toNestMiddleware(entries)` from `better-supabase/nestjs`                                               | `@Ctx("db") db`, `@UseGuards(guard({ roles }))`, `@UseFilters(problemFilter())`           |
+| Astro                                           | `createAstro(betterSupabase)`, `export const onRequest = bs.onRequest`                                  | `bs.locals(Astro).db`, `bs.guard(Astro, options)`, `bs.action(...)`                       |
+| SolidStart                                      | `createSolidStart(betterSupabase, { getRequestEvent })`, `createMiddleware(bs.middleware)`              | `await bs.require()` in a `"use server"` query, `bs.action(...)`                          |
+| Nuxt, Nitro 2                                   | the `better-supabase/nuxt` module, or `toH3V1(entries)` from `better-supabase/h3/v1`                    | `event.context.db`, `guard(options)`                                                      |
+| H3 2, Nitro 3                                   | `toH3(entries)` from `better-supabase/h3`                                                               | `event.context.db`, `guard(options)`                                                      |
+| TanStack Start, SvelteKit, React Router, Elysia | `withBetterSupabase(server)` in a bridge: `toTanStackStart`, `toSvelteKit`, `toReactRouter`, `toElysia` | the framework's context (`context.db`, `locals.db`, `context.get(key).db`)                |
 
 Never use `@supabase/server/adapters/*` (deprecated, removed 2026-12-01).
 
@@ -102,6 +108,21 @@ for lists that clients read page by page: the list takes `after` instead of
 - For repeated model calls, add the `ai-cache` SQL module and wrap the model with `wrapLanguageModel({ model, middleware: cacheMiddleware({ cache, ttl, organizationId }) })` from `better-supabase/ai-sdk/cache`; the cache is service-role only, so create it with a service transport. Meter spend with `meterTelemetry` through `registerTelemetry` and reconcile it nightly with the `spendReconciliation` job.
 - Blocks never import an AI SDK. Put SDK code in the app or an adapter subpath, and store third-party tokens as a `credential_ref`, never in a column.
 
+## AI blocks, agents and bots
+
+Knowledge, memory, stored agents, MCP connectors, scheduled AI tasks, the AI
+SDK helpers (`better-supabase/ai-sdk/agents`, `/mcp`, `/embeddings`,
+`/memory`, `/files`, `/batches`), eve and Chat SDK bots are in
+[references/ai.md](references/ai.md).
+
+## Streams, credentials and the Workflow World
+
+Resumable output (`better-supabase/streams`, `/streams/redis`), third-party
+tokens behind a `credential_ref` (`better-supabase/credentials`,
+`/vercel-connect`) and the Node-only Workflow World
+(`better-supabase/workflow-sdk/world`) are in
+[references/streams-credentials.md](references/streams-credentials.md).
+
 ## Native and offline apps
 
 For Expo and React Native, follow [references/expo.md](references/expo.md):
@@ -113,7 +134,7 @@ and upload through `bs.db`, as in [references/powersync.md](references/powersync
 
 - `createJobs(postgres.admin, { queue_name: zodSchema })` runs on Supabase Queues (pgmq): `enqueue(queue, payload, { context: db.$context })` in the request, then `work` or `drain` in a worker, where `const db = await bs.forContext(job.context).orThrow()` runs the work as the enqueuing user with RLS (it fails with `forbidden` for a job without a user; use `bs.admin(job.context)` only for work no user owns). The handler throws to retry. `schedule(name, cron, queue, payload, { timeZone })` uses pg_cron, or with `sql.modules.jobs.options.scheduler: "drain"` a `jobs.drainRoute({ secret: process.env.CRON_SECRET, handlers })` route that Vercel Cron calls; `sql.modules.jobs.options.backend: "table"` runs without pgmq. Queue names are lowercase letters, digits and underscores. With a service-role Supabase client instead of SQL, it uses the `pgmq_public` RPCs (no dedupe or schedules).
 - `createIdempotency(postgres.admin).handle(request, handler)` for POST endpoints that clients retry.
-- `createWebhookInbox(postgres.admin, { source, secrets }).receive(request)` for webhooks; `process(handler)` later. `createInbox` is its deprecated alias.
+- `createWebhookInbox(postgres.admin, { source, secrets }).receive(request)` for webhooks; `process(handler)` later. `createInbox` is the conversation inbox (`blocks/inbox`), not this.
 - Times are `Temporal.Instant`: `EnqueueOptions.runAt`, `Job.enqueuedAt`, `Job.visibleUntil`, `WebhookInboxMessage.receivedAt` and webhook timestamps.
 - Schedule cleanup with pg_cron at a quiet hour: `better_supabase.purge_job_archive('<queue>')`, `purge_webhooks()`, `purge_audit_log()`, `purge_idempotency_keys()`, `purge_rate_limits()`, `purge_outbox()`, `purge_notifications()` and `purge_webhook_deliveries()`, for the modules you installed. Only `service_role` can execute them.
 - Audit a table with `better_supabase.audit('public.t', redact => '{secret}', event_prefix => 't')`; record non-row events with `better_supabase.audit_event(event_type, ...)` and an `idempotency_key`. For per-tenant retention, write an `audit_retention(tenant)` SQL function or call `purgeAuditLog(sql, { retention })` from `better-supabase/blocks/audit`, which also has `auditListQuery` and `exportAuditLog` (NDJSON or OCSF). `sql sync` writes a pgTAP file per audited table, and doctor BS315 lists tables without the trigger; exempt the rest with `sql.modules.audit.options.exempt` globs.
@@ -146,8 +167,8 @@ schedule.
 Sign tokens with `signLocalJwt` or `asUser` from `better-supabase/testing`;
 the adapter verifies them against the local JWKS. See the `better-supabase-testing` skill.
 
-Docs: https://bettersupabase.com/docs/frameworks/hono.md (and `next`,
-`orpc`, `expo`, `edge`, `mcp` under `/docs/frameworks/`),
+Docs: https://bettersupabase.com/docs/frameworks.md lists every adapter;
+each has a page such as https://bettersupabase.com/docs/frameworks/hono.md,
 https://bettersupabase.com/docs/repository/powersync.md,
 https://bettersupabase.com/docs/blocks/jobs.md,
 https://bettersupabase.com/docs/ai-sdk/chat.md,

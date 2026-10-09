@@ -60,6 +60,7 @@ interface AuthorizationProvider {
   roleSources?: AuthorizationRoleSource[];
   decidingColumns?: string[];
   tokenHook?: AuthorizationTokenHook;
+  approvals?: { distinctApprover?: boolean };
   problems?: string[];
 }
 ```
@@ -69,36 +70,60 @@ interface AuthorizationProvider {
 because it goes into templates unquoted. `problems` lists what the provider
 found wrong while building the object; doctor reports each one.
 
+The CLI validates the object when it loads the config. Every scope name in
+`tenantScope` and `parent` must be declared, parents must not form a cycle,
+the tenant scope needs an `idType`, and `idType` is `uuid`, `text`, `bigint`
+or `integer`. Each `decidingColumns` entry is `schema.table.column`, and
+`tokenHook.budget.bytes` is a positive integer. An object with another
+`apiVersion` gets one message naming both versions instead of a list of field
+errors.
+
 ### Functions
 
 Each function is a SQL template. better-supabase fills the placeholders and
 puts the result into a policy or a module function:
 
-| Template        | Placeholders                              | Returns                                                   |
-| --------------- | ----------------------------------------- | --------------------------------------------------------- |
-| `idsWith`       | `{permission}`, `{scope}`                 | a set of the `{scope}` ids where the caller holds the key |
-| `isPlatform`    | `{permission}`                            | `boolean`: the caller holds the key platform-wide         |
-| `idsWithFor`    | `{user}`, `{permission}`, `{scope}`       | as `idsWith`, for another user                            |
-| `isPlatformFor` | `{user}`, `{permission}`                  | as `isPlatform`, for another user                         |
-| `memberIds`     | `{scope}`                                 | the `{scope}` ids the caller is a member of               |
-| `memberIdsFor`  | `{user}`, `{scope}`                       | as `memberIds`, for another user                          |
-| `canAssign`     | `{role}`, `{tenant}`, `{scope}`           | `boolean`: the caller may give `{role}` in `{tenant}`     |
-| `canAssignFor`  | `{user}`, `{role}`, `{tenant}`, `{scope}` | as `canAssign`, for another user                          |
+| Template         | Placeholders                              | Returns                                                    |
+| ---------------- | ----------------------------------------- | ---------------------------------------------------------- |
+| `idsWith`        | `{permission}`, `{scope}`                 | a set of the `{scope}` ids where the caller holds the key  |
+| `isPlatform`     | `{permission}`                            | `boolean`: the caller holds the key platform-wide          |
+| `idsWithFor`     | `{user}`, `{permission}`, `{scope}`       | as `idsWith`, for another user                             |
+| `isPlatformFor`  | `{user}`, `{permission}`                  | as `isPlatform`, for another user                          |
+| `memberIds`      | `{scope}`                                 | the `{scope}` ids the caller is a member of                |
+| `memberIdsFor`   | `{user}`, `{scope}`                       | as `memberIds`, for another user                           |
+| `canAssign`      | `{role}`, `{tenant}`, `{scope}`           | `boolean`: the caller may give `{role}` in `{tenant}`      |
+| `canAssignFor`   | `{user}`, `{role}`, `{tenant}`, `{scope}` | as `canAssign`, for another user                           |
+| `permissionsFor` | `{user}`, `{tenant}`, `{scope}`           | `text[]`: the permission keys `{user}` holds in `{tenant}` |
+| `canApprove`     | `{tool}`, `{tenant}`, `{scope}`           | `boolean`: the caller may decide the tool call `{tool}`    |
 
 `idsWith` and `isPlatform` are required. A template that leaves out a `For`
 variant makes the module function answer for the caller only: called for
 another user, it raises SQLSTATE `0A000`. Without `canAssign`, only the
-service role assigns roles.
+service role assigns roles: the `access` module's `can_assign` answers false
+for every member, owners included.
+
+Some modules call the optional templates under the `provider` model:
+`invitations` calls `idsWithFor`, `isPlatformFor` and `canAssignFor` to check
+the inviter again when an invitation is accepted; `inbox`, `comments`, `sso`,
+`notifications`, `connectors` and `workflow-sdk-world` call `idsWithFor`; and
+`usage` reads memberships through `memberIds`. Doctor (BS411) warns for each
+installed module whose template the provider doesn't set.
+
+`permissionsFor` fills `better_supabase.member_permissions` and
+`permission_claims`, so the access token hook can carry permission keys. The
+claims cover the tenants `memberIdsFor` returns; without `memberIdsFor` they
+stay empty. Without `permissionsFor`, both functions return nothing, as
+before.
 
 ```ts
 functions: {
-  idsWith: "authz.permitted_{scope}_ids({permission})",
+  idsWith: "authz.{scope}_ids_with({permission})",
   isPlatform: "authz.is_platform({permission})",
   memberIds: "authz.member_{scope}_ids()",
   canAssign: "authz.can_assign({role}, {tenant}::text)",
 },
 requires: [
-  { function: "authz.permitted_organization_ids", args: "text", role: "authenticated" },
+  { function: "authz.organization_ids_with", args: "text", role: "authenticated" },
   { function: "authz.is_platform", args: "text", role: "authenticated" },
   { function: "authz.member_organization_ids", role: "authenticated" },
   { function: "authz.can_assign", args: "text, text", role: "authenticated" },
@@ -133,12 +158,34 @@ isn't marked. Leave row-conditioned keys to the provider's table policies.
 | `markers`          | comment lines in the provider's files, so doctor recognises its hook and grants migration |
 | `grantsCommand`    | the command BS404 suggests                                                                |
 
+### Tool approvals
+
+`canApprove` decides who may approve or deny a waiting AI tool call in the
+[ai-chat block](/docs/blocks/ai-chat). Under the `provider` model,
+`decide_ai_tool_approval` lets the service role and any caller `canApprove`
+allows decide the call; `{tenant}` is the chat's tenant and `{tool}` the
+tool's name. `approvals.distinctApprover: true` keeps the chat's owner, whose
+agent asked for the call, from deciding it, for four-eyes approval. Without
+`canApprove`, the chat's owner decides.
+
+```ts
+functions: {
+  // ...
+  canApprove: "authz.can_approve_tool({tool}, {tenant}::text)",
+},
+approvals: { distinctApprover: true },
+```
+
 ## Bucket and topic policies
 
 An `access` policy calls the access contract (`tenant_ids_with`,
 `is_platform`) by default. Give it the provider's templates in `sql`, and it
-calls those instead, for any scope they take. Copy the provider's
-`idsWith` and `isPlatform`, so the bucket module doesn't import the config:
+calls those instead, for any scope they take. `sql: "provider"` uses the
+provider's `idsWith` and `isPlatform`: `better-supabase gen` writes them into
+the generated bucket meta, and `better-supabase sql sync` passes them to each
+topic's `sql()`. A copy of the templates also works, so the bucket module
+doesn't import the config; doctor (BS214) warns when the copy differs from the
+provider.
 
 ```ts title="src/storage/documents.ts"
 import { defineBucket } from "better-supabase/storage";
@@ -149,12 +196,16 @@ export const documents = defineBucket({
   policy: {
     access: { read: "documents.browse", write: "documents.write" },
     scope: "organization",
-    sql: {
-      idsWith: "authz.permitted_{scope}_ids({permission})",
-      isPlatform: "authz.is_platform({permission})",
-    },
+    sql: "provider",
   },
 });
+```
+
+A topic with `sql: "provider"` throws when its `sql()` runs without
+templates. Pass them yourself outside `sql sync`:
+
+```ts
+topic.sql({ functions: config.authorization.functions });
 ```
 
 The scope id is compared as text, so a path or topic segment must be the id's
@@ -163,8 +214,17 @@ lowercase form. `segment` picks another path segment than `{organizationId}`.
 ## Test a provider
 
 `testAuthorizationProvider` from `better-supabase/testing` checks API v1,
-plain JSON, valid scopes, the placeholders of each template, `requires` and
-the permission list. See [conformance blocks](/docs/extending/conformance).
+plain JSON, valid scopes (known names, no parent cycle, a tenant scope with an
+`idType`), the placeholders of each template (each uses its `{permission}`,
+`{user}`, `{tenant}` and `{role}`, and `idsWith` and `idsWithFor` use
+`{scope}` when there is more than one scope), that templates are safe to
+inline (no function call without a schema, no `$$`, `;` or `--`), that
+`requires` lists every function the templates call, the permission list, and
+the shapes of
+`memberships`, `suspension`, `roleSources`, `decidingColumns` and
+`tokenHook`: `ownedClaims` is not empty, a `registeredClaims` entry is not also
+owned, `budget.claims` are owned or registered, and `budget.bytes` is a
+positive integer. See [conformance blocks](/docs/extending/conformance).
 
 ```ts title="tests/provider.test.ts"
 import { testAuthorizationProvider } from "better-supabase/testing";

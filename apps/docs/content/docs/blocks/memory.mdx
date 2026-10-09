@@ -99,11 +99,17 @@ Search ranks by embedding similarity and full text together.
 `saveExtracted(organizationId, facts)` saves only facts that aren't close
 to one already saved (similarity 0.92 by default, `dedupeThreshold`);
 `forget(id, { supersededBy })` keeps the old fact but hides it.
+`saveExtracted` embeds every fact in one embedder call.
 
 `recall.index(message)` runs as the service role after a message is
 stored; `recall.search(organizationId, query, { excludeChat })` returns the
 caller's closest earlier messages. Facts saved without an embedder wait
-for `embedPending()`.
+for `embedPending()`, which embeds a batch in one call and writes it with
+one `set_memory_embeddings` RPC. Each vector is written only while the
+fact still has the text it was computed from, so a fact edited meanwhile
+stays pending. A wrong number of vectors, mixed lengths or non-finite
+numbers fail with the hint `EMBEDDING_INVALID`. Search sets
+`hnsw.iterative_scan` for its query and puts the caller's value back.
 
 ## Documents for agent runtimes
 

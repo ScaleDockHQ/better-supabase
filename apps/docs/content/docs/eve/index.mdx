@@ -76,7 +76,9 @@ export default eveChannel({
 
 The principal is `{ principalType: "user", principalId: <user id> }`, and
 its attributes carry `tenantId` (the `tenant_id` claim, or the claim in
-`tenantClaim`), the user's `roles` in that tenant and `isAnonymous`.
+`tenantClaim`), the user's `roles` in that tenant and `isAnonymous`. The
+roles come from the `memberships` claim, or the claim in `membershipsClaim`
+when your authorization hook writes memberships elsewhere.
 `attributes(claims)` adds your own. `principalOf(auth)` builds the same
 principal from an `AuthState` you already have.
 

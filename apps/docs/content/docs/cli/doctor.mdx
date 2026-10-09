@@ -410,6 +410,10 @@ provider's `idsWith` and `isPlatform` templates. It also reports a scope the
 provider doesn't declare, and a key checked at a scope its entry's `scopes`
 doesn't list.
 
+It warns when a bucket's `sql` templates differ from the provider's `idsWith`
+and `isPlatform`, because a copy goes stale when the provider changes. Set
+`sql: "provider"` so `better-supabase gen` writes the provider's templates.
+
 ### BS215
 
 **Warning: policy calls a helper per row that could run once.** A call such
@@ -956,7 +960,9 @@ disagree.** The provider's hook writes the active tenant to
 `tokenHook.tenantClaim`. Doctor warns when `claims.tenant` names another
 claim, because the tenant plugin, the guards and the module's RLS would then
 read a claim the hook never writes. It notes when `claims.scope` is neither
-`tenant` nor the provider's `tenantScope`, and reports every entry of the
+`tenant` nor the provider's `tenantScope`, notes when the provider sets
+`suspension` or `roleSources` while `sql.modules.access.model` is not
+`provider` (only that model reads them), and reports every entry of the
 provider's `problems`, such as a file version it can't read.
 
 ### BS410
@@ -996,9 +1002,21 @@ platform checks, at its `tenantScope`. Doctor reports, and `sql add` refuses:
   action to another key in `sql.modules.<module>.permissions`.
 
 It warns when neither `sql.modules.access.functions.canAssign` nor the
-provider's `canAssign` is set and the tenant module is not installed, because
-only the service role then assigns roles. See
-[the access block](/docs/blocks/access) for the recipe.
+provider's `canAssign` is set, because only the service role then assigns
+roles. See [the access block](/docs/blocks/access) for the recipe.
+
+It also warns for each optional template an installed module calls that the
+provider doesn't set, and names the modules:
+
+| Template        | Modules                                                                                        | Without it                                                                |
+| --------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `idsWithFor`    | `invitations`, `inbox`, `comments`, `sso`, `notifications`, `connectors`, `workflow-sdk-world` | checks of another user's tenant permissions raise `0A000` or are skipped  |
+| `isPlatformFor` | `invitations`                                                                                  | checks of another user's platform permissions answer false or are skipped |
+| `canAssignFor`  | `invitations`                                                                                  | the inviter's right to assign the role is not checked again at acceptance |
+| `memberIds`     | `usage`                                                                                        | membership checks read the tenant module's `memberships` table instead    |
+
+`sql.modules.access.functions.canAssignFor` silences the `canAssignFor`
+warning.
 
 ### BS412
 

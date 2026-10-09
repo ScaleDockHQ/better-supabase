@@ -1,6 +1,7 @@
 {
   "title": "Migrating",
   "pages": [
+    "index",
     "existing-apps",
     "0.5-to-0.6",
     "0.4-to-0.5",

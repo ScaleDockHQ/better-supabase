@@ -95,7 +95,15 @@ sentence or word break, with a short overlap. The document starts
   handler. The last failed attempt marks the document `failed` with the
   error.
 - Without a queue, call `knowledge.process(doc.id)` (in `after()`, for
-  example) or `knowledge.drain()` from a cron job.
+  example) or `knowledge.drain()` from a cron job. `drain` tries each
+  document `attempts` times (3 by default) and marks it `failed` only
+  after the last attempt.
+
+Each pending chunk comes with a hash of its text, and an embedding is
+written only while the chunk still has that text: a chunk rewritten during
+the embedding call stays pending for the next round. The embedder must
+return one finite vector per chunk, all of one length; anything else fails
+with `invalid_input` and the hint `EMBEDDING_INVALID`.
 
 `documents.write(id, chunks)` replaces the chunks; a chunk whose text and
 model didn't change keeps its embedding, so editing one paragraph re-embeds

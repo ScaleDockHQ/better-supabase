@@ -148,12 +148,118 @@ export const handle = toSvelteKit([
 | React Router        | `toReactRouter(entries, key)` from `/react-router` | `context.get(key)`                                  |
 | H3, Nitro, Nuxt     | `toH3(entries)` from `/h3`                         | `event.context`                                     |
 | Elysia              | `toElysia(entries)` from `/elysia`                 | `.derive(({ request }) => bridge.context(request))` |
+| Nitro 2, Nuxt       | `toH3V1(entries)` from `/h3/v1`                    | `event.context`                                     |
+| Node `http`         | `toNodeHandler(entries, handler)` from `/node`     | the handler's `ctx`                                 |
+| Express             | `toExpress(entries)` from `/node`                  | `res.locals`                                        |
+| Fastify             | `toFastify(entries)` from `/node`                  | `request.locals`                                    |
+| Koa                 | `toKoa(entries)` from `/node`                      | `ctx.state`                                         |
+| NestJS              | `toNestMiddleware(entries)` from `/nestjs`         | `@Ctx("db")` in a controller                        |
 
 Don't use the `@supabase/server/adapters/*` adapters: they are deprecated and
 removed on 2026-12-01. Don't put `withSupabase` and `withBetterSupabase` in
 one array; they write the same keys and the type checker rejects it. Set
 `refresh: true` only on the bridge that runs once per request with a response
 (request middleware, the `handle` hook), never in Server Components.
+
+## Node, Express, Fastify and Koa
+
+`better-supabase/node` types each framework structurally, so it adds no
+dependency. Each bridge has a guard and an error handler that answers
+`.orThrow()` failures with Problem Details:
+
+```ts title="app.ts"
+import express from "express";
+import { guard, problemErrorHandler, toExpress } from "better-supabase/node";
+import { withBetterSupabase } from "better-supabase/server";
+
+import { bs } from "./lib/server";
+
+const app = express();
+app.use(
+  toExpress([
+    withBetterSupabase(bs, { refresh: true, allow: ["user", "anon"] }),
+  ]),
+);
+app.get("/admin/members", guard({ roles: ["admin"] }), async (req, res) => {
+  res.json(await res.locals.db.members.findMany().orThrow());
+});
+app.use(problemErrorHandler());
+```
+
+| Framework   | Bridge                              | Guard                                   | Errors                  |
+| ----------- | ----------------------------------- | --------------------------------------- | ----------------------- |
+| `node:http` | `toNodeHandler(entries, handler)`   | `allow` on `withBetterSupabase`         | the handler's `Result`  |
+| Express     | `toExpress(entries)`                | `guard(options)` per route              | `problemErrorHandler()` |
+| Fastify     | `toFastify(entries)` in `onRequest` | `fastifyGuard(options)` as `preHandler` | `problemErrorHandler()` |
+| Koa         | `toKoa(entries)`                    | `koaGuard(options)`                     | built into `toKoa`      |
+
+For Fastify, call `app.decorateRequest("locals", null)` first. Type
+Express's `res.locals` by extending `Express.Locals` with
+`BetterSupabaseContributions<Models, Functions, unknown>` from
+`better-supabase/server`.
+
+## NestJS
+
+```ts title="src/app.module.ts"
+consumer
+  .apply(toNestMiddleware([withBetterSupabase(bs, { allow: ["user"] })]))
+  .forRoutes("*");
+```
+
+```ts title="src/notes.controller.ts"
+import { Controller, Get, UseFilters, UseGuards } from "@nestjs/common";
+import { Ctx, guard, problemFilter } from "better-supabase/nestjs";
+
+@Controller("notes")
+@UseFilters(problemFilter())
+export class NotesController {
+  @Get()
+  @UseGuards(guard({ roles: ["admin"] }))
+  list(@Ctx("db") db: Db) {
+    return db.notes.findMany({ select: ["id", "title"] }).orThrow();
+  }
+}
+```
+
+## Astro and SolidStart
+
+```ts title="src/lib/server.ts"
+import { createAstro } from "better-supabase/astro";
+
+export const bs = createAstro(betterSupabase, { signIn: "/sign-in" });
+// src/middleware.ts: export const onRequest = bs.onRequest;
+```
+
+In a page, `const refused = await bs.guard(Astro, { roles: ["admin"] })`
+returns the refusal to send, and `bs.locals(Astro).db` is the caller's
+`db`. Wrap an Action's handler with `bs.action({ input, requireTenant }, fn)`.
+`createImageService({ url })` serves Storage images through Astro's image
+service.
+
+```ts title="src/lib/server.ts"
+import { createSolidStart } from "better-supabase/solid-start";
+import { getRequestEvent } from "solid-js/web";
+
+export const bs = createSolidStart(betterSupabase, {
+  getRequestEvent,
+  signIn: "/sign-in",
+});
+// src/middleware.ts: export default createMiddleware(bs.middleware);
+```
+
+In a `"use server"` query, `const { db } = await bs.require()`; for forms,
+`bs.action({ input }, (input, { db }) => ...)`.
+
+## Nuxt and Nitro 2
+
+Export the entries from `server/better-supabase.ts`, register the module
+with `modules: ["better-supabase/nuxt"]` and
+`betterSupabase: { server: "~~/server/better-supabase" }` in
+`nuxt.config.ts`, or run them yourself with
+`defineEventHandler(toH3V1(entries))` from `better-supabase/h3/v1`. Guard a
+route with `(await guard({ roles: ["admin"] })(event)) ?? ...`, and turn
+`.orThrow()` failures into Problem Details with `problemOnError()`. On H3 2
+and Nitro 3, use the same helpers from `better-supabase/h3`.
 
 ## MCP
 

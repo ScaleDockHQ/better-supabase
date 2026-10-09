@@ -1,6 +1,7 @@
 {
   "title": "Frameworks",
   "pages": [
+    "index",
     "next",
     "next-cache-components",
     "hono",

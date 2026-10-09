@@ -63,12 +63,24 @@ time zone; a bad cron or zone fails with `invalid_input`. Change `cron`
 and `timezone` together. `pause` and `resume` turn a task off and on, and
 `runs(taskId)` lists its recent runs.
 
+Only the service role sets `next_run_at`. A member's create, or a change to
+`cron` or `timezone`, clears it, and the next `tick()` schedules the task;
+with a `service` transport the block schedules it right after the save. A
+`chatId` must name a chat the task's user owns in the same tenant
+(`AI_TASK_CHAT_FORBIDDEN`), and an `agentId` an agent in the tenant that
+the user owns or that is published (`AI_TASK_AGENT_FORBIDDEN`). An unknown
+time zone fails with `AI_TASK_INVALID`.
+
 ## Running tasks
 
 `tick()` claims the due tasks as the service role, queues a run for each
 and sets the next occurrence. With [jobs](/docs/blocks/jobs) installed, each
 run is sent to the `ai_task_run` queue and `runJob()` is its handler;
 without jobs, call `drain()` from a cron route to tick and run in one go.
+`drain()` runs every claimed task even when one fails, then returns the
+first error with a `details` line that lists each failed run. A run that
+stays `queued` longer than the stale timeout is marked `failed` on the
+next `tick()`, so a lost queue message doesn't block its task.
 
 `execute(runId)` marks the run `running`, calls your `run` function and
 marks it `succeeded` or `failed` with the error. It returns `false` when

@@ -138,9 +138,13 @@ const runId = await builder
 ```
 
 `versions.save` updates the open draft, or opens the next version when the
-last one is published. `versions.publish` runs `compile` on the graph,
-stores the result with the version, publishes it and archives the version
-that was published before. `run` starts the published version through
+last one is published. `versions.publish` runs `compile` on the graph
+(a throw fails the publish), publishes the version as the caller and
+archives the version that was published before. The compiled form is
+stored through the `service` transport; without one it isn't stored.
+`publish_workflow_version` refuses a non-null `compiled` from anyone but
+the service role (`WORKFLOW_COMPILED_FORBIDDEN`), so a member with
+`workflow.publish` can't store code for the server to run. `run` starts the published version through
 `start` with a fresh idempotency key unless you pass one, and returns the
 engine's run id. The run appears in `workflow_runs` like any other run.
 
@@ -204,7 +208,8 @@ const { token } = await builder.credentials.resolve(slack.id).orThrow(); // insi
 await builder.credentials.revoke(slack.id);
 ```
 
-A credential row holds a `credential_ref`, never the secret. `create` stores
+A credential row holds a `credential_ref`, never the secret, and the ref
+carries the row's tenant ([tenant refs](/docs/extending/credentials#tenant-refs)). `create` stores
 `secret` first when the provider can store one, and `authorize` returns the
 URL that connects an account for providers that authorize (such as
 [Vercel Connect](/docs/extending/credentials)). `resolve` is a service-role

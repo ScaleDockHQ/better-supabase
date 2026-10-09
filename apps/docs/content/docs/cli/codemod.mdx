@@ -18,11 +18,11 @@ Without them it walks the project and skips `node_modules`, build output
 `--dry-run` prints a unified diff of each file it would change and writes
 nothing.
 
-| Codemod | What it changes                                                                                                         |
-| ------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `0.4`   | The 0.4 renames on the [naming page](/docs/concepts/naming#renames): imports, members and the provider prop             |
-| `0.5`   | `scopes` in `createMcp()` options becomes `advertisedScopes`                                                            |
-| `0.6`   | Lists every `$rpc` call (rows in the configured casing), and `.publicUrl(` and `.path({` calls (a `Result`), for review |
+| Codemod | What it changes                                                                                                                                                                                                                                                                         |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0.4`   | The 0.4 renames on the [naming page](/docs/concepts/naming#renames): imports, members and the provider prop                                                                                                                                                                             |
+| `0.5`   | `scopes` in `createMcp()` options becomes `advertisedScopes`                                                                                                                                                                                                                            |
+| `0.6`   | Renames the `Kit` and `Org` exports to their `Block`, `Module` and `Organization` names and `maxUrlLength` to `urlLengthLimit`; lists every `$rpc` call (rows in the configured casing), `.publicUrl(` and `.path({` calls (a `Result`) and imports from the moved subpaths, for review |
 
 ## What it rewrites
 

@@ -20,7 +20,10 @@ better-supabase sql add connectors   # adds tenant and access as well
 | `connector_tool_fingerprints` | A digest of each tool list the server returned, and its review status |
 
 A server's auth type is `none`, `header` (an app credential sent as
-headers) or `oauth` (one grant per user). Server URLs must use `https`
+headers) or `oauth` (one grant per user). A `header` server's
+`credentialRef` must carry the server's tenant
+([tenant refs](/docs/extending/credentials#tenant-refs)), or the save fails
+with `CREDENTIAL_REF_FOREIGN`. Server URLs must use `https`
 unless `allowHttp` is on, and sessions expire after `sessionTtl` (`1 hour`
 by default).
 

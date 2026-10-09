@@ -1,0 +1,32 @@
+---
+title: Overview
+description: One adapter per framework runs withBetterSupabase in its middleware, so every route, loader and action gets the caller's repositories.
+---
+
+Each framework adapter is a subpath of `better-supabase` that runs
+`withBetterSupabase` in the framework's own middleware or hook. The adapter
+verifies the access token locally, builds the caller's repositories and
+hands them to your routes, loaders, actions and server functions. Pick the
+page for your framework; a framework without an adapter can use a bridge or
+`handle()` from [Other frameworks](/docs/frameworks/other).
+
+| Page                                                       | Covers                                                                      |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [Next.js](/docs/frameworks/next)                           | The proxy, Server Components, route handlers, server actions and cache tags |
+| [Cache Components](/docs/frameworks/next-cache-components) | Instant navigations, prefetching and role-aware UI with Cache Components    |
+| [Hono](/docs/frameworks/hono)                              | Middleware, Result-aware handlers and REST resources                        |
+| [oRPC](/docs/frameworks/orpc)                              | A middleware that adds the caller's repositories to the oRPC context        |
+| [Expo Router](/docs/frameworks/expo)                       | Server loaders, API routes and middleware                                   |
+| [Edge Functions](/docs/frameworks/edge)                    | Fetch handlers for Supabase Edge Functions, Deno, Bun and Workers           |
+| [TanStack Start](/docs/frameworks/tanstack-start)          | Request middleware with the caller's repositories in every server function  |
+| [SvelteKit](/docs/frameworks/sveltekit)                    | A `handle` hook with the caller's repositories on `event.locals`            |
+| [React Router](/docs/frameworks/react-router)              | Server middleware with the caller's repositories in loaders and actions     |
+| [H3 and Nitro 3](/docs/frameworks/h3)                      | H3 2 middleware with the caller's repositories on `event.context`           |
+| [Elysia](/docs/frameworks/elysia)                          | The caller's repositories derived into every route                          |
+| [Nuxt and Nitro 2](/docs/frameworks/nuxt)                  | The Nuxt module or `toH3V1` as Nitro 2 server middleware                    |
+| [Node, Express, Fastify and Koa](/docs/frameworks/node)    | `node:http`, Express, Fastify and Koa, with route guards                    |
+| [NestJS](/docs/frameworks/nestjs)                          | NestJS middleware, `@Ctx()` and role guards                                 |
+| [Astro](/docs/frameworks/astro)                            | Astro middleware, page guards and Actions                                   |
+| [SolidStart](/docs/frameworks/solid-start)                 | Middleware for queries, actions and API routes                              |
+| [MCP servers](/docs/frameworks/mcp)                        | Tools from your tables and your own code, running as the signed-in user     |
+| [Other frameworks](/docs/frameworks/other)                 | A bridge for any framework, or your own adapter with `handle()`             |

@@ -16,3 +16,7 @@ add one, and link it from the code or config it explains.
 | [0008](0008-middleware-entries.md)              | The server and the adapters run on `@supabase/middleware` entries and bridges                |
 | [0009](0009-stripe-peer-and-openfeature.md)     | Stripe is a lazily loaded optional peer; OpenFeature is typed structurally                   |
 | [0010](0010-neutral-blocks-and-sdk-adapters.md) | AI blocks stay SDK-neutral; SDK adapters own no tables; tokens sit behind a `credential_ref` |
+| [0011](0011-authorization-providers.md)         | Authorization is a neutral, versioned `AuthorizationProvider`; libraries ship adapters       |
+| [0012](0012-kits-renamed-to-blocks.md)          | Kits are blocks; feature modules import from `better-supabase/blocks/<name>`                 |
+| [0013](0013-node-only-sdk-adapters.md)          | SDK adapters whose SDK needs Node (`workflow-sdk/world`, `eve`) are Node-only entries        |
+| [0014](0014-nestjs-create-require.md)           | `better-supabase/nestjs` loads `@nestjs/common` with a synchronous `createRequire`           |

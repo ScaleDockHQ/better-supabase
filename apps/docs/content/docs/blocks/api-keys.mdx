@@ -110,6 +110,11 @@ answers 429 with `Retry-After`. Each verification counts against the key's
 limit and updates `last_used_at` at most once a minute
 (`sql.modules.api-keys.options.touchInterval`, in seconds).
 
+The `apiKey` caller carries `createdAt` (a `Temporal.Instant`) and
+`createdBy` (the creating user's id) when the key row has them, so a guard or
+an authorization check can tell who issued the key. `toSession` returns
+`createdAt` in epoch seconds, like the session's other times.
+
 There is no JWT for an API key, so PostgREST can't run its queries. `ctx.db`
 and `ctx.sql` run over direct Postgres instead (pass `postgres` to the
 server), with these claims and the key's tenant as `better_supabase.tenant`:
