@@ -158,6 +158,10 @@ export default defineConfig({
       "ai-tasks": { api: "api" },
       // Device push tokens for the Expo example's push registration.
       push: { api: "api" },
+      // The assistant answers with each organization's own provider keys
+      // (`ai-providers`), and `ai-cache` keeps repeated model calls.
+      "ai-cache": { api: "api" },
+      "ai-providers": { api: "api" },
     },
   },
 });

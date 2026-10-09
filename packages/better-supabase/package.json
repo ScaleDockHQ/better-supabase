@@ -479,6 +479,16 @@
       "types": "./dist/blocks/ai-tasks/index.d.ts",
       "default": "./dist/blocks/ai-tasks/index.js"
     },
+    "./blocks/ai-cache": {
+      "@better-supabase/source": "./src/blocks/ai-cache/index.ts",
+      "types": "./dist/blocks/ai-cache/index.d.ts",
+      "default": "./dist/blocks/ai-cache/index.js"
+    },
+    "./blocks/ai-providers": {
+      "@better-supabase/source": "./src/blocks/ai-providers/index.ts",
+      "types": "./dist/blocks/ai-providers/index.d.ts",
+      "default": "./dist/blocks/ai-providers/index.js"
+    },
     "./ai-sdk": {
       "@better-supabase/source": "./src/ai-sdk/index.ts",
       "types": "./dist/ai-sdk/index.d.ts",
@@ -493,6 +503,16 @@
       "@better-supabase/source": "./src/ai-sdk/files/index.ts",
       "types": "./dist/ai-sdk/files/index.d.ts",
       "default": "./dist/ai-sdk/files/index.js"
+    },
+    "./ai-sdk/cache": {
+      "@better-supabase/source": "./src/ai-sdk/cache/index.ts",
+      "types": "./dist/ai-sdk/cache/index.d.ts",
+      "default": "./dist/ai-sdk/cache/index.js"
+    },
+    "./ai-sdk/batches": {
+      "@better-supabase/source": "./src/ai-sdk/batches/index.ts",
+      "types": "./dist/ai-sdk/batches/index.d.ts",
+      "default": "./dist/ai-sdk/batches/index.js"
     },
     "./ai-sdk/embeddings": {
       "@better-supabase/source": "./src/ai-sdk/embeddings/index.ts",
@@ -969,6 +989,14 @@
         "types": "./dist/blocks/ai-tasks/index.d.ts",
         "default": "./dist/blocks/ai-tasks/index.js"
       },
+      "./blocks/ai-cache": {
+        "types": "./dist/blocks/ai-cache/index.d.ts",
+        "default": "./dist/blocks/ai-cache/index.js"
+      },
+      "./blocks/ai-providers": {
+        "types": "./dist/blocks/ai-providers/index.d.ts",
+        "default": "./dist/blocks/ai-providers/index.js"
+      },
       "./ai-sdk": {
         "types": "./dist/ai-sdk/index.d.ts",
         "default": "./dist/ai-sdk/index.js"
@@ -980,6 +1008,14 @@
       "./ai-sdk/files": {
         "types": "./dist/ai-sdk/files/index.d.ts",
         "default": "./dist/ai-sdk/files/index.js"
+      },
+      "./ai-sdk/cache": {
+        "types": "./dist/ai-sdk/cache/index.d.ts",
+        "default": "./dist/ai-sdk/cache/index.js"
+      },
+      "./ai-sdk/batches": {
+        "types": "./dist/ai-sdk/batches/index.d.ts",
+        "default": "./dist/ai-sdk/batches/index.js"
       },
       "./ai-sdk/embeddings": {
         "types": "./dist/ai-sdk/embeddings/index.d.ts",

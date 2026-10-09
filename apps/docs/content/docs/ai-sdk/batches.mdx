@@ -1,0 +1,88 @@
+---
+title: Batches
+description: Start AI SDK batches for a tenant, poll them from a job, and store each request's result in Postgres.
+---
+
+Provider batch APIs run many requests at a lower price, but take minutes to
+hours. `aiBatches` from `better-supabase/ai-sdk/batches` starts a batch with
+`experimental_startBatch`, records it in the
+[AI providers block](/docs/blocks/ai-providers), and a job polls it until
+the results are stored in `ai_batch_items`.
+
+```ts title="lib/batches.ts"
+import "server-only";
+
+import { aiBatches } from "better-supabase/ai-sdk/batches";
+
+export const batchesFor = (supabase: SupabaseClient) =>
+  aiBatches({ providers: providersFor(supabase) });
+```
+
+```ts
+const batch = await batchesFor(supabase)
+  .start(
+    { organizationId, userId },
+    {
+      requests: tickets.map((ticket) => ({
+        id: ticket.id,
+        type: "text",
+        model: "openai/gpt-5-mini",
+        prompt: `Summarize: ${ticket.body}`,
+      })),
+      metadata: { job: "ticket-summaries" },
+    },
+  )
+  .orThrow();
+```
+
+`start` calls the provider, then records the batch as the caller, so a
+member needs `ai_chat.create` in the organization. `metadata` stays in the
+row and never goes to the provider. A provider error is a `network` error
+with the hint `AI_BATCH_PROVIDER`.
+
+## The poll job
+
+Schedule `pollJob` every minute through the [jobs block](/docs/blocks/jobs).
+Each run claims the batches whose next poll is due, so two workers never
+poll the same batch:
+
+```ts
+const batches = aiBatches({
+  providers: createAiProviders({ transport: service, service, schema: "api" }),
+  onDone: (batch) => notify(batch.userId, "Your summaries are ready"),
+});
+
+handlers: {
+  ai_batch_poll: batches.pollJob();
+}
+```
+
+| State at the provider                | What the poll does                                                                                                        |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `pending`                            | stores the status and counts, and polls again after `pollEvery` seconds                                                   |
+| `completed`, `failed` or `cancelled` | stores the status and any error, streams the results there are into `ai_batch_items` in pages of 100, then calls `onDone` |
+
+A poll that fails keeps the batch due and notes the error on the row; the
+next run tries again. `onItem(item, batch)` changes what is stored for a
+result, for example to move a generated image to Storage and keep its path.
+
+## Reading results
+
+```ts
+const status = await batches.status(batchId).orThrow();
+const page = await batches
+  .results(batchId, { after: lastRequestId, limit: 100 })
+  .orThrow();
+```
+
+Both read as the caller: a member sees the batches they started, and
+`ai_chat.admin` sees every batch in the organization. `cancel(batch)` asks
+the provider to cancel and stores the new status.
+
+| Option      | Default                             | Sets                                                      |
+| ----------- | ----------------------------------- | --------------------------------------------------------- |
+| `providers` | required                            | The providers block, with a service transport for polling |
+| `provider`  | the global provider, or the gateway | The batch provider, or a function of the stored reference |
+| `pollEvery` | 60                                  | Seconds between two polls of a running batch              |
+| `onItem`    | output, usage and error as JSON     | What is stored for one result                             |
+| `onDone`    | none                                | Called once a batch's results are stored, or it failed    |

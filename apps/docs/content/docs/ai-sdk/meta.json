@@ -8,6 +8,10 @@
     "embeddings",
     "memory",
     "agents",
-    "mcp"
+    "mcp",
+    "providers",
+    "telemetry",
+    "cache",
+    "batches"
   ]
 }

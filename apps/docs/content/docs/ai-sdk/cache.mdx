@@ -1,0 +1,62 @@
+---
+title: Response cache
+description: A wrapLanguageModel middleware that answers repeated model calls from the AI cache block and replays cached streams.
+---
+
+`cacheMiddleware` from `better-supabase/ai-sdk/cache` answers a model call
+from the [AI cache block](/docs/blocks/ai-cache) when the same call ran
+before. A cached `generateText` result comes back as it was stored; a cached
+`streamText` call is replayed through `simulateReadableStream`, so the client
+sees the same stream parts in the same order.
+
+```ts title="lib/models.ts"
+import "server-only";
+
+import { wrapLanguageModel } from "ai";
+import { cacheMiddleware } from "better-supabase/ai-sdk/cache";
+
+import { aiCache } from "./ai-cache";
+
+export const cachedModel = (organizationId: string) =>
+  wrapLanguageModel({
+    model: gateway("openai/gpt-5-mini"),
+    middleware: cacheMiddleware({ cache: aiCache, ttl: 3600, organizationId }),
+  });
+```
+
+The key is a SHA-256 of the call type (`generate` or `stream`), the tenant,
+the provider, the model id and the call options without the abort signal
+and the headers. Pass `organizationId` so two tenants never share an entry
+and the tenant's deletion removes its entries.
+
+| Option           | Default                          | Sets                                                    |
+| ---------------- | -------------------------------- | ------------------------------------------------------- |
+| `cache`          | required                         | The AI cache block, created with a service transport    |
+| `ttl`            | required                         | Seconds an entry lives, capped by the module's `maxTtl` |
+| `organizationId` | none                             | The tenant the entries belong to                        |
+| `key`            | provider, model and call options | What the key covers, as any JSON value                  |
+| `when`           | every call                       | Return `false` to skip the cache for a call             |
+| `replay`         | no delay                         | `initialDelayInMs` and `chunkDelayInMs` for replays     |
+| `onError`        | none                             | Called when the cache can't be read or written          |
+
+A call that ends in an error, or a stream with an `error` part, is never
+cached. When the cache can't answer, the call goes to the provider and
+`onError` gets the `DbError`; the cache never fails a model call.
+
+## What to cache
+
+Cache calls whose answer depends only on the input: a summary of a fixed
+document, a classification at `temperature: 0`. Skip calls
+with tools that read live data, or a high temperature, through `when`:
+
+```ts
+cacheMiddleware({
+  cache: aiCache,
+  ttl: 86_400,
+  when: ({ params }) =>
+    (params.temperature ?? 0) === 0 && params.tools === undefined,
+});
+```
+
+Dates, byte arrays and URLs in a result (a generated file, a response
+timestamp) survive the round trip through JSON.

@@ -15,6 +15,7 @@
     "chat-sdk",
     "ai-sdk",
     "eve",
+    "build",
     "plugins",
     "testing",
     "examples",
