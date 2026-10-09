@@ -89,4 +89,5 @@
   makes `withEve` read the root `vercel.json`, whose services have no eve
   service, so `next typegen` in `apps/examples/eve` fails the `lint` task with
   `vercel.json already defines services`. CI has no link. Locally, set the
-  folder aside for the run (`mv .vercel .vercel.aside`) and put it back after.
+  folder aside outside the repo for the run (`mv .vercel /tmp/bs-vercel`; a
+  renamed folder in the repo is no longer gitignored) and put it back after.
