@@ -328,7 +328,7 @@ describe.skipIf(!live)("ai-chat module", () => {
       ).toMatchObject({ cancelled: true });
       expect(
         await s.value(
-          "better_supabase.release_ai_chat_stream($1, 's1', 'stopped', $2, 'gen-1')",
+          "better_supabase.release_ai_chat_stream($1, 's1', 'cancelled', $2, 'gen-1')",
           [chat.id, { inputTokens: 3 }],
         ),
       ).toBe(true);
