@@ -4,6 +4,7 @@ import type { ModuleDefinition } from "../registry.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   activeMembership,
+  addExtraColumns,
   addForeignKey,
   columnRef,
   membershipDisabledAt,
@@ -13,7 +14,11 @@ import {
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
-import { organizationReads } from "./organizations-reads.ts";
+import {
+  organizationAttributes,
+  organizationExtraColumns,
+  organizationReads,
+} from "./organizations-reads.ts";
 import { memberSuspension } from "./organizations-suspension.ts";
 import {
   activeTenantSource,
@@ -29,6 +34,7 @@ const NAMES: ModuleNames = {
     "attributes",
     "auditCategory",
     "deleteMode",
+    "extraColumns",
     "formerOwnerRole",
     "ownerInvariant",
     "ownerRole",
@@ -64,6 +70,8 @@ const NAMES: ModuleNames = {
   hooks: [
     "before_organization_create",
     "after_organization_create",
+    "before_organization_update",
+    "after_organization_update",
     "after_member_change",
   ],
 };
@@ -239,7 +247,7 @@ function table(ctx: ModuleContext, n: OrganizationNames): string {
 create table if not exists ${n.organization} (
   ${idColumn(ctx, n.id)},
   ${c("name")} text not null check (length(btrim(${c("name")})) > 0)${optional("slug", `${slugType} not null`)}${optional("createdBy", "uuid references auth.users (id) on delete set null")}${optional("createdAt", "timestamptz not null default now()")}${optional("disabledAt", "timestamptz")}${optional("deletedAt", "timestamptz")}
-);
+);${addExtraColumns(n.organization, organizationExtraColumns(ctx))}
 ${slugIndex}${ctx.has("organizations", "createdBy") ? `create index if not exists organizations_created_by_idx on ${n.organization} (${c("createdBy")});\n` : ""}${ctx.has("organizations", "updatedAt") ? `${updatedAt(n.organization, c("updatedAt"))}\n` : ""}${
     ctx.installed("entitlements")
       ? `-- The Stripe customer the entitlements module reads (config.entitlements.customer).
@@ -323,14 +331,7 @@ const raiseSlug = (
 
 /** The columns `create_organization` and `update_organization` copy from `attrs`. */
 function attributeColumns(ctx: ModuleContext): readonly string[] {
-  const extra = ctx.list("attributes", []).map((column) => {
-    if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
-      throw new TypeError(
-        `sql.modules.organizations.options.attributes: "${column}" is not a valid column`,
-      );
-    }
-    return sqlIdent(column);
-  });
+  const extra = organizationAttributes(ctx).map((column) => sqlIdent(column));
   return [
     ctx.col("organizations", "name"),
     ...(ctx.has("organizations", "slug")
@@ -442,6 +443,10 @@ begin
   if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("update", MODULE_PERMISSIONS.organizations.update)}), false)${platformOverride(ctx, "updatePlatform")} then
     raise exception 'Not allowed to update the organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;${slug ? `\n  if attrs ? ${slug} then${raiseSlug(ctx, `attrs ->> ${slug}`, "organization").replaceAll("\n", "\n  ")}\n  end if;` : ""}
+  ${ctx.hook("before_organization_update", [
+    [id, "organization"],
+    ["jsonb", "attrs"],
+  ])}
   update ${n.organization} o
   set ${columns.map((column) => `${column} = case when attrs ? ${sqlString(unquoted(column))} then r.${column} else o.${column} end`).join(",\n    ")}
   from jsonb_populate_record(null::${n.organization}, attrs) r
@@ -449,6 +454,10 @@ begin
   if not found then
     raise exception 'No organization %', organization using errcode = 'P0002', hint = 'ORGANIZATION_NOT_FOUND';
   end if;
+  ${ctx.hook("after_organization_update", [
+    [id, "organization"],
+    ["jsonb", "attrs"],
+  ])}
   ${ctx.record({ type: "organization.updated", payload: event("organization", "auth.uid()"), subject: "'organizations/' || organization::text", tenant: "organization", audit: { category: "configuration", targetType: "organization", recordId: "organization::text" } })}
   return true;
 end;

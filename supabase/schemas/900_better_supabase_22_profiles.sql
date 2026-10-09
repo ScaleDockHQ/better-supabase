@@ -206,7 +206,16 @@ set search_path = ''
 as $$
 declare
   updated integer;
+  v_caller uuid := (select auth.uid());
 begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_profile_update"(jsonb, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::jsonb, $2::uuid)', v_hook::oid::regproc)
+        using attrs, v_caller;
+    end if;
+  end;
   update "better_supabase"."profiles" p
   set "full_name" = case when update_my_profile.attrs ? 'full_name' then update_my_profile.attrs ->> 'full_name' else p."full_name" end,
     "first_name" = case when update_my_profile.attrs ? 'first_name' then update_my_profile.attrs ->> 'first_name' else p."first_name" end,
@@ -216,8 +225,18 @@ begin
     "username" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p."username" end,
     "onboarding" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs -> 'onboarding' else p."onboarding" end,
     "updated_at" = now()
-  where p."id" = (select auth.uid());
+  where p."id" = v_caller;
   get diagnostics updated = row_count;
+  if updated > 0 then
+    declare
+      v_hook regprocedure := to_regprocedure('"public"."after_profile_update"(uuid)');
+    begin
+      if v_hook is not null then
+        execute format('select %s($1::uuid)', v_hook::oid::regproc)
+          using v_caller;
+      end if;
+    end;
+  end if;
   return updated > 0;
 end;
 $$;

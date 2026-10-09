@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/react-query";
 import type { createClient } from "redis";
 
+import * as v from "valibot";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthResolver } from "../../src/auth/resolve.ts";
@@ -9,6 +10,11 @@ import type { AiTaskRunner } from "../../src/blocks/ai-tasks/index.ts";
 import type { QueueBackend } from "../../src/blocks/jobs/index.ts";
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 import type { NotificationChannel } from "../../src/blocks/notifications/index.ts";
+import type {
+  InvitationSent,
+  InviteRequest,
+} from "../../src/blocks/organizations/index.ts";
+import type { Profiles } from "../../src/blocks/profiles/index.ts";
 import type {
   WebhookSecretStore,
   WebhookSigner,
@@ -23,6 +29,11 @@ import type {
   BetterSupabaseConfig,
   Generator,
 } from "../../src/config/index.ts";
+import type {
+  BlockHooks,
+  BlockTransportMiddleware,
+} from "../../src/core/block-hooks.ts";
+import type { BlockTransport } from "../../src/core/block-transport.ts";
 import type { CacheAdapter } from "../../src/core/cache.ts";
 import type { Compiler } from "../../src/core/compiler.ts";
 import type { Executor } from "../../src/core/executor.ts";
@@ -33,7 +44,7 @@ import type {
   MutationIntent,
   RequestContext,
 } from "../../src/core/plugin.ts";
-import type { AsyncResult } from "../../src/core/result.ts";
+import type { AsyncResult, Result } from "../../src/core/result.ts";
 import type {
   CredentialProvider,
   CredentialRef,
@@ -55,6 +66,8 @@ import {
   pgmqPublicBackend,
   sqlQueueBackend,
 } from "../../src/blocks/jobs/index.ts";
+import { createOrganizations } from "../../src/blocks/organizations/index.ts";
+import { createProfiles } from "../../src/blocks/profiles/index.ts";
 import {
   fetchTransport,
   hmacSigner,
@@ -62,6 +75,11 @@ import {
   standardWebhooks,
 } from "../../src/blocks/webhooks/index.ts";
 import { jsonSchema } from "../../src/config/index.ts";
+import {
+  extendBlock,
+  withBlockHooks,
+  wrapTransport,
+} from "../../src/core/block-hooks.ts";
 import { memoryCache } from "../../src/core/cache.ts";
 import { postgrestCompiler } from "../../src/core/compiler.ts";
 import { defineRepository } from "../../src/core/define-repository.ts";
@@ -82,6 +100,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
 declare const queryClient: QueryClient;
+declare const blockTransport: BlockTransport;
 
 describe("extension interfaces", () => {
   it("are implemented by the first-party extensions", () => {
@@ -249,5 +268,75 @@ describe("mutation events", () => {
     expectTypeOf<MutationEvent["keys"]>().toEqualTypeOf<
       readonly Readonly<Record<string, unknown>>[] | undefined
     >();
+  });
+});
+
+describe("block extension", () => {
+  const Fields = v.object({
+    plan: v.picklist(["free", "pro"]),
+    seats: v.number(),
+  });
+
+  it("types the extra fields on reads and writes", () => {
+    const organizations = createOrganizations({
+      transport: blockTransport,
+      fields: Fields,
+    });
+    expectTypeOf(organizations.mine()).resolves.toExtend<
+      | { ok: true; data: readonly { plan: "free" | "pro"; seats: number }[] }
+      | { ok: false }
+    >();
+    expectTypeOf<Parameters<(typeof organizations)["update"]>[1]>()
+      .toHaveProperty("plan")
+      .toEqualTypeOf<"free" | "pro" | undefined>();
+
+    const profiles = createProfiles({
+      transport: blockTransport,
+      fields: Fields,
+    });
+    expectTypeOf(profiles).toEqualTypeOf<
+      Profiles<{ plan: "free" | "pro"; seats: number }>
+    >();
+    expectTypeOf(
+      createProfiles({ transport: blockTransport }),
+    ).toEqualTypeOf<Profiles>();
+  });
+
+  it("types hooks by method", () => {
+    createOrganizations({
+      transport: blockTransport,
+      hooks: {
+        invite: {
+          before: ([request]) => {
+            expectTypeOf(request).toEqualTypeOf<InviteRequest>();
+          },
+          after: (result) => {
+            expectTypeOf(result).toEqualTypeOf<Result<InvitationSent>>();
+          },
+        },
+        // @ts-expect-error not a method
+        nope: {},
+      },
+    });
+  });
+
+  it("adds methods with extendBlock and keeps the base", () => {
+    const extended = extendBlock(
+      createProfiles({ transport: blockTransport }),
+      (base, { call }) => ({
+        touch: () => call("touch_profile", {}, () => true as const),
+        reread: () => base.mine(),
+      }),
+    );
+    expectTypeOf(extended.touch()).toEqualTypeOf<AsyncResult<true>>();
+    expectTypeOf(extended).toHaveProperty("updateMine");
+  });
+
+  it("versions transport middleware", () => {
+    expectTypeOf<BlockTransportMiddleware["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(wrapTransport).returns.toExtend<BlockTransport>();
+    expectTypeOf(withBlockHooks<Profiles>)
+      .parameter(1)
+      .toEqualTypeOf<BlockHooks<Profiles> | undefined>();
   });
 });

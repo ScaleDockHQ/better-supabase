@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ExtraColumn, ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -62,7 +62,11 @@ const NAMES: ModuleNames = {
       ],
     },
   },
-  hooks: ["after_profile_sync"],
+  hooks: [
+    "after_profile_sync",
+    "before_profile_update",
+    "after_profile_update",
+  ],
 };
 
 /** The metadata keys each column reads by default, first match wins. */
@@ -83,7 +87,6 @@ export function hasAvatarPath(ctx: ModuleContext): boolean {
 const USERNAME_SOURCES = ["user_name", "preferred_username", "username"];
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
-const SQL_TYPE = /^[a-z][a-z0-9_ (),.'[\]-]*$/i;
 
 const fail = (code: string, message: string, errcode = "42501"): string =>
   `raise exception '${message}' using errcode = '${errcode}', hint = '${code}';`;
@@ -113,20 +116,9 @@ function record(
 function extraColumns(
   ctx: ModuleContext,
 ): readonly (readonly [string, string])[] {
-  return Object.entries(record(ctx, "extraColumns") ?? {}).map(
-    ([name, type]) => {
-      if (
-        typeof type !== "string" ||
-        !SQL_TYPE.test(type) ||
-        type.includes("--")
-      ) {
-        throw new TypeError(
-          `sql.modules.profiles.options.extraColumns.${name} must be a SQL type such as "text not null default 'en'"`,
-        );
-      }
-      return [column("sql.modules.profiles.options.extraColumns", name), type];
-    },
-  );
+  return ctx
+    .extraColumns("profiles")
+    .map((extra) => [extra.ident, extra.type] as const);
 }
 
 /** Column to the metadata keys it reads: `options.metadata` or the defaults. */
@@ -787,11 +779,19 @@ set search_path = ''
 as $$
 declare
   updated integer;
+  v_caller uuid := (select auth.uid());
 begin
+  ${ctx.hook("before_profile_update", [
+    ["jsonb", "attrs"],
+    ["uuid", "v_caller"],
+  ])}
   update ${t} p
   set ${selfUpdates(ctx)}${ctx.has("profiles", "updatedAt") ? `,\n    ${ctx.col("profiles", "updatedAt")} = now()` : ""}
-  where p.${key} = (select auth.uid());
+  where p.${key} = v_caller;
   get diagnostics updated = row_count;
+  if updated > 0 then
+    ${ctx.hook("after_profile_update", [["uuid", "v_caller"]]).replaceAll("\n", "\n  ")}
+  end if;
   return updated > 0;
 end;
 $$;
@@ -822,17 +822,34 @@ function selfUpdates(ctx: ModuleContext): string {
       ? hasAvatarPath(ctx)
       : ctx.has("profiles", logical),
   );
-  if (columns.length === 0) {
+  const t = ctx.table("profiles");
+  const extras = updatableExtras(ctx).map(
+    (extra) =>
+      `${extra.ident} = case when update_my_profile.attrs ? ${sqlString(extra.name)} then (jsonb_populate_record(null::${t}, update_my_profile.attrs)).${extra.ident} else p.${extra.ident} end`,
+  );
+  if (columns.length === 0 && extras.length === 0) {
     return `${ctx.col("profiles", "key")} = p.${ctx.col("profiles", "key")}`;
   }
-  return columns
-    .map((logical) => {
+  return [
+    ...columns.map((logical) => {
       const quoted = ctx.col("profiles", logical);
       const key = sqlString(profilePhysical(ctx, logical));
       const extract = logical === "onboarding" ? "->" : "->>";
       return `${quoted} = case when update_my_profile.attrs ? ${key} then update_my_profile.attrs ${extract} ${key} else p.${quoted} end`;
-    })
-    .join(",\n    ");
+    }),
+    ...extras,
+  ].join(",\n    ");
+}
+
+/**
+ * The extra columns `update_my_profile` writes: all of them, or those in
+ * `options.updatable` when it is set, since the column grants allow no more.
+ */
+function updatableExtras(ctx: ModuleContext): readonly ExtraColumn[] {
+  const extras = ctx.extraColumns("profiles");
+  if (ctx.option("updatable") === undefined) return extras;
+  const updatable = new Set(ctx.list("updatable", []));
+  return extras.filter((extra) => updatable.has(extra.name));
 }
 
 /** The auth.users triggers: sync on sign-up and the email mirror. */

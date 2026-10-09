@@ -69,6 +69,13 @@ found;` returns the record's `found`. Check `found` before the record.
 - Module functions never create temporary tables. `supabase db lint` runs
   plpgsql_check, which reports a table created at runtime as missing
   (42P01) and fails every adopter's lint; use a `materialized` CTE instead.
+- Hooks are named `before_<entity>_<action>` and `after_<entity>_<action>`
+  (ADR 0015), declared in `NAMES.hooks` and called with `ctx.hook`. A
+  mutating function of a module listed in `tests/sql/block-hooks.test.ts`
+  gets both; add a new module there once it supports extension.
+- A managed table that accepts app columns takes `options.extraColumns`
+  through `ctx.extraColumns(table, reserved)`, which refuses names the
+  module uses, and writes them with `addExtraColumns` from `shared.ts`.
 - Every new module installs next to every other one with the default
   config: `sql-modules.integration.test.ts` installs them all into
   `better_supabase`, and the pg-delta round trip diffs them.
@@ -86,6 +93,14 @@ found;` returns the record's `found`. Check `found` before the record.
   (`CursorPageOptions`) for pages. An injectable function or object takes an
   optional `apiVersion: 1`, checked with `injectableOf`, and gets a kit in
   `src/testing/injectables.ts`.
+- Extension (ADR 0015): the client returned by the creator is wrapped with
+  `withBlockHooks(client, options.hooks, { block })`, and the options take
+  `hooks?: NoInfer<BlockHooks<Client>>`. A block whose rows carry app
+  columns takes a Standard Schema `fields` option and reads and writes them
+  through `blockFields` (`src/core/block-fields.ts`), so a bad write is a
+  `validation` error and a read is parsed. Internal calls between methods
+  go through the hooked client, so hooks see them. Never redefine the
+  extension helpers per block; re-export them from the block's `index.ts`.
 - Time values are `Temporal.Instant` (ADR 0005). Stripe goes through
   `src/blocks/stripe.ts` (ADR 0009).
 

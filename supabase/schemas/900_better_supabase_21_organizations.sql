@@ -114,6 +114,14 @@ begin
       else null;
     end case;
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_organization_update"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using organization, attrs;
+    end if;
+  end;
   update "public"."organizations" o
   set "name" = case when attrs ? 'name' then r."name" else o."name" end,
     "slug" = case when attrs ? 'slug' then r."slug" else o."slug" end
@@ -122,6 +130,14 @@ begin
   if not found then
     raise exception 'No organization %', organization using errcode = 'P0002', hint = 'ORGANIZATION_NOT_FOUND';
   end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_organization_update"(uuid, jsonb)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
+        using organization, attrs;
+    end if;
+  end;
   perform better_supabase.audit_event(
     event_type => 'organization.updated',
     category => 'configuration',

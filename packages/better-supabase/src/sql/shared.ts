@@ -1,10 +1,34 @@
 import type { DisabledRow } from "../config/modules.ts";
-import type { ModuleContext } from "./context.ts";
+import type { ExtraColumn, ModuleContext } from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
 
 /** What `record` and the other statement helpers return when there is nothing to do. */
 export const NOTHING = "null;";
+
+/** `alter table ... add column if not exists` for each extra column of a managed table. */
+export const addExtraColumns = (
+  table: string,
+  columns: readonly ExtraColumn[],
+): string =>
+  columns
+    .map(
+      (column) =>
+        `\nalter table ${table} add column if not exists ${column.ident} ${column.type};`,
+    )
+    .join("");
+
+/**
+ * A `jsonb` object of `columns` of row `alias`, keyed by column name, so
+ * reads return extra columns without exposing the rest of the row.
+ */
+export const columnsObject = (
+  alias: string,
+  columns: readonly string[],
+): string =>
+  `jsonb_build_object(${columns
+    .map((name) => `${sqlString(name)}, ${alias}.${sqlIdent(name)}`)
+    .join(", ")})`;
 
 export const SCHEMA = `create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;`;

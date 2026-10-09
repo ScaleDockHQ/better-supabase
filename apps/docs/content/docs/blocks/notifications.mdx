@@ -118,6 +118,13 @@ its recipient row id, dismissed ones included, rendered like a list item, or
 `null` when the caller has no such notification. It calls
 `get_notification(id)`.
 
+`get`, `list` and `page` parse each item's `data` with the schema of its type
+in `types`, so `item.data` narrows on `item.type`: after checking
+`item.type === "approval.requested"`, `item.data.amount` is a `number`. Data
+the schema rejects makes the read fail with a `validation` error and the hint
+`NOTIFICATION_DATA_INVALID`; a type that isn't in `types` keeps its data as
+stored. `NotificationOf<typeof types>` is that item type.
+
 `markRead`, `markUnread`, `dismiss` and `resolve` return `{ count, items }`:
 how many rows changed, and the caller's own notifications as they are after
 the change, so an app can update its state without reading them back. For
@@ -399,13 +406,15 @@ event again.
 
 ## Extending it
 
-| Hook or event                   | Use                                                                           |
-| ------------------------------- | ----------------------------------------------------------------------------- |
-| `notification_audience` hook    | A SQL function that adds recipients, e.g. everyone with a role on the subject |
-| `after_notify` hook             | A SQL function that runs in the same transaction after the rows are written   |
-| `onSent` option                 | Runs after `send` stores a notification, e.g. to call Next's `updateTag`      |
-| `notification.*` block events   | `created`, `delivered` and `failed` on `betterSupabase.events`                |
-| `notifications.send` permission | Rename it with `sql.modules.notifications.permissions.send`                   |
+| Hook or event                   | Use                                                                                                                                      |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `notification_audience` hook    | A SQL function that adds recipients, e.g. everyone with a role on the subject                                                            |
+| `before_notification_send` hook | A SQL function that gets the notification as `jsonb` and raises to refuse it                                                             |
+| `after_notify` hook             | A SQL function that runs in the same transaction after the rows are written                                                              |
+| `hooks` option                  | Refuses, rewrites or observes any method in TypeScript, e.g. quiet hours on `send`; see [Extending blocks](/docs/extending/blocks#hooks) |
+| `onSent` option                 | Runs after `send` stores a notification, e.g. to call Next's `updateTag`                                                                 |
+| `notification.*` block events   | `created`, `delivered` and `failed` on `betterSupabase.events`                                                                           |
+| `notifications.send` permission | Rename it with `sql.modules.notifications.permissions.send`                                                                              |
 
 ## Existing tables
 
@@ -447,13 +456,14 @@ stored as dismissed, so other channels can deliver it.
 
 ## Error codes
 
-| `hint`                             | When                                                               |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `NOTIFICATION_TYPE_REQUIRED`       | `notify` without a type                                            |
-| `NOTIFICATION_TYPE_UNKNOWN`        | `send` with a type that isn't in `types` (checked in TypeScript)   |
-| `NOTIFICATION_FORBIDDEN`           | The sender lacks `notifications.send` in the organization          |
-| `NOTIFICATION_PRIORITY_UNKNOWN`    | A priority that isn't in `options.priorities`                      |
-| `NOTIFICATION_ACTIVITY_UNKNOWN`    | An `activity` other than `participating` or `all`                  |
-| `NOTIFICATION_LEVEL_UNKNOWN`       | A subscription level other than `participating`, `all` or `ignore` |
-| `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery with a status the block doesn't know         |
-| `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                       |
+| `hint`                             | When                                                                |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| `NOTIFICATION_TYPE_REQUIRED`       | `notify` without a type                                             |
+| `NOTIFICATION_TYPE_UNKNOWN`        | `send` with a type that isn't in `types` (checked in TypeScript)    |
+| `NOTIFICATION_DATA_INVALID`        | stored `data` that its type's schema rejects on a read (TypeScript) |
+| `NOTIFICATION_FORBIDDEN`           | The sender lacks `notifications.send` in the organization           |
+| `NOTIFICATION_PRIORITY_UNKNOWN`    | A priority that isn't in `options.priorities`                       |
+| `NOTIFICATION_ACTIVITY_UNKNOWN`    | An `activity` other than `participating` or `all`                   |
+| `NOTIFICATION_LEVEL_UNKNOWN`       | A subscription level other than `participating`, `all` or `ignore`  |
+| `NOTIFICATION_STATUS_UNKNOWN`      | Completing a delivery with a status the block doesn't know          |
+| `NOTIFICATION_TOO_MANY_RECIPIENTS` | More recipients than `options.maxRecipients`                        |

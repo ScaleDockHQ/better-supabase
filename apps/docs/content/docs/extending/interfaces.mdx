@@ -7,31 +7,32 @@ Every integration point is a small interface. The built-in behavior is one
 implementation of it, and yours can replace or sit next to it. Each interface
 has a [conformance kit](/docs/extending/conformance).
 
-| Interface                                         | Built in                                                    | Plug in with                                                            |
-| ------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
-| [`Executor`](#executor)                           | `postgrestExecutor`, `postgresExecutor`                     | `betterSupabase.connect(executor)`                                      |
-| [`Compiler`](#compiler)                           | `postgrestCompiler`, `sqlCompiler`                          | your executor                                                           |
-| [`CacheAdapter`](#cacheadapter)                   | `nextCache()`, `queryCache(client)`, `memoryCache()`        | `betterSupabase.cache(adapter)`                                         |
-| [`EventSink`](#eventsink)                         | `httpSink()`                                                | `forwardMutations(betterSupabase, sink, { source })`                    |
-| [`AuthResolver`](#authresolver)                   | Bearer and cookie resolution; `localAuth()` in `/testing`   | `createServer(betterSupabase, { auth: { resolvers } })`                 |
-| [`Generator`](#generator)                         | `zod()`, `valibot()`, `jsonSchema()`                        | `generators` in the config                                              |
-| [`Logger`](#logger)                               | `consoleLogger`, `silentLogger`                             | `defineSupabase(schema, { logger })`                                    |
-| [`QueueBackend`](#queuebackend)                   | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`         | `createJobs(backend, queues)`                                           |
-| [`SupportSessionStore`](#supportsessionstore)     | `sqlSupportStore(postgres)`                                 | `createServer(betterSupabase, { support: supportSessions({ store }) })` |
-| [`NotificationChannel`](#notificationchannel)     | none (bring your email or push provider)                    | `createNotifications({ channels })`                                     |
-| [`WebhookSigner`](#webhooksigner)                 | `standardWebhooks()`, `hmacSigner(options)`                 | `createWebhooks({ signer })`                                            |
-| [`WebhookTransport`](#webhooktransport)           | `fetchTransport({ allowUrl })`                              | `createWebhooks({ http })`                                              |
-| [`WebhookSecretStore`](#webhooksecretstore)       | `sqlSecretStore(transport)`                                 | `createWebhooks({ secrets })`                                           |
-| [`StreamStore`](#streamstore)                     | `postgresStreamStore(options)`, `redisStreamStore(options)` | `teeToStore(store, id, stream)`, `resumeFromStore(store, id)`           |
-| [`CredentialProvider`](#credentialprovider)       | `vaultCredentials(options)`, `vercelConnectCredentials()`   | `createServer(betterSupabase, { credentials })`                         |
-| [`AuthorizationProvider`](#authorizationprovider) | none (built by your authorization system)                   | `authorization` in the config                                           |
-| [`Embedder`](#embedder)                           | `embedWith(model)`, `supabaseEmbed()`                       | `createKnowledge({ embedder })`, `createMemory({ embedder })`           |
-| [`AiTaskRunner`](#aitaskrunner)                   | none (runs your agent)                                      | `createAiTasks({ run })`                                                |
-| [`GraphCompiler`](#graphcompiler)                 | none (your engine's compiled form)                          | `createBuilder({ compile })`                                            |
-| [`BuilderStarter`](#builderstarter)               | none (starts a run on your engine)                          | `createBuilder({ start })`                                              |
-| [`EveDocumentBackend`](#evedocumentbackend)       | `supabaseDocumentBackend(options)`                          | eve's `fileMemory({ backend })`                                         |
-| `EnvSource`                                       | `process.env`, `Deno.env.toObject()`                        | `parseEnv(source)`                                                      |
-| [`Plugin`](/docs/extending/plugins)               | timestamps, soft delete, tenant, actor, validation          | `betterSupabase.use(plugin)`                                            |
+| Interface                                               | Built in                                                    | Plug in with                                                            |
+| ------------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [`Executor`](#executor)                                 | `postgrestExecutor`, `postgresExecutor`                     | `betterSupabase.connect(executor)`                                      |
+| [`Compiler`](#compiler)                                 | `postgrestCompiler`, `sqlCompiler`                          | your executor                                                           |
+| [`CacheAdapter`](#cacheadapter)                         | `nextCache()`, `queryCache(client)`, `memoryCache()`        | `betterSupabase.cache(adapter)`                                         |
+| [`EventSink`](#eventsink)                               | `httpSink()`                                                | `forwardMutations(betterSupabase, sink, { source })`                    |
+| [`AuthResolver`](#authresolver)                         | Bearer and cookie resolution; `localAuth()` in `/testing`   | `createServer(betterSupabase, { auth: { resolvers } })`                 |
+| [`Generator`](#generator)                               | `zod()`, `valibot()`, `jsonSchema()`                        | `generators` in the config                                              |
+| [`Logger`](#logger)                                     | `consoleLogger`, `silentLogger`                             | `defineSupabase(schema, { logger })`                                    |
+| [`QueueBackend`](#queuebackend)                         | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`         | `createJobs(backend, queues)`                                           |
+| [`SupportSessionStore`](#supportsessionstore)           | `sqlSupportStore(postgres)`                                 | `createServer(betterSupabase, { support: supportSessions({ store }) })` |
+| [`NotificationChannel`](#notificationchannel)           | none (bring your email or push provider)                    | `createNotifications({ channels })`                                     |
+| [`WebhookSigner`](#webhooksigner)                       | `standardWebhooks()`, `hmacSigner(options)`                 | `createWebhooks({ signer })`                                            |
+| [`WebhookTransport`](#webhooktransport)                 | `fetchTransport({ allowUrl })`                              | `createWebhooks({ http })`                                              |
+| [`WebhookSecretStore`](#webhooksecretstore)             | `sqlSecretStore(transport)`                                 | `createWebhooks({ secrets })`                                           |
+| [`StreamStore`](#streamstore)                           | `postgresStreamStore(options)`, `redisStreamStore(options)` | `teeToStore(store, id, stream)`, `resumeFromStore(store, id)`           |
+| [`CredentialProvider`](#credentialprovider)             | `vaultCredentials(options)`, `vercelConnectCredentials()`   | `createServer(betterSupabase, { credentials })`                         |
+| [`AuthorizationProvider`](#authorizationprovider)       | none (built by your authorization system)                   | `authorization` in the config                                           |
+| [`Embedder`](#embedder)                                 | `embedWith(model)`, `supabaseEmbed()`                       | `createKnowledge({ embedder })`, `createMemory({ embedder })`           |
+| [`AiTaskRunner`](#aitaskrunner)                         | none (runs your agent)                                      | `createAiTasks({ run })`                                                |
+| [`GraphCompiler`](#graphcompiler)                       | none (your engine's compiled form)                          | `createBuilder({ compile })`                                            |
+| [`BuilderStarter`](#builderstarter)                     | none (starts a run on your engine)                          | `createBuilder({ start })`                                              |
+| [`EveDocumentBackend`](#evedocumentbackend)             | `supabaseDocumentBackend(options)`                          | eve's `fileMemory({ backend })`                                         |
+| [`BlockTransportMiddleware`](#blocktransportmiddleware) | none (tracing, timeouts, request ids)                       | `wrapTransport(transport, middleware)`                                  |
+| `EnvSource`                                             | `process.env`, `Deno.env.toObject()`                        | `parseEnv(source)`                                                      |
+| [`Plugin`](/docs/extending/plugins)                     | timestamps, soft delete, tenant, actor, validation          | `betterSupabase.use(plugin)`                                            |
 
 ## Executor
 
@@ -233,6 +234,37 @@ conformance block.
 eve's document store for `fileMemory()`. `read` returns the content and
 version or `null`, and `write` throws when `expectedVersion` is stale.
 `testEveDocumentBackend` is its conformance block.
+
+## BlockTransportMiddleware
+
+Runs around every call a block transport makes, for every block built on it.
+It has `apiVersion: 1`, a `name`, and `call(request, next)`, where `request`
+holds the `schema`, `fn` and `args` of the call. Pass a changed request to
+`next` to rewrite it, and reject with the error `next` rejected with, so the
+block still maps it to a `DbError`. `testBlockTransportMiddleware` from
+`better-supabase/testing` is its conformance kit, and
+[Extending blocks](/docs/extending/blocks#transport-middleware) shows it in use.
+
+```ts
+import {
+  defineTransportMiddleware,
+  wrapTransport,
+} from "better-supabase/blocks";
+
+const timed = defineTransportMiddleware({
+  name: "timing",
+  async call(request, next) {
+    const started = performance.now();
+    try {
+      return await next(request);
+    } finally {
+      metrics.record(request.fn, performance.now() - started);
+    }
+  },
+});
+
+const transport = wrapTransport(rpcTransport(supabase), timed);
+```
 
 ## Versions of the block injectables
 

@@ -1,4 +1,13 @@
 export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
+export {
+  extendBlock,
+  withBlockHooks,
+  wrapTransport,
+} from "../../core/block-hooks.ts";
+export type {
+  BlockHooks,
+  BlockTransportMiddleware,
+} from "../../core/block-hooks.ts";
 export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 export type {
   NotificationChannel,
@@ -13,6 +22,7 @@ export type {
   ListOptions,
   NotificationActor,
   NotificationCounts,
+  NotificationOf,
   NotificationPage,
   NotificationPreference,
   NotificationSinkOptions,

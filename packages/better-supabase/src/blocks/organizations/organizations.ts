@@ -4,15 +4,19 @@ import type {
   BlockEventType,
   OrganizationEventData,
 } from "../../core/block-events.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
+import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { InvitationError } from "../../sql/modules/invitations-tables.ts";
 
 import { emitBlockEvent } from "../../core/block-events.ts";
+import { blockFields, type FieldsOf } from "../../core/block-fields.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -24,8 +28,9 @@ import {
 } from "../shared.ts";
 
 /**
- * Organization columns by database name: `name`, `slug` and the columns in
- * `sql.modules.organizations.options.attributes`. Other keys are ignored.
+ * Organization columns by database name: `name`, `slug`, the columns in
+ * `sql.modules.organizations.options.attributes` and the ones
+ * `options.extraColumns` adds. Other keys are ignored.
  */
 export interface OrganizationAttributes {
   readonly name?: string;
@@ -121,13 +126,18 @@ export interface SwitchResult {
   readonly refresh: boolean;
 }
 
-/** A membership `list_my_organizations` returns. */
+/**
+ * A membership `list_my_organizations` returns. The attribute and extra
+ * columns follow under their database names, parsed by `options.fields`
+ * when it is set.
+ */
 export interface OrganizationMembership {
   readonly id: string;
   readonly name: string;
   readonly slug?: string;
   readonly role: string;
   readonly disabledAt?: Temporal.Instant;
+  readonly [column: string]: unknown;
 }
 
 /** A row `list_members` returns. */
@@ -145,7 +155,18 @@ export interface OrganizationInvitationRow {
   readonly expiresAt?: Temporal.Instant;
 }
 
-export interface OrganizationsOptions extends BlockTemporalOptions {
+export interface OrganizationsOptions<
+  S extends StandardSchemaV1 | undefined = undefined,
+> extends BlockTemporalOptions {
+  /**
+   * A Standard Schema for the organization's extra columns
+   * (`options.attributes` and `options.extraColumns`), keyed by database
+   * name. It types and parses them on `mine()`, and validates them on
+   * `create` and `update`, which return a `validation` error for a bad value.
+   */
+  readonly fields?: S;
+  /** `withBlockHooks` hooks around the methods, such as a seat limit on `invite`. */
+  readonly hooks?: NoInfer<BlockHooks<Organizations<FieldsOf<S>>>>;
   /** `sqlTransport(postgres.asUser(claims))` or `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
   /**
@@ -187,16 +208,17 @@ export type InvitationErrorHint = InvitationError;
 /**
  * The `organizations` and `invitations` SQL modules as typed calls. Each
  * method returns an `AsyncResult`; database errors carry the module's error
- * code (`ORGANIZATION_FORBIDDEN`, `INVITATION_EXPIRED`) as `hint`.
+ * code (`ORGANIZATION_FORBIDDEN`, `INVITATION_EXPIRED`) as `hint`. `F` is
+ * the extra fields `options.fields` describes.
  */
-export interface Organizations {
+export interface Organizations<F extends object = Record<never, never>> {
   create(
-    attributes: OrganizationAttributes,
+    attributes: OrganizationAttributes & Partial<F>,
     options?: CreateOrganizationOptions,
   ): AsyncResult<{ readonly id: string }>;
   update(
     organizationId: string,
-    attributes: OrganizationAttributes,
+    attributes: OrganizationAttributes & Partial<F>,
   ): AsyncResult<true>;
   /** `false` when it did not exist (or was already soft-deleted). */
   delete(organizationId: string): AsyncResult<boolean>;
@@ -223,7 +245,7 @@ export interface Organizations {
   markUsed(organizationId: string): AsyncResult<boolean>;
   switch(organizationId: string): AsyncResult<SwitchResult>;
   /** Organizations the caller belongs to. */
-  mine(): AsyncResult<readonly OrganizationMembership[]>;
+  mine(): AsyncResult<readonly (OrganizationMembership & F)[]>;
   members(organizationId: string): AsyncResult<readonly OrganizationMember[]>;
   invitations(
     organizationId: string,
@@ -360,11 +382,55 @@ function recordOf(value: unknown, fn: string): Record<string, unknown> {
   return value;
 }
 
+const MEMBERSHIP_KEYS: ReadonlySet<string> = new Set([
+  "id",
+  "name",
+  "slug",
+  "role",
+  "disabledAt",
+]);
+
+/** Splits `name` and `slug`, which the block types, from the extra columns `fields` checks. */
+const splitAttributes = (
+  attributes: OrganizationAttributes,
+): {
+  readonly base: OrganizationAttributes;
+  readonly extra: Record<string, unknown>;
+} => {
+  const { name, slug, ...extra } = attributes;
+  return {
+    base: {
+      ...(name === undefined ? {} : { name }),
+      ...(slug === undefined ? {} : { slug }),
+    },
+    extra,
+  };
+};
+
 /** Calls the `organizations` and `invitations` block functions. */
-export function createOrganizations(
-  options: OrganizationsOptions,
-): Organizations {
+export function createOrganizations<
+  S extends StandardSchemaV1 | undefined = undefined,
+>(options: OrganizationsOptions<S>): Organizations<FieldsOf<S>> {
+  const client = organizationsClient<FieldsOf<S>>(options);
+  return withBlockHooks(client, options.hooks, {
+    block: "organizations",
+    ...(options.events ? { logger: options.events.logger } : {}),
+  });
+}
+
+function organizationsClient<F extends object>(
+  options: OrganizationsOptions<StandardSchemaV1 | undefined>,
+): Organizations<F> {
   applyTemporal(options);
+  const fields = blockFields<F>(options.fields, "organization fields");
+  const checked = (
+    attributes: OrganizationAttributes,
+  ): AsyncResult<OrganizationAttributes> =>
+    AsyncResult.from(async () => {
+      const { base, extra } = splitAttributes(attributes);
+      const result = await fields.write(extra);
+      return result.ok ? ok({ ...result.data, ...base }) : result;
+    });
   const { transport } = options;
   const schemaOf = (module: "organizations" | "invitations"): string =>
     typeof options.schema === "string"
@@ -463,30 +529,41 @@ export function createOrganizations(
 
   return {
     create(attributes, createOptions) {
-      const attrs = {
-        ...attributes,
-        ...(createOptions?.ownerId ? { owner_id: createOptions.ownerId } : {}),
-      };
-      return run("organizations", "create_organization", { attrs }, (value) => {
-        const id = text(value);
-        organizationEvent("organization.created", {
-          organizationId: id,
-          ...((createOptions?.ownerId ?? options.actorId)
-            ? { userId: createOptions?.ownerId ?? options.actorId }
+      return checked(attributes).andThen((valid) => {
+        const attrs = {
+          ...valid,
+          ...(createOptions?.ownerId
+            ? { owner_id: createOptions.ownerId }
             : {}),
-        });
-        return { id };
+        };
+        return run(
+          "organizations",
+          "create_organization",
+          { attrs },
+          (value) => {
+            const id = text(value);
+            organizationEvent("organization.created", {
+              organizationId: id,
+              ...((createOptions?.ownerId ?? options.actorId)
+                ? { userId: createOptions?.ownerId ?? options.actorId }
+                : {}),
+            });
+            return { id };
+          },
+        );
       });
     },
     update(organizationId, attributes) {
-      return run(
-        "organizations",
-        "update_organization",
-        { organization: organizationId, attrs: attributes },
-        () => {
-          organizationEvent("organization.updated", { organizationId });
-          return true as const;
-        },
+      return checked(attributes).andThen((valid) =>
+        run(
+          "organizations",
+          "update_organization",
+          { organization: organizationId, attrs: valid },
+          () => {
+            organizationEvent("organization.updated", { organizationId });
+            return true as const;
+          },
+        ),
       );
     },
     delete(organizationId) {
@@ -633,17 +710,31 @@ export function createOrganizations(
     },
     mine() {
       return run("organizations", "list_my_organizations", {}, (value) =>
-        recordsOf(value, "list_my_organizations").map((row) => {
+        recordsOf(value, "list_my_organizations"),
+      ).andThen(async (rows) => {
+        const memberships: (OrganizationMembership & F)[] = [];
+        for (const row of rows) {
+          const attributes = isRecord(row["attributes"])
+            ? Object.fromEntries(
+                Object.entries(row["attributes"]).filter(
+                  ([key]) => !MEMBERSHIP_KEYS.has(key),
+                ),
+              )
+            : {};
+          const parsed = await fields.read(attributes);
+          if (!parsed.ok) return parsed;
           const slug = optionalText(row["slug"]);
-          return {
+          memberships.push({
+            ...parsed.data,
             id: text(row["id"]),
             name: text(row["name"]),
             ...(slug === null ? {} : { slug }),
             role: text(row["role"]),
             ...disabledAtOf(row),
-          };
-        }),
-      );
+          });
+        }
+        return ok(memberships);
+      });
     },
     members(organizationId) {
       return run(

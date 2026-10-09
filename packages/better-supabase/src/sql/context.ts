@@ -228,6 +228,16 @@ export interface ModuleContext {
   /** A declared module option as configured, for object-shaped options. */
   option(name: string): unknown;
   /**
+   * `options.extraColumns` (column name to SQL type), checked: names are
+   * lower-case identifiers, types are SQL types, and no name shadows one of
+   * `table`'s mapped columns or a key in `reserved`, the stable keys the
+   * module's read functions return next to them.
+   */
+  extraColumns(
+    table: string,
+    reserved?: readonly string[],
+  ): readonly ExtraColumn[];
+  /**
    * PL/pgSQL that calls the app's hook function when it exists, with
    * `[type, expression]` arguments: `if to_regprocedure(...) is not null
    * then execute format(...) using ...; end if;`. The name comes from
@@ -279,6 +289,19 @@ export interface ModuleContext {
    */
   staff(permission: string): string;
 }
+
+/** A column from `options.extraColumns`. */
+export interface ExtraColumn {
+  /** The column name, as reads return it. */
+  readonly name: string;
+  /** The name, quoted. */
+  readonly ident: string;
+  /** Its SQL type, such as `text not null default 'en'`. */
+  readonly type: string;
+}
+
+const EXTRA_COLUMN = /^[a-z_][a-z0-9_]*$/;
+const SQL_TYPE = /^[a-z][a-z0-9_ (),.'[\]-]*$/i;
 
 export interface ModuleContextSource {
   readonly modules?: ModulesConfig;
@@ -631,6 +654,45 @@ export function createModuleContext(
         throw new TypeError(`${where}.options.${name} must be a string array`);
       }
       return value;
+    },
+    extraColumns(table, reserved = []) {
+      const value = option("extraColumns");
+      if (value === undefined) return [];
+      const at = `${where}.options.extraColumns`;
+      if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        throw new TypeError(`${at} must be an object`);
+      }
+      const known = names.tables[table];
+      if (!known) {
+        throw new TypeError(`Module "${module}" has no table "${table}"`);
+      }
+      const taken = new Set([
+        ...reserved,
+        ...Object.keys(known.columns).flatMap((logical) => {
+          const name = column(table, logical);
+          return name === null ? [] : [name];
+        }),
+      ]);
+      return Object.entries(value).map(([name, type]) => {
+        if (!EXTRA_COLUMN.test(name) || name.length > 63) {
+          throw new TypeError(`${at}: "${name}" is not a valid column name`);
+        }
+        if (taken.has(name)) {
+          throw new TypeError(
+            `${at}.${name} shadows a column the module already returns`,
+          );
+        }
+        if (
+          typeof type !== "string" ||
+          !SQL_TYPE.test(type) ||
+          type.includes("--")
+        ) {
+          throw new TypeError(
+            `${at}.${name} must be a SQL type such as "text not null default 'en'"`,
+          );
+        }
+        return { name, ident: sqlIdent(name), type };
+      });
     },
     hook(name, args) {
       const target = hookTarget(name);

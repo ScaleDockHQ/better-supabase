@@ -3,6 +3,7 @@
   "pages": [
     "plugins",
     "repositories",
+    "blocks",
     "interfaces",
     "authorization-providers",
     "credentials",

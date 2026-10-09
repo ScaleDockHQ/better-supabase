@@ -235,6 +235,48 @@ describe("organizations module", () => {
     expect(() =>
       body({ organizations: { options: { attributes: ["x; drop"] } } }),
     ).toThrow(/is not a valid column/);
+    expect(() =>
+      body({ organizations: { options: { extraColumns: { role: "text" } } } }),
+    ).toThrow(/extraColumns.role shadows/);
+  });
+
+  it("adds extra columns, copies them on writes and returns them from mine", () => {
+    const sql = body({
+      organizations: {
+        options: { extraColumns: { plan: "text not null default 'free'" } },
+      },
+    });
+    expect(sql).toContain(
+      `alter table "better_supabase"."organizations" add column if not exists "plan" text not null default 'free';`,
+    );
+    expect(sql).toContain(`from unnest(array['plan']) c`);
+    expect(sql).toContain(
+      `"plan" = case when attrs ? 'plan' then r."plan" else o."plan" end`,
+    );
+    expect(sql).toMatch(/role text,[^)]*attributes jsonb\s+\)/);
+    expect(sql).toContain(`jsonb_build_object('plan', o."plan")`);
+    expect(body({})).not.toContain("attributes jsonb");
+  });
+
+  it("returns adopted attribute columns from mine", () => {
+    const sql = moduleBody("organizations", {
+      modules: CENTRAKIT,
+      accessProvider: moduleProvider,
+    })!;
+    expect(sql).toContain(
+      `jsonb_build_object('website', o."website", 'default_currency', o."default_currency")`,
+    );
+    expect(sql).not.toContain("add column if not exists");
+  });
+
+  it("calls before_organization_update and after_organization_update", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      `to_regprocedure('"public"."before_organization_update"(uuid, jsonb)')`,
+    );
+    expect(sql).toContain(
+      `to_regprocedure('"public"."after_organization_update"(uuid, jsonb)')`,
+    );
   });
 
   it("leaves role checks to an external guard on request", () => {

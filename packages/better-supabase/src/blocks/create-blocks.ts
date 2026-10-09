@@ -1,4 +1,5 @@
 import type { BlockOptions } from "../core/block-helpers.ts";
+import type { BlockHooks } from "../core/block-hooks.ts";
 import type { EventHub } from "../core/events.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
 import type { EventSink } from "../events/cloud-event.ts";
@@ -6,6 +7,7 @@ import type { AiFiles } from "./ai-files/ai-files.ts";
 import type { AiTaskOutcome } from "./ai-tasks/ai-tasks.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
+import { withBlockHooks } from "../core/block-hooks.ts";
 import { forwardBlockEvents } from "../events/cloud-event.ts";
 
 /** The CloudEvents `source` of block events that `createBlocks` forwards. */
@@ -46,9 +48,16 @@ export type BlockFactories = Readonly<Record<string, BlockFactory>> & {
   readonly aiFiles?: BlockFactory<AiFiles>;
 };
 
-export type Blocks<F extends BlockFactories> = {
+type BuiltBlocks<F extends BlockFactories> = {
   readonly [K in keyof F]: F[K] extends BlockFactory<infer T> ? T : never;
-} & {
+};
+
+/** `withBlockHooks` hooks for each block, keyed by the names in `factories`. */
+export type BlocksHooks<F extends BlockFactories> = {
+  readonly [K in keyof F]?: BlockHooks<BuiltBlocks<F>[K]>;
+};
+
+export type Blocks<F extends BlockFactories> = BuiltBlocks<F> & {
   /** Stops forwarding block events to `audit`. */
   close(): void;
 };
@@ -74,12 +83,17 @@ const isNotificationSender = (value: unknown): value is NotificationSender =>
  * into connectors, ai-providers and the builder, the `notifications` block
  * into ai-tasks (with `aiTaskNotification`), and block events into `audit`.
  * Only the blocks you pass are imported, so the rest stay out of the bundle.
+ * `hooks` wraps each block's methods with `withBlockHooks`, so siblings that
+ * call a block (ai-tasks sending notifications) go through its hooks too.
  */
 export function createBlocks<const F extends BlockFactories>(
-  options: CreateBlocksOptions,
+  options: CreateBlocksOptions & {
+    readonly hooks?: NoInfer<BlocksHooks<F>>;
+  },
   factories: F,
 ): Blocks<F> {
-  const { credentials, events, audit, aiTaskNotification, ...shared } = options;
+  const { credentials, events, audit, aiTaskNotification, hooks, ...shared } =
+    options;
   if (audit !== undefined && events === undefined)
     throw new TypeError("createBlocks: `audit` needs `events` to forward");
   const built = new Map<string, unknown>();
@@ -132,7 +146,15 @@ export function createBlocks<const F extends BlockFactories>(
       throw new TypeError(`The "${name}" block depends on itself`);
     building.add(name);
     try {
-      const block = factory(contextFor(name));
+      const created = factory(contextFor(name));
+      const blockHooks: BlockHooks<object> | undefined = hooks?.[name];
+      const block =
+        blockHooks !== undefined && isRecord(created)
+          ? withBlockHooks(created, blockHooks, {
+              block: name,
+              ...(events === undefined ? {} : { logger: events.logger }),
+            })
+          : created;
       built.set(name, block);
       return block;
     } finally {

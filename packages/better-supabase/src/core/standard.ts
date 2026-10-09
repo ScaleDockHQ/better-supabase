@@ -25,7 +25,8 @@ export async function validate<S extends StandardSchemaV1>(
   return ok(outcome.value as StandardSchemaV1.InferOutput<S>);
 }
 
-function toIssues(
+/** Standard Schema issues as JSON-safe `ValidationIssue`s. */
+export function toIssues(
   issues: readonly StandardSchemaV1.Issue[],
 ): readonly ValidationIssue[] {
   return issues.map((issue) => {

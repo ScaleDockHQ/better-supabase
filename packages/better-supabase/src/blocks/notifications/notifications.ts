@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { NotificationEventData } from "../../core/block-events.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
@@ -14,9 +15,16 @@ import type {
 } from "./types.ts";
 
 import { emitBlockEvent } from "../../core/block-events.ts";
+import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rawError } from "../../core/block-transport.ts";
 import { dbError, mapDbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
+import {
+  AsyncResult,
+  err,
+  ok,
+  type Result,
+  toDbError,
+} from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -111,8 +119,11 @@ export interface PageOptions<K extends string = string> extends Omit<
   readonly offset?: number;
 }
 
-export interface NotificationPage<K extends string = string> {
-  readonly items: readonly Rendered<K>[];
+export interface NotificationPage<
+  K extends string = string,
+  R extends Rendered<K> = Rendered<K>,
+> {
+  readonly items: readonly R[];
   readonly total: number;
 }
 
@@ -197,14 +208,30 @@ export interface Rendered<
   readonly actor?: NotificationActor | null;
 }
 
+/**
+ * A notification as `get`, `list` and `page` return it: its `data` parsed
+ * with its type's schema, so checking `type` narrows `data`.
+ */
+export type NotificationOf<K extends NotificationTypes> = {
+  [N in TypeName<K>]: Rendered<N, StandardSchemaV1.InferOutput<K[N]>>;
+}[TypeName<K>];
+
 export interface NotificationsOptions<
   K extends NotificationTypes,
   H = undefined,
 > extends BlockTemporalOptions {
   /** `sqlTransport(postgres.asUser(claims))`, or over `postgres.admin` for the service. */
   readonly transport: BlockTransport;
-  /** Each type's `data` schema: `send` validates against it. */
+  /**
+   * Each type's `data` schema. `send` validates against it, and `get`,
+   * `list` and `page` parse stored data with it, so keep a schema able to
+   * read the notifications already sent (or purge them). A stored value it
+   * rejects is a `validation` error with the hint `NOTIFICATION_DATA_INVALID`;
+   * a type no longer listed keeps its data as stored.
+   */
   readonly types: K;
+  /** `withBlockHooks` hooks around the methods, such as a rule on `send`. */
+  readonly hooks?: NoInfer<BlockHooks<Notifications<K>>>;
   /** `sql.modules.notifications.schema`. Defaults to `better_supabase`. */
   readonly schema?: string;
   /**
@@ -256,13 +283,13 @@ export interface Notifications<K extends NotificationTypes> {
   get(
     id: string,
     options?: Pick<ListOptions, "locale" | "include">,
-  ): AsyncResult<Rendered<TypeName<K>> | null>;
+  ): AsyncResult<NotificationOf<K> | null>;
   list(
     options?: ListOptions<TypeName<K>>,
-  ): AsyncResult<readonly Rendered<TypeName<K>>[]>;
+  ): AsyncResult<readonly NotificationOf<K>[]>;
   page(
     options?: PageOptions<TypeName<K>>,
-  ): AsyncResult<NotificationPage<TypeName<K>>>;
+  ): AsyncResult<NotificationPage<TypeName<K>, NotificationOf<K>>>;
   counts(options?: {
     readonly tenant?: string;
   }): AsyncResult<NotificationCounts>;
@@ -494,36 +521,70 @@ export function createNotifications<
     items: itemsOf(isRecord(value) ? value["items"] : []),
   });
 
+  /** Parses each item's data with its type's schema, before `hydrate` and `render` see it. */
+  const parsed = async (
+    items: readonly NotificationItem[],
+  ): Promise<Result<NotificationItem[]>> => {
+    const out: NotificationItem[] = [];
+    for (const item of items) {
+      const schemaOf = Object.hasOwn(options.types, item.type)
+        ? options.types[item.type]
+        : undefined;
+      if (schemaOf === undefined) {
+        out.push(item);
+        continue;
+      }
+      const data = await validate(
+        schemaOf,
+        item.data,
+        `${item.type} data of notification ${item.id}`,
+      );
+      if (!data.ok) {
+        return err({ ...data.error, hint: "NOTIFICATION_DATA_INVALID" });
+      }
+      out.push({ ...item, data: data.data });
+    }
+    return ok(out);
+  };
+
   const decorate = (
     items: readonly NotificationItem[],
     listOptions: Pick<ListOptions, "locale" | "include">,
-  ): AsyncResult<readonly Rendered[]> =>
+  ): AsyncResult<readonly NotificationOf<K>[]> =>
     AsyncResult.from(async () => {
-      try {
-        const locale = listOptions.locale;
-        const context = locale === undefined ? {} : { locale };
-        const [hydrated, actors] = await Promise.all([
-          options.hydrate ? options.hydrate(items, context) : undefined,
-          listOptions.include?.includes("actor") ? actorsOf(items) : undefined,
-        ]);
-        return ok(
-          items.map((item) => {
-            const rendered = render(item, locale, hydrated);
-            return actors
-              ? {
-                  ...rendered,
-                  actor: item.actorId
-                    ? (actors.get(item.actorId) ?? null)
-                    : null,
-                }
-              : rendered;
-          }),
-        );
-      } catch (cause) {
-        const raw = rawError(cause);
-        return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
-      }
+      const valid = await parsed(items);
+      if (!valid.ok) return valid;
+      return rendered(valid.data, listOptions);
     });
+
+  const rendered = async (
+    items: readonly NotificationItem[],
+    listOptions: Pick<ListOptions, "locale" | "include">,
+  ): Promise<Result<readonly NotificationOf<K>[]>> => {
+    try {
+      const locale = listOptions.locale;
+      const context = locale === undefined ? {} : { locale };
+      const [hydrated, actors] = await Promise.all([
+        options.hydrate ? options.hydrate(items, context) : undefined,
+        listOptions.include?.includes("actor") ? actorsOf(items) : undefined,
+      ]);
+      const out = items.map((item): Rendered => {
+        const text = render(item, locale, hydrated);
+        return actors
+          ? {
+              ...text,
+              actor: item.actorId ? (actors.get(item.actorId) ?? null) : null,
+            }
+          : text;
+      });
+      // SAFETY: `parsed` gave each item of a listed type the output of its
+      // type's schema, which is what NotificationOf<K> pairs with that type.
+      return ok(out as readonly NotificationOf<K>[]);
+    } catch (cause) {
+      const raw = rawError(cause);
+      return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
+    }
+  };
 
   async function deliverOne(
     channel: NotificationChannel,
@@ -876,7 +937,7 @@ export function createNotifications<
               typeof event["partitionkey"] === "string"
                 ? event["partitionkey"]
                 : undefined;
-            await notifications
+            await hooked
               .send(notificationType, {
                 ...input,
                 key: input.key ?? event.id,
@@ -890,5 +951,9 @@ export function createNotifications<
       };
     },
   };
-  return notifications;
+  const hooked = withBlockHooks(notifications, options.hooks, {
+    block: "notifications",
+    ...(options.events ? { logger: options.events.logger } : {}),
+  });
+  return hooked;
 }

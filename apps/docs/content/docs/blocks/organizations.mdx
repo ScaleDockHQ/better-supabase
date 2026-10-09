@@ -219,6 +219,35 @@ onInvite: ({ invitation, token }) =>
 `inviter` is `null`; return the inviter's name from the hook instead (it
 receives the invitation id, and `invited_by` is on the row).
 
+### Your own fields and hooks
+
+Columns from `options.attributes` and `options.extraColumns` come back from
+`mine()` next to `id`, `name`, `slug` and `role`. Pass a Standard Schema for
+them as `fields` to type them, parse them on read and validate `create` and
+`update`, and `hooks` to refuse, rewrite or observe any method:
+
+```ts
+const organizations = createOrganizations({
+  transport,
+  fields: z.object({ plan: z.enum(["free", "pro"]) }),
+  hooks: {
+    create: {
+      before: ([attrs, options]) => [{ plan: "free", ...attrs }, options],
+    },
+  },
+});
+
+const [first] = await organizations.mine().orThrow();
+first?.plan; // "free" | "pro"
+```
+
+SQL hooks run inside the functions for every caller:
+`before_organization_create(attrs jsonb, owner uuid)`,
+`after_organization_create(organization, owner uuid)`,
+`before_organization_update(organization, attrs jsonb)` and
+`after_organization_update(organization, attrs jsonb)`.
+[Extending blocks](/docs/extending/blocks) covers all of it.
+
 ## Switching organizations
 
 `switch_organization(organization)` checks the caller is a member and the organization
@@ -241,6 +270,7 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 | Option            | Default                             | What it does                                                                                                                                                                                                                                                          |
 | ----------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `attributes`      | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default                                                                                                                                                          |
+| `extraColumns`    | none                                | column name to SQL type on a managed table, such as `{ plan: "text not null default 'free'" }`; added to the table and accepted like `attributes`, and both come back from `list_my_organizations` in `attributes jsonb`                                              |
 | `ownerRole`       | `owner`                             | the creator's role                                                                                                                                                                                                                                                    |
 | `formerOwnerRole` | `admin`                             | the previous owner's role after a transfer                                                                                                                                                                                                                            |
 | `deleteMode`      | `hard`                              | `soft` sets `deleted_at` and keeps the memberships; `lifecycle` schedules the deletion with the data-lifecycle module's `request_organization_deletion` (grace period, then the purge job); `none` writes no `delete_organization`, so no entry point deletes at once |

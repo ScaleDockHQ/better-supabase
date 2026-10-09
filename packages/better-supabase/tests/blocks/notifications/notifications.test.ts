@@ -1,11 +1,13 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import * as v from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
 import type { NotificationChannel } from "../../../src/blocks/notifications/index.ts";
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
 
 import { createNotifications } from "../../../src/blocks/notifications/index.ts";
+import { dbError } from "../../../src/core/errors.ts";
 import { EventHub } from "../../../src/core/events.ts";
 import { testNotificationChannel } from "../../../src/testing/index.ts";
 
@@ -888,5 +890,91 @@ describe("testNotificationChannel", () => {
         { received: async () => [] },
       ),
     ).rejects.toThrow(/failed 4 of 4/);
+  });
+});
+
+describe("typed notification data and hooks", () => {
+  const typed = {
+    "invoice.paid": v.object({
+      amount: v.number(),
+      paidAt: v.pipe(
+        v.string(),
+        v.isoTimestamp(),
+        v.transform((value) => new Date(value)),
+      ),
+    }),
+  };
+
+  it("parses stored data with its type's schema on reads", async () => {
+    const { transport } = fakeTransport({
+      list_notifications: () => [
+        row({
+          type: "invoice.paid",
+          data: { amount: 10, paidAt: "2026-01-01T00:00:00Z" },
+        }),
+        row({ id: "r2", type: "retired.type", data: { anything: true } }),
+      ],
+    });
+    const notifications = createNotifications({ transport, types: typed });
+    const [paid, retired] = await notifications.list().orThrow();
+    expect(paid).toMatchObject({
+      type: "invoice.paid",
+      data: { amount: 10, paidAt: expect.any(Date) },
+    });
+    expect(retired?.data).toEqual({ anything: true });
+  });
+
+  it("returns NOTIFICATION_DATA_INVALID for stored data the schema rejects", async () => {
+    const { transport } = fakeTransport({
+      get_notification: () => row({ type: "invoice.paid", data: {} }),
+    });
+    const notifications = createNotifications({ transport, types: typed });
+    expect(await notifications.get("r1")).toMatchObject({
+      ok: false,
+      error: { kind: "validation", hint: "NOTIFICATION_DATA_INVALID" },
+    });
+  });
+
+  it("runs hooks on send, including sends from the sink", async () => {
+    const { transport, calls } = fakeTransport({
+      send_notification: () => ({ id: "e1", recipients: ["u1"] }),
+    });
+    const before = vi.fn(
+      ([, input]: readonly [string, { readonly tenant?: string }]) =>
+        input.tenant === "frozen"
+          ? dbError("forbidden", "This organization is frozen")
+          : undefined,
+    );
+    const notifications = createNotifications({
+      transport,
+      types,
+      hooks: { send: { before } },
+    });
+    expect(
+      await notifications.send("task.assigned", {
+        tenant: "frozen",
+        data: { title: "x" },
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+    expect(calls).toEqual([]);
+    await notifications
+      .sink({
+        map: () => ({
+          type: "task.assigned",
+          recipients: ["u1"],
+          tenant: "organization_1",
+          data: { title: "From an event" },
+        }),
+      })
+      .send([
+        {
+          specversion: "1.0",
+          id: "evt",
+          source: "test",
+          type: "dev.better-supabase.thing",
+        },
+      ]);
+    expect(before).toHaveBeenCalledTimes(2);
+    expect(calls.map((call) => call.fn)).toEqual(["send_notification"]);
   });
 });

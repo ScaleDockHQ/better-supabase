@@ -1,0 +1,236 @@
+---
+title: Extending blocks
+description: Add your own columns to a block's table, steer its methods with hooks, wrap its transport and add methods, without forking the block.
+---
+
+A block covers the common case, and your app adds what makes it yours: a
+`plan` column on organizations, a rule that refuses an invite above the seat
+limit, a request id on every database call, a method the block doesn't have.
+Each need has one place, from the least code to the most:
+
+| You want to                          | Use                                                   | Where      |
+| ------------------------------------ | ----------------------------------------------------- | ---------- |
+| Change what the block does           | `sql.modules.<module>` options, permissions and hooks | SQL config |
+| Add columns and get them back, typed | `options.extraColumns` and the `fields` option        | SQL and TS |
+| Refuse, rewrite or observe a call    | `hooks` on the block, or SQL `before_`/`after_` hooks | TS or SQL  |
+| Run code around every database call  | `wrapTransport(transport, middleware)`                | TS         |
+| Add a method                         | `extendBlock(block, build)`                           | TS         |
+
+Rules that must hold for every write, including writes that skip
+TypeScript, belong in SQL: a permission, a check constraint or a `before_`
+hook. Hooks in TypeScript are for app logic around a call: plan limits,
+defaults, metrics.
+
+## Your own fields
+
+Add columns to a table the block creates with `options.extraColumns`, keyed
+by column name, each with its SQL type. The module adds them to the table,
+copies them on create and update, and returns them from its reads. A name
+the module already uses is refused, so a column can't shadow `role` or `id`.
+
+```ts title="better-supabase.config.ts"
+sql: {
+  modules: {
+    organizations: {
+      options: {
+        extraColumns: {
+          plan: "text not null default 'free'",
+          seats: "integer not null default 3",
+        },
+      },
+    },
+    profiles: {
+      options: { extraColumns: { locale: "text not null default 'en'" } },
+    },
+  },
+},
+```
+
+On a table you adopt, the columns already exist: list them in
+`options.attributes` instead (organizations), or nothing at all (profiles,
+which return the whole row).
+
+Then pass a [Standard Schema](https://standardschema.dev) for those fields
+(zod, valibot, arktype), keyed by database name. The block types its reads
+and writes with it, parses the values it reads, and validates writes before
+they reach the database:
+
+```ts title="src/lib/organizations.ts"
+import { createOrganizations } from "better-supabase/blocks/organizations";
+import { z } from "zod";
+
+export const OrganizationFields = z.object({
+  plan: z.enum(["free", "pro", "enterprise"]),
+  seats: z.number().int().positive(),
+});
+
+const organizations = createOrganizations({
+  transport,
+  fields: OrganizationFields,
+});
+
+const [first] = await organizations.mine().orThrow();
+first?.plan; // "free" | "pro" | "enterprise"
+
+await organizations.update(id, { seats: 0 }); // { ok: false, error: { kind: "validation" } }
+```
+
+A write sets only some fields, so issues about fields it leaves out are
+ignored; the database applies its defaults and `not null` checks. A stored
+value the schema rejects is a `validation` error on the read, so keep the
+schema able to read the rows you already have. The parsed fields are merged
+over the row, so the block's own columns stay even when the schema strips
+keys it doesn't name.
+
+Notifications type their `data` the same way, per notification type: see
+[typed data](/docs/blocks/notifications#reading).
+
+| Block         | Columns from                                    | `fields` types                |
+| ------------- | ----------------------------------------------- | ----------------------------- |
+| organizations | `options.attributes`, `options.extraColumns`    | `mine()`, `create`, `update`  |
+| profiles      | `options.extraColumns`, or any column you adopt | `mine()`, `updateMine`        |
+| notifications | the `data` of each type                         | `send`, `get`, `list`, `page` |
+
+## Hooks
+
+`hooks` runs your code around a block's methods, keyed by method name. A
+`before` hook gets the arguments and returns nothing to go on, new arguments
+to replace them, or a `DbError` to refuse the call, which then returns that
+error without reaching the database. An `after` hook gets a copy of the
+result and the arguments: it can record, never change. When it throws, the
+error is logged and the caller still gets the result.
+
+```ts
+import { dbError } from "better-supabase";
+
+const organizations = createOrganizations({
+  transport,
+  hooks: {
+    invite: {
+      async before([request]) {
+        if (request.organizationId === null) return;
+        const used = await seatsUsed(request.organizationId);
+        if (used >= (await seatLimit(request.organizationId))) {
+          return dbError("forbidden", "Every seat is taken", {
+            hint: "SEATS_FULL",
+          });
+        }
+      },
+      after(result, [request]) {
+        if (result.ok) metrics.increment("invites", { role: request.role });
+      },
+    },
+    create: {
+      before: ([attributes, options]) => [
+        { plan: "free", ...attributes },
+        options,
+      ],
+    },
+  },
+});
+```
+
+Hooks are typed per method, so `request` above is an `InviteRequest` and
+`result` a `Result<InvitationSent>`. Every block takes them through
+[`createBlocks`](/docs/blocks/create-blocks), keyed by block name, and
+siblings that call a block (ai-tasks sending notifications) go through its
+hooks too:
+
+```ts
+const blocks = createBlocks(
+  {
+    transport,
+    hooks: { notifications: { send: { before: checkQuietHours } } },
+  },
+  { organizations: createOrganizations, notifications: notificationsFactory },
+);
+```
+
+For a block you build yourself, `withBlockHooks(block, hooks)` from
+`better-supabase/blocks` does the same.
+
+### Hooks in SQL
+
+A hook in TypeScript runs only for calls through the block. For a rule
+every caller must meet, use the SQL hooks the module calls inside its
+functions, named `before_<entity>_<action>` and `after_<entity>_<action>`.
+A `before_` hook raises to refuse the write; an `after_` hook runs in the
+same transaction, so seeding rows for a new organization commits or rolls
+back with it.
+
+| Module        | SQL hooks                                                                                                                                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| organizations | `before_organization_create(attrs jsonb, owner uuid)`, `after_organization_create(organization, owner uuid)`, `before_organization_update(organization, attrs jsonb)`, `after_organization_update(organization, attrs jsonb)` |
+| profiles      | `before_profile_update(attrs jsonb, user_id uuid)`, `after_profile_update(user_id uuid)`, `after_profile_sync(user_id uuid)`                                                                                                  |
+| notifications | `before_notification_send(notification jsonb)`, `after_notify(event uuid)`, and `notification_audience`                                                                                                                       |
+
+The `organization` argument has the type of the organizations table's id.
+Define the function in the hooks schema (`public` by default) and the
+module calls it when it exists; [SQL hooks](/docs/extending/events#sql-hooks)
+shows how to point a module at another schema or function.
+
+## Transport middleware
+
+Every block calls its SQL functions through a transport. `wrapTransport`
+runs middleware around each call, for every block that uses the transport:
+tracing, a statement timeout, an argument every function of your own takes.
+Middleware has `apiVersion: 1` and a `name`, and passes the request on with
+`next`. It rejects with the error `next` rejected with, so the block still
+maps it to a `DbError`.
+
+```ts
+import {
+  defineTransportMiddleware,
+  rpcTransport,
+  wrapTransport,
+} from "better-supabase/blocks";
+
+const traced = defineTransportMiddleware({
+  name: "tracing",
+  call: (request, next) =>
+    tracer.startActiveSpan(`${request.schema}.${request.fn}`, async (span) => {
+      try {
+        return await next(request);
+      } finally {
+        span.end();
+      }
+    }),
+});
+
+const transport = wrapTransport(rpcTransport(supabase), traced);
+```
+
+`testBlockTransportMiddleware(middleware)` from `better-supabase/testing`
+checks the contract; see [conformance](/docs/extending/conformance).
+
+## New methods
+
+`extendBlock(block, build, options)` adds methods. `build` gets the block,
+so a new method can compose the existing ones, and `call` for SQL functions
+you add to the block's schema, with the block's error mapping. Pass the
+block's `transport` (and `schema`) for `call`. Redefining a method the block
+has throws: wrap it with a hook instead.
+
+```ts
+import { extendBlock } from "better-supabase/blocks";
+
+const organizations = extendBlock(
+  createOrganizations({ transport }),
+  (base, { call }) => ({
+    archive: (organizationId: string) =>
+      call(
+        "archive_organization",
+        { organization: organizationId },
+        () => true as const,
+      ),
+    owned: () =>
+      base
+        .mine()
+        .map((memberships) => memberships.filter((m) => m.role === "owner")),
+  }),
+  { transport },
+);
+```
+
+The extended block keeps every method's `Result` contract: a new method
+returns an `AsyncResult` and never throws for a database error.

@@ -20,3 +20,4 @@ add one, and link it from the code or config it explains.
 | [0012](0012-kits-renamed-to-blocks.md)          | Kits are blocks; feature modules import from `better-supabase/blocks/<name>`                 |
 | [0013](0013-node-only-sdk-adapters.md)          | SDK adapters whose SDK needs Node (`workflow-sdk/world`, `eve`) are Node-only entries        |
 | [0014](0014-nestjs-create-require.md)           | `better-supabase/nestjs` loads `@nestjs/common` with a synchronous `createRequire`           |
+| [0015](0015-block-extension-model.md)           | Blocks extend through `fields`, `hooks`, transport middleware and `extendBlock`              |

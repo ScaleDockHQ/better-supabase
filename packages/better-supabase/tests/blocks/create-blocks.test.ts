@@ -13,6 +13,7 @@ import {
 } from "../../src/blocks/index.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
+import { dbError } from "../../src/core/errors.ts";
 import { EventHub } from "../../src/core/events.ts";
 import { vaultCredentials } from "../../src/credentials/index.ts";
 
@@ -23,6 +24,27 @@ const transport = rpcTransport({
 });
 
 const fakeFiles = {} as AiFiles;
+
+describe("createBlocks hooks", () => {
+  it("wraps each named block with its hooks", async () => {
+    const before = vi.fn(() =>
+      dbError("forbidden", "Organizations are created by support"),
+    );
+    const blocks = createBlocks(
+      { transport, hooks: { organizations: { create: { before } } } },
+      { organizations: createOrganizations, audit: createAuditLog },
+    );
+    expect(await blocks.organizations.create({ name: "Acme" })).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden" },
+    });
+    expect(before).toHaveBeenCalledWith([{ name: "Acme" }], {
+      block: "organizations",
+      method: "create",
+    });
+    blocks.close();
+  });
+});
 
 describe("createBlocks", () => {
   it("builds each block with the shared options and types the result", () => {

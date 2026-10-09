@@ -188,6 +188,46 @@ describe("profiles module", () => {
     );
   });
 
+  it("lets update_my_profile write the extra columns users may update", () => {
+    const sql = body({
+      profiles: {
+        options: {
+          extraColumns: { locale: "text", seats: "integer not null default 1" },
+          updatable: ["full_name", "locale"],
+        },
+      },
+    });
+    expect(sql).toContain(
+      `"locale" = case when update_my_profile.attrs ? 'locale' then (jsonb_populate_record(null::"better_supabase"."profiles", update_my_profile.attrs))."locale" else p."locale" end`,
+    );
+    expect(sql).not.toContain(`"seats" = case when`);
+    expect(
+      body({ profiles: { options: { extraColumns: { seats: "integer" } } } }),
+    ).toContain(`"seats" = case when update_my_profile.attrs ? 'seats'`);
+  });
+
+  it("calls before_profile_update and after_profile_update around updates", () => {
+    const sql = body({});
+    expect(sql).toContain(
+      `to_regprocedure('"public"."before_profile_update"(jsonb, uuid)')`,
+    );
+    expect(sql).toContain(
+      `to_regprocedure('"public"."after_profile_update"(uuid)')`,
+    );
+    expect(sql.indexOf("before_profile_update")).toBeLessThan(
+      sql.indexOf("get diagnostics updated"),
+    );
+  });
+
+  it("rejects an extra column that shadows a mapped column", () => {
+    expect(() =>
+      body({ profiles: { options: { extraColumns: { email: "text" } } } }),
+    ).toThrow(/extraColumns.email shadows/);
+    expect(() =>
+      body({ profiles: { options: { extraColumns: { Bad: "text" } } } }),
+    ).toThrow(/"Bad" is not a valid column name/);
+  });
+
   it("honours updatable, serviceColumns and turning features off", () => {
     const sql = body({
       profiles: {
