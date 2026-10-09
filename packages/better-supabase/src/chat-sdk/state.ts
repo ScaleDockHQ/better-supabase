@@ -10,7 +10,7 @@ import {
   DEFAULT_BLOCK_SCHEMA,
   isRecord,
   randomToken,
-} from "../blocks/shared.ts";
+} from "../core/block-helpers.ts";
 
 export interface SupabaseStateOptions {
   /** `sqlTransport(postgres.asService())` or `rpcTransport` with the service role key. */

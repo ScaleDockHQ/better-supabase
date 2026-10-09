@@ -182,7 +182,7 @@ await outbox.relay("jobs", toJobs);
 
 `outbox.history({ subject: 'invoices/42' })` returns the kept events for one
 subject, oldest first, for an activity feed or a debugging view. Filter by
-`type` and page with `after` (a position) and `limit`.
+`type` and page with `cursor` (a position) and `limit`.
 
 `outbox.purge(olderThan, batch)` (SQL `purge_outbox(older_than, batch)`)
 deletes up to `batch` events (10,000 by default) older than

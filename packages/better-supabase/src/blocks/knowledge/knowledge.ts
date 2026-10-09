@@ -6,6 +6,7 @@ import type { JobHandler } from "../jobs/queue.ts";
 
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { vectorLiteral as pgVector } from "../../core/search.ts";
 import {
   applyTemporal,
   blockCall,
@@ -14,10 +15,12 @@ import {
   isRecord,
   optionalText,
   recordOf,
+  recordOrEmpty,
   recordsOf,
   run,
   textOf,
   toInstant,
+  injectableOf,
 } from "../shared.ts";
 
 /**
@@ -25,6 +28,8 @@ import {
  * document embedded by another model can be found and embedded again.
  */
 export interface Embedder {
+  /** The embedder contract version. Omitted means 1. */
+  readonly apiVersion?: 1;
   readonly model: string;
   embed(
     values: readonly string[],
@@ -269,7 +274,11 @@ export function chunk(
   return chunks;
 }
 
-/** A vector in pgvector's text form, which both transports pass through. */
+/**
+ * A vector in pgvector's text form, which both transports pass through.
+ *
+ * @deprecated The block formats embeddings itself; removed in 0.8.
+ */
 export const vectorLiteral = (values: readonly number[]): string =>
   `[${values.join(",")}]`;
 
@@ -317,9 +326,6 @@ const statusOf = (value: unknown): KnowledgeStatus => {
 const instant = (value: unknown): Temporal.Instant =>
   value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
-const metadataOf = (value: unknown): Readonly<Record<string, unknown>> =>
-  isRecord(value) ? value : {};
-
 function documentOf(value: unknown): KnowledgeDocument {
   const row = recordOf(value, "knowledge_documents");
   return {
@@ -331,7 +337,7 @@ function documentOf(value: unknown): KnowledgeDocument {
     fileId: optionalText(row["file_id"]),
     title: textOf(row["title"]),
     source: optionalText(row["source"]),
-    metadata: metadataOf(row["metadata"]),
+    metadata: recordOrEmpty(row["metadata"]),
     status: statusOf(row["status"]),
     error: optionalText(row["error"]),
     chunkCount: Number(row["chunk_count"] ?? 0),
@@ -347,7 +353,7 @@ function hitOf(value: unknown): KnowledgeHit {
     documentId: textOf(row["document_id"]),
     index: Number(row["idx"]),
     content: textOf(row["content"]),
-    metadata: metadataOf(row["metadata"]),
+    metadata: recordOrEmpty(row["metadata"]),
     title: textOf(row["title"]),
     score: Number(row["score"]),
   };
@@ -387,7 +393,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
   );
   const batchSize = options.batchSize ?? 64;
   const extract = options.extract ?? defaultExtract;
-  const embedder = options.embedder;
+  const embedder = injectableOf("embedder", options.embedder);
 
   const found = (value: unknown): AsyncResult<KnowledgeDocument> =>
     isRecord(value)
@@ -482,7 +488,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
               items: pending.data.map((row, index) => ({
                 idx: Number(row["idx"]),
                 hash: row["hash"],
-                embedding: vectorLiteral(vectors.data[index] ?? []),
+                embedding: pgVector(vectors.data[index] ?? []),
               })),
             },
             model: embedder?.model,
@@ -624,8 +630,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           "knowledge_search",
           {
             tenant: organizationId,
-            query_embedding:
-              value === undefined ? undefined : vectorLiteral(value),
+            query_embedding: value === undefined ? undefined : pgVector(value),
             query_text: text === "" ? undefined : text,
             scopes:
               searchOptions.scopes === undefined

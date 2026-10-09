@@ -11,7 +11,7 @@ import {
   recordOf,
   seconds,
   stringsOf,
-} from "../blocks/shared.ts";
+} from "../core/block-helpers.ts";
 import { pollingRead } from "./store.ts";
 
 export interface PostgresStreamStoreOptions {

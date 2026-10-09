@@ -15,7 +15,7 @@ import {
   run,
   textOf,
   toInstant,
-} from "../blocks/shared.ts";
+} from "../core/block-helpers.ts";
 
 /** A workspace, page or number a bot is installed in. */
 export interface ChatInstallation {

@@ -1805,7 +1805,7 @@ describe("ai-chat hooks", () => {
       }
     });
     const view = renderHook(
-      () => useAiChats({ organizationId: "org-1", search: "x", size: 2 }),
+      () => useAiChats({ organizationId: "org-1", search: "x", limit: 2 }),
       undefined,
       { client: browser },
     );

@@ -6,7 +6,7 @@ import type { AiCache } from "../../blocks/ai-cache/ai-cache.ts";
 import type { DbError } from "../../core/errors.ts";
 
 import { cacheKey } from "../../blocks/ai-cache/ai-cache.ts";
-import { isRecord } from "../../blocks/shared.ts";
+import { isRecord } from "../../core/block-helpers.ts";
 
 type WrapGenerate = NonNullable<LanguageModelMiddleware["wrapGenerate"]>;
 type WrapStream = NonNullable<LanguageModelMiddleware["wrapStream"]>;

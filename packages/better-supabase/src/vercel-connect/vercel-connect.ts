@@ -5,7 +5,7 @@ import type {
   CredentialToken,
 } from "../credentials/provider.ts";
 
-import { isRecord } from "../blocks/shared.ts";
+import { isRecord } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../core/result.ts";
 import { optionalTemporal } from "../core/temporal.ts";

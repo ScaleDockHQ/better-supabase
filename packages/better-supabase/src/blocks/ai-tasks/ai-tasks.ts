@@ -19,6 +19,7 @@ import {
   recordsOf,
   textOf,
   toInstant,
+  injectableOf,
 } from "../shared.ts";
 
 export type AiTaskRunStatus = "queued" | "running" | "succeeded" | "failed";
@@ -78,11 +79,14 @@ export type NewAiTask = AiTaskFields & {
  * Runs one occurrence of a task, as the task's user: sends the prompt to the
  * assistant and returns the chat it wrote to. A throw fails the run.
  */
-export type AiTaskRunner = (
+export type AiTaskRunner = ((
   task: AiTask,
   run: AiTaskRun,
   signal: AbortSignal,
-) => Promise<{ readonly chatId?: string } | void>;
+) => Promise<{ readonly chatId?: string } | void>) & {
+  /** The runner contract version. Omitted means 1. */
+  readonly apiVersion?: 1;
+};
 
 export interface AiTaskOutcome {
   readonly task: AiTask;
@@ -220,6 +224,7 @@ function fieldsArg(fields: AiTaskFields): Record<string, unknown> {
 /** Prompts users schedule on a cron, and the scheduler that runs them. */
 export function createAiTasks(options: AiTasksOptions): AiTasks {
   applyTemporal(options);
+  injectableOf("ai-tasks runner", options.run);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const service = blockCall(
     options.service ?? options.transport,

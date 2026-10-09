@@ -1,4 +1,9 @@
 export {
+  credentialRouter,
+  revokeIfConfigured,
+  type RevokeIfConfiguredOptions,
+} from "./compose.ts";
+export {
   credentialRefInTenant,
   foreignCredentialRef,
   subjectFor,
@@ -10,6 +15,7 @@ export {
   type CredentialSubject,
   type CredentialToken,
   type GetTokenOptions,
+  type SetCredentialOptions,
   type StartAuthorizationOptions,
 } from "./provider.ts";
 export {

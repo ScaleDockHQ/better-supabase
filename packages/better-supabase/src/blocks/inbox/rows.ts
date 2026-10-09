@@ -20,13 +20,15 @@ import type {
 
 import {
   isRecord,
+  oneOf,
   optionalInstant,
   optionalText,
   recordOf,
+  recordOrEmpty,
   recordsOf,
+  requiredInstant,
   stringsOf,
   textOf,
-  oneOf,
 } from "../shared.ts";
 
 export const INBOX_CHANNELS: readonly InboxChannel[] = [
@@ -49,17 +51,10 @@ const channelOf = (value: unknown): InboxChannel =>
   oneOf(value, INBOX_CHANNELS, "other");
 const botModeOf = (value: unknown): BotMode =>
   oneOf<BotMode>(value, ["bot", "human", "paused"], "human");
-const objectOf = (value: unknown): Readonly<Record<string, unknown>> =>
-  isRecord(value) ? value : {};
 const nullableText = (value: unknown): string | null =>
   optionalText(value) ?? null;
 const nullableInstant = (value: unknown): Temporal.Instant | null =>
   optionalInstant(value) ?? null;
-const instant = (value: unknown, field: string): Temporal.Instant => {
-  const at = optionalInstant(value);
-  if (at === undefined) throw new TypeError(`${field} is missing`);
-  return at;
-};
 
 export function inboxOf(value: unknown): InboxRow {
   const row = recordOf(value, "inbox");
@@ -71,8 +66,8 @@ export function inboxOf(value: unknown): InboxRow {
     address: nullableText(row["channel_address"]),
     installationId: nullableText(row["installation_id"]),
     botMode: botModeOf(row["bot_mode"]),
-    settings: objectOf(row["settings"]),
-    createdAt: instant(row["created_at"], "inbox.created_at"),
+    settings: recordOrEmpty(row["settings"]),
+    createdAt: requiredInstant(row["created_at"], "inbox.created_at"),
     archivedAt: nullableInstant(row["archived_at"]),
   };
 }
@@ -91,7 +86,7 @@ export function contactOf(value: unknown): Contact {
     avatarUrl: nullableText(row["avatar_url"]),
     ...(row["metadata"] === undefined
       ? {}
-      : { metadata: objectOf(row["metadata"]) }),
+      : { metadata: recordOrEmpty(row["metadata"]) }),
   };
 }
 
@@ -123,8 +118,8 @@ export function conversationOf(value: unknown): Conversation {
     preview: nullableText(row["last_message_preview"]),
     firstResponseAt: nullableInstant(row["first_response_at"]),
     resolvedAt: nullableInstant(row["resolved_at"]),
-    metadata: objectOf(row["metadata"]),
-    createdAt: instant(row["created_at"], "conversation.created_at"),
+    metadata: recordOrEmpty(row["metadata"]),
+    createdAt: requiredInstant(row["created_at"], "conversation.created_at"),
     contact: isRecord(row["contact"]) ? contactOf(row["contact"]) : null,
     inbox: inbox
       ? {
@@ -140,7 +135,7 @@ export function conversationOf(value: unknown): Conversation {
 }
 
 function attachmentOf(value: unknown): MessageAttachment {
-  const row = objectOf(value);
+  const row = recordOrEmpty(value);
   const path = optionalText(row["path"]);
   const url = optionalText(row["url"]);
   const name = optionalText(row["name"]);
@@ -157,7 +152,7 @@ function attachmentOf(value: unknown): MessageAttachment {
 
 export function reactionsOf(value: unknown): Record<string, readonly string[]> {
   const out: Record<string, readonly string[]> = {};
-  for (const [emoji, actors] of Object.entries(objectOf(value)))
+  for (const [emoji, actors] of Object.entries(recordOrEmpty(value)))
     out[emoji] = stringsOf(actors);
   return out;
 }
@@ -185,8 +180,8 @@ export function messageOf(value: unknown): InboxMessage {
     mentions: stringsOf(row["mentions"]),
     externalId: nullableText(row["external_id"]),
     replyTo: nullableText(row["reply_to"]),
-    metadata: objectOf(row["metadata"]),
-    createdAt: instant(row["created_at"], "message.created_at"),
+    metadata: recordOrEmpty(row["metadata"]),
+    createdAt: requiredInstant(row["created_at"], "message.created_at"),
     editedAt: nullableInstant(row["edited_at"]),
     deletedAt: nullableInstant(row["deleted_at"]),
     ...(row["delivery"] === undefined
@@ -221,8 +216,8 @@ export const eventsOf = (value: unknown): readonly ConversationEvent[] =>
     id: textOf(row["id"]),
     type: textOf(row["type"]),
     actorId: nullableText(row["actor_id"]),
-    data: objectOf(row["data"]),
-    createdAt: instant(row["created_at"], "event.created_at"),
+    data: recordOrEmpty(row["data"]),
+    createdAt: requiredInstant(row["created_at"], "event.created_at"),
   }));
 
 export function countsOf(value: unknown): InboxCounts {
@@ -277,7 +272,7 @@ export function templateOf(value: unknown): MessageTemplate {
 export const storedEventsOf = (value: unknown): readonly StoredInboundEvent[] =>
   recordsOf(value, "pending_inbound_events").map((row) => {
     const headers: Record<string, string> = {};
-    for (const [key, header] of Object.entries(objectOf(row["headers"])))
+    for (const [key, header] of Object.entries(recordOrEmpty(row["headers"])))
       headers[key] = textOf(header);
     return {
       id: textOf(row["id"]),
@@ -288,6 +283,9 @@ export const storedEventsOf = (value: unknown): readonly StoredInboundEvent[] =>
       headers,
       body: textOf(row["body"]),
       attempts: Number(row["attempts"] ?? 0),
-      receivedAt: instant(row["received_at"], "inbound_event.received_at"),
+      receivedAt: requiredInstant(
+        row["received_at"],
+        "inbound_event.received_at",
+      ),
     };
   });

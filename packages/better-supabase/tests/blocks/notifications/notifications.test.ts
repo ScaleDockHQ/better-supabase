@@ -267,7 +267,7 @@ describe("createNotifications reads and writes", () => {
     const listed = await notifications.list({
       status: "unread",
       types: ["task.assigned"],
-      before: Temporal.Instant.from("2026-02-01T00:00:00Z"),
+      cursor: Temporal.Instant.from("2026-02-01T00:00:00Z"),
       limit: 10,
       locale: "nl",
     });
@@ -295,7 +295,7 @@ describe("createNotifications reads and writes", () => {
       resolved: null,
       dismissed: false,
     });
-    await notifications.list({ before: first! });
+    await notifications.list({ cursor: first! });
     expect(calls[1]?.args).toMatchObject({
       before: "2026-01-01T00:00:00Z",
       before_id: "r1",

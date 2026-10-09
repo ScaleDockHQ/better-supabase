@@ -27,6 +27,8 @@ import {
   toInstant,
   type BlockTemporalOptions,
   applyTemporal,
+  type CursorPageOptions,
+  pageOf,
 } from "../shared.ts";
 
 export interface CommentsOptions extends BlockTemporalOptions {
@@ -96,15 +98,19 @@ export interface ActivityEntry {
   readonly occurredAt: Temporal.Instant;
 }
 
-export interface ActivityHistoryOptions {
+export interface ActivityHistoryOptions extends CursorPageOptions<Temporal.Instant> {
   /** Entries before this instant, for paging back. */
+  readonly cursor?: Temporal.Instant;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly before?: Temporal.Instant;
   /** Default 50, at most 500. */
   readonly limit?: number;
 }
 
-export interface ListCommentsOptions {
+export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant> {
   /** Comments created after this instant, for polling a thread. */
+  readonly cursor?: Temporal.Instant;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly after?: Temporal.Instant;
   /** Default 100, at most 500. */
   readonly limit?: number;
@@ -260,7 +266,7 @@ export function createComments(options: CommentsOptions): Comments {
           tenant: organizationId,
           subject_type: subjectType,
           subject_id: subjectId,
-          after: instantArg(list.after),
+          after: instantArg(pageOf(list).cursor),
           max_rows: list.limit,
           skip: list.offset,
         },
@@ -300,7 +306,7 @@ export function createComments(options: CommentsOptions): Comments {
           tenant: organizationId,
           subject_type: subject?.type,
           subject_id: subject?.id,
-          before: instantArg(history.before),
+          before: instantArg(pageOf(history).cursor),
           max_rows: history.limit,
         },
         (value) => recordsOf(value, "list_activity").map(activityOf),

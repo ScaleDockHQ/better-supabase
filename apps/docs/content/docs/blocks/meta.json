@@ -2,6 +2,7 @@
   "title": "Blocks",
   "pages": [
     "index",
+    "create-blocks",
     "sql",
     "access",
     "organizations",

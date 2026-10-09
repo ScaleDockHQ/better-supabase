@@ -17,7 +17,14 @@ import {
 } from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { type BlockTemporalOptions, applyTemporal } from "../shared.ts";
+import {
+  applyTemporal,
+  type BlockTemporalOptions,
+  DEFAULT_BLOCK_SCHEMA,
+  errorText,
+  isRecord,
+  mappersOf,
+} from "../shared.ts";
 import { fetchTransport, WebhookPolicyError } from "./http.ts";
 import { sqlSecretStore } from "./secrets.ts";
 import { standardWebhooks } from "./signers.ts";
@@ -84,6 +91,9 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   /** `betterSupabase.events`, for `webhook.*` block events. */
   readonly events?: EventHub;
   readonly context?: RequestContext;
+  /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
+  readonly mappers?: readonly ErrorMapper[];
+  /** @deprecated Use `mappers`. Removed in 0.8. */
   readonly errorMappers?: readonly ErrorMapper[];
 }
 
@@ -165,11 +175,6 @@ export interface WebhookSinkOptions {
   readonly typePrefix?: string;
 }
 
-const DEFAULT_SCHEMA = "better_supabase";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 const textOf = (value: unknown): string | null =>
   value === null || value === undefined ? null : String(value);
 
@@ -204,16 +209,13 @@ const MAX_RETRY_AFTER = 86_400;
 const defaultRetryable = (status: number): boolean =>
   status === 408 || status === 429 || status >= 500;
 
-const errorText = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause);
-
 type Outcome = "succeeded" | "retrying" | "dead" | "canceled";
 
 export function createWebhooks(options: WebhooksOptions): Webhooks {
   applyTemporal(options);
   const { transport } = options;
-  const schema = options.schema ?? DEFAULT_SCHEMA;
-  const mappers = options.errorMappers ?? [];
+  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
+  const mappers = mappersOf(options);
   const store = options.secrets ?? sqlSecretStore(transport, { schema });
   const signer = options.signer ?? standardWebhooks();
   const maxAttempts = options.retry?.maxAttempts ?? 8;

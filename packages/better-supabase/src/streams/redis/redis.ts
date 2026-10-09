@@ -1,6 +1,6 @@
 import type { StreamPage, StreamStatus, StreamStore } from "../store.ts";
 
-import { isRecord } from "../../blocks/shared.ts";
+import { isRecord } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { pollingRead } from "../store.ts";

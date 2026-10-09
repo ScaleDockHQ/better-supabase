@@ -313,7 +313,7 @@ describe.skipIf(!live)("usage", () => {
       ]);
       expect(history[1]!.metadata).toEqual({ doc: "d1" });
       expect(
-        await usage.history(organization, { before: history[0]!.id }).orThrow(),
+        await usage.history(organization, { cursor: history[0]!.id }).orThrow(),
       ).toHaveLength(1);
       expect(
         (await usage.breakdown(organization, "tokens").orThrow()).map(

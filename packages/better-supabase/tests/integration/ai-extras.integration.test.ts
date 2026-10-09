@@ -208,7 +208,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
         .orThrow();
       expect(first.map((item) => item.requestId)).toEqual(["a"]);
       const rest = await providers.batches
-        .items(batch.id, { after: "a" })
+        .items(batch.id, { cursor: "a" })
         .orThrow();
       expect(rest).toMatchObject([{ requestId: "b", error: "bad" }]);
 

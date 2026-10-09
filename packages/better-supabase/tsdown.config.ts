@@ -39,6 +39,7 @@ const entries = [
   "mcp/index",
   "mcp/sdk/index",
   "blocks/jobs/index",
+  "blocks/index",
   "blocks/audit/index",
   "blocks/outbox/index",
   "blocks/organizations/index",

@@ -93,7 +93,7 @@ describe("createWorkflows", () => {
 
     const before = Temporal.Instant.from("2026-02-01T00:00:00Z");
     const runs = await workflows.runs
-      .list({ tenant: "t1", status: "running", limit: 10, before })
+      .list({ tenant: "t1", status: "running", limit: 10, cursor: before })
       .orThrow();
     expect(runs.map((run) => run.id)).toEqual(["r1"]);
     expect(calls[0]?.args).toMatchObject({

@@ -31,6 +31,8 @@ import {
   seconds,
   textOf,
   toInstant,
+  type CursorPageOptions,
+  pageOf,
 } from "../shared.ts";
 import {
   contactOf,
@@ -139,7 +141,9 @@ export interface InboundInput {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface ConversationFilter {
+export interface ConversationFilter extends CursorPageOptions<
+  Pick<Conversation, "id" | "lastMessageAt">
+> {
   readonly inboxId?: string;
   /** Defaults to `open`. */
   readonly status?: ConversationStatus | "all";
@@ -148,6 +152,8 @@ export interface ConversationFilter {
   readonly contactId?: string;
   readonly search?: string;
   /** The last item of the previous page. */
+  readonly cursor?: Pick<Conversation, "id" | "lastMessageAt">;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly before?: Pick<Conversation, "id" | "lastMessageAt">;
   /** Up to 200. Defaults to 50. */
   readonly limit?: number;
@@ -246,7 +252,10 @@ export interface Inbox {
     ): AsyncResult<InboxMessage>;
     list(
       conversationId: string,
-      options?: { readonly before?: Temporal.Instant; readonly limit?: number },
+      options?: CursorPageOptions<Temporal.Instant> & {
+        /** @deprecated Use `cursor`. Removed in 0.8. */
+        readonly before?: Temporal.Instant;
+      },
     ): AsyncResult<readonly InboxMessage[]>;
     get(messageId: string): AsyncResult<InboxMessage | null>;
     edit(messageId: string, body: string): AsyncResult<InboxMessage>;
@@ -356,6 +365,17 @@ function messageArg(input: MessageInput): Record<string, unknown> {
 }
 
 /** Drops `undefined` so the jsonb input only carries what the caller set. */
+function conversationCursor(
+  cursor: Pick<Conversation, "id" | "lastMessageAt"> | undefined,
+): Record<string, unknown> | undefined {
+  return (
+    cursor && {
+      id: cursor.id,
+      last_message_at: cursor.lastMessageAt?.toString(),
+    }
+  );
+}
+
 function compact(value: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value)) {
@@ -507,10 +527,7 @@ export function createInbox(options: InboxOptions): Inbox {
               team_id: filter.teamId,
               contact_id: filter.contactId,
               search: filter.search,
-              before: filter.before && {
-                id: filter.before.id,
-                last_message_at: filter.before.lastMessageAt?.toString(),
-              },
+              before: conversationCursor(pageOf(filter).cursor),
               limit: filter.limit,
             }),
           },
@@ -572,7 +589,7 @@ export function createInbox(options: InboxOptions): Inbox {
           "list_messages",
           {
             conversation: conversationId,
-            before: instantArg(page.before),
+            before: instantArg(pageOf<Temporal.Instant>(page).cursor),
             max: page.limit,
           },
           messagesOf,

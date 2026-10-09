@@ -2207,7 +2207,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [1, "gone"],
       ]);
       expect(
-        await jobs.listDead(queue, { before: dead[0]!.id }).orThrow(),
+        await jobs.listDead(queue, { cursor: dead[0]!.id }).orThrow(),
       ).toHaveLength(1);
       expect(
         await jobs.retryDead(queue, { ids: [dead[1]!.id] }).orThrow(),

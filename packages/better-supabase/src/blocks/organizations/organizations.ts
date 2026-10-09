@@ -11,13 +11,16 @@ import type { RequestContext } from "../../core/plugin.ts";
 import type { InvitationError } from "../../sql/modules/invitations-tables.ts";
 
 import { emitBlockEvent } from "../../core/block-events.ts";
-import { rawError } from "../../core/block-transport.ts";
-import { dbError, mapDbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
-  type BlockTemporalOptions,
   applyTemporal,
+  blockCall,
+  type BlockTemporalOptions,
+  DEFAULT_BLOCK_SCHEMA,
+  isRecord,
+  mappersOf,
   recordsOf,
 } from "../shared.ts";
 
@@ -171,7 +174,9 @@ export interface OrganizationsOptions extends BlockTemporalOptions {
    * call `resendInvitation` to retry.
    */
   readonly onInvite?: (sent: InvitationSent) => void | Promise<void>;
-  /** Run before the built-in mapping, as in `betterSupabase.mapError()`. */
+  /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
+  readonly mappers?: readonly ErrorMapper[];
+  /** @deprecated Use `mappers`. Removed in 0.8. */
   readonly errorMappers?: readonly ErrorMapper[];
 }
 
@@ -256,11 +261,6 @@ export interface Organizations {
   declineInvitationById(invitationId: string): AsyncResult<boolean>;
   myInvitations(): AsyncResult<readonly Invitation[]>;
 }
-
-const DEFAULT_SCHEMA = "better_supabase";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : String(value);
@@ -372,8 +372,12 @@ export function createOrganizations(
   const schemaOf = (module: "organizations" | "invitations"): string =>
     typeof options.schema === "string"
       ? options.schema
-      : (options.schema?.[module] ?? DEFAULT_SCHEMA);
-  const mappers = options.errorMappers ?? [];
+      : (options.schema?.[module] ?? DEFAULT_BLOCK_SCHEMA);
+  const mappers = mappersOf(options);
+  const calls = {
+    organizations: blockCall(transport, schemaOf("organizations"), mappers),
+    invitations: blockCall(transport, schemaOf("invitations"), mappers),
+  };
 
   function run<T>(
     module: "organizations" | "invitations",
@@ -381,16 +385,7 @@ export function createOrganizations(
     args: Readonly<Record<string, unknown>>,
     then: (value: unknown) => T | Promise<T>,
   ): AsyncResult<T> {
-    return AsyncResult.from(async () => {
-      let value: unknown;
-      try {
-        value = await transport.call(schemaOf(module), fn, args);
-      } catch (cause) {
-        const raw = rawError(cause);
-        return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
-      }
-      return ok(await then(value));
-    });
+    return calls[module](fn, args, then);
   }
 
   function emit<K extends BlockEventType>(

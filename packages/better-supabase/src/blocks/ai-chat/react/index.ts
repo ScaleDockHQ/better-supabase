@@ -18,6 +18,7 @@ import type {
   AiStoredMessage,
 } from "../ai-chat.ts";
 
+import { pageOf } from "../../../core/block-helpers.ts";
 import { rpcTransport } from "../../../core/block-transport.ts";
 import { ok } from "../../../core/result.ts";
 import { useAuth, useSupabase } from "../../../react/hooks.ts";
@@ -79,7 +80,7 @@ async function attempt<T>(
 }
 
 export interface UseAiChatsOptions
-  extends ClientOptions, Omit<AiChatQuery, "after"> {
+  extends ClientOptions, Omit<AiChatQuery, "after" | "cursor"> {
   /** The prefix of the list topic (`sql.modules["ai-chat"].options.listTopic`); `null` loads once. */
   readonly topic?: string | null;
 }
@@ -118,7 +119,8 @@ export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
   const userId = auth.user?.id ?? null;
   const prefix = options.topic === undefined ? "ai-chats" : options.topic;
-  const { organizationId, search, projectId, pinned, archived, size } = options;
+  const { organizationId, search, projectId, pinned, archived } = options;
+  const { limit } = pageOf(options);
   const query = useMemo(
     (): AiChatQuery => ({
       organizationId: organizationId ?? null,
@@ -126,9 +128,9 @@ export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
       ...(projectId === undefined ? {} : { projectId }),
       ...(pinned === undefined ? {} : { pinned }),
       ...(archived === undefined ? {} : { archived }),
-      ...(size === undefined ? {} : { size }),
+      ...(limit === undefined ? {} : { limit }),
     }),
-    [organizationId, search, projectId, pinned, archived, size],
+    [organizationId, search, projectId, pinned, archived, limit],
   );
   const { apply, fail, set, reset } = state;
   // The list the loaded items belong to; writes for an older one are dropped.
@@ -157,7 +159,7 @@ export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
       const result: Result<AiChatPage> = await scope.client.chats.list(
         page?.next === undefined
           ? scope.query
-          : { ...scope.query, after: page.next },
+          : { ...scope.query, cursor: page.next },
       );
       if (run !== ticket.current) return;
       if (!result.ok) {
@@ -178,7 +180,7 @@ export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
     pages.current += 1;
     const result = await scope.client.chats.list({
       ...scope.query,
-      after: next,
+      cursor: next,
     });
     if (run !== ticket.current) return;
     if (!result.ok) {

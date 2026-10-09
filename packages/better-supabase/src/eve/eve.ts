@@ -14,7 +14,7 @@ import type {
 
 import { resolveAuth } from "../auth/resolve.ts";
 import { isAnonymousUser } from "../auth/view.ts";
-import { isRecord } from "../blocks/shared.ts";
+import { isRecord } from "../core/block-helpers.ts";
 import { claimAt, DEFAULT_CLAIMS, tenantClaimPaths } from "../core/claims.ts";
 import { type DbError, DbException } from "../core/errors.ts";
 
@@ -383,6 +383,8 @@ export class MemoryDocumentConflictError extends Error {
 
 /** The backend eve's `fileMemory({ backend })` reads and writes. */
 export interface EveDocumentBackend {
+  /** The document backend contract version. Omitted means 1. */
+  readonly apiVersion?: 1;
   read(input: {
     readonly key: string;
     readonly signal?: AbortSignal;
@@ -415,6 +417,7 @@ export function supabaseDocumentBackend(
 ): EveDocumentBackend {
   const scope = options.scope ?? "eve";
   return {
+    apiVersion: 1,
     read: async ({ key }) => {
       const result = await options.memory.documents.read(scope, key);
       if (!result.ok) throw new DbException(result.error);

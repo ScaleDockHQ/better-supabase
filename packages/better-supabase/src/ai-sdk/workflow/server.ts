@@ -19,7 +19,7 @@ import type { StreamStore } from "../../streams/store.ts";
 import type { Assistant, AssistantContext } from "../chat/assistant.ts";
 import type { DurableResume, DurableTurnInput } from "./turn.ts";
 
-import { isRecord } from "../../blocks/shared.ts";
+import { isRecord } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { resumeFromStore, teeToStore } from "../../streams/tee.ts";
@@ -475,7 +475,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       if (!run.ok) return problemResponse(run.error);
       return run.data;
     }
-    const runs = await context.runs.list({ chatId: chat.id, size: 1 });
+    const runs = await context.runs.list({ chatId: chat.id, limit: 1 });
     if (!runs.ok) return problemResponse(runs.error);
     return runs.data[0];
   }

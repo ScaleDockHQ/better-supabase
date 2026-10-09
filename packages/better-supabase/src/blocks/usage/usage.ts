@@ -14,6 +14,8 @@ import {
   toInstant,
   type BlockTemporalOptions,
   applyTemporal,
+  type CursorPageOptions,
+  pageOf,
 } from "../shared.ts";
 import { lazyStripe, type StripeSource } from "../stripe.ts";
 
@@ -78,11 +80,13 @@ export interface UsageBreakdownEntry {
   readonly quantity: number;
 }
 
-export interface UsageHistoryOptions {
+export interface UsageHistoryOptions extends CursorPageOptions<number> {
   readonly meter?: string;
   /** Defaults to 100, at most 1000. */
   readonly limit?: number;
   /** Only entries with a lower id, for the next page. */
+  readonly cursor?: number;
+  /** @deprecated Use `cursor`. Removed in 0.8. */
   readonly before?: number;
 }
 
@@ -324,7 +328,7 @@ export function createUsage(options: UsageOptions): Usage {
           tenant: organizationId,
           meter: list.meter,
           max_rows: list.limit ?? 100,
-          before_id: list.before,
+          before_id: pageOf(list).cursor,
         },
         (value) =>
           (Array.isArray(value) ? value.filter(isRecord) : []).map((row) => ({

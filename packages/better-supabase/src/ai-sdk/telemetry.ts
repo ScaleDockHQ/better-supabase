@@ -4,7 +4,7 @@ import type { JobHandler } from "../blocks/jobs/queue.ts";
 import type { Usage, UsageEntry } from "../blocks/usage/usage.ts";
 import type { DbError } from "../core/errors.ts";
 
-import { isRecord } from "../blocks/shared.ts";
+import { isRecord } from "../core/block-helpers.ts";
 import { nowInstant } from "../core/temporal.ts";
 
 /** The usage meters `meterTelemetry` writes. */

@@ -139,7 +139,7 @@ describe("createAiRuns", () => {
   it("lists runs and falls back on unknown states", async () => {
     const { runs, user } = fake();
     const list = await runs
-      .list({ chatId: "c1", active: true, size: 5 })
+      .list({ chatId: "c1", active: true, limit: 5 })
       .orThrow();
     expect(list.map((run) => run.status)).toEqual(["running", "running"]);
     expect(list[1]?.costMicroUsd).toBeUndefined();

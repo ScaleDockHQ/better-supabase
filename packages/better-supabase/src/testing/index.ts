@@ -64,6 +64,20 @@ export type {
   TestQueueBackendOptions,
   TestSupportSessionStoreOptions,
 } from "./conformance.ts";
+export {
+  testAiTaskRunner,
+  testBuilderStarter,
+  testEmbedder,
+  testEveDocumentBackend,
+  testGraphCompiler,
+} from "./injectables.ts";
+export type {
+  TestAiTaskRunnerOptions,
+  TestBuilderStarterOptions,
+  TestEmbedderOptions,
+  TestEveDocumentBackendOptions,
+  TestGraphCompilerOptions,
+} from "./injectables.ts";
 export { testNotificationChannel } from "./notification-channel.ts";
 export type { TestNotificationChannelOptions } from "./notification-channel.ts";
 export {

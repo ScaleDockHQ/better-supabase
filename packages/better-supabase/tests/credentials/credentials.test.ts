@@ -9,9 +9,12 @@ import type {
 } from "../../src/credentials/index.ts";
 
 import { signWebhook } from "../../src/blocks/webhooks/verify.ts";
+import { AsyncResult } from "../../src/core/result.ts";
 import {
   credentialRefInTenant,
+  credentialRouter,
   foreignCredentialRef,
+  revokeIfConfigured,
   subjectFor,
   tenantCredentialRef,
   vaultCredentials,
@@ -83,7 +86,7 @@ describe("vaultCredentials", () => {
         vault.set(ref, value, { subject }).orThrow(),
     });
     expect(report.checks.every((check) => check.ok)).toBe(true);
-    expect(report.checks).toHaveLength(8);
+    expect(report.checks).toHaveLength(9);
   });
 
   it("stores a tenant's ref under tenant/<tenant>/ and refuses slash tricks", async () => {
@@ -333,5 +336,96 @@ describe("credentialProviderOf", () => {
         apiVersion: 2,
       } as unknown as CredentialProvider),
     ).toThrow(/credential provider API 2/);
+  });
+});
+
+describe("credentialRouter", () => {
+  const oauthOnly: CredentialProvider = {
+    apiVersion: 1,
+    name: "oauth",
+    getToken: () => AsyncResult.ok({ token: "o", headers: {} }),
+    capabilities: () => ({
+      userSubjects: true,
+      authorization: false,
+      revoke: false,
+      inbound: false,
+    }),
+    revoke: () => AsyncResult.ok(false),
+  };
+
+  it("passes the CredentialProvider kit over vault", async () => {
+    const { transport } = fakeVault();
+    const vault = vaultCredentials({ transport });
+    const report = await testCredentialProvider(
+      credentialRouter([vault, oauthOnly]),
+      {
+        ref: tokenRef,
+        seed: (ref, subject, value) =>
+          vault.set(ref, value, { subject }).orThrow(),
+      },
+    );
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+  });
+
+  it("routes by provider and refuses what the chosen provider lacks", async () => {
+    const router = credentialRouter([oauthOnly], { name: "apps" });
+    expect(router.name).toBe("apps");
+    const ref = { provider: "oauth" };
+    expect((await router.getToken(ref, { subject: APP })).ok).toBe(true);
+    expect(router.capabilities({ provider: "nope" }).revoke).toBe(false);
+    const refusals = await Promise.all([
+      router.set?.(ref, "x"),
+      router.startAuthorization?.(ref, { subject: APP, redirectUri: "x" }),
+      router.completeAuthorization?.(ref, { subject: APP, callback: "x" }),
+      router.verifyInbound?.(new Request("https://app.test"), ref),
+    ]);
+    expect(refusals.map((result) => !result?.ok && result?.error.kind)).toEqual(
+      ["unsupported", "unsupported", "unsupported", "unsupported"],
+    );
+    const unknown = await router.revoke({ provider: "nope" }, { subject: APP });
+    expect(!unknown.ok && unknown.error.hint).toBe(
+      "CREDENTIAL_PROVIDER_UNKNOWN",
+    );
+    expect(() => credentialRouter([oauthOnly, oauthOnly])).toThrow(
+      /two providers named "oauth"/,
+    );
+  });
+});
+
+describe("revokeIfConfigured", () => {
+  it("revokes only with a provider that can, inside the row's tenant", async () => {
+    const { transport, secrets } = fakeVault();
+    const vault = vaultCredentials({ transport });
+    const ref = tenantCredentialRef("t1", tokenRef);
+    await vault.set(ref, "secret").orThrow();
+    expect(
+      await revokeIfConfigured(undefined, ref, { subject: APP }).orThrow(),
+    ).toBe(false);
+    expect(
+      await revokeIfConfigured(vault, ref, {
+        subject: APP,
+        tenant: "t2",
+      }).orThrow(),
+    ).toBe(false);
+    expect(secrets.size).toBe(1);
+    expect(
+      await revokeIfConfigured(vault, ref, {
+        subject: APP,
+        tenant: "t1",
+      }).orThrow(),
+    ).toBe(true);
+    expect(secrets.size).toBe(0);
+    const cannot: CredentialProvider = {
+      ...vault,
+      capabilities: () => ({
+        userSubjects: false,
+        authorization: false,
+        revoke: false,
+        inbound: false,
+      }),
+    };
+    expect(
+      await revokeIfConfigured(cannot, tokenRef, { subject: APP }).orThrow(),
+    ).toBe(false);
   });
 });

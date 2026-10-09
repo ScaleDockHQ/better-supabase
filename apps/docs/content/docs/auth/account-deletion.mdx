@@ -162,6 +162,38 @@ await suspendAccount(supabaseAdmin, postgres.admin, userId, {
 await endSessions(postgres.admin, userId);
 ```
 
+## Recording account actions in the audit log
+
+Pass an `EventSink` as the server's `audit` option, such as the audit log's
+`sink()`. The server methods `suspendAccount`, `deleteAccount` and
+`endSessions` then send a CloudEvent after each success, and the server
+forwards `support.denied` events to the same sink:
+
+```ts title="src/lib/server.ts"
+import { createAuditLog, rpcTransport } from "better-supabase/blocks/audit";
+import { createServer } from "better-supabase/server";
+
+const audit = createAuditLog({ transport: rpcTransport(supabaseAdmin) });
+
+export const bs = createServer(betterSupabase, {
+  postgres,
+  audit: audit.sink(),
+});
+```
+
+| Action                    | Event type                                   |
+| ------------------------- | -------------------------------------------- |
+| `suspendAccount` (ban)    | `dev.better-supabase.account.suspended`      |
+| `suspendAccount` (lift)   | `dev.better-supabase.account.unsuspended`    |
+| `deleteAccount`           | `dev.better-supabase.account.deleted`        |
+| `endSessions`             | `dev.better-supabase.account.sessions_ended` |
+| a refused support session | `dev.better-supabase.support.denied`         |
+
+Each event's subject is `users/<id>` and its source is `SERVER_EVENT_SOURCE`
+(`/better-supabase/server`). A failed send goes to the logger and never fails
+the action. The standalone functions from `better-supabase/server` send
+nothing; only the server's methods do.
+
 ## What it does
 
 1. **Storage, listed.** For each bucket in `buckets` with an owner

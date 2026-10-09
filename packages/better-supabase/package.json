@@ -227,6 +227,11 @@
       "types": "./dist/blocks/jobs/index.d.ts",
       "default": "./dist/blocks/jobs/index.js"
     },
+    "./blocks": {
+      "@better-supabase/source": "./src/blocks/index.ts",
+      "types": "./dist/blocks/index.d.ts",
+      "default": "./dist/blocks/index.js"
+    },
     "./blocks/audit": {
       "@better-supabase/source": "./src/blocks/audit/index.ts",
       "types": "./dist/blocks/audit/index.d.ts",
@@ -785,6 +790,10 @@
       "./blocks/jobs": {
         "types": "./dist/blocks/jobs/index.d.ts",
         "default": "./dist/blocks/jobs/index.js"
+      },
+      "./blocks": {
+        "types": "./dist/blocks/index.d.ts",
+        "default": "./dist/blocks/index.js"
       },
       "./blocks/audit": {
         "types": "./dist/blocks/audit/index.d.ts",

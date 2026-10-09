@@ -84,10 +84,15 @@ function fake(replies: Record<string, Reply>) {
 const published = { ...VERSION, status: "published", publishedAt: AT };
 const target = () => ({ definition: DEFINITION, version: published });
 
-function provider(overrides: Partial<CredentialProvider> = {}) {
+function provider(
+  overrides: Partial<CredentialProvider> = {},
+  { store = true } = {},
+) {
   const revoke = vi.fn(() => AsyncResult.ok(true));
-  const set = vi.fn(() => AsyncResult.ok(undefined));
-  const memory: CredentialProvider & { set: typeof set } = {
+  const set = vi.fn<NonNullable<CredentialProvider["set"]>>(() =>
+    AsyncResult.ok(undefined),
+  );
+  const memory: CredentialProvider = {
     apiVersion: 1,
     name: "memory",
     capabilities: () => ({
@@ -99,7 +104,7 @@ function provider(overrides: Partial<CredentialProvider> = {}) {
     getToken: () => AsyncResult.ok({ token: "tok", headers: {} }),
     startAuthorization: () => AsyncResult.ok({ url: "https://auth.test/go" }),
     revoke,
-    set,
+    ...(store ? { set } : {}),
     ...overrides,
   };
   return { memory, revoke, set };
@@ -612,15 +617,17 @@ describe("createBuilder", () => {
       workflow_credential_get: () => CREDENTIAL,
       remove_workflow_credential: () => CREDENTIAL,
     });
-    const { memory: limited, revoke } = provider({
-      capabilities: () => ({
-        userSubjects: false,
-        authorization: false,
-        revoke: false,
-        inbound: false,
-      }),
-    });
-    const { set: _set, ...noStore } = limited;
+    const { memory: noStore, revoke } = provider(
+      {
+        capabilities: () => ({
+          userSubjects: false,
+          authorization: false,
+          revoke: false,
+          inbound: false,
+        }),
+      },
+      { store: false },
+    );
     const builder = createBuilder({ transport, credentials: noStore });
     const authorize = await builder.credentials.authorize("c1", {
       redirectUri: "x",
@@ -636,31 +643,5 @@ describe("createBuilder", () => {
       secret: "s",
     });
     expect(!store.ok && store.error.message).toContain("can't store secrets");
-
-    const brokenProvider: CredentialProvider = {
-      ...limited,
-      ...{ set: () => "nope" },
-    };
-    const broken = createBuilder({ transport, credentials: brokenProvider });
-    const result = await broken.credentials.create({
-      tenant: "t1",
-      kind: "crm",
-      name: "CRM",
-      ref: CREDENTIAL.ref,
-      secret: "s",
-    });
-    expect(!result.ok && result.error.message).toContain("returned no result");
-    const notFnProvider: CredentialProvider = { ...noStore, ...{ set: 1 } };
-    const notFn = createBuilder({ transport, credentials: notFnProvider });
-    const notFnResult = await notFn.credentials.create({
-      tenant: "t1",
-      kind: "crm",
-      name: "CRM",
-      ref: CREDENTIAL.ref,
-      secret: "s",
-    });
-    expect(!notFnResult.ok && notFnResult.error.message).toContain(
-      "can't store secrets",
-    );
   });
 });

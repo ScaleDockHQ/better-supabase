@@ -1,6 +1,7 @@
 export {
   chunk,
   createKnowledge,
+  // oxlint-disable-next-line typescript/no-deprecated -- the 0.6 export stays until 0.8.
   vectorLiteral,
   type ChunkOptions,
   type Embedder,

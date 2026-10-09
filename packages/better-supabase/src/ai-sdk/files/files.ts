@@ -5,7 +5,7 @@ import type { AiFiles, AiFileSource } from "../../blocks/ai-files/ai-files.ts";
 import type { DbError } from "../../core/errors.ts";
 
 import { aiFileUrl, parseAiFileUrl } from "../../blocks/ai-files/ai-files.ts";
-import { errorText } from "../../blocks/shared.ts";
+import { errorText } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 

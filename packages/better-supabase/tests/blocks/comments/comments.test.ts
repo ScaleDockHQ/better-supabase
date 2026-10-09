@@ -218,7 +218,7 @@ describe("createComments", () => {
         "org-1",
         { type: "quote", id: "q1" },
         {
-          before: Temporal.Instant.from("2026-10-07T00:00:00Z"),
+          cursor: Temporal.Instant.from("2026-10-07T00:00:00Z"),
           limit: 2,
         },
       )
@@ -249,7 +249,7 @@ describe("createComments", () => {
     expect(await comments.remove("c1").orThrow()).toBe(true);
     const thread = await comments
       .list("org-1", "project", "p1", {
-        after: Temporal.Instant.from("2026-10-06T00:00:00Z"),
+        cursor: Temporal.Instant.from("2026-10-06T00:00:00Z"),
         limit: 20,
       })
       .orThrow();

@@ -126,8 +126,8 @@ caller's own copies, which is empty for the service. The SQL functions
 return the same object as `jsonb`, with each item in the shape that
 `list_notifications` returns.
 
-`list` pages with `before` and `limit` (50 by default, at most 200). Pass the
-last item of the previous page as `before`: the block orders by `created_at`
+`list` pages with `cursor` and `limit` (50 by default, at most 200). Pass the
+last item of the previous page as `cursor`: the block orders by `created_at`
 and then `id`, so items created at the same instant are not skipped. It filters with `status` (`all`, `unread`, `read`, `unresolved`, `settled`),
 `read`, `resolved`, `dismissed`, `types`, `subjectTypes` and `search`. `resolve` marks every recipient's copy of a type about one subject
 as handled, for example when someone approves the invoice.

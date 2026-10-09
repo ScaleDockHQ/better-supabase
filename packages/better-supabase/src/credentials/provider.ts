@@ -125,6 +125,21 @@ export interface CredentialProvider {
   ): AsyncResult<boolean>;
   /** Checks a request the third party sent (a webhook) against the ref's secret. */
   verifyInbound?(request: Request, ref: CredentialRef): AsyncResult<boolean>;
+  /**
+   * Stores or replaces the credential a ref names, for `subject` when the
+   * ref is per user. Optional: a provider without it can't take a secret
+   * from the app (an OAuth-only provider, say).
+   */
+  set?(
+    ref: CredentialRef,
+    value: string,
+    options?: SetCredentialOptions,
+  ): AsyncResult<void>;
+}
+
+export interface SetCredentialOptions {
+  readonly subject?: CredentialSubject;
+  readonly description?: string;
 }
 
 /** Checks the provider's `apiVersion` before the server uses it. */

@@ -2,13 +2,12 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { KnowledgeScope } from "../knowledge/knowledge.ts";
 
-import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
-  type BlockTemporalOptions,
   isRecord,
+  notFoundError,
   optionalInstant,
   optionalText,
   recordOf,
@@ -16,6 +15,7 @@ import {
   stringsOf,
   textOf,
   toInstant,
+  type BlockTemporalOptions,
 } from "../shared.ts";
 
 export type AgentVisibility = "private" | "organization" | "public";
@@ -198,9 +198,7 @@ function agentOf(value: unknown): Agent {
 }
 
 const notFound = (): DbError =>
-  dbError("not_found", "No agent you can see has this id", {
-    hint: "AGENT_NOT_FOUND",
-  });
+  notFoundError("No agent you can see has this id", "AGENT_NOT_FOUND");
 
 function fieldsArg(fields: AgentFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};

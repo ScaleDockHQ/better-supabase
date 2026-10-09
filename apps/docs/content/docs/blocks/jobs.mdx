@@ -136,7 +136,7 @@ const stats = await jobs.stats().orThrow();
 const dead = await jobs.listDead("send_email", { limit: 50 }).orThrow();
 // [{ id, payload, context, attempts, maxAttempts, lastError, enqueuedAt, diedAt }]
 const next = await jobs
-  .listDead("send_email", { limit: 50, before: dead.at(-1)?.id })
+  .listDead("send_email", { limit: 50, cursor: dead.at(-1)?.id })
   .orThrow();
 
 await jobs.retryDead("send_email", { ids: [dead[0]!.id] }).orThrow();

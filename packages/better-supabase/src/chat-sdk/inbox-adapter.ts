@@ -29,7 +29,7 @@ import {
   optionalText,
   randomToken,
   toInstant,
-} from "../blocks/shared.ts";
+} from "../core/block-helpers.ts";
 import { writeToStore } from "../streams/tee.ts";
 
 const PREFIX = "inbox:";
@@ -313,7 +313,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       const page = await inbox.messages
         .list(conversationIdOf(threadId), {
           limit,
-          ...(before === undefined ? {} : { before }),
+          ...(before === undefined ? {} : { cursor: before }),
         })
         .orThrow();
       const visible = page.filter((message) => message.kind === "message");

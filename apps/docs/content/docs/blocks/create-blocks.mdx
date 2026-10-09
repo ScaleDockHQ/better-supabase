@@ -1,0 +1,96 @@
+---
+title: createBlocks
+description: Build several blocks from one set of options, and wire the siblings they share, from better-supabase/blocks.
+---
+
+`createBlocks` builds the blocks you list with one transport, schema and set
+of error mappers, and passes each block the siblings it can use: the AI
+files block to knowledge, a credential provider to connectors, ai-providers
+and the workflow builder, the notifications block to ai-tasks, and block
+events to an audit sink. You pass the block creators yourself, so only the
+blocks you use end up in the bundle.
+
+```ts title="src/lib/blocks.ts"
+import {
+  type RpcClient,
+  createBlocks,
+  rpcTransport,
+} from "better-supabase/blocks";
+import { createAuditLog } from "better-supabase/blocks/audit";
+import { createNotifications } from "better-supabase/blocks/notifications";
+import { createOrganizations } from "better-supabase/blocks/organizations";
+
+export function blocks(supabase: RpcClient) {
+  return createBlocks(
+    { transport: rpcTransport(supabase, { schema: "api" }), schema: "api" },
+    {
+      organizations: createOrganizations,
+      audit: createAuditLog,
+      notifications: (options) =>
+        createNotifications({ ...options, types, render }),
+    },
+  );
+}
+
+const { organizations, audit, notifications } = blocks(supabase);
+```
+
+Each value in the second argument is a factory that gets the shared options
+(a `BlockContext`) and returns a block. A block creator whose options are the
+shared ones, such as `createOrganizations`, works as it is; wrap the ones that
+need more, such as the notification `types`. The result has one key per
+factory, typed from what the factory returns, plus `close()`.
+
+## Options
+
+| Option               | What it does                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| `transport`          | Calls as the caller: `rpcTransport(supabase)` or `sqlTransport(ctx.postgres)`                |
+| `service`            | Calls as the service role, for the blocks with service-only calls                            |
+| `schema`             | The module schema, or the API schema the wrappers live in                                    |
+| `mappers`            | Error mappers that run before each block's built-in ones                                     |
+| `temporal`           | The Temporal namespace for runtimes without a global one                                     |
+| `credentials`        | A `CredentialProvider` for connectors, ai-providers and the workflow builder                 |
+| `events`             | `betterSupabase.events`, for the blocks that emit [block events](/docs/extending/events)     |
+| `audit`              | An `EventSink`, such as `auditLog.sink()`, that every block event goes to; needs `events`    |
+| `aiTaskNotification` | The notification type ai-tasks sends through the `notifications` block for each finished run |
+
+## Siblings
+
+| Factory key     | Goes to                                | As                             |
+| --------------- | -------------------------------------- | ------------------------------ |
+| `aiFiles`       | every other block                      | `files`, which knowledge reads |
+| `notifications` | every block, with `aiTaskNotification` | `notify`, which ai-tasks calls |
+
+With `aiTaskNotification`, `notify` sends that type to the task's user in
+the task's organization, keyed by the run id, with the data
+`{ taskId, runId, ok, error?, chatId? }`. The type's schema in your
+notification types has to accept that data.
+
+```ts
+const { aiTasks } = createBlocks(
+  { transport, service, aiTaskNotification: "ai_task.finished" },
+  {
+    aiTasks: (options) => createAiTasks({ ...options, run }),
+    notifications: (options) =>
+      createNotifications({ ...options, types, render }),
+  },
+);
+```
+
+## Forwarding block events to the audit log
+
+With `events` and `audit`, every block event becomes a CloudEvent with the
+source `/better-supabase/blocks` (`BLOCK_EVENT_SOURCE`) and goes to the sink.
+[`audit.sink()`](/docs/blocks/audit#recording-cloudevents) records each one in
+the audit log. The forwarding listens on `events` until you call `close()`,
+so build these blocks once, at module scope, rather than per request.
+
+```ts
+const log = createAuditLog({ transport: service });
+
+export const app = createBlocks(
+  { transport: service, events: betterSupabase.events, audit: log.sink() },
+  { organizations: createOrganizations },
+);
+```

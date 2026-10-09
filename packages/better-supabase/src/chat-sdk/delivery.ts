@@ -1,6 +1,6 @@
 import type { DeliveryStatus } from "../blocks/inbox/types.ts";
 
-import { isRecord, optionalText } from "../blocks/shared.ts";
+import { isRecord, optionalText } from "../core/block-helpers.ts";
 
 /** One status callback for a message the bot sent on a channel. */
 export interface DeliveryUpdate {

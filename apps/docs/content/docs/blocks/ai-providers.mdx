@@ -89,7 +89,7 @@ tenant's rows go, so every credential is revoked at the provider.
 `batches.record` stores a batch the app started, with the SDK's reference.
 The poll job claims due batches with `due({ batch, leaseSeconds })`, so two
 workers never poll the same one, and writes the outcome with `update` and
-`saveItems`. `items(batchId, { after, limit })` pages the results by request
+`saveItems`. `items(batchId, { cursor, limit })` pages the results by request
 id. [`aiBatches`](/docs/ai-sdk/batches) does all of this for AI SDK batches.
 
 ## Sandboxes

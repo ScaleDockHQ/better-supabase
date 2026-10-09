@@ -24,7 +24,7 @@ import {
   pathToHistory,
   repairDanglingToolCalls,
 } from "../../blocks/ai-chat/history.ts";
-import { isRecord } from "../../blocks/shared.ts";
+import { isRecord } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { resumeFromStore, teeToStore } from "../../streams/tee.ts";

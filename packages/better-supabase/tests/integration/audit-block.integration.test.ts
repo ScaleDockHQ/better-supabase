@@ -507,7 +507,7 @@ describe.skipIf(!live)("audit block", () => {
         summary: "Added",
       });
       const second = await audit
-        .list({ organizationId: organization, limit: 2, before: first.next })
+        .list({ organizationId: organization, limit: 2, cursor: first.next })
         .orThrow();
       expect(second.entries.map((entry) => entry.eventType)).toEqual([
         "invoice.sent",

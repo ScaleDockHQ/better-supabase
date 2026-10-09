@@ -6,14 +6,15 @@ import type {
   CredentialRef,
   CredentialSubject,
   CredentialToken,
+  SetCredentialOptions,
 } from "./provider.ts";
 
-import { blockCall, DEFAULT_BLOCK_SCHEMA } from "../blocks/shared.ts";
 import {
   timingSafeEqual,
   verifySharedSecret,
   verifyWebhook,
 } from "../blocks/webhooks/verify.ts";
+import { blockCall, DEFAULT_BLOCK_SCHEMA } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 
@@ -60,10 +61,7 @@ export interface VaultCredentials extends CredentialProvider {
   set(
     ref: CredentialRef,
     value: string,
-    options?: {
-      readonly subject?: CredentialSubject;
-      readonly description?: string;
-    },
+    options?: SetCredentialOptions,
   ): AsyncResult<void>;
   verifyInbound(request: Request, ref: CredentialRef): AsyncResult<boolean>;
 }

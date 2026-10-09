@@ -71,7 +71,7 @@ result, for example to move a generated image to Storage and keep its path.
 ```ts
 const status = await batches.status(batchId).orThrow();
 const page = await batches
-  .results(batchId, { after: lastRequestId, limit: 100 })
+  .results(batchId, { cursor: lastRequestId, limit: 100 })
   .orThrow();
 ```
 

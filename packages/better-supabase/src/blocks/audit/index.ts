@@ -14,6 +14,8 @@ export type {
   AuditRecord,
 } from "./client.ts";
 export type { AuditCsvColumn, AuditCsvOptions } from "./csv.ts";
+export { auditEventOf, auditSink } from "./sink.ts";
+export type { AuditSinkOptions } from "./sink.ts";
 export {
   auditListQuery,
   exportAuditLog,
