@@ -237,6 +237,12 @@ export default defineConfig({
 | `audit`       | `false` stops the module writing its actions to the [audit log](/docs/blocks/audit#module-actions)                                                    |
 | `api`         | a schema for the Data API that gets entry points for the module's functions (see below)                                                               |
 
+`organizations` and `profiles` also take `options.extraColumns`: your own
+columns, keyed by name with their SQL type, which the module adds to its
+managed table, copies on writes and returns from its reads. A name the module
+already uses is refused. [Extending blocks](/docs/extending/blocks#your-own-fields)
+shows how to type them in TypeScript.
+
 ### Calling a module over the Data API
 
 The module schema holds tables and helpers that policies call, so it never

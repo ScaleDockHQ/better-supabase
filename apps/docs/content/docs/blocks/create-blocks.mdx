@@ -78,6 +78,24 @@ const { aiTasks } = createBlocks(
 );
 ```
 
+## Hooks
+
+`hooks`, keyed by block name and then method name, runs your code around a
+block's methods: a `before` hook can refuse a call or replace its arguments,
+and an `after` hook observes a copy of the result. Siblings get the hooked
+block, so a `send` hook also runs when ai-tasks notifies. See
+[Extending blocks](/docs/extending/blocks#hooks).
+
+```ts
+export const app = createBlocks(
+  {
+    transport,
+    hooks: { notifications: { send: { before: refuseDuringQuietHours } } },
+  },
+  { notifications: (options) => createNotifications({ ...options, types }) },
+);
+```
+
 ## Forwarding block events to the audit log
 
 With `events` and `audit`, every block event becomes a CloudEvent with the

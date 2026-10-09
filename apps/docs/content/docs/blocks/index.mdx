@@ -22,6 +22,11 @@ To build several blocks with one set of options, and wire the blocks that
 use each other, use [`createBlocks`](/docs/blocks/create-blocks) from
 `better-supabase/blocks`.
 
+A block can be extended without forking it: add your own columns and type
+them with a Standard Schema, steer its methods with hooks in TypeScript or
+SQL, wrap its transport with middleware and add methods. See
+[Extending blocks](/docs/extending/blocks).
+
 List the modules to keep in sync in `sql.modules` in `better-supabase.config.ts`,
 keyed by module name, with each module's settings as the value. The primitives that every app
 uses, such as [list queries](/docs/platform/list),

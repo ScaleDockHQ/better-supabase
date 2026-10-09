@@ -195,7 +195,11 @@ export default defineConfig({
 });
 ```
 
-Each module's page lists its hooks and their arguments. With the `outbox`
+Hooks are named `before_<entity>_<action>` and `after_<entity>_<action>`;
+`notification_audience` and `after_notify` keep the names they shipped with.
+Each module's page lists its hooks and their arguments, and
+[Extending blocks](/docs/extending/blocks#hooks-in-sql) lists them for
+organizations, profiles and notifications. With the `outbox`
 module installed, modules also write their events with `emit_event` in the
 same transaction; `sql.modules.<module>.events: false` turns that off for one
 module.

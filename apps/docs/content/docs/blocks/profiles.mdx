@@ -79,6 +79,23 @@ const row = await profiles.mine().orThrow();
 await profiles.updateMine({ full_name: "Ada Lovelace" }).orThrow();
 ```
 
+Pass a Standard Schema as `fields` to type your own columns (from
+`extraColumns`, or any column of an adopted table): `mine()` parses the row
+with it and `updateMine` validates the columns it sets. `hooks` refuses,
+rewrites or observes `mine` and `updateMine`. In SQL,
+`before_profile_update(attrs jsonb, user_id uuid)` runs before every update
+and can raise to refuse it, and `after_profile_update(user_id uuid)` runs
+after a change. See [Extending blocks](/docs/extending/blocks).
+
+```ts
+const profiles = createProfiles({
+  transport,
+  fields: z.object({ locale: z.enum(["en", "nl"]) }),
+});
+const profile = await profiles.mine().orThrow();
+profile?.locale; // "en" | "nl"
+```
+
 On a managed table the guard also sets `updated_at`. An adopted table keeps
 its own `updated_at` trigger: the guard neither checks nor writes the column.
 
