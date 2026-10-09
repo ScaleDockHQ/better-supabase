@@ -1,8 +1,5 @@
 SET local check_function_bodies = off;
 
-ALTER TABLE "better_supabase"."ai_files"
-  DROP CONSTRAINT "ai_files_filename_check";
-
 CREATE TABLE "better_supabase"."ai_batch_items" (
   "batch_id"        uuid                     NOT NULL,
   "request_id"      text                     NOT NULL,
@@ -870,10 +867,6 @@ ALTER TABLE "better_supabase"."ai_batch_items"
 ALTER TABLE "better_supabase"."ai_batches"
   ADD CONSTRAINT "ai_batches_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
-ALTER TABLE "better_supabase"."ai_files"
-  ADD CONSTRAINT "ai_files_filename_check"
-    CHECK ((((length(filename) >= 1) AND (length(filename) <= 255)) AND (filename !~ '[/\\]'::text) AND (filename <> ALL (ARRAY['.'::text, '..'::text]))));
-
 ALTER TABLE "better_supabase"."ai_provider_keys"
   ADD CONSTRAINT "ai_provider_keys_created_by_fkey" FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
 
@@ -892,6 +885,8 @@ CREATE INDEX ai_batches_user_idx ON better_supabase.ai_batches USING btree (user
 CREATE INDEX ai_cache_entries_expires_idx ON better_supabase.ai_cache_entries USING btree (expires_at);
 
 CREATE INDEX ai_cache_entries_tenant_idx ON better_supabase.ai_cache_entries USING btree (organization_id);
+
+CREATE INDEX ai_provider_keys_created_by_idx ON better_supabase.ai_provider_keys USING btree (created_by);
 
 CREATE INDEX ai_sandboxes_chat_idx ON better_supabase.ai_sandboxes USING btree (chat_id);
 
