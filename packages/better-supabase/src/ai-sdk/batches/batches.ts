@@ -22,6 +22,7 @@ import type {
   AiProviders,
 } from "../../blocks/ai-providers/ai-providers.ts";
 import type { JobHandler } from "../../blocks/jobs/queue.ts";
+import type { CursorPageOptions } from "../../core/block-helpers.ts";
 
 import { errorText } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
@@ -89,10 +90,13 @@ export interface AiBatches {
   ): AsyncResult<AiBatch>;
   /** The stored batch, as the caller. */
   status(batchId: string): AsyncResult<AiBatch | undefined>;
-  /** The stored results, as the caller, after `requestId` `after`. */
+  /** The stored results, as the caller, after the `requestId` in `cursor`. */
   results(
     batchId: string,
-    options?: { readonly after?: string; readonly limit?: number },
+    options?: CursorPageOptions<string> & {
+      /** @deprecated Use `cursor`. Removed in 0.8. */
+      readonly after?: string;
+    },
   ): AsyncResult<readonly AiBatchItem[]>;
   /** Asks the provider for the batch's status and stores it (service role). */
   refresh(batch: AiBatch): AsyncResult<AiBatch>;
