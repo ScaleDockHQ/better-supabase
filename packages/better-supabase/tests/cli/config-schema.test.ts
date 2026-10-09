@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { configIssues } from "../../src/cli/config-schema.ts";
 import { loadConfig } from "../../src/cli/config.ts";
+import { stubProvider } from "../fixtures/authorization-provider.ts";
 
 const repo = join(import.meta.dirname, "../../../..");
 
@@ -118,5 +119,57 @@ describe("committed configs", () => {
     await expect(loadConfig(join(repo, dir))).resolves.toMatchObject({
       root: join(repo, dir),
     });
+  });
+});
+
+describe("configIssues for authorization", () => {
+  const issues = (over: Record<string, unknown>) =>
+    configIssues({ authorization: { ...stubProvider, ...over } });
+
+  it("accepts the stub provider with the optional hooks", () => {
+    expect(
+      issues({
+        functions: {
+          ...stubProvider.functions,
+          permissionsFor: "authz.permissions_for({user}, {tenant})",
+          canApprove: "authz.can_approve({tool}, {tenant})",
+        },
+        approvals: { distinctApprover: true },
+      }),
+    ).toEqual([]);
+    expect(configIssues({ claims: { memberships: "orgs" } })).toEqual([]);
+  });
+
+  it("names a wrong apiVersion instead of listing every field", () => {
+    expect(issues({ apiVersion: 2 })).toEqual([
+      expect.stringMatching(
+        /^authorization\.apiVersion: .*targets authorization provider API 2/,
+      ),
+    ]);
+  });
+
+  it("rejects inconsistent scopes and a fractional budget", () => {
+    expect(
+      issues({
+        scopes: [
+          { name: "organization", idType: "uuid", parent: "project" },
+          { name: "project", idType: "numeric", parent: "organization" },
+        ],
+      }).join("\n"),
+    ).toMatch(/idType/);
+    expect(issues({ tenantScope: "team" }).join("\n")).toMatch(
+      /tenantScope "team" is not a scope/,
+    );
+    expect(
+      issues({
+        tokenHook: {
+          ...stubProvider.tokenHook,
+          budget: { claims: ["memberships"], bytes: 1.5 },
+        },
+      }).join("\n"),
+    ).toMatch(/bytes/);
+    expect(
+      issues({ decidingColumns: ["memberships.role"] }).join("\n"),
+    ).toMatch(/Use schema\.table\.column/);
   });
 });

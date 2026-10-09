@@ -16,6 +16,8 @@ import type {
   KnowledgeSearchOptions,
 } from "../../blocks/knowledge/knowledge.ts";
 
+import { DbException } from "../../core/db-exception.ts";
+
 type ProviderOptions = Parameters<typeof embedMany>[0]["providerOptions"];
 
 export interface EmbedWithOptions {
@@ -135,7 +137,7 @@ export function searchTool(
         ...search,
         ...(abortSignal === undefined ? {} : { signal: abortSignal }),
       });
-      if (!found.ok) throw new Error(found.error.message);
+      if (!found.ok) throw new DbException(found.error);
       const hits = reorder
         ? await reorder(
             query,

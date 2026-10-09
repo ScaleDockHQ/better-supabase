@@ -128,6 +128,28 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
         url: "http://mcp.example.com/mcp",
       });
       expect(insecure.ok).toBe(false);
+      const foreign = await connectors.servers.create(tenant, {
+        name: "Header",
+        url: "https://mcp.example.com/mcp",
+        authType: "header",
+        credentialRef: { provider: "vault", secret: "k", tenant: member.id },
+      });
+      expect(foreign.ok ? undefined : foreign.error.hint).toBe(
+        "CREDENTIAL_REF_FOREIGN",
+      );
+      const header = await connectors.servers
+        .create(tenant, {
+          name: "Header",
+          url: "https://mcp.example.com/header",
+          authType: "header",
+          credentialRef: { provider: "vault", secret: "k", tenant },
+        })
+        .orThrow();
+      expect(header.credentialRef).toEqual({
+        provider: "vault",
+        secret: "k",
+        tenant,
+      });
       const server = await connectors.servers
         .create(tenant, {
           name: "GitHub",
@@ -248,21 +270,75 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
           cron: "0 9 * * *",
         })
         .orThrow();
-      expect(task.nextRunAt?.toString()).toBe("2020-01-01T09:00:00Z");
+      expect(task.nextRunAt).toBeUndefined();
       const bad = await tasks.create(tenant, {
         title: "x",
         prompt: "y",
         cron: "0 9 * * *",
         agentId: crypto.randomUUID(),
       });
-      expect(bad.ok).toBe(false);
+      expect(bad.ok ? undefined : bad.error.hint).toBe(
+        "AI_TASK_AGENT_FORBIDDEN",
+      );
+      const foreignChat = await tasks.create(tenant, {
+        title: "x",
+        prompt: "y",
+        cron: "0 9 * * *",
+        chatId: crypto.randomUUID(),
+      });
+      expect(foreignChat.ok ? undefined : foreignChat.error.hint).toBe(
+        "AI_TASK_CHAT_FORBIDDEN",
+      );
+      expect(
+        await s.hint(
+          "select better_supabase.save_ai_task($1, null, $2, now() - interval '1 day')",
+          [
+            tenant,
+            {
+              title: "x",
+              prompt: "y",
+              cron: "0 9 * * *",
+              timezone: "Mars/Olympus",
+            },
+          ],
+        ),
+      ).toBe("AI_TASK_INVALID");
+      const early = await s.value<string | null>(
+        "better_supabase.save_ai_task($1, null, $2, now() - interval '1 day') ->> 'next_run_at'",
+        [tenant, { title: "x", prompt: "y", cron: "0 9 * * *" }],
+      );
+      expect(early).toBeNull();
 
-      clock = Temporal.Now.instant();
       await s.service();
+      await s.client.query(
+        "delete from better_supabase.ai_scheduled_tasks where id <> $1",
+        [task.id],
+      );
+      expect(await tasks.tick().orThrow()).toEqual([]);
+      const [scheduled] = await s.rows<{ next_run_at: Date }>(
+        "select next_run_at from better_supabase.ai_scheduled_tasks where id = $1",
+        [task.id],
+      );
+      expect(scheduled?.next_run_at.toISOString()).toBe(
+        "2020-01-01T09:00:00.000Z",
+      );
+      clock = Temporal.Now.instant();
       expect(await tasks.drain().orThrow()).toBe(1);
       expect(seen).toEqual(["Summarize my day"]);
       const second = await tasks.tick().orThrow();
       expect(second).toEqual([]);
+      const [stale] = await s.rows<{ id: string }>(
+        `insert into better_supabase.ai_task_runs (task_id, organization_id, user_id, scheduled_for, created_at)
+         values ($1, $2, $3, now(), now() - interval '2 hours') returning id`,
+        [task.id, tenant, member.id],
+      );
+      await tasks.tick().orThrow();
+      expect(
+        await s.value<string>(
+          "(select status from better_supabase.ai_task_runs where id = $1)",
+          [stale?.id],
+        ),
+      ).toBe("failed");
 
       await s.asRole(member);
       const [listed] = await tasks.list(tenant).orThrow();
@@ -271,7 +347,7 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
         1,
       );
       const runs = await tasks.runs(task.id).orThrow();
-      expect(runs.map((run) => run.status)).toEqual(["succeeded"]);
+      expect(runs.map((run) => run.status)).toEqual(["succeeded", "failed"]);
       const paused = await tasks.pause(tenant, task.id).orThrow();
       expect(paused).toMatchObject({ enabled: false, nextRunAt: undefined });
       expect(await tasks.remove(task.id).orThrow()).toBe(true);

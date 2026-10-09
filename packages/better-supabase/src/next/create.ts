@@ -299,7 +299,7 @@ export interface BetterNext<
    *
    * ```ts
    * export const invite = bs.action(
-   *   { input: Invite, requireTenant: true, authorize: (session) => can(session, 'members.invite') },
+   *   { input: Invite, requireTenant: true, roles: ['admin'] },
    *   async (input, { db, tenant }) => db.invitations.create({ ...input, organizationId: tenant }),
    * );
    * ```
@@ -318,7 +318,7 @@ export interface BetterNext<
    * `notFound()`), and `not_found` calls `notFound()`.
    *
    * ```ts
-   * const { db, tenant } = await bs.require({ requireTenant: true, authorize: (s) => can(s, 'billing.read') });
+   * const { db, tenant } = await bs.require({ requireTenant: true, roles: ['admin'] });
    * ```
    */
   require<R extends boolean = false>(

@@ -25,6 +25,13 @@ Plugins and extension interfaces carry `apiVersion: 1`. A breaking change to
 their contract needs a new `apiVersion`; `use()` rejects plugins built for a
 version it doesn't support, so the failure is immediate instead of subtle.
 
+The config is a strict object: the CLI rejects a field it doesn't know, in
+the config and in an `authorization` provider, instead of ignoring it. A
+provider built for another `apiVersion` gets one error naming both versions,
+not a list of the fields that changed. New optional fields join an
+`apiVersion` in a minor release; a field that changes meaning or becomes
+required needs a new `apiVersion`.
+
 ## Deprecations
 
 1. The API is marked `@deprecated` in its TSDoc, with the replacement. Editors

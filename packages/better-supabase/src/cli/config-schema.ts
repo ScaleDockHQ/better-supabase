@@ -2,6 +2,9 @@ import * as v from "valibot";
 
 import type { BetterSupabaseConfig } from "../config/index.ts";
 
+import { providerApiProblem } from "../config/index.ts";
+import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
+
 const strings = v.array(v.string());
 const stringRecord = v.record(v.string(), v.string());
 const EXPOSE_PRIVILEGE =
@@ -116,7 +119,7 @@ const authorization = v.strictObject({
   scopes: v.array(
     v.strictObject({
       name: scopeName,
-      idType: v.optional(v.string()),
+      idType: v.optional(v.picklist(SCOPE_ID_TYPES)),
       parent: v.optional(v.string()),
     }),
   ),
@@ -130,6 +133,8 @@ const authorization = v.strictObject({
     memberIdsFor: v.optional(v.string()),
     canAssign: v.optional(v.string()),
     canAssignFor: v.optional(v.string()),
+    permissionsFor: v.optional(v.string()),
+    canApprove: v.optional(v.string()),
   }),
   requires: v.optional(
     v.array(
@@ -180,19 +185,33 @@ const authorization = v.strictObject({
       }),
     ),
   ),
-  decidingColumns: v.optional(strings),
+  decidingColumns: v.optional(
+    v.array(
+      v.pipe(
+        v.string(),
+        v.regex(
+          /^[A-Za-z_][\w$]*\.[A-Za-z_][\w$]*\.[A-Za-z_][\w$]*$/,
+          "Use schema.table.column",
+        ),
+      ),
+    ),
+  ),
   tokenHook: v.optional(
     v.strictObject({
       function: v.string(),
       tenantClaim: v.optional(v.string()),
-      ownedClaims: strings,
+      ownedClaims: v.pipe(strings, v.minLength(1, "List at least one claim")),
       registeredClaims: v.optional(
         v.array(v.strictObject({ name: v.string(), function: v.string() })),
       ),
       budget: v.optional(
         v.strictObject({
           claims: strings,
-          bytes: v.number(),
+          bytes: v.pipe(
+            v.number(),
+            v.integer("Use a whole number of bytes"),
+            v.minValue(1, "Use at least 1 byte"),
+          ),
           truncatedClaim: v.optional(v.string()),
         }),
       ),
@@ -205,8 +224,21 @@ const authorization = v.strictObject({
       grantsCommand: v.optional(v.string()),
     }),
   ),
+  approvals: v.optional(
+    v.strictObject({ distinctApprover: v.optional(v.boolean()) }),
+  ),
   problems: v.optional(strings),
 });
+
+const checkedAuthorization = v.pipe(
+  authorization,
+  v.rawCheck(({ dataset, addIssue }) => {
+    if (!dataset.typed) return;
+    for (const problem of scopeProblems(dataset.value)) {
+      addIssue({ message: problem });
+    }
+  }),
+);
 
 const ConfigSchema = v.strictObject({
   $schema: v.optional(v.string()),
@@ -291,6 +323,7 @@ const ConfigSchema = v.strictObject({
       tenant: v.optional(v.string()),
       scope: v.optional(v.string()),
       features: v.optional(v.string()),
+      memberships: v.optional(v.string()),
     }),
   ),
   buckets: v.optional(v.record(v.string(), v.record(v.string(), v.unknown()))),
@@ -344,7 +377,7 @@ const ConfigSchema = v.strictObject({
       ),
     }),
   ),
-  authorization: v.optional(authorization),
+  authorization: v.optional(checkedAuthorization),
   vectorSearch: v.optional(
     v.record(
       v.string(),
@@ -413,6 +446,17 @@ const ConfigSchema = v.strictObject({
 
 /** Each issue as `path: message`, the path in config keys. */
 export function configIssues(value: unknown): string[] {
+  if (typeof value === "object" && value !== null && "authorization" in value) {
+    const provider = value.authorization;
+    const problem =
+      typeof provider === "object" && provider !== null
+        ? providerApiProblem(provider)
+        : undefined;
+    if (problem !== undefined) {
+      const { authorization: _, ...rest } = value;
+      return [`authorization.apiVersion: ${problem}`, ...configIssues(rest)];
+    }
+  }
   const result = v.safeParse(ConfigSchema, value);
   if (result.success) return [];
   return result.issues.map((issue) => {

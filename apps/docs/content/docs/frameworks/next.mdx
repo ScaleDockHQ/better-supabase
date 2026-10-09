@@ -127,7 +127,7 @@ refused caller gets `notFound()`.
 export default async function AuditPage() {
   const { db, tenant } = await bs.require({
     requireTenant: true,
-    authorize: (session) => can(session, "audit.read"),
+    roles: ["admin"],
   });
   const events = await db.auditEvents
     .findMany({ where: { organizationId: tenant } })
@@ -277,6 +277,9 @@ export const inviteMember = bs.action(
     db.invitations.create({ ...input, organizationId: tenant }),
 );
 ```
+
+`canAssign` stands for your own check, for example one your authorization
+provider exports.
 
 - `requireTenant: true` refuses a caller without an active tenant with a
   `forbidden` error (`code: "NO_TENANT"`) and types `ctx.tenant` as a

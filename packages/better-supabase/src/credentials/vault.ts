@@ -31,6 +31,8 @@ export type VaultInboundScheme =
 export interface VaultCredentialRef {
   readonly provider: "vault";
   readonly secret: string;
+  /** Stores the secret as `tenant/<tenant>/<secret>`, apart from every other tenant's. */
+  readonly tenant?: string;
   readonly scope?: "app" | "user";
   readonly header?: string;
   readonly scheme?: string | null;
@@ -71,12 +73,28 @@ const MAX_CACHED = 256;
 const invalidRef = (message: string): Result<never> =>
   err(dbError("invalid_input", message, { hint: "CREDENTIAL_REF_INVALID" }));
 
+const TENANT = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,99}$/;
+const TENANT_PREFIX = "tenant/";
+
 function vaultRef(ref: CredentialRef): Result<VaultCredentialRef> {
   if (ref.provider !== "vault")
     return invalidRef(`vault does not resolve "${ref.provider}" credentials`);
-  const { secret, scope, header, scheme, inbound, signatureHeader } = ref;
+  const { secret, tenant, scope, header, scheme, inbound, signatureHeader } =
+    ref;
   if (typeof secret !== "string" || secret.length === 0)
     return invalidRef("a vault credential ref needs a secret name");
+  if (tenant !== undefined) {
+    if (typeof tenant !== "string" || !TENANT.test(tenant))
+      return invalidRef(
+        "tenant is an id of letters, digits and ._:@- without a slash",
+      );
+    if (secret.includes("/"))
+      return invalidRef("a tenant's secret name has no slash");
+  } else if (secret.startsWith(TENANT_PREFIX)) {
+    return invalidRef(
+      `a secret name starting with "${TENANT_PREFIX}" needs its tenant set`,
+    );
+  }
   if (scope !== undefined && scope !== "app" && scope !== "user")
     return invalidRef('scope is "app" or "user"');
   if (header !== undefined && typeof header !== "string")
@@ -97,6 +115,7 @@ function vaultRef(ref: CredentialRef): Result<VaultCredentialRef> {
   return ok({
     provider: "vault",
     secret,
+    ...(tenant === undefined ? {} : { tenant }),
     ...(scope === undefined ? {} : { scope }),
     ...(header === undefined ? {} : { header }),
     ...(scheme === undefined ? {} : { scheme }),
@@ -105,19 +124,26 @@ function vaultRef(ref: CredentialRef): Result<VaultCredentialRef> {
   });
 }
 
-/** The Vault name under `bs:cred:vault:`; per-user secrets end in `@<user id>`. */
+/**
+ * The Vault name under `bs:cred:vault:`: `tenant/<tenant>/<secret>` for a
+ * tenant's ref; per-user secrets end in `@<user id>`.
+ */
 function storageName(
   ref: VaultCredentialRef,
   subject: CredentialSubject | undefined,
 ): Result<string> {
-  if (ref.scope !== "user") return ok(ref.secret);
+  const base =
+    ref.tenant === undefined
+      ? ref.secret
+      : `${TENANT_PREFIX}${ref.tenant}/${ref.secret}`;
+  if (ref.scope !== "user") return ok(base);
   if (subject?.type !== "user")
     return err(
       dbError("forbidden", `"${ref.secret}" is stored per user`, {
         hint: "CREDENTIAL_SUBJECT_REQUIRED",
       }),
     );
-  return ok(`${ref.secret}@${subject.id}`);
+  return ok(`${base}@${subject.id}`);
 }
 
 function headersFor(

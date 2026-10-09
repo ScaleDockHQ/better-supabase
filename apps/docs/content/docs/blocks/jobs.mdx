@@ -572,8 +572,8 @@ await inbox.process(async (message) => {
 ```
 
 `createWebhookInbox` was called `createInbox` before 0.6, and its types were
-`Inbox`, `InboxOptions` and so on. The old names still work as deprecated
-aliases until the next minor; `createInbox` then names the conversation inbox
+`Inbox`, `InboxOptions` and so on. 0.6 removes the old names;
+`createInbox` from `better-supabase/blocks/inbox` is the conversation inbox
 block.
 
 `secrets` verifies [Standard Webhooks](/docs/standards) signatures. Pass

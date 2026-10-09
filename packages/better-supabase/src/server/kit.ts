@@ -26,7 +26,7 @@ export interface AuthorizeOptions<I, C, P, R extends boolean> {
   readonly roles?: readonly string[];
   /** The dotted claim path `roles` reads: one string or an array. Defaults to `app_metadata.role`. */
   readonly roleClaim?: string;
-  /** Return `false` to refuse the caller, e.g. `(session) => can(session, 'members.invite')`. */
+  /** Return `false` to refuse the caller, e.g. `(session, input) => input.ownerId === session.user.id`. */
   readonly authorize?: (
     session: AuthSession<C, P>,
     input: I,
@@ -62,7 +62,7 @@ export type Unwrapped<T> = T extends {
     : T;
 
 /** Guard, authorize and validate options of a framework-neutral action. */
-export interface KitActionOptions<
+export interface BlockActionOptions<
   S extends StandardSchemaV1 | undefined,
   C = unknown,
   P = unknown,
@@ -74,7 +74,7 @@ export interface KitActionOptions<
 }
 
 /** The guard and authorize checks of a loader, page or route. */
-export interface KitRequireOptions<
+export interface BlockRequireOptions<
   C = unknown,
   P = unknown,
   R extends boolean = boolean,
@@ -131,7 +131,7 @@ export async function authorizeCaller<I, C, P>(
 /** `guard`, then `authorizeCaller`: the caller, or the refusal. */
 export async function requireCaller<C, P>(
   auth: AuthState<C, P>,
-  options: KitRequireOptions<C, P>,
+  options: BlockRequireOptions<C, P>,
   tenant: string | undefined,
 ): Promise<
   | { readonly session: AuthSession<C, P>; readonly tenant: string | undefined }
@@ -149,7 +149,7 @@ export async function requireCaller<C, P>(
  */
 export async function runAction<C, P>(
   auth: AuthState<C, P>,
-  options: KitActionOptions<StandardSchemaV1 | undefined, C, P>,
+  options: BlockActionOptions<StandardSchemaV1 | undefined, C, P>,
   input: unknown,
   tenant: string | undefined,
   body: (

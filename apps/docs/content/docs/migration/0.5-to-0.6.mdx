@@ -18,6 +18,8 @@ one change.
 | `createOrgs` from `better-supabase/orgs`                                   | `createOrganizations` from `better-supabase/blocks/organizations` |
 | `better-supabase/jobs` (queue, cron, idempotency, inbox)                   | `better-supabase/blocks/jobs`                                     |
 | `createOutbox`, `outboxCloudEvent` from `better-supabase/jobs`             | `better-supabase/blocks/outbox`                                   |
+| `purgeAuditLog`, `PurgeAuditLogOptions` from `better-supabase/jobs`        | `better-supabase/blocks/audit`                                    |
+| `createInbox` and the `Inbox*` types from `better-supabase/jobs`           | `createWebhookInbox` and `WebhookInbox*` from `blocks/jobs`       |
 | `entitlementMembers`, `ENTITLEMENTS_UPDATED` from `jobs`                   | `better-supabase/blocks/entitlements`                             |
 | `hasEntitlement`, `EntitlementKey` from `server`, `next`, `ssr` or `react` | `better-supabase/blocks/entitlements`                             |
 | `better-supabase/notifications`                                            | `better-supabase/blocks/notifications`                            |
@@ -25,16 +27,36 @@ one change.
 | `better-supabase/webhooks`                                                 | `better-supabase/blocks/webhooks`                                 |
 | `orgLogoBucket`                                                            | `organizationLogoBucket`                                          |
 
-Types follow the same pattern: `Orgs`, `OrgsOptions`, `CreateOrgOptions`,
-`OrgAttributes` and `OrgEventData` become `Organizations`,
-`OrganizationsOptions`, `CreateOrganizationOptions`, `OrganizationAttributes`
-and `OrganizationEventData`. `Kit` names that describe a feature become
-`Block` names: `KitEvent` is `BlockEvent`, `onKitEvent` is `onBlockEvent`,
-`forwardKitEvents` is `forwardBlockEvents` and `KIT_ATTRIBUTES` is
-`BLOCK_ATTRIBUTES`. `Kit` names that describe a SQL module become `Module`
-names: `KitsConfig` is `ModulesConfig`, `KitModuleConfig` is `ModuleConfig`,
-`renderKit` is `renderModules`, `kitLayout` is `moduleLayout` and
-`kitPermissionKeys` is `modulePermissionKeys`.
+`Org` names become `Organization` names, `Kit` names that describe a feature
+become `Block` names, and `Kit` names that describe a SQL module become
+`Module` names. The rest of `better-supabase/orgs`, `/notifications` and
+`/webhooks` keeps its names under the new subpath (`Invitation`,
+`SwitchResult`, `createWebhooks`, `signWebhook` and so on). Every export that
+0.6 renames or removes:
+
+| Subpath                             | 0.5.1                                                                       | 0.6                                                                                                                   |
+| ----------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `.`                                 | `KitEvent`, `KitEventMap`, `KitEventType`                                   | `BlockEvent`, `BlockEventMap`, `BlockEventType`                                                                       |
+| `events`                            | `onKitEvent`, `forwardKitEvents`, `ForwardKitOptions`                       | `onBlockEvent`, `forwardBlockEvents`, `ForwardBlockOptions`                                                           |
+| `events`                            | `KIT_ATTRIBUTES`, `kitCloudEvent`, `kitEventAttributes`                     | `BLOCK_ATTRIBUTES`, `blockCloudEvent`, `blockEventAttributes`                                                         |
+| `events`                            | `KitEventMeta`, `KitEventPattern`, `KitEventsMatching`                      | `BlockEventMeta`, `BlockEventPattern`, `BlockEventsMatching`                                                          |
+| `events`                            | `OrgEventData`                                                              | `OrganizationEventData`                                                                                               |
+| `otel`                              | `traceKitEvents`                                                            | `traceBlockEvents`                                                                                                    |
+| `orgs`                              | `createOrgs`, `Orgs`, `OrgsOptions`, `CreateOrgOptions`, `OrgAttributes`    | `createOrganizations`, `Organizations`, `OrganizationsOptions`, `CreateOrganizationOptions`, `OrganizationAttributes` |
+| `orgs`, `notifications`, `webhooks` | `KitTransport`                                                              | `BlockTransport`                                                                                                      |
+| `storage`                           | `orgLogoBucket`, `OrgLogoBucketOptions`                                     | `organizationLogoBucket`, `OrganizationLogoBucketOptions`                                                             |
+| `config`                            | `KitsConfig`, `KitModuleConfig`, `KitMode`, `AccessKitConfig`               | `ModulesConfig`, `ModuleConfig`, `ModuleMode`, `AccessModuleConfig`                                                   |
+| `sql`                               | `renderKit`, `kitLayout`, `kitPermissionKeys`, `kitDeprecations`            | `renderModules`, `moduleLayout`, `modulePermissionKeys`, `moduleDeprecations`                                         |
+| `sql`                               | `kitFilePaths`, `kitFileVersion`, `sameKitFile`                             | `moduleFilePaths`, `moduleFileVersion`, `sameModuleFile`                                                              |
+| `sql`                               | `kitIdType`, `isKitIdType`, `KIT_ID_TYPES`, `KitIdType`                     | `moduleIdType`, `isModuleIdType`, `MODULE_ID_TYPES`, `ModuleIdType`                                                   |
+| `sql`                               | `KitContext`, `KitLayout`, `KitFile`, `KitNames`, `KitTableSpec`            | `ModuleContext`, `ModuleLayout`, `ModuleFile`, `ModuleNames`, `ModuleTableSpec`                                       |
+| `sql`                               | `KitContractFunction`, `KitDeprecation`, `KitPermissionKey`                 | `ModuleContractFunction`, `ModuleDeprecation`, `ModulePermissionKey`                                                  |
+| `sql`                               | `KitUpgrade`, `KitUpgradePlan`, `InstalledKitModule`                        | `ModuleUpgrade`, `ModuleUpgradePlan`, `InstalledModule`                                                               |
+| `sql`                               | `KitAccessPermdock`, `KitPermdock`                                          | `ModuleAccessProvider`, `ModuleEntitlementsProvider`                                                                  |
+| `sql`, `storage`, `realtime`        | `PermdockCatalog`                                                           | `AuthorizationProvider` from `better-supabase/config`                                                                 |
+| `storage`, `realtime`               | `PermdockBucketPolicy`, `PermdockTopicPolicy`                               | `AccessBucketPolicy`, `AccessTopicPolicy`                                                                             |
+| `config`                            | `PermdockPathsConfig`                                                       | removed; see [Move to an authorization provider](#move-to-an-authorization-provider)                                  |
+| `sql`                               | `PERMDOCK_SCHEMA`, `permdockKeys`, `permdockKeyStatus`, `PermdockKeyStatus` | removed; the provider lists its permissions                                                                           |
 
 `list`, `storage`, `realtime` and `events` keep their subpaths.
 
@@ -131,7 +153,7 @@ export default defineConfig({
 | `permdock` on `apiKeyResolver` and `apiKeyClaims`                  | `claim`, or `apiKeyClaimOptions(manifest)` from `permdock/better-supabase`                               |
 | `options.scopes: "catalog"` on the api-keys module                 | unchanged; it reads the provider's `permissions`                                                         |
 | `PermdockBucketPolicy`, `PermdockTopicPolicy`, `PermdockCatalog`   | `AccessBucketPolicy`, `AccessTopicPolicy`, `AuthorizationProvider`                                       |
-| `ModuleAccessPermdock`, `ModulePermdock`                           | `ModuleAccessProvider`, `ModuleEntitlementsProvider`                                                     |
+| `KitAccessPermdock`, `KitPermdock`                                 | `ModuleAccessProvider`, `ModuleEntitlementsProvider`                                                     |
 | `PERMDOCK_SCHEMA`, `permdockKeys`, `permdockKeyStatus`             | removed; the provider lists its permissions                                                              |
 
 The access policies keep the key lists they had. Without `sql`, they call the
@@ -143,3 +165,96 @@ read the provider; their titles no longer name PermDock.
 Run `better-supabase sql sync` and `better-supabase gen` after the change. The
 rendered SQL calls the same functions as before when the provider builds the
 same templates.
+
+`better-supabase sql add tenant` refuses to write the module when the
+provider's access token hook already writes the memberships claim, since the
+two hooks would disagree about it. Use the provider's hook, or pass `--force`
+to write the module anyway.
+
+## Removed deprecations
+
+The aliases that 0.5 kept for one minor are gone:
+
+| Removed                                                    | Use                                                                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| A support token whose `act` has `session_id` but no `kind` | tokens minted by 0.5.1 or later (`act.kind: "support"`); older ones are refused as `invalid-chain`                  |
+| The read-only `better_supabase.audit_log` view             | `better_supabase.audit_events` (`occurred_at`, `organization_id`); the audit module's version 5 step drops the view |
+| `maxUrlLength` on `defineSupabase` and `postgrestExecutor` | `urlLengthLimit`                                                                                                    |
+| `scopes` on the MCP server options                         | `advertisedScopes`                                                                                                  |
+
+## Other breaking changes
+
+- A bucket definition's `path(values)` and a connected bucket's `publicUrl()`
+  return a `Result` instead of throwing a `DbException`. Read `.data` (`null`
+  on an error) or check `.ok`.
+- `db.$rpc` returns table rows (`returns setof customers`) and
+  `returns table (...)` records in the configured casing, with codecs
+  applied. Remove a snake-to-camel mapping of the result, or pass
+  `{ raw: true }` to keep database names.
+- `gen` types function results as nullable: a scalar result, each element of
+  a `setof` scalar, a single row and each `returns table` column are
+  `| null`. Set `functions.<name>.notNull` in `better-supabase.config.ts`
+  when a result is never null.
+- `notifications.markRead`, `markUnread`, `dismiss` and `resolve` return
+  `{ count, items }` instead of a number. `notifications.send()` returns
+  `{ id, recipients }`, or `null` when nobody was left.
+- The leaf entry that runs after `withSupabase` is now
+  `withBetterDb(betterSupabase)`. `withBetterSupabase(server)` is one entry
+  that resolves the caller itself, so you can drop `withSupabase`.
+- The webhook inbox is `createWebhookInbox` from `better-supabase/blocks/jobs`;
+  `createInbox` from `better-supabase/blocks/inbox` is the conversation inbox.
+- The server's `auth.kind` gains `"apiKey"`, and `DbError` gains the
+  kinds `quota_exceeded` (HTTP 429), `max_affected` (400) and `unsupported`
+  (501). An exhaustive `switch` over either needs the new cases.
+- `deleteMany` and `updateMany` refuse a `where` that filters nothing. Pass
+  `allowAll: true` to `updateMany` to update every row. An update whose
+  `data` sets no columns returns `invalid_request` instead of `not_found`.
+- A `*` in a `like` or `ilike` pattern is a literal character; use `%`.
+- List queries count with `count: "planned"` by default. Pass
+  `count: "exact"` where you show an exact total.
+- Cursors record the table and sort, so a cursor stored before 0.6 or an
+  array from `encodeCursor()` fails with `Invalid cursor`. Start again with
+  `after: null`.
+- `createEdge`'s `cors` option runs `withCors` from
+  `@supabase/middleware/cors`: a preflight needs
+  `Access-Control-Request-Method`, and an allow-list adds `Vary: Origin`.
+- `gen` names colliding `_by_` relations by every key column
+  (`customerByCustomerOrganization`) instead of ending them in `_`, and view
+  copies are no longer relations. Keep an old name with
+  `tables.<table>.relations`.
+- `@supabase/postgrest-typegen` is an optional peer. Install it for `gen`,
+  `introspect` and `doctor` with
+  `pnpm add -D @supabase/postgrest-typegen@0.4.0`. A `GeneratorInput` built
+  by hand needs a `model`.
+- `Invitation` has a required `inviter` field (`null` without the profiles
+  module).
+- `better-supabase/next` needs Next.js 16.3 or later (`next` peer
+  `>=16.3 <17`). Upgrade Next.js first.
+- `better-supabase` depends on `@supabase/server` `^1.9.1`; the framework
+  bridges replace its framework adapters.
+
+## SQL behaviour changes
+
+These apply once `better-supabase sql sync` rewrites the module files:
+
+- A table in `expose` loses privileges it doesn't list, including
+  `truncate`, `references` and `trigger`.
+- Idempotency keys have a holder: `begin_idempotent` returns `holder`, and
+  `complete_idempotent` and `release_idempotent` take it.
+- An invitation past its expiry fails with `INVITATION_EXPIRED` (accept) and
+  can no longer be edited with `update_invitation`; call
+  `resend_invitation` first.
+- `roleThrough.where` and `platformRoles.through.where` hold for direct
+  writes too, through `bs_role_scope` triggers.
+- `mark_notifications_read` and the other notification state functions
+  return the changed notifications with the count.
+
+## Run the codemod
+
+`better-supabase codemod 0.6` renames the `Kit` and `Org` exports from the
+rename table where your code imports them, and `maxUrlLength` to
+`urlLengthLimit`, and lists the lines it can't rewrite for review:
+`$rpc` calls, `publicUrl()` and `path()` calls, and imports from the removed
+subpaths. It does not move an import to its new subpath, rewrite SQL or
+change config keys. Run it after `better-supabase gen`, then fix what the
+type checker reports.

@@ -10,6 +10,7 @@ import type { ModulesConfig } from "./modules.ts";
 import type { GeneratorMetadata, SnapshotExtras } from "./snapshot.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
+import { providerApiProblem } from "./authorization.ts";
 
 export type { Casing };
 
@@ -126,6 +127,8 @@ export interface ClaimsConfig {
   readonly scope?: string;
   /** Claim holding plan features per tenant (`{ [tenantId]: string[] }`). Defaults to `features`. */
   readonly features?: string;
+  /** Claim the memberships hook (`membership_claims()` or the provider's) writes. Defaults to `memberships`. */
+  readonly memberships?: string;
 }
 
 export interface ActorConfig {
@@ -819,12 +822,8 @@ function generatorsOf(
 function authorizationOf(
   provider: AuthorizationProvider,
 ): AuthorizationProvider {
-  const version: unknown = provider.apiVersion;
-  if (version !== 1) {
-    throw new TypeError(
-      `authorization "${provider.name}" targets authorization provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`,
-    );
-  }
+  const problem = providerApiProblem(provider);
+  if (problem !== undefined) throw new TypeError(problem);
   return provider;
 }
 

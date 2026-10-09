@@ -104,6 +104,20 @@ describe("validateGraph", () => {
     ]);
   });
 
+  it("accepts only letters, digits, underscores and hyphens in node ids", () => {
+    const graphWith = (id: string) => ({
+      nodes: [{ id, kind: "trigger" }],
+      edges: [],
+    });
+    expect(validateGraph(graphWith("start_1-a"))).toEqual([]);
+    expect(validateGraph(graphWith("x".repeat(100)))).toEqual([]);
+    for (const id of ["a\u2028b", "a\u2029b", "a b", "a.b", "x".repeat(101)]) {
+      expect(validateGraph(graphWith(id))).toContain(
+        "Every node has an id of 1 to 100 letters, digits, underscores or hyphens",
+      );
+    }
+  });
+
   it("reports each problem", () => {
     expect(validateGraph(null)).toEqual([
       "A graph has a nodes array and an edges array",
@@ -128,7 +142,7 @@ describe("validateGraph", () => {
         ],
       }),
     ).toEqual([
-      "Every node has an id of 1 to 100 characters",
+      "Every node has an id of 1 to 100 letters, digits, underscores or hyphens",
       "Node a appears twice",
       "Node b has an unknown kind",
       "Node s names no step",

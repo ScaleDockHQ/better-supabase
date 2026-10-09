@@ -40,6 +40,26 @@ describe("workflow-builder module", () => {
     expect(body).toContain("extensions.digest");
   });
 
+  it("lets only the service role store a compiled form, and restricts node ids", () => {
+    const body = moduleBody("workflow-builder", {})!;
+    const publish = body.slice(
+      body.indexOf('"publish_workflow_version"(version uuid'),
+    );
+    expect(publish).toMatch(
+      /if compiled is not null and not \(coalesce\(.*'service_role', 'postgres', 'supabase_admin'\)\) then\s+raise exception [^;]+errcode = '42501', hint = 'WORKFLOW_COMPILED_FORBIDDEN'/,
+    );
+    expect(publish.indexOf("WORKFLOW_COMPILED_FORBIDDEN")).toBeLessThan(
+      publish.indexOf("WORKFLOW_GRAPH_INVALID"),
+    );
+    expect(body).toContain("(v_node ->> 'id') !~ '^[A-Za-z0-9_-]{1,100}$'");
+  });
+
+  it("rejects a credential ref outside the credential's tenant", () => {
+    expect(schemaOf(["workflow-builder"])).toContain(
+      "(save_workflow_credential.ref ->> 'tenant') is distinct from (save_workflow_credential.tenant)::text",
+    );
+  });
+
   it("lists its contract in custom mode", () => {
     const custom: ModulesConfig = { "workflow-builder": { mode: "custom" } };
     expect(moduleBody("workflow-builder", { modules: custom })).toBeUndefined();

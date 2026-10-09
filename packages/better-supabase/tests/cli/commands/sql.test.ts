@@ -703,7 +703,7 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
   it("stops on an entitlements scope the provider lacks", async () => {
     const config = { authorization: withProvider({ tenantScope: "team" }) };
     await expect(sql(["print", "entitlements"], config)).rejects.toThrow(
-      /authorization\.tenantScope is "team"/,
+      /tenantScope "team" is not a scope/,
     );
     expect(await sql(["list"], config)).toMatchObject({ code: 0 });
     expect(await sql(["print", "audit"], config)).toMatchObject({ code: 0 });
@@ -783,6 +783,6 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
           scopes: [{ name: "organization", idType: "numeric" }],
         }),
       }),
-    ).rejects.toThrow(/scope "organization" the type numeric/);
+    ).rejects.toThrow(/scope "organization" has idType "numeric"/);
   });
 });

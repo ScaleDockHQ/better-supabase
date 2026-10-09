@@ -15,6 +15,7 @@ import type {
 import {
   MODULE_ID_TYPES,
   moduleIdType,
+  scopeProblems,
   templateFunctions,
 } from "../sql/index.ts";
 
@@ -57,6 +58,13 @@ function tenantScope(
   const scope = provider.tenantScope;
   const entry = provider.scopes.find((candidate) => candidate.name === scope);
   const label = providerLabel(provider);
+  const problems = scopeProblems(provider);
+  if (problems.length > 0) {
+    return {
+      kind: "invalid",
+      problem: `The scopes of ${label} are inconsistent: ${problems.join("; ")}.`,
+    };
+  }
   if (!entry) {
     return {
       kind: "invalid",
@@ -175,6 +183,9 @@ export function accessProviderMode(
         : {}),
       ...(provider.roleSources && provider.roleSources.length > 0
         ? { roleSources: provider.roleSources }
+        : {}),
+      ...(provider.approvals?.distinctApprover === true
+        ? { approvals: { distinctApprover: true } }
         : {}),
     },
   };

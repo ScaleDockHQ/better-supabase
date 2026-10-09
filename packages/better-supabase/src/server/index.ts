@@ -169,6 +169,6 @@ export type {
   ActionResult,
   AuthorizedContext,
   AuthorizeOptions,
-  KitActionOptions,
-  KitRequireOptions,
+  BlockActionOptions,
+  BlockRequireOptions,
 } from "./kit.ts";

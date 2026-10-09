@@ -1,5 +1,5 @@
 -- better-supabase module: audit (0.5.1)
--- @bs-module audit@4 managed
+-- @bs-module audit@5 managed
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -1000,17 +1000,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) from public, anon;
 grant execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) to authenticated, service_role;
-
--- Deprecated since 0.5.0: use better_supabase.audit_events (occurred_at, organization_id).
--- Recreated, since new log columns change what l.* expands to.
-drop view if exists "better_supabase".audit_log;
-create view "better_supabase".audit_log
-  with (security_invoker = true) as
-  select l.*, l."occurred_at" as at, l."organization_id" as org_id
-  from "better_supabase"."audit_events" l;
-comment on view "better_supabase".audit_log is 'deprecated: use better_supabase.audit_events';
-revoke all on "better_supabase".audit_log from anon, authenticated;
-grant select on "better_supabase".audit_log to service_role;
 
 -- sql.modules.audit.api: entry points for the Data API.
 create schema if not exists "api";

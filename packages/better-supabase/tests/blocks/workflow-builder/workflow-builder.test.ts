@@ -51,7 +51,7 @@ const CREDENTIAL = {
   tenant: "t1",
   kind: "crm",
   name: "CRM",
-  ref: { provider: "memory", secret: "crm" },
+  ref: { provider: "memory", secret: "crm", tenant: "t1" },
   scopes: ["read"],
   createdBy: "u1",
   createdAt: AT,
@@ -262,15 +262,38 @@ describe("createBuilder", () => {
         compiled: args["compiled"],
       }),
     });
+    const service = fake({
+      publish_workflow_version: (args) => ({
+        ...published,
+        compiled: args["compiled"],
+      }),
+    });
     const compile = vi.fn(() => ({ compiled: true }));
-    const builder = createBuilder({ transport, compile });
+    const builder = createBuilder({
+      transport,
+      service: service.transport,
+      compile,
+    });
     expect((await builder.versions.publish("v1").orThrow()).compiled).toEqual({
       compiled: true,
     });
+    expect(calls.at(-1)?.args).toEqual({ version: "v1", compiled: null });
+    expect(service.calls.map((c) => c.args)).toEqual([
+      { version: "v1", compiled: { compiled: true } },
+    ]);
     status = "published";
     await builder.versions.publish("v1").orThrow();
     expect(compile).toHaveBeenCalledTimes(1);
     expect(calls.at(-1)?.args).toEqual({ version: "v1", compiled: null });
+    expect(service.calls).toHaveLength(1);
+
+    status = "draft";
+    const userOnly = createBuilder({ transport, compile });
+    expect(
+      (await userOnly.versions.publish("v1").orThrow()).compiled,
+    ).toBeUndefined();
+    expect(calls.at(-1)?.args).toEqual({ version: "v1", compiled: null });
+    expect(service.calls).toHaveLength(1);
 
     const failing = createBuilder({
       transport,
@@ -559,7 +582,22 @@ describe("createBuilder", () => {
     }
     expect(await builder.credentials.revoke("c1").orThrow()).toBe(false);
 
-    row = { ...CREDENTIAL, ref: { provider: "vault" } };
+    const foreignRef = { provider: "memory", secret: "crm", tenant: "t2" };
+    const foreign = await builder.credentials.create({
+      tenant: "t1",
+      kind: "crm",
+      name: "CRM",
+      ref: foreignRef,
+      secret: "s",
+    });
+    expect(!foreign.ok && foreign.error.hint).toBe("CREDENTIAL_REF_FOREIGN");
+    row = { ...CREDENTIAL, ref: foreignRef };
+    const stolen = await builder.credentials.resolve("c1");
+    expect(!stolen.ok && stolen.error.hint).toBe("CREDENTIAL_REF_FOREIGN");
+    expect(await builder.credentials.revoke("c1").orThrow()).toBe(true);
+    expect(revoke).toHaveBeenCalledOnce();
+
+    row = { ...CREDENTIAL, ref: { provider: "vault", tenant: "t1" } };
     for (const result of [
       await builder.credentials.authorize("c1", { redirectUri: "x" }),
       await builder.credentials.resolve("c1"),
@@ -591,6 +629,7 @@ describe("createBuilder", () => {
     expect(await builder.credentials.revoke("c1").orThrow()).toBe(true);
     expect(revoke).not.toHaveBeenCalled();
     const store = await builder.credentials.create({
+      tenant: "t1",
       kind: "crm",
       name: "CRM",
       ref: CREDENTIAL.ref,
@@ -604,6 +643,7 @@ describe("createBuilder", () => {
     };
     const broken = createBuilder({ transport, credentials: brokenProvider });
     const result = await broken.credentials.create({
+      tenant: "t1",
       kind: "crm",
       name: "CRM",
       ref: CREDENTIAL.ref,
@@ -613,6 +653,7 @@ describe("createBuilder", () => {
     const notFnProvider: CredentialProvider = { ...noStore, ...{ set: 1 } };
     const notFn = createBuilder({ transport, credentials: notFnProvider });
     const notFnResult = await notFn.credentials.create({
+      tenant: "t1",
       kind: "crm",
       name: "CRM",
       ref: CREDENTIAL.ref,

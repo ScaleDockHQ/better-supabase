@@ -136,6 +136,12 @@ export interface SqlModule {
   readonly requires: readonly string[];
   /** What it needs instead when an authorization provider supplies memberships. */
   readonly providerRequires?: readonly string[];
+  /**
+   * The optional `authorization.functions` templates it calls under the
+   * `provider` access model, such as `idsWithFor` to check another user.
+   * Doctor warns (BS411) when the provider doesn't set one.
+   */
+  readonly providerFunctions?: readonly (keyof AuthorizationFunctions)[];
   /** What it needs for this layout, e.g. per `sql.modules.access.model`; overrides both. */
   readonly dependencies?: (layout: ModuleLayout) => readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
@@ -2371,6 +2377,8 @@ export interface ModuleAccessProvider {
   };
   /** An adopted `tenant` module on one of these tables reads role names the same way. */
   readonly roleSources?: readonly AuthorizationRoleSource[];
+  /** How `ai-chat` applies `functions.canApprove`. */
+  readonly approvals?: { readonly distinctApprover?: boolean };
 }
 
 /** An embedding column `db.$search` can query. */

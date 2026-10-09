@@ -107,6 +107,13 @@ another.
   the Realtime block and access topic integration tests fail there. Run them
   on the Docker backend.
 - The two backends keep separate databases, so reset after switching.
+- A native stack keeps running after its shell exits. While it holds ports
+  55421 and 55422, a Docker `supabase start` applies the migrations to the
+  native database and fails with `type ... already exists (SQLSTATE 42710)`.
+  Each branch gets its own native stack, so one left from an old branch still
+  holds the ports. `lsof -nP -iTCP:55422 -sTCP:LISTEN` shows the
+  `__supabase_stack_host__` process, whose last argument is the stack id;
+  stop it with `SUPABASE_EXPERIMENTAL_STACK=1 supabase stop --stack-id <id>`.
 
 ## Integration tests leave objects behind
 

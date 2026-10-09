@@ -20,8 +20,8 @@ import {
   type ActionParsed,
   type ActionResult,
   type AuthorizedContext,
-  type KitActionOptions,
-  type KitRequireOptions,
+  type BlockActionOptions,
+  type BlockRequireOptions,
   requireCaller,
   runAction,
   type Unwrapped,
@@ -68,7 +68,7 @@ export interface BetterTanStackStart<
    */
   require<R extends boolean = false>(
     context: FrameworkLocals<M, F, E, C, P>,
-    options?: KitRequireOptions<C, P, R>,
+    options?: BlockRequireOptions<C, P, R>,
   ): Promise<FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>>;
   /**
    * A `createServerFn().handler()` returning an `ActionResult`, for
@@ -76,7 +76,7 @@ export interface BetterTanStackStart<
    * on the client; `input` validates it again on the server.
    */
   action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
-    options: KitActionOptions<S, C, P, R>,
+    options: BlockActionOptions<S, C, P, R>,
     fn: (
       input: ActionParsed<S>,
       ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,

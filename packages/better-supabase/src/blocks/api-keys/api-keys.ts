@@ -471,6 +471,8 @@ export function apiKeyResolver(options: ApiKeyResolverOptions): AuthResolver {
               : {}),
             ...(key.userId ? { userId: key.userId } : {}),
             scopes: key.scopes,
+            createdAt: key.createdAt,
+            ...(key.createdBy ? { createdBy: key.createdBy } : {}),
             claims: apiKeyClaims(key, options),
           };
         }

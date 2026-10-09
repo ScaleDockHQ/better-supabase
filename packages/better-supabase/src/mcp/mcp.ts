@@ -225,8 +225,6 @@ export interface McpOptions<
    * tokens are between the client and the authorization server.
    */
   readonly advertisedScopes?: readonly string[];
-  /** @deprecated Use `advertisedScopes`; `requiredScopes` is what `guard` enforces. */
-  readonly scopes?: readonly string[];
   /**
    * Scopes a delegated token (an OAuth client or an `act` chain) needs to call
    * the server at all. A missing one answers 403 `insufficient_scope`.
@@ -789,10 +787,9 @@ export function createMcp<
       : outcome;
   };
 
-  const advertised =
-    // oxlint-disable-next-line typescript/no-deprecated -- `scopes` stays an alias of `advertisedScopes` until it is removed.
-    options.advertisedScopes ?? options.scopes ?? [];
-  const scopes = advertised.filter((scope) => scope !== "offline_access");
+  const scopes = (options.advertisedScopes ?? []).filter(
+    (scope) => scope !== "offline_access",
+  );
   const serverInfo = {
     name: options.name,
     version: options.version,

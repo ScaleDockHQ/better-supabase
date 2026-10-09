@@ -45,6 +45,28 @@ An `ask` tool doesn't run until the user approves it: the stream carries a
 `tool-approval-request` part, and the [chat route](/docs/ai-sdk/chat) stores
 the approval.
 
+## Your own approval check
+
+`toolApproval` takes the AI SDK's tool approval function (typed as
+`AgentToolApprovalFunction`), for checks such as an authorization call or a
+spending limit. It runs first for every call, and the tenant's policies then
+apply on top: a tool whose policy is `ask` still needs the user's approval
+when your check approves it, and a `deny` from your check always wins. A check
+that throws denies the call.
+
+```ts
+const runtime = createAgentRuntime({
+  agent,
+  model,
+  tools,
+  policies,
+  toolApproval: async ({ toolCall }) =>
+    (await mayRun(user, toolCall.toolName))
+      ? { type: "approved" }
+      : { type: "denied", reason: "Not allowed for this user" },
+});
+```
+
 ## Moderation
 
 ```ts

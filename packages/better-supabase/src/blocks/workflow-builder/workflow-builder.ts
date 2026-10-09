@@ -12,6 +12,10 @@ import type {
 import { dbError, type ErrorMapper } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
+  credentialRefInTenant,
+  foreignCredentialRef,
+} from "../../credentials/provider.ts";
+import {
   applyTemporal,
   blockCall,
   type BlockTemporalOptions,
@@ -178,7 +182,10 @@ export interface BuilderOptions extends BlockTemporalOptions {
   readonly mappers?: readonly ErrorMapper[];
   /** The steps `steps.sync()` writes to the library. */
   readonly steps?: readonly WorkflowStepInfo[];
-  /** Runs on publish; `better-supabase/workflow-sdk/builder` exports `compileGraph`. */
+  /**
+   * Runs on publish and fails it when it throws; the result is stored
+   * through `service`. `better-supabase/workflow-sdk/builder` exports `compileGraph`.
+   */
   readonly compile?: GraphCompiler;
   /** Starts runs; `better-supabase/workflow-sdk/builder` exports `graphStarter`. */
   readonly start?: BuilderStarter;
@@ -260,7 +267,11 @@ export interface WorkflowBuilder {
       definition: string,
       graph: WorkflowGraph,
     ): AsyncResult<WorkflowVersion>;
-    /** Compiles the graph with `compile`, then publishes; the previous version is archived. */
+    /**
+     * Compiles the graph with `compile`, then publishes as the caller; the
+     * previous version is archived. The compiled form is stored through
+     * `service` only, and not at all without it.
+     */
     publish(version: string): AsyncResult<WorkflowVersion>;
     list(definition: string): AsyncResult<readonly WorkflowVersion[]>;
     get(version: string): AsyncResult<WorkflowVersion | undefined>;
@@ -628,11 +639,21 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
               );
             }
           }
-          return call(
-            "publish_workflow_version",
-            { version, compiled },
-            (value) => versionOf(recordOf(value, "publish_workflow_version")),
-          );
+          const publish = (caller: typeof call, stored: unknown) =>
+            caller(
+              "publish_workflow_version",
+              { version, compiled: stored },
+              (value) => versionOf(recordOf(value, "publish_workflow_version")),
+            );
+          const result = await publish(call, null);
+          if (
+            !result.ok ||
+            compiled === null ||
+            options.service === undefined
+          ) {
+            return result;
+          }
+          return publish(serviceCall, compiled);
         }),
       list: (definition) =>
         call("workflow_versions_list", { definition }, (value) =>
@@ -806,6 +827,9 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
               credentialOf(recordOf(value, "save_workflow_credential")),
           );
         if (input.secret === undefined) return save();
+        if (!credentialRefInTenant(input.ref, input.tenant)) {
+          return AsyncResult.err(foreignCredentialRef(input.tenant));
+        }
         const provider = providerFor(input.ref);
         if (provider === undefined) {
           return AsyncResult.err(noProvider(input.ref));
@@ -861,6 +885,7 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
           isRecord(value) ? credentialOf(value) : undefined,
         ).andThen(async (row) => {
           if (row === undefined) return ok(false);
+          if (!credentialRefInTenant(row.ref, row.tenant)) return ok(true);
           const provider = providerFor(row.ref);
           if (provider === undefined) return err(noProvider(row.ref));
           if (!provider.capabilities(row.ref).revoke) return ok(true);
@@ -873,6 +898,9 @@ export function createBuilder(options: BuilderOptions): WorkflowBuilder {
         credentialRow(id).andThen(async (row) => {
           if (row === undefined) {
             return err(dbError("not_found", "No such credential"));
+          }
+          if (!credentialRefInTenant(row.ref, row.tenant)) {
+            return err(foreignCredentialRef(row.tenant));
           }
           const provider = providerFor(row.ref);
           if (provider === undefined) return err(noProvider(row.ref));

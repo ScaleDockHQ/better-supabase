@@ -45,8 +45,8 @@ can broadcast too, and `presence` authorizes [presence](#presence).
 in the scope named by the `{organizationId}` segment, and sending needs
 `send`. Without `sql`, the policies call the [access contract](/docs/blocks/access)
 (`tenant_ids_with`, or `is_platform` for `scope: 'platform'`). With an
-[authorization provider](/docs/extending/authorization-providers), copy its
-`idsWith` and `isPlatform` templates into `sql` to call its functions for any
+[authorization provider](/docs/extending/authorization-providers),
+`sql: "provider"` calls its `idsWith` and `isPlatform` functions for any
 scope:
 
 ```ts
@@ -55,13 +55,15 @@ export const board = defineTopic("organization:{organizationId}:board", {
     receive: "board.read",
     send: "board.write",
     scope: "organization",
-    sql: {
-      idsWith: "authz.permitted_{scope}_ids({permission})",
-      isPlatform: "authz.is_platform({permission})",
-    },
+    sql: "provider",
   },
 });
 ```
+
+`better-supabase sql sync` fills in the config's `authorization.functions`.
+Anywhere else, pass them to `topic.sql({ functions })`; without them it
+throws. An object with `idsWith` and `isPlatform` copies the templates
+instead.
 
 Without `send`, clients can only receive. `segment` (1-based, `:`-separated)
 works as for [buckets](/docs/platform/storage#provider-permissions). The
@@ -207,7 +209,7 @@ dropped, so the next `subscribe` joins again. For private topics,
 `subscribe` calls `realtime.setAuth()` first, so Realtime gets the
 session's current token. A token you set yourself with
 `supabase.realtime.setAuth(token)`, such as one minted for an agent or a
-service, is kept: `subscribe`, `send`, `useLiveCount` and `useTopic` only
+service, is kept: `subscribe`, `send`, `useBroadcast`, `usePresence` and `useLiveCount` only
 refresh a token that came from the session. Payloads that fail their schema
 skip the handler and go to `onInvalid`.
 

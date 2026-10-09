@@ -4,6 +4,7 @@ import type { AiTaskOutcome } from "../../../src/blocks/ai-tasks/index.ts";
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
 
 import { createAiTasks } from "../../../src/blocks/ai-tasks/index.ts";
+import { DbException } from "../../../src/core/errors.ts";
 
 const AT = "2026-01-01T00:00:00Z";
 const NOW = Temporal.Instant.from("2026-01-01T10:15:00Z");
@@ -220,7 +221,58 @@ describe("createAiTasks", () => {
     });
     await expect(
       job({ run_id: "bad" }, {} as never, new AbortController().signal),
-    ).rejects.toThrow("db down");
+    ).rejects.toBeInstanceOf(DbException);
+  });
+
+  it("drains every run when one fails and reports each failure", async () => {
+    const service = fakeTransport({
+      claim_due_ai_tasks: () => ({
+        runs: [runRow(), runRow({ id: "r2" }), runRow({ id: "r3" })],
+        unscheduled: [],
+      }),
+      start_ai_task_run: (args) =>
+        args["id"] === "r1"
+          ? Promise.reject(new Error("db down"))
+          : { ...runRow({ id: args["id"] }), task: taskRow() },
+      finish_ai_task_run: () => true,
+    });
+    const result = await createAiTasks({
+      transport: service.transport,
+      run: () => Promise.resolve(),
+    }).drain();
+    expect(
+      service.calls
+        .filter(({ fn }) => fn === "finish_ai_task_run")
+        .map(({ args }) => args["id"]),
+    ).toEqual(["r2", "r3"]);
+    expect(result.ok ? undefined : result.error.details).toBe(
+      "1 of 3 runs failed: r1 (db down)",
+    );
+  });
+
+  it("schedules a saved task right away with a service transport", async () => {
+    const user = fakeTransport({
+      save_ai_task: () => taskRow({ next_run_at: null }),
+    });
+    const service = fakeTransport({ schedule_ai_tasks: () => 1 });
+    const tasks = createAiTasks({
+      transport: user.transport,
+      service: service.transport,
+      now: () => NOW,
+    });
+    const task = await tasks.resume("o1", "t1").orThrow();
+    expect(task.nextRunAt?.toString()).toBe("2026-01-02T09:00:00Z");
+    expect(service.calls[0]?.args).toEqual({
+      items: { items: [{ id: "t1", next_run_at: "2026-01-02T09:00:00Z" }] },
+    });
+    const paused = fakeTransport({
+      save_ai_task: () => taskRow({ next_run_at: null, enabled: false }),
+    });
+    await createAiTasks({
+      transport: paused.transport,
+      service: service.transport,
+    }).pause("o1", "t1");
+    expect(service.calls).toHaveLength(1);
   });
 
   it("returns the finish error", async () => {

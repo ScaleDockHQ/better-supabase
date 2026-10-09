@@ -3,7 +3,7 @@ import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { JobHandler } from "../jobs/queue.ts";
 
-import { dbError } from "../../core/errors.ts";
+import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { nowInstant } from "../../core/temporal.ts";
 import { assertCron, nextCronRun } from "../jobs/cron.ts";
@@ -142,7 +142,11 @@ export interface AiTasks {
   ): AsyncResult<boolean>;
   /** The handler for the `ai_task_run` queue. */
   runJob(): JobHandler<{ readonly run_id: string }>;
-  /** `tick` then `execute` each run in turn, without a queue. Returns how many ran. */
+  /**
+   * `tick` then `execute` each run in turn, without a queue. Returns how many
+   * ran. A failed run does not stop the others; when any failed, the result
+   * is the first error, with every failed run listed in `details`.
+   */
   drain(options?: {
     readonly batch?: number;
     readonly signal?: AbortSignal;
@@ -251,6 +255,29 @@ export function createAiTasks(options: AiTasksOptions): AiTasks {
         next_run_at: nextRunAt?.toString(),
       },
       taskOf,
+    ).andThen((task) => scheduleNow(task));
+  };
+
+  // save_ai_task ignores next_run_at from users; with a service transport the
+  // next occurrence is set right away instead of on the next tick.
+  const scheduleNow = (task: AiTask): AsyncResult<AiTask> => {
+    if (
+      options.service === undefined ||
+      !task.enabled ||
+      task.nextRunAt !== undefined
+    ) {
+      return AsyncResult.ok(task);
+    }
+    const upcoming = next(task.cron, task.timezone);
+    if (!upcoming.ok) return AsyncResult.ok(task);
+    return service(
+      "schedule_ai_tasks",
+      {
+        items: {
+          items: [{ id: task.id, next_run_at: upcoming.data.toString() }],
+        },
+      },
+      (count) => (count === 1 ? { ...task, nextRunAt: upcoming.data } : task),
     );
   };
 
@@ -376,19 +403,31 @@ export function createAiTasks(options: AiTasksOptions): AiTasks {
     execute,
     runJob: () => async (payload, _job, signal) => {
       const result = await execute(payload.run_id, { signal });
-      if (!result.ok) throw new Error(result.error.message);
+      if (!result.ok) throw new DbException(result.error);
     },
     drain: (drainOptions = {}) =>
       tick(drainOptions).andThen((runs) =>
-        AsyncResult.from(async () => {
+        AsyncResult.from(async (): Promise<Result<number>> => {
           let done = 0;
+          const failures: {
+            readonly runId: string;
+            readonly error: DbError;
+          }[] = [];
           for (const run of runs) {
             if (drainOptions.signal?.aborted) break;
             const result = await execute(run.id, drainOptions);
-            if (!result.ok) return result;
-            if (result.data) done += 1;
+            if (!result.ok)
+              failures.push({ runId: run.id, error: result.error });
+            else if (result.data) done += 1;
           }
-          return ok(done);
+          const [first] = failures;
+          if (first === undefined) return ok(done);
+          return err({
+            ...first.error,
+            details: `${failures.length} of ${runs.length} runs failed: ${failures
+              .map((failure) => `${failure.runId} (${failure.error.message})`)
+              .join(", ")}`,
+          });
         }),
       ),
   };

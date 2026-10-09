@@ -14,7 +14,7 @@ import type {
 
 import { serializeCookie } from "../auth/session.ts";
 import { type ExpoParams, toExpo } from "../bridges/expo.ts";
-import { DbException } from "../core/errors.ts";
+import { DbException } from "../core/db-exception.ts";
 import { toProblem } from "../core/problem.ts";
 import { unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";

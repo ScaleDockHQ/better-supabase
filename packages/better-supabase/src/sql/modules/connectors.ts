@@ -4,6 +4,7 @@ import type { ModuleDefinition } from "../registry.ts";
 import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
+import { tenantRefGuard } from "./credentials.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
 
 const SERVERS = {
@@ -227,6 +228,7 @@ begin
   if jsonb_typeof(save_connector_server.fields) is distinct from 'object' then
     ${raise("fields must be an object", "22023", "CONNECTOR_INVALID")}
   end if;
+  ${tenantRefGuard("save_connector_server.fields -> 'credential_ref'", "save_connector_server.tenant")}
   if save_connector_server.id is null then
     insert into ${servers} (${v.tenant}, ${v.name}, ${v.url}, ${v.authType}, ${v.credentialRef}, ${v.createdBy})
     values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
@@ -535,6 +537,7 @@ export const CONNECTORS: ModuleDefinition = {
   description:
     "MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.",
   requires: ["tenant", "access"],
+  providerFunctions: ["idsWithFor"],
   target: "schema",
   version: 1,
   names: NAMES,

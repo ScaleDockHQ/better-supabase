@@ -97,7 +97,7 @@ export interface ServerDbOptions {
   readonly retry?: boolean;
   /**
    * The longest query string one read sends. Defaults to the definition's
-   * `urlLengthLimit` (or `maxUrlLength`), else 6000.
+   * `urlLengthLimit`, else 6000.
    */
   readonly urlLengthLimit?: number;
 }

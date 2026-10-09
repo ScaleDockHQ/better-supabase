@@ -861,6 +861,7 @@ export const SSO: ModuleDefinition = {
   description:
     "Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.",
   requires: ["tenant", "access"],
+  providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

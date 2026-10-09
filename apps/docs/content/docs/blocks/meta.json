@@ -19,7 +19,6 @@
     "webhooks-out",
     "webhooks-in",
     "api-keys",
-    "audit",
     "settings",
     "usage",
     "billing",

@@ -1,5 +1,6 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 
+import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import {
   DEFAULT_BLOCK_SCHEMA,
   errorText,
@@ -595,14 +596,15 @@ export function flagContext(
   const appMetadata = isRecord(claims["app_metadata"])
     ? claims["app_metadata"]
     : {};
-  const tenantClaim = options.tenantClaim ?? "tenant_id";
+  const tenantClaim = options.tenantClaim ?? DEFAULT_CLAIMS.tenant;
   const tenant =
     source.tenant ??
     optionalText(claims[tenantClaim]) ??
     optionalText(appMetadata[tenantClaim]);
   const sub = optionalText(claims["sub"]);
-  const features = claims[options.featuresClaim ?? "features"];
-  const memberships = claims[options.membershipsClaim ?? "memberships"];
+  const features = claims[options.featuresClaim ?? DEFAULT_CLAIMS.features];
+  const memberships =
+    claims[options.membershipsClaim ?? DEFAULT_CLAIMS.memberships];
   const plans =
     tenant !== undefined &&
     isRecord(features) &&

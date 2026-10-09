@@ -463,6 +463,8 @@ ${userGrant(signature("memory_save", `${id}, text, jsonb, ${embedding.type}, tex
 
 -- Archival facts of a namespace ranked by reciprocal rank fusion of vector
 -- and full-text search, each with its cosine similarity when it has one.
+-- Volatile because it sets hnsw.iterative_scan, which it puts back before
+-- returning so the rest of the caller's transaction keeps its own setting.
 create or replace function ${fn("memory_search")}(
   tenant ${id},
   query_embedding ${embedding.type} default null,
@@ -472,13 +474,14 @@ create or replace function ${fn("memory_search")}(
 )
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
 declare${declare}
   v_rows jsonb;
   v_candidates integer := least(greatest(memory_search.k, 1) * 4, 400);
+  v_scan text := current_setting('hnsw.iterative_scan', true);
 begin${namespace("memory_search", false)}
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with scoped as materialized (
@@ -511,6 +514,7 @@ begin${namespace("memory_search", false)}
   select coalesce(jsonb_agg(${memoryJson("t")} || jsonb_build_object('score', f.score, 'similarity', 1 - f.distance) order by f.score desc), '[]')
   into v_rows
   from fused f join ${memories} t on t.${m.id} = f.id;
+  perform set_config('hnsw.iterative_scan', coalesce(nullif(v_scan, ''), 'off'), true);
   return v_rows;
 end;
 $$;
@@ -541,7 +545,10 @@ end;
 $$;
 ${userGrant(signature("memory_forget", "uuid, uuid"))}
 
-create or replace function ${fn("set_memory_embedding")}(memory_id uuid, embedding ${embedding.type}, model text default null)
+-- content_hash is the md5 of the content that was embedded: a memory edited
+-- since then keeps waiting instead of taking a vector of its old text.
+drop function if exists ${signature("set_memory_embedding", `uuid, ${embedding.type}, text`)};
+create or replace function ${fn("set_memory_embedding")}(memory_id uuid, embedding ${embedding.type}, model text default null, content_hash text default null)
 returns boolean
 language sql
 security definer
@@ -549,11 +556,37 @@ set search_path = ''
 as $$
   update ${memories} x set ${m.embedding} = set_memory_embedding.embedding, ${m.model} = set_memory_embedding.model
   where x.${m.id} = set_memory_embedding.memory_id
+    and (set_memory_embedding.content_hash is null or md5(x.${m.content}) = set_memory_embedding.content_hash)
   returning true
 $$;
-${serviceGrant(signature("set_memory_embedding", `uuid, ${embedding.type}, text`))}
+${serviceGrant(signature("set_memory_embedding", `uuid, ${embedding.type}, text, text`))}
 
--- Memories edited since they were embedded, for the embed worker.
+-- Stores embeddings for many memories ({"items": [{"id", "hash", "embedding"}]})
+-- and returns how many it stored; one whose content no longer matches its
+-- hash keeps waiting.
+create or replace function ${fn("set_memory_embeddings")}(items jsonb, model text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_items jsonb := case when jsonb_typeof(set_memory_embeddings.items) = 'object' then set_memory_embeddings.items -> 'items' else set_memory_embeddings.items end;
+  v_count integer;
+begin
+  update ${memories} x set
+    ${m.embedding} = (e.value ->> 'embedding')::${embedding.column},
+    ${m.model} = set_memory_embeddings.model
+  from jsonb_array_elements(case when jsonb_typeof(v_items) = 'array' then v_items else '[]' end) e
+  where x.${m.id} = (e.value ->> 'id')::uuid and md5(x.${m.content}) = e.value ->> 'hash';
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+${serviceGrant(signature("set_memory_embeddings", "jsonb, text"))}
+
+-- Memories edited since they were embedded, for the embed worker, with the
+-- md5 of each content it passes back to set_memory_embeddings.
 create or replace function ${fn("pending_memory_embeddings")}(batch integer default 64)
 returns jsonb
 language sql
@@ -561,7 +594,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x.${m.id}, 'content', x.${m.content})), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x.${m.id}, 'content', x.${m.content}, 'hash', md5(x.${m.content}))), '[]')
   from (
     select * from ${memories} y where y.${m.embedding} is null and y.${m.supersededBy} is null
     order by y.${m.updatedAt}
@@ -594,7 +627,8 @@ end;
 $$;
 ${serviceGrant(signature("set_ai_message_embedding", `uuid, text, uuid, ${id}, ${embedding.type}, text`))}
 
--- The caller's earlier messages closest to a query, other than in exclude_chat.
+-- The caller's earlier messages closest to a query, other than in
+-- exclude_chat. Volatile and restores hnsw.iterative_scan, as memory_search.
 create or replace function ${fn("recall_ai_messages")}(
   tenant ${id},
   query_embedding ${embedding.type},
@@ -604,13 +638,14 @@ create or replace function ${fn("recall_ai_messages")}(
 )
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = ''
 as $$
 declare
   v_user uuid := case when ${SERVICE_CALLER} then recall_ai_messages.owner else auth.uid() end;
   v_rows jsonb;
+  v_scan text := current_setting('hnsw.iterative_scan', true);
 begin
   if v_user is null then
     return '[]';
@@ -626,6 +661,7 @@ begin
     order by x.${e.embedding} ${embedding.distance} recall_ai_messages.query_embedding
     limit least(greatest(recall_ai_messages.k, 1), 50)
   ) r;
+  perform set_config('hnsw.iterative_scan', coalesce(nullif(v_scan, ''), 'off'), true);
   return v_rows;
 end;
 $$;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
+import { tenantRefGuard } from "../../../src/sql/modules/credentials.ts";
 import { moduleBody } from "../../../src/sql/registry.ts";
 
 const body = (modules: ModulesConfig = {}) =>
@@ -24,6 +25,16 @@ describe("credentials module", () => {
     }
     expect(sql.match(/security definer/g)).toHaveLength(3);
     expect(sql.match(/set search_path = ''/g)).toHaveLength(3);
+  });
+
+  it("guards refs to the row's tenant for every caller but the service role", () => {
+    const guard = tenantRefGuard("r", "t");
+    expect(guard).toContain(
+      "jsonb_typeof(r -> 'tenant') is distinct from 'string'",
+    );
+    expect(guard).toContain("(r ->> 'tenant') is distinct from (t)::text");
+    expect(guard).toContain("hint = 'CREDENTIAL_REF_FOREIGN'");
+    expect(guard).toMatch(/^if not \(/);
   });
 
   it("names Vault secrets under bs:cred and checks the caller and the name", () => {

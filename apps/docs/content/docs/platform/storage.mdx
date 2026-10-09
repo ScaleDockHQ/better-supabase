@@ -234,8 +234,11 @@ profile's `avatar_url` or the organization's logo column.
 
 With an [authorization provider](/docs/extending/authorization-providers), an
 `access` policy can call the provider's SQL functions directly, for any scope
-they take, instead of the access contract. Copy its `idsWith` and
-`isPlatform` templates into `sql`:
+they take, instead of the access contract. `sql: "provider"` uses the
+config's `authorization.functions`, which `better-supabase gen` writes into the
+generated bucket policies. An object with `idsWith` and `isPlatform` copies
+the templates instead; doctor (BS214) warns when the copy differs from the
+provider.
 
 ```ts title="src/lib/storage.ts"
 export const files = defineBucket({
@@ -248,10 +251,7 @@ export const files = defineBucket({
       write: "files.upload",
     },
     scope: "organization", // or 'platform'
-    sql: {
-      idsWith: "authz.permitted_{scope}_ids({permission})",
-      isPlatform: "authz.is_platform({permission})",
-    },
+    sql: "provider",
   },
 });
 ```

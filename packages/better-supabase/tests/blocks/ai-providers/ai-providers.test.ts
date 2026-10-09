@@ -11,8 +11,17 @@ import { dbError } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
 const AT = "2026-01-01T00:00:00Z";
-const REF = { provider: "vault", name: "ai:o1:anthropic" };
-const OLD_REF = { provider: "vault", name: "ai:o1:anthropic:old" };
+const REF = { provider: "vault", name: "ai:o1:anthropic", tenant: "o1" };
+const OLD_REF = {
+  provider: "vault",
+  name: "ai:o1:anthropic:old",
+  tenant: "o1",
+};
+const FOREIGN_REF = {
+  provider: "vault",
+  name: "ai:o2:anthropic",
+  tenant: "o2",
+};
 const job = undefined as never;
 const signal = new AbortController().signal;
 
@@ -180,6 +189,21 @@ describe("createAiProviders keys", () => {
     expect(await providers.keys.remove("gone").orThrow()).toBe(false);
     expect(await providers.keys.removeAll("o1").orThrow()).toBe(2);
     expect(revoked).toEqual([REF, REF, OLD_REF]);
+  });
+
+  it("never resolves or revokes another tenant's credential", async () => {
+    const { credentials, revoked } = fakeCredentials({
+      "ai:o2:anthropic": "sk-2",
+    });
+    const { transport } = fakeTransport({
+      ai_provider_keys_for: () => [keyRow({ credential_ref: FOREIGN_REF })],
+      delete_ai_provider_key: () => keyRow({ credential_ref: FOREIGN_REF }),
+    });
+    const providers = createAiProviders({ transport, credentials });
+    const resolved = await providers.keys.resolve("o1");
+    expect(!resolved.ok && resolved.error.hint).toBe("CREDENTIAL_REF_FOREIGN");
+    expect(await providers.keys.remove("k1").orThrow()).toBe(true);
+    expect(revoked).toEqual([]);
   });
 
   it("removes without revoking when no credentials are configured", async () => {

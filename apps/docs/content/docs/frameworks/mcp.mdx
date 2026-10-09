@@ -148,8 +148,8 @@ WWW-Authenticate: Bearer error="insufficient_scope", error_description="...", sc
 between the client and the authorization server. `advertisedScopes` does not
 refuse calls by itself. `requiredScopes` refuses a delegated token (an OAuth
 client or an `act` chain) that lacks one of them, and `authorize` refuses a
-single call. The older `scopes` option still works as an alias of
-`advertisedScopes`.
+single call. 0.6 removes the older `scopes` alias; `better-supabase codemod
+0.5` renames it to `advertisedScopes`.
 
 A session below `aal` gets a plain 403 without a scope challenge, since more
 scopes would not help. When the server can't verify the token (the JWKS is
@@ -225,6 +225,19 @@ arguments are validated before `run`.
 outside the server, so it can go in `createMcp({ tools: [...] })`.
 
 ## Authorizing tools
+
+`requiredRoles` refuses the whole server to a signed-in user without one of
+the roles, with 403 and the code `MISSING_ROLE`; service-role callers pass.
+The roles are read from `app_metadata.role` unless you name another claim,
+which may hold a string or an array of strings:
+
+```ts
+createMcp(betterSupabase, {
+  name: "crm",
+  version: "1.0.0",
+  requiredRoles: { roles: ["admin", "support"], claim: "app_metadata.roles" },
+});
+```
 
 RLS decides which rows a tool reads and writes. To decide whether the caller
 may use a tool at all, pass `authorize` and `visible`:

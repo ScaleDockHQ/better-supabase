@@ -84,6 +84,13 @@ function build(ctx: ModuleContext): string {
   const agentReference = agents
     ? ` references ${agents.table("agents")} (${agents.col("agents", "id")}) on delete set null`
     : "";
+  const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;
+  const chatOwned = chat
+    ? `exists (select 1 from ${chat.table("chats")} c where c.${chat.col("chats", "id")} = v_chat and c.${chat.col("chats", "owner")} = v_row.${t.user} and c.${chat.col("chats", "tenant")} = v_row.${t.tenant})`
+    : "false";
+  const agentUsable = agents
+    ? `exists (select 1 from ${agents.table("agents")} g where g.${agents.col("agents", "id")} = v_agent and g.${agents.col("agents", "tenant")} = v_row.${t.tenant} and (g.${agents.col("agents", "owner")} = v_row.${t.user} or g.${agents.col("agents", "publishedAt")} is not null))`
+    : "false";
   const taskJson = (row: string): string => rowJson(TASKS, t, row);
   const runJson = (row: string): string => rowJson(RUNS, r, row);
   const enqueue = (run: string): string =>
@@ -155,9 +162,12 @@ drop policy if exists ai_task_runs_read on ${runs};
 create policy ai_task_runs_read on ${runs} for select to authenticated
   using (${r.user} = (select auth.uid()) or ${tenantIn(r.tenant, manage)});
 
--- Creates (id null) or changes a task. next_run_at comes from the caller,
--- which computed it from cron and timezone; pausing clears it, so a resumed
--- task waits for its next occurrence.
+-- Creates (id null) or changes a task. Only the service role sets
+-- next_run_at; for anyone else a new task, or a changed cron or timezone,
+-- clears it and the scheduler computes the next occurrence on its next
+-- tick. Pausing clears it, so a resumed task waits for its next occurrence.
+-- chat_id must be a chat of the task's user in the tenant, and agent_id an
+-- agent of the tenant that user owns or that is published.
 create or replace function ${fn("save_ai_task")}(tenant ${id}, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
 returns jsonb
 language plpgsql
@@ -167,9 +177,19 @@ as $$
 declare
   v_id uuid := save_ai_task.id;
   v_row ${tasks}%rowtype;
+  v_service boolean := ${SERVICE_CALLER};
+  v_chat uuid;
+  v_agent uuid;
 begin
   if jsonb_typeof(save_ai_task.fields) is distinct from 'object' then
     ${raise("fields must be an object", "22023", "AI_TASK_INVALID")}
+  end if;
+  if save_ai_task.fields ? 'timezone' then
+    begin
+      perform now() at time zone (save_ai_task.fields ->> 'timezone');
+    exception when others then
+      ${raise("% is not a time zone", "22023", "AI_TASK_INVALID", "save_ai_task.fields ->> 'timezone'")}
+    end;
   end if;
   if v_id is null then
     if not (${SERVICE_CALLER} or ${canIn("save_ai_task.tenant", create)}) or auth.uid() is null then
@@ -184,6 +204,16 @@ begin
       ${notFound}
     end if;
   end if;
+  v_chat := (save_ai_task.fields ->> 'chat_id')::uuid;
+  if v_chat is not null and not v_service and not ${chatOwned}
+  then
+    ${raise("chat % is not a chat of this task's user", "42501", "AI_TASK_CHAT_FORBIDDEN", "v_chat")}
+  end if;
+  v_agent := (save_ai_task.fields ->> 'agent_id')::uuid;
+  if v_agent is not null and not v_service and not ${agentUsable}
+  then
+    ${raise("agent % is not an agent this task's user may use", "42501", "AI_TASK_AGENT_FORBIDDEN", "v_agent")}
+  end if;
   update ${tasks} x set
     ${t.title} = coalesce(save_ai_task.fields ->> 'title', x.${t.title}),
     ${t.prompt} = coalesce(save_ai_task.fields ->> 'prompt', x.${t.prompt}),
@@ -192,7 +222,11 @@ begin
     ${t.chat} = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x.${t.chat} end,
     ${t.agent} = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x.${t.agent} end,
     ${t.enabled} = coalesce((save_ai_task.fields ->> 'enabled')::boolean, x.${t.enabled}),
-    ${t.nextRunAt} = case when (save_ai_task.fields ->> 'enabled')::boolean is false then null when save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then save_ai_task.next_run_at else x.${t.nextRunAt} end,
+    ${t.nextRunAt} = case
+      when (save_ai_task.fields ->> 'enabled')::boolean is false then null
+      when v_service and (save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone') then save_ai_task.next_run_at
+      when save_ai_task.id is null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then null
+      else x.${t.nextRunAt} end,
     ${t.updatedAt} = now()
   where x.${t.id} = v_row.${t.id}
   returning * into v_row;
@@ -253,9 +287,9 @@ $$;
 ${userGrant(`${fn("list_ai_task_runs")}(uuid, integer)`)}
 
 -- Claims due tasks (service role): queues a run for each, clears its
--- next_run_at until the scheduler sets the next one, fails runs that ran
--- longer than ${staleAfter}, and returns the runs and the enabled tasks that
--- need a next_run_at.
+-- next_run_at until the scheduler sets the next one, fails runs that ran, or
+-- waited in the queue, longer than ${staleAfter}, and returns the runs and
+-- the enabled tasks that need a next_run_at.
 create or replace function ${fn("claim_due_ai_tasks")}(batch integer default 50)
 returns jsonb
 language plpgsql
@@ -269,7 +303,8 @@ declare
   v_unscheduled jsonb;
 begin
   update ${runs} y set ${r.status} = 'failed', ${r.error} = 'timed out', ${r.finishedAt} = now()
-  where y.${r.status} = 'running' and y.${r.startedAt} < now() - interval '${staleAfter}';
+  where (y.${r.status} = 'running' and y.${r.startedAt} < now() - interval '${staleAfter}')
+     or (y.${r.status} = 'queued' and y.${r.createdAt} < now() - interval '${staleAfter}');
   for v_task in
     select * from ${tasks} x
     where x.${t.enabled} and x.${t.nextRunAt} <= now()
@@ -304,7 +339,7 @@ declare
 begin
   update ${tasks} x set ${t.nextRunAt} = (item ->> 'next_run_at')::timestamptz
   from jsonb_array_elements(case when jsonb_typeof(v_items) = 'array' then v_items else '[]' end) item
-  where x.${t.id} = (item ->> 'id')::uuid;
+  where x.${t.id} = (item ->> 'id')::uuid and x.${t.enabled} and x.${t.nextRunAt} is null;
   get diagnostics v_count = row_count;
   return v_count;
 end;

@@ -18,6 +18,7 @@ export type {
   TopicMessage,
   TopicOptions,
   TopicPayload,
+  TopicSqlOptions,
   TopicSubscribeOptions,
   TopicSubscription,
   TriggerLookup,

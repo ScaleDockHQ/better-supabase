@@ -102,11 +102,11 @@ or a completion activity.
 
 The [workflow builder](/docs/blocks/workflow-builder) adds two more:
 
-| Contract         | An adapter provides                                                                                  |
-| ---------------- | ---------------------------------------------------------------------------------------------------- |
-| `GraphCompiler`  | `(graph) => compiled`, stored with each published version                                            |
-| `BuilderStarter` | `(call) => Promise<runId>` that starts a published version with its input                            |
-| `GraphRuntime`   | `runKey`, `step(call)`, `sleep(ms)` and `approval(token, node)` for `executeGraph` inside the engine |
+| Contract         | An adapter provides                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| `GraphCompiler`  | `(graph) => compiled`, stored through the service transport; a starter compiles again, never trusts it |
+| `BuilderStarter` | `(call) => Promise<runId>` that starts a published version with its input                              |
+| `GraphRuntime`   | `runKey`, `step(call)`, `sleep(ms)` and `approval(token, node)` for `executeGraph` inside the engine   |
 
 `executeGraph(graph, input, runtime)` walks the graph; the adapter's
 runtime maps `step` to a durable step (a Temporal activity), `sleep` to a

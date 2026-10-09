@@ -1,4 +1,5 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleLayout } from "../registry.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -381,12 +382,13 @@ ${userGrant(`${fn("list_ai_projects")}(${ctx.idType})`)}`;
 export function aiChatFunctions(
   ctx: ModuleContext,
   names: AiChatNames,
+  layout: ModuleLayout,
 ): string {
   return `${chats(ctx, names)}
 
 ${messages(ctx, names)}
 
-${aiChatExtras(ctx, names)}`;
+${aiChatExtras(ctx, names, layout)}`;
 }
 
 function messageJson(names: AiChatNames, row: string, native: string): string {

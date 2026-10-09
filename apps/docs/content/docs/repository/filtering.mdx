@@ -86,8 +86,7 @@ columns, which are sorted again after the merge (an order column you don't
 select is fetched for the sort and left out of the rows). Other reads that are
 too long return `invalid_request`, and so do `updateMany`, `deleteMany` and
 the other writes, which can't be split: page through a shorter list, or pass
-the list to a function. Set the limit with `defineSupabase(schema, { urlLengthLimit })`;
-`maxUrlLength` is its old name and still works.
+the list to a function. Set the limit with `defineSupabase(schema, { urlLengthLimit })`.
 
 ## Building a filter step by step
 

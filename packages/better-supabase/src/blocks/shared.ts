@@ -84,6 +84,15 @@ export function recordsOf(
 export const stringsOf = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.map(textOf) : [];
 
+/** `value` when it is one of `values`, otherwise `fallback`. */
+export function oneOf<T extends string>(
+  value: unknown,
+  values: readonly T[],
+  fallback: T,
+): T {
+  return values.find((item) => item === value) ?? fallback;
+}
+
 /** A `timestamptz` from jsonb or `pg`, or `undefined` for null. */
 export const optionalInstant = (
   value: unknown,

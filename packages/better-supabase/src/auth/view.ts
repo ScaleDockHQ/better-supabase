@@ -76,6 +76,10 @@ export type AuthSession<C = unknown, P = unknown> =
       readonly organizationId?: string;
       readonly userId?: string;
       readonly scopes: readonly string[];
+      /** Seconds since epoch, when the key was created. */
+      readonly createdAt?: number;
+      /** The user who created the key. */
+      readonly createdBy?: string;
     }
   | { readonly kind: "anon"; readonly reason: AnonReason }
   | {
@@ -131,6 +135,10 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
         ...(auth.organizationId ? { organizationId: auth.organizationId } : {}),
         ...(auth.userId ? { userId: auth.userId } : {}),
         scopes: auth.scopes,
+        ...(auth.createdAt
+          ? { createdAt: Math.floor(auth.createdAt.epochMilliseconds / 1000) }
+          : {}),
+        ...(auth.createdBy ? { createdBy: auth.createdBy } : {}),
       };
     case "anon":
       return { kind: "anon", reason: auth.reason };

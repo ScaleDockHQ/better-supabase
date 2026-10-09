@@ -21,7 +21,7 @@ import { claimsOf } from "../core/claims.ts";
 import { type DbError, dbErrorOf } from "../core/errors.ts";
 import { type ProblemDetails, toProblem } from "../core/problem.ts";
 import { flushEvents } from "../server/adapter.ts";
-import { authorizeCaller, type KitRequireOptions } from "../server/kit.ts";
+import { authorizeCaller, type BlockRequireOptions } from "../server/kit.ts";
 import { refreshFor } from "../server/refresh.ts";
 import {
   defaultExpose,
@@ -98,7 +98,7 @@ export type OrpcMiddleware<
 
 /** Guard and authorize options of `middleware()` and `authed()`. */
 export interface OrpcGuardOptions<C = unknown, P = unknown>
-  extends MiddlewareOptions, KitRequireOptions<C, P> {}
+  extends MiddlewareOptions, BlockRequireOptions<C, P> {}
 
 /** `os` with the caller's context: `bs.authed().handler(({ context }) => ...)`. */
 export type OrpcAuthed<

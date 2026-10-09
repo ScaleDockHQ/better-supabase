@@ -267,7 +267,19 @@ describe("createMemory", () => {
       service: server.transport,
       embedder,
     });
-    const saved = await memory
+    const batches: (readonly string[])[] = [];
+    const counting = createMemory({
+      transport: user.transport,
+      service: server.transport,
+      embedder: {
+        model: embedder.model,
+        embed: (values) => {
+          batches.push(values);
+          return embedder.embed(values);
+        },
+      },
+    });
+    const saved = await counting
       .saveExtracted(
         "o1",
         ["likes tea", "drinks tea", "", "lives in Utrecht"],
@@ -275,7 +287,14 @@ describe("createMemory", () => {
       )
       .orThrow();
     expect(saved.map((record) => record.content)).toEqual(["lives in Utrecht"]);
+    expect(batches).toEqual([["likes tea", "drinks tea", "lives in Utrecht"]]);
+    const searched = server.calls.filter((c) => c.fn === "memory_search");
+    const stored = server.calls.find((c) => c.fn === "memory_save");
+    expect(stored?.args["embedding"]).toBe(
+      searched.at(-1)?.args["query_embedding"],
+    );
     expect(user.calls).toEqual([]);
+    expect(await memory.saveExtracted("o1", ["  ", ""]).orThrow()).toEqual([]);
 
     const failing = createMemory({
       transport: fakeTransport({}).transport,
@@ -348,16 +367,24 @@ describe("createMemory", () => {
   it("embeds memories edited since their last embedding", async () => {
     const { transport, calls } = fakeTransport({
       pending_memory_embeddings: () => [
-        { id: "m1", content: "abc" },
-        { id: "m2", content: "de" },
+        { id: "m1", content: "abc", hash: "h1" },
+        { id: "m2", content: "de", hash: "h2" },
       ],
-      set_memory_embedding: (args) => args["memory_id"] === "m1",
+      set_memory_embeddings: () => 1,
     });
     const memory = createMemory({ transport, service: transport, embedder });
     expect(await memory.embedPending({ batch: 10 }).orThrow()).toBe(1);
+    expect(calls.map((c) => c.fn)).toEqual([
+      "pending_memory_embeddings",
+      "set_memory_embeddings",
+    ]);
     expect(calls[1]?.args).toEqual({
-      memory_id: "m1",
-      embedding: "[3,1]",
+      items: {
+        items: [
+          { id: "m1", hash: "h1", embedding: "[3,1]" },
+          { id: "m2", hash: "h2", embedding: "[2,1]" },
+        ],
+      },
       model: "m1",
     });
 
@@ -373,7 +400,10 @@ describe("createMemory", () => {
       }).transport,
       embedder: { model: "m1", embed: () => Promise.resolve([]) },
     });
-    expect(await short.embedPending().orThrow()).toBe(0);
+    const shortResult = await short.embedPending();
+    expect(shortResult.ok ? undefined : shortResult.error.hint).toBe(
+      "EMBEDDING_INVALID",
+    );
     const broken = createMemory({
       transport: fakeTransport({
         pending_memory_embeddings: () => [{ id: "m1", content: "a" }],

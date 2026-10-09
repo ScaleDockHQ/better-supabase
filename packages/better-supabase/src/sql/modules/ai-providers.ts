@@ -4,6 +4,7 @@ import type { ModuleDefinition } from "../registry.ts";
 import { SERVICE_CALLER, schemaPreamble, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
+import { tenantRefGuard } from "./credentials.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
 
 const KEYS = {
@@ -273,6 +274,7 @@ begin
   if not (${SERVICE_CALLER} or ${canIn("save_ai_provider_key.tenant", manage)}) then
     ${raise("you may not manage provider keys here", "42501", "AI_PROVIDER_KEY_FORBIDDEN")}
   end if;
+  ${tenantRefGuard("save_ai_provider_key.credential_ref", "save_ai_provider_key.tenant")}
   select x.${k.credentialRef} into v_old from ${keys} x
   where x.${k.tenant} = save_ai_provider_key.tenant and x.${k.provider} = save_ai_provider_key.provider and x.${k.name} = coalesce(save_ai_provider_key.name, 'default')
   for update;

@@ -200,8 +200,8 @@ begin
     return jsonb_build_array('A graph has a nodes array and an edges array');
   end if;
   for v_node in select value from jsonb_array_elements(v_nodes) loop
-    if coalesce(jsonb_typeof(v_node -> 'id'), '') <> 'string' or length(v_node ->> 'id') not between 1 and 100 then
-      v_errors := array_append(v_errors, 'Every node has an id of 1 to 100 characters');
+    if coalesce(jsonb_typeof(v_node -> 'id'), '') <> 'string' or (v_node ->> 'id') !~ '^[A-Za-z0-9_-]{1,100}$' then
+      v_errors := array_append(v_errors, 'Every node has an id of 1 to 100 letters, digits, underscores or hyphens');
       continue;
     end if;
     if (v_node ->> 'id') = any (v_ids) then
@@ -393,9 +393,10 @@ $$;
 revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb) to authenticated, service_role;
 
--- Publishes a version with the engine's compiled form: workflow.publish in
--- its tenant, and a graph validate_workflow_graph accepts. The version
--- published before is archived.
+-- Publishes a version: workflow.publish in its tenant, and a graph
+-- validate_workflow_graph accepts. The version published before is
+-- archived. Only the service role may store the engine's compiled form,
+-- also on a version that is already published.
 create or replace function "better_supabase"."publish_workflow_version"(version uuid, compiled jsonb default null)
 returns jsonb
 language plpgsql
@@ -416,7 +417,15 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.publish'), false))) then
     raise exception 'You may not publish this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
+  if compiled is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'Only the service role may store a compiled form' using errcode = '42501', hint = 'WORKFLOW_COMPILED_FORBIDDEN';
+  end if;
   if v_row."status" = 'published' then
+    if compiled is not null then
+      update "better_supabase"."workflow_versions" x set "compiled" = compiled
+      where x."id" = v_row."id"
+      returning * into v_row;
+    end if;
     return jsonb_build_object(
     'id', v_row."id",
     'definition', v_row."definition_id",
@@ -749,6 +758,11 @@ declare
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_workflow_credential.ref is not null and jsonb_typeof(save_workflow_credential.ref) <> 'null'
+    and (jsonb_typeof(save_workflow_credential.ref -> 'tenant') is distinct from 'string' or (save_workflow_credential.ref ->> 'tenant') is distinct from (save_workflow_credential.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', save_workflow_credential.tenant
+      using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   insert into "better_supabase"."workflow_credentials" as x ("tenant_id", "kind", "name", "credential_ref", "scopes", "created_by")
   values (tenant, kind, name, ref, coalesce(scopes, '{}'), (select auth.uid()))

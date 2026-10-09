@@ -3,7 +3,7 @@ import type {
   ModuleContractFunction,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../registry.ts";
+import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { AI_MESSAGE_PART_TYPES } from "../../blocks/ai-chat/message.ts";
 import { sqlString } from "../../core/template.ts";
@@ -737,10 +737,9 @@ create table if not exists ${t.harness} (
 create index if not exists ai_harness_sessions_owner_idx on ${t.harness} (${hs.owner});
 create index if not exists ai_harness_sessions_idle_idx on ${t.harness} (${hs.lastActiveAt}) where ${hs.status} = 'active' and ${hs.sandbox} is not null;
 ${lock(t.harness)}
-grant select on ${t.harness} to authenticated;
-drop policy if exists ai_harness_sessions_owner_read on ${t.harness};
-create policy ai_harness_sessions_owner_read on ${t.harness} for select to authenticated
-  using (${hs.owner} = (select auth.uid()));`;
+-- Resume state can carry harness credentials and sandbox ids, so only the
+-- service role reads it, through load_ai_harness_session.
+drop policy if exists ai_harness_sessions_owner_read on ${t.harness};`;
 }
 
 function realtime(ctx: ModuleContext, names: AiChatNames): string {
@@ -771,13 +770,13 @@ end;
 $$;`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") return "";
   const names = namesOf(ctx);
   return `${schemaPreamble(ctx)}
 ${tables(ctx, names)}
 
-${aiChatFunctions(ctx, names)}
+${aiChatFunctions(ctx, names, layout)}
 
 ${aiChatDurable(ctx, names)}
 

@@ -147,4 +147,24 @@ const dir = join(root, "path({");
     expect(result.review.map((entry) => entry.line)).toEqual([1]);
     expect(result.review[0]?.message).toContain("`path(values)`");
   });
+
+  it("renames kit and org exports and flags the moved subpaths", () => {
+    const source = `import { createOrgs, type OrgsOptions } from "better-supabase/orgs";
+import { onKitEvent } from "better-supabase/events";
+import { createInbox } from "better-supabase/jobs";
+const orgs = createOrgs(transport);
+onKitEvent(sb, "org.created", handle);
+const db = defineSupabase(schema, { maxUrlLength: 4000 });
+`;
+    const result = applyCodemod(v06, source);
+    expect(result.text)
+      .toBe(`import { createOrganizations, type OrganizationsOptions } from "better-supabase/orgs";
+import { onBlockEvent } from "better-supabase/events";
+import { createInbox } from "better-supabase/jobs";
+const orgs = createOrganizations(transport);
+onBlockEvent(sb, "org.created", handle);
+const db = defineSupabase(schema, { urlLengthLimit: 4000 });
+`);
+    expect(result.review.map((entry) => entry.line)).toEqual([1, 3, 3]);
+  });
 });

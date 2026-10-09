@@ -27,7 +27,7 @@ apps/
 tests/
   bundle/              size baselines, export snapshot, WinterTC import check
   types/*              TypeScript 6 and 7 matrix, and the type-performance benchmark
-   validation-*/        code from two production apps ported to better-supabase
+   validation-*/        four validation projects: centrakit, crm, monorepo, request-context
 supabase/              the local stack every example and integration test uses
   schemas/             the declarative schema; pg-delta orders the files by dependency
   migrations/          migrations generated from schemas/ and reviewed
@@ -66,7 +66,7 @@ docs/
 - `pnpm --filter @better-supabase/example-nextjs test:e2e`: resets the local stack, builds the Next.js example with the testing API and runs its `instant()` specs (local only; see `docs/agents/nextjs.md`).
 - `pnpm typecheck:perf`: type-instantiation benchmark on a 150-table schema and a 250-table schema with composite foreign keys (`centrakit`), on TypeScript 6 and 7; fails on >10% growth in instantiations or types, or when check time or the cold, warm or incremental `gen` time doubles (`update` rewrites the baseline).
 - `pnpm --filter better-supabase bench`: runtime benchmarks for Server Component islands, `connect()` and `findMany` with 0, 3 and 6 plugins, `compilePostgrest`, codec decoding and list queries, and `server.context()` latency; each fails on a loose ratio, not an absolute time.
-- `tests/validation-*`: code from two production apps (a CRM and a request-context package) ported to better-supabase; run with `pnpm test`.
+- `tests/validation-*`: four validation projects, run with `pnpm test`: code from two production apps ported to better-supabase (`crm` and `request-context`), CentraKit's schema adopting every SaaS SQL module (`centrakit`), and a monorepo layout whose domain packages type their repositories from one runtime package (`monorepo`).
 - `pnpm version-packages`: the root `CHANGELOG.md` section, `changeset version`, then `scripts/sync-versions.ts` (the `VERSION` constant, plugin manifests and `server.json`). The release workflow runs it.
 
 ## Local development
@@ -101,11 +101,12 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
    whose errors are plain, serializable `DbError` objects. `.orThrow()` is the
    only way to turn one into an exception.
 5. Event handlers (`sb.on`) and sinks can never change a result.
-6. Runtime entries (everything except `cli`, `postgres` and `testing`) import no
-   Node built-ins, so they run on every WinterTC runtime. The CLI is Node-only.
-   SDK adapters whose SDK needs Node join that list (`NODE_ENTRIES` in
-   `tests/bundle/bundle.test.ts` and `tests/standards/wintertc.test.ts`):
-   `workflow-sdk/world` (it imports `pg`), and `eve` when it ships.
+6. Runtime entries (everything except `cli`, `node`, `nestjs`, `postgres` and
+   `testing`) import no Node built-ins, so they run on every WinterTC runtime.
+   The CLI is Node-only. SDK adapters whose SDK needs Node join that list
+   (`NODE_ENTRIES` in `tests/bundle/bundle.test.ts` and
+   `tests/standards/wintertc.test.ts`): `workflow-sdk/world` (it imports
+   `pg`) and `eve` (eve runs on Node; ADR 0013).
    `streams/redis` stays a runtime entry: it imports nothing from Node and
    loads `redis` only for its `url` option.
 7. Auth never calls the Auth server when the access token is still valid,
@@ -137,12 +138,16 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     (an install message, or pass a client), `@vercel/connect` through a
     variable specifier in `src/vercel-connect/vercel-connect.ts` (an
     install message), `@next/playwright` through a variable specifier in
-    `src/testing/instant.ts` (an install message), and `@nestjs/common`
-    through a synchronous `createRequire` in `src/nestjs/index.ts`, because
-    `@Ctx()` runs while the class is defined (an install message). CLI startup work also loads on
-    demand, each with a comment: the commands, config loading and env
-    validation in `src/cli/run.ts`, the prompts in `src/cli/bin.ts`, and
-    the arktype-backed typegen entries in `src/cli/introspect/typegen.ts`.
+    `src/testing/instant.ts` (an install message), `eve/tools` through a
+    variable specifier in `src/eve/eve.ts` (the memory provider builds no
+    tools without it), and `@nestjs/common` through a synchronous
+    `createRequire` in `src/nestjs/index.ts`, because `@Ctx()` runs while
+    the class is defined (an install message; ADR 0014). CLI startup work
+    also loads on demand, each with a comment: the commands, config loading
+    and env validation in `src/cli/run.ts`, `fastest-levenshtein` for the
+    unknown-command suggestion in the same file, the prompts in
+    `src/cli/bin.ts`, and the arktype-backed typegen entries in
+    `src/cli/introspect/typegen.ts`.
 13. Supabase's splinter lints are never bundled or vendored. Doctor fetches
     them at the commit in `SPLINTER_COMMIT` and rejects them unless they
     match `SPLINTER_SHA256` (`src/cli/doctor/advisors.ts`).
@@ -151,9 +156,11 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
 15. better-supabase never depends on or names an authorization library.
     Libraries plug in through the versioned `AuthorizationProvider` in the
     `authorization` config key (`src/config/authorization.ts`) and ship
-    their own adapter. `pnpm check:no-permdock` fails on the name in the
-    library, its skills, the docs, the examples and `supabase/schemas`;
-    the provider page and the 0.5 to 0.6 guide are the exceptions.
+    their own adapter. `pnpm check:no-permdock` fails on the name or one
+    of its shapes (`pdk_` keys, `permitted_*` helpers, `permissions.catalog`)
+    in the library and its tests, skills, READMEs, plugin manifests, the docs,
+    marketing, the examples, `tests/*` and `supabase`; the provider page and
+    the 0.5 to 0.6 guide are the exceptions.
 
 ## Code conventions
 
@@ -231,7 +238,7 @@ This applies to docs, READMEs, skills, changesets and CLI messages.
 | A `DbError` kind                     | `problem.ts` status map, the errors docs page                                                                                                                                              |
 | A subpath                            | exports map, `tsdown.config.ts`, `tests/bundle/baseline.json`, export snapshot, the subpath table in `packages/better-supabase/README.md`                                                  |
 | A public export                      | `packages/better-supabase/api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff                                                                                       |
-| An extension interface               | its kit in `src/testing/conformance.ts`, `tests/core/extensibility.test-d.ts`, the interfaces docs page                                                                                    |
+| An extension interface               | its kit in `src/testing/conformance.ts` (`AuthorizationProvider`: `src/testing/authorization-provider.ts`), `tests/core/extensibility.test-d.ts`, the interfaces docs page                 |
 | A spec version                       | `SPEC_PINS`, standards docs page, the test in `tests/standards` that asserts the pin                                                                                                       |
 | An adopted standard                  | a conformance test in `tests/standards` or `tests/cli/standards` and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both)                               |
 | A vendored official schema           | `tests/standards/schemas/SOURCES.md` (version, URL, SHA-256)                                                                                                                               |
@@ -286,13 +293,17 @@ standard or sets how the repo works.
 - 0008: the server and the framework adapters run on `@supabase/middleware` entries and bridges.
 - 0009: `stripe` is an optional peer loaded lazily; the flags block types OpenFeature structurally.
 - 0010: AI blocks stay SDK-neutral; each SDK gets an adapter subpath that owns no tables, messages use a canonical format, and tokens live behind a `credential_ref`.
+- 0011: authorization is a neutral, versioned `AuthorizationProvider`; libraries ship their own adapters (invariant 15).
+- 0012: kits are renamed to blocks, and every feature module imports from `better-supabase/blocks/<name>`.
+- 0013: SDK adapters whose SDK needs Node (`workflow-sdk/world`, `eve`) are Node-only entries.
+- 0014: `better-supabase/nestjs` loads `@nestjs/common` with a synchronous `createRequire`.
 
 ## Pre-release pins
 
 | Package                           | Version       | Why                                                                        |
 | --------------------------------- | ------------- | -------------------------------------------------------------------------- |
-| `@orpc/server`                    | 2.0.0-beta.41 | `better-supabase/orpc` targets the oRPC 2 API, which has no stable release |
-| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.41 | the contract-first tests and example; they move with `@orpc/server`        |
+| `@orpc/server`                    | 2.0.0-beta.42 | `better-supabase/orpc` targets the oRPC 2 API, which has no stable release |
+| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.42 | the contract-first tests and example; they move with `@orpc/server`        |
 | `c12`                             | 4.0.0-rc.2    | loads a `.ts` config through Node type stripping (ADR 0003)                |
 
 Move each to its stable release when it ships, and update this list with

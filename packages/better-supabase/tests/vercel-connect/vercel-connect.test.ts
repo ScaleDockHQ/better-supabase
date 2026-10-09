@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { VercelConnectModule } from "../../src/vercel-connect/index.ts";
 
@@ -110,6 +110,24 @@ describe("vercelConnectCredentials", () => {
     );
     const missing = await provider.getToken(ref, { subject: user });
     expect(missing.ok ? undefined : missing.error.message).toMatch(
+      /pnpm add @vercel\/connect/,
+    );
+  });
+
+  it("refuses a tenant's ref for the app subject", async () => {
+    const load = vi.fn(async () => undefined);
+    const provider = vercelConnectCredentials({ load });
+    const tenantRef = { ...ref, tenant: "acme" };
+    for (const result of [
+      await provider.getToken(tenantRef, { subject: { type: "app" } }),
+      await provider.revoke(tenantRef, { subject: { type: "app" } }),
+    ])
+      expect(result.ok ? undefined : result.error.hint).toBe(
+        "CREDENTIAL_REF_FOREIGN",
+      );
+    expect(load).not.toHaveBeenCalled();
+    const forUser = await provider.getToken(tenantRef, { subject: user });
+    expect(forUser.ok ? undefined : forUser.error.message).toMatch(
       /pnpm add @vercel\/connect/,
     );
   });

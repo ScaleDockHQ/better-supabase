@@ -92,6 +92,10 @@ describe("ai-chat module", () => {
     expect(sql).toContain('"external_run_id" text');
     expect(sql).toContain('unique ("run_id", "step_key")');
     expect(sql).toContain('primary key ("chat_id", "harness_id")');
+    expect(sql).not.toContain("create policy ai_harness_sessions_owner_read");
+    expect(sql).not.toMatch(
+      /grant select on "?[\w.]*"?\.?"?ai_harness_sessions"? to authenticated/,
+    );
     expect(sql).toContain("for update skip locked");
     for (const signature of [
       '"get_ai_run"(uuid)',
@@ -171,5 +175,41 @@ describe("ai-chat module", () => {
     expect(
       moduleBody("ai-chat", { modules: { "ai-chat": { mode: "custom" } } }),
     ).toBeUndefined();
+  });
+});
+
+describe("ai-chat tool approvals with the provider's canApprove", () => {
+  const withProvider = (distinctApprover?: boolean) =>
+    moduleBody("ai-chat", {
+      modules: { access: { model: "provider" } },
+      accessProvider: {
+        name: "stub",
+        scope: "organization",
+        idType: "uuid",
+        functions: {
+          idsWith: "authz.ids_with({permission}, {scope})",
+          isPlatform: "authz.is_platform({permission})",
+          canApprove: "authz.can_approve({tool}, {tenant})",
+        },
+        ...(distinctApprover === undefined
+          ? {}
+          : { approvals: { distinctApprover } }),
+      },
+    })!;
+
+  it("lets the owner decide without canApprove", () => {
+    const sql = body();
+    const decide = sql.slice(sql.indexOf("decide_ai_tool_approval"));
+    expect(decide).toContain("= (select auth.uid())");
+    expect(decide).not.toContain("can_approve");
+  });
+
+  it("asks canApprove, and keeps the requester out with distinctApprover", () => {
+    const shared = withProvider();
+    expect(shared).toMatch(/coalesce\(\(authz\.can_approve\(v_row\."tool"/);
+    expect(shared).not.toContain("is distinct from (select auth.uid())");
+    expect(withProvider(true)).toMatch(
+      /is distinct from \(select auth\.uid\(\)\) and coalesce\(\(authz\.can_approve/,
+    );
   });
 });

@@ -302,8 +302,6 @@ export interface PostgrestExecutorOptions extends PostgrestCompileOptions {
    * or to the client's `db.urlLengthLimit` when that is lower.
    */
   readonly urlLengthLimit?: number;
-  /** @deprecated Renamed to `urlLengthLimit`, which wins when both are set. */
-  readonly maxUrlLength?: number;
   /**
    * Aborts each request after this many milliseconds with a `timeout`
    * error. A call's own `timeout` replaces it. Off by default.
@@ -333,10 +331,9 @@ function clientUrlLengthLimit(client: PostgrestClientLike): number | undefined {
 /** The query-string budget for one read: the option, else the lower of 6000 and the client's limit. */
 export function resolveUrlLengthLimit(
   client: PostgrestClientLike,
-  options: Pick<PostgrestExecutorOptions, "urlLengthLimit" | "maxUrlLength">,
+  options: Pick<PostgrestExecutorOptions, "urlLengthLimit">,
 ): number {
-  // oxlint-disable-next-line typescript/no-deprecated -- the alias stays readable until it is removed.
-  const explicit = options.urlLengthLimit ?? options.maxUrlLength;
+  const explicit = options.urlLengthLimit;
   if (explicit !== undefined) return explicit;
   const fromClient = clientUrlLengthLimit(client);
   return fromClient === undefined

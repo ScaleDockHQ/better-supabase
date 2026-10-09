@@ -353,8 +353,6 @@ describe("resolveUrlLengthLimit", () => {
   it.each([
     [{}, {}, 6000],
     [{}, { urlLengthLimit: 9000 }, 9000],
-    [{}, { maxUrlLength: 4000 }, 4000],
-    [{}, { urlLengthLimit: 3000, maxUrlLength: 4000 }, 3000],
     [{ urlLengthLimit: 8000 }, {}, 6000],
     [{ urlLengthLimit: 2000 }, {}, 2000],
     [{ rest: { urlLengthLimit: 1500 } }, {}, 1500],
@@ -368,19 +366,14 @@ describe("resolveUrlLengthLimit", () => {
     expect(resolveUrlLengthLimit(supabase, {})).toBe(6000);
   });
 
-  it("chunks with urlLengthLimit, and still accepts maxUrlLength", async () => {
-    for (const options of [
-      { urlLengthLimit: 200 },
-      { maxUrlLength: 200 },
-    ] as const) {
-      const { client, requests } = capturingClient();
-      const ids = Array.from({ length: 40 }, (_, index) => `tag-${index}`);
-      const result = await defineSupabase(schema, options)
-        .connect(client)
-        .tags.findMany({ where: { id: { in: ids } } });
-      expect(result.ok).toBe(true);
-      expect(requests.length).toBeGreaterThan(1);
-    }
+  it("chunks with urlLengthLimit", async () => {
+    const { client, requests } = capturingClient();
+    const ids = Array.from({ length: 40 }, (_, index) => `tag-${index}`);
+    const result = await defineSupabase(schema, { urlLengthLimit: 200 })
+      .connect(client)
+      .tags.findMany({ where: { id: { in: ids } } });
+    expect(result.ok).toBe(true);
+    expect(requests.length).toBeGreaterThan(1);
   });
 });
 

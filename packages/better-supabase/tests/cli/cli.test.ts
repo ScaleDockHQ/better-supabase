@@ -930,10 +930,8 @@ describe("sql", () => {
 
     await config(withProvider({ tenantScope: "team" }));
     const invalid = await run(["sql", "add", "entitlements", "--cwd", dir]);
-    expect(invalid.code).toBe(1);
-    expect(invalid.stderr).toContain(
-      'authorization.tenantScope is "team", but the authorization provider (stub) has the scopes organization, project',
-    );
+    expect(invalid.code).toBe(2);
+    expect(invalid.stderr).toContain('tenantScope "team" is not a scope');
 
     await config(stubProvider, "tenant");
     const tenant = await run([

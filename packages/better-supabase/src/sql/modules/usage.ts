@@ -5,6 +5,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   quotedTable,
@@ -12,7 +13,7 @@ import {
   SERVICE_CALLER,
   tenantIn,
 } from "../shared.ts";
-import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
   options: ["meters", "history"],
@@ -208,8 +209,15 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission("read", permissions.read)}), false))`;
   const readPolicy = (tenant: string): string =>
     tenantIn(tenant, ctx.permission("read", permissions.read));
+  const memberIds =
+    accessModel(ctx) === "provider"
+      ? layout.accessProvider?.functions.memberIds
+      : undefined;
+  const providerScope = layout.accessProvider?.scope ?? "tenant";
   const member = (tenant: string): string =>
-    `(${SERVICE_CALLER} or coalesce(better_supabase.has_organization_role(${tenant}), false))`;
+    memberIds === undefined
+      ? `(${SERVICE_CALLER} or coalesce(better_supabase.has_organization_role(${tenant}), false))`
+      : `(${SERVICE_CALLER} or ${tenant}::text in (select t.id::text from ${fillTemplate("authorization.functions.memberIds", memberIds, { scope: providerScope })} as t(id)))`;
   const canRecord = (tenant: string): string =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission("record", permissions.record)}), false))`;
   // used is the quota period's usage, as usage_status reports it; today the UTC day's.
@@ -992,6 +1000,7 @@ export const USAGE: ModuleDefinition = {
   description:
     "Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.",
   requires: ["tenant", "access"],
+  providerFunctions: ["memberIds"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 4,

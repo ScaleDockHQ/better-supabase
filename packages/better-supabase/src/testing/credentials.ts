@@ -5,6 +5,7 @@ import type {
   CredentialSubject,
 } from "../credentials/provider.ts";
 
+import { tenantCredentialRef } from "../credentials/provider.ts";
 import { type ConformanceReport, conform, expect } from "./conformance.ts";
 
 export interface TestCredentialProviderOptions {
@@ -33,7 +34,8 @@ const kindOf = (result: Result<unknown>): string | undefined =>
 /**
  * Runs the `CredentialProvider` contract against `provider`: the API version,
  * an unknown ref, a stored token with its headers, a new value seen after it
- * is stored, separate credentials per user, revoke, and inbound checks that
+ * is stored, separate credentials per user and per tenant (`ref` with a
+ * `tenant`, which `seed` must store too), revoke, and inbound checks that
  * accept a signed request and refuse a tampered one.
  */
 export function testCredentialProvider(
@@ -118,6 +120,39 @@ export function testCredentialProvider(
           subject: APP,
         });
         expect(!asApp.ok, "the app read a per-user credential");
+      },
+    ],
+    [
+      "keeps a tenant's credential inside its namespace",
+      async () => {
+        const forA = tenantCredentialRef(crypto.randomUUID(), ref);
+        const forB = tenantCredentialRef(crypto.randomUUID(), ref);
+        const [app, a, b] = [value(), value(), value()];
+        await seed(ref, APP, app);
+        await seed(forA, APP, a);
+        await seed(forB, APP, b);
+        const tokenOf = async (of: CredentialRef) =>
+          (await provider.getToken(of, { subject: APP }).orThrow()).token;
+        expect(
+          (await tokenOf(ref)) === app &&
+            (await tokenOf(forA)) === a &&
+            (await tokenOf(forB)) === b,
+          "a tenant's ref resolved another tenant's or the app's credential",
+        );
+        expect(
+          await provider.revoke(forA, { subject: APP }).orThrow(),
+          "revoke found nothing in the tenant's namespace",
+        );
+        const after = await provider.getToken(forA, { subject: APP });
+        expect(
+          kindOf(after) === "not_found",
+          `after revoke got ${kindOf(after) ?? "a token"}`,
+        );
+        expect(
+          (await tokenOf(forB)) === b && (await tokenOf(ref)) === app,
+          "revoking a tenant's ref removed another tenant's or the app's credential",
+        );
+        await provider.revoke(forB, { subject: APP }).orThrow();
       },
     ],
     [

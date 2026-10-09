@@ -390,3 +390,39 @@ describe("buildModel enums", () => {
     );
   });
 });
+
+describe('bucket policies with sql: "provider"', () => {
+  const idsWith = "authz.ids_{scope}({permission})";
+  const isPlatform = "authz.is_platform({permission})";
+  const buckets = {
+    docs: {
+      path: "{organizationId}/{...rest}",
+      policy: {
+        access: { read: "documents.read", write: "documents.write" },
+        sql: "provider" as const,
+      },
+    },
+  };
+
+  it("copies the provider's templates into the bucket meta", async () => {
+    const { meta } = await model(() => ({}), {
+      buckets,
+      authorization: {
+        apiVersion: 1,
+        name: "stub",
+        scopes: [{ name: "organization", idType: "uuid" }],
+        tenantScope: "organization",
+        functions: { idsWith, isPlatform },
+      },
+    });
+    expect(meta.buckets?.["docs"]?.policy).toMatchObject({
+      sql: { idsWith, isPlatform },
+    });
+  });
+
+  it("fails without an authorization provider", async () => {
+    await expect(model(() => ({}), { buckets })).rejects.toThrow(
+      /buckets\.docs: sql "provider" needs `authorization`/,
+    );
+  });
+});

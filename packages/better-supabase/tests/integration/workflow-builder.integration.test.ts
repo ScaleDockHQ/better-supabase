@@ -126,12 +126,23 @@ describe.skipIf(!live)("workflow-builder module", () => {
       const draft = await builder.versions.save(definition.id, GRAPH).orThrow();
       expect(draft.id).toBe(broken.id);
       const v1 = await builder.versions.publish(draft.id).orThrow();
-      expect(v1).toMatchObject({
-        version: 1,
-        status: "published",
-        compiled: { engine: "test", nodes: 4 },
-      });
+      expect(v1).toMatchObject({ version: 1, status: "published" });
+      expect(v1).not.toHaveProperty("compiled");
       expect(compiled).toHaveLength(2);
+      expect(
+        await s.hint(
+          `better_supabase.publish_workflow_version($1, '{"source": "x"}'::jsonb)`,
+          [v1.id],
+        ),
+      ).toBe("WORKFLOW_COMPILED_FORBIDDEN");
+      await s.service();
+      expect(
+        await s.value<{ compiled: unknown }>(
+          `better_supabase.publish_workflow_version($1, '{"engine": "test"}'::jsonb)`,
+          [v1.id],
+        ),
+      ).toMatchObject({ compiled: { engine: "test" } });
+      await s.asRole(owner);
 
       const next = await builder.versions
         .save(definition.id, {
@@ -395,7 +406,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
             tenant,
             kind: "crm",
             name: "CRM",
-            ref: { provider: "memory", secret: "crm" },
+            ref: { provider: "memory", secret: "crm", tenant },
           })
           .then((result) => !result.ok && result.error.hint),
       ).toBe("WORKFLOW_FORBIDDEN");
@@ -410,7 +421,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
           tenant,
           kind: "crm",
           name: "CRM",
-          ref: { provider: "memory", secret: "crm" },
+          ref: { provider: "memory", secret: "crm", tenant },
           scopes: ["contacts.read"],
           secret: "s3cret",
         })

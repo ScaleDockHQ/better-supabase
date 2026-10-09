@@ -90,10 +90,21 @@ process stopped. Call it once at startup, for example from
 
 Each delivery is signed with the secret (`x-bs-signature`, an HMAC-SHA256
 over the time, the job and the body). The World's queue handler refuses an
-unsigned or stale request with 401, and completes or fails the job itself,
-so a delivery whose response is lost runs again after its lease. Leave the
-flow route out of your proxy's matcher: the World checks the signature, not
-a session.
+unsigned or stale request with a 401 Problem Details response, and
+completes or fails the job itself, so a delivery whose response is lost runs
+again after its lease. Leave the flow route out of your proxy's matcher: the
+World checks the signature, not a session.
+
+Poll mode needs the secret too, unless `NODE_ENV` is `development` or
+`test`: without one, the flow route answers every delivery with 401. Store
+it in Vault as above or set `WORKFLOW_DELIVERY_SECRET`. A secret or key that
+isn't in Vault counts as not set; a Vault read that fails is not cached, so
+the next delivery reads again, and until then the route answers 503 and run
+data can't be read or written.
+
+A poll delivery that the flow route doesn't answer within `deliveryTimeout`
+seconds (300 by default, at least `lease`) is aborted and retried. The
+poller extends the job's lease only while the request is open.
 
 ## Encryption
 
@@ -101,7 +112,8 @@ With a 32-byte master key (base64 or hex) in `encryptionKey` or the Vault
 secret `workflow_encryption_key`, the World derives an AES-256 key per run
 with HKDF-SHA256, and the SDK stores the run's inputs, outputs and step
 data encrypted. Without one, they are stored as JSON in the `workflow`
-schema.
+schema. When Vault can't be read, the World doesn't fall back to
+unencrypted data: the read fails, and the next one tries Vault again.
 
 ## Starting runs as the user
 
@@ -228,9 +240,11 @@ export const steps = { "email.send": sendEmail };
 ```
 
 Dynamic workflows are experimental in the Workflow SDK. With
-`WORKFLOW_EXPERIMENTAL_DYNAMIC_WORKFLOWS=1`, `graphStarter` starts the
-compiled source of the published version; source over 128 KiB fails to
-publish. Without it, `graphStarter` starts `executor`, a static
+`WORKFLOW_EXPERIMENTAL_DYNAMIC_WORKFLOWS=1`, `graphStarter` compiles the
+published version's graph again on every start and runs that source; it
+never runs the `compiled` form stored with the version. Source over 128 KiB
+fails to publish. Node ids are 1 to 100 letters, digits, underscores or
+hyphens, in `validateGraph` and in `validate_workflow_graph`. Without it, `graphStarter` starts `executor`, a static
 `"use workflow"` function that walks the stored graph with `executeGraph`
 and takes the same branches. Either way a run carries `bs.definition`,
 `bs.version`, `bs.tenant`, `bs.actor` and `bs.key`, and a start with a key

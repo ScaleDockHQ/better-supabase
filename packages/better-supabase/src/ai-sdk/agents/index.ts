@@ -5,6 +5,7 @@ export {
   agentToolApproval,
   createAgentRuntime,
   type AgentRuntimeOptions,
+  type AgentToolApprovalFunction,
   ModerationBlockedError,
   moderationMiddleware,
   type ModerationMiddlewareOptions,

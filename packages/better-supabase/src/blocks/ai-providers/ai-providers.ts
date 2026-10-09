@@ -9,6 +9,10 @@ import type { JobHandler } from "../jobs/queue.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
+  credentialRefInTenant,
+  foreignCredentialRef,
+} from "../../credentials/provider.ts";
+import {
   applyTemporal,
   blockCall,
   type BlockTemporalOptions,
@@ -416,18 +420,21 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
   );
   const credentials = options.credentials;
 
-  const revoke = (ref: CredentialRef): AsyncResult<boolean> =>
-    credentials === undefined
+  const revoke = (
+    ref: CredentialRef,
+    organizationId: string,
+  ): AsyncResult<boolean> =>
+    credentials === undefined || !credentialRefInTenant(ref, organizationId)
       ? AsyncResult.ok(false)
       : credentials.revoke(ref, { subject: { type: "app" } });
 
-  const revokeAll = (refs: readonly CredentialRef[]): AsyncResult<number> =>
+  const revokeAll = (keys: readonly AiProviderKey[]): AsyncResult<number> =>
     AsyncResult.from(async () => {
-      for (const ref of refs) {
-        const revoked = await revoke(ref);
+      for (const key of keys) {
+        const revoked = await revoke(key.credentialRef, key.organizationId);
         if (!revoked.ok) return revoked;
       }
-      return ok(refs.length);
+      return ok(keys.length);
     });
 
   const idle = (
@@ -498,7 +505,7 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
           const replaced = saved["replaced"];
           return isRecord(replaced) &&
             !sameRef(refOf(replaced), stored.credentialRef)
-            ? revoke(refOf(replaced)).map(() => stored)
+            ? revoke(refOf(replaced), stored.organizationId).map(() => stored)
             : AsyncResult.ok(stored);
         }),
       remove: (keyId) =>
@@ -507,14 +514,14 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
         ).andThen((key) =>
           key === undefined
             ? AsyncResult.ok(false)
-            : revoke(key.credentialRef).map(() => true),
+            : revoke(key.credentialRef, key.organizationId).map(() => true),
         ),
       removeAll: (organizationId) =>
         service(
           "delete_ai_provider_keys",
           { tenant: organizationId },
           (value) => recordsOf(value, "delete_ai_provider_keys").map(keyOf),
-        ).andThen((keys) => revokeAll(keys.map((key) => key.credentialRef))),
+        ).andThen(revokeAll),
       resolve: (organizationId, resolveOptions = {}) =>
         service(
           "ai_provider_keys_for",
@@ -532,15 +539,28 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
                 ),
               );
             }
+            const foreign = keys.find(
+              (key) =>
+                !credentialRefInTenant(key.credentialRef, organizationId),
+            );
+            if (foreign !== undefined) {
+              return err(foreignCredentialRef(organizationId));
+            }
+            const tokens = await Promise.all(
+              keys.map((key) =>
+                credentials.getToken(key.credentialRef, {
+                  subject: { type: "app" },
+                  ...(resolveOptions.signal === undefined
+                    ? {}
+                    : { signal: resolveOptions.signal }),
+                }),
+              ),
+            );
             const resolved: ResolvedProviderKey[] = [];
-            for (const key of keys) {
-              const token = await credentials.getToken(key.credentialRef, {
-                subject: { type: "app" },
-                ...(resolveOptions.signal === undefined
-                  ? {}
-                  : { signal: resolveOptions.signal }),
-              });
+            for (const [index, token] of tokens.entries()) {
               if (!token.ok) return token;
+              const key = keys[index];
+              if (key === undefined) continue;
               resolved.push({
                 provider: key.provider,
                 name: key.name,

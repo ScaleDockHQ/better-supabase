@@ -22,8 +22,8 @@ import {
   type ActionParsed,
   type ActionResult,
   type AuthorizedContext,
-  type KitActionOptions,
-  type KitRequireOptions,
+  type BlockActionOptions,
+  type BlockRequireOptions,
   requireCaller,
   runAction,
   type Unwrapped,
@@ -102,7 +102,7 @@ export interface BetterSvelteKit<
    */
   require<R extends boolean = false>(
     event: SvelteKitRequestEvent,
-    options?: KitRequireOptions<C, P, R>,
+    options?: BlockRequireOptions<C, P, R>,
   ): Promise<FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>>;
   /**
    * A form action returning an `ActionResult`: validates the form with
@@ -110,7 +110,7 @@ export interface BetterSvelteKit<
    * `fail(status, result)` when `kit` is set, so `form.error` is a `DbError`.
    */
   action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
-    options: KitActionOptions<S, C, P, R>,
+    options: BlockActionOptions<S, C, P, R>,
     fn: (
       input: ActionParsed<S>,
       ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,

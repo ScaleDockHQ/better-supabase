@@ -55,7 +55,7 @@ function fake(replies: Record<string, Reply>) {
 }
 
 describe("workflowRunOf", () => {
-  it("reads a run and rejects unknown statuses and missing times", () => {
+  it("reads a run, maps unknown statuses to running and rejects missing times", () => {
     const run = workflowRunOf(RUN);
     expect(run).toMatchObject({
       externalId: "wrun_1",
@@ -66,8 +66,10 @@ describe("workflowRunOf", () => {
     });
     expect(run.createdAt.toString()).toBe("2026-01-01T00:00:00Z");
     expect(workflowRunOf({ ...RUN, attributes: null }).attributes).toEqual({});
-    expect(() => workflowRunOf({ ...RUN, status: "paused" })).toThrow(
-      'unknown run status "paused"',
+    for (const status of ["paused", "", null, 3])
+      expect(workflowRunOf({ ...RUN, status }).status).toBe("running");
+    expect(workflowRunOf({ ...RUN, status: "cancelled" }).status).toBe(
+      "cancelled",
     );
     expect(() => workflowRunOf({ ...RUN, createdAt: null })).toThrow(
       "createdAt is missing",

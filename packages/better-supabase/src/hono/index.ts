@@ -19,7 +19,7 @@ import { dbErrorOf } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
-import { type KitRequireOptions, requireCaller } from "../server/kit.ts";
+import { type BlockRequireOptions, requireCaller } from "../server/kit.ts";
 import {
   defineResource,
   type ResourceRouteOptions,
@@ -32,7 +32,7 @@ import {
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
-export type { KitRequireOptions } from "../server/kit.ts";
+export type { BlockRequireOptions } from "../server/kit.ts";
 export { toHono } from "../bridges/hono.ts";
 export type { HonoBridge } from "../bridges/hono.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
@@ -89,11 +89,11 @@ export interface BetterHono<
    * `requireTenant` and `authorize`. A refused caller gets Problem Details.
    *
    * ```ts
-   * app.post('/invites', bs.require({ requireTenant: true, authorize: (s) => can(s, 'members.invite') }), handler)
+   * app.post('/invites', bs.require({ requireTenant: true, roles: ['admin'] }), handler)
    * ```
    */
   require: (
-    options?: KitRequireOptions<C, P>,
+    options?: BlockRequireOptions<C, P>,
   ) => MiddlewareHandler<HonoEnv<M, F, E, C, P>>;
   /**
    * Wraps a handler: `Result`s and `AsyncResult`s become JSON or Problem

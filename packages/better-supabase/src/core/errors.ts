@@ -1,3 +1,7 @@
+import { DbException } from "./db-exception.ts";
+
+export { DbException };
+
 /**
  * Extra fields carried by each error kind. Plugins can add kinds through the
  * `errors` extension point; apps that want the new kinds in the union can add
@@ -198,21 +202,6 @@ export const isForeignKey: <C extends string = string>(
   constraint?: NoInfer<C>,
 ) => error is DbErrorOf<"foreign_key"> & { readonly constraint: C } =
   constraintGuard("foreign_key");
-
-/** Thrown by `.orThrow()`. Carries the plain `DbError` as `error`. */
-export class DbException extends Error {
-  override readonly name = "DbException";
-  readonly error: DbError;
-
-  constructor(error: DbError) {
-    super(error.message);
-    this.error = error;
-  }
-
-  get kind(): DbErrorKind {
-    return this.error.kind;
-  }
-}
 
 /** Raw error shape shared by PostgREST responses and `pg` errors. */
 export interface RawDbError {

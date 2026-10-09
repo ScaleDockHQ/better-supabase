@@ -184,7 +184,18 @@ another authorization system. It has `apiVersion: 1` and is plain data in
 `better-supabase.config.ts`: its scopes, the scope tenants are, and SQL
 templates such as `idsWith` and `isPlatform` that answer permission checks.
 [Authorization providers](/docs/extending/authorization-providers) describes
-every field.
+every field. `testAuthorizationProvider` from `better-supabase/testing` is its
+conformance block.
+
+The optional fields each turn on one integration:
+
+| Field                         | What reads it                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| `functions.permissionsFor`    | `member_permissions` and `permission_claims` in the `access` module                   |
+| `functions.canApprove`        | `decide_ai_tool_approval` in the `ai-chat` module                                     |
+| `approvals.distinctApprover`  | the same function: the chat's owner can't decide its own tool calls                   |
+| `functions.*For`, `memberIds` | the modules doctor (BS411) lists when they are missing                                |
+| `sql: "provider"`             | bucket and topic `access` policies, rendered from `functions` at `gen` and `sql sync` |
 
 ## AuthResolver
 

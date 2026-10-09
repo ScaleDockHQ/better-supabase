@@ -17,8 +17,8 @@ import {
   type ActionParsed,
   type ActionResult,
   type AuthorizedContext,
-  type KitActionOptions,
-  type KitRequireOptions,
+  type BlockActionOptions,
+  type BlockRequireOptions,
   requireCaller,
   runAction,
   type Unwrapped,
@@ -78,7 +78,7 @@ export interface BetterAstro<
    */
   guard(
     context: AstroContextLike,
-    options?: KitRequireOptions<C, P>,
+    options?: BlockRequireOptions<C, P>,
   ): Promise<Response | undefined>;
   /**
    * The caller, or a thrown refusal `Response`, for endpoints that return
@@ -86,7 +86,7 @@ export interface BetterAstro<
    */
   require<R extends boolean = false>(
     context: AstroContextLike,
-    options?: KitRequireOptions<C, P, R>,
+    options?: BlockRequireOptions<C, P, R>,
   ): Promise<FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>>;
   /**
    * The `handler` of `defineAction`, returning an `ActionResult`:
@@ -98,7 +98,7 @@ export interface BetterAstro<
    * ```
    */
   action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
-    options: KitActionOptions<S, C, P, R>,
+    options: BlockActionOptions<S, C, P, R>,
     fn: (
       input: ActionParsed<S>,
       ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,
@@ -145,7 +145,7 @@ export function createAstro<
 
   const refusalOf = async (
     context: AstroContextLike,
-    requireOptions: KitRequireOptions<C, P>,
+    requireOptions: BlockRequireOptions<C, P>,
   ) => {
     const scope = scopeOf(context);
     const caller = await requireCaller(

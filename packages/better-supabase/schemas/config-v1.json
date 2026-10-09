@@ -251,6 +251,10 @@
         "features": {
           "type": "string",
           "description": "Claim holding plan features per tenant. Defaults to `features`."
+        },
+        "memberships": {
+          "type": "string",
+          "description": "Claim the memberships hook writes. Defaults to `memberships`."
         }
       }
     },
@@ -321,18 +325,25 @@
                     "minimum": 1
                   },
                   "sql": {
-                    "type": "object",
-                    "required": ["idsWith", "isPlatform"],
-                    "additionalProperties": false,
-                    "description": "SQL templates with `{permission}` and `{scope}` the policy calls instead of the access contract.",
-                    "properties": {
-                      "idsWith": {
-                        "type": "string"
+                    "description": "SQL templates with `{permission}` and `{scope}` the policy calls instead of the access contract, or `provider` for `authorization.functions`.",
+                    "oneOf": [
+                      {
+                        "const": "provider"
                       },
-                      "isPlatform": {
-                        "type": "string"
+                      {
+                        "type": "object",
+                        "required": ["idsWith", "isPlatform"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "idsWith": {
+                            "type": "string"
+                          },
+                          "isPlatform": {
+                            "type": "string"
+                          }
+                        }
                       }
-                    }
+                    ]
                   }
                 }
               }
@@ -609,7 +620,8 @@
                 "pattern": "^[a-z][a-z0-9_]*$"
               },
               "idType": {
-                "type": "string"
+                "enum": ["uuid", "text", "bigint", "integer"],
+                "description": "Required on the tenant scope."
               },
               "parent": {
                 "type": "string"
@@ -625,7 +637,7 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["idsWith", "isPlatform"],
-          "description": "SQL templates with {permission}, {scope}, {user}, {tenant} and {role}.",
+          "description": "SQL templates with {permission}, {scope}, {user}, {tenant}, {role} and {tool}.",
           "properties": {
             "idsWith": {
               "type": "string"
@@ -650,6 +662,14 @@
             },
             "canAssignFor": {
               "type": "string"
+            },
+            "permissionsFor": {
+              "type": "string",
+              "description": "The permission keys {user} holds in {tenant}, as a text[]."
+            },
+            "canApprove": {
+              "type": "string",
+              "description": "Whether the caller may decide the tool call {tool} waits on in {tenant}."
             }
           }
         },
@@ -835,7 +855,9 @@
         "decidingColumns": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "description": "`schema.table.column`.",
+            "pattern": "^[A-Za-z_][\\w$]*\\.[A-Za-z_][\\w$]*\\.[A-Za-z_][\\w$]*$"
           }
         },
         "tokenHook": {
@@ -851,6 +873,7 @@
             },
             "ownedClaims": {
               "type": "array",
+              "minItems": 1,
               "items": {
                 "type": "string"
               }
@@ -905,6 +928,16 @@
             },
             "grantsCommand": {
               "type": "string"
+            }
+          }
+        },
+        "approvals": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "distinctApprover": {
+              "type": "boolean",
+              "description": "The user who asked for a tool call can't approve it. Default false."
             }
           }
         },

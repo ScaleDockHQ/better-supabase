@@ -6,10 +6,11 @@ the clients (`client`, `client/native`) and the local-first entries
 
 ## Shared guards
 
-- Every server adapter takes the same guard options, `KitRequireOptions`
-  (`roles`, `roleClaim`, `requireTenant`, `authorize`). Add a guard there,
-  not in one adapter, so `bs.require`, `bs.authed`, `bs.routes` and the
-  Next.js helpers stay in step.
+- Every server adapter takes the same guard options, `BlockRequireOptions`
+  (`roles`, `roleClaim`, `requireTenant`, `authorize`), and every
+  `bs.action` takes `BlockActionOptions` (the same guards plus `input`).
+  Add a guard there, not in one adapter, so `bs.require`, `bs.authed`,
+  `bs.routes`, `bs.action` and the Next.js helpers stay in step.
 - The fixture puts the role in the top-level `user_role` claim, so the
   examples pass `roleClaim: "user_role"`. The default is `app_metadata.role`;
   the top-level `role` claim is `authenticated` for every signed-in user.

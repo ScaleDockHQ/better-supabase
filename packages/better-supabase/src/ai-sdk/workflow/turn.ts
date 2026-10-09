@@ -341,10 +341,23 @@ export async function durableTurn(
     const waiting = requests.map((request) => request.approvalId);
     let decided: DurableDecision[] = [];
     let next: DurableResume | undefined;
+    // A claimed segment that never runs still holds the chat's stream.
+    const drop = async (claimed: DurableResume | undefined): Promise<void> => {
+      if (claimed === undefined) return;
+      await deps.step("release", {
+        chatId: input.chatId,
+        streamId: claimed.streamId,
+        organizationId: input.organizationId,
+        status: "stopped",
+      });
+    };
     while (decided.length < waiting.length) {
       const signal = await Promise.race([resumes.next(), stopped]);
-      if (signal === STOPPED || signal.done === true)
+      if (signal === STOPPED || signal.done === true) {
+        await drop(next);
         return { status: "stopped", messageId: input.messageId, segments };
+      }
+      await drop(next);
       next = signal.value;
       decided = await deps.step("decisions", {
         chatId: input.chatId,

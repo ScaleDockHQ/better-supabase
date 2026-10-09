@@ -18,6 +18,7 @@ import {
   withMemory,
 } from "../../../src/ai-sdk/memory/index.ts";
 import { dbError } from "../../../src/core/errors.ts";
+import { DbException } from "../../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 import { SPEC_PINS } from "../../../src/core/spec-pins.ts";
 
@@ -131,6 +132,9 @@ describe("recallTool", () => {
     await expect(
       recallTool(failing, "org").execute?.({ query: "q" }, options),
     ).rejects.toThrow("denied");
+    await expect(
+      recallTool(failing, "org").execute?.({ query: "q" }, options),
+    ).rejects.toBeInstanceOf(DbException);
   });
 });
 
@@ -206,6 +210,8 @@ describe("extractMemories", () => {
         job,
         new AbortController().signal,
       ),
-    ).rejects.toThrow("db down");
+    ).rejects.toSatisfy(
+      (error) => error instanceof DbException && error.message === "db down",
+    );
   });
 });

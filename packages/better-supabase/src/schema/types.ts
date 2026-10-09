@@ -156,6 +156,8 @@ export interface ClaimsMeta {
   readonly scope: string;
   /** Claim holding plan features per tenant (`{ [tenantId]: string[] }`). Defaults to `features`. */
   readonly features: string;
+  /** Claim holding the caller's memberships (`{ scope, id, role }[]`). Defaults to `memberships`. */
+  readonly memberships: string;
 }
 
 export interface RealtimeTableMeta {
@@ -202,7 +204,11 @@ export interface AccessBucketPolicy {
   readonly scope?: string;
   /** 1-based path segment holding the scope id. Defaults to the `{organizationId}` segment. */
   readonly segment?: number;
-  readonly sql?: AccessPolicySql;
+  /**
+   * The templates to call, or `"provider"` for `authorization.functions`
+   * from the config, which `gen` copies in.
+   */
+  readonly sql?: AccessPolicySql | "provider";
 }
 
 /** An access topic policy: `select` (receive) and `insert` (send) on `realtime.messages`. */
@@ -214,7 +220,8 @@ export interface AccessTopicPolicy {
   readonly scope?: string;
   /** 1-based `:`-separated topic segment holding the scope id. Defaults to the `{organizationId}` segment. */
   readonly segment?: number;
-  readonly sql?: AccessPolicySql;
+  /** As for {@link AccessBucketPolicy}. */
+  readonly sql?: AccessPolicySql | "provider";
 }
 
 export interface BucketMeta {

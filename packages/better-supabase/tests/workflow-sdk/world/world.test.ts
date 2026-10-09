@@ -443,15 +443,35 @@ describe("createSupabaseWorld", () => {
     await world.close();
   });
 
-  it("passes unsigned requests through in poll mode without a secret", async () => {
-    const { pool } = fakePool({ vault: () => [] });
-    const world = createSupabaseWorld({ pool });
-    const handler = world.createQueueHandler("__wkf_step_", async () => {});
-    const response = await handler(
-      new Request("https://app.test/flow", { method: "POST", body: "{}" }),
-    );
-    expect(response.status).toBe(200);
-    await world.close();
+  it("passes unsigned requests through in poll mode without a secret only in development and test", async () => {
+    const unsigned = () =>
+      new Request("https://app.test/flow", { method: "POST", body: "{}" });
+    for (const mode of ["development", "test"]) {
+      vi.stubEnv("NODE_ENV", mode);
+      const { pool } = fakePool({ vault: () => [] });
+      const world = createSupabaseWorld({ pool });
+      const handler = world.createQueueHandler("__wkf_step_", async () => {});
+      expect((await handler(unsigned())).status).toBe(200);
+      await world.close();
+    }
+    for (const mode of ["production", ""]) {
+      vi.stubEnv("NODE_ENV", mode);
+      inner.mockClear();
+      const { pool } = fakePool({ vault: () => [] });
+      const world = createSupabaseWorld({ pool });
+      const handler = world.createQueueHandler("__wkf_step_", async () => {});
+      const response = await handler(unsigned());
+      expect(response.status).toBe(401);
+      expect(response.headers.get("content-type")).toBe(
+        "application/problem+json",
+      );
+      expect(await response.json()).toMatchObject({
+        code: "WORKFLOW_DELIVERY_REJECTED",
+        detail: expect.stringContaining("WORKFLOW_DELIVERY_SECRET"),
+      });
+      expect(inner).not.toHaveBeenCalled();
+      await world.close();
+    }
   });
 
   it("derives run keys from the Vault key and re-enqueues active runs on start", async () => {
@@ -478,19 +498,111 @@ describe("createSupabaseWorld", () => {
     await open.close();
   });
 
-  it("treats an unreadable Vault as no secret and no key", async () => {
-    const { pool } = fakePool({
-      vault: () => {
-        throw new Error("permission denied for schema vault");
+  it("fails closed on an unreadable Vault and reads it again next time", async () => {
+    let broken = true;
+    const master = Buffer.alloc(32, 3).toString("base64");
+    const { pool, queries } = fakePool({
+      vault: (params) => {
+        if (broken) throw new Error("permission denied for schema vault");
+        return params[0] === "workflow_encryption_key"
+          ? [{ secret: master }]
+          : [{ secret: "sec" }];
       },
     });
     const world = createSupabaseWorld({ pool });
-    expect(await world.getEncryptionKeyForRun!("wrun_1")).toBeUndefined();
-    const handler = world.createQueueHandler("__wkf_step_", async () => {});
-    const response = await handler(
-      new Request("https://app.test/flow", { method: "POST", body: "{}" }),
+    await expect(world.getEncryptionKeyForRun!("wrun_1")).rejects.toThrow(
+      "permission denied",
     );
-    expect(response.status).toBe(200);
+    const handler = world.createQueueHandler("__wkf_step_", async () => {});
+    const unsigned = () =>
+      new Request("https://app.test/flow", { method: "POST", body: "{}" });
+    const response = await handler(unsigned());
+    expect(response.status).toBe(503);
+    expect(inner).not.toHaveBeenCalled();
+
+    broken = false;
+    expect(await world.getEncryptionKeyForRun!("wrun_1")).toEqual(
+      await deriveRunKey(parseMasterKey(master), "wrun_1"),
+    );
+    expect((await handler(unsigned())).status).toBe(401);
+    const reads = queries.filter((query) => query.fn === "vault").length;
+    await world.getEncryptionKeyForRun!("wrun_2");
+    await handler(unsigned());
+    expect(queries.filter((query) => query.fn === "vault")).toHaveLength(reads);
     await world.close();
+  });
+
+  it("fails a poll delivery whose secret can't be read, without posting it", async () => {
+    const { pool, queries } = fakePool({
+      claim_jobs: () => [
+        { id: 1, attempts: 1, message: { payload: stored() } },
+      ],
+      fail_job: () => [],
+      vault: () => {
+        throw new Error("vault down");
+      },
+    });
+    const fetch = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    const world = createSupabaseWorld({ pool, flowUrl: "https://app.test/f" });
+    await world.deliverOnce();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(queries.find((query) => query.fn === "fail_job")?.params[3]).toBe(
+      "vault down",
+    );
+    await world.close();
+  });
+
+  it("aborts a delivery the flow route doesn't answer within the timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const { pool, queries } = fakePool({
+        claim_jobs: () => [
+          { id: 1, attempts: 1, message: { payload: stored() } },
+        ],
+        fail_job: () => [],
+        extend_job_lease: () => [],
+        vault: () => [],
+      });
+      let seen: AbortSignal | undefined;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          (_url: string, init: RequestInit) =>
+            new Promise<Response>((_resolve, reject) => {
+              seen = init.signal ?? undefined;
+              init.signal?.addEventListener("abort", () => {
+                reject(new Error("timed out"));
+              });
+            }),
+        ),
+      );
+      const world = createSupabaseWorld({
+        pool,
+        flowUrl: "https://app.test/f",
+        lease: 10,
+        deliveryTimeout: 20,
+      });
+      const delivered = world.deliverOnce();
+      await vi.advanceTimersByTimeAsync(19_000);
+      expect(seen?.aborted).toBe(false);
+      const extended = queries.filter(
+        (query) => query.fn === "extend_job_lease",
+      ).length;
+      expect(extended).toBeGreaterThan(0);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await delivered;
+      expect(seen?.aborted).toBe(true);
+      expect(queries.find((query) => query.fn === "fail_job")?.params[3]).toBe(
+        "timed out",
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(
+        queries.filter((query) => query.fn === "extend_job_lease"),
+      ).toHaveLength(extended);
+      await world.close();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -18,8 +18,8 @@ import {
   type ActionParsed,
   type ActionResult,
   type AuthorizedContext,
-  type KitActionOptions,
-  type KitRequireOptions,
+  type BlockActionOptions,
+  type BlockRequireOptions,
   requireCaller,
   runAction,
   type Unwrapped,
@@ -77,7 +77,7 @@ export interface BetterReactRouter<
    * is thrown the same way.
    */
   loader<A extends ReactRouterArgs, T, R extends boolean = false>(
-    options: KitRequireOptions<C, P, R>,
+    options: BlockRequireOptions<C, P, R>,
     fn: (
       args: A,
       ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,
@@ -90,7 +90,7 @@ export interface BetterReactRouter<
     A extends ReactRouterArgs = ReactRouterArgs,
     R extends boolean = false,
   >(
-    options: KitActionOptions<S, C, P, R>,
+    options: BlockActionOptions<S, C, P, R>,
     fn: (
       input: ActionParsed<S>,
       ctx: FrameworkLocals<M, F, E, C, P> & AuthorizedContext<C, P, R>,

@@ -2,8 +2,8 @@ import type { CallOptions } from "../core/plugin.ts";
 import type { Condition, InsertOp, MutationOp } from "../ir/types.ts";
 import type { TableMeta } from "../schema/types.ts";
 
+import { DbException } from "../core/db-exception.ts";
 import { dbError } from "../core/errors.ts";
-import { DbException } from "../core/errors.ts";
 import { lookupOf } from "../schema/lookup.ts";
 
 type Row = Readonly<Record<string, unknown>>;

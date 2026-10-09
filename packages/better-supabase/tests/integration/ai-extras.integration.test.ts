@@ -73,8 +73,16 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
       const transport = sqlTransport(s.sql);
       const credentials = vaultCredentials({ transport, cacheMs: 0 });
       const providers = createAiProviders({ transport, credentials });
-      const ref = { provider: "vault", secret: `ai-${crypto.randomUUID()}` };
-      const backup = { provider: "vault", secret: `ai-${crypto.randomUUID()}` };
+      const ref = {
+        provider: "vault",
+        secret: `ai-${crypto.randomUUID()}`,
+        tenant,
+      };
+      const backup = {
+        provider: "vault",
+        secret: `ai-${crypto.randomUUID()}`,
+        tenant,
+      };
 
       await s.service();
       await credentials.set(ref, "sk-ant-1").orThrow();
@@ -93,6 +101,13 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
         credentialRef: { name: "no-provider" } as never,
       });
       expect(badRef.ok).toBe(false);
+      expect(
+        await s.hint("better_supabase.save_ai_provider_key($1, $2, $3)", [
+          tenant,
+          "anthropic",
+          { provider: "vault", secret: "theirs", tenant: crypto.randomUUID() },
+        ]),
+      ).toBe("CREDENTIAL_REF_FOREIGN");
       const saved = await providers.keys
         .save(tenant, {
           provider: "anthropic",

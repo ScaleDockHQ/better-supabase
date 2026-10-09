@@ -65,9 +65,27 @@ describe("testAuthorizationProvider", () => {
           ],
         }),
       ),
-    ).toContainEqual(expect.stringMatching(/scope "team" has id type numeric/));
+    ).toContainEqual(
+      expect.stringMatching(
+        /scope "team" has idType "numeric".*scope "team" has parent "workspace", which is not a scope/,
+      ),
+    );
     expect(await failures(withProvider({ tenantScope: "workspace" }))).toEqual([
-      expect.stringMatching(/tenantScope "workspace" is not in scopes/),
+      expect.stringMatching(/tenantScope "workspace" is not a scope/),
+    ]);
+    expect(
+      await failures(
+        withProvider({
+          scopes: [
+            { name: "organization", parent: "project" },
+            { name: "project", idType: "uuid", parent: "organization" },
+          ],
+        }),
+      ),
+    ).toEqual([
+      expect.stringMatching(
+        /is its own ancestor \(a parent cycle\).*tenant scope "organization" has no idType/,
+      ),
     ]);
   });
 
@@ -141,5 +159,185 @@ describe("testAuthorizationProvider", () => {
         /tokenHook\.function "access_token_hook" is not schema\.name/,
       ),
     ]);
+  });
+
+  it("needs {scope}, {tenant} and {role} where the template must tell them apart", async () => {
+    expect(
+      await failures(
+        withProvider({
+          functions: {
+            ...stubProvider.functions,
+            idsWith: "authz.ids_organization({permission})",
+            canAssign: "authz.can_assign({tenant}, 'member')",
+          },
+        }),
+      ),
+    ).toEqual([
+      expect.stringMatching(
+        /functions\.idsWith doesn't use \{scope\}, so it answers the same for every scope/,
+      ),
+    ]);
+    expect(
+      await failures(
+        withProvider({
+          functions: {
+            ...stubProvider.functions,
+            canAssign: "authz.can_assign({role})",
+          },
+        }),
+      ),
+    ).toEqual([
+      expect.stringMatching(/functions\.canAssign doesn't use \{tenant\}/),
+    ]);
+  });
+
+  it("refuses templates that aren't safe to inline", async () => {
+    for (const [template, problem] of [
+      ["authz.ids_{scope}({permission}); drop table x", /contains ";"/],
+      ["authz.ids_{scope}({permission}) -- x", /contains "--"/],
+      ["$$authz.ids_{scope}({permission})$$", /contains "\$\$"/],
+      ["ids_{scope}({permission})", /calls ids_scope\(\) without a schema/],
+      [
+        "array(select unnest(authz.ids_{scope}({permission})))",
+        /calls unnest\(\) without a schema/,
+      ],
+    ] as const) {
+      expect(
+        await failures(
+          withProvider({
+            functions: { ...stubProvider.functions, idsWith: template },
+          }),
+        ),
+      ).toContainEqual(expect.stringMatching(problem));
+    }
+    expect(
+      await testAuthorizationProvider(
+        withProvider({
+          functions: {
+            ...stubProvider.functions,
+            idsWith: "authz.ids_{scope}(coalesce({permission}, ';'))",
+          },
+        }),
+      ),
+    ).toBeDefined();
+  });
+
+  it("needs requires when the templates call functions", async () => {
+    expect(await failures(withProvider({ requires: undefined }))).toEqual([
+      expect.stringMatching(
+        /the templates call functions, but requires is unset/,
+      ),
+    ]);
+  });
+
+  it("keeps owned and registered token hook claims apart", async () => {
+    expect(
+      await failures(
+        withProvider({
+          tokenHook: {
+            ...stubProvider.tokenHook,
+            ownedClaims: ["memberships", "features"],
+            budget: { claims: ["features"], bytes: 512 },
+          },
+        }),
+      ),
+    ).toEqual([
+      expect.stringMatching(
+        /tokenHook registers "features", which ownedClaims also lists/,
+      ),
+    ]);
+    expect(
+      await failures(
+        withProvider({
+          tokenHook: {
+            ...stubProvider.tokenHook,
+            budget: { claims: ["permissions"], bytes: 512 },
+          },
+        }),
+      ),
+    ).toEqual([
+      expect.stringMatching(/tokenHook\.budget counts "permissions"/),
+    ]);
+    expect(
+      await failures(
+        withProvider({
+          tokenHook: {
+            ...stubProvider.tokenHook,
+            budget: { claims: ["features"], bytes: 512.5 },
+          },
+        }),
+      ),
+    ).toEqual([
+      expect.stringMatching(
+        /tokenHook\.budget\.bytes must be a positive integer/,
+      ),
+    ]);
+    expect(
+      await failures(
+        withProvider({
+          tokenHook: { ...stubProvider.tokenHook, ownedClaims: [] },
+        }),
+      ),
+    ).toEqual([expect.stringMatching(/tokenHook\.ownedClaims is empty/)]);
+  });
+
+  it("checks suspension rows, role sources and deciding columns", async () => {
+    expect(
+      await failures(
+        withProvider({
+          suspension: {
+            user: { table: "users", id: "id", disabledAt: "disabled_at" },
+            tenant: { table: "authz.orgs", id: "id", status: "status" },
+          },
+          roleSources: [
+            {
+              table: "authz.memberships",
+              role: {
+                column: "role_id",
+                through: { table: "roles", id: "id", column: "name" },
+              },
+            },
+          ],
+          decidingColumns: ["authz.memberships"],
+        }),
+      ),
+    ).toEqual([
+      expect.stringMatching(
+        /suspension\.user\.table "users" is not schema\.table/,
+      ),
+      expect.stringMatching(
+        /roleSources authz\.memberships reads roles from "roles"/,
+      ),
+      expect.stringMatching(
+        /decidingColumns "authz\.memberships" is not schema\.table\.column/,
+      ),
+    ]);
+  });
+
+  it("accepts permissionsFor and canApprove", async () => {
+    const report = await testAuthorizationProvider(
+      withProvider({
+        functions: {
+          ...stubProvider.functions,
+          permissionsFor: "authz.permissions_for({user}, {tenant})",
+          canApprove: "authz.can_approve({tenant}, {tool})",
+        },
+        requires: [
+          ...stubProvider.requires,
+          {
+            function: "authz.permissions_for",
+            args: "uuid, uuid",
+            role: "authenticated",
+          },
+          {
+            function: "authz.can_approve",
+            args: "uuid, text",
+            role: "authenticated",
+          },
+        ],
+        approvals: { distinctApprover: true },
+      }),
+    );
+    expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 });

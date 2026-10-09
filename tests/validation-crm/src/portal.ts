@@ -37,7 +37,7 @@ function scopedBy(column: "customerId" | "organizationId") {
 /**
  * A contact's reads: every query on a table with `customer_id` filters on the
  * customer in the token, next to the RLS policy
- * `customer_id in (select permitted_customer_ids('quotes.view'))`.
+ * `customer_id in (select customer_ids_with('quotes.view'))`.
  */
 export const portal = defineSupabase(scopedBy("customerId"))
   .claims(PortalClaims)
@@ -45,7 +45,7 @@ export const portal = defineSupabase(scopedBy("customerId"))
 
 /**
  * An employee's reads, filtered on the organization in the token, next to
- * `organization_id in (select permitted_organization_ids('quotes.view'))`.
+ * `organization_id in (select organization_ids_with('quotes.view'))`.
  */
 export const staff = defineSupabase(scopedBy("organizationId"))
   .claims(StaffClaims)

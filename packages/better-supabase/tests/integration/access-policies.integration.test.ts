@@ -43,7 +43,7 @@ const live = await reachable();
 const STUBS = `
 create schema ${SCHEMA};
 grant usage on schema ${SCHEMA} to authenticated;
-create function ${SCHEMA}.permitted_organization_ids(key text)
+create function ${SCHEMA}.organization_ids_with(key text)
 returns table (id uuid) language sql stable set search_path = '' as $$
   select value::uuid
   from jsonb_array_elements_text(coalesce(auth.jwt() -> 'authz' -> key, '[]'::jsonb))
@@ -55,7 +55,7 @@ $$;
 `;
 
 const SQL = {
-  idsWith: `${SCHEMA}.permitted_{scope}_ids({permission})`,
+  idsWith: `${SCHEMA}.{scope}_ids_with({permission})`,
   isPlatform: `${SCHEMA}.is_platform({permission})`,
 };
 

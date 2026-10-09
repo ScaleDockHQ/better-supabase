@@ -65,9 +65,11 @@ stay hidden.
    the config to keep an old relation name.
 4. Run `pnpm better-supabase skills install --check` and reinstall the skills
    when it reports them stale.
-5. Read the release's breaking changes in
-   https://github.com/ScaleDockHQ/better-supabase/blob/main/CHANGELOG.md
-   (guides live under https://bettersupabase.com/docs/migration). For 0.3: time values are
+5. Read the release's guide: https://bettersupabase.com/docs/migration/0.5-to-0.6
+   for 0.6 (kits are blocks, feature modules import from
+   `better-supabase/blocks/<name>`), and the other versions at
+   https://bettersupabase.com/docs/migration. Every breaking change is in
+   https://github.com/ScaleDockHQ/better-supabase/blob/main/CHANGELOG.md. For 0.3: time values are
    `Temporal` (see below), `--db-url` is gone, `doctor --format json` is
    `doctor --json`, `BetterResultShape` is `BetterResultValue`, and an
    exhaustive `switch` over the `invalid` auth reason needs an `'actor'` case.
@@ -84,7 +86,11 @@ Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runt
 - Hono: `c.var.db` after `bs.middleware()`
 - oRPC: `context.db` after `bs.middleware()`
 - Edge Functions: `bs.handler((request, { db }) => ...)`
+- Express: `res.locals.db`; Fastify: `request.locals.db`; Koa: `ctx.state.db`; NestJS: `@Ctx("db")`
+- SvelteKit: `event.locals.db`; H3, Nitro and Nuxt: `event.context.db`; TanStack Start: the middleware `context.db`
+- Astro: `bs.locals(Astro).db`; SolidStart: `(await bs.require()).db`
 - Browser: `bs.db`, or the hooks from `createHooks<typeof bs>()`
+- Vue, Solid and Svelte, TanStack DB collections and a local expo-sqlite database: [references/frontend.md](references/frontend.md)
 
 For who the caller is (sessions, claims, OAuth clients, agents, scopes), use
 the `better-supabase-auth` skill.

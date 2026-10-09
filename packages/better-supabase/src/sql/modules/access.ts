@@ -478,9 +478,70 @@ function providerCanAssign(ctx: ModuleContext, layout: ModuleLayout): string {
       role: "can_assign.role",
     });
   }
-  if (!ctx.installed("tenant")) return "false";
-  const owner = sqlString(ctx.of("organizations").text("ownerRole", "owner"));
-  return `can_assign.role <> ${owner} or better_supabase.has_organization_role(can_assign.tenant, array[${owner}])`;
+  return "false";
+}
+
+/** `member_permissions` and `permission_claims` from the provider's `permissionsFor`. */
+function providerPermissions(
+  ctx: ModuleContext,
+  provider: ModuleAccessProvider,
+): string {
+  const id = ctx.idType;
+  if (provider.functions.permissionsFor === undefined) {
+    return `
+create or replace function better_supabase.member_permissions(member uuid, tenant ${id})
+returns text[]
+language sql
+stable
+set search_path = ''
+as $$
+  select '{}'::text[]
+$$;
+
+create or replace function better_supabase.permission_claims(user_id uuid)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select '{}'::jsonb
+$$;`;
+  }
+  const claims =
+    provider.functions.memberIdsFor === undefined
+      ? "select '{}'::jsonb"
+      : `select coalesce(jsonb_object_agg(t.id::text, to_jsonb(better_supabase.member_permissions(permission_claims.user_id, t.id::${id}))), '{}'::jsonb)
+  from ${providerSql(provider, "memberIdsFor", { user: "permission_claims.user_id" })} as t(id)
+  where not better_supabase.user_disabled(permission_claims.user_id)
+    and not better_supabase.tenant_disabled(t.id::${id})`;
+  return `
+-- The permission keys a member holds in a tenant, from the provider's permissionsFor.
+create or replace function better_supabase.member_permissions(member uuid, tenant ${id})
+returns text[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when member is not null
+      and not better_supabase.user_disabled(member)
+      and not better_supabase.tenant_disabled(tenant)${notSuspended(ctx, "tenant", "member")}
+    then coalesce((${providerSql(provider, "permissionsFor", { user: "member", tenant: "tenant" })}), '{}'::text[])
+    else '{}'::text[]
+  end
+$$;
+
+-- { [tenant id]: permission keys } over the provider's memberIdsFor${provider.functions.memberIdsFor === undefined ? " (unset, so empty)" : ""}.
+create or replace function better_supabase.permission_claims(user_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  ${claims}
+$$;`;
 }
 
 /** Which questions about another user the provider's templates answer. */
@@ -602,15 +663,7 @@ begin
     and tenant::text in (select t.id::text from ${idsWith("permission")} as t(id));
 end;
 $$;
-
-create or replace function better_supabase.member_permissions(member uuid, tenant ${id})
-returns text[]
-language sql
-stable
-set search_path = ''
-as $$
-  select '{}'::text[]
-$$;
+${providerPermissions(ctx, provider)}
 
 create or replace function better_supabase.platform_can(member uuid, permission text)
 returns boolean
@@ -641,8 +694,7 @@ $$;
 
 -- sql.modules.access.functions.canAssign, else authorization.functions.canAssign,
 -- decides who assigns which role. Without either, only the service role
--- assigns roles, unless the tenant module is installed: then only owners
--- assign the owner role and this check passes other roles.
+-- assigns roles.
 create or replace function better_supabase.can_assign(tenant ${id}, role text)
 returns boolean
 language sql
@@ -651,15 +703,6 @@ security definer
 set search_path = ''
 as $$
   select ${SERVICE} or coalesce((${providerCanAssign(ctx, layout)}), false)
-$$;
-
-create or replace function better_supabase.permission_claims(user_id uuid)
-returns jsonb
-language sql
-stable
-set search_path = ''
-as $$
-  select '{}'::jsonb
 $$;`;
 }
 

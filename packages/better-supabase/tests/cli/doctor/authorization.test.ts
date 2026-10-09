@@ -146,6 +146,37 @@ describe("BS214", () => {
     expect(await findings("BS214", {})).toEqual([]);
   });
 
+  it("warns when a bucket's copied templates drift from the provider", async () => {
+    const keys = { read: "documents.read", write: "documents.read" };
+    const policy = (sql: NonNullable<AccessBucketPolicy["sql"]>) => ({
+      authorization: stubProvider,
+      buckets: {
+        docs: {
+          path: "{organizationId}/{...rest}",
+          policy: { access: keys, sql },
+        },
+      },
+    });
+    expect(
+      await findings(
+        "BS214",
+        policy({
+          ...SQL,
+          idsWith: "authz.old_ids_with({permission}, {scope})",
+        }),
+      ),
+    ).toEqual([
+      {
+        severity: "warning",
+        target: "buckets.docs.policy.sql",
+        message: expect.stringContaining(
+          "copies sql templates that differ from the authorization provider (stub)'s idsWith",
+        ),
+      },
+    ]);
+    expect(await findings("BS214", policy("provider"))).toEqual([]);
+  });
+
   it("flags incomplete, missing and unknown keys in buckets", async () => {
     expect(
       await findings(
@@ -445,7 +476,7 @@ describe("BS409", () => {
     expect(
       await findings("BS409", {
         authorization: withProvider({
-          problems: ["permissions.catalog.json is version 2"],
+          problems: ["the permission catalog is version 2"],
           tokenHook: { ...stubProvider.tokenHook, tenantClaim: "org_id" },
         }),
         claims: { scope: "workspace" },
@@ -455,7 +486,7 @@ describe("BS409", () => {
         severity: "warning",
         target: "authorization",
         message:
-          "the authorization provider (stub): permissions.catalog.json is version 2",
+          "the authorization provider (stub): the permission catalog is version 2",
       },
       {
         severity: "warning",
@@ -472,6 +503,34 @@ describe("BS409", () => {
         ),
       },
     ]);
+  });
+
+  it("notes suspension and role sources the access model ignores", async () => {
+    const provider = withProvider({
+      suspension: {
+        user: { table: "authz.users", id: "id", disabledAt: "disabled_at" },
+      },
+    });
+    expect(
+      await findings("BS409", {
+        authorization: provider,
+        sql: { modules: { access: { model: "roles" } } },
+      }),
+    ).toEqual([
+      {
+        severity: "info",
+        target: "authorization.suspension",
+        message: expect.stringContaining(
+          'sets suspension, but sql.modules.access.model is "roles"',
+        ),
+      },
+    ]);
+    expect(
+      await findings("BS409", {
+        authorization: provider,
+        sql: { modules: { access: { model: "provider" } } },
+      }),
+    ).toEqual([]);
   });
 });
 
@@ -536,7 +595,7 @@ describe("BS411", () => {
     });
   });
 
-  it("warns without canAssign unless the tenant module is installed", async () => {
+  it("warns without canAssign, even with the tenant module", async () => {
     const { canAssign: _, ...functions } = stubProvider.functions;
     const noAssign = withProvider({ functions });
     expect(
@@ -557,6 +616,66 @@ describe("BS411", () => {
           },
         }),
         { snapshot },
+      ),
+    ).toEqual([]);
+    expect(
+      await findings("BS411", config(noAssign, { tenant: {} }), { snapshot }),
+    ).toContainEqual(
+      expect.objectContaining({
+        target: "sql.modules.access.functions.canAssign",
+        message: expect.stringContaining("only the service role assigns roles"),
+      }),
+    );
+  });
+
+  it("warns when an installed module calls a template the provider lacks", async () => {
+    const {
+      idsWithFor: _,
+      canAssignFor: __,
+      ...functions
+    } = stubProvider.functions;
+    const partial = withProvider({ functions });
+    const result = await findings(
+      "BS411",
+      config(partial, { invitations: {}, comments: {} }),
+      { snapshot },
+    );
+    expect(result).toContainEqual({
+      severity: "warning",
+      target: "authorization.functions.idsWithFor",
+      message: expect.stringMatching(
+        /The invitations, comments modules call authorization\.functions\.idsWithFor, which the authorization provider \(stub\) doesn't set/,
+      ),
+    });
+    expect(result).toContainEqual({
+      severity: "warning",
+      target: "authorization.functions.canAssignFor",
+      message: expect.stringContaining("can_assign_as is not written"),
+    });
+    expect(
+      (
+        await findings(
+          "BS411",
+          config(partial, {
+            invitations: {},
+            access: {
+              model: "provider",
+              functions: {
+                canAssignFor: "authz.can_assign_for({user}, {tenant}, {role})",
+              },
+            },
+          }),
+          { snapshot },
+        )
+      ).map((finding) => finding.target),
+    ).not.toContain("authorization.functions.canAssignFor");
+    expect(
+      (
+        await findings("BS411", config(stubProvider, { invitations: {} }), {
+          snapshot,
+        })
+      ).filter((finding) =>
+        finding.target?.startsWith("authorization.functions"),
       ),
     ).toEqual([]);
   });

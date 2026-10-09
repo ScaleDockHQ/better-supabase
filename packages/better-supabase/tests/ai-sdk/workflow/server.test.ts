@@ -107,6 +107,7 @@ interface Setup {
   readonly decided?: AiToolApproval | DbError;
   readonly stopped?: { streamId: string; runId: string };
   readonly turn?: Partial<AssistantTurn> | Response;
+  readonly attach?: DbError;
 }
 
 function setup(options: Setup = {}) {
@@ -150,7 +151,9 @@ function setup(options: Setup = {}) {
       return found ? result(found) : failure(dbError("not_found", "none"));
     }),
     list: log("runs.list", () => result(runs)),
-    attach: log("attach", () => result(true)),
+    attach: log("attach", () =>
+      options.attach === undefined ? result(true) : failure(options.attach),
+    ),
   };
   const pending: Promise<unknown>[] = [];
   const context: DurableChatContext = {
@@ -274,6 +277,23 @@ describe("durableChat respond", () => {
       "c1",
       "id1",
       { status: "error", error: "Error: no world" },
+    ]);
+  });
+
+  it("cancels the run and releases the claim when the run can't be attached", async () => {
+    api.start.mockResolvedValue({ runId: "wrun" });
+    const cancel = vi.fn(async () => {
+      throw new Error("gone");
+    });
+    api.getRun.mockReturnValue({ cancel });
+    const s = setup({ attach: dbError("network", "offline") });
+    const response = await s.durable.respond(post({ id: "c1" }), s.context);
+    expect(response.status).toBe(503);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
+      "c1",
+      "id1",
+      { status: "error", error: "offline" },
     ]);
   });
 
@@ -451,6 +471,35 @@ describe("durableChat resume", () => {
     expect(await again.text()).toBe(live);
   });
 
+  it("cancels the World's stream when the request aborts", async () => {
+    let cancelled: unknown;
+    api.getRun.mockReturnValue({
+      getReadable: () =>
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(CHUNKS[0]);
+          },
+          cancel(reason) {
+            cancelled = reason;
+          },
+        }),
+    });
+    const s = setup({ chat: record("c1", { activeRunId: "run1" }) });
+    const abort = new AbortController();
+    const response = await s.durable.resume("c1", s.context, {
+      signal: abort.signal,
+    });
+    const reader = response.body!.getReader();
+    await reader.read();
+    abort.abort("client left");
+    await vi.waitFor(() => {
+      expect(cancelled).toBe("client left");
+    });
+    let reads = 0;
+    while (!(await reader.read()).done) reads += 1;
+    expect(reads).toBeLessThan(3);
+  });
+
   it("answers 204 when the chat has no durable segment", async () => {
     expect(
       (
@@ -499,6 +548,26 @@ describe("durableChat stop", () => {
     const s = setup({ stopped: { streamId: "s1", runId: "run1" } });
     expect((await s.durable.stop("c1", s.context)).status).toBe(204);
     expect(cancel).toHaveBeenCalledOnce();
+    expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
+      "c1",
+      "s1",
+      { status: "stopped" },
+    ]);
+  });
+
+  it("releases the segment and answers 500 when the run can't be cancelled", async () => {
+    api.resumeHook.mockRejectedValue(new Error("hook gone"));
+    api.getRun.mockReturnValue({
+      cancel: vi.fn(async () => {
+        throw new Error("world down");
+      }),
+    });
+    const s = setup({ stopped: { streamId: "s1", runId: "run1" } });
+    const response = await s.durable.stop("c1", s.context);
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({
+      code: "AI_CHAT_STOP_FAILED",
+    });
     expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
       "c1",
       "s1",

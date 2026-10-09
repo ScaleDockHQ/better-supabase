@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
+import type { AuthState } from "../../../src/auth/resolve.ts";
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
 import type {
   BetterPostgres,
@@ -8,6 +9,7 @@ import type {
   SqlClaims,
 } from "../../../src/postgres/pool.ts";
 
+import { toSession } from "../../../src/auth/view.ts";
 import {
   apiKeyChecksum,
   apiKeyClaims,
@@ -76,10 +78,10 @@ describe("parseApiKey", () => {
 
   it("checks the CRC-32 checksum at the end of a key", () => {
     const secret = "A1".repeat(21) + "z";
-    const body = `pdk_0123456789abcdef_${secret}`;
+    const body = `key_0123456789abcdef_${secret}`;
     const checked = `${body}${apiKeyChecksum(body)}`;
     expect(parseApiKey(checked)).toEqual({
-      prefix: "pdk",
+      prefix: "key",
       publicId: "0123456789abcdef",
       secret,
       checksum: true,
@@ -87,11 +89,11 @@ describe("parseApiKey", () => {
     const typo = `${checked.slice(0, -1)}${checked.endsWith("a") ? "b" : "a"}`;
     expect(parseApiKey(typo)).toBeUndefined();
     // A key from another generator that uses the same checksum.
-    expect(
-      parseApiKey(
-        "pdk_0123456789abcdef_LYEHVnJfSu5H8AWKGnKtZYWlwCxXLHDG75U0vAxnPUOATbAaD",
-      ),
-    ).toMatchObject({ checksum: true });
+    const foreign = "acme_0123456789abcdef_" + "Lx9".repeat(14) + "q";
+    expect(parseApiKey(`${foreign}${apiKeyChecksum(foreign)}`)).toMatchObject({
+      prefix: "acme",
+      checksum: true,
+    });
     expect(apiKeyChecksum("")).toBe("AAAAAA");
     expect(apiKeyChecksum("123456789")).toMatch(/^[A-Za-z0-9]{6}$/);
   });
@@ -300,11 +302,19 @@ describe("apiKeyResolver", () => {
       organizationId: ORG,
       userId: USER,
       scopes: ["deals:read"],
+      createdAt: Temporal.Instant.from("2026-10-06T09:00:00Z"),
+      createdBy: USER,
       claims: {
         sub: USER,
         role: "authenticated",
         api_key: { organization_id: ORG, scopes: ["deals:read"] },
       },
+    });
+    expect(toSession(state as AuthState)).toMatchObject({
+      kind: "apiKey",
+      createdAt:
+        Temporal.Instant.from("2026-10-06T09:00:00Z").epochMilliseconds / 1000,
+      createdBy: USER,
     });
     expect(
       await resolver.resolve(

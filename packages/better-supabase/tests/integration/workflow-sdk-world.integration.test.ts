@@ -13,6 +13,7 @@ const live = await reachable();
 
 const ACME = "00000000-0000-4000-8000-000000000001";
 const ADMIN = "00000000-0000-4000-8000-0000000000a1";
+const FOREIGN_TENANT = "00000000-0000-4000-8000-0000000000f9";
 const KEY = `test:${crypto.randomUUID()}`;
 const SUFFIX = crypto.randomUUID().slice(0, 8);
 const STEP = `step_${SUFFIX}`;
@@ -64,30 +65,41 @@ afterAll(async () => {
 });
 
 describe.skipIf(!live)("Supabase World", () => {
-  it("copies a run into workflow_runs with its tenant and actor", async () => {
+  const mirrored = async (runId: string) =>
+    (
+      await pool.query<{
+        engine: string;
+        status: string;
+        tenant: string | null;
+        actor: string | null;
+        attributes: Record<string, string>;
+      }>(
+        `select engine, status, tenant_id::text as tenant, actor_id::text as actor, attributes
+           from better_supabase.workflow_runs where external_id = $1`,
+        [runId],
+      )
+    ).rows[0];
+
+  it("copies a server-started run into workflow_runs with its tenant", async () => {
     const runId = await createRun("workflow//./approve//approve", {
       [WORKFLOW_ATTRIBUTES.tenant]: ACME,
-      [WORKFLOW_ATTRIBUTES.actor]: ADMIN,
       customer: "c_1",
     });
-    const row = await pool.query<{
-      engine: string;
-      status: string;
-      tenant: string | null;
-      actor: string | null;
-      attributes: Record<string, string>;
-    }>(
-      `select engine, status, tenant_id::text as tenant, actor_id::text as actor, attributes
-         from better_supabase.workflow_runs where external_id = $1`,
-      [runId],
-    );
-    expect(row.rows[0]).toMatchObject({
+    expect(await mirrored(runId)).toMatchObject({
       engine: "workflow-sdk",
       status: "queued",
       tenant: ACME,
-      actor: ADMIN,
+      actor: null,
       attributes: { customer: "c_1" },
     });
+  });
+
+  it("drops the tenant of a run whose actor can't run workflows there", async () => {
+    const runId = await createRun("workflow//./approve//approve", {
+      [WORKFLOW_ATTRIBUTES.tenant]: FOREIGN_TENANT,
+      [WORKFLOW_ATTRIBUTES.actor]: ADMIN,
+    });
+    expect(await mirrored(runId)).toMatchObject({ tenant: null, actor: ADMIN });
   });
 
   it("lists runs, attributes and events through analytics", async () => {

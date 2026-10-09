@@ -14,7 +14,7 @@ export interface ActClaim {
  *   kind is limited to the scopes the user delegated.
  * - `support`: an admin in a support session (`act.kind: "support"`, from
  *   `supportClaims`). An `act` without `kind` but with `session_id`, as
- *   0.5.0 minted it, counts as one until 0.6.
+ *   0.5.0 minted it, is an invalid chain.
  * - `impersonation`: an admin acting as the user (`act.kind:
  *   "impersonation"`, from `actClaim`).
  */
@@ -73,7 +73,7 @@ function actorAt(
   const sessionId = outer["session_id"];
   const readOnly = outer["read_only"];
   const reason = outer["reason"];
-  if (kind === "support" || (kind === undefined && sessionId !== undefined)) {
+  if (kind === "support") {
     if (typeof sessionId !== "string" || sessionId === "") return INVALID;
     if (readOnly !== undefined && typeof readOnly !== "boolean") return INVALID;
     return {
@@ -97,7 +97,7 @@ function actorAt(
       },
     };
   }
-  if (kind !== undefined) return INVALID;
+  if (kind !== undefined || sessionId !== undefined) return INVALID;
   return {
     ok: true,
     actor: { kind: "oauth-client", id, chain: copyAct(outer) },
@@ -107,8 +107,8 @@ function actorAt(
 /**
  * Reads only `act` and `client_id`. An
  * `act` that is not a chain of objects each with a non-empty `sub`, a
- * `kind` other than `support` or `impersonation`, or a support level without
- * a `session_id` is `{ ok: false }`: the session must not pass as the user
+ * `kind` other than `support` or `impersonation`, a support level without
+ * a `session_id`, or a `session_id` without `kind` is `{ ok: false }`: the session must not pass as the user
  * alone.
  */
 export function actorOf(

@@ -5,7 +5,11 @@ import type {
 import type { ModuleEntitlementsProvider } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { modulePermissionKeys, resolveModules } from "../../sql/index.ts";
+import {
+  modulePermissionKeys,
+  resolveModules,
+  SQL_MODULES,
+} from "../../sql/index.ts";
 import {
   accessProviderMode,
   type AccessProviderMode,
@@ -18,6 +22,45 @@ import {
   unsafeKey,
 } from "../authorization.ts";
 import { catalogOf } from "./shared.ts";
+
+const TEMPLATE_EFFECT: Readonly<
+  Partial<Record<keyof AuthorizationProvider["functions"], string>>
+> = {
+  memberIds:
+    "their membership checks read the tenant module's memberships table instead of the provider",
+  idsWithFor:
+    "their checks of another user's tenant permissions (can_user, member_can) raise 0A000 (ACCESS_CALLER_ONLY) or are skipped",
+  isPlatformFor:
+    "their checks of another user's platform permissions (platform_can) answer false or are skipped",
+  canAssignFor:
+    "better_supabase.can_assign_as is not written and the inviter's right to assign the role is not checked again when the invitation is accepted",
+};
+
+/** The optional templates installed modules call that the provider doesn't set. */
+function missingTemplates(
+  context: DoctorContext,
+  provider: AuthorizationProvider,
+): FindingInput[] {
+  const installed = new Set(context.config.sql.moduleNames);
+  const callers = new Map<keyof AuthorizationProvider["functions"], string[]>();
+  for (const module of Object.values(SQL_MODULES)) {
+    if (!installed.has(module.name)) continue;
+    for (const name of module.providerFunctions ?? []) {
+      if (provider.functions[name] !== undefined) continue;
+      if (
+        name === "canAssignFor" &&
+        context.config.sql.modules.access?.functions?.canAssignFor
+      )
+        continue;
+      callers.set(name, [...(callers.get(name) ?? []), module.name]);
+    }
+  }
+  return [...callers].map(([name, modules]) => ({
+    severity: "warning",
+    message: `The ${modules.join(", ")} ${modules.length > 1 ? "modules call" : "module calls"} authorization.functions.${name}, which ${providerLabel(provider)} doesn't set, so under the provider model ${TEMPLATE_EFFECT[name] ?? "those calls fail"}. Use a provider that sets ${name}${name === "canAssignFor" ? ", or set sql.modules.access.functions.canAssignFor" : ""}.`,
+    target: `authorization.functions.${name}`,
+  }));
+}
 
 /** Tables whose generated policies call the provider's functions by role and scope only. */
 const POLICY_TABLES = new Set(["storage.objects", "realtime.messages"]);
@@ -263,7 +306,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     title:
       "Permission the provider's SQL functions don't fully answer in a Storage or Realtime policy",
     description:
-      "An access policy on a bucket or topic that reaches the authorization provider's functions (through `sql` templates, or through the access contract under the `provider` model) decides by role and scope only. A permission whose `authorization.permissions` entry isn't `sqlComplete: true` would grant every object or topic in the scope, so it is reported, and so is a key the provider doesn't list or every key when it lists no permissions. A scope the provider doesn't declare, and a key checked at another scope than its entry's `scopes`, are reported too. Doctor reads the keys from `buckets` in the config and from the generated `bs_` policies on `storage.objects` and `realtime.messages`.",
+      "An access policy on a bucket or topic that reaches the authorization provider's functions (through `sql` templates, or through the access contract under the `provider` model) decides by role and scope only. A permission whose `authorization.permissions` entry isn't `sqlComplete: true` would grant every object or topic in the scope, so it is reported, and so is a key the provider doesn't list or every key when it lists no permissions. A scope the provider doesn't declare, and a key checked at another scope than its entry's `scopes`, are reported too. Doctor reads the keys from `buckets` in the config and from the generated `bs_` policies on `storage.objects` and `realtime.messages`. It also warns when a bucket's `sql` templates differ from the provider's `idsWith` and `isPlatform`, since a copy goes stale when the provider changes; `sql: \"provider\"` renders them at `gen` time instead.",
     check: (context) => {
       const provider = context.config.authorization;
       if (!provider) return [];
@@ -285,6 +328,20 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
             target: `buckets.${bucket}:${key}`,
           });
         }
+      }
+      for (const [bucket, entry] of Object.entries(context.config.buckets)) {
+        const sql =
+          typeof entry.policy === "object" ? entry.policy.sql : undefined;
+        if (typeof sql !== "object") continue;
+        const stale = (["idsWith", "isPlatform"] as const).filter(
+          (name) => sql[name] !== provider.functions[name],
+        );
+        if (stale.length === 0) continue;
+        findings.push({
+          severity: "warning",
+          message: `buckets.${bucket} copies sql templates that differ from ${providerLabel(provider)}'s ${stale.join(" and ")}. Set sql: "provider" so gen renders the provider's templates.`,
+          target: `buckets.${bucket}.policy.sql`,
+        });
       }
       for (const policy of providerPolicies(provider, context.sqlFiles ?? [])) {
         const seen = new Set<string>();
@@ -388,7 +445,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "The authorization provider and the better-supabase config disagree",
     description:
-      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `claims.tenant` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `claims.scope` is neither `tenant` nor the provider's tenant scope, and reports the `problems` the provider found while it was built.",
+      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `claims.tenant` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `claims.scope` is neither `tenant` nor the provider's tenant scope, notes when the provider sets `suspension` or `roleSources` but `sql.modules.access.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
     check: (context) => {
       const provider = context.config.authorization;
       if (!provider) return [];
@@ -417,6 +474,20 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           target: "claims.scope",
         });
       }
+      const model = context.config.sql.modules.access?.model ?? "roles";
+      const unread = [
+        ...(provider.suspension ? ["suspension"] : []),
+        ...(provider.roleSources && provider.roleSources.length > 0
+          ? ["roleSources"]
+          : []),
+      ];
+      if (model !== "provider" && unread.length > 0) {
+        findings.push({
+          severity: "info",
+          message: `${label} sets ${unread.join(" and ")}, but sql.modules.access.model is "${model}", so the SQL modules ignore ${unread.length > 1 ? "them" : "it"}. Set sql.modules.access.model to "provider" to use them, or set sql.modules.access.disabled yourself.`,
+          target: `authorization.${unread[0]!}`,
+        });
+      }
       return findings;
     },
   },
@@ -425,7 +496,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "error",
     title: "The provider access model can't use the authorization provider",
     description:
-      "With `sql.modules.access.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `sql.modules.access.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles.",
+      "With `sql.modules.access.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `sql.modules.access.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter).",
     check: (context) => {
       const mode = accessModule(context);
       if (mode.kind === "off") return [];
@@ -458,16 +529,14 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       const canAssign =
         context.config.sql.modules.access?.functions?.canAssign ??
         provider.functions.canAssign;
-      if (
-        canAssign === undefined &&
-        !context.config.sql.moduleNames.includes("tenant")
-      ) {
+      if (canAssign === undefined) {
         findings.push({
           severity: "warning",
           message: `Neither sql.modules.access.functions.canAssign nor ${providerLabel(provider)} sets canAssign, so under the provider model only the service role assigns roles: the memberships guard refuses every membership a member adds or changes. Use a provider that sets authorization.functions.canAssign, or set sql.modules.access.functions.canAssign.`,
           target: "sql.modules.access.functions.canAssign",
         });
       }
+      findings.push(...missingTemplates(context, provider));
       return findings;
     },
   },

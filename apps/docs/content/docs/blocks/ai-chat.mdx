@@ -126,11 +126,16 @@ through `createHarnessSessions`, on the service role. The block stores the
 harness's resume and continue states as JSON without reading them. `lock`
 keeps two turns from driving one sandbox for `ttlSeconds`, and `save` with a
 `holder` fails with `AI_HARNESS_LOCKED` while another holder has the lock.
-The store is experimental: its shape follows the harnesses as they settle.
+Members can't read the table, not even for their own chats, because resume
+state can hold harness credentials. The store is experimental: its shape
+follows the harnesses as they settle.
 
 `idleSandboxStop` is a [job](/docs/blocks/jobs) handler for a schedule. It
 stops each sandbox that sat unused for `idleSeconds` (900 by default) and
-marks the session `stopped`, or `error` when the stop threw:
+marks the session `stopped`, or `error` when the stop threw. It locks each
+session for `lockSeconds` (120 by default) before the stop, and skips a
+session that a turn holds or used since it was listed; the result counts
+those as `skipped`:
 
 ```ts title="jobs.ts"
 import { Sandbox } from "@vercel/sandbox";
