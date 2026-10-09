@@ -540,13 +540,155 @@ describe("createOrganizationPurger", () => {
       organizationId: "org-1",
       deleted: { "public.projects": 4 },
       removed: { attachments: 1002 },
+      credentials: { revoked: 0, unrevoked: [] },
     });
     expect(cancelled).toEqual(["org-1"]);
     const removes = storage.calls.filter(([method]) => method === "remove");
     expect(removes.map(([, paths]) => (paths as string[]).length)).toEqual([
       1000, 2,
     ]);
-    expect(calls).toEqual([["purge_organization", { tenant: "org-1" }]]);
+    expect(calls).toEqual([
+      ["organization_credential_refs", { tenant: "org-1" }],
+      ["purge_organization", { tenant: "org-1" }],
+    ]);
+  });
+
+  it("revokes the organization's credential refs before the purge and reports the rest", async () => {
+    const order: string[] = [];
+    const ref = (tenant?: string) => ({
+      provider: "vault",
+      name: "openai",
+      ...(tenant === undefined ? {} : { tenant }),
+    });
+    const { transport } = fakeTransport({
+      organization_credential_refs: () => {
+        order.push("refs");
+        return [
+          {
+            table: "better_supabase.ai_provider_keys",
+            column: "credential_ref",
+            ref: ref("org-1"),
+            user_id: null,
+            in_tenant: true,
+          },
+          {
+            table: "better_supabase.connector_grants",
+            column: "credential_ref",
+            ref: ref("org-1"),
+            user_id: "u1",
+            in_tenant: true,
+          },
+          {
+            table: "better_supabase.connector_servers",
+            column: "credential_ref",
+            ref: ref(),
+            user_id: null,
+            in_tenant: false,
+          },
+          {
+            table: "better_supabase.workflow_credentials",
+            column: "credential_ref",
+            ref: ref("org-2"),
+            user_id: null,
+            in_tenant: true,
+          },
+          {
+            table: "better_supabase.workflow_credentials",
+            column: "credential_ref",
+            ref: { provider: "env", tenant: "org-1" },
+            user_id: null,
+            in_tenant: true,
+          },
+          { table: "x", column: "y", ref: "not a ref" },
+        ];
+      },
+      purge_organization: () => {
+        order.push("purge");
+        return purged;
+      },
+    });
+    const revoked: unknown[] = [];
+    const credentials = {
+      apiVersion: 1 as const,
+      name: "vault",
+      getToken: () => AsyncResult.ok({ token: "", headers: {} }),
+      capabilities: (of: { readonly provider: string }) => ({
+        userSubjects: false,
+        authorization: false,
+        revoke: of.provider === "vault",
+        inbound: false,
+      }),
+      revoke: (
+        of: Record<string, unknown>,
+        options: { readonly subject: unknown },
+      ) => {
+        order.push("revoke");
+        revoked.push([of, options.subject]);
+        return AsyncResult.ok(true);
+      },
+    };
+    const result = await createOrganizationPurger({ transport, credentials })
+      .purge("org-1")
+      .orThrow();
+    expect(order).toEqual(["refs", "revoke", "revoke", "purge"]);
+    expect(revoked).toEqual([
+      [ref("org-1"), { type: "app" }],
+      [ref("org-1"), { type: "user", id: "u1" }],
+    ]);
+    expect(result.credentials.revoked).toBe(2);
+    expect(
+      result.credentials.unrevoked.map((entry) => [entry.table, entry.reason]),
+    ).toEqual([
+      ["better_supabase.connector_servers", "foreign"],
+      ["better_supabase.workflow_credentials", "foreign"],
+      ["better_supabase.workflow_credentials", "not_revocable"],
+    ]);
+
+    const without = await createOrganizationPurger({ transport })
+      .purge("org-1")
+      .orThrow();
+    expect(without.credentials.revoked).toBe(0);
+    expect(without.credentials.unrevoked.map((entry) => entry.reason)).toEqual([
+      "no_provider",
+      "no_provider",
+      "foreign",
+      "foreign",
+      "no_provider",
+    ]);
+
+    order.length = 0;
+    const failing = await createOrganizationPurger({
+      transport,
+      credentials: {
+        ...credentials,
+        revoke: () => AsyncResult.err(dbError("network", "Vault down")),
+      },
+    }).purge("org-1");
+    expect(failing.ok ? undefined : failing.error.message).toBe("Vault down");
+    expect(order).toEqual(["refs"]);
+  });
+
+  it("checks that the deletion is due before it touches billing", async () => {
+    const cancelled: string[] = [];
+    const { transport, calls } = fakeTransport({
+      organization_credential_refs: Object.assign(
+        new Error("No due deletion for this organization"),
+        { code: "P0002", hint: "ORGANIZATION_DELETION_NOT_DUE" },
+      ),
+    });
+    const result = await createOrganizationPurger({
+      transport,
+      billing: {
+        cancelSubscription: (id) =>
+          AsyncResult.from(() => {
+            cancelled.push(id);
+            return Promise.resolve(ok("sub_1"));
+          }),
+      },
+    }).purge("org-1");
+    expect(result.ok).toBe(false);
+    expect(cancelled).toEqual([]);
+    expect(calls.map(([fn]) => fn)).toEqual(["organization_credential_refs"]);
   });
 
   it("clears path templates and computed prefixes per bucket", async () => {
@@ -687,7 +829,7 @@ describe("createOrganizationPurger", () => {
       }).storage,
     }).purge("org-1");
     expect(removeFails.ok).toBe(false);
-    expect(calls).toEqual([]);
+    expect(calls.map(([fn]) => fn)).not.toContain("purge_organization");
   });
 
   it("purges what is due and stops at the first error", async () => {

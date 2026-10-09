@@ -67,6 +67,8 @@ const NAMES: ModuleNames = {
     },
     secrets: {
       name: "webhook_endpoint_secrets",
+      // Purged with the tenant (a trigger drops the Vault secret), never exported.
+      lifecycle: { tenant: "tenant", export: false },
       columns: {
         id: "id",
         endpoint: "endpoint_id",

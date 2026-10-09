@@ -9,6 +9,8 @@ const NAMES: ModuleNames = {
   tables: {
     events: {
       name: "outbox_events",
+      // No user export: an actor's events describe other members too.
+      lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
         position: "position",

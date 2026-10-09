@@ -5,6 +5,7 @@ import type {
   LifecycleStorage,
   StorageEntry,
 } from "../../src/blocks/data-lifecycle/index.ts";
+import type { CredentialRef } from "../../src/credentials/index.ts";
 
 import {
   createApiKeys,
@@ -18,6 +19,10 @@ import {
 } from "../../src/blocks/data-lifecycle/index.ts";
 import { ok } from "../../src/core/result.ts";
 import { AsyncResult } from "../../src/core/result.ts";
+import {
+  sqlTransport as credentialsTransport,
+  vaultCredentials,
+} from "../../src/credentials/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -586,6 +591,18 @@ describe.skipIf(!live)("data lifecycle", () => {
         },
       });
       await s.service();
+      const events = async (): Promise<readonly string[]> =>
+        (
+          await s.rows<{ type: string }>(
+            "select type from better_supabase.outbox_events where type like 'organization.%' and organization_id = $1 order by position",
+            [organization],
+          )
+        ).map((event) => event.type);
+      expect((await events()).slice(-3)).toEqual([
+        "organization.deletion_requested",
+        "organization.deletion_cancelled",
+        "organization.deletion_requested",
+      ]);
       const [purged] = await purging.purgeDue().orThrow();
       expect(purged).toMatchObject({
         organizationId: organization,
@@ -611,15 +628,7 @@ describe.skipIf(!live)("data lifecycle", () => {
           [organization],
         ),
       ).toBe(1);
-      const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where type like 'organization.%' and organization_id = $1 order by position",
-        [organization],
-      );
-      expect(events.map((event) => event.type).slice(-3)).toEqual([
-        "organization.deletion_requested",
-        "organization.deletion_cancelled",
-        "organization.deletion_requested",
-      ]);
+      expect(await events()).toEqual([]);
       const [purgedEvent] = await s.rows<{
         organization_id: string | null;
         payload: { organizationId: string };
@@ -812,6 +821,117 @@ describe.skipIf(!live)("data lifecycle", () => {
         [organization],
       );
       expect(purged.deleted["better_supabase.api_keys"]).toBe(1);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("leaves credential refs out of exports and revokes the tenant's before the purge", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install([
+        "organizations",
+        "credentials",
+        "connectors",
+        "data-lifecycle",
+      ]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      await s.service();
+      const vault = vaultCredentials({
+        transport: credentialsTransport(s.sql),
+      });
+      const key = crypto.randomUUID().slice(0, 8);
+      const serverRef = {
+        provider: "vault",
+        secret: `lc-server-${key}`,
+        tenant: organization,
+      };
+      const grantRef = {
+        provider: "vault",
+        secret: `lc-grant-${key}`,
+        scope: "user",
+        tenant: organization,
+      };
+      const foreignRef = { provider: "vault", secret: `lc-foreign-${key}` };
+      const user = { type: "user" as const, id: owner.id };
+      await vault.set(serverRef, "server-token", { subject: { type: "app" } });
+      await vault.set(grantRef, "grant-token", { subject: user });
+      await vault.set(foreignRef, "foreign-token", {
+        subject: { type: "app" },
+      });
+      const [server] = await s.rows<{ id: string }>(
+        `insert into better_supabase.connector_servers (organization_id, name, url, auth_type, credential_ref)
+         values ($1, 'Docs', 'https://mcp.test', 'header', $2), ($1, 'Wiki', 'https://wiki.test', 'header', $3)
+         returning id`,
+        [organization, serverRef, foreignRef],
+      );
+      await s.rows(
+        "insert into better_supabase.connector_grants (user_id, server_id, organization_id, credential_ref) values ($1, $2, $3, $4)",
+        [owner.id, server!.id, organization, grantRef],
+      );
+
+      await s.asRole(owner);
+      const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
+      const requested = await lifecycle
+        .requestExport({ organizationId: organization })
+        .orThrow();
+      await s.service();
+      const memory = memoryStorage();
+      const ready = await createDataExporter({
+        transport: sqlTransport(s.sql),
+        storage: memory.storage,
+      })
+        .run(requested.id)
+        .orThrow();
+      const exported = ready.files.filter((file) =>
+        file.includes("connector_"),
+      );
+      expect(exported).toHaveLength(2);
+      for (const file of exported) {
+        expect(memory.files.get(file)).not.toContain("credential_ref");
+        expect(memory.files.get(file)).not.toContain(key);
+      }
+
+      expect(
+        await s.hint("better_supabase.organization_credential_refs($1)", [
+          organization,
+        ]),
+      ).toBe("ORGANIZATION_DELETION_NOT_DUE");
+      await s.rows(
+        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        [organization],
+      );
+      const purged = await createOrganizationPurger({
+        transport: sqlTransport(s.sql),
+        credentials: vault,
+      })
+        .purge(organization)
+        .orThrow();
+      expect(purged.credentials.revoked).toBe(2);
+      expect(purged.credentials.unrevoked).toEqual([
+        {
+          table: "better_supabase.connector_servers",
+          column: "credential_ref",
+          ref: foreignRef,
+          subject: { type: "app" },
+          reason: "foreign",
+        },
+      ]);
+      expect(purged.deleted).toMatchObject({
+        "better_supabase.connector_servers": 2,
+      });
+      const token = async (
+        ref: CredentialRef,
+        subject: typeof user | { type: "app" },
+      ): Promise<string | undefined> => {
+        const result = await vault.getToken(ref, { subject });
+        return result.ok ? result.data.token : result.error.kind;
+      };
+      expect(await token(serverRef, { type: "app" })).toBe("not_found");
+      expect(await token(grantRef, user)).toBe("not_found");
+      expect(await token(foreignRef, { type: "app" })).toBe("foreign-token");
+      await vault.revoke(foreignRef, { subject: { type: "app" } }).orThrow();
     } finally {
       await s.close();
     }

@@ -57,7 +57,20 @@ const NAMES: ModuleNames = {
   tables: {
     log: {
       name: "audit_events",
-      lifecycle: { user: "actor", tenant: "tenant", purge: false },
+      // Exports leave out the row snapshots and the impersonation details,
+      // which describe other people.
+      lifecycle: {
+        user: "actor",
+        tenant: "tenant",
+        purge: false,
+        omit: [
+          "old",
+          "new",
+          "impersonatedBy",
+          "impersonationReason",
+          "supportSession",
+        ],
+      },
       columns: {
         id: "id",
         table: "table_name",

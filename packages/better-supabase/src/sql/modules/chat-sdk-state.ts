@@ -60,8 +60,13 @@ const NAMES: ModuleNames = {
     installations: {
       name: "chat_installations",
       // The row outlives a tenant purge until the app revokes its credential
-      // (installations.uninstallTenant in better-supabase/chat-sdk).
-      lifecycle: { tenant: "tenant", purge: false, omit: ["credentialRef"] },
+      // (installations.uninstallTenant in better-supabase/chat-sdk), so the
+      // purger doesn't revoke it.
+      lifecycle: {
+        tenant: "tenant",
+        purge: false,
+        credentials: ["credentialRef"],
+      },
       columns: {
         id: "id",
         tenant: "tenant_id",
