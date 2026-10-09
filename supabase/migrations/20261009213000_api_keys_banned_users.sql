@@ -26,6 +26,7 @@ begin
     return jsonb_build_object('status', 'invalid');
   end if;
   if found."rate_limit" is not null then
+    -- One update counts the hit and, for an allowed request, touches last_used_at.
     update "better_supabase"."api_keys" k set
       "window_start" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then now() else k."window_start" end,
       "window_hits" = case when (k."window_start" is null or k."window_start" + interval '1 minute' <= now()) then 1 else k."window_hits" + 1 end,
