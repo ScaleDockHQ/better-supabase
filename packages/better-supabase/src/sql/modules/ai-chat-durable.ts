@@ -9,6 +9,7 @@ import {
   pageSize,
 } from "../shared.ts";
 import { approvalJson } from "./ai-chat-extras.ts";
+import { harnessSandbox, harnessSandboxSave } from "./ai-chat-sandboxes.ts";
 
 function runJson(names: AiChatNames, row: string): string {
   const r = names.c.runs;
@@ -38,7 +39,7 @@ function stepJson(names: AiChatNames, row: string): string {
 
 function harnessJson(names: AiChatNames, row: string): string {
   const h = names.c.harness;
-  return `jsonb_build_object('chat_id', ${row}.${h.chat}, 'harness_id', ${row}.${h.harness}, 'owner_id', ${row}.${h.owner}, 'resume_state', ${row}.${h.resume}, 'continue_state', ${row}.${h.continue}, 'sandbox_id', ${row}.${h.sandbox}, 'status', ${row}.${h.status}, 'lock_holder', ${row}.${h.holder}, 'locked_until', ${row}.${h.lockedUntil}, 'last_active_at', ${row}.${h.lastActiveAt}, 'created_at', ${row}.${h.createdAt}, 'updated_at', ${row}.${h.updatedAt})`;
+  return `jsonb_build_object('chat_id', ${row}.${h.chat}, 'harness_id', ${row}.${h.harness}, 'owner_id', ${row}.${h.owner}, 'resume_state', ${row}.${h.resume}, 'continue_state', ${row}.${h.continue}, 'sandbox_id', ${harnessSandbox(names, row)}, 'status', ${row}.${h.status}, 'lock_holder', ${row}.${h.holder}, 'locked_until', ${row}.${h.lockedUntil}, 'last_active_at', ${row}.${h.lastActiveAt}, 'created_at', ${row}.${h.createdAt}, 'updated_at', ${row}.${h.updatedAt})`;
 }
 
 const serviceOnly = raise(
@@ -269,9 +270,10 @@ $$;
 ${serviceGrant(`${fn("load_ai_harness_session")}(uuid, text)`)}
 
 -- Saves a harness session (the service role only). fields may set
--- resume_state, continue_state, sandbox_id and status; a key that is absent
--- keeps its value. A session locked by another holder raises
--- AI_HARNESS_LOCKED.
+-- resume_state, continue_state, sandbox_id (with sandbox_provider) and
+-- status; a key that is absent keeps its value. sandbox_id registers the
+-- session's sandbox in ai_sandboxes, and null marks it stopped. A session
+-- locked by another holder raises AI_HARNESS_LOCKED.
 create or replace function ${fn("save_ai_harness_session")}(chat uuid, harness text, fields jsonb, holder text default null)
 returns jsonb
 language plpgsql
@@ -297,14 +299,13 @@ begin
   update ${t.harness} x set
     ${h.resume} = case when save_ai_harness_session.fields ? 'resume_state' then save_ai_harness_session.fields -> 'resume_state' else x.${h.resume} end,
     ${h.continue} = case when save_ai_harness_session.fields ? 'continue_state' then save_ai_harness_session.fields -> 'continue_state' else x.${h.continue} end,
-    ${h.sandbox} = case when save_ai_harness_session.fields ? 'sandbox_id' then save_ai_harness_session.fields ->> 'sandbox_id' else x.${h.sandbox} end,
     -- A save without a status is a turn using the sandbox: an idle session
     -- turns active again, so a later idle_ai_harness_sessions finds it.
     ${h.status} = coalesce(v_status, case when x.${h.status} = 'idle' then 'active' else x.${h.status} end),
     ${h.lastActiveAt} = now(),
     ${h.updatedAt} = now()
   where x.${h.chat} = v_row.${h.chat} and x.${h.harness} = v_row.${h.harness}
-  returning * into v_row;
+  returning * into v_row;${harnessSandboxSave(names, "save_ai_harness_session.fields")}
   return ${harnessJson(names, "v_row")};
 end;
 $$;
@@ -368,6 +369,8 @@ ${serviceGrant(`${fn("unlock_ai_harness_session")}(uuid, text, text)`)}
 
 -- Marks active sessions whose sandbox sat unused for idle_seconds as idle
 -- and returns them, so a job stops their sandboxes (the service role only).
+-- Deprecated since 0.7 and removed in 0.8: idle_ai_sandboxes claims harness
+-- sandboxes too.
 -- Locked sessions are skipped.
 create or replace function ${fn("idle_ai_harness_sessions")}(idle_seconds integer default 900, size integer default 100)
 returns jsonb
@@ -384,7 +387,11 @@ begin
   end if;
   with picked as (
     select x.${h.chat}, x.${h.harness} from ${t.harness} x
-    where x.${h.status} = 'active' and x.${h.sandbox} is not null
+    where x.${h.status} = 'active'
+      and exists (
+        select 1 from ${t.sandboxes} y
+        where y.${names.c.sandboxes.chat} = x.${h.chat} and y.${names.c.sandboxes.harness} = x.${h.harness} and y.${names.c.sandboxes.status} = 'running'
+      )
       and x.${h.lastActiveAt} < now() - make_interval(secs => greatest(coalesce(idle_ai_harness_sessions.idle_seconds, 900), 1))
       and (x.${h.lockedUntil} is null or x.${h.lockedUntil} <= now())
     order by x.${h.lastActiveAt}

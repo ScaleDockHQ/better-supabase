@@ -4,6 +4,7 @@ import type { AsyncResult } from "../../core/result.ts";
 import type { FinalRunState, LegacyRunState } from "../../core/run-state.ts";
 import type { AiRunState, AiRuns } from "./durable.ts";
 import type { AiMessage, AiMessageRole } from "./message.ts";
+import type { AiSandboxes } from "./sandboxes.ts";
 
 import { sharedRunState } from "../../core/run-state.ts";
 import {
@@ -40,6 +41,7 @@ import {
   projectFields,
   canonical,
 } from "./rows.ts";
+import { aiSandboxes } from "./sandboxes.ts";
 
 export type AiChatVisibility = "private" | "organization";
 
@@ -409,6 +411,11 @@ export interface AiChat {
     /** Shows the branch through `messageId`; returns the new leaf. */
     switchBranch(chatId: string, messageId: string): AsyncResult<string>;
   };
+  /**
+   * The sandboxes chats and harness sessions started, with one idle-stop
+   * claim for both (service role, except `list`).
+   */
+  readonly sandboxes: AiSandboxes;
   /** Runs: the stream claim, lookups, steps and the approval inbox. */
   readonly runs: AiRuns & {
     /** Claims the chat's answer for one stream (service role). */
@@ -650,6 +657,7 @@ export function createAiChat(options: AiChatOptions): AiChat {
           (value) => textOf(recordOf(value, "switch_ai_branch")["leaf_id"]),
         ),
     },
+    sandboxes: aiSandboxes(call, service),
     runs: {
       ...aiRunLookups(options),
       claim: (chatId, streamId, claimOptions = {}) =>

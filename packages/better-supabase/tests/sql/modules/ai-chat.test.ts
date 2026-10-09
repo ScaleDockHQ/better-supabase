@@ -6,6 +6,7 @@ import {
   moduleBody,
   moduleTopics,
   renderModules,
+  upgradePlan,
 } from "../../../src/sql/registry.ts";
 
 const body = (modules: ModulesConfig = {}) =>
@@ -107,6 +108,42 @@ describe("ai-chat module", () => {
         `grant execute on function "better_supabase".${signature} to authenticated, service_role;`,
       );
     }
+  });
+
+  it("keeps every sandbox, a harness session's included, in ai_sandboxes", () => {
+    const sql = body();
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."ai_sandboxes" (',
+    );
+    expect(sql).toMatch(/"harness_id" text check/);
+    expect(sql).not.toMatch(/ai_harness_sessions" \([^;]*"sandbox_id"/);
+    expect(sql).toContain("default 600");
+    for (const signature of [
+      '"register_ai_sandbox"(uuid, text, text, jsonb)',
+      '"idle_ai_sandboxes"(integer, integer)',
+      '"finish_ai_sandbox_stop"(uuid, boolean, text)',
+    ]) {
+      expect(sql).toContain(
+        `revoke execute on function "better_supabase".${signature} from public, anon, authenticated;`,
+      );
+    }
+    expect(() =>
+      body({ "ai-chat": { options: { sandboxIdleAfter: 0 } } }),
+    ).toThrow(/sandboxIdleAfter/);
+  });
+
+  it("upgrades run states and moves harness sandboxes from version 1", () => {
+    const [plan] = upgradePlan([{ module: "ai-chat", version: 1 }]);
+    expect(plan!.to).toBe(2);
+    const sql = plan!.steps.map((step) => step.sql).join("\n");
+    expect(sql).toContain("when 'error' then 'failed' else 'cancelled' end");
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."ai_sandboxes" (',
+    );
+    expect(sql.indexOf('add column if not exists "harness_id"')).toBeLessThan(
+      sql.indexOf("ai_sandboxes_harness_idx"),
+    );
+    expect(sql).toContain("drop column sandbox_id");
   });
 
   it("checks the default permission keys and takes overrides", () => {

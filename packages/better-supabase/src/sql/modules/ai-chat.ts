@@ -12,6 +12,11 @@ import { replaceColumnCheck, schemaPreamble, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
 import { AI_RUN_STATES, aiChatFunctions } from "./ai-chat-functions.ts";
+import {
+  sandboxFunctions,
+  sandboxTable,
+  upgradeSandboxes,
+} from "./ai-chat-sandboxes.ts";
 
 const PROJECTS = {
   id: "id",
@@ -188,13 +193,32 @@ const STEPS = {
   endedAt: "ended_at",
 } as const;
 
+const SANDBOXES = {
+  id: "id",
+  tenant: "organization_id",
+  user: "user_id",
+  chat: "chat_id",
+  harness: "harness_id",
+  provider: "provider",
+  sandbox: "sandbox_id",
+  container: "container_id",
+  status: "status",
+  metadata: "metadata",
+  idleSeconds: "idle_seconds",
+  error: "error",
+  lastUsedAt: "last_used_at",
+  expiresAt: "expires_at",
+  stoppedAt: "stopped_at",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
+} as const;
+
 const HARNESS = {
   chat: "chat_id",
   harness: "harness_id",
   owner: "owner_id",
   resume: "resume_state",
   continue: "continue_state",
-  sandbox: "sandbox_id",
   status: "status",
   holder: "lock_holder",
   lockedUntil: "locked_until",
@@ -236,7 +260,13 @@ const EVENTS: ModuleEvents = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["topic", "listTopic", "temporaryTtl", "staleAfter"],
+  options: [
+    "topic",
+    "listTopic",
+    "temporaryTtl",
+    "staleAfter",
+    "sandboxIdleAfter",
+  ],
   tables: {
     projects: {
       name: "ai_projects",
@@ -291,6 +321,11 @@ const NAMES: ModuleNames = {
       columns: STEPS,
       lifecycle: { user: "owner" },
     },
+    sandboxes: {
+      name: "ai_sandboxes",
+      columns: SANDBOXES,
+      lifecycle: { user: "user", tenant: "tenant" },
+    },
     harness: {
       name: "ai_harness_sessions",
       columns: HARNESS,
@@ -329,6 +364,7 @@ export interface AiChatColumns {
   readonly moderation: Columns<typeof MODERATION>;
   readonly steps: Columns<typeof STEPS>;
   readonly harness: Columns<typeof HARNESS>;
+  readonly sandboxes: Columns<typeof SANDBOXES>;
 }
 
 /** What the function builders read: names, permissions and topics. */
@@ -346,6 +382,8 @@ export interface AiChatNames {
   readonly listTopic: string;
   readonly temporaryTtl: string;
   readonly staleAfter: string;
+  /** Seconds a sandbox may sit unused before the idle-stop claim takes it. */
+  readonly sandboxIdleAfter: number;
 }
 
 const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
@@ -380,6 +418,21 @@ function intervalOption(
   return value;
 }
 
+// ai-providers owned the sandboxes before 0.7; its idleAfter option still
+// sets the default when ai-chat's own option is absent.
+function sandboxIdleAfter(ctx: ModuleContext): number {
+  const fallback = ctx.installed("ai-providers")
+    ? ctx.of("ai-providers").number("idleAfter", 600)
+    : 600;
+  const value = ctx.number("sandboxIdleAfter", fallback);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new TypeError(
+      "sql.modules.ai-chat.options.sandboxIdleAfter must be a whole number of seconds",
+    );
+  }
+  return value;
+}
+
 function namesOf(ctx: ModuleContext): AiChatNames {
   const permissions = MODULE_PERMISSIONS["ai-chat"];
   const topic = topicOption(ctx, "topic", "ai-chat");
@@ -405,6 +458,7 @@ function namesOf(ctx: ModuleContext): AiChatNames {
       moderation: columnsOf(ctx, "moderation", MODERATION),
       steps: columnsOf(ctx, "steps", STEPS),
       harness: columnsOf(ctx, "harness", HARNESS),
+      sandboxes: columnsOf(ctx, "sandboxes", SANDBOXES),
     },
     t: {
       projects: ctx.table("projects"),
@@ -421,6 +475,7 @@ function namesOf(ctx: ModuleContext): AiChatNames {
       moderation: ctx.table("moderation"),
       steps: ctx.table("steps"),
       harness: ctx.table("harness"),
+      sandboxes: ctx.table("sandboxes"),
     },
     perm: {
       read: ctx.permission("read", permissions.read),
@@ -433,6 +488,7 @@ function namesOf(ctx: ModuleContext): AiChatNames {
     listTopic,
     temporaryTtl: intervalOption(ctx, "temporaryTtl", "1 day"),
     staleAfter: intervalOption(ctx, "staleAfter", "10 minutes"),
+    sandboxIdleAfter: sandboxIdleAfter(ctx),
   };
 }
 
@@ -750,7 +806,7 @@ create policy ai_run_steps_owner_read on ${t.steps} for select to authenticated
   using (${rs.owner} = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
--- continue state and the sandbox it runs in. lock_holder and locked_until
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
 -- keep two turns from driving one sandbox. Experimental.
 create table if not exists ${t.harness} (
   ${hs.chat} uuid not null references ${t.chats} (${ch.id}) on delete cascade,
@@ -758,7 +814,6 @@ create table if not exists ${t.harness} (
   ${hs.owner} uuid not null,
   ${hs.resume} jsonb,
   ${hs.continue} jsonb,
-  ${hs.sandbox} text check (length(${hs.sandbox}) <= 500),
   ${hs.status} text not null default 'active' check (${hs.status} in ('active', 'idle', 'stopped', 'error')),
   ${hs.holder} text check (length(${hs.holder}) <= 200),
   ${hs.lockedUntil} timestamptz,
@@ -768,7 +823,7 @@ create table if not exists ${t.harness} (
   primary key (${hs.chat}, ${hs.harness})
 );
 create index if not exists ai_harness_sessions_owner_idx on ${t.harness} (${hs.owner});
-create index if not exists ai_harness_sessions_idle_idx on ${t.harness} (${hs.lastActiveAt}) where ${hs.status} = 'active' and ${hs.sandbox} is not null;
+create index if not exists ai_harness_sessions_idle_idx on ${t.harness} (${hs.lastActiveAt}) where ${hs.status} = 'active';
 ${lock(t.harness)}
 -- Resume state can carry harness credentials and sandbox ids, so only the
 -- service role reads it, through load_ai_harness_session.
@@ -810,6 +865,10 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
 ${tables(ctx, names)}
 
 ${aiChatFunctions(ctx, names, layout)}
+
+${sandboxTable(ctx, names)}
+
+${sandboxFunctions(ctx, names)}
 
 ${aiChatDurable(ctx, names)}
 
@@ -901,6 +960,12 @@ function contract(): readonly ModuleContractFunction[] {
     ),
     fn("unlock_ai_harness_session", ["uuid", "text", "text"], "boolean"),
     fn("idle_ai_harness_sessions", ["integer", "integer"]),
+    fn("register_ai_sandbox", ["{id}", "text", "text", "jsonb"]),
+    fn("touch_ai_sandbox", ["uuid"], "boolean"),
+    fn("ai_sandbox_for", ["uuid", "text"]),
+    fn("idle_ai_sandboxes", ["integer", "integer"]),
+    fn("finish_ai_sandbox_stop", ["uuid", "boolean", "text"], "boolean"),
+    fn("list_ai_sandboxes", ["{id}", "uuid"]),
   ];
 }
 
@@ -932,7 +997,7 @@ export const AI_CHAT: ModuleDefinition = {
   description:
     "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
   requires: ["tenant", "access", "streams"],
-  integrates: ["entitlements"],
+  integrates: ["entitlements", "ai-providers"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,
@@ -941,8 +1006,9 @@ export const AI_CHAT: ModuleDefinition = {
     {
       from: 1,
       description:
-        "Runs end completed, failed or cancelled instead of done, error or stopped.",
-      sql: upgradeRunStates,
+        "Runs end completed, failed or cancelled instead of done, error or stopped, and harness sessions keep their sandbox in ai_sandboxes, which ai-chat now owns, so one idle-stop claim covers every sandbox.",
+      sql: (ctx) =>
+        `${upgradeRunStates(ctx)}\n${upgradeSandboxes(ctx, namesOf(ctx))}`,
     },
   ],
   contract,

@@ -4,7 +4,7 @@ import type {
   CredentialProvider,
   CredentialRef,
 } from "../../credentials/provider.ts";
-import type { JobHandler } from "../jobs/queue.ts";
+import type { AiSandboxes } from "../ai-chat/sandboxes.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -13,12 +13,12 @@ import {
   credentialRefInTenant,
   foreignCredentialRef,
 } from "../../credentials/provider.ts";
+import { aiSandboxes } from "../ai-chat/sandboxes.ts";
 import {
   applyTemporal,
   blockCall,
   type BlockTemporalOptions,
   credentialRefOf,
-  errorText,
   instantArg,
   isRecord,
   optionalInstant,
@@ -149,43 +149,6 @@ export interface AiBatchItemInput {
   readonly error?: string;
 }
 
-export type AiSandboxStatus = "running" | "stopping" | "stopped";
-
-export interface AiSandbox {
-  readonly id: string;
-  readonly organizationId: string;
-  readonly userId: string | undefined;
-  readonly chatId: string | undefined;
-  /** Who runs it, such as `vercel` or `anthropic`. */
-  readonly provider: string;
-  readonly sandboxId: string;
-  /** A provider container id, such as Anthropic's code execution container. */
-  readonly containerId: string | undefined;
-  readonly status: AiSandboxStatus;
-  readonly metadata: Readonly<Record<string, unknown>>;
-  readonly idleSeconds: number;
-  readonly error: string | undefined;
-  readonly lastUsedAt: Temporal.Instant;
-  readonly expiresAt: Temporal.Instant | undefined;
-  readonly stoppedAt: Temporal.Instant | undefined;
-  readonly createdAt: Temporal.Instant;
-}
-
-export interface NewAiSandbox {
-  readonly provider: string;
-  readonly sandboxId: string;
-  readonly userId?: string;
-  readonly chatId?: string;
-  readonly containerId?: string;
-  readonly metadata?: Readonly<Record<string, unknown>>;
-  /** Seconds without use before the idle-stop job stops it; the module's `idleAfter` by default. */
-  readonly idleSeconds?: number;
-  readonly expiresAt?: Temporal.Instant;
-}
-
-/** Stops one sandbox at its provider. A throw keeps it running for the next try. */
-export type AiSandboxStopper = (sandbox: AiSandbox) => Promise<unknown>;
-
 export interface AiProvidersOptions extends BlockTemporalOptions {
   /** Calls as the user: `rpcTransport(supabase)`. */
   readonly transport: BlockTransport;
@@ -247,44 +210,12 @@ export interface AiProviders {
       items: readonly AiBatchItemInput[],
     ): AsyncResult<number>;
   };
-  readonly sandboxes: {
-    /** Records a sandbox, or marks a known one running and used (service role). */
-    register(
-      organizationId: string,
-      sandbox: NewAiSandbox,
-    ): AsyncResult<AiSandbox>;
-    /** Marks a sandbox used now (service role). `false` when it is not running. */
-    touch(sandboxId: string): AsyncResult<boolean>;
-    /** The chat's running sandbox at a provider, to reuse it (service role). */
-    forChat(
-      chatId: string,
-      provider: string,
-    ): AsyncResult<AiSandbox | undefined>;
-    list(
-      organizationId: string,
-      options?: { readonly chatId?: string },
-    ): AsyncResult<readonly AiSandbox[]>;
-    /** Claims idle and expired sandboxes to stop (service role). */
-    idle(options?: {
-      readonly batch?: number;
-      readonly leaseSeconds?: number;
-    }): AsyncResult<readonly AiSandbox[]>;
-    finishStop(
-      sandboxId: string,
-      stopped: boolean,
-      error?: string,
-    ): AsyncResult<boolean>;
-    /** Claims idle sandboxes, stops each with `stop`, and records the outcome. Returns how many stopped. */
-    stopIdle(
-      stop: AiSandboxStopper,
-      options?: { readonly batch?: number },
-    ): AsyncResult<number>;
-    /** A job handler that runs `stopIdle`; schedule it every few minutes. */
-    idleStopJob(
-      stop: AiSandboxStopper,
-      options?: { readonly batch?: number },
-    ): JobHandler<unknown>;
-  };
+  /**
+   * The sandbox registry, which lives in the ai-chat module since 0.7. It
+   * calls `options.schema`, so that schema needs ai-chat installed. Use
+   * `createAiChat(...).sandboxes`; this alias goes in 0.8.
+   */
+  readonly sandboxes: AiSandboxes;
 }
 
 const BATCH_STATUSES: ReadonlySet<string> = new Set([
@@ -299,12 +230,6 @@ const ITEM_STATUSES: ReadonlySet<string> = new Set([
   "cancelled",
   "expired",
 ]);
-const SANDBOX_STATUSES: ReadonlySet<string> = new Set([
-  "running",
-  "stopping",
-  "stopped",
-]);
-
 const instant = (value: unknown): Temporal.Instant =>
   value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
@@ -387,35 +312,10 @@ function itemOf(value: unknown): AiBatchItem {
   };
 }
 
-function sandboxOf(value: unknown): AiSandbox {
-  const row = recordOf(value, "ai_sandboxes");
-  const status = textOf(row["status"]);
-  return {
-    id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
-    userId: optionalText(row["user_id"]),
-    chatId: optionalText(row["chat_id"]),
-    provider: textOf(row["provider"]),
-    sandboxId: textOf(row["sandbox_id"]),
-    containerId: optionalText(row["container_id"]),
-    // SAFETY: SANDBOX_STATUSES holds exactly the AiSandboxStatus members.
-    status: SANDBOX_STATUSES.has(status)
-      ? (status as AiSandboxStatus)
-      : "stopped",
-    metadata: recordOrEmpty(row["metadata"]),
-    idleSeconds: numberOf(row["idle_seconds"]),
-    error: optionalText(row["error"]),
-    lastUsedAt: instant(row["last_used_at"]),
-    expiresAt: optionalInstant(row["expires_at"]),
-    stoppedAt: optionalInstant(row["stopped_at"]),
-    createdAt: instant(row["created_at"]),
-  };
-}
-
 const sameRef = (a: CredentialRef, b: CredentialRef): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
-/** Per-tenant provider keys, provider batch jobs, and the sandboxes chats start. */
+/** Per-tenant provider keys and provider batch jobs. */
 export function createAiProviders(options: AiProvidersOptions): AiProviders {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
@@ -443,51 +343,6 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
       }
       return ok(keys.length);
     });
-
-  const idle = (
-    idleOptions: {
-      readonly batch?: number;
-      readonly leaseSeconds?: number;
-    } = {},
-  ) =>
-    service(
-      "idle_ai_sandboxes",
-      { batch: idleOptions.batch, lease_seconds: idleOptions.leaseSeconds },
-      (value) => recordsOf(value, "idle_ai_sandboxes").map(sandboxOf),
-    );
-
-  const finishStop = (sandboxId: string, stopped: boolean, error?: string) =>
-    service(
-      "finish_ai_sandbox_stop",
-      { id: sandboxId, stopped, error },
-      (value) => value === true,
-    );
-
-  const stopIdle = (
-    stop: AiSandboxStopper,
-    stopOptions: { readonly batch?: number } = {},
-  ): AsyncResult<number> =>
-    idle(stopOptions).andThen((claimed) =>
-      AsyncResult.from(async () => {
-        let stopped = 0;
-        for (const sandbox of claimed) {
-          let error: string | undefined;
-          try {
-            await stop(sandbox);
-          } catch (cause) {
-            error = errorText(cause);
-          }
-          const finished = await finishStop(
-            sandbox.id,
-            error === undefined,
-            error,
-          );
-          if (!finished.ok) return finished;
-          if (error === undefined) stopped += 1;
-        }
-        return ok(stopped);
-      }),
-    );
 
   return {
     keys: {
@@ -671,60 +526,6 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
           (value) => Number(value ?? 0),
         ),
     },
-    sandboxes: {
-      register: (organizationId, sandbox) =>
-        service(
-          "register_ai_sandbox",
-          {
-            tenant: organizationId,
-            provider: sandbox.provider,
-            sandbox_id: sandbox.sandboxId,
-            fields: {
-              ...(sandbox.userId === undefined
-                ? {}
-                : { user_id: sandbox.userId }),
-              ...(sandbox.chatId === undefined
-                ? {}
-                : { chat_id: sandbox.chatId }),
-              ...(sandbox.containerId === undefined
-                ? {}
-                : { container_id: sandbox.containerId }),
-              ...(sandbox.metadata === undefined
-                ? {}
-                : { metadata: sandbox.metadata }),
-              ...(sandbox.idleSeconds === undefined
-                ? {}
-                : {
-                    idle_seconds: Math.max(1, Math.round(sandbox.idleSeconds)),
-                  }),
-              ...(sandbox.expiresAt === undefined
-                ? {}
-                : { expires_at: sandbox.expiresAt.toString() }),
-            },
-          },
-          sandboxOf,
-        ),
-      touch: (sandboxId) =>
-        service(
-          "touch_ai_sandbox",
-          { id: sandboxId },
-          (value) => value === true,
-        ),
-      forChat: (chatId, provider) =>
-        service("ai_sandbox_for", { chat_id: chatId, provider }, (value) =>
-          value === null || value === undefined ? undefined : sandboxOf(value),
-        ),
-      list: (organizationId, listOptions = {}) =>
-        call(
-          "list_ai_sandboxes",
-          { tenant: organizationId, chat_id: listOptions.chatId },
-          (value) => recordsOf(value, "list_ai_sandboxes").map(sandboxOf),
-        ),
-      idle,
-      finishStop,
-      stopIdle,
-      idleStopJob: (stop, jobOptions) => async () =>
-        stopIdle(stop, jobOptions).orThrow(),
-    },
+    sandboxes: aiSandboxes(call, service),
   };
 }

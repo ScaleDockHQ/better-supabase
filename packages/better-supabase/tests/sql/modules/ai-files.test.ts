@@ -53,9 +53,7 @@ describe("ai-files module", () => {
       sql.indexOf("create policy ai_files_read"),
       sql.indexOf("-- What a provider's file API"),
     );
-    expect(policy).toContain(
-      "better_supabase.tenant_ids_with('ai_chat.admin')",
-    );
+    expect(policy).toContain("better_supabase.tenant_ids_with('ai.admin')");
     expect(policy).not.toContain("better_supabase.can(");
   });
 

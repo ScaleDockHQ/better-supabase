@@ -59,6 +59,13 @@ export {
   type IdleSandboxStopOptions,
   type IdleSandboxStopResult,
 } from "./durable.ts";
+export type {
+  AiSandbox,
+  AiSandboxes,
+  AiSandboxStatus,
+  AiSandboxStopper,
+  NewAiSandbox,
+} from "./sandboxes.ts";
 export {
   INTERRUPTED_TOOL_OUTPUT,
   pathToHistory,

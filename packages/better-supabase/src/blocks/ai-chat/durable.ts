@@ -258,8 +258,13 @@ export interface AiHarnessSession {
 export interface AiHarnessSessionPatch {
   readonly resumeState?: unknown;
   readonly continueState?: unknown;
-  /** `null` forgets the sandbox. */
+  /**
+   * Registers the session's sandbox in `ai_sandboxes`; `null` marks it
+   * stopped.
+   */
   readonly sandboxId?: string | null;
+  /** Who runs the sandbox, such as `vercel`. Defaults to `harness`. */
+  readonly sandboxProvider?: string;
   readonly status?: AiHarnessStatus;
 }
 
@@ -328,6 +333,9 @@ function patchFields(patch: AiHarnessSessionPatch): Record<string, unknown> {
       ? { continue_state: patch.continueState ?? null }
       : {}),
     ...("sandboxId" in patch ? { sandbox_id: patch.sandboxId ?? null } : {}),
+    ...(patch.sandboxProvider === undefined
+      ? {}
+      : { sandbox_provider: patch.sandboxProvider }),
     ...(patch.status === undefined ? {} : { status: patch.status }),
   };
 }
@@ -418,7 +426,9 @@ export interface IdleSandboxStopResult {
 type StopOutcome = "stopped" | "skipped" | { readonly error: string };
 
 /**
- * A job handler for a schedule that stops idle harness sandboxes. Each
+ * A job handler for a schedule that stops idle harness sandboxes. Prefer
+ * `createAiChat(...).sandboxes.idleStopJob`, which stops chat and harness
+ * sandboxes in one claim; this handler goes in 0.8. Each
  * session idle for `idleSeconds` is locked first, so a turn that starts
  * meanwhile keeps its sandbox; a session that is locked, or was used since
  * `idle` listed it, is skipped. A stopped session turns `stopped` without a

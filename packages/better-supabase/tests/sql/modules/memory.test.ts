@@ -52,7 +52,7 @@ describe("memory module", () => {
   it("lets only admins change organization memory", () => {
     const sql = body();
     expect(sql).toContain("only admins change organization memory");
-    expect(sql).toContain("'ai_chat.admin'");
+    expect(sql).toContain("'ai.admin'");
   });
 
   it("caps content at maxContent and rejects a bad cap", () => {
