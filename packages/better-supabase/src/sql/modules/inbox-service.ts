@@ -1,5 +1,6 @@
 import type { InboxSql } from "./inbox-names.ts";
 
+import { serviceGrant, pageSize } from "../shared.ts";
 import { forbidden, missing } from "./inbox-functions.ts";
 import { topics } from "./inbox-names.ts";
 
@@ -17,9 +18,6 @@ export function inboxServiceFunctions(q: InboxSql): string {
   const authed = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
-  const serviceOnly = (signature: string): string =>
-    `revoke execute on function ${signature} from public, anon, authenticated;
-grant execute on function ${signature} to service_role;`;
 
   return `-- One message with its first delivery, under the caller's RLS.
 create or replace function ${fn("get_message")}(message uuid)
@@ -92,7 +90,7 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-${serviceOnly(`${fn("record_delivery")}(uuid, text, text, text, text)`)}
+${serviceGrant(`${fn("record_delivery")}(uuid, text, text, text, text)`)}
 
 -- A status callback from the channel. Status only moves forward (queued,
 -- sent, delivered, read); failed counts only before delivery. Returns the
@@ -115,7 +113,7 @@ begin
   return v_count;
 end;
 $$;
-${serviceOnly(`${fn("set_delivery_status")}(text, text, text, text)`)}
+${serviceGrant(`${fn("set_delivery_status")}(text, text, text, text)`)}
 
 -- Stores a webhook body before the ack. { id, duplicate }: a duplicate is a
 -- retry of an event already stored under the same external_id.
@@ -139,7 +137,7 @@ begin
   return jsonb_build_object('id', v_id, 'duplicate', true);
 end;
 $$;
-${serviceOnly(`${fn("store_inbound_event")}(text, text, text, jsonb, uuid, ${id})`)}
+${serviceGrant(`${fn("store_inbound_event")}(text, text, text, jsonb, uuid, ${id})`)}
 
 create or replace function ${fn("set_inbound_event_status")}(event uuid, status text, error text default null)
 returns boolean
@@ -157,7 +155,7 @@ begin
   return found;
 end;
 $$;
-${serviceOnly(`${fn("set_inbound_event_status")}(uuid, text, text)`)}
+${serviceGrant(`${fn("set_inbound_event_status")}(uuid, text, text)`)}
 
 -- Inbound events still waiting, oldest first, for a retry sweep.
 create or replace function ${fn("pending_inbound_events")}(max integer default 100, max_attempts integer default 5)
@@ -171,10 +169,10 @@ as $$
     select * from ${T("inbound")} x
     where x.${ie("status")} in ('received', 'failed') and x.${ie("attempts")} < coalesce(max_attempts, 5)
     order by x.${ie("receivedAt")}
-    limit least(greatest(coalesce(max, 100), 1), 1000)
+    limit ${pageSize("max", 100, 1000)}
   ) e;
 $$;
-${serviceOnly(`${fn("pending_inbound_events")}(integer, integer)`)}
+${serviceGrant(`${fn("pending_inbound_events")}(integer, integer)`)}
 
 -- Deletes handled inbound events older than older_than, at most batch.
 create or replace function ${fn("purge_inbound_events")}(older_than interval default '30 days', batch integer default 1000)
@@ -195,7 +193,7 @@ begin
   return v_count;
 end;
 $$;
-${serviceOnly(`${fn("purge_inbound_events")}(interval, integer)`)}
+${serviceGrant(`${fn("purge_inbound_events")}(interval, integer)`)}
 
 -- Reopens snoozed conversations whose time came, for a periodic job.
 create or replace function ${fn("wake_snoozed_conversations")}()
@@ -212,7 +210,7 @@ begin
   return v_count;
 end;
 $$;
-${serviceOnly(`${fn("wake_snoozed_conversations")}()`)}
+${serviceGrant(`${fn("wake_snoozed_conversations")}()`)}
 
 create or replace function ${fn("upsert_message_template")}(tenant ${id}, input jsonb)
 returns jsonb

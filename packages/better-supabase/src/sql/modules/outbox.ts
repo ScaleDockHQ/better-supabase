@@ -2,7 +2,7 @@ import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble } from "../shared.ts";
+import { schemaPreamble, pageSize } from "../shared.ts";
 
 const NAMES: ModuleNames = {
   options: ["defaultSource", "emitRoles", "blockSource", "retention", "settle"],
@@ -519,7 +519,7 @@ as $$
     select * from ${n.d} d
     where d.${n.x("consumer")} = outbox_dead_letters.consumer
     order by d.${n.x("deadAt")} desc, d.${n.x("position")} desc
-    limit least(greatest(coalesce(max_rows, 100), 1), 1000)
+    limit ${pageSize("max_rows", 100, 1000)}
   ) x
 $$;
 

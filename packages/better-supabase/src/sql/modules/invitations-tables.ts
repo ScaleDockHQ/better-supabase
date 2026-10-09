@@ -1,6 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { raise as raiseWith, sha256Hex } from "../shared.ts";
 import { hasPlatformRoles } from "./access-model.ts";
 
 export const PLATFORM_COLUMNS = {
@@ -42,7 +42,7 @@ export function raise(
   message: string,
   ...args: string[]
 ): string {
-  return `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${INVITATION_ERRORS[code]}', hint = '${code}';`;
+  return raiseWith(message, INVITATION_ERRORS[code], code, ...args);
 }
 
 /**
@@ -58,7 +58,7 @@ export function tokenHash(ctx: ModuleContext, token: string): string {
       `sql.modules.invitations.options.tokenStorage must be "sha256" or "plain", got "${storage}"`,
     );
   }
-  return `encode(extensions.digest(${token}, 'sha256'), 'hex')`;
+  return sha256Hex(token);
 }
 
 /** A table of invitations: the tenant one, or the platform one. */

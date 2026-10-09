@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, tenantIn } from "../shared.ts";
+import { SERVICE_CALLER, serviceGrant, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 
@@ -50,6 +50,7 @@ export interface BuilderSql {
   readonly alertEmit: string;
   readonly fire: string;
   readonly failedTrigger: string;
+  readonly broadcast: ModuleContext["broadcast"];
 }
 
 export function builderSql(ctx: ModuleContext): BuilderSql {
@@ -80,14 +81,11 @@ export function builderSql(ctx: ModuleContext): BuilderSql {
   const permission = (action: BuilderAction): string =>
     ctx.permission(action, permissions[action]);
   const can = (tenant: string, action: BuilderAction): string =>
-    `coalesce(better_supabase.can('tenant', ${tenant}, ${permission(action)}), false)`;
+    ctx.can("tenant", tenant, permission(action));
   const allowed = (tenant: string, action: BuilderAction): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${can(tenant, action)}))`;
   const forbidden = (message: string): string =>
     `raise exception ${sqlString(message)} using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';`;
-  const serviceOnly = (signature: string): string =>
-    `revoke execute on function ${signature} from public, anon, authenticated;
-grant execute on function ${signature} to service_role;`;
   const callable = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
@@ -211,7 +209,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     can,
     allowed,
     forbidden,
-    serviceOnly,
+    serviceOnly: serviceGrant,
     callable,
     readable,
     definitionReadable,
@@ -225,12 +223,15 @@ grant execute on function ${signature} to authenticated, service_role;`;
     alertEmit,
     fire,
     failedTrigger,
+    broadcast: (topic, event, payload, options) =>
+      ctx.broadcast(topic, event, payload, options),
   };
 }
 
 /** Triggers, credentials, the step library, node runs and alerts. */
 export function builderRuntimeSql(s: BuilderSql): string {
   const {
+    broadcast,
     id,
     fn,
     d,
@@ -253,7 +254,7 @@ export function builderRuntimeSql(s: BuilderSql): string {
     cr,
     allowed,
     forbidden,
-    serviceOnly,
+    serviceOnly: serviceGrant,
     callable,
     triggerJson,
     credentialJson,
@@ -389,7 +390,7 @@ as $$
   where k.${cw("tokenHash")} = extensions.digest(workflow_webhook_target.token, 'sha256')
     and x.${ct("enabled")};
 $$;
-${serviceOnly(`${fn("workflow_webhook_target")}(text)`)}
+${serviceGrant(`${fn("workflow_webhook_target")}(text)`)}
 
 -- The enabled event triggers listening for type (config.type) in tenant,
 -- with their definitions (service role; the outbox consumer calls it).
@@ -406,7 +407,7 @@ as $$
     and x.${ct("config")} ->> 'type' = workflow_event_targets.type
     and y.${cd("tenant")} is not distinct from workflow_event_targets.tenant;
 $$;
-${serviceOnly(`${fn("workflow_event_targets")}(text, ${id})`)}
+${serviceGrant(`${fn("workflow_event_targets")}(text, ${id})`)}
 
 -- Creates or replaces a credential reference: workflow.admin in tenant.
 create or replace function ${fn("save_workflow_credential")}(
@@ -462,7 +463,7 @@ set search_path = ''
 as $$
   select ${credentialJson("x")} from ${c} x where x.${cc("id")} = workflow_credential_get.credential;
 $$;
-${serviceOnly(`${fn("workflow_credential_get")}(uuid)`)}
+${serviceGrant(`${fn("workflow_credential_get")}(uuid)`)}
 
 -- Deletes a credential row and returns it, so the caller can revoke the
 -- secret it names: workflow.admin in its tenant.
@@ -517,7 +518,7 @@ begin
   return v_count;
 end;
 $$;
-${serviceOnly(`${fn("sync_workflow_steps")}(jsonb)`)}
+${serviceGrant(`${fn("sync_workflow_steps")}(jsonb)`)}
 
 create or replace function ${fn("workflow_steps_list")}()
 returns jsonb
@@ -566,13 +567,11 @@ begin
     ${cn("error")} = excluded.${cn("error")},
     ${cn("startedAt")} = coalesce(x.${cn("startedAt")}, excluded.${cn("startedAt")}),
     ${cn("endedAt")} = excluded.${cn("endedAt")};
-  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
-    perform realtime.send(jsonb_build_object('id', v_run, 'node', node, 'status', status), 'node', 'workflow-run:' || v_run::text, true);
-  end if;
+  ${broadcast("'workflow-run:' || v_run::text", "'node'", "jsonb_build_object('id', v_run, 'node', node, 'status', status)")}
   return true;
 end;
 $$;
-${serviceOnly(`${fn("record_workflow_node_run")}(text, text, text, integer, jsonb, text)`)}
+${serviceGrant(`${fn("record_workflow_node_run")}(text, text, text, integer, jsonb, text)`)}
 
 -- The node statuses of a run the caller may read.
 create or replace function ${fn("workflow_node_runs_list")}(run text)
@@ -720,5 +719,5 @@ begin
   return v_fired;
 end;
 $$;
-${serviceOnly(`${fn("check_workflow_alerts")}(integer)`)}`;
+${serviceGrant(`${fn("check_workflow_alerts")}(integer)`)}`;
 }

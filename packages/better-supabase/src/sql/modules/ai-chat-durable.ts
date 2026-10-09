@@ -1,9 +1,14 @@
 import type { ModuleContext } from "../context.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
-import { SERVICE_CALLER } from "../shared.ts";
+import {
+  raise,
+  SERVICE_CALLER,
+  serviceGrant,
+  userGrant,
+  pageSize,
+} from "../shared.ts";
 import { approvalJson } from "./ai-chat-extras.ts";
-import { raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 
 function runJson(names: AiChatNames, row: string): string {
   const r = names.c.runs;
@@ -98,7 +103,7 @@ begin
           or (x.${r.status} in ('queued', 'running', 'cancel_requested')) = list_ai_runs.active
         )
       order by x.${r.startedAt} desc
-      limit least(greatest(coalesce(list_ai_runs.size, 50), 1), 200)
+      limit ${pageSize("list_ai_runs.size", 50, 200)}
     ) y
   );
 end;
@@ -143,7 +148,7 @@ as $$
     join ${t.chats} c on c.${ch.id} = x.${a.chat}
     where x.${a.owner} = (select auth.uid()) and x.${a.decision} is null
     order by x.${a.createdAt} desc
-    limit least(greatest(coalesce(list_pending_ai_tool_approvals.size, 50), 1), 200)
+    limit ${pageSize("list_pending_ai_tool_approvals.size", 50, 200)}
   ) y;
 $$;
 ${userGrant(`${fn("list_pending_ai_tool_approvals")}(integer)`)}
@@ -383,7 +388,7 @@ begin
       and x.${h.lastActiveAt} < now() - make_interval(secs => greatest(coalesce(idle_ai_harness_sessions.idle_seconds, 900), 1))
       and (x.${h.lockedUntil} is null or x.${h.lockedUntil} <= now())
     order by x.${h.lastActiveAt}
-    limit least(greatest(coalesce(idle_ai_harness_sessions.size, 100), 1), 1000)
+    limit ${pageSize("idle_ai_harness_sessions.size", 100, 1000)}
     for update skip locked
   ), marked as (
     update ${t.harness} x set ${h.status} = 'idle', ${h.updatedAt} = now()

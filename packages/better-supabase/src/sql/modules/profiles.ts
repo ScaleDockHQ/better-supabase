@@ -911,6 +911,7 @@ export const PROFILES: ModuleDefinition = {
   description:
     "A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.",
   requires: [],
+  integrates: ["tenant"],
   dependencies: (layout) => {
     const policy = layout.modules?.["profiles"]?.options?.["readPolicy"];
     return typeof policy === "object" && policy !== null && "platform" in policy

@@ -5,7 +5,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER, serviceGrant } from "../shared.ts";
 
 const NAMES: ModuleNames = { tables: {} };
 
@@ -36,9 +36,6 @@ function build(ctx: ModuleContext): string {
   end if;`;
   const secretName = (name: string): string =>
     `'bs:cred:' || ${name}.provider || ':' || ${name}.name`;
-  const grant = (signature: string): string =>
-    `revoke execute on function ${signature} from public, anon, authenticated;
-grant execute on function ${signature} to service_role;`;
 
   return `${schemaPreamble(ctx)}
 -- Third-party credentials live in Vault as bs:cred:<provider>:<name>; tables
@@ -58,7 +55,7 @@ begin${guard("credential_get")}
   );
 end;
 $$;
-${grant(`${fn("credential_get")}(text, text)`)}
+${serviceGrant(`${fn("credential_get")}(text, text)`)}
 
 -- Stores or replaces a credential; returns its Vault id.
 create or replace function ${fn("credential_set")}(provider text, name text, secret text, description text default null)
@@ -87,7 +84,7 @@ begin${guard("credential_set")}
   return v_id;
 end;
 $$;
-${grant(`${fn("credential_set")}(text, text, text, text)`)}
+${serviceGrant(`${fn("credential_set")}(text, text, text, text)`)}
 
 -- Deletes a credential; false when there was none.
 create or replace function ${fn("credential_delete")}(provider text, name text)
@@ -101,7 +98,7 @@ begin${guard("credential_delete")}
   return found;
 end;
 $$;
-${grant(`${fn("credential_delete")}(text, text)`)}`;
+${serviceGrant(`${fn("credential_delete")}(text, text)`)}`;
 }
 
 function contract(): readonly ModuleContractFunction[] {

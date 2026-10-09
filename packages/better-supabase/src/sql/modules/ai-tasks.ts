@@ -1,10 +1,16 @@
 import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
-import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
+import {
+  canIn,
+  raise,
+  schemaPreamble,
+  SERVICE_CALLER,
+  serviceGrant,
+  tenantIn,
+  userGrant,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
-import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
 
 const TASKS = {
@@ -96,7 +102,7 @@ function build(ctx: ModuleContext): string {
   const enqueue = (run: string): string =>
     ctx.installed("jobs")
       ? `
-    perform ${ctx.of("jobs").fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => jsonb_build_object('run_id', ${run}), dedupe_key => 'ai-task:' || ${run}::text, dedupe_running => false);`
+    ${ctx.enqueue(queue, `jsonb_build_object('run_id', ${run})`, `'ai-task:' || ${run}::text`)}`
       : "";
   const mayEdit = (row: string): string =>
     `(${SERVICE_CALLER} or ${row}.${t.user} = auth.uid() or ${canIn(`${row}.${t.tenant}`, manage)})`;
@@ -405,6 +411,7 @@ export const AI_TASKS: ModuleDefinition = {
   description:
     "Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.",
   requires: ["tenant", "access"],
+  integrates: ["agents", "ai-chat", "jobs"],
   target: "schema",
   version: 1,
   names: NAMES,

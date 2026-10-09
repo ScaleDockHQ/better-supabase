@@ -5,7 +5,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
-import { schemaPreamble } from "../shared.ts";
+import { schemaPreamble, serviceGrant } from "../shared.ts";
 
 const NAMES: ModuleNames = {
   tables: {
@@ -93,9 +93,6 @@ function build(ctx: ModuleContext): string {
   const cli = (column: string): string => ctx.col("lists", column);
   const cq = (column: string): string => ctx.col("queues", column);
   const ci = (column: string): string => ctx.col("installations", column);
-  const serviceOnly = (signature: string): string =>
-    `revoke execute on function ${signature} from public, anon, authenticated;
-grant execute on function ${signature} to service_role;`;
   const table = (
     name: string,
   ): string => `alter table ${name} enable row level security;
@@ -197,7 +194,7 @@ as $$
   insert into ${sub} (${cs("prefix")}, ${cs("thread")}) values (prefix, thread_id)
   on conflict do nothing;
 $$;
-${serviceOnly(`${fn("chat_state_subscribe")}(text, text)`)}
+${serviceGrant(`${fn("chat_state_subscribe")}(text, text)`)}
 
 create or replace function ${fn("chat_state_unsubscribe")}(prefix text, thread_id text)
 returns void
@@ -206,7 +203,7 @@ set search_path = ''
 as $$
   delete from ${sub} s where s.${cs("prefix")} = chat_state_unsubscribe.prefix and s.${cs("thread")} = chat_state_unsubscribe.thread_id;
 $$;
-${serviceOnly(`${fn("chat_state_unsubscribe")}(text, text)`)}
+${serviceGrant(`${fn("chat_state_unsubscribe")}(text, text)`)}
 
 create or replace function ${fn("chat_state_is_subscribed")}(prefix text, thread_id text)
 returns boolean
@@ -216,7 +213,7 @@ set search_path = ''
 as $$
   select exists (select 1 from ${sub} s where s.${cs("prefix")} = chat_state_is_subscribed.prefix and s.${cs("thread")} = chat_state_is_subscribed.thread_id);
 $$;
-${serviceOnly(`${fn("chat_state_is_subscribed")}(text, text)`)}
+${serviceGrant(`${fn("chat_state_is_subscribed")}(text, text)`)}
 
 -- Takes the thread's lock when it is free or expired: { thread_id, token,
 -- expires_at }, or null while another holder's lock is live.
@@ -241,7 +238,7 @@ begin
   return ${lockJson("v_lock")};
 end;
 $$;
-${serviceOnly(`${fn("chat_state_acquire_lock")}(text, text, text, integer)`)}
+${serviceGrant(`${fn("chat_state_acquire_lock")}(text, text, text, integer)`)}
 
 -- Extends a live lock the token still holds; an expired lock stays expired.
 create or replace function ${fn("chat_state_extend_lock")}(prefix text, thread_id text, token text, ttl_ms integer)
@@ -259,7 +256,7 @@ begin
   return found;
 end;
 $$;
-${serviceOnly(`${fn("chat_state_extend_lock")}(text, text, text, integer)`)}
+${serviceGrant(`${fn("chat_state_extend_lock")}(text, text, text, integer)`)}
 
 create or replace function ${fn("chat_state_release_lock")}(prefix text, thread_id text, token text)
 returns boolean
@@ -274,7 +271,7 @@ begin
   return found;
 end;
 $$;
-${serviceOnly(`${fn("chat_state_release_lock")}(text, text, text)`)}
+${serviceGrant(`${fn("chat_state_release_lock")}(text, text, text)`)}
 
 create or replace function ${fn("chat_state_force_release_lock")}(prefix text, thread_id text)
 returns boolean
@@ -288,7 +285,7 @@ begin
   return found;
 end;
 $$;
-${serviceOnly(`${fn("chat_state_force_release_lock")}(text, text)`)}
+${serviceGrant(`${fn("chat_state_force_release_lock")}(text, text)`)}
 
 -- { value } for a live key, or null, so a stored JSON null stays apart from
 -- a missing key.
@@ -302,7 +299,7 @@ as $$
   where c.${cc("prefix")} = chat_state_get.prefix and c.${cc("key")} = chat_state_get.key
     and ${live(`c.${cc("expiresAt")}`)};
 $$;
-${serviceOnly(`${fn("chat_state_get")}(text, text)`)}
+${serviceGrant(`${fn("chat_state_get")}(text, text)`)}
 
 create or replace function ${fn("chat_state_set")}(prefix text, key text, value jsonb, ttl_ms integer default null)
 returns void
@@ -314,7 +311,7 @@ as $$
   on conflict (${cc("prefix")}, ${cc("key")}) do update
     set ${cc("value")} = excluded.${cc("value")}, ${cc("expiresAt")} = excluded.${cc("expiresAt")}, ${cc("updatedAt")} = clock_timestamp();
 $$;
-${serviceOnly(`${fn("chat_state_set")}(text, text, jsonb, integer)`)}
+${serviceGrant(`${fn("chat_state_set")}(text, text, jsonb, integer)`)}
 
 -- Writes the key unless a live value holds it; true when it wrote.
 create or replace function ${fn("chat_state_set_if_not_exists")}(prefix text, key text, value jsonb, ttl_ms integer default null)
@@ -332,7 +329,7 @@ begin
   return found;
 end;
 $$;
-${serviceOnly(`${fn("chat_state_set_if_not_exists")}(text, text, jsonb, integer)`)}
+${serviceGrant(`${fn("chat_state_set_if_not_exists")}(text, text, jsonb, integer)`)}
 
 create or replace function ${fn("chat_state_delete")}(prefix text, key text)
 returns void
@@ -341,7 +338,7 @@ set search_path = ''
 as $$
   delete from ${ca} c where c.${cc("prefix")} = chat_state_delete.prefix and c.${cc("key")} = chat_state_delete.key;
 $$;
-${serviceOnly(`${fn("chat_state_delete")}(text, text)`)}
+${serviceGrant(`${fn("chat_state_delete")}(text, text)`)}
 
 -- Appends to the list, keeps the newest max_length entries and moves the
 -- whole list's expiry to ttl_ms from now.
@@ -370,7 +367,7 @@ begin
     and l.${cli("expiresAt")} is distinct from v_expires;
 end;
 $$;
-${serviceOnly(`${fn("chat_state_append_to_list")}(text, text, jsonb, integer, integer)`)}
+${serviceGrant(`${fn("chat_state_append_to_list")}(text, text, jsonb, integer, integer)`)}
 
 create or replace function ${fn("chat_state_get_list")}(prefix text, key text)
 returns jsonb
@@ -382,7 +379,7 @@ as $$
   where l.${cli("prefix")} = chat_state_get_list.prefix and l.${cli("key")} = chat_state_get_list.key
     and ${live(`l.${cli("expiresAt")}`)};
 $$;
-${serviceOnly(`${fn("chat_state_get_list")}(text, text)`)}
+${serviceGrant(`${fn("chat_state_get_list")}(text, text)`)}
 
 -- Queues an entry for a busy thread, keeps the newest max_size live entries
 -- and returns the depth after the insert.
@@ -415,7 +412,7 @@ begin
   return v_depth;
 end;
 $$;
-${serviceOnly(`${fn("chat_state_enqueue")}(text, text, jsonb, timestamptz, integer)`)}
+${serviceGrant(`${fn("chat_state_enqueue")}(text, text, jsonb, timestamptz, integer)`)}
 
 -- Removes and returns the oldest live entry, or null. Concurrent workers
 -- skip an entry another one is taking.
@@ -442,7 +439,7 @@ begin
   return v_value;
 end;
 $$;
-${serviceOnly(`${fn("chat_state_dequeue")}(text, text)`)}
+${serviceGrant(`${fn("chat_state_dequeue")}(text, text)`)}
 
 create or replace function ${fn("chat_state_queue_depth")}(prefix text, thread_id text)
 returns integer
@@ -453,7 +450,7 @@ as $$
   where q.${cq("prefix")} = chat_state_queue_depth.prefix and q.${cq("thread")} = chat_state_queue_depth.thread_id
     and q.${cq("expiresAt")} > clock_timestamp();
 $$;
-${serviceOnly(`${fn("chat_state_queue_depth")}(text, text)`)}
+${serviceGrant(`${fn("chat_state_queue_depth")}(text, text)`)}
 
 -- Deletes expired locks, cache keys, list entries and queued messages, at
 -- most batch of each per call; returns how many rows went.
@@ -481,7 +478,7 @@ begin
   return v_count + v_rows;
 end;
 $$;
-${serviceOnly(`${fn("purge_chat_state")}(integer)`)}
+${serviceGrant(`${fn("purge_chat_state")}(integer)`)}
 
 -- Records an install, or a reinstall of an uninstalled workspace, and
 -- returns the row. A reinstall replaces the credential_ref; the caller
@@ -515,7 +512,7 @@ begin
   );
 end;
 $$;
-${serviceOnly(`${fn("chat_install")}(text, text, ${id}, jsonb, uuid, jsonb)`)}
+${serviceGrant(`${fn("chat_install")}(text, text, ${id}, jsonb, uuid, jsonb)`)}
 
 create or replace function ${fn("chat_installation")}(adapter text, external_id text)
 returns jsonb
@@ -526,7 +523,7 @@ as $$
   select to_jsonb(i) from ${ins} i
   where i.${ci("adapter")} = chat_installation.adapter and i.${ci("externalId")} = chat_installation.external_id;
 $$;
-${serviceOnly(`${fn("chat_installation")}(text, text)`)}
+${serviceGrant(`${fn("chat_installation")}(text, text)`)}
 
 create or replace function ${fn("list_chat_installations")}(tenant ${id} default null, adapter text default null, include_uninstalled boolean default false)
 returns jsonb
@@ -540,7 +537,7 @@ as $$
     and (list_chat_installations.adapter is null or i.${ci("adapter")} = list_chat_installations.adapter)
     and (coalesce(include_uninstalled, false) or i.${ci("uninstalledAt")} is null);
 $$;
-${serviceOnly(`${fn("list_chat_installations")}(${id}, text, boolean)`)}
+${serviceGrant(`${fn("list_chat_installations")}(${id}, text, boolean)`)}
 
 -- Marks the install removed, clears its credential_ref and returns the row
 -- with the ref it held, so the caller revokes the credential. Null when
@@ -567,7 +564,7 @@ begin
   return to_jsonb(v_row) || jsonb_build_object('previous_credential_ref', v_ref);
 end;
 $$;
-${serviceOnly(`${fn("chat_uninstall")}(text, text)`)}`;
+${serviceGrant(`${fn("chat_uninstall")}(text, text)`)}`;
 }
 
 function contract(): readonly ModuleContractFunction[] {

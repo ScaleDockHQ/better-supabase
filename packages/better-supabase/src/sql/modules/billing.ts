@@ -177,7 +177,7 @@ function build(ctx: ModuleContext): string {
   const mc = (logical: string): string => tenant.col("memberships", logical);
   const permissions = MODULE_PERMISSIONS.billing;
   const can = (scope: string, action: "read" | "manage"): string =>
-    `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${scope}, ${ctx.permission(action, permissions[action])}), false))`;
+    `(${SERVICE_CALLER} or ${ctx.can("tenant", scope, ctx.permission(action, permissions[action]))})`;
   const viewAll = `coalesce(better_supabase.is_platform(${modulePermission(ctx, "viewAll", permissions.viewAll)}), false)`;
   const seatRoles = ctx.list("seatRoles", []);
   const references = ctx.manages ? tenantReference(ctx) : undefined;
@@ -605,6 +605,7 @@ export const BILLING: ModuleDefinition = {
   description:
     "Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.",
   requires: ["tenant", "access"],
+  integrates: ["organizations"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,

@@ -191,7 +191,7 @@ function build(ctx: ModuleContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const permissions = MODULE_PERMISSIONS.attachments;
   const can = (tenant: string, action: keyof typeof permissions): string =>
-    `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`;
+    ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const requireScan = ctx.flag("requireScan", true);
   const subjects = subjectsOption(ctx, ["bucket", "allowedMimeTypes"], {
@@ -270,7 +270,7 @@ function build(ctx: ModuleContext): string {
   const scans = ctx.table("scans");
   const sc = (logical: string): string => ctx.col("scans", logical);
   const scanBuckets = scanBucketsOf(ctx);
-  const objectUploaded = ctx.emit({
+  const objectUploaded = ctx.record({
     type: "object.uploaded",
     payload: `jsonb_build_object('bucket', new.bucket_id, 'path', new.name)`,
     subject: `'objects/' || new.bucket_id || '/' || new.name`,
@@ -280,13 +280,13 @@ function build(ctx: ModuleContext): string {
     ? `a.${c("status")} = 'clean'`
     : `a.${c("status")} in ('pending', 'clean', 'failed')`;
   const bucketLiteral = sqlString(bucket);
-  const uploaded = ctx.emit({
+  const uploaded = ctx.record({
     type: "attachment.uploaded",
     payload: `jsonb_build_object('attachmentId', v_row.${c("id")}, 'organizationId', v_row.${c("tenant")}::text, 'subjectType', v_row.${c("subjectType")}, 'subjectId', v_row.${c("subjectId")}, 'uploadedBy', v_row.${c("uploadedBy")}, 'mimeType', v_row.${c("mimeType")}, 'size', v_row.${c("size")})`,
     subject: `'attachments/' || v_row.${c("id")}::text`,
     tenant: `v_row.${c("tenant")}`,
   });
-  const scanned = ctx.emit({
+  const scanned = ctx.record({
     type: "attachment.scanned",
     payload: `jsonb_build_object('attachmentId', v_row.${c("id")}, 'organizationId', v_row.${c("tenant")}::text, 'status', v_row.${c("status")}, 'uploadedBy', v_row.${c("uploadedBy")})`,
     subject: `'attachments/' || v_row.${c("id")}::text`,
@@ -502,7 +502,7 @@ begin
     ${c("mimeType")} = coalesce(lower(v_meta ->> 'mimetype'), a.${c("mimeType")})${requireScan ? "" : `,\n    ${c("status")} = 'clean'`}
   where a.${c("id")} = v_row.${c("id")}
   returning * into v_row;
-  ${uploaded || "null;"}
+  ${uploaded}
   return to_jsonb(v_row);
 end;
 $$;
@@ -540,7 +540,7 @@ begin
   values (v_row.${c("bucket")}, v_row.${c("path")}, v_row.${c("status")}, v_row.${c("detail")}, now())
   on conflict (${sc("bucket")}, ${sc("path")}) do update
     set ${sc("status")} = excluded.${sc("status")}, ${sc("detail")} = excluded.${sc("detail")}, ${sc("scannedAt")} = excluded.${sc("scannedAt")};
-  ${scanned || "null;"}
+  ${scanned}
   return to_jsonb(v_row);
 end;
 $$;
@@ -670,7 +670,7 @@ begin
   insert into ${scans} (${sc("bucket")}, ${sc("path")}) values (new.bucket_id, new.name)
   on conflict (${sc("bucket")}, ${sc("path")}) do update
     set ${sc("status")} = 'pending', ${sc("detail")} = null, ${sc("scannedAt")} = null, ${sc("createdAt")} = now();
-  ${objectUploaded || "null;"}
+  ${objectUploaded}
   return null;
 end;
 $$;

@@ -215,7 +215,7 @@ function build(ctx: ModuleContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const permissions = MODULE_PERMISSIONS.settings;
   const can = (tenant: string, action: "read" | "update"): string =>
-    `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`;
+    ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const member = (tenant: string, action: "read" | "update"): string =>
     tenantIn(tenant, ctx.permission(action, permissions[action]));
   const KEY = `check (key ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$')`;
@@ -505,6 +505,7 @@ export const SETTINGS: ModuleDefinition = {
   description:
     "Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.",
   requires: ["tenant", "access"],
+  integrates: ["jsonb-schemas"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

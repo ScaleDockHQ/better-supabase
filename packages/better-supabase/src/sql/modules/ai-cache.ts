@@ -1,8 +1,7 @@
 import type { ModuleContext, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
-import { schemaPreamble } from "../shared.ts";
-import { raise, serviceGrant } from "./ai-chat-sql.ts";
+import { raise, schemaPreamble, serviceGrant } from "../shared.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
 
 const ENTRIES = {
@@ -174,7 +173,7 @@ export const AI_CACHE: ModuleDefinition = {
   title: "AI response cache",
   description:
     "Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.",
-  requires: ["tenant"],
+  requires: [],
   target: "schema",
   version: 1,
   names: NAMES,

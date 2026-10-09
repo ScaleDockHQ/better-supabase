@@ -8,6 +8,7 @@ import {
 } from "../config/modules.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { SERVICE_CALLER } from "./shared.ts";
 
 /** The scope id types SQL modules render. */
 export const MODULE_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
@@ -80,6 +81,40 @@ export interface ModuleEmit {
   readonly key?: string;
 }
 
+/** How `record` writes an action to the audit log, as SQL expressions. */
+export interface ModuleAudit {
+  /** The audit category, mapped through `sql.modules.audit.options.values`. */
+  readonly category: string;
+  /** What the action changed, e.g. `user` or `api_key`. */
+  readonly targetType?: string;
+  /** A `text` expression for the changed record's id. */
+  readonly recordId?: string;
+  /** A `text` expression people recognize the target by. */
+  readonly targetLabel?: string;
+  /** A `text` expression that says what happened. */
+  readonly summary?: string;
+  /** A `jsonb` expression; defaults to the event payload. */
+  readonly metadata?: string;
+  /** A `uuid` expression for the actor; defaults to the caller. */
+  readonly actor?: string;
+}
+
+/**
+ * An action a module records once: the outbox gets it as an event and the
+ * audit log as an entry, each when its module is installed.
+ */
+export interface ModuleAction extends ModuleEmit {
+  /** `false` keeps the action out of the audit log. */
+  readonly audit?: ModuleAudit | false;
+}
+
+// access and jobs write their functions into better_supabase whatever
+// sql.modules.<name>.schema says; the schema only places access's tables.
+const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set(["access", "jobs"]);
+
+/** What `record` and the other statement helpers return when there is nothing to do. */
+export const NOTHING = "null;";
+
 /** A function of a module's contract: what other modules and the TypeScript side call. */
 export interface ModuleContractFunction {
   readonly name: string;
@@ -149,9 +184,44 @@ export interface ModuleContext {
   /**
    * PL/pgSQL that writes the event to the outbox (`emit_event`) when the
    * `outbox` module is installed and `sql.modules.<name>.events` isn't false;
-   * otherwise an empty string.
+   * otherwise an empty string. `record` without the audit entry.
    */
   emit(event: ModuleEmit): string;
+  /**
+   * PL/pgSQL that writes the action to the outbox (as `emit` does) and, when
+   * it carries `audit` and the `audit` module is installed, to the audit log
+   * (`audit_event`), with `key` as the idempotency key of both. `null;`
+   * when neither applies, so it is always a valid statement.
+   */
+  record(action: ModuleAction): string;
+  /**
+   * PL/pgSQL that calls `notify(fields)` as the service role, which
+   * `notify()` requires, then restores the caller's claims. The function
+   * declares `v_claims text`. `null;` without the `notifications` module.
+   */
+  notify(fields: string, options?: { readonly indent?: string }): string;
+  /** PL/pgSQL that enqueues a job (`enqueue_job`); `null;` without the `jobs` module. */
+  enqueue(queue: string, payload: string, dedupe: string): string;
+  /** The `text[]` of a tenant's entitlements, or `fallback` without the `entitlements` module. */
+  entitlements(tenant: string): string | undefined;
+  entitlements(tenant: string, fallback: string): string;
+  /**
+   * PL/pgSQL that broadcasts on a Realtime topic when `realtime.send`
+   * exists: projects without Realtime skip it.
+   */
+  broadcast(
+    topic: string,
+    event: string,
+    payload: string,
+    options?: { readonly indent?: string },
+  ): string;
+  /** `coalesce(better_supabase.can(scope, id, permission), false)`; `permission` is a SQL expression. */
+  can(scope: string, id: string, permission: string): string;
+  /**
+   * True for the service role and platform staff holding `permission` (a SQL
+   * expression); the service role only without the `access` module.
+   */
+  staff(permission: string): string;
 }
 
 export interface ModuleContextSource {
@@ -161,6 +231,11 @@ export interface ModuleContextSource {
   readonly installed?: readonly string[];
   /** The id type the authorization provider gives, when the layout has one. */
   readonly providerIdType?: ModuleIdType;
+  /**
+   * The modules `module` may read through `installed` and `of`: what it
+   * requires and what it lists in `integrates`. Without it nothing is checked.
+   */
+  readonly integrations?: (module: string) => ReadonlySet<string> | undefined;
 }
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_$]*$/;
@@ -331,6 +406,61 @@ export function createModuleContext(
     return `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`;
   };
   const installed = new Set(source.installed ?? [module]);
+  const readable = source.integrations?.(module);
+  const declares = (name: string): void => {
+    if (readable && name !== module && !readable.has(name)) {
+      throw new TypeError(
+        `Module "${module}" reads module "${name}", which it neither requires nor lists in integrates`,
+      );
+    }
+  };
+  const outbox = (event: ModuleEmit): string => {
+    if (!config.events || !installed.has("outbox")) return "";
+    const outboxConfig = resolveModule(modules["outbox"]);
+    const template =
+      outboxConfig.options["blockSource"] ?? "better-supabase/{module}";
+    if (typeof template !== "string") {
+      throw new TypeError(
+        "sql.modules.outbox.options.blockSource must be a string",
+      );
+    }
+    return `perform ${sqlIdent(outboxConfig.schema)}.emit_event(${[
+      sqlString(event.type),
+      event.payload,
+      event.subject ?? "null",
+      event.tenant === undefined ? "null" : `(${event.tenant})::text`,
+      event.key ?? "null",
+      sqlString(template.replaceAll("{module}", module)),
+    ].join(", ")});`;
+  };
+  const auditEntry = (action: ModuleAction): string => {
+    const audit = action.audit;
+    if (!audit || !installed.has("audit")) return "";
+    const args: [string, string | undefined][] = [
+      ["event_type", sqlString(action.type)],
+      ["category", sqlString(audit.category)],
+      ["target_type", audit.targetType && sqlString(audit.targetType)],
+      ["record_id", audit.recordId],
+      ["target_label", audit.targetLabel],
+      ["summary", audit.summary],
+      ["tenant", action.tenant],
+      ["metadata", audit.metadata ?? action.payload],
+      ["idempotency_key", action.key],
+      ["actor_id", audit.actor],
+    ];
+    return `perform better_supabase.audit_event(\n${args
+      .filter((arg): arg is [string, string] => arg[1] !== undefined)
+      .map(([name, value]) => `    ${name} => ${value}`)
+      .join(",\n")}\n  );`;
+  };
+  function entitlements(tenant: string): string | undefined;
+  function entitlements(tenant: string, fallback: string): string;
+  function entitlements(tenant: string, fallback?: string): string | undefined {
+    declares("entitlements");
+    return installed.has("entitlements")
+      ? `better_supabase.tenant_entitlements(${tenant})`
+      : fallback;
+  }
 
   return {
     module,
@@ -344,7 +474,8 @@ export function createModuleContext(
     manages: config.mode === "managed",
     names,
     installedModules: [...installed],
-    fn: (name) => `${schema}.${sqlIdent(name)}`,
+    fn: (name) =>
+      `${FIXED_FUNCTION_MODULES.has(module) ? sqlIdent("better_supabase") : schema}.${sqlIdent(name)}`,
     tableName,
     table(logical) {
       const parts = tableName(logical);
@@ -371,8 +502,14 @@ export function createModuleContext(
     permission: (action, fallback) =>
       sqlString(config.permissions[action] ?? fallback),
     trigger: (name) => sqlIdent(`bs_${name}`),
-    installed: (name) => installed.has(name),
-    of: (name) => createModuleContext(name, namesOf, source),
+    installed(name) {
+      declares(name);
+      return installed.has(name);
+    },
+    of(name) {
+      declares(name);
+      return createModuleContext(name, namesOf, source);
+    },
     text: (name, fallback) => optionOf(name, "string", fallback),
     number: (name, fallback) => optionOf(name, "number", fallback),
     flag: (name, fallback) => optionOf(name, "boolean", fallback),
@@ -405,25 +542,45 @@ export function createModuleContext(
   end;`;
     },
     hookTarget,
-    emit(event) {
-      if (!config.events || !installed.has("outbox")) return "";
-      const outboxConfig = resolveModule(modules["outbox"]);
-      const outbox = sqlIdent(outboxConfig.schema);
-      const template =
-        outboxConfig.options["blockSource"] ?? "better-supabase/{module}";
-      if (typeof template !== "string") {
-        throw new TypeError(
-          "sql.modules.outbox.options.blockSource must be a string",
-        );
-      }
-      return `perform ${outbox}.emit_event(${[
-        sqlString(event.type),
-        event.payload,
-        event.subject ?? "null",
-        event.tenant === undefined ? "null" : `(${event.tenant})::text`,
-        event.key ?? "null",
-        sqlString(template.replaceAll("{module}", module)),
-      ].join(", ")});`;
+    emit: outbox,
+    record(action) {
+      const parts = [outbox(action), auditEntry(action)].filter(
+        (part) => part !== "",
+      );
+      return parts.length === 0 ? NOTHING : parts.join("\n  ");
+    },
+    notify(fields, options = {}) {
+      declares("notifications");
+      if (!installed.has("notifications")) return NOTHING;
+      const indent = options.indent ?? "  ";
+      const target = createModuleContext("notifications", namesOf, source);
+      return [
+        "v_claims := current_setting('request.jwt.claims', true);",
+        `perform set_config('request.jwt.claims', '{"role": "service_role"}', true);`,
+        `perform ${target.fn("notify")}(${fields});`,
+        "perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);",
+      ].join(`\n${indent}`);
+    },
+    enqueue(queue, payload, dedupe) {
+      declares("jobs");
+      if (!installed.has("jobs")) return NOTHING;
+      const jobs = createModuleContext("jobs", namesOf, source);
+      return `perform ${jobs.fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => ${payload}, dedupe_key => ${dedupe}, dedupe_running => false);`;
+    },
+    entitlements,
+    broadcast(topic, event, payload, options = {}) {
+      const indent = options.indent ?? "  ";
+      return `if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
+${indent}  perform realtime.send(${payload}, ${event}, ${topic}, true);
+${indent}end if;`;
+    },
+    can: (scope, id, permission) =>
+      `coalesce(better_supabase.can(${sqlString(scope)}, ${id}, ${permission}), false)`,
+    staff(permission) {
+      declares("access");
+      return installed.has("access")
+        ? `(${SERVICE_CALLER} or coalesce(better_supabase.is_platform(${permission}), false))`
+        : SERVICE_CALLER;
     },
   };
 }

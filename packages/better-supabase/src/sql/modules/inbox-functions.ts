@@ -1,6 +1,7 @@
 import type { InboxSql } from "./inbox-names.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { serviceGrant, pageSize } from "../shared.ts";
 
 export const forbidden = (what: string): string =>
   `raise exception '${what}' using errcode = '42501', hint = 'INBOX_FORBIDDEN';`;
@@ -28,27 +29,19 @@ export function inboxFunctions(q: InboxSql): string {
   const authed = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
-  const serviceOnly = (signature: string): string =>
-    `revoke execute on function ${signature} from public, anon, authenticated;
-grant execute on function ${signature} to service_role;`;
   const internal = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon, authenticated;`;
 
   const ctx = q.ctx;
   const notifyOn = ctx.installed("notifications") && ctx.flag("notify", true);
-  // notify() trusts only the service role, so the module sends as it with
-  // the acting user as the actor, then restores the caller's claims.
   const notify = (fields: string): string =>
     notifyOn
       ? `
-  v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform ${ctx.of("notifications").fn("notify")}(${fields});
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);`
+  ${ctx.notify(fields)}`
       : "";
   const notifyDeclare = notifyOn ? "\n  v_claims text;" : "";
   const enqueue = (queue: string, payload: string, dedupe: string): string =>
-    `perform ${ctx.of("jobs").fn("enqueue_job")}(${sqlString(queue)}, ${payload}, 0, 5, ${dedupe}, false);`;
+    ctx.enqueue(queue, payload, dedupe);
   const conversationEvent = (type: string, extra: string): string =>
     ctx.emit({
       type,
@@ -594,7 +587,7 @@ begin
   );
 end;
 $$;
-${serviceOnly(`${fn("record_inbound")}(jsonb)`)}
+${serviceGrant(`${fn("record_inbound")}(jsonb)`)}
 
 -- Assigns a conversation to a member (null unassigns) and optionally a team.
 -- The assign key assigns anyone; the reply key only takes it for oneself.
@@ -858,7 +851,7 @@ as $$
       and (filter -> 'before' is null
         or (v.${cv("lastMessageAt")}, v.${cv("id")}) < ((filter -> 'before' ->> 'last_message_at')::timestamptz, (filter -> 'before' ->> 'id')::uuid))
     order by v.${cv("lastMessageAt")} desc, v.${cv("id")} desc
-    limit least(greatest(coalesce((filter ->> 'limit')::integer, 50), 1), 200)
+    limit ${pageSize("(filter ->> 'limit')::integer", 50, 200)}
   ) page;
 $$;
 ${authed(`${fn("list_conversations")}(${id}, jsonb)`)}
@@ -893,7 +886,7 @@ as $$
     where m.${ms("conversation")} = list_messages.conversation
       and (before is null or m.${ms("createdAt")} < before)
     order by m.${ms("createdAt")} desc, m.${ms("id")} desc
-    limit least(greatest(coalesce(max, 50), 1), 200)
+    limit ${pageSize("max", 50, 200)}
   ) page;
 $$;
 ${authed(`${fn("list_messages")}(uuid, timestamptz, integer)`)}

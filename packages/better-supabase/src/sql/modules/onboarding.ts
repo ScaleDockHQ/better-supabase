@@ -124,7 +124,7 @@ function build(ctx: ModuleContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const permissions = MODULE_PERMISSIONS.onboarding;
   const can = (tenant: string, action: "read" | "complete"): string =>
-    `(${SERVICE_CALLER} or coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false))`;
+    `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, ctx.permission(action, permissions[action]))})`;
   const steps = checklistSteps(ctx);
   const stepRows =
     steps.length === 0
@@ -363,6 +363,7 @@ export const ONBOARDING: ModuleDefinition = {
   description:
     "Onboarding checklists per user or organization: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.",
   requires: ["tenant", "access"],
+  integrates: ["outbox"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

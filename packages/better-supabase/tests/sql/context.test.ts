@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   contractSignature,
   createModuleContext,
+  NOTHING,
 } from "../../src/sql/context.ts";
 import {
   checkModules,
@@ -129,7 +130,10 @@ describe("createModuleContext", () => {
   it("knows the modules installed with it and reaches other modules", () => {
     const ctx = moduleContext("access", {}, ["tenant", "access"]);
     expect(ctx.installed("tenant")).toBe(true);
-    expect(ctx.installed("outbox")).toBe(false);
+    expect(ctx.installed("organizations")).toBe(false);
+    expect(() => ctx.installed("outbox")).toThrow(
+      'Module "access" reads module "outbox", which it neither requires nor lists in integrates',
+    );
     expect(ctx.of("tenant").table("memberships")).toBe(
       '"better_supabase"."memberships"',
     );
@@ -503,5 +507,122 @@ describe("module modes", () => {
     expect(names("catalog")).toEqual(["updated-at", "tenant", "access"]);
     expect(names("provider")).toEqual(["access"]);
     expect(names("custom")).toEqual(["access"]);
+  });
+});
+
+describe("statement helpers", () => {
+  const event = {
+    type: "item.created",
+    payload: "jsonb_build_object('id', new_id)",
+    subject: "'items/' || new_id",
+    tenant: "organization",
+    key: "'item.created:' || new_id",
+  };
+  const all = (...installed: string[]) =>
+    createModuleContext("demo", () => names, {
+      installed: ["demo", ...installed],
+    });
+
+  it("returns a statement whatever is installed", () => {
+    const bare = all();
+    expect(bare.record(event)).toBe(NOTHING);
+    expect(bare.record({ ...event, audit: { category: "data" } })).toBe(
+      NOTHING,
+    );
+    expect(bare.notify("'{}'::jsonb")).toBe(NOTHING);
+    expect(bare.enqueue("q", "'{}'::jsonb", "'k'")).toBe(NOTHING);
+  });
+
+  it("records to the outbox and the audit log", () => {
+    expect(all("outbox").record({ ...event, audit: false })).toBe(
+      all("outbox").emit(event),
+    );
+    const audited = all("audit").record({
+      ...event,
+      audit: { category: "data", targetType: "item", recordId: "new_id::text" },
+    });
+    expect(audited).toBe(`perform better_supabase.audit_event(
+    event_type => 'item.created',
+    category => 'data',
+    target_type => 'item',
+    record_id => new_id::text,
+    tenant => organization,
+    metadata => jsonb_build_object('id', new_id),
+    idempotency_key => 'item.created:' || new_id
+  );`);
+    const both = all("outbox", "audit").record({
+      ...event,
+      audit: { category: "data" },
+    });
+    expect(both.startsWith(all("outbox").emit(event))).toBe(true);
+    expect(both).toContain("better_supabase.audit_event(");
+  });
+
+  it("notifies as the service role and restores the claims", () => {
+    expect(all("notifications").notify("v_fields", { indent: "    " })).toBe(
+      `v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(v_fields);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);`,
+    );
+  });
+
+  it("enqueues a deduplicated job", () => {
+    expect(all("jobs").enqueue("emails", "'{}'::jsonb", "'k'")).toBe(
+      `perform "better_supabase"."enqueue_job"(queue => 'emails', payload => '{}'::jsonb, dedupe_key => 'k', dedupe_running => false);`,
+    );
+  });
+
+  it("reads entitlements, permissions and staff checks", () => {
+    expect(all().entitlements("t")).toBeUndefined();
+    expect(all().entitlements("t", "'{}'::text[]")).toBe("'{}'::text[]");
+    expect(all("entitlements").entitlements("t", "'{}'")).toBe(
+      "better_supabase.tenant_entitlements(t)",
+    );
+    expect(all().can("tenant", "t", "'item.read'")).toBe(
+      "coalesce(better_supabase.can('tenant', t, 'item.read'), false)",
+    );
+    expect(all().staff("'item.manage'")).not.toContain("is_platform");
+    expect(all("access").staff("'item.manage'")).toContain(
+      "coalesce(better_supabase.is_platform('item.manage'), false)",
+    );
+  });
+
+  it("broadcasts only when Realtime exists", () => {
+    expect(all().broadcast("'t'", "'e'", "'{}'::jsonb")).toBe(
+      `if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
+    perform realtime.send('{}'::jsonb, 'e', 't', true);
+  end if;`,
+    );
+  });
+});
+
+describe("integrates", () => {
+  it("lets a module read only what it requires or integrates", () => {
+    const ctx = moduleContext("inbox", {}, ["inbox", "jobs", "outbox"]);
+    expect(ctx.installed("jobs")).toBe(true);
+    expect(() => ctx.installed("billing")).toThrow(
+      'Module "inbox" reads module "billing", which it neither requires nor lists in integrates',
+    );
+  });
+
+  it("rejects a jobs schema and keeps access functions in better_supabase", () => {
+    expect(() => {
+      checkModules({ jobs: { schema: "app" } });
+    }).toThrow("sql.modules.jobs.schema");
+    expect(() => {
+      checkModules({ jobs: { schema: "better_supabase" } });
+    }).not.toThrow();
+    const layout = { modules: { access: { schema: "app" } } };
+    const support = moduleContext("support-sessions", layout, [
+      "tenant",
+      "access",
+      "audit",
+      "support-sessions",
+    ]);
+    expect(support.of("access").fn("is_platform")).toBe(
+      '"better_supabase"."is_platform"',
+    );
+    expect(support.of("access").table("roles")).toContain('"app".');
   });
 });

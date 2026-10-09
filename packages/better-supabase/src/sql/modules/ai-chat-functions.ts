@@ -3,9 +3,15 @@ import type { ModuleLayout } from "../registry.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER } from "../shared.ts";
+import {
+  canIn,
+  raise,
+  SERVICE_CALLER,
+  serviceGrant,
+  userGrant,
+  pageSize,
+} from "../shared.ts";
 import { aiChatExtras } from "./ai-chat-extras.ts";
-import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 
 /** `jsonb_build_object` of a chat row, with stable keys whatever the column names. */
 function chatJson(names: AiChatNames, row: string): string {
@@ -257,7 +263,7 @@ declare
   v_query tsquery;
   v_at timestamptz;
   v_id uuid;
-  v_size integer := least(greatest(coalesce(list_ai_chats.size, 50), 1), 200);
+  v_size integer := ${pageSize("list_ai_chats.size", 50, 200)};
   v_items jsonb;
   v_next text;
 begin

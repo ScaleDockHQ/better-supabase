@@ -115,7 +115,7 @@ export function hookNames(ctx: ModuleContext): HookNames {
     has,
     can: (tenant, action) =>
       access
-        ? `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`
+        ? ctx.can("tenant", tenant, ctx.permission(action, permissions[action]))
         : "false",
     member: (tenant, action) =>
       access

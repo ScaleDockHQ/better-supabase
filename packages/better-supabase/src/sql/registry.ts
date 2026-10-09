@@ -142,6 +142,13 @@ export interface SqlModule {
    * Doctor warns (BS411) when the provider doesn't set one.
    */
   readonly providerFunctions?: readonly (keyof AuthorizationFunctions)[];
+  /**
+   * Modules it works with when they are installed, without needing them.
+   * `ctx.installed` and `ctx.of` accept only these and what it requires;
+   * `record` reaches the outbox and the audit log without listing them.
+   * `*` stands for every module, for one that reads them all (`data-lifecycle`).
+   */
+  readonly integrates?: readonly string[];
   /** What it needs for this layout, e.g. per `sql.modules.access.model`; overrides both. */
   readonly dependencies?: (layout: ModuleLayout) => readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
@@ -2998,13 +3005,29 @@ export function moduleContext(
   installed?: readonly string[],
 ): ModuleContext {
   const modules = withProviderDefaults(layout);
+  const readable = new Map<string, ReadonlySet<string>>();
   return createModuleContext(name, (module) => SQL_MODULES[module]?.names, {
     ...(modules ? { modules } : {}),
     ...(layout.claims ? { claims: layout.claims } : {}),
     ...(installed ? { installed } : {}),
     ...providerIdType(layout),
+    integrations(module) {
+      const definition = SQL_MODULES[module];
+      if (!definition || definition.integrates?.includes("*")) return;
+      let set = readable.get(module);
+      if (!set) {
+        set = new Set([
+          ...resolveModules([module], layout).map((entry) => entry.name),
+          ...(definition.integrates ?? []),
+        ]);
+        readable.set(module, set);
+      }
+      return set;
+    },
   });
 }
+
+/** The modules that install their functions in `better_supabase` whatever `schema` says. */
 
 /**
  * `sql.modules` with what the authorization provider already says: an
@@ -3091,6 +3114,17 @@ export function checkModules(
     if (!module) {
       throw new TypeError(
         `sql.modules.${name}: there is no SQL module "${name}". Modules: ${Object.keys(registry).join(", ")}`,
+      );
+    }
+    // The jobs module writes everything into better_supabase, so a schema
+    // would only point the modules that call it at functions that don't exist.
+    if (
+      name === "jobs" &&
+      entry?.schema !== undefined &&
+      entry.schema !== "better_supabase"
+    ) {
+      throw new TypeError(
+        "sql.modules.jobs.schema: the jobs module always installs in better_supabase. Remove schema.",
       );
     }
     const mode = entry?.mode ?? "managed";

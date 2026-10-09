@@ -6,7 +6,13 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER, tenantIn } from "../shared.ts";
+import {
+  schemaPreamble,
+  SERVICE_CALLER,
+  serviceGrant,
+  tenantIn,
+  pageSize,
+} from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 const NAMES: ModuleNames = {
@@ -106,10 +112,7 @@ function build(ctx: ModuleContext): string {
   const cq = (column: string): string => ctx.col("startRequests", column);
   const permissions = MODULE_PERMISSIONS.workflows;
   const can = (tenant: string, action: "read" | "run" | "admin"): string =>
-    `coalesce(better_supabase.can('tenant', ${tenant}, ${ctx.permission(action, permissions[action])}), false)`;
-  const serviceOnly = (signature: string): string =>
-    `revoke execute on function ${signature} from public, anon, authenticated;
-grant execute on function ${signature} to service_role;`;
+    ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
   const callable = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
@@ -337,7 +340,7 @@ begin
   return v_id;
 end;
 $$;
-${serviceOnly(`${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz)`)}
+${serviceGrant(`${fn("record_workflow_run")}(text, text, text, text, ${id}, uuid, jsonb, text, timestamptz, timestamptz)`)}
 
 -- The runs the caller may read, newest first: max rows created before before.
 create or replace function ${fn("workflow_runs_list")}(
@@ -360,7 +363,7 @@ as $$
       and (workflow_runs_list.status is null or y.${cr("status")} = workflow_runs_list.status)
       and (workflow_runs_list.before is null or y.${cr("createdAt")} < workflow_runs_list.before)
     order by y.${cr("createdAt")} desc
-    limit least(greatest(coalesce(workflow_runs_list.max, 50), 1), 500)
+    limit ${pageSize("workflow_runs_list.max", 50, 500)}
   ) x;
 $$;
 ${callable(`${fn("workflow_runs_list")}(${id}, text, text, integer, timestamptz)`)}
@@ -445,7 +448,7 @@ begin
   return v_runs;
 end;
 $$;
-${serviceOnly(`${fn("purge_workflow_runs")}(interval, integer)`)}
+${serviceGrant(`${fn("purge_workflow_runs")}(interval, integer)`)}
 
 -- Creates a schedule, or replaces the one with the same tenant and name.
 -- The service role, or workflow.admin in tenant. payload is { input }: the
@@ -556,7 +559,7 @@ as $$
   select coalesce(jsonb_agg(${scheduleJson("leased")} || jsonb_build_object('fireAt', leased.${cs("nextRunAt")}) order by leased.${cs("nextRunAt")}), '[]'::jsonb)
   from leased;
 $$;
-${serviceOnly(`${fn("claim_due_workflow_schedules")}(integer, integer)`)}
+${serviceGrant(`${fn("claim_due_workflow_schedules")}(integer, integer)`)}
 
 -- Records a fire and moves the schedule to next_run. false when another tick
 -- already advanced it past fired.
@@ -572,7 +575,7 @@ begin
   return found;
 end;
 $$;
-${serviceOnly(`${fn("advance_workflow_schedule")}(uuid, timestamptz, timestamptz)`)}
+${serviceGrant(`${fn("advance_workflow_schedule")}(uuid, timestamptz, timestamptz)`)}
 
 -- Takes one of max slots of key for holder until it releases or ttl passes.
 -- true when holder holds a slot (again, for a holder that already held one).
@@ -601,7 +604,7 @@ begin
   return true;
 end;
 $$;
-${serviceOnly(`${fn("acquire_workflow_semaphore")}(text, text, integer, interval)`)}
+${serviceGrant(`${fn("acquire_workflow_semaphore")}(text, text, integer, interval)`)}
 
 create or replace function ${fn("release_workflow_semaphore")}(key text, holder text)
 returns boolean
@@ -614,7 +617,7 @@ begin
   return found;
 end;
 $$;
-${serviceOnly(`${fn("release_workflow_semaphore")}(text, text)`)}
+${serviceGrant(`${fn("release_workflow_semaphore")}(text, text)`)}
 
 -- Whether a start request with key is active: waiting, leased, or started
 -- with a run that hasn't finished (a run no engine reports counts for a day).
@@ -634,7 +637,7 @@ as $$
       ) and x.${cq("startedAt")} > now() - interval '1 day')
     );
 $$;
-${serviceOnly(`${fn("workflow_admission_active")}(text)`)}
+${serviceGrant(`${fn("workflow_admission_active")}(text)`)}
 
 -- Queues a start under key: { id, status }. payload is { input }, the
 -- workflow's arguments. singleton drops it ('dropped') while a run with key
@@ -676,7 +679,7 @@ begin
   return jsonb_build_object('id', v_id, 'status', 'pending');
 end;
 $$;
-${serviceOnly(`${fn("request_workflow_start")}(text, text, jsonb, ${id}, uuid, integer, interval, boolean)`)}
+${serviceGrant(`${fn("request_workflow_start")}(text, text, jsonb, ${id}, uuid, integer, interval, boolean)`)}
 
 -- Leases up to batch start requests whose time came and whose key has room:
 -- [{ id, key, workflow, input, tenant, actor }]. Start each, then call
@@ -719,7 +722,7 @@ begin
   return v_out;
 end;
 $$;
-${serviceOnly(`${fn("claim_workflow_start_requests")}(integer, integer)`)}
+${serviceGrant(`${fn("claim_workflow_start_requests")}(integer, integer)`)}
 
 -- Records the run a claimed request started.
 create or replace function ${fn("mark_workflow_start_request")}(request uuid, run text)
@@ -734,7 +737,7 @@ begin
   return found;
 end;
 $$;
-${serviceOnly(`${fn("mark_workflow_start_request")}(uuid, text)`)}
+${serviceGrant(`${fn("mark_workflow_start_request")}(uuid, text)`)}
 
 -- Members may join a run's topic when they can read the run, and a tenant's
 -- topic with workflow.read in it. The pings carry the run id and status.
@@ -860,7 +863,7 @@ export const WORKFLOWS: ModuleDefinition = {
   title: "Workflows",
   description:
     "Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow.run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.",
-  requires: ["jobs", "tenant", "access"],
+  requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

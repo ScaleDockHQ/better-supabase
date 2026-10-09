@@ -846,6 +846,7 @@ export const AUDIT: ModuleDefinition = {
   description:
     "Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.",
   requires: [],
+  integrates: ["access", "organizations"],
   dependencies: (layout) =>
     layout.modules?.["audit"]?.options?.["readPolicy"] === true
       ? ["access"]

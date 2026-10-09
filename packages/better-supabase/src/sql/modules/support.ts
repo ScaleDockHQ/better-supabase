@@ -254,6 +254,9 @@ function end(ctx: ModuleContext): string {
   const c = (logical: string) => ctx.col("sessions", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
   const category = sqlString(ctx.text("auditCategory", "support"));
+  const tenant = ctx.has("sessions", "tenant")
+    ? `(ended ->> 'tenant')::${ctx.idType}`
+    : undefined;
   return `-- Ends a session. The admin who started it ends their own ('admin');
 -- platform staff with the revoke permission end anyone's ('revoked'). Only
 -- the service role chooses ended_by, for example 'expired' from a sweep.
@@ -297,7 +300,7 @@ begin
     event_type => 'support.ended',
     category => ${category},
     target_type => 'user',
-    record_id => ended ->> 'target_user_id',
+    record_id => ended ->> 'target_user_id',${tenant ? `\n    tenant => ${tenant},` : ""}
     metadata => jsonb_build_object('session_id', session_id, 'ended_by', ended_by),
     idempotency_key => 'support.ended:' || session_id,
     actor_id => case when service then (ended ->> 'admin_id')::uuid else auth.uid() end
@@ -307,6 +310,7 @@ begin
     type: "support.ended",
     payload: "ended || jsonb_build_object('ended_by', ended_by)",
     subject: "'support_sessions/' || session_id",
+    ...(tenant ? { tenant } : {}),
     key: "'support.ended:' || session_id",
   })}
   return true;
@@ -462,6 +466,7 @@ export const SUPPORT_SESSIONS: ModuleDefinition = {
   description:
     "Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform(), recorded in the audit log, with the target's claims built by your access token hook.",
   requires: ["access", "audit"],
+  integrates: ["invitations"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

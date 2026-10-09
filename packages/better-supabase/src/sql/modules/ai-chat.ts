@@ -877,6 +877,7 @@ export const AI_CHAT: ModuleDefinition = {
   description:
     "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
   requires: ["tenant", "access", "streams"],
+  integrates: ["entitlements"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

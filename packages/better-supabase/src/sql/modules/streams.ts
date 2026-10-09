@@ -6,7 +6,7 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER, pageSize } from "../shared.ts";
 
 const NAMES: ModuleNames = {
   options: ["topic"],
@@ -199,7 +199,7 @@ begin
     select ${cc("data")}, ${cc("idx")} from ${c}
     where ${cc("stream")} = stream_read.stream_id and ${cc("idx")} >= greatest(coalesce(from_idx, 0), 0)
     order by ${cc("idx")}
-    limit least(greatest(coalesce(max, 1000), 0), 10000)
+    limit ${pageSize("max", 1000, 10000, 0)}
   ) r;
   v_next := greatest(coalesce(from_idx, 0), 0) + cardinality(v_chunks);
   select coalesce(max(${cc("idx")}) + 1, 0) into v_last from ${c} where ${cc("stream")} = stream_read.stream_id;

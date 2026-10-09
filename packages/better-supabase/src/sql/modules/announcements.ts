@@ -71,8 +71,8 @@ function build(ctx: ModuleContext): string {
     "manage",
     MODULE_PERMISSIONS.announcements.manage,
   );
-  const staff = `(${SERVICE_CALLER} or coalesce(better_supabase.is_platform(${manage}), false))`;
-  const plans = ctx.installed("entitlements");
+  const staff = ctx.staff(manage);
+  const plans = ctx.entitlements("v_tenant");
   const audiences = ["all", "tenant", "role", ...(plans ? ["plan"] : [])];
   const topic = ctx.text("topic", "announcements");
   if (!TOPIC.test(topic)) {
@@ -84,7 +84,7 @@ function build(ctx: ModuleContext): string {
   const receive = ctx.trigger("announcements_receive");
   const trigger = ctx.trigger("announcements_broadcast");
   const planMatch = plans
-    ? `when 'plan' then v_tenant is not null and x.${ca("targets")} && better_supabase.tenant_entitlements(v_tenant)`
+    ? `when 'plan' then v_tenant is not null and x.${ca("targets")} && ${plans}`
     : "";
 
   return `${schemaPreamble(ctx)}
@@ -340,6 +340,7 @@ export const ANNOUNCEMENTS: ModuleDefinition = {
   description:
     "In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.",
   requires: ["tenant", "access"],
+  integrates: ["entitlements"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,
