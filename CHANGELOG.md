@@ -1,5 +1,324 @@
 # Changelog
 
+## 0.6.0 (2026-10-09)
+
+- The `agents`, `connectors` and `ai-tasks` SQL modules store assistants, their MCP servers and scheduled prompts, and `better-supabase/eve` runs eve agents on Supabase.
+
+  - `createAgents` in `better-supabase/blocks/agents` stores agents with instructions, model, tools, connectors and knowledge scopes, private until published.
+  - `createConnectors` in `/blocks/connectors` stores an organization's MCP servers, a grant per user behind a `credential_ref`, and tool lists an admin approves. `createAiTasks` in `/blocks/ai-tasks` runs prompts on a cron.
+  - `better-supabase/ai-sdk/agents` adds `createAgentRuntime` and `moderationMiddleware`, and `/ai-sdk/mcp` adds `authorizeConnector`, `connectTools` and `connectAll` (`@ai-sdk/mcp` is an optional peer).
+  - `better-supabase/eve` (Node only, `eve` is an optional peer) adds `supabaseAuth`, `credentialAuth`, `supabaseMemory`, `persistSessions` and `routeInbox`.
+  - Only the service role sets a task's `next_run_at`, a task's chat must be its user's and its agent the user's own or published, and `drain()` runs every claimed task before it reports the first error.
+- The `ai-chat` and `ai-files` SQL modules store AI conversations and their files, and `better-supabase/ai-sdk` connects them to the AI SDK (`ai`, `@ai-sdk/react` and `@ai-sdk/workflow` are optional peers).
+
+  - `createAiChat` in `better-supabase/blocks/ai-chat` keeps chats, a branching message tree, runs, tool approvals, feedback, share links, a model catalog per plan and moderation events; `/blocks/ai-chat/react` adds `useAiChats`, `useAiChatTree`, `useAiModels` and `useAiShare`. Messages use a canonical format (`aiMessageSchema`, `schemas/ai-message-v1.json`, `SPEC_PINS.aiMessage`).
+  - `createAiFiles` in `better-supabase/blocks/ai-files` stores uploads in two steps with policies that follow the file row, and versioned documents. `/ai-sdk/files` adds `aiFileDownload`, `saveGeneratedFiles` and `providerFile`.
+  - `better-supabase/ai-sdk` adds message converters, AI Gateway helpers and job handlers, `createAssistant` in `/ai-sdk/chat` serves a resumable chat route, and `useAssistant` in `/ai-sdk/react` is `useChat` wired to it.
+  - `/ai-sdk/workflow` runs answers as Workflow SDK workflows with `durableChat` and `durableTurn`, and `useDurableAssistant` is the client half. `createAiChat(...).runs` reads run steps, and `createHarnessSessions` reads harness sessions.
+  - Harness sessions are read on the server only, the idle-stop job skips a sandbox whose session a turn holds, and the chat list hooks keep every loaded page on a live update and ignore stale responses.
+- The AI blocks share one run-state vocabulary, one sandbox table and one set of permission keys. The ai-chat, ai-tasks, ai-providers and memory modules move to version 2; `better-supabase sql upgrade` brings a database installed from an earlier build forward.
+
+  - Runs end `completed`, `failed` or `cancelled` in ai-chat, ai-tasks and workflows. `RunState`, `FinalRunState` and `FINAL_RUN_STATES` from `better-supabase/blocks` name them.
+  - `createAiChat(...).runs` has the run lookups, and durable chats read them from the context's `chats`.
+  - ai-chat owns `ai_sandboxes`. Harness sessions keep their sandbox there, and `createAiChat(...).sandboxes.idleStopJob` stops chat and harness sandboxes with one claim. Set the idle time with `sql.modules.ai-chat.options.sandboxIdleAfter`.
+  - ai-files, knowledge, memory, agents, connectors, ai-tasks and ai-providers check `ai.*` permission keys. ai-chat keeps its `ai_chat.*` keys, and the default roles grant both.
+  - `MemoryScope` gains `project`, with `projectId` on namespaces and memory rows.
+  - eve sessions release runs with the new statuses, and the jobs page documents jobs cron, workflow schedules and ai-tasks as three scheduling layers.
+  - The eve, memory, ai-files, workflow-builder and ai-providers blocks keep their row decoders in `rows.ts`.
+- The `ai-cache` and `ai-providers` SQL modules cache model responses and keep each organization's provider keys, and `better-supabase/ai-sdk` meters model calls.
+
+  - `createAiCache` in `better-supabase/blocks/ai-cache` and `cacheMiddleware` in `/ai-sdk/cache` return a stored response or stream for a repeated call, per tenant with a TTL.
+  - `createAiProviders` in `better-supabase/blocks/ai-providers` keeps provider keys as `credential_ref` rows with batch and sandbox registries. `byokOptions` and `tenantGatewayOptions` turn them into AI Gateway BYOK options, `trackedSandbox` records sandboxes, and `aiBatches` in `/ai-sdk/batches` runs provider batches from a job.
+  - `meterTelemetry` records each call's tokens and cost on the tenant's usage meters, and `spendReconciliation` compares them with the AI Gateway spend report.
+- The API keys block (`better-supabase/blocks/api-keys`) issues keys with a checksum, reports their state and authenticates REST routes.
+
+  - Keys end in a CRC-32 checksum, so `verify` and secret scanners reject a mistyped key without a lookup (`parseApiKey`).
+  - Keys report `state` (`active`, `grace`, `revoked`, `expired`) and `successorId` (`ApiKeyState`).
+  - `withApiKey({ keys })` is a pipeline entry that verifies the key and contributes `ctx.auth`, and `apiKeyClaims` and `apiKeyResolver` take a `claim` shape so the authorization provider reads the key's scopes.
+  - `options.scopes: "catalog"` limits scopes to the provider's permission keys, and the provider model refuses the `*` scope unless listed.
+- Every SQL module audits its security-relevant actions. Run `better-supabase sql sync`.
+
+  - `ctx.record` takes a required `audit`: one of the shared categories in `AUDIT_CATEGORIES` (`membership`, `access`, `security`, `configuration`, `billing`, `data`, `ai`, `integration`), or `false` for content and status events. With the `audit` module installed, each action writes one audit entry in the same transaction as its outbox event.
+  - Settings, flags, billing customers, credentials, connectors, agents, AI provider keys, tool policies and approvals, chat shares, incoming webhooks, webhook secrets, announcements, published workflows, API keys, invitations, the waitlist, SSO domains and SCIM changes now write an audit entry and an outbox event. The access catalog's tables are audited through the row trigger under `access`.
+  - `organizations`, `organizations-suspension` and `support-sessions` record through the same path: organization entries move from `organization` to `configuration` or `membership`, support entries from `support` to `security`, and revealed audit details from `audit` to `security`. An adopted log with a category check maps the names with `sql.modules.audit.options.values.category`. `options.auditCategory` is deprecated and still overrides every category of its module.
+  - `sql.modules.<name>.audit: false` keeps a module's actions out of the log; they still reach the outbox.
+  - `support.started` records the session's tenant, like `support.ended`.
+- `audit.sink()` files events under the categories the SQL modules use: `account.*` and `support.*` events get `security`, and a `category` option maps any other event type to one of `AUDIT_CATEGORIES`.
+- `createAuditLog({ transport })` in `better-supabase/blocks/audit` lists, reveals and exports the audit log as the caller, and entries record who acted, from where and on what. Run `better-supabase sql upgrade`.
+
+  - `list` (`list_audit_events`) filters by tenant, event type, actor, target, record, category, outcome, source and correlation id, with `search`, a cursor or `offset`, and `count: true`. `reveal(entryId)` returns restricted details and records `audit.revealed`.
+  - `export({ format: "ndjson" | "csv" | "ocsf" })` streams the log (CSV takes `columns`, `preamble` and `formatRow`), `exportToStorage` writes it to a bucket, and `record(event)` calls `audit_event`.
+  - Entries record actor kind and label, tenant and target labels, `summary`, `request_id`, `correlation_id` and `scope`. Actor and request details are honoured only from the service role and admin connections; `audit_event_trusted` serves an app's `security definer` functions and `options.trustedRoles`.
+  - `better_supabase.audit(...)` keeps a table's settings on its trigger, so schema files need no data rows, and `bs_audit_forget_dropped` clears registrations of dropped tables. Adopted logs map their own values with `options.values`, `tenantLabel` and `metadataColumns`.
+  - `sql add` writes a pgTAP file per audited table. Doctor BS315 reports tables without an audit trigger and BS322 registrations of missing tables.
+- Authorization libraries plug in through a versioned `AuthorizationProvider` (API v1, from `better-supabase/config`) in the `authorization` config key, and the access module's `provider` model renders the provider's SQL templates.
+
+  - Under the `provider` model, the provider's `idsWithFor`, `isPlatformFor` and `canAssignFor` templates let `can_user()` and `member_can()` answer for any user, the invitations module check the inviter again at accept, and the notifications module filter recipients by their read permission. `sql.modules.access.functions.canAssignFor` defines `can_assign_as` under the provider and custom models.
+  - `sql.modules.access.disabled` defaults to the provider's `suspension` rows. `disabled.tenant` and `disabled.user` also take an active-row shape (`{ table, id, disabledAt, status, active }`), where a missing row counts as disabled.
+  - `testAuthorizationProvider` from `better-supabase/testing` checks a provider, and `templateFunctions` from `better-supabase/sql` lists the functions a template calls. Doctor BS214 compares a Storage or Realtime policy's scope with the provider's `permissions[].scopes` and reports keys not marked `sqlComplete: true`.
+  - The CLI rejects a provider with an unknown scope or a parent cycle, a tenant scope without an `idType` (`SCOPE_ID_TYPES`), a `decidingColumns` entry that isn't `schema.table.column`, or another `apiVersion` (`providerApiProblem`). `testAuthorizationProvider` also checks that `requires` lists every function a template calls and that the token hook claims don't overlap.
+  - Without `canAssign`, only the service role assigns roles under the `provider` model. Doctor BS411 names each installed module missing a template it needs.
+  - `functions.permissionsFor` fills `member_permissions` and `permission_claims`, and `functions.canApprove` with `approvals.distinctApprover` decides AI tool approvals. Bucket and topic policies take `sql: "provider"` to use the provider's templates, `createAgentRuntime` takes a `toolApproval` hook, the claims config has a `memberships` path (`claimPaths`), and the `apiKey` caller carries `createdAt` and `createdBy`.
+  - **Breaking:** every PermDock-specific setting and export is removed. `sql.modules.access.model: "permdock"` becomes `"provider"`, `entitlements.permdock` becomes `entitlements.memberships`, bucket and topic `permdock` policies become `access` policies with `scope` and `sql` templates, `permdockVerifier` and the `permdock` claim option of `apiKeyResolver` become the provider package's job and the neutral `claim` option, and doctor reads the provider instead of `permdock.config.ts`, the manifest and the catalog. The [0.5 to 0.6 guide](https://bettersupabase.com/docs/migration/0.5-to-0.6) has the old-to-new table.
+- The billing block (`better-supabase/blocks/billing`) runs a tenant's Stripe subscription over the Stripe Sync Engine and gives platform staff typed lists across tenants.
+
+  - `changePlan`, `cancelAtPeriodEnd`, `invoices`, `paymentMethods`, `voidInvoice`, `customerDetails`, `updateCustomer` and tax ids (`StripeTaxId`).
+  - `options.plans` points at your plan catalog with price `variant`s, and `checkout` merges `params` deeply.
+  - Staff with `viewAll` read `allSubscriptions`, `allInvoices` and `allCustomers`, also as `billing_platform_*` SQL functions.
+  - `StripeSource` accepts a function that returns a client, and `ensureCustomer` is idempotent per organization.
+- Blocks can be extended without forking them: add your own columns and type them, steer methods with hooks, wrap the transport and add methods.
+
+  - `options.extraColumns` on the `organizations` and `profiles` SQL modules adds your own columns to the managed table, copies them on writes and returns them from reads. `list_my_organizations` returns the attribute and extra columns in a new `attributes jsonb` column.
+  - A Standard Schema `fields` option on `createOrganizations` and `createProfiles` types those columns, parses them on read and turns a bad write into a `validation` error. `createNotifications` parses stored `data` with its type's schema on `get`, `list` and `page`, so `item.data` narrows on `item.type` (`NotificationOf`); data the schema rejects fails with the hint `NOTIFICATION_DATA_INVALID`.
+  - A `hooks` option on those blocks, and on `createBlocks` keyed by block name, runs `before` hooks that refuse a call with a `DbError` or replace its arguments, and `after` hooks that observe a copy of the result. `withBlockHooks` does the same for any block.
+  - New SQL hooks: `before_organization_update`, `after_organization_update`, `before_profile_update`, `after_profile_update` and `before_notification_send`.
+  - `wrapTransport` runs versioned `BlockTransportMiddleware` around every block call, checked by `testBlockTransportMiddleware` in `better-supabase/testing`, and `extendBlock` adds methods and refuses to redefine one.
+- `createBlocks` in the new `better-supabase/blocks` subpath builds several blocks from one set of options, and the blocks share their helpers, option names and page shape.
+
+  - `createBlocks({ transport, service, schema, credentials, events, audit }, factories)` builds the blocks you pass and wires their siblings: the AI files block into knowledge, `credentials` into connectors, ai-providers and the workflow builder, notifications into ai-tasks (with `aiTaskNotification`), and block events into an audit sink. The subpath also exports `rpcTransport`, `sqlTransport` and the `BlockOptions` and `CursorPageOptions` types.
+  - `audit.sink()` returns an `EventSink` that records each CloudEvent in the audit log, with its type, subject, tenant and data. `createServer({ audit })` sends `account.suspended`, `account.unsuspended`, `account.deleted` and `account.sessions_ended` from `suspendAccount`, `deleteAccount` and `endSessions`, and forwards `support.denied`; a failing sink never changes a result.
+  - Block lists page with `{ limit, cursor }`, which replace `size`, `before` and `after`.
+  - Notifications, organizations, profiles and outgoing webhooks take `mappers` instead of `errorMappers`.
+  - `CredentialProvider` gains an optional `set(ref, value, { subject, description })`, which Vault implements and the workflow builder uses. `credentialRouter(providers)` serves several providers as one, and `revokeIfConfigured(provider, ref, { subject, tenant })` revokes only when a provider is configured, can revoke the ref and the ref is in the tenant.
+  - `Embedder`, `EveDocumentBackend`, `AiTaskRunner`, `GraphCompiler` and `BuilderStarter` take an optional `apiVersion: 1`; a block refuses another version. `better-supabase/testing` adds `testEmbedder`, `testEveDocumentBackend`, `testAiTaskRunner`, `testGraphCompiler` and `testBuilderStarter`.
+  - The block row decoders moved into the core and every block uses the same ones; `better-supabase/blocks/knowledge` no longer exports `vectorLiteral`.
+- The CLI finds its config from any package in a workspace, pg-delta is the default diff engine, and doctor reports each problem once.
+
+  - `better-supabase.config.*` and `supabase/config.toml` are found in the working directory or a parent up to `.git`, and `init` at a workspace root asks for the package or takes `--package <dir>`.
+  - `init` turns on `[experimental.pgdelta]` unless it is set to `false`, and doctor BS316 warns projects still on migra. `better-supabase config` prints the resolved config.
+  - Doctor skips findings the performance advisor already reports, runs splinter with the `[api] schemas`, and adds BS222 (`int8` decoded as `number`), BS317 and BS318 (statements pg-delta can't order) and BS319 (SQL that alters a reserved role). `tables.<name>.serviceRole: true` marks a server-only table for BS106 and BS107.
+- `better-supabase/vue`, `/solid` and `/svelte` bind the browser client with the features of `better-supabase/react`, and new hooks and query helpers cover forms, uploads and optimistic updates.
+
+  - `useAction` and `useActionForm` call a `bs.action()` and track `pending`, `data`, `error` and `fieldErrors`. `better-supabase/react` adds `usePresence`, `useSignIn`, `useSignOut`, `useDebouncedSearch`, `useSignedUrl` and `useUpload`, and `upload()` takes `onProgress`.
+  - `better-supabase/query` adds `optimistic` with rollback, `{ maxPages }` for infinite queries and `escapeLike`, and `createQueries` takes a `scope`. `better-supabase/tanstack-db` adds `collectionOptions`.
+  - `clearOnUserChange` also resets queries when the token changes tenant, role or assurance level. `bindClient` returns `dispose()`, and `liveQuery` rejoins a failed channel with backoff.
+- `gen` writes tighter types from CHECK constraints, documents tables in the generated validators and can run from a metadata document. Run `better-supabase gen`.
+
+  - A nullable column a CHECK requires is typed not null, and `tables.<table>.insertOptional` marks columns the database fills on insert. `relations: { nullableUnderRls: true }` types to-one relations to RLS tables as nullable.
+  - `zod()`, `valibot()` and `jsonSchema()` add titles, descriptions and examples from comments, and enforce bounds from simple CHECK constraints.
+  - The generated module exports `WhereOf<"table">`, `OrderByOf<"table">` and `OrderTermOf<"table">`, and the metadata module is about 40% smaller.
+  - `gen --metadata <path|->` generates from a `GeneratorMetadata` document for `@supabase/typegen`, and `doctor --metadata` checks it.
+  - Generators declare `apiVersion: 1` and receive `model`. `gen` deletes files it no longer writes, fails on name collisions, and `gen --watch` reloads the config and retries.
+  - **Breaking:** colliding `_by_` relations are named by every key column (`customerByCustomerOrganization`) instead of ending in `_`, and view copies are no longer relations. Keep an old name with `tables.<table>.relations`.
+  - **Breaking:** `@supabase/postgrest-typegen` is an optional peer; install it for `gen`, `introspect` and `doctor` with `pnpm add -D @supabase/postgrest-typegen@0.4.0`.
+  - **Breaking:** a `GeneratorInput` built by hand needs a `model`.
+- The comments and attachments blocks (`better-supabase/blocks/comments`, `/blocks/attachments`) store threads and files on any subject with per-subject permissions.
+
+  - `options.subjects.<type>` takes `permissions: { read, create, moderate }`, `cascade`, and `label`, `path` and `readableBy` for notifications; a mentioned member is notified only when they may read the subject.
+  - Comments keep a rich-text `document` (`mentionsOf`, `options.documentSchema`), expand `options.mentionGroups`, and have `copy()`, `history()` and `counts()`.
+  - Attachments take a `bucket`, `allowedMimeTypes` and `tenant: false` per subject, keep `metadata`, and have `put(attachment, file)` and `read(id)`. A malware scan gate works for any bucket (`object_clean(bucket, path)`, `createObjectScanner`, `options.scanBuckets`).
+- Errors map to typed messages and result libraries, plugins behave the same whoever wrote them, and each definition keeps its own state.
+
+  - `createErrorMessages(messages)` needs a message for every `DbError` kind. `toBetterResult` returns better-result's own `Result<T, E>` when that is the expected type, and `defineBetterResultErrors` maps kinds to `TaggedError` classes. `P0002` maps to `not_found`.
+  - Plugins get `enforce: "first"`, a mutation `intent`, `scopes`, and a `context` hook per `connect()`, so two definitions in one process no longer share a tenant. Hooks receive the caller's `signal`, and `db.$withoutPlugins({ keep })` keeps named plugins.
+  - `defineSupabase(schema, { temporal })` takes the `Temporal` namespace without patching `globalThis`, and `diagnostics: true` logs a record without tokens or row values for every query.
+  - **Breaking:** `DbError` gains the kinds `quota_exceeded` (429), `max_affected` (400) and `unsupported` (501). An exhaustive `switch` over `DbError["kind"]` needs the new cases.
+- `better-supabase/credentials` resolves third-party tokens from a `credential_ref`, and `better-supabase/streams` stores resumable output for chats, workflows and agents.
+
+  - `vaultCredentials()` keeps secrets in Vault through the `credentials` module and verifies inbound signed requests. `createServer` takes a `credentials` provider as `ctx.credentials`, `subjectFor(ctx)` gives the subject, `better-supabase/vercel-connect` adds `vercelConnectCredentials()`, and `testCredentialProvider` checks other providers.
+  - The `streams` module keeps ordered chunks with idempotent appends and a cancel flag, used by `postgresStreamStore`, `teeToStore`, `writeToStore` and `resumeFromStore`. `better-supabase/streams/redis` adds `redisStreamStore` (`redis` is an optional peer), and `testStreamStore` checks other stores.
+  - A tenant's `credential_ref` carries `tenant` (`tenantCredentialRef`, `credentialRefInTenant`): connectors, AI providers, the workflow builder and MCP refuse a ref from another tenant with `CREDENTIAL_REF_FOREIGN`, Vault stores tenant secrets as `tenant/<tenant>/<secret>`, and `vercelConnectCredentials` refuses a tenant ref for the app subject.
+- The data-lifecycle block (`better-supabase/blocks/data-lifecycle`) exports, anonymizes and purges a tenant's or a user's data across every module table.
+
+  - Modules declare their tables, so exports and purges cover every installed module, and `options.autoTables` adds a schema's tenant tables. Exports leave out keys, token hashes and secrets.
+  - The purge retries referenced tables, stops with `ORGANIZATION_PURGE_BLOCKED` when stuck, and deletes the tenant row last. `createOrganizationPurger({ buckets })` takes path prefixes (`PurgeBucket`).
+  - `options.anonymize` rules anonymize rows after a retention period (`anonymizeDue()`), and `createDataExporter` takes `format: "csv"`.
+- Block events follow one contract. Run `better-supabase sql sync` and `better-supabase codemod 0.6`.
+
+  - Every type is `<entity>.<past_tense_verb>`. Renamed: `ai_chat.message.completed` to `ai_chat_message.completed`, `inbox.conversation.*` to `inbox_conversation.*`, `inbox.message.received` to `inbox_message.received`, `incoming_webhook.rotated` to `incoming_webhook.token_rotated`, `workflow.alert` to `workflow_alert.triggered`, `workflow.run.*` to `workflow_run.*` and `data_export.ready` to `data_export.completed`.
+  - `BLOCK_EVENT_RENAMES` from `better-supabase/events` maps the `org.*` types to `organization.*`, and the 0.6 codemod rewrites string literals that name a renamed type.
+  - `BlockEventMap` types every event a SQL module records. Each module declares its events in `NAMES.events`, and `ctx.record` throws for an undeclared type, a subject that is not a kebab-case plural, a missing payload key or a retried event without an idempotency key.
+  - Support events carry a camelCase payload with `organizationId` under `support-sessions/<id>`. Push, waitlist and audit subjects are `push-devices/`, `waitlist-entries/` and `audit-entries/`. SCIM events name `scimUserId` or `scimGroupId`.
+  - `notification.created`, `webhook.disabled` and the workflow events carry `organizationId`. `notification.created`, `webhook.disabled`, `attachment.scanned`, `inbox_message.received`, `data_export.completed`, `data_export.failed` and `organization.purged` have idempotency keys.
+  - `notifications.sink({ map })` turns outbox events into notifications, keyed by the event id.
+- Adapters for more server frameworks, typed structurally, with the guards and actions of the Next.js adapter. They replace the `@supabase/server` framework adapters, which upstream removes on 2026-12-01.
+
+  - New subpaths: `better-supabase/tanstack-start`, `/sveltekit`, `/react-router`, `/h3`, `/h3/v1`, `/elysia`, `/node` (`toExpress`, `toFastify`, `toKoa`), `/nestjs` (`@nestjs/common` is an optional peer), `/astro`, `/nuxt` and `/solid-start`. `toHono`, `toEdge`, `toOrpc` and `toExpo` bridge the existing adapters.
+  - Each factory puts `db`, `bs`, `auth`, `tenant` and `session` on the request, with `bs.require()` and `bs.action()`; every guard takes `roles` and `roleClaim`. The edge gets `bs.routes({ "GET /customers/:id": handler })` with typed `ctx.params` (`RouteParams`), oRPC gets `bs.authed()`, and `createMcp` takes `requiredRoles`.
+  - `handle()`, `extendServer`, `flushEvents` and `resolveToken` build an adapter on the shared request path, checked by `testAdapter`. `withServerTiming()`, `withDbStats()` and `tagCache` cover timing headers, database budgets and tag caches.
+  - **Breaking:** `createEdge`'s `cors` option runs `withCors` from `@supabase/middleware/cors`. A preflight needs `Access-Control-Request-Method` (other `OPTIONS` requests reach the handler), and an allow-list adds `Vary: Origin`. `corsConfig(options)` returns the config.
+- The `inbox` SQL module and `better-supabase/blocks/inbox` add a shared support inbox per organization, and `better-supabase/chat-sdk` runs Chat SDK bots on it (`chat` `>=4.41 <5` is an optional peer).
+
+  - The inbox stores contacts, conversations with assignment, teams, snoozing and bot handoff, messages and notes, read receipts, deliveries and attachments, with `purgeContact` for data subject requests. `useInbox`, `useConversation` and `useInboxWidget` in `/blocks/inbox/react` stay current over private Realtime topics.
+  - `createSupabaseState` is a `StateAdapter` on the `chat-sdk-state` module, `inboxAdapter` answers in the in-app widget, and `webhook`, `inboundHandler`, `deliver`, `maintain` and `createChatInstallations` record Slack, WhatsApp, Messenger and SMS conversations. `testChatState` checks any `StateAdapter`.
+- Invitations can be edited, answered from an in-app inbox and sent for platform roles under the `provider` model. Run `better-supabase sql upgrade`.
+
+  - `update_invitation` (`organizations.updateInvitation`) changes an open invitation and emits `invitation.updated`; it refuses an expired one, so call `resend_invitation` first.
+  - `my_invitations()` lists the signed-in user's open invitations, and `acceptInvitationById` and `declineInvitationById` answer them. Invitations carry `extra` from the `invitation_preview_extra` hook, `createdAt`, `organization` and an `inviter`.
+  - `options.platformRoles` names the platform role table, with `through`, `canAssign` and `canAssignFor` checked at invite and accept. `through.where` is required when its table is also `roleThrough`'s, and `bs_role_scope` refuses other roles on direct writes (`PLATFORM_ROLE_SCOPE`).
+  - **Breaking:** accepting or updating an expired invitation fails with the hint `INVITATION_EXPIRED` instead of `INVITATION_INVALID`, which now means unknown, accepted, declined or revoked.
+  - **Breaking:** `Invitation` has a required `inviter` field (`null` without the profiles module), and the `invitation_preview_extra` hook also runs for invite, resend, update and `my_invitations`.
+- Jobs run as the user who enqueued them and report queue health, and `better-supabase/blocks/jobs` adds leases and rate limits. Run `better-supabase sql upgrade`.
+
+  - `bs.forContext(job.context)` returns repositories as the context's user and tenant, so RLS applies in the handler. It keeps a read-only support session read-only, and `claimsFor(userId, context)` rebuilds hook claims.
+  - `jobs.stats()`, `listDead()` and `retryDead()` serve admin pages, and `enqueue` takes `dedupe: "waiting"`.
+  - Under `scheduler: "drain"`, schedules record a tenant (`listSchedules`, `unscheduleAll`), `ensureSchedules` keeps a named set in step, `drainRoute` takes `monitor` hooks, and `devDrain` drains locally.
+  - `withLease(sql, key, fn)` holds one holder per key. `hit_rate_limit(scope, key)` and `createRateLimit().check()` limit any key, and `rateLimited(decision)` answers 429 with `Retry-After`.
+  - **Breaking:** `begin_idempotent` returns a `holder`, and `complete_idempotent` and `release_idempotent` (`createIdempotency().complete` and `release`) take it and return false after another caller took an expired key over.
+- Kits are now blocks, and every feature module lives under `better-supabase/blocks/<name>`. There are no aliases; the [0.5 to 0.6 guide](https://bettersupabase.com/docs/migration/0.5-to-0.6) lists every rename.
+
+  - **Breaking:** subpaths move. `better-supabase/orgs` is `better-supabase/blocks/organizations`, and `better-supabase/jobs`, `/notifications` and `/webhooks` are `better-supabase/blocks/jobs`, `/blocks/notifications` and `/blocks/webhooks`. `createOutbox` and `outboxCloudEvent` move to `better-supabase/blocks/outbox`, and `purgeAuditLog` to `better-supabase/blocks/audit`. `hasEntitlement`, `EntitlementKey`, `entitlementMembers` and `ENTITLEMENTS_UPDATED` move to `better-supabase/blocks/entitlements` (out of `server`, `next`, `ssr`, `react` and `jobs`), and `useNotifications` moves from `better-supabase/react` to `better-supabase/blocks/notifications/react`.
+  - **Breaking:** `sql.kit` and the `kits` key merge into `sql.modules`, an object keyed by module name whose values are the module settings (a list of names still works).
+  - **Breaking:** `Kit*` names for features are `Block*` (`BlockEvent`, `onBlockEvent`, `forwardBlockEvents`), and `Kit*` names for SQL modules are `Module*` (`ModulesConfig`, `ModuleConfig`, `renderModules`, `modulePermissionKeys`). `org` is spelled out: `createOrganizations`, `Organizations`, `organizationLogoBucket`, and the `organization.*` event types replace `org.*`.
+  - **Breaking:** in SQL, `member_org_ids`, `has_org_role` and `org_member_role` are `member_organization_ids`, `has_organization_role` and `organization_member_role`, the organization functions take an `organization` parameter, `better_supabase.kit_modules` is `better_supabase.modules`, and module files carry `-- @bs-module` and `-- @bs-module-data` markers. Run `better-supabase sql sync`, the schema diff and `better-supabase sql data` to move a database over.
+
+  `list`, `storage`, `realtime` and `events` keep their subpaths. The list, storage and realtime pages move to `/docs/platform`, and the events page to [`/docs/standards/events`](https://bettersupabase.com/docs/standards/events).
+- The `knowledge` and `memory` SQL modules give agents retrieval and long-term memory; both require `vector-search`.
+
+  - `createKnowledge` in `better-supabase/blocks/knowledge` stores documents scoped to an organization, agent, project, chat or user, chunks them with embeddings and a `tsvector`, and searches with reciprocal rank fusion. With `jobs` installed new documents are enqueued for embedding; `ingest.file` reads an `ai-files` upload.
+  - `createMemory` in `better-supabase/blocks/memory` keeps core memory files under `/memories`, archival facts and one embedding per chat message, plus versioned `memory.documents`.
+  - `better-supabase/ai-sdk/embeddings` adds `embedWith`, `supabaseEmbed`, `rerankWith`, `searchTool` and `toSourceParts`, and `/ai-sdk/memory` adds `memoryTool`, `anthropicMemory`, `recallTool`, `withMemory` and the `extractMemories` job handler.
+  - An item rewritten while it is being embedded stays pending, `set_memory_embeddings` writes a batch, bad vectors fail with `EMBEDDING_INVALID`, and knowledge `drain` tries each document `attempts` times (3) before marking it failed.
+- `better-supabase/mcp/sdk` serves MCP servers built on the official SDK (`@modelcontextprotocol/server` 2.3 or later, an optional peer), and `createMcp` works on hosted Edge Functions.
+
+  - `createMcpAuth(betterSupabase, { resource })` verifies Supabase tokens locally as an `OAuthTokenVerifier`, serves the RFC 9728 metadata and answers 401 and 403 challenges. `withBetterSupabaseMcp(server, auth)` gives every tool callback `db`, `auth` and `bs`.
+  - On Edge Functions the `resource` comes from the function slug. Both servers answer CORS preflights (`allowedOrigins`) and take `requiredRoles` and `waitUntil`.
+- Expo and React Native get a server adapter, a native client, local SQLite executors and push notifications.
+
+  - `better-supabase/expo`: `createExpo(betterSupabase)` gives Expo Router loaders, API routes and `+middleware.ts` the verified caller; `better-supabase init expo` writes it.
+  - `better-supabase/client/native`: `createNativeClient(betterSupabase, supabase)` binds repositories without `@supabase/ssr`, `secureStorage` and `largeSecureStorage` keep sessions in the keychain, and `autoRefreshOnForeground`, `syncQueryWithApp`, `persistQueryCache`, `uploadFromUri` and `handleAuthDeepLink` cover the app lifecycle. `better-supabase/react/native` adds `useOAuth`, `useAuthDeepLinks`, `useProtectedRoute` and `AuthGate`.
+  - `better-supabase/powersync`: `powersyncExecutor(db)` runs the same repositories on PowerSync's SQLite, `createUploadConnector` replays queued changes and `syncWithAuth` clears data on a user change; `/powersync/react` adds `useWatch`, `useSyncStatus` and `useConflicts`. `better-supabase/expo-sqlite` adds `expoSqliteExecutor(db)`.
+  - The `push` module and `better-supabase/blocks/push` store device tokens and send through the Expo Push API (`registerDevice`, `expoPush`, `expoPushChannel`).
+- The Next.js adapter authorizes actions and Server Components, signs out ended sessions and scopes cache tags to a tenant.
+
+  - `bs.action()` and `bs.route()` take `requireTenant` and `authorize(session, input)`, and `bs.require(options)` refuses a Server Component caller with `unauthorized()`, `forbidden()` or `notFound()`.
+  - `bs.proxy(request, { endedSession })` asks Auth whether the session still exists and clears the cookies when it doesn't, and `expiredPrefetch: "render"` renders a prefetch with an expired token signed out.
+  - `bs.cacheTag`, `bs.cacheTags` and `bs.cached` take `{ tenant }`, so a mutation in one tenant no longer revalidates other tenants' reads, and `bs.context({ tenant })` takes the tenant from route params.
+  - Mutations outside a Server Action expire tags with `{ expire: 0 }`, so a read after a write in a route handler is fresh (`nextCache({ revalidate })` keeps `"max"`).
+  - `useSessionChange` refreshes the session before an organization switch re-renders, and `tenantOf(session)` reads the active tenant.
+  - **Breaking:** the `next` peer range is `>=16.3 <17`, because `createNext` awaits `io()`. Upgrade Next.js first.
+- The notifications block reads more of the inbox, hydrates a page in one call and reports who received a send. Run `better-supabase sql upgrade`; a custom-mode module implements the new signatures.
+
+  - `get(id)`, `page({ offset })`, `markUnread`, `subscriptions()` and `preferences()` are new, and `list` filters by subject type, search and read, resolved or dismissed state.
+  - `hydrate(items)` loads what `render` needs for a page, and `include: ["actor"]` adds each actor's profile.
+  - `send` takes `watchers: false` and `exclude`, and `subscribe({ ifAbsent: true })` auto-follows without overriding a member's choice.
+  - **Breaking:** `markRead`, `markUnread`, `dismiss` and `resolve` return `{ count, items }` instead of a number, and their SQL functions return `jsonb`.
+  - **Breaking:** `send()` returns `{ id, recipients }` instead of the id, and `onSent` and `notification.created` get the recipients. It calls `send_notification(jsonb)`; `notify(jsonb)` still returns the id.
+- Organizations can suspend members, route deletion through data-lifecycle and give platform staff admin rights, and profiles store an avatar path. Run `better-supabase sql upgrade`.
+
+  - `suspend_member` and `resume_member` (`organizations.suspendMember`, `resumeMember`) keep a member's role but drop its permissions through the memberships table's `disabled_at`; they refuse the caller, the last owner and higher members. `transfer_ownership` refuses suspended or disabled new owners.
+  - `options.deleteMode: "lifecycle"` sends deletion through data-lifecycle's grace period, and `"none"` writes no delete function.
+  - `permissions.updatePlatform`, `deletePlatform`, `updateRolePlatform` and `removeMemberPlatform` let platform staff manage any organization. `options.assignmentGuard: "external"` drops the module's role guard, which now checks only client writes.
+  - Profiles get `avatarPath`, `usernameFrom` takes several keys with a separator, and `readPolicy: { platform }` lets staff read every profile. `reserved-slugs` takes `slugs`, `minLength` and `maxLength`.
+- The outbox (`better-supabase/blocks/outbox`) hands consumers the raw rows and moves failing events aside. Run `better-supabase sql upgrade`.
+
+  - `outbox.consume(consumer, handler)` passes `OutboxEvent` rows (`OutboxHandler`), and `relayRoute` accepts such a handler.
+  - A failing consumer backs off (`maxBackoff`), and after `maxAttempts` failures an event moves to `outbox.deadLetters(consumer)`. `purge` takes `{ ignoreIdle }`, and `createOutbox` takes a `BlockTransport`.
+- Realtime topics support presence, write their own policies and build triggers from parent rows.
+
+  - `defineTopic` takes `presence`, and subscriptions get `track`, `untrack`, `members()` and `onPresence`.
+  - `realtime.policies: { from, output }` writes every topic's `realtime.messages` policies on `sql sync`, with a `--check` drift test.
+  - `topic.triggerSql()` takes lookups through parent rows, an `event` name and a custom `payload` (`TriggerLookup`).
+  - `realtime.users` gives live queries on a table a per-user topic, and `useBroadcast` works with a plain supabase-js `client`.
+- **Breaking:** 0.6 removes the deprecated aliases 0.5 kept for one minor. A support token whose `act` has `session_id` but no `kind` is refused as `invalid-chain`. The audit module (version 5) drops the read-only `better_supabase.audit_log` view; read `better_supabase.audit_events`. `maxUrlLength` is gone from `defineSupabase` and `postgrestExecutor` (use `urlLengthLimit`), `scopes` from the MCP server options (use `advertisedScopes`), and `createInbox` and the `Inbox*` types from `better-supabase/blocks/jobs` (use `createWebhookInbox` and `WebhookInbox*`). `better-supabase codemod 0.6` now renames the `Kit` and `Org` exports and `maxUrlLength`, and lists imports from the moved subpaths for review.
+- Repositories read with more filters and sorts, split long `in` lists instead of failing, and count pages cheaply by default.
+
+  - `findOnly({ where })` returns the one matching row, `null` for none and `multiple_rows` (409) for more.
+  - `where` takes json `path` filters (`JsonPathOps`), `match` and `imatch` regular expressions, and json containment with arrays. Reads longer than `urlLengthLimit` (6000) split along their longest `in` list.
+  - `orderBy` sorts by a to-one relation's column, `aggregate()` sorts groups by `_count` or a measure (`AggregateOrderBy`), and `paginate({ offset, limit })` returns an offset window. `defineReadSet` takes `auth.uid`.
+  - **Breaking:** list queries count with `count: "planned"` by default; pass `count: "exact"` for the old behaviour.
+  - **Breaking:** cursors record the table and sort, so cursors made before 0.6 and arrays from `encodeCursor()` fail with `Invalid cursor`. Start again with `after: null`.
+- Writes take conditions, return rows from bulk calls and cap how many rows they change.
+
+  - `update(key, patch, { where })` returns `not_found` for a row that doesn't match, `expect` takes `where` operators, and `updateMany` and `deleteMany` take `returning: true`.
+  - `updateMany` and `deleteMany` take `maxAffected`; a write matching more rows fails with `max_affected` and changes nothing. It needs PostgREST 13 (set `postgrestVersion: "12.2"` on older servers), and the rules plugin's `strict()` preset requires it.
+  - Every call takes `timeout` and `retry`, `createMany` and `upsertMany` take `defaultToNull`, and mutations take `count: "planned"`.
+  - **Breaking:** `deleteMany` and `updateMany` refuse a `where` that filters nothing. Pass `allowAll: true` to `updateMany` to update every row.
+  - **Breaking:** an update whose `data` sets no columns returns `invalid_request` instead of `not_found`.
+  - **Breaking:** a `*` in `like` and `ilike` patterns is a literal character; use `%`.
+- `db.$rpc` is typed per overload, accepts `null` arguments and runs over the Postgres executor. Run `better-supabase gen`, then `better-supabase codemod 0.6`, which lists every `$rpc` call to review.
+
+  - `gen` keeps every overload of a function as a union in `Functions`, and `$rpc` picks the overload by the argument names the call passes. Arguments are typed `T | null`.
+  - `postgresExecutor` implements `rpc()`, so requests over a direct connection (an API key, a job) call functions too.
+  - `rpcTransport` and the jobs block's `pgmq_public` backend accept a typed `SupabaseClient<Database>` without a cast.
+  - **Breaking:** `gen` types function results as nullable: scalars, `setof` scalar elements, a single row and each `returns table` column are `| null`. Set `functions.<name>.notNull` in `better-supabase.config.ts` to `true` or to the columns that are never null.
+  - **Breaking:** `$rpc` returns rows of a table and `returns table` records in the configured casing with the configured codecs, like repository reads, typed as the model row. Delete hand-written key mapping around those results, or pass `{ raw: true }` for what PostgREST sent.
+- New SaaS blocks, each an SQL module with a subpath: `better-supabase/blocks/api-keys`, `/audit`, `/settings`, `/usage`, `/billing`, `/flags`, `/comments`, `/attachments`, `/data-lifecycle`, `/sso`, `/onboarding`, `/waitlist`, `/announcements` and `/push`. Add one with `better-supabase sql add <name>`; `stripe` is an optional peer that only billing and usage load.
+
+  - SSO serves SCIM 2.0, flags evaluate rollouts in SQL and through an OpenFeature-shaped provider, and `SPEC_PINS` gains `ocsf`, `openfeature` and `scim`. Under the `provider` model, SSO and waitlist roles go through `roleThrough` and need `can_assign` (`SSO_ROLE_FORBIDDEN`, `WAITLIST_ROLE_FORBIDDEN`), and `join_waitlist` always answers `status: "waiting"` to clients.
+  - Blocks take `ctx.postgres` from `@supabase/server`, `withBlock(key, create)` puts a block on the context, and every block takes `temporal` and a `problem` option (`ProblemFormat`) for error bodies.
+  - New event types cover organization domains and deletion, `billing.*`, comments, attachments, data exports and `waitlist.approved`.
+  - **Breaking:** the server's `auth.kind` gains `"apiKey"`, so an exhaustive `switch` over it needs the new case.
+- `withBetterSupabase(server, options)` from `better-supabase/server` is one `@supabase/middleware` entry that resolves the caller and contributes the request's database handles, and the server gains session and account helpers. `better-supabase` depends on `@supabase/server` `^1.9.1`.
+
+  - The entry reads a bearer token, then the session cookie, enforces `allow`, `aal` and `scopes`, and contributes `bs`, `db`, `sql`, `tenant` and the keys `withSupabase` writes. `server.context(request)` runs the same entries once per request. `createServer(betterSupabase, { db: { timeout, retry, urlLengthLimit } })` tunes its requests.
+  - Session cookies support the `@supabase/ssr` 0.12 `tokens-only` encoding (`encode: "tokens-only"`, doctor BS412 for mismatches), and `cookieScopes` and `clearSessionAtScopes` expire cookies an earlier deploy set.
+  - `sessionStatus` and `clearSessionCookies` run the ended-session check in any proxy. `endSessions(sql, userId)` and `suspendAccount(admin, sql, userId, { suspended })` end sessions and ban a user, and `deleteAccount` is exported on its own and returns the database's error, such as `ORGANIZATION_OWNER_REQUIRED`, with the `sql` option.
+  - An early refresh that hits a network failure keeps the user until the token expires, and the `otel` plugin records `db.$rpc` calls as spans.
+  - **Breaking:** the leaf entry `withBetterSupabase(betterSupabase)` that ran after `withSupabase` is renamed `withBetterDb(betterSupabase)`. Replace it, or drop `withSupabase` and use the new `withBetterSupabase(server)`.
+- The settings block has a `platform` scope for product-wide settings, and feature flags can be managed from an admin page.
+
+  - `defineSettings({ platform })` adds `client.platform`; each key names the permission that changes it and who reads it, and only listed keys can be written.
+  - `createFlagAdmin({ transport })` lists, saves and deletes flags and sets overrides for staff with `flags.manage`. `tenant_ids_with_flag(key)` is the policy form of `flag_enabled`, `createFlagsProvider` works over the Data API, and `flagContext` reads a `memberships` claim.
+- SQL modules call each other through shared helpers and declare the modules they work with, and fewer modules pull in others they only use when present. Run `better-supabase sql sync`.
+
+  - `ModuleContext` gains `record`, `notify`, `enqueue`, `entitlements`, `broadcast`, `can` and `staff`. Each returns a statement or expression that is valid without the other module, so a module installs alone and calls the other one once it is installed.
+  - `SqlModule.integrates` lists the optional modules a module works with. `ctx.installed` and `ctx.of` throw for a module it neither requires nor lists, `better-supabase sql list` prints "works with", and the blocks overview has the full matrix.
+  - `inbox` no longer requires `jobs` or `streams`: without `jobs` it queues no bot or delivery jobs. `workflows` no longer requires `jobs`, and `ai-cache` no longer requires `tenant`.
+  - `webhooks-in` requires `updated-at`, which its trigger uses.
+  - `support.ended` records the session's tenant in the audit log and the outbox, like `support.started`.
+  - `sql.modules.jobs.schema` is rejected: the jobs module always installs in `better_supabase`, so a schema only pointed the modules that call it at missing functions. Functions of the `access` module are always called in `better_supabase`, whatever `sql.modules.access.schema` sets for its tables.
+- SQL modules can be called over the Data API without exposing their schema, and land their extensions and event triggers in migrations. Run `better-supabase sql sync` and create a migration for the new function bodies.
+
+  - `sql.modules.<module>.api` writes `security invoker` entry points for the functions apps call into a schema, and `rpcTransport(supabase, { schema: "api" })` calls them there. Doctor BS312 points at the option.
+  - `sql add`, `sync` and `upgrade` write the modules' extensions into a `<stamp>_better_supabase_extensions.sql` migration, and data files repeat extensions and event triggers so pg-delta plans need no hand edits (doctor BS321, BS323).
+  - The `ensure-rls` module enables row level security on every new table outside the Supabase-managed schemas.
+  - A write that breaks a `jsonb-schemas` schema fails with a `validation` error whose `issues` name the column.
+  - `sql.modules.sessions.options.policies` writes a restrictive `bs_session_active` policy on every table, and doctor BS320 reports tables without one.
+  - The `grants` module keys functions by signature, takes column privileges such as `"update(title, body)"`, and derives grants from permissive policies with `options.fromPolicies`.
+  - Policies check tenant permissions once per statement, module functions pass `supabase db lint`, and module actions follow a renamed sibling key.
+  - **Breaking:** `grants` writes the complete privilege set of each entry in `expose`, so a table loses privileges it doesn't list, including `truncate`, `references` and `trigger`, on the next sync.
+- `defineBucket` covers what Storage added in supabase-js 2.117, takes several path layouts and reports bad paths as a `Result`.
+
+  - `versioning` and `lifecycle`, applied with `bucket.apply(client)` and checked by doctor BS302. Connected buckets list `versions`, take a `versionId`, and have `removeVersions`, `purgeCache`, `copy` and `move`. `defineVectorBucket` and `defineAnalyticsBucket` declare the new bucket kinds.
+  - `path: [current, older]` accepts several templates, and `{...rest}` matches any depth. `defineBuckets({ ... })` registers definitions by id for rows that store a bucket id (`byId`, `resolve`, `connectStored`).
+  - Policies from `.sql()` use the name index, `sweep()` removes only objects matching every `within` value, and `replace()` checks `previous` against the tenant.
+  - **Breaking:** a bucket definition's `path(values)` returns a `Result<StoragePath>` instead of throwing.
+  - **Breaking:** a connected bucket's `publicUrl()` returns a `Result<string>`. `better-supabase codemod 0.6` lists both kinds of call.
+- The tenant module keeps references inside one tenant and reads membership roles through a roles table.
+
+  - `sql.modules.tenant.options.sameTenant` entries add a trigger that fails a write referencing another tenant's row with `TENANT_MISMATCH`, also through `match` and `through` columns.
+  - `options.roleThrough: { table, id, column, where?, tenant? }` reads role names when memberships store role ids, taken from the provider's `roleSources` under the `provider` model. A `bs_role_scope` trigger refuses roles outside `where` on direct writes (`MEMBERSHIP_ROLE_SCOPE`), and doctor BS324 reports a shared roles table without `where`.
+- `better-supabase/testing` checks Next.js navigations for instant renders and database budgets, and its kits check adapters and executors.
+
+  - `expectInstant(page, options)` runs a navigation inside `@next/playwright`'s `instant()` (an optional peer) and checks what shows while the lock holds. `expectDbBudget(response, { maxCalls })` checks the `withDbStats()` header and waits `settleMs` for late responses.
+  - `testAdapter`, `testExecutor` and `testPlugin` check custom adapters, executors and plugins against the first-party contracts.
+- The usage block (`better-supabase/blocks/usage`) meters fractional quantities against quotas that follow the plan or billing cycle, and entitlements read from any plan catalog.
+
+  - Quantities and limits are `numeric`, `recordMany` and `consumeMany` record several meters all or none, and a `null` limit is unlimited.
+  - `options.meters` is a meter catalog in the config or a table, read by `usage.meters()`, `overview(organizationId)` and `current()`. `options.history` keeps each record, read by `history` and `breakdown`. Reading needs `usage.read` and recording `usage.record`.
+  - The `billing` period follows `usage_billing_period(tenant)`, and `reportUsageToStripe({ overage: true })` sends only usage above the quota.
+  - `entitlements.source` reads features from your plan tables or `"custom"`, with values through `entitlement_value`, and `entitlements.claim` sets the claim's shape (`EntitlementClaimOptions`).
+- Vector search supports hybrid ranking, filters and scores. Run `better-supabase sql sync`.
+
+  - `vectorSearch` entries take `type: "halfvec"`, `hybrid`, `boost`, `prefilter`, `predicate` and `order`.
+  - `db.$search` takes `filter`, `text` and `score: true`; on a `hybrid` entry `text` alone ranks by full text when the embedding call fails.
+  - `options.schema` sets pgvector's schema, which `sql sync` otherwise reads from your `create extension` statement.
+- **Breaking:** `createInbox` in `better-supabase/blocks/jobs` is now `createWebhookInbox`, and its types are `WebhookInbox*`; the old names are removed. `better-supabase/blocks/inbox` has a different `createInbox` for the conversation inbox. Run `better-supabase sql upgrade`.
+
+  - Messages record a tenant and dedupe per source and tenant, and `message.checkpoint(fields)` saves progress a retry resumes from.
+  - `store(event)` stores an event an SDK already verified, and a source without secrets is store-only.
+  - Sources take `maxAttempts`, `process` takes `budgetMs` and renews leases, and bodies over `maxBodyBytes` (1 MiB) get a 413.
+- The `webhooks-in` module and `createIncomingWebhooks` in `better-supabase/blocks/webhooks` give each tenant trigger URLs with hashed tokens, and `createSafeFetch` calls URLs that users supply.
+
+  - Endpoints verify Standard Webhooks, HMAC-SHA256 or a shared secret, with size and rate limits, keep secrets in Vault, and hand deliveries to the webhook inbox. `update`, `rotate` and `rotateSecret(id, { grace })` change them, and `options.subjects` attaches them to a record.
+  - `verifyWebhook` and incoming endpoints accept Svix's `svix-*` headers.
+  - `createSafeFetch(options)` allows public HTTPS URLs only, checks every redirect, drops credentials on a redirect to another origin, and throws `UnsafeUrlError` for a refused URL and `UrlCheckError` for a failed check such as DNS.
+- The `workflows` and `workflow-builder` SQL modules record durable workflow runs and store graph workflows per tenant.
+
+  - `better-supabase/blocks/workflows` records the runs of any engine in `workflow_runs` with cron schedules, semaphores and admission control, and `useWorkflowRuns` and `useWorkflowRun` in `/blocks/workflows/react` read them.
+  - `better-supabase/workflow-sdk/world` is a Workflow SDK World on Supabase (Node only, `createWorld()`, the `workflow-sdk-world` module), and `better-supabase/workflow-sdk` adds `startFor`, `workflowStarter`, `startOnEvent`, `authorizeHook`, `hookMetadata` and `protectWebHandler`.
+  - `better-supabase/blocks/workflow-builder` stores definitions, checked versions, triggers, credentials by `credential_ref`, a step library, node status and alerts, with `useWorkflowBuilder` and `useWorkflowCanvasRun`. `better-supabase/workflow-sdk/builder` adds `compileGraph`, `graphStarter` and `nodeRunReporter`. The new permissions are `workflow.edit` and `workflow.publish`.
+  - Only the service role stores a version's compiled form (`createBuilder` writes it through `service`), and `graphStarter` compiles from the graph on every start. Node ids are 1 to 100 letters, digits, `_` or `-`.
+  - The World refuses unsigned poll deliveries outside development and test, fails closed on a Vault read error, aborts a delivery after `deliveryTimeout` (300 s), and mirrors a run's tenant only when its actor holds `workflow.run` there.
+- `verify_api_key` refuses a personal key while its user is banned in Supabase Auth (`banned_until` in the future) or soft-deleted. Before, only the configured disabled column stopped a personal key, so a banned user's key kept working after their sessions ended.
+- The `data-lifecycle` module (version 5) exports and purges more module tables, leaves credentials and audit snapshots out of exports, and the organization purger revokes credential refs before the purge. Run `better-supabase sql sync` to get the new version.
+
+  - Platform role assignments, outbox events, webhook secrets (purged, never exported), inbox tables, flag overrides and SCIM users per user, waitlist redemptions, AI provider keys, connector servers and grants, and workflow credentials join exports and purges.
+  - Exports leave out every `credential_ref` column, and audit events lose `old_record`, `new_record` and the impersonation columns.
+  - `createOrganizationPurger({ credentials })` revokes the `credential_ref` of each row the purge deletes through the `CredentialProvider` (connector grants for their user), only when the ref carries the organization. The rest come back in `purge.credentials.unrevoked` with a reason (`foreign`, `no_provider` or `not_revocable`), and a failed revoke stops the purge before it deletes anything.
+  - The purger now checks that the deletion is due (`organization_credential_refs`) before it cancels billing or clears Storage.
+
 ## 0.5.1 (2026-10-04)
 
 - Breaking (types): `SessionActor` is a union on `kind`: `oauth-client` (with `chain`), `support` (with `sessionId`, `readOnly` and `reason`) and `impersonation` (with `reason`), and `Impersonator` gains `kind`. An exhaustive `switch` on `session.actor.kind` needs the two new cases.
