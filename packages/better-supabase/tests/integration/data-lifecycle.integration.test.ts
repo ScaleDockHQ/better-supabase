@@ -5,6 +5,7 @@ import type {
   LifecycleStorage,
   StorageEntry,
 } from "../../src/blocks/data-lifecycle/index.ts";
+import type { CredentialRef } from "../../src/credentials/index.ts";
 
 import {
   createApiKeys,
@@ -921,7 +922,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         "better_supabase.connector_servers": 2,
       });
       const token = async (
-        ref: Record<string, string>,
+        ref: CredentialRef,
         subject: typeof user | { type: "app" },
       ): Promise<string | undefined> => {
         const result = await vault.getToken(ref, { subject });
