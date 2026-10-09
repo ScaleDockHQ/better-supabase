@@ -1,10 +1,16 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type {
+  CredentialProvider,
+  CredentialRef,
+  CredentialSubject,
+} from "../../credentials/provider.ts";
 import type { EventSink } from "../../events/index.ts";
 import type { JobHandler } from "../jobs/queue.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
+import { credentialRefInTenant } from "../../credentials/provider.ts";
 import { fromStorageError } from "../../storage/errors.ts";
 import { toCsv } from "../csv.ts";
 import {
@@ -482,6 +488,13 @@ export interface OrganizationPurgerOptions extends BlockTemporalOptions {
     cancelSubscription(organizationId: string): AsyncResult<unknown>;
   };
   /**
+   * Revokes the `credential_ref`s in the rows the purge deletes (provider
+   * keys, connector servers and grants, workflow credentials) before it
+   * deletes them. Only refs that carry the organization as their `tenant`
+   * are revoked; the rest are returned in `credentials.unrevoked`.
+   */
+  readonly credentials?: CredentialProvider;
+  /**
    * Also run the `sql.modules.data-lifecycle.options.anonymize` rules in
    * `job`, after the due purges. Default false.
    */
@@ -527,16 +540,41 @@ function bucketPrefixes(
   return ok({ bucket: entry.bucket, prefixes });
 }
 
+/** A `credential_ref` the purge deleted without revoking it. */
+export interface UnrevokedCredential {
+  /** `schema.table`. */
+  readonly table: string;
+  readonly column: string;
+  readonly ref: CredentialRef;
+  readonly subject: CredentialSubject;
+  /**
+   * `foreign`: the ref doesn't carry the organization as its tenant, so it
+   * may name a credential that someone else still uses; `no_provider`: the
+   * purger has no `credentials`; `not_revocable`: the provider can't revoke it.
+   */
+  readonly reason: "foreign" | "no_provider" | "not_revocable";
+}
+
 export interface OrganizationPurge {
   readonly organizationId: string;
   /** Rows deleted per table. */
   readonly deleted: Readonly<Record<string, number>>;
   /** Objects removed per bucket. */
   readonly removed: Readonly<Record<string, number>>;
+  readonly credentials: {
+    /** Refs revoked through `credentials`. */
+    readonly revoked: number;
+    /** Refs in the purged rows the provider still holds, for the app to handle. */
+    readonly unrevoked: readonly UnrevokedCredential[];
+  };
 }
 
 export interface OrganizationPurger {
-  /** Cancels billing, removes the Storage prefixes, then deletes the rows. */
+  /**
+   * Checks that the deletion is due, cancels billing, revokes the
+   * organization's credentials, removes the Storage prefixes, then deletes
+   * the rows.
+   */
   purge(organizationId: string): AsyncResult<OrganizationPurge>;
   /** Purges every deletion past its grace period, oldest first; stops at the first error. */
   purgeDue(options?: {
@@ -590,19 +628,93 @@ async function removePrefix(
   return ok(files.length);
 }
 
+interface PurgeCredentialRow {
+  readonly table: string;
+  readonly column: string;
+  readonly ref: CredentialRef;
+  readonly subject: CredentialSubject;
+  readonly inTenant: boolean;
+}
+
+function purgeCredentialOf(value: unknown): PurgeCredentialRow | undefined {
+  if (!isRecord(value)) return undefined;
+  const ref = value["ref"];
+  if (!isRecord(ref) || typeof ref["provider"] !== "string") return undefined;
+  const userId = optionalText(value["user_id"]);
+  return {
+    table: textOf(value["table"]),
+    column: textOf(value["column"]),
+    // SAFETY: an object with a string provider, the CredentialRef shape.
+    ref: ref as CredentialRef,
+    subject:
+      userId === undefined ? { type: "app" } : { type: "user", id: userId },
+    inTenant: value["in_tenant"] === true,
+  };
+}
+
 /** Purges organizations whose deletion grace period is over. */
 export function createOrganizationPurger(
   options: OrganizationPurgerOptions,
 ): OrganizationPurger {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
+  const revokeCredentials = (
+    organizationId: string,
+    rows: readonly PurgeCredentialRow[],
+  ): AsyncResult<OrganizationPurge["credentials"]> =>
+    AsyncResult.from(async () => {
+      let revoked = 0;
+      const unrevoked: UnrevokedCredential[] = [];
+      const keep = (
+        row: PurgeCredentialRow,
+        reason: UnrevokedCredential["reason"],
+      ): void => {
+        unrevoked.push({
+          table: row.table,
+          column: row.column,
+          ref: row.ref,
+          subject: row.subject,
+          reason,
+        });
+      };
+      for (const row of rows) {
+        if (!row.inTenant || !credentialRefInTenant(row.ref, organizationId)) {
+          keep(row, "foreign");
+        } else if (options.credentials === undefined) {
+          keep(row, "no_provider");
+        } else if (options.credentials.capabilities(row.ref).revoke) {
+          const result = await options.credentials.revoke(row.ref, {
+            subject: row.subject,
+          });
+          if (!result.ok) return result;
+          revoked += 1;
+        } else {
+          keep(row, "not_revocable");
+        }
+      }
+      return ok({ revoked, unrevoked });
+    });
   const purge = (organizationId: string): AsyncResult<OrganizationPurge> =>
     AsyncResult.from(async (): Promise<Result<OrganizationPurge>> => {
+      const refs = await call(
+        "organization_credential_refs",
+        { tenant: organizationId },
+        (value) =>
+          Array.isArray(value)
+            ? value.flatMap((row) => {
+                const parsed = purgeCredentialOf(row);
+                return parsed ? [parsed] : [];
+              })
+            : [],
+      );
+      if (!refs.ok) return refs;
       if (options.billing) {
         const cancelled =
           await options.billing.cancelSubscription(organizationId);
         if (!cancelled.ok) return cancelled;
       }
+      const credentials = await revokeCredentials(organizationId, refs.data);
+      if (!credentials.ok) return credentials;
       const removed: Record<string, number> = {};
       for (const entry of options.buckets ?? []) {
         if (!options.storage) {
@@ -634,6 +746,7 @@ export function createOrganizationPurger(
             ]),
           ),
           removed,
+          credentials: credentials.data,
         };
       });
     });

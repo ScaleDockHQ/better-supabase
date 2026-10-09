@@ -75,6 +75,27 @@ alter table public.grants add column if not exists api_key text;`),
     ).toEqual(["public.grants.access_token", "?.api_key"]);
   });
 
+  it.each(Object.keys(SQL_MODULES))(
+    "%s declares its credential_ref columns for exports and the purge",
+    (name) => {
+      for (const [logical, table] of Object.entries(
+        SQL_MODULES[name]?.names?.tables ?? {},
+      )) {
+        const refs = Object.entries(table.columns)
+          .filter(([, column]) => column === "credential_ref")
+          .map(([key]) => key);
+        expect(
+          table.lifecycle?.credentials ?? [],
+          `${name}.${logical}`,
+        ).toEqual(refs);
+        expect(
+          refs.length === 0 || table.lifecycle?.tenant !== undefined,
+          `${name}.${logical} needs a lifecycle tenant`,
+        ).toBe(true);
+      }
+    },
+  );
+
   it.each(
     Object.keys(SQL_MODULES).filter(
       (name) => name !== "pgtap" && !ALLOWED(name),

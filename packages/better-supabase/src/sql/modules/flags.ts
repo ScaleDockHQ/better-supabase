@@ -45,7 +45,7 @@ const NAMES: ModuleNames = {
     },
     overrides: {
       name: "flag_overrides",
-      lifecycle: { tenant: "tenant" },
+      lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
         flag: "flag_key",

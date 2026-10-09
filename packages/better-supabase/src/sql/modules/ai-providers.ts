@@ -96,7 +96,7 @@ const NAMES: ModuleNames = {
     keys: {
       name: "ai_provider_keys",
       columns: KEYS,
-      lifecycle: { tenant: "tenant" },
+      lifecycle: { tenant: "tenant", credentials: ["credentialRef"] },
     },
     batches: {
       name: "ai_batches",
