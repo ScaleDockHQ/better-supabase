@@ -137,6 +137,15 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform better_supabase.audit_event(
+    event_type => 'agent.saved',
+    category => 'ai',
+    target_type => 'agent',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
+  );
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 exception
   when unique_violation then
@@ -174,6 +183,15 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform better_supabase.audit_event(
+    event_type => 'agent.published',
+    category => 'ai',
+    target_type => 'agent',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug", 'visibility', publish_agent.visibility)
+  );
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -194,6 +212,15 @@ begin
     return false;
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
+  perform better_supabase.audit_event(
+    event_type => 'agent.deleted',
+    category => 'ai',
+    target_type => 'agent',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
+  );
   return true;
 end;
 $$;
@@ -272,6 +299,16 @@ begin
     delete from "better_supabase"."agent_installs" n where n."agent_id" = install_agent.agent_id and n."user_id" = auth.uid() and n."organization_id" = install_agent.tenant;
     get diagnostics v_count = row_count;
     update "better_supabase"."agents" x set "install_count" = greatest(x."install_count" - v_count, 0) where x."id" = install_agent.agent_id;
+    if v_count > 0 then
+      perform better_supabase.audit_event(
+    event_type => 'agent.uninstalled',
+    category => 'ai',
+    target_type => 'agent',
+    record_id => install_agent.agent_id::text,
+    tenant => (install_agent.tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', install_agent.tenant::text, 'agentId', install_agent.agent_id, 'userId', auth.uid())
+  );
+    end if;
     return v_count > 0;
   end if;
   if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('ai_chat.moderate')))) then
@@ -281,6 +318,16 @@ begin
   on conflict do nothing;
   get diagnostics v_count = row_count;
   update "better_supabase"."agents" x set "install_count" = x."install_count" + v_count where x."id" = install_agent.agent_id;
+  if v_count > 0 then
+    perform better_supabase.audit_event(
+    event_type => 'agent.installed',
+    category => 'ai',
+    target_type => 'agent',
+    record_id => install_agent.agent_id::text,
+    tenant => (install_agent.tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', install_agent.tenant::text, 'agentId', install_agent.agent_id, 'userId', auth.uid())
+  );
+  end if;
   return v_count > 0;
 end;
 $$;

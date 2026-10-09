@@ -310,7 +310,7 @@ export interface DataExportJob {
 export interface DataExporter {
   /**
    * Writes one NDJSON file per table, then marks the export ready (which
-   * emits `data_export.ready`). A failure marks it failed and returns the error.
+   * emits `data_export.completed`). A failure marks it failed and returns the error.
    */
   run(exportId: string, signal?: AbortSignal): AsyncResult<DataExport>;
   /** A jobs handler: `queue.work('data-exports', exporter.job)`. */

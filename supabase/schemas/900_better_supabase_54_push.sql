@@ -83,7 +83,13 @@ begin
     "last_seen_at" = now()
   returning x."id", (x.xmax = 0) into v_id, v_new;
   if v_new then
-    null;
+    perform better_supabase.audit_event(
+    event_type => 'push.device_registered',
+    category => 'security',
+    target_type => 'push_device',
+    record_id => v_id::text,
+    metadata => jsonb_build_object('deviceId', v_id::text, 'userId', v_user::text, 'platform', register_push_device.platform, 'provider', register_push_device.provider)
+  );
   end if;
   return v_id;
 end;
@@ -112,7 +118,13 @@ begin
   if v_id is null then
     return false;
   end if;
-  null;
+  perform better_supabase.audit_event(
+    event_type => 'push.device_unregistered',
+    category => 'security',
+    target_type => 'push_device',
+    record_id => v_id::text,
+    metadata => jsonb_build_object('deviceId', v_id::text, 'userId', v_user::text)
+  );
   return true;
 end;
 $$;

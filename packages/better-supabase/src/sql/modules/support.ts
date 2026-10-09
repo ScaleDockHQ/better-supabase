@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -9,7 +9,36 @@ import {
   providerPlatformRoles,
 } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "support.started": {
+    subject: "support-sessions",
+    payload: [
+      "sessionId",
+      "adminId",
+      "targetUserId",
+      "reason",
+      "readOnly",
+      "expiresAt",
+      "organizationId",
+    ],
+  },
+  "support.ended": {
+    subject: "support-sessions",
+    payload: [
+      "sessionId",
+      "adminId",
+      "targetUserId",
+      "reason",
+      "readOnly",
+      "expiresAt",
+      "organizationId",
+      "endedBy",
+    ],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [
     "allowPlatformTargets",
     "allowWrites",
@@ -59,6 +88,11 @@ function sessionJson(ctx: ModuleContext, row: string): string {
     'ended_by', ${optional("endedBy", "null")},
     'metadata', ${optional("metadata", "'{}'::jsonb")}
   )`;
+}
+
+/** The `SupportEventData` payload, in camelCase, from a `sessionJson` value. */
+function supportPayload(session: string, extra = ""): string {
+  return `jsonb_build_object('sessionId', ${session} ->> 'id', 'adminId', ${session} ->> 'admin_id', 'targetUserId', ${session} ->> 'target_user_id', 'reason', ${session} ->> 'reason', 'readOnly', (${session} ->> 'read_only')::boolean, 'expiresAt', ${session} ->> 'expires_at', 'organizationId', ${session} ->> 'tenant'${extra})`;
 }
 
 function table(ctx: ModuleContext): string {
@@ -143,7 +177,6 @@ function start(ctx: ModuleContext): string {
     ["metadata", "coalesce(metadata, '{}')"],
   ];
   const present = columns.filter(([logical]) => ctx.has("sessions", logical));
-  const category = sqlString(ctx.text("auditCategory", "support"));
   return `-- Starts a support session: the admin sees the app as target until it expires
 -- or ends. An admin has one active session; starting another ends the first.
 -- Errors carry a code in the hint: SUPPORT_FORBIDDEN, SUPPORT_SELF,
@@ -226,23 +259,21 @@ begin
   values (${present.map(([, value]) => value).join(", ")})
   returning ${c("id")} into session_id;
   select ${sessionJson(ctx, "s")} into started from ${sessions} s where s.${c("id")} = session_id;
-  perform better_supabase.audit_event(
-    event_type => 'support.started',
-    category => ${category},
-    target_type => 'user',
-    record_id => target::text,
-    tenant => tenant,
-    metadata => jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only),
-    idempotency_key => 'support.started:' || session_id,
-    actor_id => admin
-  );
   ${ctx.hook("after_support_start", [["uuid", "session_id"]])}
-  ${ctx.emit({
+  ${ctx.record({
     type: "support.started",
-    payload: "started",
-    subject: "'support_sessions/' || session_id",
-    ...(ctx.has("sessions", "tenant") ? { tenant: "tenant" } : {}),
+    payload: supportPayload("started"),
+    subject: "'support-sessions/' || session_id",
+    tenant: "tenant",
     key: "'support.started:' || session_id",
+    audit: {
+      category: "security",
+      targetType: "user",
+      recordId: "target::text",
+      metadata:
+        "jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only)",
+      actor: "admin",
+    },
   })}
   return started;
 end;
@@ -253,7 +284,6 @@ function end(ctx: ModuleContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
-  const category = sqlString(ctx.text("auditCategory", "support"));
   const tenant = ctx.has("sessions", "tenant")
     ? `(ended ->> 'tenant')::${ctx.idType}`
     : undefined;
@@ -296,22 +326,22 @@ begin
   if ended is null then
     return false;
   end if;
-  perform better_supabase.audit_event(
-    event_type => 'support.ended',
-    category => ${category},
-    target_type => 'user',
-    record_id => ended ->> 'target_user_id',${tenant ? `\n    tenant => ${tenant},` : ""}
-    metadata => jsonb_build_object('session_id', session_id, 'ended_by', ended_by),
-    idempotency_key => 'support.ended:' || session_id,
-    actor_id => case when service then (ended ->> 'admin_id')::uuid else auth.uid() end
-  );
   ${ctx.hook("after_support_end", [["uuid", "session_id"]])}
-  ${ctx.emit({
+  ${ctx.record({
     type: "support.ended",
-    payload: "ended || jsonb_build_object('ended_by', ended_by)",
-    subject: "'support_sessions/' || session_id",
+    payload: supportPayload("ended", ", 'endedBy', ended_by"),
+    subject: "'support-sessions/' || session_id",
     ...(tenant ? { tenant } : {}),
     key: "'support.ended:' || session_id",
+    audit: {
+      category: "security",
+      targetType: "user",
+      recordId: "ended ->> 'target_user_id'",
+      metadata:
+        "jsonb_build_object('session_id', session_id, 'ended_by', ended_by)",
+      actor:
+        "case when service then (ended ->> 'admin_id')::uuid else auth.uid() end",
+    },
   })}
   return true;
 end;

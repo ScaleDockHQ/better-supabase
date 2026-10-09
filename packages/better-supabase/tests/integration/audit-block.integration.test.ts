@@ -27,7 +27,10 @@ describe.skipIf(!live)("audit block", () => {
     const s = await BlockSession.open(pool);
     try {
       await s.install(["organizations", "audit"], {
-        modules: { audit: { options: { readPolicy: true } } },
+        modules: {
+          organizations: { audit: false },
+          audit: { options: { readPolicy: true } },
+        },
       });
       const owner = await s.user("owner");
       const organization = await s.organization(owner);
@@ -473,6 +476,7 @@ describe.skipIf(!live)("audit block", () => {
     try {
       await s.install(["organizations", "audit"], {
         modules: {
+          organizations: { audit: false },
           audit: { options: { readPolicy: true, restricted: true } },
         },
       });

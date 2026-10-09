@@ -12,6 +12,7 @@ import {
   updatedAt,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
+import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
 import { organizationReads } from "./organizations-reads.ts";
 import { memberSuspension } from "./organizations-suspension.ts";
 import {
@@ -22,6 +23,7 @@ import {
 } from "./tenant.ts";
 
 const NAMES: ModuleNames = {
+  events: ORGANIZATION_EVENTS,
   options: [
     "assignmentGuard",
     "attributes",
@@ -423,7 +425,7 @@ begin
     [id, "organization"],
     ["uuid", "owner"],
   ])}
-  ${ctx.emit({ type: "organization.created", payload: event("organization", "owner", `, 'role', ${sqlString(n.ownerRole)}`), subject: "'organizations/' || organization::text", tenant: "organization" })}
+  ${ctx.record({ type: "organization.created", payload: event("organization", "owner", `, 'role', ${sqlString(n.ownerRole)}`), subject: "'organizations/' || organization::text", tenant: "organization", audit: { category: "configuration", targetType: "organization", recordId: "organization::text" } })}
   return organization;
 end;
 $$;
@@ -447,7 +449,7 @@ begin
   if not found then
     raise exception 'No organization %', organization using errcode = 'P0002', hint = 'ORGANIZATION_NOT_FOUND';
   end if;
-  ${ctx.emit({ type: "organization.updated", payload: event("organization", "auth.uid()"), subject: "'organizations/' || organization::text", tenant: "organization" })}
+  ${ctx.record({ type: "organization.updated", payload: event("organization", "auth.uid()"), subject: "'organizations/' || organization::text", tenant: "organization", audit: { category: "configuration", targetType: "organization", recordId: "organization::text" } })}
   return true;
 end;
 $$;
@@ -536,18 +538,6 @@ drop function if exists ${ctx.fn("delete_organization")}(${id});
       "sql.modules.organizations.options.deleteMode 'soft' needs the deletedAt column",
     );
   }
-  // audit_event maps the category through sql.modules.audit.options.values,
-  // so an adopted log with its own vocabulary maps "organization" there, or
-  // names its value in auditCategory.
-  const audit = ctx.installed("audit")
-    ? `
-  perform better_supabase.audit_event(
-    event_type => 'organization.deleted',
-    category => ${sqlString(ctx.text("auditCategory", "organization"))},
-    tenant => organization,
-    metadata => jsonb_build_object('mode', ${sqlString(soft ? "soft" : "hard")})
-  );`
-    : "";
   const action = soft
     ? `update ${n.organization} set ${ctx.col("organizations", "deletedAt")} = now() where ${n.id} = organization and ${ctx.col("organizations", "deletedAt")} is null;`
     : `delete from ${n.organization} where ${n.id} = organization;`;
@@ -567,8 +557,19 @@ begin
   ${action}
   if not found then
     return false;
-  end if;${soft ? "" : `\n  delete from ${n.m} where ${n.tenant} = organization;`}${audit}
-  ${ctx.emit({ type: "organization.deleted", payload: event("organization", "auth.uid()"), subject: "'organizations/' || organization::text", tenant: "organization" })}
+  end if;${soft ? "" : `\n  delete from ${n.m} where ${n.tenant} = organization;`}
+  ${ctx.record({
+    type: "organization.deleted",
+    payload: event("organization", "auth.uid()"),
+    subject: "'organizations/' || organization::text",
+    tenant: "organization",
+    audit: {
+      category: "configuration",
+      targetType: "organization",
+      recordId: "organization::text",
+      metadata: `jsonb_build_object('mode', ${sqlString(soft ? "soft" : "hard")})`,
+    },
+  })}
   return true;
 end;
 $$;
@@ -796,7 +797,7 @@ begin
   update ${n.m} set ${n.role} = ${roleValue(ctx, "role", "organization")}
   where ${n.tenant} = organization and ${n.user} = member;
   ${change("member", "role")}
-  ${ctx.emit({ type: "organization.role_changed", payload: event("organization", "member", ", 'role', role, 'previousRole', previous"), subject, tenant: "organization" })}
+  ${ctx.record({ type: "organization.role_changed", payload: event("organization", "member", ", 'role', role, 'previousRole', previous"), subject, tenant: "organization", audit: { category: "membership", targetType: "user", recordId: "member::text" } })}
   return true;
 end;
 $$;
@@ -826,7 +827,7 @@ begin
   end if;
   delete from ${n.m} where ${n.tenant} = organization and ${n.user} = member;
   ${change("member", "removed")}
-  ${ctx.emit({ type: "organization.member_removed", payload: event("organization", "member"), subject, tenant: "organization" })}
+  ${ctx.record({ type: "organization.member_removed", payload: event("organization", "member"), subject, tenant: "organization", audit: { category: "membership", targetType: "user", recordId: "member::text" } })}
   return true;
 end;
 $$;
@@ -846,7 +847,7 @@ begin
     raise exception 'Not a member' using errcode = 'P0002', hint = 'ORGANIZATION_NOT_MEMBER';
   end if;
   ${change("me", "left")}
-  ${ctx.emit({ type: "organization.member_left", payload: event("organization", "me"), subject, tenant: "organization" })}
+  ${ctx.record({ type: "organization.member_left", payload: event("organization", "me"), subject, tenant: "organization", audit: { category: "membership", targetType: "user", recordId: "me::text" } })}
   return true;
 end;
 $$;
@@ -889,7 +890,7 @@ begin
     and (m.${n.user} = new_owner
       or (me is not null and me <> new_owner and m.${n.user} = me and ${isOwner(ctx, n, "m")}));
   ${change("new_owner", "owner")}
-  ${ctx.emit({ type: "organization.ownership_transferred", payload: event("organization", "new_owner", `, 'role', ${sqlString(n.ownerRole)}`), subject, tenant: "organization" })}
+  ${ctx.record({ type: "organization.ownership_transferred", payload: event("organization", "new_owner", `, 'role', ${sqlString(n.ownerRole)}`), subject, tenant: "organization", audit: { category: "membership", targetType: "user", recordId: "new_owner::text" } })}
   return true;
 end;
 $$;
@@ -957,7 +958,7 @@ begin
     raise exception 'The organization is unavailable' using errcode = '42501', hint = 'ORGANIZATION_DISABLED';
   end if;
   ${write}${lastUsed}
-  ${ctx.emit({ type: "organization.switched", payload: event("organization", "me"), subject: "'organizations/' || organization::text", tenant: "organization" })}
+  ${ctx.record({ type: "organization.switched", payload: event("organization", "me"), subject: "'organizations/' || organization::text", tenant: "organization", audit: false })}
   return jsonb_build_object('organization_id', organization, 'refresh', ${refresh});
 end;
 $$;

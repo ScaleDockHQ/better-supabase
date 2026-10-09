@@ -5,6 +5,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
+import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
 import type { NotificationChannel, NotificationMessage } from "./channel.ts";
 import type {
   NotificationItem,
@@ -326,6 +327,30 @@ export interface Notifications<K extends NotificationTypes> {
    * (`90 days`) with their recipients and deliveries. Service only.
    */
   purge(olderThan?: string, batch?: number): AsyncResult<number>;
+  /**
+   * An `EventSink` that sends a notification for each event `map` returns
+   * one for. The key defaults to the event id and the tenant to its
+   * `partitionkey`, so a redelivered event sends nothing new. A failed send
+   * rejects, so the forwarder retries. The comments module already notifies
+   * `comment.mentioned`; don't map it again.
+   */
+  sink(options: NotificationSinkOptions<K>): EventSink;
+}
+
+/** A notification for `sink`, with its type next to the `send` input. */
+export type SinkNotification<K extends NotificationTypes> = {
+  [N in TypeName<K>]: { readonly type: N } & SendInput<
+    StandardSchemaV1.InferInput<K[N]>
+  >;
+}[TypeName<K>];
+
+export interface NotificationSinkOptions<K extends NotificationTypes> {
+  /** The notification for an event, or `null` to skip it. `event.type` has no `typePrefix`. */
+  map(
+    event: CloudEvent,
+  ): SinkNotification<K> | null | Promise<SinkNotification<K> | null>;
+  /** Stripped from each event type before `map`. Defaults to `dev.better-supabase.`. */
+  readonly typePrefix?: string;
 }
 
 const nullableText = (value: unknown): string | null =>
@@ -569,7 +594,7 @@ export function createNotifications<
     }
   }
 
-  return {
+  const notifications: Notifications<K> = {
     send(type, input) {
       return AsyncResult.from(async () => {
         const schemaOf = Object.hasOwn(options.types, type)
@@ -838,5 +863,39 @@ export function createNotifications<
         Number,
       );
     },
+    sink(sinkOptions) {
+      const prefix = sinkOptions.typePrefix ?? "dev.better-supabase.";
+      return {
+        async send(events) {
+          for (const event of events) {
+            const type = event.type.startsWith(prefix)
+              ? event.type.slice(prefix.length)
+              : event.type;
+            const mapped = await sinkOptions.map({ ...event, type });
+            if (mapped === null) continue;
+            const { type: notificationType, ...rest } = mapped;
+            // SAFETY: SinkNotification pairs each type with its own send input;
+            // destructuring loses that pairing, not the shape.
+            const input = rest as SendInput<
+              StandardSchemaV1.InferInput<K[TypeName<K>]>
+            >;
+            const tenant =
+              typeof event["partitionkey"] === "string"
+                ? event["partitionkey"]
+                : undefined;
+            await notifications
+              .send(notificationType, {
+                ...input,
+                key: input.key ?? event.id,
+                ...(input.tenant === undefined && tenant !== undefined
+                  ? { tenant }
+                  : {}),
+              })
+              .orThrow();
+          }
+        },
+      };
+    },
   };
+  return notifications;
 }

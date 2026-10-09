@@ -276,7 +276,7 @@ export function updateInvitation(ctx: ModuleContext): string {
           and i.${pc("id")} <> invitation_id${pOpen ? ` and ${pOpen}` : ""}${p.only("i")};
       end if;
       ${write(p, "platform_current", "platform_updated", role)}
-      ${ctx.emit({ type: "invitation.updated", payload: `jsonb_build_object('invitationId', platform_updated.${pc("id")}, 'organizationId', null, 'email', platform_updated.${pc("email")}, 'role', platform_updated.${pc("role")})`, subject: `'invitations/' || platform_updated.${pc("id")}::text` })}
+      ${ctx.record({ type: "invitation.updated", payload: `jsonb_build_object('invitationId', platform_updated.${pc("id")}, 'organizationId', null, 'email', platform_updated.${pc("email")}, 'role', platform_updated.${pc("role")})`, subject: `'invitations/' || platform_updated.${pc("id")}::text`, audit: { category: "membership", targetType: "invitation", recordId: `platform_updated.${pc("id")}::text` } })}
       return ${inviteJson(ctx, p, "platform_updated", "null", null)} - 'token';
     end if;`;
   }
@@ -345,7 +345,7 @@ begin
       and i.${c("id")} <> invitation_id${open ? `\n      and ${open}` : ""};
   end if;
   ${write(t, "current_invite", "updated", stored)}
-  ${ctx.emit({ type: "invitation.updated", payload: `jsonb_build_object('invitationId', updated.${c("id")}, 'organizationId', tenant::text, 'email', updated.${c("email")}, 'role', updated.${c("role")})`, subject: `'invitations/' || updated.${c("id")}::text`, tenant: "tenant" })}
+  ${ctx.record({ type: "invitation.updated", payload: `jsonb_build_object('invitationId', updated.${c("id")}, 'organizationId', tenant::text, 'email', updated.${c("email")}, 'role', updated.${c("role")})`, subject: `'invitations/' || updated.${c("id")}::text`, tenant: "tenant", audit: { category: "membership", targetType: "invitation", recordId: `updated.${c("id")}::text` } })}
   return ${inviteJson(ctx, t, "updated", "null", `updated.${c("tenant")}`)} - 'token';
 end;
 $$;

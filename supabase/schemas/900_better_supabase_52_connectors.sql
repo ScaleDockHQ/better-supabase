@@ -146,6 +146,15 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform better_supabase.audit_event(
+    event_type => 'connector.saved',
+    category => 'integration',
+    target_type => 'connector',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name")
+  );
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -171,6 +180,15 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
   from "better_supabase"."connector_grants" y where y."server_id" = v_row."id" and y."revoked_at" is null;
   delete from "better_supabase"."connector_servers" x where x."id" = v_row."id";
+  perform better_supabase.audit_event(
+    event_type => 'connector.deleted',
+    category => 'integration',
+    target_type => 'connector',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name")
+  );
   return v_grants;
 end;
 $$;
@@ -247,6 +265,14 @@ begin
   values (record_connector_grant.owner, v_server."id", v_server."organization_id", record_connector_grant.credential_ref,
     coalesce(record_connector_grant.scopes, '{}'), record_connector_grant.expires_at)
   returning * into v_row;
+  perform better_supabase.audit_event(
+    event_type => 'connector_grant.created',
+    category => 'integration',
+    target_type => 'connector_grant',
+    record_id => v_row."id"::text,
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id")
+  );
   return jsonb_build_object('grant', jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at"), 'replaced', case when v_old."id" is null then null else jsonb_build_object('id', v_old."id", 'user_id', v_old."user_id", 'server_id', v_old."server_id", 'organization_id', v_old."organization_id", 'credential_ref', v_old."credential_ref", 'scopes', v_old."scopes", 'expires_at', v_old."expires_at", 'granted_at', v_old."granted_at", 'revoked_at', v_old."revoked_at") end);
 end;
 $$;
@@ -272,6 +298,14 @@ begin
     return null;
   end if;
   delete from "better_supabase"."connector_sessions" z where z."server_id" = v_row."server_id" and z."user_id" = v_row."user_id";
+  perform better_supabase.audit_event(
+    event_type => 'connector_grant.revoked',
+    category => 'integration',
+    target_type => 'connector_grant',
+    record_id => v_row."id"::text,
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'grantId', v_row."id", 'serverId', v_row."server_id", 'userId', v_row."user_id")
+  );
   return jsonb_build_object('id', v_row."id", 'user_id', v_row."user_id", 'server_id', v_row."server_id", 'organization_id', v_row."organization_id", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'expires_at', v_row."expires_at", 'granted_at', v_row."granted_at", 'revoked_at', v_row."revoked_at");
 end;
 $$;
@@ -413,7 +447,19 @@ begin
     "status" = case when decide_connector_fingerprint.approved then 'approved' else 'rejected' end,
     "approved_by" = auth.uid(), "approved_at" = now()
   where p."server_id" = v_server."id" and p."fingerprint" = decide_connector_fingerprint.fingerprint;
-  return found;
+  if not found then
+    return false;
+  end if;
+  perform better_supabase.audit_event(
+    event_type => 'connector.fingerprint_decided',
+    category => 'integration',
+    target_type => 'connector',
+    record_id => v_server."id"::text,
+    target_label => v_server."name",
+    tenant => (v_server."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_server."organization_id"::text, 'serverId', v_server."id", 'name', v_server."name", 'fingerprint', decide_connector_fingerprint.fingerprint, 'approved', decide_connector_fingerprint.approved)
+  );
+  return true;
 end;
 $$;
 revoke execute on function "better_supabase"."decide_connector_fingerprint"(uuid, text, boolean) from public, anon;

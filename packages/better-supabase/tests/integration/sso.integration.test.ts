@@ -117,7 +117,10 @@ describe.skipIf(!live)("sso", () => {
           "select type from better_supabase.outbox_events where organization_id = $1 and type like 'organization.domain%'",
           [tenant],
         ),
-      ).toEqual([{ type: "organization.domain_verified" }]);
+      ).toEqual([
+        { type: "organization.domain_added" },
+        { type: "organization.domain_verified" },
+      ]);
 
       const rival = await s.user("rival");
       const other = await s.organization(rival);

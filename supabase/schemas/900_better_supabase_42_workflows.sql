@@ -1,6 +1,6 @@
 -- better-supabase module: workflows (0.5.1)
 -- @bs-module workflows@1 managed
--- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow.run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
+-- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -108,7 +108,7 @@ revoke all on "better_supabase"."workflow_start_requests" from anon, authenticat
 grant all on "better_supabase"."workflow_start_requests" to service_role;
 
 -- Pings the run's topic and its tenant's topic on every status change, and
--- writes workflow.run.completed, .failed or .cancelled to the outbox.
+-- writes workflow_run.completed, .failed or .cancelled to the outbox.
 create or replace function "better_supabase"."workflow_runs_changed"()
 returns trigger
 language plpgsql

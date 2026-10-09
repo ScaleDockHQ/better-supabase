@@ -14,8 +14,10 @@ import {
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { anonymizeSql } from "./data-lifecycle-anonymize.ts";
+import { DATA_LIFECYCLE_EVENTS } from "./data-lifecycle-events.ts";
 
 const NAMES: ModuleNames = {
+  events: DATA_LIFECYCLE_EVENTS,
   options: [
     "bucket",
     "grace",
@@ -399,12 +401,22 @@ function build(ctx: ModuleContext): string {
     ? `${explicitBody}\n  union all${autoBody}`
     : explicitBody;
 
-  const exportEvent = (type: string, extra = ""): string =>
+  const exportEvent = (type: string, extra = "", retried = false): string =>
     ctx.record({
       type,
+      ...(retried
+        ? {
+            key: `${sqlString(`${type}:`)} || v_row.${ce("id")}::text || ':' || v_row.${ce("completedAt")}::text`,
+          }
+        : {}),
       payload: `jsonb_build_object('exportId', v_row.${ce("id")}, 'subject', v_row.${ce("subject")}, 'organizationId', v_row.${ce("tenant")}::text, 'userId', v_row.${ce("user")}, 'requestedBy', v_row.${ce("requestedBy")}${extra})`,
       subject: `'data-exports/' || v_row.${ce("id")}::text`,
       tenant: `v_row.${ce("tenant")}`,
+      audit: {
+        category: "data",
+        targetType: "data_export",
+        recordId: `v_row.${ce("id")}::text`,
+      },
     });
   // The tenant is gone once the purge ends, so the event carries no tenant
   // partition; organizationId stays in the payload.
@@ -413,6 +425,12 @@ function build(ctx: ModuleContext): string {
     payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'userId', null::uuid, 'purgeAfter', v_row.${cd("purgeAfter")})`,
     subject: `'organizations/' || v_row.${cd("tenant")}::text`,
     tenant: "null",
+    key: `'organization.purged:' || v_row.${cd("tenant")}::text`,
+    audit: {
+      category: "data",
+      targetType: "organization",
+      recordId: `v_row.${cd("tenant")}::text`,
+    },
   });
   const deletionEvent = (type: string, actor: string): string =>
     ctx.record({
@@ -420,6 +438,11 @@ function build(ctx: ModuleContext): string {
       payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'userId', ${actor}, 'purgeAfter', v_row.${cd("purgeAfter")})`,
       subject: `'organizations/' || v_row.${cd("tenant")}::text`,
       tenant: `v_row.${cd("tenant")}`,
+      audit: {
+        category: "data",
+        targetType: "organization",
+        recordId: `v_row.${cd("tenant")}::text`,
+      },
     });
 
   const disableSql = disable
@@ -697,7 +720,7 @@ begin
   if v_row.${ce("id")} is null then
     raise exception 'No running export has this id' using errcode = 'P0002', hint = 'DATA_EXPORT_NOT_FOUND';
   end if;
-  ${exportEvent("data_export.ready", `, 'files', to_jsonb(v_row.${ce("files")}), 'expiresAt', v_row.${ce("expiresAt")}`)}
+  ${exportEvent("data_export.completed", `, 'files', to_jsonb(v_row.${ce("files")}), 'expiresAt', v_row.${ce("expiresAt")}`, true)}
   return to_jsonb(v_row);
 end;
 $$;
@@ -720,7 +743,7 @@ begin
   if v_row.${ce("id")} is null then
     return null;
   end if;
-  ${exportEvent("data_export.failed", ", 'error', v_row." + ce("error"))}
+  ${exportEvent("data_export.failed", ", 'error', v_row." + ce("error"), true)}
   return to_jsonb(v_row);
 end;
 $$;

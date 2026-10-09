@@ -699,7 +699,7 @@ begin
     if v_reopened then
       insert into "better_supabase"."conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
   values (v_conv."tenant_id", v_conv."id", 'reopened', (select auth.uid()), jsonb_build_object('by', 'contact'));
-      
+      null;
     end if;
   end if;
   if inbox_add_message.author is not null and inbox_add_message.author_type = 'agent' then
@@ -707,7 +707,7 @@ begin
     on conflict do nothing;
   end if;
   if v_kind = 'message' and inbox_add_message.direction = 'inbound' then
-    
+    null;
     if v_conv."bot_mode" = 'bot' then
       perform "better_supabase"."enqueue_job"(queue => 'inbox_bot', payload => jsonb_build_object('conversation_id', v_conv."id", 'message_id', v_msg."id", 'thread_id', v_conv."thread_id", 'inbox_id', v_conv."inbox_id"), dedupe_key => 'inbox:' || v_conv."id"::text, dedupe_running => false);
     end if;
@@ -812,7 +812,7 @@ begin
   end if;
   insert into "better_supabase"."conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
   values (v_conv."tenant_id", v_conv."id", 'opened', (select auth.uid()), '{}'::jsonb);
-  
+  null;
   if input ? 'message' then
     perform "better_supabase"."inbox_add_message"(
       v_conv."id",
@@ -915,7 +915,7 @@ begin
     v_created := true;
     insert into "better_supabase"."conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
   values (v_conv."tenant_id", v_conv."id", 'opened', (select auth.uid()), jsonb_build_object('by', 'channel'));
-    
+    null;
   end if;
   if v_message ? 'external_id' then
     v_duplicate := exists (select 1 from "better_supabase"."inbox_messages" m where m."conversation_id" = v_conv."id" and m."external_id" = v_message ->> 'external_id');
@@ -972,7 +972,7 @@ begin
   if v_before is distinct from assignee then
     insert into "better_supabase"."conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
   values (v_conv."tenant_id", v_conv."id", 'assigned', (select auth.uid()), jsonb_build_object('from', v_before, 'to', assign_conversation.assignee));
-    
+    null;
     if assignee is not null then
       insert into "better_supabase"."conversation_participants" ("conversation_id", "user_id") values (v_conv."id", assignee)
       on conflict do nothing;
@@ -1032,9 +1032,9 @@ begin
     insert into "better_supabase"."conversation_events" ("tenant_id", "conversation_id", "type", "actor_id", "data")
   values (v_conv."tenant_id", v_conv."id", 'status', (select auth.uid()), jsonb_build_object('from', v_before, 'to', set_conversation_status.status));
     if status = 'resolved' then
-      
+      null;
     elsif v_before = 'resolved' then
-      
+      null;
     end if;
   end if;
   return "better_supabase"."inbox_conversation_json"(v_conv."id");

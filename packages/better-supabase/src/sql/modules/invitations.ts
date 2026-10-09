@@ -1,8 +1,9 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  memberAddedRecord,
   organizationMissing,
   renameSql,
   schemaPreamble,
@@ -44,7 +45,39 @@ import {
 import { assignableRole, roleValue } from "./organizations.ts";
 import { roleThrough } from "./tenant.ts";
 
+const EVENTS: ModuleEvents = {
+  "invitation.created": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId", "email", "role"],
+  },
+  "invitation.resent": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId", "email"],
+  },
+  "invitation.updated": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId", "email", "role"],
+  },
+  "invitation.revoked": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId"],
+  },
+  "invitation.declined": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId"],
+  },
+  "invitation.accepted": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId", "email", "role"],
+  },
+  "organization.member_added": {
+    subject: "organizations",
+    payload: ["organizationId", "userId", "role"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [
     "maxValidFor",
     "platformRoles",
@@ -260,7 +293,7 @@ function platformInvite(
     insert into ${p.table} (${present.map(([logical]) => c(logical)).join(", ")})
     values (${present.map(([, value]) => value).join(", ")})
     returning * into platform_created;
-    ${ctx.emit({ type: "invitation.created", payload: `jsonb_build_object('invitationId', platform_created.${c("id")}, 'organizationId', null, 'email', platform_created.${c("email")}, 'role', platform_created.${c("role")})`, subject: `'invitations/' || platform_created.${c("id")}::text` })}
+    ${ctx.record({ type: "invitation.created", payload: `jsonb_build_object('invitationId', platform_created.${c("id")}, 'organizationId', null, 'email', platform_created.${c("email")}, 'role', platform_created.${c("role")})`, subject: `'invitations/' || platform_created.${c("id")}::text`, audit: { category: "membership", targetType: "invitation", recordId: `platform_created.${c("id")}::text` } })}
     return ${inviteJson(ctx, p, "platform_created", "token", null)};`;
 }
 
@@ -299,7 +332,7 @@ function invite(ctx: ModuleContext): string {
       and (${SERVICE_CALLER} or better_supabase.is_platform(${invitePlatform(ctx)}))
     returning * into platform_updated;
     if platform_updated.${pc("id")} is not null then
-      ${ctx.emit({ type: "invitation.resent", payload: `jsonb_build_object('invitationId', platform_updated.${pc("id")}, 'organizationId', null, 'email', platform_updated.${pc("email")})`, subject: `'invitations/' || platform_updated.${pc("id")}::text` })}
+      ${ctx.record({ type: "invitation.resent", payload: `jsonb_build_object('invitationId', platform_updated.${pc("id")}, 'organizationId', null, 'email', platform_updated.${pc("email")})`, subject: `'invitations/' || platform_updated.${pc("id")}::text`, audit: { category: "membership", targetType: "invitation", recordId: `platform_updated.${pc("id")}::text` } })}
       return ${inviteJson(ctx, p, "platform_updated", "token", null)};
     end if;`
     : "";
@@ -359,7 +392,7 @@ begin
   insert into ${t.table} (${present.map(([logical]) => c(logical)).join(", ")})
   values (${present.map(([, value]) => value).join(", ")})
   returning * into created;
-  ${ctx.emit({ type: "invitation.created", payload: `jsonb_build_object('invitationId', created.${c("id")}, 'organizationId', tenant::text, 'email', created.${c("email")}, 'role', created.${c("role")})`, subject: `'invitations/' || created.${c("id")}::text`, tenant: "tenant" })}
+  ${ctx.record({ type: "invitation.created", payload: `jsonb_build_object('invitationId', created.${c("id")}, 'organizationId', tenant::text, 'email', created.${c("email")}, 'role', created.${c("role")})`, subject: `'invitations/' || created.${c("id")}::text`, tenant: "tenant", audit: { category: "membership", targetType: "invitation", recordId: `created.${c("id")}::text` } })}
   return ${inviteJson(ctx, t, "created", "token", `created.${c("tenant")}`)};
 end;
 $$;
@@ -402,7 +435,7 @@ begin
   if updated.${c("id")} is null then${platformResend}
     ${fail("INVITATION_INVALID", "No open invitation %", "invitation_id")}
   end if;
-  ${ctx.emit({ type: "invitation.resent", payload: `jsonb_build_object('invitationId', updated.${c("id")}, 'organizationId', updated.${c("tenant")}::text, 'email', updated.${c("email")})`, subject: `'invitations/' || updated.${c("id")}::text`, tenant: `updated.${c("tenant")}` })}
+  ${ctx.record({ type: "invitation.resent", payload: `jsonb_build_object('invitationId', updated.${c("id")}, 'organizationId', updated.${c("tenant")}::text, 'email', updated.${c("email")})`, subject: `'invitations/' || updated.${c("id")}::text`, tenant: `updated.${c("tenant")}`, audit: { category: "membership", targetType: "invitation", recordId: `updated.${c("id")}::text` } })}
   return ${inviteJson(ctx, t, "updated", "token", `updated.${c("tenant")}`)};
 end;
 $$;
@@ -432,7 +465,7 @@ function close(ctx: ModuleContext): string {
     ? `
   ${end(p, "revokedAt", `i.${p.col("id")} = invitation_id and (${SERVICE_CALLER} or better_supabase.is_platform(${invitePlatform(ctx)}))`)};
   if found then
-    ${ctx.emit({ type: "invitation.revoked", payload: "jsonb_build_object('invitationId', invitation_id, 'organizationId', null)", subject: "'invitations/' || invitation_id::text" })}
+    ${ctx.record({ type: "invitation.revoked", payload: "jsonb_build_object('invitationId', invitation_id, 'organizationId', null)", subject: "'invitations/' || invitation_id::text", audit: { category: "membership", targetType: "invitation", recordId: `invitation_id::text` } })}
     return true;
   end if;`
     : "";
@@ -442,7 +475,7 @@ function close(ctx: ModuleContext): string {
   ${end(p, "declinedAt", `${match(p)} and i.${p.col("expiresAt")} >= now()`)}
   returning i.${p.col("id")} into declined_id;
   if declined_id is not null then
-    ${ctx.emit({ type: "invitation.declined", payload: "jsonb_build_object('invitationId', declined_id, 'organizationId', null)", subject: "'invitations/' || declined_id::text" })}
+    ${ctx.record({ type: "invitation.declined", payload: "jsonb_build_object('invitationId', declined_id, 'organizationId', null)", subject: "'invitations/' || declined_id::text", audit: { category: "membership", targetType: "invitation", recordId: `declined_id::text` } })}
     return true;
   end if;`
       : "";
@@ -466,7 +499,7 @@ begin
   ${end(t, "revokedAt", `i.${t.col("id")} = invitation_id and (${SERVICE_CALLER} or ${canManage(ctx, "i")})`)}
   returning i.${t.col("tenant")}::text into tenant;
   if found then
-    ${ctx.emit({ type: "invitation.revoked", payload: "jsonb_build_object('invitationId', invitation_id, 'organizationId', tenant)", subject: "'invitations/' || invitation_id::text", tenant: "tenant" })}
+    ${ctx.record({ type: "invitation.revoked", payload: "jsonb_build_object('invitationId', invitation_id, 'organizationId', tenant)", subject: "'invitations/' || invitation_id::text", tenant: "tenant", audit: { category: "membership", targetType: "invitation", recordId: `invitation_id::text` } })}
     return true;
   end if;${platformRevoke}
   return false;
@@ -488,7 +521,7 @@ begin
   ${end(t, "declinedAt", `${hash(t)} and i.${t.col("expiresAt")} >= now()`)}
   returning i.${t.col("id")}, i.${t.col("tenant")}::text into declined_id, tenant;
   if declined_id is not null then
-    ${ctx.emit({ type: "invitation.declined", payload: "jsonb_build_object('invitationId', declined_id, 'organizationId', tenant)", subject: "'invitations/' || declined_id::text", tenant: "tenant" })}
+    ${ctx.record({ type: "invitation.declined", payload: "jsonb_build_object('invitationId', declined_id, 'organizationId', tenant)", subject: "'invitations/' || declined_id::text", tenant: "tenant", audit: { category: "membership", targetType: "invitation", recordId: `declined_id::text` } })}
     return true;
   end if;${platformDecline(hash)}
   return false;
@@ -516,7 +549,7 @@ begin
   ${end(t, "declinedAt", `${mine(t)} and i.${t.col("expiresAt")} >= now()`)}
   returning i.${t.col("id")}, i.${t.col("tenant")}::text into declined_id, tenant;
   if declined_id is not null then
-    ${ctx.emit({ type: "invitation.declined", payload: "jsonb_build_object('invitationId', declined_id, 'organizationId', tenant)", subject: "'invitations/' || declined_id::text", tenant: "tenant" })}
+    ${ctx.record({ type: "invitation.declined", payload: "jsonb_build_object('invitationId', declined_id, 'organizationId', tenant)", subject: "'invitations/' || declined_id::text", tenant: "tenant", audit: { category: "membership", targetType: "invitation", recordId: `declined_id::text` } })}
     return true;
   end if;${platformDecline(mine)}
   return false;
@@ -702,7 +735,7 @@ function accept(
     ["uuid", `pinvite.${pc("id")}`],
     ["uuid", "me"],
   ])}
-  ${ctx.emit({ type: "invitation.accepted", payload: `jsonb_build_object('invitationId', pinvite.${pc("id")}, 'organizationId', null, 'email', pinvite.${pc("email")}, 'role', pinvite.${pc("role")})`, subject: `'invitations/' || pinvite.${pc("id")}::text` })}
+  ${ctx.record({ type: "invitation.accepted", payload: `jsonb_build_object('invitationId', pinvite.${pc("id")}, 'organizationId', null, 'email', pinvite.${pc("email")}, 'role', pinvite.${pc("role")})`, subject: `'invitations/' || pinvite.${pc("id")}::text`, audit: { category: "membership", targetType: "invitation", recordId: `pinvite.${pc("id")}::text` } })}
   return null;
   end if;`;
   }
@@ -751,8 +784,8 @@ begin
     ["uuid", `invite.${c("id")}`],
     ["uuid", "me"],
   ])}
-  ${ctx.emit({ type: "invitation.accepted", payload: `jsonb_build_object('invitationId', invite.${c("id")}, 'organizationId', invite.${c("tenant")}::text, 'email', invite.${c("email")}, 'role', invite.${c("role")})`, subject: `'invitations/' || invite.${c("id")}::text`, tenant: `invite.${c("tenant")}` })}
-  ${ctx.emit({ type: "organization.member_added", payload: `jsonb_build_object('organizationId', invite.${c("tenant")}::text, 'userId', me, 'role', invite.${c("role")})`, subject: `'organizations/' || invite.${c("tenant")}::text`, tenant: `invite.${c("tenant")}` })}
+  ${ctx.record({ type: "invitation.accepted", payload: `jsonb_build_object('invitationId', invite.${c("id")}, 'organizationId', invite.${c("tenant")}::text, 'email', invite.${c("email")}, 'role', invite.${c("role")})`, subject: `'invitations/' || invite.${c("id")}::text`, tenant: `invite.${c("tenant")}`, audit: { category: "membership", targetType: "invitation", recordId: `invite.${c("id")}::text` } })}
+  ${memberAddedRecord(ctx, { tenant: `invite.${c("tenant")}`, user: "me", role: `invite.${c("role")}` })}
   return invite.${c("tenant")};
 end;
 $$;

@@ -218,7 +218,43 @@ begin
     execute format('grant all on %s to service_role', t);
   end loop;
 end;
-$$;${membershipRoleKey(ctx)}`;
+$$;${catalogAudit(ctx)}${membershipRoleKey(ctx)}`;
+}
+
+/**
+ * Registers the catalog tables with the audit log, so role, permission,
+ * override and platform-role writes are audited under `access`.
+ */
+function catalogAudit(ctx: ModuleContext): string {
+  if (!ctx.installedModules.includes("audit")) return "";
+  const tables = (
+    [
+      "roles",
+      "permissions",
+      "rolePermissions",
+      "overrides",
+      "platformAssignments",
+    ] as const
+  ).filter((table) => ctx.hasTable(table));
+  const call = (table: string): string => {
+    const target = sqlString(ctx.table(table));
+    if (!ctx.config.audit) {
+      return `  perform better_supabase.unaudit(${target}::regclass);`;
+    }
+    const tenant =
+      table === "overrides"
+        ? sqlString(ctx.col("overrides", "tenant").replaceAll('"', ""))
+        : "null";
+    return `  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal(${target}), 'access', ${tenant});`;
+  };
+  return `
+-- The catalog is written directly by the service role, so a row trigger
+-- audits it.
+do $$
+begin
+${tables.map(call).join("\n")}
+end;
+$$;`;
 }
 
 /** A catalog role can't be deleted while a membership still holds it. */

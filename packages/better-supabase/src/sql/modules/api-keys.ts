@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
@@ -9,7 +10,30 @@ import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "api_key.created": {
+    subject: "api-keys",
+    payload: ["keyId", "organizationId", "userId", "name", "publicId"],
+  },
+  "api_key.revoked": {
+    subject: "api-keys",
+    payload: ["keyId", "organizationId", "userId", "name", "publicId"],
+  },
+  "api_key.rotated": {
+    subject: "api-keys",
+    payload: [
+      "keyId",
+      "organizationId",
+      "userId",
+      "name",
+      "publicId",
+      "previousKeyId",
+    ],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["scopes", "touchInterval", "prefix"],
   tables: {
     keys: {
@@ -144,6 +168,19 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   // Who may change a key: a manager of its tenant, or the user it acts as.
   const mayChange = (alias: string): string =>
     `((${alias}.${c("tenant")} is not null and ${can(`${alias}.${c("tenant")}`, "manage")}) or coalesce(${alias}.${c("user")} = auth.uid(), false) or ${SERVICE_CALLER})`;
+  const keyEvent = (type: string, row: string, extra = ""): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('keyId', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}::text, 'userId', ${row}.${c("user")}, 'name', ${row}.${c("name")}, 'publicId', ${row}.${c("publicId")}${extra})`,
+      subject: `'api-keys/' || ${row}.${c("id")}::text`,
+      tenant: `${row}.${c("tenant")}`,
+      audit: {
+        category: "security",
+        targetType: "api_key",
+        recordId: `${row}.${c("id")}::text`,
+        targetLabel: `${row}.${c("name")}`,
+      },
+    });
 
   return `${schemaPreamble(ctx)}
 -- API keys: \`<prefix>_<public id>_<secret>\`. Only the SHA-256 of the secret
@@ -229,6 +266,7 @@ begin
   insert into ${t} (${c("tenant")}, ${c("user")}, ${c("name")}, ${c("prefix")}, ${c("publicId")}, ${c("secretHash")}, ${c("scopes")}, ${c("rateLimit")}, ${c("expiresAt")})
   values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;
+  ${keyEvent("api_key.created", "created")}
   return ${json("created")};
 end;
 $$;
@@ -271,6 +309,7 @@ begin
   end if;
   update ${t} k set ${c("revokedAt")} = now()
   where k.${c("id")} = found.${c("id")} and (k.${c("revokedAt")} is null or k.${c("revokedAt")} > now());
+  ${keyEvent("api_key.revoked", "found")}
   return true;
 end;
 $$;
@@ -309,6 +348,7 @@ begin
   values (old.${c("tenant")}, old.${c("user")}, old.${c("name")}, old.${c("prefix")}, rotate_api_key.public_id, rotate_api_key.secret_hash, old.${c("scopes")}, old.${c("rateLimit")}, old.${c("expiresAt")}, old.${c("id")})
   returning * into created;
   update ${t} k set ${c("revokedAt")} = now() + grace where k.${c("id")} = old.${c("id")};
+  ${keyEvent("api_key.rotated", "created", `, 'previousKeyId', old.${c("id")}`)}
   return ${json("created")};
 end;
 $$;

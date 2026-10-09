@@ -17,6 +17,8 @@ export interface SupportEventData {
   readonly denial?: "authorize" | "permission" | "policy" | "store";
   /** `support.ended`: who or what ended it. */
   readonly endedBy?: "admin" | "expired" | "revoked";
+  /** The organization the session is scoped to, when it has one. */
+  readonly organizationId?: string | null;
 }
 
 /** `organization.*`: organizations and their members. */
@@ -40,6 +42,7 @@ export interface InvitationEventData {
 /** `notification.*`. */
 export interface NotificationEventData {
   readonly notificationId: string;
+  readonly organizationId?: string | null;
   readonly type: string;
   readonly recipientIds?: readonly string[];
   readonly channel?: string;
@@ -49,6 +52,9 @@ export interface NotificationEventData {
 /** `webhook.*`: outgoing webhooks. */
 export interface WebhookEventData {
   readonly endpointId: string;
+  readonly organizationId?: string;
+  /** `webhook.disabled`: when the endpoint started failing. */
+  readonly failingSince?: string;
   readonly deliveryId?: string;
   readonly eventType?: string;
   /** The HTTP status of the attempt, when there was a response. */
@@ -103,7 +109,7 @@ export interface DataExportEventData {
   readonly organizationId?: string;
   readonly userId?: string;
   readonly requestedBy?: string;
-  /** `data_export.ready`: the object paths and when they stop being served. */
+  /** `data_export.completed`: the object paths and when they stop being served. */
   readonly files?: readonly string[];
   readonly expiresAt?: string;
   /** `data_export.failed`. */
@@ -118,26 +124,199 @@ export interface OrganizationDeletionEventData {
   readonly purgeAfter?: string;
 }
 
-/** `organization.domain_verified`, from the sso module. */
+/** `organization.domain_*`, from the sso module. */
 export interface OrganizationDomainEventData {
   readonly organizationId: string;
+  readonly domainId?: string;
   readonly domain: string;
   /** The member who verified it, when the app passed one. */
   readonly userId?: string | null;
 }
 
-/** `waitlist.approved`, from the waitlist module. */
+/** `waitlist.*`, from the waitlist module. */
 export interface WaitlistEventData {
   readonly entryId: string;
   readonly email: string;
 }
 
-/** `ai_chat.*`, written to the outbox by the ai-chat module. */
+/** `invite_code.*`, from the waitlist module. The code itself is never part of the event. */
+export interface InviteCodeEventData {
+  readonly codeId: string;
+  readonly organizationId?: string | null;
+  readonly prefix: string;
+  readonly role?: string | null;
+}
+
+/** `sso_provider.*`, from the sso module. */
+export interface SsoProviderEventData {
+  readonly organizationId: string;
+  readonly providerId: string;
+  readonly domains: readonly string[];
+  readonly userId?: string | null;
+}
+
+/** `scim_user.*` and `scim_group.*`, from the sso module. */
+export interface ScimEventData {
+  readonly organizationId: string;
+  readonly scimUserId?: string;
+  readonly scimGroupId?: string;
+}
+
+/** `api_key.*`, from the api-keys module. The secret is never part of the event. */
+export interface ApiKeyEventData {
+  readonly keyId: string;
+  readonly organizationId?: string | null;
+  readonly userId?: string | null;
+  readonly name: string;
+  readonly publicId: string;
+  /** `api_key.rotated`: the key it replaced. */
+  readonly previousKeyId?: string;
+}
+
+/** `organization_setting.*` and `platform_setting.*`, from the settings module. */
+export interface SettingEventData {
+  readonly organizationId?: string;
+  readonly key: string;
+}
+
+/** `flag.*`, from the flags module. */
+export interface FlagEventData {
+  readonly key: string;
+  /** `flag.override_set`: the variant, or `null` when the override was removed. */
+  readonly variant?: string | null;
+  readonly organizationId?: string | null;
+  readonly userId?: string | null;
+}
+
+/** `announcement.*`, from the announcements module. */
+export interface AnnouncementEventData {
+  readonly announcementId: string;
+}
+
+/** `credential.*`, from the credentials module. The secret is never part of the event. */
+export interface CredentialEventData {
+  readonly provider: string;
+  readonly name: string;
+}
+
+/** `connector.*` and `connector_grant.*`, from the connectors module. */
+export interface ConnectorEventData {
+  readonly organizationId: string;
+  readonly serverId: string;
+  readonly name?: string;
+  /** `connector.fingerprint_decided`. */
+  readonly fingerprint?: string;
+  readonly approved?: boolean;
+  /** `connector_grant.*`. */
+  readonly grantId?: string;
+  readonly userId?: string;
+}
+
+/** `agent.*`, from the agents module. */
+export interface AgentEventData {
+  readonly organizationId: string;
+  readonly agentId: string;
+  readonly slug?: string;
+  readonly visibility?: string;
+  /** `agent.installed` and `agent.uninstalled`: the member. */
+  readonly userId?: string;
+}
+
+/** `ai_provider_key.*`, from the ai-providers module. Only the credential reference is stored. */
+export interface AiProviderKeyEventData {
+  readonly organizationId: string;
+  readonly keyId: string;
+  readonly provider: string;
+  readonly name: string;
+}
+
+/** `ai_tool_policy.set` and `ai_tool_approval.decided`, from the ai-chat module. */
+export interface AiToolEventData {
+  readonly organizationId: string;
+  readonly tool: string;
+  readonly policy?: string | null;
+  readonly chatId?: string;
+  readonly approvalId?: string;
+  readonly decision?: string;
+}
+
+/** `incoming_webhook.*`, from the webhooks-in module. Secrets are never part of the event. */
+export interface IncomingWebhookEventData {
+  readonly organizationId: string;
+  readonly endpointId: string;
+  readonly name?: string;
+  readonly verify?: string;
+  readonly enabled?: boolean;
+  /** `incoming_webhook.token_rotated`: whether the secret changed too. */
+  readonly secretRotated?: boolean;
+}
+
+/** `inbox_conversation.*` and `inbox_message.received`, from the inbox module. */
+export interface InboxEventData {
+  readonly conversationId: string;
+  readonly organizationId: string;
+  readonly inboxId: string;
+  readonly contactId?: string | null;
+  readonly assigneeId?: string | null;
+  readonly previousAssigneeId?: string | null;
+  readonly status?: string;
+  /** `inbox_message.received`. */
+  readonly messageId?: string;
+}
+
+/** `push.*`, from the push module. */
+export interface PushDeviceEventData {
+  readonly deviceId: string;
+  readonly userId: string;
+  readonly platform?: string;
+  readonly provider?: string;
+}
+
+/** `workflow_run.*`, from the workflows module. */
+export interface WorkflowRunEventData {
+  readonly runId: string;
+  readonly organizationId?: string | null;
+  readonly engine: string;
+  readonly externalId?: string | null;
+  readonly definition?: string | null;
+  readonly status: string;
+  readonly error?: string | null;
+}
+
+/** `workflow.published` and `workflow_alert.triggered`, from the workflow-builder module. */
+export interface WorkflowEventData {
+  readonly organizationId?: string | null;
+  readonly definitionId?: string;
+  readonly versionId?: string;
+  readonly version?: number;
+  /** `workflow_alert.triggered`. */
+  readonly alertId?: string;
+  readonly definition?: string;
+  readonly onEvent?: string;
+  readonly channel?: string;
+  readonly runId?: string;
+  readonly status?: string;
+  readonly error?: string | null;
+}
+
+/** `object.uploaded`, from the attachments module: a Storage object in a scanned bucket. */
+export interface StorageObjectEventData {
+  readonly bucket: string;
+  readonly path: string;
+}
+
+/** `audit.revealed`, from the audit module: who looked at restricted details. */
+export interface AuditRevealEventData {
+  readonly organizationId?: string | null;
+  readonly entries: readonly string[];
+}
+
+/** `ai_chat.*` and `ai_chat_message.completed`, written to the outbox by the ai-chat module. */
 export interface AiChatEventData {
   readonly chatId: string;
   readonly organizationId: string;
   readonly ownerId: string;
-  /** `ai_chat.message.completed`: the saved answer. */
+  /** `ai_chat_message.completed`: the saved answer. */
   readonly messageId?: string;
   readonly model?: string;
   /** `complete`, `aborted` or `error`. */
@@ -163,8 +342,68 @@ export interface BlockEventMap {
   "organization.role_changed": OrganizationEventData;
   "organization.ownership_transferred": OrganizationEventData;
   "organization.switched": OrganizationEventData;
+  "organization.domain_added": OrganizationDomainEventData;
+  "organization.domain_updated": OrganizationDomainEventData;
   "organization.domain_verified": OrganizationDomainEventData;
+  "organization.domain_removed": OrganizationDomainEventData;
+  "sso_provider.registered": SsoProviderEventData;
+  "sso_provider.unregistered": SsoProviderEventData;
+  "scim_user.saved": ScimEventData;
+  "scim_user.deleted": ScimEventData;
+  "scim_group.saved": ScimEventData;
+  "scim_group.deleted": ScimEventData;
   "waitlist.approved": WaitlistEventData;
+  "waitlist.rejected": WaitlistEventData;
+  "invite_code.created": InviteCodeEventData;
+  "invite_code.revoked": InviteCodeEventData;
+  "api_key.created": ApiKeyEventData;
+  "api_key.revoked": ApiKeyEventData;
+  "api_key.rotated": ApiKeyEventData;
+  "organization_setting.updated": SettingEventData;
+  "organization_setting.reset": SettingEventData;
+  "platform_setting.updated": SettingEventData;
+  "platform_setting.reset": SettingEventData;
+  "flag.saved": FlagEventData;
+  "flag.deleted": FlagEventData;
+  "flag.override_set": FlagEventData;
+  "announcement.saved": AnnouncementEventData;
+  "announcement.deleted": AnnouncementEventData;
+  "credential.set": CredentialEventData;
+  "credential.deleted": CredentialEventData;
+  "connector.saved": ConnectorEventData;
+  "connector.deleted": ConnectorEventData;
+  "connector.fingerprint_decided": ConnectorEventData;
+  "connector_grant.created": ConnectorEventData;
+  "connector_grant.revoked": ConnectorEventData;
+  "agent.saved": AgentEventData;
+  "agent.published": AgentEventData;
+  "agent.deleted": AgentEventData;
+  "agent.installed": AgentEventData;
+  "agent.uninstalled": AgentEventData;
+  "ai_provider_key.saved": AiProviderKeyEventData;
+  "ai_provider_key.deleted": AiProviderKeyEventData;
+  "ai_tool_policy.set": AiToolEventData;
+  "ai_tool_approval.decided": AiToolEventData;
+  "incoming_webhook.created": IncomingWebhookEventData;
+  "incoming_webhook.updated": IncomingWebhookEventData;
+  "incoming_webhook.enabled_set": IncomingWebhookEventData;
+  "incoming_webhook.token_rotated": IncomingWebhookEventData;
+  "incoming_webhook.secret_rotated": IncomingWebhookEventData;
+  "incoming_webhook.deleted": IncomingWebhookEventData;
+  "inbox_conversation.opened": InboxEventData;
+  "inbox_conversation.assigned": InboxEventData;
+  "inbox_conversation.resolved": InboxEventData;
+  "inbox_conversation.reopened": InboxEventData;
+  "inbox_message.received": InboxEventData;
+  "push.device_registered": PushDeviceEventData;
+  "push.device_unregistered": PushDeviceEventData;
+  "workflow_run.completed": WorkflowRunEventData;
+  "workflow_run.failed": WorkflowRunEventData;
+  "workflow_run.cancelled": WorkflowRunEventData;
+  "workflow.published": WorkflowEventData;
+  "workflow_alert.triggered": WorkflowEventData;
+  "audit.revealed": AuditRevealEventData;
+  "object.uploaded": StorageObjectEventData;
   "invitation.created": InvitationEventData;
   "invitation.resent": InvitationEventData;
   "invitation.updated": InvitationEventData;
@@ -177,6 +416,7 @@ export interface BlockEventMap {
   "webhook.delivered": WebhookEventData;
   "webhook.failed": WebhookEventData;
   "webhook.disabled": WebhookEventData;
+  "webhook.secret_rotated": WebhookEventData;
   "billing.customer_linked": BillingEventData;
   "billing.checkout_completed": BillingEventData;
   "billing.subscription_created": BillingEventData;
@@ -189,16 +429,34 @@ export interface BlockEventMap {
   "attachment.uploaded": AttachmentEventData;
   "attachment.scanned": AttachmentEventData;
   "data_export.requested": DataExportEventData;
-  "data_export.ready": DataExportEventData;
+  "data_export.completed": DataExportEventData;
   "data_export.failed": DataExportEventData;
   "organization.deletion_requested": OrganizationDeletionEventData;
   "organization.deletion_cancelled": OrganizationDeletionEventData;
   "organization.purged": OrganizationDeletionEventData;
-  "ai_chat.message.completed": AiChatEventData;
+  "ai_chat_message.completed": AiChatEventData;
   "ai_chat.shared": AiChatEventData;
+  "ai_chat.share_revoked": AiChatEventData;
 }
 
 export type BlockEventType = keyof BlockEventMap;
+
+/**
+ * Event types that changed name in 0.6, old to new, for sinks and consumers
+ * that still receive the old ones (`BLOCK_EVENT_RENAMES[type] ?? type`).
+ * `better-supabase codemod 0.6` rewrites the string literals.
+ */
+export const BLOCK_EVENT_RENAMES: Readonly<Record<string, BlockEventType>> = {
+  "org.created": "organization.created",
+  "org.updated": "organization.updated",
+  "org.deleted": "organization.deleted",
+  "org.member_added": "organization.member_added",
+  "org.member_removed": "organization.member_removed",
+  "org.member_left": "organization.member_left",
+  "org.role_changed": "organization.role_changed",
+  "org.ownership_transferred": "organization.ownership_transferred",
+  "org.switched": "organization.switched",
+};
 
 /** Where an event came from, beyond its data. */
 export interface BlockEventMeta {

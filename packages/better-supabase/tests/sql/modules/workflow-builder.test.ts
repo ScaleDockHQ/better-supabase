@@ -27,9 +27,9 @@ describe("workflow-builder module", () => {
       "workflow_definitions_tenant_slug_key unique nulls not distinct",
     );
     expect(sql).toContain("'workflow-run:' || v_run::text");
-    expect(sql).not.toContain("'workflow.alert'");
+    expect(sql).not.toContain("'workflow_alert.triggered'");
     expect(schemaOf(["workflow-builder", "outbox"])).toContain(
-      "'workflow.alert'",
+      "'workflow_alert.triggered'",
     );
   });
 

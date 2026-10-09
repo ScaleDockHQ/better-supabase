@@ -101,6 +101,34 @@ function approvals(
     "42501",
     "AI_CHAT_FORBIDDEN",
   );
+  const chatTenant = (chat: string): string =>
+    `(select c.${ch.tenant} from ${t.chats} c where c.${ch.id} = ${chat})`;
+  const policyEvent = ctx.record({
+    type: "ai_tool_policy.set",
+    payload:
+      "jsonb_build_object('organizationId', set_ai_tool_policy.tenant::text, 'tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy)",
+    subject:
+      "'organizations/' || set_ai_tool_policy.tenant::text || '/ai-tool-policies/' || set_ai_tool_policy.tool",
+    tenant: "set_ai_tool_policy.tenant",
+    audit: {
+      category: "ai",
+      targetType: "ai_tool_policy",
+      recordId: "set_ai_tool_policy.tool",
+    },
+  });
+  const decidedEvent = ctx.record({
+    type: "ai_tool_approval.decided",
+    payload: `jsonb_build_object('organizationId', ${chatTenant(`v_row.${a.chat}`)}::text, 'chatId', v_row.${a.chat}, 'approvalId', v_row.${a.id}, 'tool', v_row.${a.tool}, 'decision', v_decision)`,
+    subject: `'ai-chats/' || v_row.${a.chat}::text`,
+    tenant: chatTenant(`v_row.${a.chat}`),
+    key: `'ai_tool_approval.decided:' || v_row.${a.id}`,
+    audit: {
+      category: "ai",
+      targetType: "ai_tool_approval",
+      recordId: `v_row.${a.id}`,
+      targetLabel: `v_row.${a.tool}`,
+    },
+  });
 
   return `-- Records a tool call that waits for approval (the service role only).
 -- approval holds approval_id, tool, tool_call_id and optionally input,
@@ -175,6 +203,7 @@ begin
   where x.${a.id} = v_row.${a.id}
   returning * into v_row;
   perform ${fn("ai_chat_notify")}(v_row.${a.chat}, null, 'approval.decided', jsonb_build_object('approvalId', v_row.${a.id}, 'decision', v_decision), false);
+  ${decidedEvent}
   return ${approvalJson(names, "v_row")};
 end;
 $$;
@@ -217,11 +246,13 @@ begin
   end if;
   if set_ai_tool_policy.policy is null then
     delete from ${t.policies} x where x.${po.tenant} = set_ai_tool_policy.tenant and x.${po.tool} = set_ai_tool_policy.tool;
+    ${policyEvent}
     return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', null);
   end if;
   insert into ${t.policies} (${po.tenant}, ${po.tool}, ${po.policy})
   values (set_ai_tool_policy.tenant, set_ai_tool_policy.tool, set_ai_tool_policy.policy)
   on conflict (${po.tenant}, ${po.tool}) do update set ${po.policy} = excluded.${po.policy}, ${po.updatedAt} = now();
+  ${policyEvent}
   return jsonb_build_object('tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy);
 end;
 $$;
@@ -314,12 +345,28 @@ function sharing(ctx: ModuleContext, names: AiChatNames): string {
   const f = names.c.feedback;
   const sh = names.c.shares;
   const can = canIn;
-  const shared = ctx.emit({
+  const shared = ctx.record({
     type: "ai_chat.shared",
     payload: `jsonb_build_object('chatId', v_chat.${ch.id}, 'shareId', v_id, 'organizationId', v_chat.${ch.tenant}::text, 'ownerId', v_chat.${ch.owner}, 'leafId', v_leaf)`,
     subject: `'ai-chats/' || v_chat.${ch.id}::text`,
     tenant: `v_chat.${ch.tenant}`,
     key: `'ai_chat.shared:' || v_id::text`,
+    audit: {
+      category: "ai",
+      targetType: "ai_chat_share",
+      recordId: "v_id::text",
+    },
+  });
+  const revoked = ctx.record({
+    type: "ai_chat.share_revoked",
+    payload: `jsonb_build_object('chatId', v_chat.${ch.id}, 'shareId', revoke_ai_chat_share.id, 'organizationId', v_chat.${ch.tenant}::text, 'ownerId', v_chat.${ch.owner})`,
+    subject: `'ai-chats/' || v_chat.${ch.id}::text`,
+    tenant: `v_chat.${ch.tenant}`,
+    audit: {
+      category: "ai",
+      targetType: "ai_chat_share",
+      recordId: "revoke_ai_chat_share.id::text",
+    },
   });
   const hash = (token: string): string =>
     `encode(sha256(convert_to(${token}, 'UTF8')), 'hex')`;
@@ -398,7 +445,8 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_count integer;
+  v_chat_id uuid;
+  v_chat ${t.chats};
 begin
   update ${t.shares} x set ${sh.revokedAt} = now()
   where x.${sh.id} = revoke_ai_chat_share.id
@@ -407,9 +455,14 @@ begin
       ${SERVICE_CALLER}
       or x.${sh.createdBy} = (select auth.uid())
       or exists (select 1 from ${t.chats} c where c.${ch.id} = x.${sh.chat} and c.${ch.owner} = (select auth.uid()))
-    );
-  get diagnostics v_count = row_count;
-  return v_count > 0;
+    )
+  returning x.${sh.chat} into v_chat_id;
+  if v_chat_id is null then
+    return false;
+  end if;
+  select * into v_chat from ${t.chats} c where c.${ch.id} = v_chat_id;
+  ${revoked}
+  return true;
 end;
 $$;
 ${userGrant(`${fn("revoke_ai_chat_share")}(uuid)`)}

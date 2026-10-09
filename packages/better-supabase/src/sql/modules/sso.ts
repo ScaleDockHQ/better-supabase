@@ -1,18 +1,79 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, schemaPreamble } from "../shared.ts";
+import {
+  memberAddedRecord,
+  SERVICE_CALLER,
+  schemaPreamble,
+} from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
 import { roleValue } from "./organizations.ts";
 import { type ScimSqlNames, scimSql } from "./sso-scim-sql.ts";
 import { roleNameOf } from "./tenant.ts";
 
+const EVENTS: ModuleEvents = {
+  "organization.member_removed": {
+    subject: "organizations",
+    payload: ["organizationId", "userId"],
+  },
+  "organization.member_added": {
+    subject: "organizations",
+    payload: ["organizationId", "userId", "role"],
+  },
+  "organization.role_changed": {
+    subject: "organizations",
+    payload: ["organizationId", "userId", "role", "previousRole"],
+  },
+  "organization.domain_added": {
+    subject: "organizations",
+    payload: ["organizationId", "domainId", "domain", "userId"],
+  },
+  "organization.domain_updated": {
+    subject: "organizations",
+    payload: ["organizationId", "domainId", "domain", "userId"],
+  },
+  "organization.domain_removed": {
+    subject: "organizations",
+    payload: ["organizationId", "domainId", "domain", "userId"],
+  },
+  "organization.domain_verified": {
+    subject: "organizations",
+    payload: ["organizationId", "domainId", "domain", "userId"],
+  },
+  "sso_provider.registered": {
+    subject: "organizations",
+    payload: ["organizationId", "providerId", "domains", "userId"],
+  },
+  "sso_provider.unregistered": {
+    subject: "organizations",
+    payload: ["organizationId", "providerId", "domains", "userId"],
+  },
+  "scim_user.saved": {
+    subject: "organizations",
+    payload: ["organizationId", "scimUserId"],
+  },
+  "scim_user.deleted": {
+    subject: "organizations",
+    payload: ["organizationId", "scimUserId"],
+  },
+  "scim_group.saved": {
+    subject: "organizations",
+    payload: ["organizationId", "scimGroupId"],
+  },
+  "scim_group.deleted": {
+    subject: "organizations",
+    payload: ["organizationId", "scimGroupId"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["txtPrefix", "defaultRole", "roleOrder", "groupRoles"],
   hooks: [],
   tables: {
@@ -191,13 +252,39 @@ function build(ctx: ModuleContext): string {
       payload: `jsonb_build_object('organizationId', v_tenant::text, 'userId', v_user${extra})`,
       subject: "'organizations/' || v_tenant::text",
       tenant: "v_tenant",
+      audit: {
+        category: "membership",
+        targetType: "user",
+        recordId: "v_user::text",
+      },
     });
-  const domainEvent = ctx.emit({
-    type: "organization.domain_verified",
-    payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'domain', v_row.${cd("domain")}, 'userId', verify_organization_domain.actor)`,
-    subject: `'organizations/' || v_row.${cd("tenant")}::text`,
-    tenant: `v_row.${cd("tenant")}`,
-  });
+  const domainEvent = (type: string, actor: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', v_row.${cd("tenant")}::text, 'domainId', v_row.${cd("id")}, 'domain', v_row.${cd("domain")}, 'userId', ${actor})`,
+      subject: `'organizations/' || v_row.${cd("tenant")}::text`,
+      tenant: `v_row.${cd("tenant")}`,
+      audit: {
+        category: "security",
+        targetType: "domain",
+        recordId: `v_row.${cd("id")}::text`,
+        targetLabel: `v_row.${cd("domain")}`,
+        actor,
+      },
+    });
+  const providerEvent = (type: string, actor: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', v_row.${cp("tenant")}::text, 'providerId', v_row.${cp("id")}, 'domains', to_jsonb(v_row.${cp("domains")}), 'userId', ${actor})`,
+      subject: `'organizations/' || v_row.${cp("tenant")}::text`,
+      tenant: `v_row.${cp("tenant")}`,
+      audit: {
+        category: "security",
+        targetType: "sso_provider",
+        recordId: `v_row.${cp("id")}::text`,
+        actor,
+      },
+    });
   const emailDomain = (email: string): string =>
     `lower(split_part(${email}, '@', 2))`;
   const verifiedFor = (tenantExpr: string, email: string): string =>
@@ -217,6 +304,18 @@ function build(ctx: ModuleContext): string {
     cm,
     serviceOnly,
     verifiedFor,
+    record: (type, tenantId, row) =>
+      ctx.record({
+        type,
+        payload: `jsonb_build_object('organizationId', ${tenantId}::text, ${sqlString(type.startsWith("scim_user.") ? "scimUserId" : "scimGroupId")}, ${row})`,
+        subject: `'organizations/' || ${tenantId}::text`,
+        tenant: tenantId,
+        audit: {
+          category: "security",
+          targetType: type.slice(0, type.indexOf(".")),
+          recordId: `${row}::text`,
+        },
+      }),
   };
 
   return `${schemaPreamble(ctx)}
@@ -367,7 +466,7 @@ begin
   ), ${sqlString(roles.fallback)}) into v_role;
   if v_current is null then
     insert into ${m} (${mt}, ${mu}, ${mr}) values (v_tenant, v_user, ${roleValue(ctx, "v_role", "v_tenant")});
-    ${memberEvent("organization.member_added", ", 'role', v_role")}
+    ${memberAddedRecord(ctx, { tenant: "v_tenant", user: "v_user", role: "v_role" })}
   elsif v_current is distinct from v_role then
     update ${m} mm set ${mr} = ${roleValue(ctx, "v_role", "v_tenant")} where mm.${mt} = v_tenant and mm.${mu} = v_user;
     ${memberEvent("organization.role_changed", ", 'role', v_role, 'previousRole', v_current")}
@@ -397,6 +496,7 @@ begin
   insert into ${d} as x (${cd("tenant")}, ${cd("domain")}) values (add_organization_domain.tenant, v_domain)
   on conflict (${cd("tenant")}, ${cd("domain")}) do update set ${cd("domain")} = x.${cd("domain")}
   returning * into v_row;
+  ${domainEvent("organization.domain_added", "auth.uid()")}
   return ${withRecord("v_row")};
 end;
 $$;
@@ -466,6 +566,7 @@ begin
   update ${d} x set ${cd("autoJoinRole")} = update_organization_domain.auto_join_role, ${cd("enforceSso")} = update_organization_domain.enforce_sso
   where x.${cd("id")} = v_row.${cd("id")}
   returning * into v_row;
+  ${domainEvent("organization.domain_updated", "auth.uid()")}
   return ${withRecord("v_row")};
 end;
 $$;
@@ -487,6 +588,7 @@ begin
     raise exception 'An SSO provider uses this domain; remove it first' using errcode = '23503', hint = 'SSO_DOMAIN_IN_USE';
   end if;
   delete from ${d} x where x.${cd("id")} = v_row.${cd("id")};
+  ${domainEvent("organization.domain_removed", "auth.uid()")}
   return true;
 end;
 $$;
@@ -514,7 +616,7 @@ begin
     raise exception 'Another organization has verified %', v_row.${cd("domain")} using errcode = '23505', hint = 'SSO_DOMAIN_TAKEN';
   end if;
   update ${d} x set ${cd("verifiedAt")} = now() where x.${cd("id")} = v_row.${cd("id")} returning * into v_row;
-  ${domainEvent}
+  ${domainEvent("organization.domain_verified", "verify_organization_domain.actor")}
   return ${withRecord("v_row")};
 end;
 $$;
@@ -564,6 +666,7 @@ begin
   if v_row.${cp("id")} is null then
     raise exception 'The provider belongs to another organization' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
+  ${providerEvent("sso_provider.registered", "register_sso_provider.actor")}
   return to_jsonb(v_row);
 end;
 $$;
@@ -611,6 +714,7 @@ begin
     raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   delete from ${p} x where x.${cp("id")} = v_row.${cp("id")};
+  ${providerEvent("sso_provider.unregistered", "unregister_sso_provider.actor")}
   return to_jsonb(v_row);
 end;
 $$;
@@ -731,7 +835,7 @@ begin
     loop
       v_tenant := v_join.tenant;
       insert into ${m} (${mt}, ${mu}, ${mr}) values (v_tenant, v_user, ${roleValue(ctx, "v_join.role", "v_tenant")});
-      ${memberEvent("organization.member_added", ", 'role', v_join.role")}
+      ${memberAddedRecord(ctx, { tenant: "v_tenant", user: "v_user", role: "v_join.role" })}
     end loop;
   exception when others then
     raise warning 'SSO membership for user % failed: % (SQLSTATE %)', new.id, sqlerrm, sqlstate;

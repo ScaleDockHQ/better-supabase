@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
@@ -202,7 +203,39 @@ const HARNESS = {
   updatedAt: "updated_at",
 } as const;
 
+const EVENTS: ModuleEvents = {
+  "ai_chat_message.completed": {
+    subject: "ai-chats",
+    payload: [
+      "chatId",
+      "messageId",
+      "organizationId",
+      "ownerId",
+      "model",
+      "status",
+    ],
+    retries: true,
+  },
+  "ai_tool_approval.decided": {
+    subject: "ai-chats",
+    payload: ["organizationId", "chatId", "approvalId", "tool", "decision"],
+  },
+  "ai_tool_policy.set": {
+    subject: "organizations",
+    payload: ["organizationId", "tool", "policy"],
+  },
+  "ai_chat.shared": {
+    subject: "ai-chats",
+    payload: ["chatId", "shareId", "organizationId", "ownerId", "leafId"],
+  },
+  "ai_chat.share_revoked": {
+    subject: "ai-chats",
+    payload: ["chatId", "shareId", "organizationId", "ownerId"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["topic", "listTopic", "temporaryTtl", "staleAfter"],
   tables: {
     projects: {

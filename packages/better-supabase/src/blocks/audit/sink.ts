@@ -1,5 +1,6 @@
 import type { AsyncResult } from "../../core/result.ts";
 import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
+import type { AuditCategory } from "../../sql/context.ts";
 import type { AuditEventInput } from "./client.ts";
 
 import { DbException } from "../../core/errors.ts";
@@ -8,10 +9,21 @@ import { isRecord } from "../shared.ts";
 export interface AuditSinkOptions {
   /** The type prefix stripped from each event's `type`. Defaults to `dev.better-supabase`. */
   readonly typePrefix?: string;
+  /**
+   * The category for an event type (without the prefix), from the categories
+   * the SQL modules use. Defaults to `security` for `account.*` and
+   * `support.*`, and no category for the rest.
+   */
+  readonly category?: (eventType: string) => AuditCategory | undefined;
 }
 
 const textIn = (value: unknown): string | undefined =>
   typeof value === "string" && value !== "" ? value : undefined;
+
+const defaultCategory = (eventType: string): AuditCategory | undefined =>
+  eventType.startsWith("account.") || eventType.startsWith("support.")
+    ? "security"
+    : undefined;
 
 /**
  * The audit entry for one CloudEvent: its type without the prefix, its
@@ -32,11 +44,14 @@ export function auditEventOf(
   const actorId = textIn(data?.["actorId"]);
   const metadata =
     data ?? (event.data === undefined ? undefined : { data: event.data });
+  const eventType = event.type.startsWith(prefix)
+    ? event.type.slice(prefix.length)
+    : event.type;
+  const category = (options.category ?? defaultCategory)(eventType);
   return {
-    eventType: event.type.startsWith(prefix)
-      ? event.type.slice(prefix.length)
-      : event.type,
+    eventType,
     idempotencyKey: `${event.source}#${event.id}`,
+    ...(category === undefined ? {} : { category }),
     ...(event.subject === undefined ? {} : { record: event.subject }),
     ...(organizationId === undefined ? {} : { organizationId }),
     ...(actorId === undefined ? {} : { actorId }),

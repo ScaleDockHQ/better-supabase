@@ -1,13 +1,25 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { schemaPreamble, SERVICE_CALLER, serviceGrant } from "../shared.ts";
 
-const NAMES: ModuleNames = { tables: {} };
+const EVENTS: ModuleEvents = {
+  "credential.set": {
+    subject: "credentials",
+    payload: ["provider", "name"],
+  },
+  "credential.deleted": {
+    subject: "credentials",
+    payload: ["provider", "name"],
+  },
+};
+
+const NAMES: ModuleNames = { tables: {}, events: EVENTS };
 
 /**
  * PL/pgSQL that rejects a credential_ref outside `tenant` unless the service
@@ -36,6 +48,17 @@ function build(ctx: ModuleContext): string {
   end if;`;
   const secretName = (name: string): string =>
     `'bs:cred:' || ${name}.provider || ':' || ${name}.name`;
+  const credentialEvent = (type: string, name: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('provider', ${name}.provider, 'name', ${name}.name)`,
+      subject: `'credentials/' || ${name}.provider || '/' || ${name}.name`,
+      audit: {
+        category: "security",
+        targetType: "credential",
+        recordId: `${name}.provider || ':' || ${name}.name`,
+      },
+    });
 
   return `${schemaPreamble(ctx)}
 -- Third-party credentials live in Vault as bs:cred:<provider>:<name>; tables
@@ -81,6 +104,7 @@ begin${guard("credential_set")}
   else
     perform vault.update_secret(v_id, credential_set.secret);
   end if;
+  ${credentialEvent("credential.set", "credential_set")}
   return v_id;
 end;
 $$;
@@ -95,7 +119,11 @@ set search_path = ''
 as $$
 begin${guard("credential_delete")}
   delete from vault.secrets s where s.name = ${secretName("credential_delete")};
-  return found;
+  if not found then
+    return false;
+  end if;
+  ${credentialEvent("credential.deleted", "credential_delete")}
+  return true;
 end;
 $$;
 ${serviceGrant(`${fn("credential_delete")}(text, text)`)}`;

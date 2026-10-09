@@ -57,6 +57,11 @@ export interface ModuleConfig {
    */
   readonly events?: boolean;
   /**
+   * Whether the module writes its actions to the audit log (`audit_event`)
+   * when the `audit` module is installed. Defaults to true.
+   */
+  readonly audit?: boolean;
+  /**
    * A schema for the Data API, such as `api`: the module writes a
    * `security invoker` wrapper there for each of its functions that `anon`
    * or `authenticated` may execute (or only those in `functions`), so
@@ -194,6 +199,7 @@ export interface ResolvedModule {
     readonly functions: Readonly<Record<string, string>>;
   };
   readonly events: boolean;
+  readonly audit: boolean;
   readonly api?: {
     readonly schema: string;
     readonly functions?: readonly string[];
@@ -216,6 +222,7 @@ export function resolveModule(config: ModuleConfig = {}): ResolvedModule {
       functions: config.hooks?.functions ?? {},
     },
     events: config.events ?? true,
+    audit: config.audit ?? true,
     ...(config.api === undefined
       ? {}
       : {

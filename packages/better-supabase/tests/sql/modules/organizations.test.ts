@@ -90,17 +90,26 @@ describe("organizations module", () => {
     );
   });
 
-  it("names the deletion's audit category with auditCategory", () => {
+  it("audits under the shared categories unless auditCategory overrides them", () => {
     const audited = (options: Record<string, unknown>) =>
       renderModules(["organizations", "audit"], {
         modules: { organizations: { options } },
       }).find(
         (file) => file.module === "organizations" && file.kind === "schema",
       )!.contents;
-    expect(audited({})).toContain("category => 'organization',");
-    expect(audited({ auditCategory: "tenancy" })).toContain(
-      "category => 'tenancy',",
+    expect(audited({})).toContain(
+      "event_type => 'organization.deleted',\n    category => 'configuration',",
     );
+    expect(audited({})).toContain("category => 'membership',");
+    const legacy = audited({ auditCategory: "tenancy" });
+    expect(legacy).toContain("category => 'tenancy',");
+    expect(legacy).not.toContain("category => 'membership',");
+    const optedOut = renderModules(["organizations", "audit"], {
+      modules: { organizations: { audit: false } },
+    }).find(
+      (file) => file.module === "organizations" && file.kind === "schema",
+    )!.contents;
+    expect(optedOut).not.toContain("audit_event(");
   });
 
   it("deletes through data-lifecycle or not at all with deleteMode", () => {

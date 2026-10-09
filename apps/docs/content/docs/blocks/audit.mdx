@@ -83,6 +83,50 @@ session's entries and a service call with `actorKind: "support"` store
 table (a role lookup) can't be a generated column; pass that value as a
 metadata key instead.
 
+## Module actions
+
+Every SQL module records its security-relevant actions in the log once the
+`audit` module is installed: a membership change, an API key, a setting, a
+flag, a credential, a connector, a webhook secret or a support session each
+write one entry, in the same transaction as the outbox event. The modules use
+one set of categories:
+
+| Category        | Actions                                                      |
+| --------------- | ------------------------------------------------------------ |
+| `membership`    | invitations, member roles, removals, ownership, the waitlist |
+| `access`        | roles, permissions and overrides in the access catalog       |
+| `security`      | API keys, credentials, provider keys, support sessions, SSO  |
+| `configuration` | organizations, settings, flags, announcements, workflows     |
+| `billing`       | billing customers                                            |
+| `data`          | row changes from the table trigger, attachments, exports     |
+| `ai`            | agents, tool policies and approvals, chat shares             |
+| `integration`   | connectors, incoming and outgoing webhooks                   |
+
+An adopted log whose `category` column has a check of its own maps the
+shared names with `values`, the same way it maps actor kinds:
+
+```ts title="better-supabase.config.ts"
+audit: {
+  options: {
+    values: {
+      category: { membership: "users", configuration: "settings" },
+    },
+  },
+},
+```
+
+Set `audit: false` on a module to keep its actions out of the log; they
+still reach the outbox:
+
+```ts
+sql: { modules: { flags: { audit: false } } },
+```
+
+`options.auditCategory` on `organizations`, `organizations-suspension` and
+`support-sessions` still works and puts every entry of that module under one
+category, but it is deprecated: map the shared categories with `values`
+instead.
+
 ## Recording CloudEvents
 
 `audit.sink()` returns an `EventSink` that records each CloudEvent it
@@ -102,11 +146,22 @@ forwardBlockEvents(betterSupabase, audit.sink(), {
 | Audit field      | From the CloudEvent                                                    |
 | ---------------- | ---------------------------------------------------------------------- |
 | `eventType`      | `type` without the `dev.better-supabase.` prefix (`typePrefix` option) |
+| `category`       | `security` for `account.*` and `support.*` (`category` option)         |
 | `record`         | `subject`                                                              |
 | `organizationId` | the `tenant` or `partitionkey` extension, then `data.organizationId`   |
 | `actorId`        | `data.actorId`                                                         |
 | `metadata`       | `data`                                                                 |
 | `idempotencyKey` | `source` and `id`, so a redelivered event is recorded once             |
+
+`category` takes the event type without its prefix and returns one of the
+module categories above, or `undefined` for none, so app events land next to
+the module actions:
+
+```ts
+audit.sink({
+  category: (type) => (type.startsWith("invoice.") ? "billing" : undefined),
+});
+```
 
 `send` throws when an entry fails, after trying the rest, so an outbox relay
 retries the batch. Build the log on a service-role transport: only the

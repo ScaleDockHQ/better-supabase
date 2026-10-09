@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
@@ -9,7 +10,29 @@ import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { builderRuntimeSql, builderSql } from "./workflow-builder-sql.ts";
 
+const EVENTS: ModuleEvents = {
+  "workflow.published": {
+    subject: "workflows",
+    payload: ["organizationId", "definitionId", "versionId", "version"],
+  },
+  "workflow_alert.triggered": {
+    subject: "workflow-runs",
+    payload: [
+      "alertId",
+      "organizationId",
+      "definition",
+      "onEvent",
+      "channel",
+      "runId",
+      "status",
+      "error",
+    ],
+    retries: true,
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   tables: {
     definitions: {
       name: "workflow_definitions",
@@ -325,7 +348,7 @@ create policy workflow_node_runs_read on ${n} for select to authenticated
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
 -- run is still unfinished after threshold (check_workflow_alerts). Each
--- fires once per run and writes a workflow.alert outbox event.
+-- fires once per run and writes a workflow_alert.triggered outbox event.
 create table if not exists ${a} (
   ${ca("id")} uuid primary key default gen_random_uuid(),
   ${ca("definition")} uuid not null references ${d} (${cd("id")}) on delete cascade,
@@ -573,6 +596,18 @@ begin
   update ${v} x set ${cv("status")} = 'published', ${cv("compiled")} = compiled, ${cv("publishedAt")} = now()
   where x.${cv("id")} = v_row.${cv("id")}
   returning * into v_row;
+  ${ctx.record({
+    type: "workflow.published",
+    payload: `jsonb_build_object('organizationId', v_tenant::text, 'definitionId', v_row.${cv("definition")}, 'versionId', v_row.${cv("id")}, 'version', v_row.${cv("version")})`,
+    subject: `'workflows/' || v_row.${cv("definition")}::text`,
+    tenant: "v_tenant",
+    key: `'workflow.published:' || v_row.${cv("id")}::text`,
+    audit: {
+      category: "configuration",
+      targetType: "workflow_version",
+      recordId: `v_row.${cv("id")}::text`,
+    },
+  })}
   return ${versionJson("v_row", true)};
 end;
 $$;
@@ -698,7 +733,7 @@ export const WORKFLOW_BUILDER: ModuleDefinition = {
   name: "workflow-builder",
   title: "Workflow builder",
   description:
-    "Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow.alert outbox events.",
+    "Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.",
   requires: ["workflows", "tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],

@@ -53,6 +53,26 @@ describe("auditEventOf", () => {
     });
     expect(auditEventOf({ ...base, type: "x" })).not.toHaveProperty("metadata");
   });
+
+  it("files account and support events under security by default", () => {
+    expect(
+      auditEventOf({ ...base, type: "dev.better-supabase.account.suspended" }),
+    ).toMatchObject({ category: "security" });
+    expect(
+      auditEventOf({ ...base, type: "dev.better-supabase.support.denied" }),
+    ).toMatchObject({ category: "security" });
+    expect(auditEventOf({ ...base, type: "invoice.sent" })).not.toHaveProperty(
+      "category",
+    );
+    expect(
+      auditEventOf(
+        { ...base, type: "invoice.sent" },
+        {
+          category: (type) => (type === "invoice.sent" ? "billing" : undefined),
+        },
+      ),
+    ).toMatchObject({ category: "billing" });
+  });
 });
 
 describe("auditSink", () => {
