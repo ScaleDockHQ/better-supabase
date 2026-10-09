@@ -1,5 +1,5 @@
 import type { AsyncResult } from "../../core/result.ts";
-import type { CloudEvent, EventSink } from "../../events/index.ts";
+import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
 import type { AuditEventInput } from "./client.ts";
 
 import { DbException } from "../../core/errors.ts";

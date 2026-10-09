@@ -18,6 +18,10 @@ pnpm better-supabase sql add organizations invitations
 import { createOrganizations } from "better-supabase/blocks/organizations";
 ```
 
+To build several blocks with one set of options, and wire the blocks that
+use each other, use [`createBlocks`](/docs/blocks/create-blocks) from
+`better-supabase/blocks`.
+
 List the modules to keep in sync in `sql.modules` in `better-supabase.config.ts`,
 keyed by module name, with each module's settings as the value. The primitives that every app
 uses, such as [list queries](/docs/platform/list),

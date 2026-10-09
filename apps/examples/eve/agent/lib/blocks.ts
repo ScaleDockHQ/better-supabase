@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { createAiChat, rpcTransport } from "better-supabase/blocks/ai-chat";
+import { createBlocks, rpcTransport } from "better-supabase/blocks";
+import { createAiChat } from "better-supabase/blocks/ai-chat";
 import { createInbox } from "better-supabase/blocks/inbox";
 import { createKnowledge } from "better-supabase/blocks/knowledge";
 import { createMemory } from "better-supabase/blocks/memory";
@@ -21,8 +22,14 @@ export const transport = rpcTransport(
   { schema: "api" },
 );
 
-export const chats = createAiChat({ transport, service: transport });
-export const memory = createMemory({ transport, service: transport });
-export const knowledge = createKnowledge({ transport, service: transport });
-export const inbox = createInbox({ transport });
 export const credentials = vaultCredentials({ transport });
+
+export const { chats, memory, knowledge, inbox } = createBlocks(
+  { transport, service: transport, credentials },
+  {
+    chats: createAiChat,
+    memory: createMemory,
+    knowledge: createKnowledge,
+    inbox: createInbox,
+  },
+);

@@ -175,7 +175,7 @@ import { createServer } from "better-supabase/server";
 
 const audit = createAuditLog({ transport: rpcTransport(supabaseAdmin) });
 
-export const server = createServer(betterSupabase, {
+export const bs = createServer(betterSupabase, {
   postgres,
   audit: audit.sink(),
 });

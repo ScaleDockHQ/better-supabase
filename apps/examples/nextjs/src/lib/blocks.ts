@@ -1,13 +1,14 @@
+import {
+  type RpcClient,
+  createBlocks,
+  rpcTransport,
+} from "better-supabase/blocks";
 import { createApiKeys } from "better-supabase/blocks/api-keys";
 import { createAuditLog } from "better-supabase/blocks/audit";
 import { createComments } from "better-supabase/blocks/comments";
 import { createInbox } from "better-supabase/blocks/inbox";
 import { createNotifications } from "better-supabase/blocks/notifications";
-import {
-  type RpcClient,
-  createOrganizations,
-  rpcTransport,
-} from "better-supabase/blocks/organizations";
+import { createOrganizations } from "better-supabase/blocks/organizations";
 import { createUsage } from "better-supabase/blocks/usage";
 import { createWorkflows } from "better-supabase/blocks/workflows";
 
@@ -27,22 +28,28 @@ const API_SCHEMA = "api";
  */
 export function blocks(supabase: RpcClient) {
   const transport = rpcTransport(supabase, { schema: API_SCHEMA });
-  const options = { transport, schema: API_SCHEMA };
+  const built = createBlocks(
+    { transport, schema: API_SCHEMA },
+    {
+      organizations: createOrganizations,
+      apiKeys: createApiKeys,
+      audit: createAuditLog,
+      comments: createComments,
+      notifications: (options) =>
+        createNotifications({
+          ...options,
+          types: notificationTypes,
+          render: renderNotification,
+        }),
+      inbox: createInbox,
+      usage: createUsage,
+      workflows: createWorkflows,
+      onboarding: (options) => gettingStarted.connect(options),
+      settings: (options) => settings.connect(options),
+    },
+  );
   return {
-    organizations: createOrganizations(options),
-    apiKeys: createApiKeys(options),
-    audit: createAuditLog(options),
-    comments: createComments(options),
-    notifications: createNotifications({
-      ...options,
-      types: notificationTypes,
-      render: renderNotification,
-    }),
-    inbox: createInbox(options),
-    usage: createUsage(options),
-    workflows: createWorkflows(options),
-    onboarding: gettingStarted.connect(options),
-    settings: settings.connect(options),
+    ...built,
     /** A module function without a typed client, such as `flag_enabled`. */
     call: (fn: string, args: Parameters<typeof transport.call>[2]) =>
       transport.call(API_SCHEMA, fn, args),

@@ -41,8 +41,14 @@ user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
 - `src/blocks/<name>/<name>.ts` holds the code and `index.ts` only
   re-exports (add the entry to `PURE_BARRELS` in `tests/entries.test.ts`).
 - Calls go through a `BlockTransport` with `blockCall` from
-  `src/blocks/shared.ts`, and return `AsyncResult`. Row coercers
-  (`textOf`, `recordOf`, `optionalInstant`) live there too.
+  `src/core/block-helpers.ts` (re-exported by `src/blocks/shared.ts`), and
+  return `AsyncResult`. Row coercers (`textOf`, `recordOf`,
+  `optionalInstant`, `enumOrThrow`), `mappersOf`, `pageOf` and
+  `injectableOf` live there too; don't copy them into a block.
+- Options use `mappers` for error mappers and `{ limit, cursor }`
+  (`CursorPageOptions`) for pages. An injectable function or object takes an
+  optional `apiVersion: 1`, checked with `injectableOf`, and gets a kit in
+  `src/testing/injectables.ts`.
 - Time values are `Temporal.Instant` (ADR 0005). Stripe goes through
   `src/blocks/stripe.ts` (ADR 0009).
 

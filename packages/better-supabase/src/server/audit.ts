@@ -1,7 +1,7 @@
 import type { EventHub } from "../core/events.ts";
-import type { CloudEvent, EventSink } from "../events/index.ts";
+import type { CloudEvent, EventSink } from "../events/cloud-event.ts";
 
-import { forwardBlockEvents } from "../events/index.ts";
+import { forwardBlockEvents } from "../events/cloud-event.ts";
 
 /** The CloudEvents `source` of the events the server sends to its `audit` sink. */
 export const SERVER_EVENT_SOURCE = "/better-supabase/server";

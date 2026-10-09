@@ -8,10 +8,10 @@ import type { JobHandler } from "../jobs/queue.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { revokeIfConfigured } from "../../credentials/compose.ts";
 import {
   credentialRefInTenant,
   foreignCredentialRef,
-  revokeIfConfigured,
 } from "../../credentials/provider.ts";
 import {
   applyTemporal,

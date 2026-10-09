@@ -7,7 +7,7 @@ import type {
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
-import { revokeIfConfigured } from "../../credentials/provider.ts";
+import { revokeIfConfigured } from "../../credentials/compose.ts";
 import {
   applyTemporal,
   blockCall,
