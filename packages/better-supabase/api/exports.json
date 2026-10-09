@@ -1372,23 +1372,40 @@
   "./blocks": {
     "values": [
       "BLOCK_EVENT_SOURCE",
+      "blockFields",
       "createBlocks",
+      "defineTransportMiddleware",
+      "extendBlock",
       "FINAL_RUN_STATES",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
     ],
     "types": [
       "BlockContext",
       "BlockFactories",
       "BlockFactory",
+      "BlockFields",
+      "BlockHookInfo",
+      "BlockHooks",
+      "BlockMethodHooks",
+      "BlockMethodName",
       "BlockOptions",
       "Blocks",
+      "BlocksHooks",
       "BlockTransport",
+      "BlockTransportMiddleware",
+      "BlockTransportRequest",
       "CreateBlocksOptions",
       "CursorPageOptions",
+      "ExtendBlockOptions",
+      "ExtendBlockTools",
+      "FieldsOf",
       "FinalRunState",
       "RpcClient",
-      "RunState"
+      "RunState",
+      "WithBlockHooksOptions"
     ]
   },
   "./blocks/audit": {
@@ -1456,11 +1473,16 @@
   "./blocks/organizations": {
     "values": [
       "createOrganizations",
+      "extendBlock",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
     ],
     "types": [
+      "BlockHooks",
       "BlockTransport",
+      "BlockTransportMiddleware",
       "CreateOrganizationOptions",
       "Invitation",
       "InvitationChanges",
@@ -1483,11 +1505,16 @@
   "./blocks/profiles": {
     "values": [
       "createProfiles",
+      "extendBlock",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
     ],
     "types": [
+      "BlockHooks",
       "BlockTransport",
+      "BlockTransportMiddleware",
       "Profile",
       "Profiles",
       "ProfilesOptions",
@@ -1497,12 +1524,17 @@
   "./blocks/notifications": {
     "values": [
       "createNotifications",
+      "extendBlock",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
     ],
     "types": [
       "AvatarUrls",
+      "BlockHooks",
       "BlockTransport",
+      "BlockTransportMiddleware",
       "DeliverOptions",
       "DeliverResult",
       "ListOptions",
@@ -1511,6 +1543,7 @@
       "NotificationCounts",
       "NotificationItem",
       "NotificationMessage",
+      "NotificationOf",
       "NotificationPage",
       "NotificationPreference",
       "Notifications",
@@ -3293,6 +3326,7 @@
       "testAiTaskRunner",
       "testAuthorizationProvider",
       "testAuthResolver",
+      "testBlockTransportMiddleware",
       "testBuilderStarter",
       "testCacheAdapter",
       "testChatState",

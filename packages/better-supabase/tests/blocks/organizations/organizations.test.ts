@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
 import type { BlockTransport } from "../../../src/blocks/organizations/index.ts";
@@ -8,6 +9,7 @@ import {
   rpcTransport,
   sqlTransport,
 } from "../../../src/blocks/organizations/index.ts";
+import { dbError } from "../../../src/core/errors.ts";
 import { EventHub } from "../../../src/core/events.ts";
 
 interface Call {
@@ -667,5 +669,102 @@ describe("membership suspension", () => {
     const members = await organizations.members("org-1").orThrow();
     expect(members[0]).toEqual({ userId: "user-1", role: "owner" });
     expect(members[1]?.disabledAt?.toString()).toBe("2026-10-08T10:00:00Z");
+  });
+});
+
+describe("organization fields and hooks", () => {
+  const Fields = v.object({
+    plan: v.picklist(["free", "pro"]),
+    seats: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  });
+
+  it("returns the extra columns from mine, parsed by fields", async () => {
+    const { transport } = fake({
+      list_my_organizations: [
+        {
+          id: "org-1",
+          name: "Acme",
+          role: "owner",
+          attributes: { plan: "pro", seats: 5, role: "ignored" },
+        },
+      ],
+    });
+    const organizations = createOrganizations({ transport, fields: Fields });
+    const [acme] = await organizations.mine().orThrow();
+    expect(acme).toEqual({
+      id: "org-1",
+      name: "Acme",
+      role: "owner",
+      plan: "pro",
+      seats: 5,
+    });
+    expect(acme?.plan).toBe("pro");
+  });
+
+  it("returns a validation error for stored values fields rejects", async () => {
+    const { transport } = fake({
+      list_my_organizations: [
+        { id: "o", name: "A", role: "owner", attributes: { plan: "gold" } },
+      ],
+    });
+    const organizations = createOrganizations({ transport, fields: Fields });
+    expect(await organizations.mine()).toMatchObject({
+      ok: false,
+      error: { kind: "validation" },
+    });
+  });
+
+  it("validates create and update before calling the database", async () => {
+    const { transport, calls } = fake({
+      create_organization: "org-1",
+      update_organization: null,
+    });
+    const organizations = createOrganizations({ transport, fields: Fields });
+    expect(
+      await organizations.create({ name: "Acme", plan: "gold" as "pro" }),
+    ).toMatchObject({ ok: false, error: { kind: "validation" } });
+    expect(calls).toEqual([]);
+
+    await organizations.create({ name: "Acme", plan: "pro" }).orThrow();
+    await organizations.update("org-1", { seats: 3 }).orThrow();
+    expect(calls.map((call) => call.args)).toEqual([
+      { attrs: { plan: "pro", name: "Acme" } },
+      { organization: "org-1", attrs: { seats: 3 } },
+    ]);
+  });
+
+  it("lets a before hook refuse invite, and observes results after", async () => {
+    const { transport, calls } = fake({ invite_member: invitationRow });
+    const seen: unknown[] = [];
+    const organizations = createOrganizations({
+      transport,
+      hooks: {
+        invite: {
+          before: ([request]) =>
+            request.role === "owner"
+              ? dbError("forbidden", "Owners are added by support")
+              : undefined,
+          after: (result) => {
+            seen.push(result.ok);
+          },
+        },
+      },
+    });
+    expect(
+      await organizations.invite({
+        organizationId: "org-1",
+        email: "a@example.com",
+        role: "owner",
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+    expect(calls).toEqual([]);
+    await organizations
+      .invite({
+        organizationId: "org-1",
+        email: "a@example.com",
+        role: "member",
+      })
+      .orThrow();
+    expect(seen).toEqual([true]);
   });
 });

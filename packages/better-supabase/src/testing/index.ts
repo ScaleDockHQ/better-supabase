@@ -50,6 +50,7 @@ export {
   testSupportSessionStore,
 } from "./conformance.ts";
 export { testAdapter } from "./adapter.ts";
+export { testBlockTransportMiddleware } from "./transport-middleware.ts";
 export { testAuthorizationProvider } from "./authorization-provider.ts";
 export { testGenerator } from "./generator.ts";
 export type { TestGeneratorOptions } from "./generator.ts";
