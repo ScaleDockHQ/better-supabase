@@ -8,7 +8,6 @@ import {
 import {
   type AiRunStepInput,
   createAiChat,
-  createAiRuns,
 } from "better-supabase/blocks/ai-chat";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { Temporal } from "temporal-polyfill";
@@ -49,7 +48,7 @@ export async function recordRunStep(
   step: AiRunStepInput,
 ): Promise<void> {
   "use step";
-  await createAiRuns(serviceOptions()).steps.record(runId, step).orThrow();
+  await createAiChat(serviceOptions()).runs.steps.record(runId, step).orThrow();
 }
 
 /** The research agent's subagent: answers one question on its own. */

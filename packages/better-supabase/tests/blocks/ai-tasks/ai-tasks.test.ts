@@ -116,7 +116,7 @@ describe("createAiTasks", () => {
     const { transport, calls } = fakeTransport({
       list_ai_tasks: () => [
         taskRow({
-          last_run: runRow({ status: "succeeded", chat_id: "c1" }),
+          last_run: runRow({ status: "completed", chat_id: "c1" }),
           enabled: false,
           created_at: new Date(AT),
         }),
@@ -126,7 +126,7 @@ describe("createAiTasks", () => {
     });
     const tasks = createAiTasks({ transport });
     const [task] = await tasks.list("o1", { all: true }).orThrow();
-    expect(task?.lastRun?.chatId).toBe("c1");
+    expect(task?.lastRun).toMatchObject({ chatId: "c1", status: "completed" });
     expect(task?.enabled).toBe(false);
     const [run] = await tasks.runs("t1", { limit: 2 }).orThrow();
     expect(run).toMatchObject({ status: "failed", error: "boom" });

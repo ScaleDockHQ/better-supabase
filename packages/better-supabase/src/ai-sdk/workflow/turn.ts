@@ -269,7 +269,7 @@ export async function durableTurn(
 
   for (;;) {
     segments += 1;
-    let status: AiRunStatus = "done";
+    let status: AiRunStatus = "completed";
     let error: string | undefined;
     let usage: AiUsage | undefined;
     let requests: DurableApprovalRequest[] = [];
@@ -291,11 +291,11 @@ export async function durableTurn(
         providerMetadata: result.steps.at(-1)?.providerMetadata,
       });
     } catch (cause) {
-      status = "error";
+      status = "failed";
       error = messageOf(cause);
     }
-    if (abort.signal.aborted) status = "stopped";
-    if (status !== "done") requests = [];
+    if (abort.signal.aborted) status = "cancelled";
+    if (status !== "completed") requests = [];
     for (const request of requests)
       approvals.set(request.approvalId, {
         approvalId: request.approvalId,
@@ -314,9 +314,9 @@ export async function durableTurn(
       model: input.model,
       runId: segment.runId,
       status:
-        status === "done"
+        status === "completed"
           ? "complete"
-          : status === "stopped"
+          : status === "cancelled"
             ? "aborted"
             : "error",
     });
@@ -348,14 +348,14 @@ export async function durableTurn(
         chatId: input.chatId,
         streamId: claimed.streamId,
         organizationId: input.organizationId,
-        status: "stopped",
+        status: "cancelled",
       });
     };
     while (decided.length < waiting.length) {
       const signal = await Promise.race([resumes.next(), stopped]);
       if (signal === STOPPED || signal.done === true) {
         await drop(next);
-        return { status: "stopped", messageId: input.messageId, segments };
+        return { status: "cancelled", messageId: input.messageId, segments };
       }
       await drop(next);
       next = signal.value;
@@ -365,7 +365,7 @@ export async function durableTurn(
       });
     }
     if (next === undefined)
-      return { status: "error", messageId: input.messageId, segments };
+      return { status: "failed", messageId: input.messageId, segments };
     for (const decision of decided) {
       const known = approvals.get(decision.approvalId);
       if (known !== undefined)

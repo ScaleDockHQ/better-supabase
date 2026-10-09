@@ -234,6 +234,10 @@ The aliases that 0.5 kept for one minor are gone:
 - `notifications.markRead`, `markUnread`, `dismiss` and `resolve` return
   `{ count, items }` instead of a number. `notifications.send()` returns
   `{ id, recipients }`, or `null` when nobody was left.
+- `notifications.list` pages with `cursor` instead of `before`. It takes the
+  same values: the last item of the previous page, or an instant.
+- The notifications, organizations and outgoing webhooks blocks take
+  `mappers` instead of `errorMappers`.
 - The leaf entry that runs after `withSupabase` is now
   `withBetterDb(betterSupabase)`. `withBetterSupabase(server)` is one entry
   that resolves the caller itself, so you can drop `withSupabase`.

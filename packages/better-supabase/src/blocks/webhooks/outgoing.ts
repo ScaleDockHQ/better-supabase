@@ -23,7 +23,6 @@ import {
   DEFAULT_BLOCK_SCHEMA,
   errorText,
   isRecord,
-  mappersOf,
 } from "../shared.ts";
 import { fetchTransport, WebhookPolicyError } from "./http.ts";
 import { sqlSecretStore } from "./secrets.ts";
@@ -93,8 +92,6 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   readonly context?: RequestContext;
   /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
   readonly mappers?: readonly ErrorMapper[];
-  /** @deprecated Use `mappers`. Removed in 0.8. */
-  readonly errorMappers?: readonly ErrorMapper[];
 }
 
 export interface PublishInput {
@@ -215,7 +212,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   applyTemporal(options);
   const { transport } = options;
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
-  const mappers = mappersOf(options);
+  const mappers = options.mappers ?? [];
   const store = options.secrets ?? sqlSecretStore(transport, { schema });
   const signer = options.signer ?? standardWebhooks();
   const maxAttempts = options.retry?.maxAttempts ?? 8;

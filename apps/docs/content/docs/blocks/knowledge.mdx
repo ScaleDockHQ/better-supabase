@@ -32,11 +32,11 @@ A document belongs to one scope:
 Members with the manage permission read every document in the tenant.
 A new document is `user` scoped unless you pass `scope`.
 
-| Permission       | Lets a member                                        | Default roles              |
-| ---------------- | ---------------------------------------------------- | -------------------------- |
-| `ai_chat.read`   | read organization and agent documents                | `owner`, `admin`, `member` |
-| `ai_chat.create` | add `user`, `project` and `chat` documents           | `owner`, `admin`, `member` |
-| `ai_chat.admin`  | add organization and agent documents, read every one | `owner`, `admin`           |
+| Permission  | Lets a member                                        | Default roles              |
+| ----------- | ---------------------------------------------------- | -------------------------- |
+| `ai.read`   | read organization and agent documents                | `owner`, `admin`, `member` |
+| `ai.create` | add `user`, `project` and `chat` documents           | `owner`, `admin`, `member` |
+| `ai.admin`  | add organization and agent documents, read every one | `owner`, `admin`           |
 
 Rename the keys with `sql.modules.knowledge.permissions.read`, `.write`
 and `.manage`.

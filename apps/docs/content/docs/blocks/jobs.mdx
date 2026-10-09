@@ -351,6 +351,24 @@ minute for minute-level schedules. Vercel Cron, a GitHub Actions workflow, a
 Kubernetes CronJob or a Supabase Edge Function on a timer all work; each call
 leases the due schedules, so overlapping calls never enqueue a run twice.
 
+#### Three scheduling layers
+
+Three blocks take a cron, and each one is for a different owner. All three
+parse the cron and compute the next run with the same helpers
+(`assertCron` and `nextCronRun`), so a cron and a time zone mean the same
+thing in each.
+
+| Layer                                                  | Who sets it                               | What a run does                                                             |
+| ------------------------------------------------------ | ----------------------------------------- | --------------------------------------------------------------------------- |
+| Job schedules (this block)                             | The app, in code or SQL                   | Enqueues a job with a fixed payload                                         |
+| [Workflow schedules](/docs/blocks/workflows#schedules) | The app, or members with `workflow.admin` | Starts a workflow run, with the idempotency key `schedule:<id>:<fire time>` |
+| [AI tasks](/docs/blocks/ai-tasks)                      | Each user, for their own prompt           | Runs the prompt and logs the chat each run wrote to                         |
+
+Pick the lowest layer that does the job. A nightly cleanup is a job
+schedule. A recurring start of a durable workflow that members can see and
+pause is a workflow schedule. A prompt a user writes and schedules in the
+product is an AI task, which the jobs block then runs.
+
 ### Drain route
 
 `drainRoute` turns the queues into an HTTP endpoint for a cron caller such as

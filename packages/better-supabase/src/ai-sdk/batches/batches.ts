@@ -93,10 +93,7 @@ export interface AiBatches {
   /** The stored results, as the caller, after the `requestId` in `cursor`. */
   results(
     batchId: string,
-    options?: CursorPageOptions<string> & {
-      /** @deprecated Use `cursor`. Removed in 0.8. */
-      readonly after?: string;
-    },
+    options?: CursorPageOptions<string>,
   ): AsyncResult<readonly AiBatchItem[]>;
   /** Asks the provider for the batch's status and stores it (service role). */
   refresh(batch: AiBatch): AsyncResult<AiBatch>;

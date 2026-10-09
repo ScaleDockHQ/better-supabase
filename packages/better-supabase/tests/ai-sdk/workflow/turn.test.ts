@@ -166,7 +166,7 @@ describe("durableTurn", () => {
       totalUsage: usage,
     }));
     await expect(h.run()).resolves.toEqual({
-      status: "done",
+      status: "completed",
       messageId: "m1",
       segments: 1,
     });
@@ -195,7 +195,7 @@ describe("durableTurn", () => {
     );
     expect(h.calls[1]?.input).toMatchObject({
       streamId: "s1",
-      status: "done",
+      status: "completed",
       usage: { inputTokens: 5, outputTokens: 2, generationId: "gen_1" },
     });
   });
@@ -262,7 +262,7 @@ describe("durableTurn", () => {
 
     h.turn.push({ streamId: "s2", runId: "run2" });
     await expect(running).resolves.toEqual({
-      status: "done",
+      status: "completed",
       messageId: "m1",
       segments: 2,
     });
@@ -322,7 +322,7 @@ describe("durableTurn", () => {
       expect(reads).toBe(1);
     });
     h.stop.push({});
-    await expect(running).resolves.toMatchObject({ status: "stopped" });
+    await expect(running).resolves.toMatchObject({ status: "cancelled" });
     expect(reads).toBe(1);
     expect(h.calls.at(-1)).toEqual({
       name: "release",
@@ -330,7 +330,7 @@ describe("durableTurn", () => {
         chatId: "c1",
         streamId: "s2",
         organizationId: "org",
-        status: "stopped",
+        status: "cancelled",
       },
     });
   });
@@ -363,7 +363,7 @@ describe("durableTurn", () => {
     });
     h.turn.push({ streamId: "s3", runId: "run3" });
     await expect(running).resolves.toMatchObject({
-      status: "done",
+      status: "completed",
       segments: 2,
     });
     expect(h.namespaces).toEqual(["s1", "s3"]);
@@ -384,7 +384,7 @@ describe("durableTurn", () => {
     });
     h.stop.push({});
     await expect(running).resolves.toEqual({
-      status: "stopped",
+      status: "cancelled",
       messageId: "m1",
       segments: 1,
     });
@@ -404,19 +404,19 @@ describe("durableTurn", () => {
       expect(h.agentArgs).toHaveLength(1);
     });
     h.stop.push({});
-    await expect(running).resolves.toMatchObject({ status: "stopped" });
+    await expect(running).resolves.toMatchObject({ status: "cancelled" });
     expect(h.calls[0]?.input).toMatchObject({ status: "aborted" });
-    expect(h.calls[1]?.input).toMatchObject({ status: "stopped" });
+    expect(h.calls[1]?.input).toMatchObject({ status: "cancelled" });
   });
 
   it("saves an error and releases the segment when the agent fails", async () => {
     const h = harness(async () => {
       throw new Error("model down");
     });
-    await expect(h.run()).resolves.toMatchObject({ status: "error" });
+    await expect(h.run()).resolves.toMatchObject({ status: "failed" });
     expect(h.calls[0]?.input).toMatchObject({ status: "error" });
     expect(h.calls[1]?.input).toMatchObject({
-      status: "error",
+      status: "failed",
       error: "model down",
     });
   });

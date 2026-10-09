@@ -44,14 +44,6 @@ export function applyTemporal(options: BlockTemporalOptions | undefined): void {
 /** The block schema when the options name none. */
 export const DEFAULT_BLOCK_SCHEMA = "better_supabase";
 
-/** `mappers`, or the deprecated `errorMappers` some blocks took before 0.7. */
-export function mappersOf(options: {
-  readonly mappers?: readonly ErrorMapper[] | undefined;
-  readonly errorMappers?: readonly ErrorMapper[] | undefined;
-}): readonly ErrorMapper[] {
-  return options.mappers ?? options.errorMappers ?? [];
-}
-
 /** Calls one block function and maps a rejection to a `DbError`. */
 export type BlockCall = <T>(
   fn: string,
@@ -350,21 +342,12 @@ export interface CursorPageOptions<Cursor> {
   readonly cursor?: Cursor;
 }
 
-/**
- * Reads `limit` and `cursor`, falling back to the deprecated `size`,
- * `before` and `after` names the lists accepted before 0.7.
- */
+/** Reads `limit` and `cursor` from a list's options. */
 export function pageOf<Cursor>(
   options: {
     readonly limit?: number | undefined;
-    readonly size?: number | undefined;
     readonly cursor?: Cursor | undefined;
-    readonly before?: Cursor | undefined;
-    readonly after?: Cursor | undefined;
   } = {},
 ): { readonly limit: number | undefined; readonly cursor: Cursor | undefined } {
-  return {
-    limit: options.limit ?? options.size,
-    cursor: options.cursor ?? options.before ?? options.after,
-  };
+  return { limit: options.limit, cursor: options.cursor };
 }

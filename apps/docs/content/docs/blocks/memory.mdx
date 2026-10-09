@@ -24,15 +24,17 @@ better-supabase sql add memory   # adds tenant, access and vector-search as well
 | `memories`              | Core files (`kind` `core`, with a `path`) and archival facts (`archival`), each with `version` |
 | `ai_message_embeddings` | One embedding per chat message and user                                                        |
 
-Every memory belongs to a namespace: the `user` (the default), an `agent`
-or a `chat` of that user, or the `organization`. A user reads only their
+Every memory belongs to a namespace: the `user` (the default), an `agent`,
+a `chat` or a `project` of that user, or the `organization`. A `project`
+namespace names an ai-chat project with `projectId`, so every chat in the
+project can share it. A user reads only their
 own memories and the organization's; nobody else reads them, admins
 included. Changing organization memory needs the manage permission.
 
-| Permission      | Lets a member                    | Default roles              |
-| --------------- | -------------------------------- | -------------------------- |
-| `ai_chat.read`  | use memory in the tenant         | `owner`, `admin`, `member` |
-| `ai_chat.admin` | change the organization's memory | `owner`, `admin`           |
+| Permission | Lets a member                    | Default roles              |
+| ---------- | -------------------------------- | -------------------------- |
+| `ai.read`  | use memory in the tenant         | `owner`, `admin`, `member` |
+| `ai.admin` | change the organization's memory | `owner`, `admin`           |
 
 Rename the keys with `sql.modules.memory.permissions.read` and `.manage`.
 The `maxContent` option (100,000 characters by default) limits one memory,
@@ -61,7 +63,7 @@ export const memoryFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
 | (top level) | `run`, `render`, `saveExtracted`, `embedPending`                    |
 
 Each method takes the organization and an optional namespace, such as
-`{ scope: "agent", agentId }`. The service role passes `ownerId` to act for
+`{ scope: "agent", agentId }` or `{ scope: "project", projectId }`. The service role passes `ownerId` to act for
 a user.
 
 ## Core memory

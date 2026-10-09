@@ -138,8 +138,6 @@ export interface HistoryFilter extends CursorPageOptions<number> {
   readonly type?: string;
   /** Only events after this position. */
   readonly cursor?: number;
-  /** @deprecated Use `cursor`. Removed in 0.8. */
-  readonly after?: number;
   readonly limit?: number;
 }
 

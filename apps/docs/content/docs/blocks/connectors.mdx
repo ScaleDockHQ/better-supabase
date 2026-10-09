@@ -33,11 +33,11 @@ grant's user) before it deletes the rows, when the ref carries the
 organization; a grant ref without a tenant comes back in
 `credentials.unrevoked`.
 
-| Permission       | Lets a member                      | Default roles              |
-| ---------------- | ---------------------------------- | -------------------------- |
-| `ai_chat.read`   | see the organization's servers     | `owner`, `admin`, `member` |
-| `ai_chat.create` | connect and call a server          | `owner`, `admin`, `member` |
-| `ai_chat.admin`  | add servers and approve tool lists | `owner`, `admin`           |
+| Permission  | Lets a member                      | Default roles              |
+| ----------- | ---------------------------------- | -------------------------- |
+| `ai.read`   | see the organization's servers     | `owner`, `admin`, `member` |
+| `ai.create` | connect and call a server          | `owner`, `admin`, `member` |
+| `ai.admin`  | add servers and approve tool lists | `owner`, `admin`           |
 
 Rename the keys with `sql.modules.connectors.permissions.read`, `.use` and
 `.manage`.

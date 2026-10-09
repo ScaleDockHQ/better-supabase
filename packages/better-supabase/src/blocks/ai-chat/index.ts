@@ -40,9 +40,7 @@ export {
   type SharedAiChat,
 } from "./ai-chat.ts";
 export {
-  createAiRuns,
   createHarnessSessions,
-  idleSandboxStop,
   type AiHarnessSession,
   type AiHarnessSessionPatch,
   type AiHarnessSessions,
@@ -55,9 +53,14 @@ export {
   type AiRunStep,
   type AiRunStepInput,
   type AiRunStepStatus,
-  type IdleSandboxStopOptions,
-  type IdleSandboxStopResult,
 } from "./durable.ts";
+export type {
+  AiSandbox,
+  AiSandboxes,
+  AiSandboxStatus,
+  AiSandboxStopper,
+  NewAiSandbox,
+} from "./sandboxes.ts";
 export {
   INTERRUPTED_TOOL_OUTPUT,
   pathToHistory,

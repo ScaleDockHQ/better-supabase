@@ -95,7 +95,6 @@ quota checks run before the workflow starts.
 
 ```ts title="lib/assistant/durable.ts"
 import { durableChat } from "better-supabase/ai-sdk/workflow";
-import { createAiRuns } from "better-supabase/blocks/ai-chat";
 
 export const durable = durableChat({
   assistant,
@@ -103,11 +102,8 @@ export const durable = durableChat({
   streams: postgresStreamStore({ transport: serviceTransport }),
 });
 
-// Per request: the assistant's context plus the chat's runs.
-const context = {
-  ...(await assistantContext()),
-  runs: createAiRuns({ transport, service: serviceTransport }),
-};
+// Per request: the assistant's context. Its chats client carries the runs.
+const context = await assistantContext();
 ```
 
 | Route                             | Calls                                 | Does                                                                     |
@@ -162,8 +158,8 @@ every chat that has none.
 
 ## Progress and approvals
 
-`createAiRuns` from `better-supabase/blocks/ai-chat` reads the runs and
-their steps. A tool records a step by key, and recording the same key again
+`runs` on the [chat client](/docs/blocks/ai-chat#durable-runs) reads the
+runs and their steps. A tool records a step by key, and recording the same key again
 updates it:
 
 ```ts

@@ -1,5 +1,6 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { RunState } from "../../core/run-state.ts";
 
 import { type AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -22,13 +23,8 @@ import {
   pageOf,
 } from "../shared.ts";
 
-export type WorkflowRunStatus =
-  | "queued"
-  | "running"
-  | "waiting"
-  | "completed"
-  | "failed"
-  | "cancelled";
+/** A workflow run's state, in the words ai-chat and ai-tasks runs share. */
+export type WorkflowRunStatus = Exclude<RunState, "cancel_requested">;
 
 /** A run of any engine, as the `workflows` module records it. */
 export interface WorkflowRun {
@@ -74,8 +70,6 @@ export interface WorkflowRunsQuery extends CursorPageOptions<Temporal.Instant> {
   readonly limit?: number;
   /** Runs created before this instant, for the next page. */
   readonly cursor?: Temporal.Instant;
-  /** @deprecated Use `cursor`. Removed in 0.8. */
-  readonly before?: Temporal.Instant;
 }
 
 /** What an engine reports about a run (service role). */

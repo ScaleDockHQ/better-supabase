@@ -62,7 +62,7 @@ describe("createAssistant", () => {
         chatId: "c1",
         streamId: "id1",
         opts: {
-          status: "done",
+          status: "completed",
           usage: {
             inputTokens: 7,
             outputTokens: 3,
@@ -79,7 +79,7 @@ describe("createAssistant", () => {
       organizationId: "org",
     });
     expect(onFinish).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "done", model: "openai/gpt-5" }),
+      expect.objectContaining({ status: "completed", model: "openai/gpt-5" }),
     );
   });
 
@@ -324,7 +324,7 @@ describe("createAssistant", () => {
       {
         chatId: "c1",
         streamId: "id1",
-        opts: { status: "error", error: "Error: no key" },
+        opts: { status: "failed", error: "Error: no key" },
       },
     ]);
   });

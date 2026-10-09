@@ -418,7 +418,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
         context,
       });
     } catch (cause) {
-      await release("error", undefined, String(cause));
+      await release("failed", undefined, String(cause));
       return problemResponse(
         dbError("unexpected", "The answer could not be started.", {
           code: "AI_CHAT_RUN_FAILED",
@@ -430,7 +430,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
     const onEnd: UIMessageStreamOnEndCallback<UIMessage> = (event) => {
       finished = (async () => {
         const stopped = event.isAborted || abort.signal.aborted;
-        const status: AiRunStatus = stopped ? "stopped" : "done";
+        const status: AiRunStatus = stopped ? "cancelled" : "completed";
         const saved = await context.chats.messages.saveAssistant(
           chat.id,
           fromUIMessage(event.responseMessage),
@@ -448,7 +448,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
           providerMetadata: await settle(result.providerMetadata),
         });
         await release(
-          saved.ok ? status : "error",
+          saved.ok ? status : "failed",
           usage,
           saved.ok ? undefined : saved.error.message,
         );

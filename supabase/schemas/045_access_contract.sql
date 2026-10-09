@@ -30,7 +30,8 @@ as $$
       'notifications.send', 'notifications.read',
       'workflow.read', 'workflow.run', 'workflow.edit', 'workflow.publish', 'workflow.admin',
       'inbox.read', 'inbox.reply', 'inbox.assign', 'inbox.manage',
-      'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai_chat.admin'
+      'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai_chat.admin',
+      'ai.read', 'ai.create', 'ai.share', 'ai.admin'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
@@ -38,7 +39,8 @@ as $$
       'onboarding.read', 'usage.read', 'usage.record',
       'notifications.send', 'notifications.read',
       'workflow.read', 'workflow.run', 'inbox.read', 'inbox.reply',
-      'ai_chat.read', 'ai_chat.create', 'ai_chat.share'
+      'ai_chat.read', 'ai_chat.create', 'ai_chat.share',
+      'ai.read', 'ai.create', 'ai.share'
     ]
     else array[]::text[]
   end

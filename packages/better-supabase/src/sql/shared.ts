@@ -97,6 +97,39 @@ export function columnRef(
   };
 }
 
+const QUOTED_IDENT = /^"(.*)"$/s;
+
+/**
+ * Replaces the check constraints on one column of a table a module created
+ * earlier: `create table if not exists` never changes an inline check, and
+ * its generated name follows the table's configured name. For upgrade steps.
+ * `column` is a quoted identifier; the catalog stores the bare name.
+ */
+export function replaceColumnCheck(check: {
+  readonly table: string;
+  readonly column: string;
+  readonly name: string;
+  readonly expression: string;
+}): string {
+  const column =
+    QUOTED_IDENT.exec(check.column)?.[1]?.replaceAll('""', '"') ?? check.column;
+  return `do $$
+declare
+  v_name name;
+begin
+  for v_name in
+    select c.conname from pg_catalog.pg_constraint c
+    join pg_catalog.pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+    where c.conrelid = ${sqlString(check.table)}::regclass and c.contype = 'c'
+      and cardinality(c.conkey) = 1 and a.attname = ${sqlString(column)}
+  loop
+    execute format('alter table %s drop constraint %I', ${sqlString(check.table)}, v_name);
+  end loop;
+end;
+$$;
+alter table ${check.table} add constraint ${sqlIdent(check.name)} check (${check.expression});`;
+}
+
 /**
  * Adds a foreign key to a table a module created earlier, once: `create
  * table if not exists` can't add it to a table that already exists, and the

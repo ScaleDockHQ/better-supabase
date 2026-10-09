@@ -60,7 +60,7 @@ export const navItems: readonly NavItem[] = [
     id: "knowledge",
     href: "/knowledge",
     group: "workspace",
-    requires: "ai_chat.create",
+    requires: "ai.create",
   },
   {
     id: "agentActivity",

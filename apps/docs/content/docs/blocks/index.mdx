@@ -182,7 +182,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `workflow-builder`   | `workflows`, `tenant`, `access`         | none                                                                       |
 | `chat-sdk-state`     | none                                    | none                                                                       |
 | `inbox`              | `tenant`, `access`, `updated-at`        | `jobs`, `notifications`                                                    |
-| `ai-chat`            | `tenant`, `access`, `streams`           | `entitlements`                                                             |
+| `ai-chat`            | `tenant`, `access`, `streams`           | `entitlements`, `ai-providers`                                             |
 | `ai-files`           | `tenant`, `access`                      | `ai-chat`                                                                  |
 | `knowledge`          | `tenant`, `access`, `vector-search`     | `ai-chat`, `ai-files`, `jobs`                                              |
 | `memory`             | `tenant`, `access`, `vector-search`     | `ai-chat`                                                                  |
@@ -191,7 +191,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `ai-tasks`           | `tenant`, `access`                      | `agents`, `ai-chat`, `jobs`                                                |
 | `push`               | none                                    | none                                                                       |
 | `ai-cache`           | none                                    | none                                                                       |
-| `ai-providers`       | `tenant`, `access`                      | none                                                                       |
+| `ai-providers`       | `tenant`, `access`                      | `ai-chat`                                                                  |
 | `ensure-rls`         | none                                    | none                                                                       |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

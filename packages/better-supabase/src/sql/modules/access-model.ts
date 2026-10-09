@@ -29,6 +29,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "onboarding.*",
     "inbox.*",
     "ai_chat.*",
+    "ai.*",
   ],
   member: [
     "organization.read",
@@ -47,6 +48,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "ai_chat.read",
     "ai_chat.create",
     "ai_chat.share",
+    "ai.read",
+    "ai.create",
+    "ai.share",
   ],
   viewer: ["organization.read"],
 };
@@ -55,7 +59,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
  * The permission key each module action checks by default, overridable per
  * module in `sql.modules.<name>.permissions`. Keys are `<area>.<verb>`, with `read`
  * for viewing; platform-wide actions use the `platform` area or a key that
- * `is_platform()` checks.
+ * `is_platform()` checks. The AI blocks other than ai-chat check `ai.*` keys.
  */
 export const MODULE_PERMISSIONS = {
   organizations: {
@@ -143,26 +147,26 @@ export const MODULE_PERMISSIONS = {
     moderate: "ai_chat.moderate",
     admin: "ai_chat.admin",
   },
-  "ai-files": { upload: "ai_chat.create", manage: "ai_chat.admin" },
+  "ai-files": { upload: "ai.create", manage: "ai.admin" },
   knowledge: {
-    read: "ai_chat.read",
-    write: "ai_chat.create",
-    manage: "ai_chat.admin",
+    read: "ai.read",
+    write: "ai.create",
+    manage: "ai.admin",
   },
-  memory: { read: "ai_chat.read", manage: "ai_chat.admin" },
+  memory: { read: "ai.read", manage: "ai.admin" },
   agents: {
-    read: "ai_chat.read",
-    create: "ai_chat.create",
-    publish: "ai_chat.share",
-    moderate: "ai_chat.moderate",
+    read: "ai.read",
+    create: "ai.create",
+    publish: "ai.share",
+    moderate: "ai.moderate",
   },
   connectors: {
-    read: "ai_chat.read",
-    use: "ai_chat.create",
-    manage: "ai_chat.admin",
+    read: "ai.read",
+    use: "ai.create",
+    manage: "ai.admin",
   },
-  "ai-tasks": { create: "ai_chat.create", manage: "ai_chat.admin" },
-  "ai-providers": { use: "ai_chat.create", manage: "ai_chat.admin" },
+  "ai-tasks": { create: "ai.create", manage: "ai.admin" },
+  "ai-providers": { use: "ai.create", manage: "ai.admin" },
 } as const;
 
 /**

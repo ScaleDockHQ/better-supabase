@@ -23,10 +23,10 @@ describe("agents module", () => {
     expect(sql).toContain("'^[a-z0-9]+(-[a-z0-9]+)*$'");
   });
 
-  it("publishes through ai_chat.share and moderates through ai_chat.moderate", () => {
+  it("publishes through ai.share and moderates through ai.moderate", () => {
     const sql = body();
-    expect(sql).toContain("'ai_chat.share'");
-    expect(sql).toContain("'ai_chat.moderate'");
+    expect(sql).toContain("'ai.share'");
+    expect(sql).toContain("'ai.moderate'");
     expect(sql).toContain("AGENT_SLUG_TAKEN");
     expect(sql).toContain("AGENT_FORBIDDEN");
   });

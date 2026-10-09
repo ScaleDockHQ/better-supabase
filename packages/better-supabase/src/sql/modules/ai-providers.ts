@@ -1,6 +1,7 @@
 import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
+import { sqlString } from "../../core/template.ts";
 import {
   canIn,
   raise,
@@ -59,25 +60,6 @@ const ITEMS = {
   createdAt: "created_at",
 } as const;
 
-const SANDBOXES = {
-  id: "id",
-  tenant: "organization_id",
-  user: "user_id",
-  chat: "chat_id",
-  provider: "provider",
-  sandbox: "sandbox_id",
-  container: "container_id",
-  status: "status",
-  metadata: "metadata",
-  idleSeconds: "idle_seconds",
-  error: "error",
-  lastUsedAt: "last_used_at",
-  expiresAt: "expires_at",
-  stoppedAt: "stopped_at",
-  createdAt: "created_at",
-  updatedAt: "updated_at",
-} as const;
-
 const EVENTS: ModuleEvents = {
   "ai_provider_key.saved": {
     subject: "organizations",
@@ -91,7 +73,7 @@ const EVENTS: ModuleEvents = {
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["pollEvery", "idleAfter"],
+  options: ["pollEvery"],
   tables: {
     keys: {
       name: "ai_provider_keys",
@@ -108,11 +90,6 @@ const NAMES: ModuleNames = {
       columns: ITEMS,
       lifecycle: { tenant: "tenant" },
     },
-    sandboxes: {
-      name: "ai_sandboxes",
-      columns: SANDBOXES,
-      lifecycle: { user: "user", tenant: "tenant" },
-    },
   },
 };
 
@@ -124,25 +101,17 @@ function build(ctx: ModuleContext): string {
   const k = columnsOf(ctx, "keys", KEYS);
   const b = columnsOf(ctx, "batches", BATCHES);
   const i = columnsOf(ctx, "items", ITEMS);
-  const s = columnsOf(ctx, "sandboxes", SANDBOXES);
   const keys = ctx.table("keys");
   const batches = ctx.table("batches");
   const items = ctx.table("items");
-  const sandboxes = ctx.table("sandboxes");
   const permissions = MODULE_PERMISSIONS["ai-providers"];
   const use = ctx.permission("use", permissions.use);
   const manage = ctx.permission("manage", permissions.manage);
   const pollEvery = ctx.number("pollEvery", 60);
-  const idleAfter = ctx.number("idleAfter", 600);
-  for (const [option, value] of [
-    ["pollEvery", pollEvery],
-    ["idleAfter", idleAfter],
-  ] as const) {
-    if (!Number.isInteger(value) || value < 1) {
-      throw new TypeError(
-        `sql.modules.ai-providers.options.${option} must be a whole number of seconds`,
-      );
-    }
+  if (!Number.isInteger(pollEvery) || pollEvery < 1) {
+    throw new TypeError(
+      "sql.modules.ai-providers.options.pollEvery must be a whole number of seconds",
+    );
   }
   const keyJson = (row: string): string => rowJson(KEYS, k, row);
   const keyEvent = (type: string, row: string): string =>
@@ -160,7 +129,6 @@ function build(ctx: ModuleContext): string {
     });
   const batchJson = (row: string): string => rowJson(BATCHES, b, row);
   const itemJson = (row: string): string => rowJson(ITEMS, i, row);
-  const sandboxJson = (row: string): string => rowJson(SANDBOXES, s, row);
   const refCheck = (column: string): string =>
     `check (jsonb_typeof(${column}) = 'object' and ${column} ? 'provider')`;
 
@@ -243,39 +211,6 @@ grant all on ${items} to service_role;
 drop policy if exists ai_batch_items_read on ${items};
 create policy ai_batch_items_read on ${items} for select to authenticated
   using (exists (select 1 from ${batches} y where y.${b.id} = ${i.batch}));
-
--- Sandboxes and provider containers a chat started, so an idle-stop job can
--- stop the ones nobody used for idle_seconds or past expires_at.
-create table if not exists ${sandboxes} (
-  ${s.id} uuid primary key default gen_random_uuid(),
-  ${s.tenant} ${id} not null,
-  ${s.user} uuid references auth.users (id) on delete cascade,
-  ${s.chat} uuid,
-  ${s.provider} text not null check (${s.provider} ~ '${SLUG}'),
-  ${s.sandbox} text not null check (length(${s.sandbox}) between 1 and 200),
-  ${s.container} text check (length(${s.container}) <= 200),
-  ${s.status} text not null default 'running' check (${s.status} in ('running', 'stopping', 'stopped')),
-  ${s.metadata} jsonb not null default '{}' check (jsonb_typeof(${s.metadata}) = 'object'),
-  ${s.idleSeconds} integer not null default ${idleAfter} check (${s.idleSeconds} > 0),
-  ${s.error} text check (length(${s.error}) <= 4000),
-  ${s.lastUsedAt} timestamptz not null default now(),
-  ${s.expiresAt} timestamptz,
-  ${s.stoppedAt} timestamptz,
-  ${s.createdAt} timestamptz not null default now(),
-  ${s.updatedAt} timestamptz not null default now(),
-  unique (${s.provider}, ${s.sandbox})
-);
-create index if not exists ai_sandboxes_open_idx on ${sandboxes} (${s.lastUsedAt}) where ${s.status} <> 'stopped';
-create index if not exists ai_sandboxes_chat_idx on ${sandboxes} (${s.chat});
-create index if not exists ai_sandboxes_tenant_idx on ${sandboxes} (${s.tenant});
-create index if not exists ai_sandboxes_user_idx on ${sandboxes} (${s.user});
-alter table ${sandboxes} enable row level security;
-revoke all on ${sandboxes} from anon, authenticated;
-grant select on ${sandboxes} to authenticated;
-grant all on ${sandboxes} to service_role;
-drop policy if exists ai_sandboxes_read on ${sandboxes};
-create policy ai_sandboxes_read on ${sandboxes} for select to authenticated
-  using (${s.user} = (select auth.uid()) or ${tenantIn(s.tenant, manage)});
 
 create or replace function ${fn("list_ai_provider_keys")}(tenant ${id})
 returns jsonb
@@ -552,158 +487,40 @@ as $$
     limit least(greatest(list_ai_batch_items.max_rows, 1), 1000)
   ) x
 $$;
-${userGrant(`${fn("list_ai_batch_items")}(uuid, text, integer)`)}
+${userGrant(`${fn("list_ai_batch_items")}(uuid, text, integer)`)}`;
+}
 
--- Records a sandbox or container the app started, or marks a known one used
--- (service role). fields: user_id, chat_id, container_id, metadata,
--- idle_seconds, expires_at.
-create or replace function ${fn("register_ai_sandbox")}(tenant ${id}, provider text, sandbox_id text, fields jsonb default '{}')
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row ${sandboxes}%rowtype;
-  v_fields jsonb := coalesce(register_ai_sandbox.fields, '{}');
+// Version 2 leaves ai_sandboxes to ai-chat. Without ai-chat the table would
+// go with this module's old file, so the upgrade stops while it holds rows.
+function upgradeSandboxes(ctx: ModuleContext): string {
+  if (ctx.installed("ai-chat")) return "";
+  const table = `${ctx.schema}.ai_sandboxes`;
+  return `do $$
 begin
-  insert into ${sandboxes} as cur (${s.tenant}, ${s.user}, ${s.chat}, ${s.provider}, ${s.sandbox}, ${s.container}, ${s.metadata}, ${s.idleSeconds}, ${s.expiresAt})
-  values (
-    register_ai_sandbox.tenant,
-    (v_fields ->> 'user_id')::uuid,
-    (v_fields ->> 'chat_id')::uuid,
-    register_ai_sandbox.provider,
-    register_ai_sandbox.sandbox_id,
-    v_fields ->> 'container_id',
-    coalesce(v_fields -> 'metadata', '{}'),
-    coalesce((v_fields ->> 'idle_seconds')::integer, ${idleAfter}),
-    (v_fields ->> 'expires_at')::timestamptz
-  )
-  on conflict (${s.provider}, ${s.sandbox}) do update set
-    ${s.container} = coalesce(excluded.${s.container}, cur.${s.container}),
-    ${s.chat} = coalesce(excluded.${s.chat}, cur.${s.chat}),
-    ${s.metadata} = cur.${s.metadata} || excluded.${s.metadata},
-    ${s.idleSeconds} = excluded.${s.idleSeconds},
-    ${s.expiresAt} = coalesce(excluded.${s.expiresAt}, cur.${s.expiresAt}),
-    ${s.status} = 'running',
-    ${s.error} = null,
-    ${s.stoppedAt} = null,
-    ${s.lastUsedAt} = now(),
-    ${s.updatedAt} = now()
-  where cur.${s.tenant} = excluded.${s.tenant}
-  returning * into v_row;
-  if not found then
-    ${raise("sandbox % belongs to another tenant", "42501", "AI_SANDBOX_FORBIDDEN", "register_ai_sandbox.sandbox_id")}
+  if to_regclass(${sqlString(table)}) is not null and exists (select 1 from ${table}) then
+    raise exception 'ai_sandboxes moved to the ai-chat module: add ai-chat to sql.modules before upgrading, or delete the rows';
   end if;
-  return ${sandboxJson("v_row")};
 end;
-$$;
-${serviceGrant(`${fn("register_ai_sandbox")}(${id}, text, text, jsonb)`)}
-
--- Marks a sandbox used now (service role); false when it is not running.
-create or replace function ${fn("touch_ai_sandbox")}(id uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  update ${sandboxes} x set ${s.lastUsedAt} = now(), ${s.updatedAt} = now()
-  where x.${s.id} = touch_ai_sandbox.id and x.${s.status} = 'running';
-  return found;
-end;
-$$;
-${serviceGrant(`${fn("touch_ai_sandbox")}(uuid)`)}
-
--- The running sandbox of a chat for a provider, to reuse it (service role).
-create or replace function ${fn("ai_sandbox_for")}(chat_id uuid, provider text)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select ${sandboxJson("x")} from ${sandboxes} x
-  where x.${s.chat} = ai_sandbox_for.chat_id and x.${s.provider} = ai_sandbox_for.provider and x.${s.status} = 'running'
-    and (x.${s.expiresAt} is null or x.${s.expiresAt} > now())
-  order by x.${s.lastUsedAt} desc
-  limit 1
-$$;
-${serviceGrant(`${fn("ai_sandbox_for")}(uuid, text)`)}
-
--- Claims sandboxes to stop (service role): running ones idle for
--- idle_seconds or past expires_at, and ones a stopper claimed more than
--- lease_seconds ago without finishing.
-create or replace function ${fn("idle_ai_sandboxes")}(batch integer default 50, lease_seconds integer default 300)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_rows jsonb;
-begin
-  with due as (
-    select y.${s.id} from ${sandboxes} y
-    where (y.${s.status} = 'running' and (y.${s.lastUsedAt} + make_interval(secs => y.${s.idleSeconds}) <= now() or y.${s.expiresAt} <= now()))
-       or (y.${s.status} = 'stopping' and y.${s.updatedAt} <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1)))
-    order by y.${s.lastUsedAt}
-    limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
-    for update skip locked
-  ), claimed as (
-    update ${sandboxes} x set ${s.status} = 'stopping', ${s.updatedAt} = now()
-    from due where x.${s.id} = due.${s.id}
-    returning x.*
-  )
-  select coalesce(jsonb_agg(${sandboxJson("claimed")}), '[]') into v_rows from claimed;
-  return v_rows;
-end;
-$$;
-${serviceGrant(`${fn("idle_ai_sandboxes")}(integer, integer)`)}
-
--- Finishes a stop (service role): stopped, or back to running with the
--- error so the next run tries again.
-create or replace function ${fn("finish_ai_sandbox_stop")}(id uuid, stopped boolean, error text default null)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  update ${sandboxes} x set
-    ${s.status} = case when finish_ai_sandbox_stop.stopped then 'stopped' else 'running' end,
-    ${s.stoppedAt} = case when finish_ai_sandbox_stop.stopped then now() else null end,
-    ${s.error} = left(finish_ai_sandbox_stop.error, 4000),
-    ${s.updatedAt} = now()
-  where x.${s.id} = finish_ai_sandbox_stop.id and x.${s.status} <> 'stopped';
-  return found;
-end;
-$$;
-${serviceGrant(`${fn("finish_ai_sandbox_stop")}(uuid, boolean, text)`)}
-
-create or replace function ${fn("list_ai_sandboxes")}(tenant ${id}, chat_id uuid default null)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(${sandboxJson("x")} order by x.${s.createdAt} desc), '[]')
-  from ${sandboxes} x
-  where x.${s.tenant} = list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x.${s.chat} = list_ai_sandboxes.chat_id)
-$$;
-${userGrant(`${fn("list_ai_sandboxes")}(${id}, uuid)`)}`;
+$$;`;
 }
 
 export const AI_PROVIDERS: ModuleDefinition = {
   name: "ai-providers",
   title: "AI providers",
   description:
-    "A tenant's own provider keys as credential_ref rows, a registry of provider batch jobs with their results and a poll claim, and a registry of sandboxes and containers with an idle-stop claim.",
+    "A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.",
   requires: ["tenant", "access"],
+  integrates: ["ai-chat"],
   target: "schema",
-  version: 1,
+  version: 2,
   names: NAMES,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Sandboxes move to the ai-chat module, which harness sessions share.",
+      sql: upgradeSandboxes,
+    },
+  ],
   build,
 };

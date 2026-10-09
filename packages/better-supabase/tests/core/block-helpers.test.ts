@@ -8,7 +8,6 @@ import {
   eachLimit,
   enumOrThrow,
   instantArg,
-  mappersOf,
   notFoundError,
   pageOf,
   optionalInstant,
@@ -154,30 +153,22 @@ describe("row decoders", () => {
     );
   });
 
-  it("builds not_found errors and reads the mappers alias", () => {
+  it("builds not_found errors", () => {
     expect(notFoundError("No such row", "ROW_NOT_FOUND")).toMatchObject({
       kind: "not_found",
       message: "No such row",
       hint: "ROW_NOT_FOUND",
     });
     expect(notFoundError("No such row").hint).toBeUndefined();
-    const mapper = () => undefined;
-    expect(mappersOf({ errorMappers: [mapper] })).toEqual([mapper]);
-    expect(mappersOf({ mappers: [mapper], errorMappers: [] })).toEqual([
-      mapper,
-    ]);
-    expect(mappersOf({})).toEqual([]);
   });
 });
 
 describe("pageOf", () => {
-  it("prefers limit and cursor, then the deprecated names", () => {
-    expect(pageOf({ limit: 5, cursor: "c", after: "a", size: 9 })).toEqual({
+  it("reads limit and cursor", () => {
+    expect(pageOf({ limit: 5, cursor: "c" })).toEqual({
       limit: 5,
       cursor: "c",
     });
-    expect(pageOf({ size: 9, before: 3 })).toEqual({ limit: 9, cursor: 3 });
-    expect(pageOf({ after: "a" })).toEqual({ limit: undefined, cursor: "a" });
     expect(pageOf()).toEqual({ limit: undefined, cursor: undefined });
   });
 });

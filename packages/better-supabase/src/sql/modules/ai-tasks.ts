@@ -4,6 +4,7 @@ import type { ModuleDefinition } from "../registry.ts";
 import {
   canIn,
   raise,
+  replaceColumnCheck,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
@@ -12,6 +13,8 @@ import {
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
+
+const RUN_STATES = "'queued', 'running', 'completed', 'failed'";
 
 const TASKS = {
   id: "id",
@@ -149,7 +152,7 @@ create table if not exists ${runs} (
   ${r.task} uuid not null references ${tasks} (${t.id}) on delete cascade,
   ${r.tenant} ${id} not null,
   ${r.user} uuid not null references auth.users (id) on delete cascade,
-  ${r.status} text not null default 'queued' check (${r.status} in ('queued', 'running', 'succeeded', 'failed')),
+  ${r.status} text not null default 'queued' check (${r.status} in (${RUN_STATES})),
   ${r.scheduledFor} timestamptz not null,
   ${r.chat} uuid,
   ${r.error} text check (length(${r.error}) <= 4000),
@@ -387,7 +390,7 @@ declare
   v_task uuid;
 begin
   update ${runs} y set
-    ${r.status} = case when finish_ai_task_run.succeeded then 'succeeded' else 'failed' end,
+    ${r.status} = case when finish_ai_task_run.succeeded then 'completed' else 'failed' end,
     ${r.error} = left(finish_ai_task_run.error, 4000),
     ${r.chat} = coalesce(finish_ai_task_run.chat_id, y.${r.chat}),
     ${r.finishedAt} = now()
@@ -405,6 +408,26 @@ $$;
 ${serviceGrant(`${fn("finish_ai_task_run")}(uuid, boolean, text, uuid)`)}`;
 }
 
+// Version 1 ended task runs succeeded; version 2 uses completed, the word
+// ai-chat and workflow runs use.
+function upgradeRunStates(ctx: ModuleContext): string {
+  const runs = ctx.table("runs");
+  const status = ctx.col("runs", "status");
+  return `${replaceColumnCheck({
+    table: runs,
+    column: status,
+    name: "ai_task_runs_status_check",
+    expression: `${status} in (${RUN_STATES}, 'succeeded')`,
+  })}
+update ${runs} set ${status} = 'completed' where ${status} = 'succeeded';
+${replaceColumnCheck({
+  table: runs,
+  column: status,
+  name: "ai_task_runs_status_check",
+  expression: `${status} in (${RUN_STATES})`,
+})}`;
+}
+
 export const AI_TASKS: ModuleDefinition = {
   name: "ai-tasks",
   title: "AI scheduled tasks",
@@ -413,7 +436,14 @@ export const AI_TASKS: ModuleDefinition = {
   requires: ["tenant", "access"],
   integrates: ["agents", "ai-chat", "jobs"],
   target: "schema",
-  version: 1,
+  version: 2,
   names: NAMES,
+  upgrades: [
+    {
+      from: 1,
+      description: "Task runs end completed instead of succeeded.",
+      sql: upgradeRunStates,
+    },
+  ],
   build,
 };

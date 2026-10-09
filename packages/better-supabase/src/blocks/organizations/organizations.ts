@@ -20,7 +20,6 @@ import {
   type BlockTemporalOptions,
   DEFAULT_BLOCK_SCHEMA,
   isRecord,
-  mappersOf,
   recordsOf,
 } from "../shared.ts";
 
@@ -176,8 +175,6 @@ export interface OrganizationsOptions extends BlockTemporalOptions {
   readonly onInvite?: (sent: InvitationSent) => void | Promise<void>;
   /** Error mappers that run before the built-in ones, as in `betterSupabase.mapError()`. */
   readonly mappers?: readonly ErrorMapper[];
-  /** @deprecated Use `mappers`. Removed in 0.8. */
-  readonly errorMappers?: readonly ErrorMapper[];
 }
 
 /**
@@ -373,7 +370,7 @@ export function createOrganizations(
     typeof options.schema === "string"
       ? options.schema
       : (options.schema?.[module] ?? DEFAULT_BLOCK_SCHEMA);
-  const mappers = mappersOf(options);
+  const mappers = options.mappers ?? [];
   const calls = {
     organizations: blockCall(transport, schemaOf("organizations"), mappers),
     invitations: blockCall(transport, schemaOf("invitations"), mappers),

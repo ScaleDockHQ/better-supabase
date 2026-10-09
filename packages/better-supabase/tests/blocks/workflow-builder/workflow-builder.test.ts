@@ -4,13 +4,15 @@ import type { BlockTransport } from "../../../src/core/block-transport.ts";
 import type { CredentialProvider } from "../../../src/credentials/provider.ts";
 
 import {
-  type BuilderStartCall,
-  createBuilder,
   credentialOf,
   definitionOf,
   nodeRunOf,
   triggerOf,
   versionOf,
+} from "../../../src/blocks/workflow-builder/rows.ts";
+import {
+  type BuilderStartCall,
+  createBuilder,
 } from "../../../src/blocks/workflow-builder/workflow-builder.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 import { GRAPH } from "./fixture.ts";

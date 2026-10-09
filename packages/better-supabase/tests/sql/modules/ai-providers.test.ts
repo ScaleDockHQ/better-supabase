@@ -2,24 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
-import { moduleBody } from "../../../src/sql/registry.ts";
+import { moduleBody, upgradePlan } from "../../../src/sql/registry.ts";
 
 const body = (modules: ModulesConfig = {}) =>
   moduleBody("ai-providers", { modules })!;
 
 describe("ai-providers module", () => {
-  it("owns keys, batches, batch items and sandboxes", () => {
+  it("owns keys, batches and batch items, and leaves sandboxes to ai-chat", () => {
     const sql = body();
-    for (const table of [
-      "ai_provider_keys",
-      "ai_batches",
-      "ai_batch_items",
-      "ai_sandboxes",
-    ]) {
+    for (const table of ["ai_provider_keys", "ai_batches", "ai_batch_items"]) {
       expect(sql).toContain(
         `create table if not exists "better_supabase"."${table}" (`,
       );
     }
+    expect(sql).not.toContain("ai_sandboxes");
   });
 
   it("stores keys as credential refs", () => {
@@ -28,7 +24,7 @@ describe("ai-providers module", () => {
     expect(sql).not.toMatch(/"(api_?key|token|secret)"/);
   });
 
-  it("keeps resolving, polling and the idle stop to the service role", () => {
+  it("keeps resolving and polling to the service role", () => {
     const sql = body();
     for (const name of [
       "ai_provider_keys_for",
@@ -36,9 +32,6 @@ describe("ai-providers module", () => {
       "due_ai_batches",
       "update_ai_batch",
       "save_ai_batch_items",
-      "register_ai_sandbox",
-      "idle_ai_sandboxes",
-      "finish_ai_sandbox_stop",
     ]) {
       expect(sql).toMatch(
         new RegExp(
@@ -54,14 +47,23 @@ describe("ai-providers module", () => {
     );
   });
 
-  it("takes the poll and idle intervals from its options", () => {
-    const sql = body({
-      "ai-providers": { options: { pollEvery: 120, idleAfter: 900 } },
-    });
+  it("takes the poll interval from its options", () => {
+    const sql = body({ "ai-providers": { options: { pollEvery: 120 } } });
     expect(sql).toContain("interval '120 seconds'");
-    expect(sql).toContain("default 900");
     expect(() =>
       body({ "ai-providers": { options: { pollEvery: -1 } } }),
     ).toThrow(/pollEvery/);
+  });
+
+  it("stops the upgrade while sandboxes have no ai-chat to move to", () => {
+    const [alone] = upgradePlan([{ module: "ai-providers", version: 1 }]);
+    expect(alone!.steps[0]!.sql).toContain(
+      "ai_sandboxes moved to the ai-chat module",
+    );
+    const withChat = upgradePlan([
+      { module: "ai-chat", version: 2 },
+      { module: "ai-providers", version: 1 },
+    ]).find((plan) => plan.module === "ai-providers");
+    expect(withChat!.steps[0]!.sql).toBe("");
   });
 });

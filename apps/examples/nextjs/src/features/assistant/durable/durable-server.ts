@@ -8,7 +8,6 @@ import { postgresStreamStore } from "better-supabase/streams";
 import * as v from "valibot";
 
 import {
-  aiRuns,
   assistant,
   assistantContext,
   serviceTransport,
@@ -65,8 +64,5 @@ export function durableContext(
   userId: string,
   organizationId: string,
 ): DurableChatContext {
-  return {
-    ...assistantContext(supabase, userId, organizationId),
-    runs: aiRuns(supabase),
-  };
+  return assistantContext(supabase, userId, organizationId);
 }

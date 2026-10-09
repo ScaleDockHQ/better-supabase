@@ -38,6 +38,7 @@ export const PERMISSIONS = [
   "inbox.assign",
   "inbox.manage",
   "ai_chat.create",
+  "ai.create",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -76,6 +77,7 @@ const grants = {
     "inbox.assign",
     "inbox.manage",
     "ai_chat.create",
+    "ai.create",
   ],
   member: [
     "customers.read",
@@ -89,6 +91,7 @@ const grants = {
     "inbox.read",
     "inbox.reply",
     "ai_chat.create",
+    "ai.create",
   ],
 } satisfies Readonly<Record<Role, "*" | readonly Permission[]>>;
 

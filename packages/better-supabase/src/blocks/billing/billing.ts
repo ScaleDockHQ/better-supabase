@@ -189,8 +189,6 @@ export interface PlatformListOptions extends CursorPageOptions<number> {
   readonly limit?: number;
   /** Only rows Stripe created before this (epoch seconds), for the next page. */
   readonly cursor?: number;
-  /** @deprecated Use `cursor`. Removed in 0.8. */
-  readonly before?: number;
 }
 
 export interface BillingCustomerUpdate {

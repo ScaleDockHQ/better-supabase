@@ -1,11 +1,11 @@
 import type { AsyncResult } from "../../core/result.ts";
-import type { JobHandler } from "../jobs/queue.ts";
+import type { RunState } from "../../core/run-state.ts";
 import type { AiChatOptions, AiToolApproval } from "./ai-chat.ts";
 
+import { runStateOf } from "../../core/run-state.ts";
 import {
   applyTemporal,
   blockCall,
-  errorText,
   isRecord,
   optionalInstant,
   optionalText,
@@ -19,13 +19,7 @@ import {
 import { approvalOf } from "./rows.ts";
 
 /** Where a run is: written by `runs.claim`, `release` and `stop`. */
-export type AiRunState =
-  | "queued"
-  | "running"
-  | "cancel_requested"
-  | "done"
-  | "error"
-  | "stopped";
+export type AiRunState = Exclude<RunState, "waiting">;
 
 /** One generation of a chat, as `ai_runs` stores it. */
 export interface AiRun {
@@ -54,8 +48,6 @@ export interface AiRunQuery {
   readonly active?: boolean;
   /** At most 200; defaults to 50. */
   readonly limit?: number;
-  /** @deprecated Use `limit`. Removed in 0.8. */
-  readonly size?: number;
 }
 
 export type AiRunStepStatus = "running" | "done" | "error" | "skipped";
@@ -89,6 +81,7 @@ export interface AiPendingApproval extends AiToolApproval {
   readonly chatTitle: string;
 }
 
+/** Run lookups and steps; `AiChat.runs` has all of them. */
 export interface AiRuns {
   get(runId: string): AsyncResult<AiRun>;
   list(query?: AiRunQuery): AsyncResult<readonly AiRun[]>;
@@ -107,9 +100,9 @@ const RUN_STATES: readonly AiRunState[] = [
   "queued",
   "running",
   "cancel_requested",
-  "done",
-  "error",
-  "stopped",
+  "completed",
+  "failed",
+  "cancelled",
 ];
 
 const STEP_STATES: readonly AiRunStepStatus[] = [
@@ -140,7 +133,7 @@ function runOf(value: unknown): AiRun {
     engine: textOf(row["engine"]),
     externalRunId: optionalText(row["external_run_id"]),
     model: optionalText(row["model"]),
-    status: oneOf(row["status"], RUN_STATES, "running"),
+    status: runStateOf(row["status"], RUN_STATES, "running"),
     usage: object(row["usage"]),
     costMicroUsd:
       row["cost_micro_usd"] === null || row["cost_micro_usd"] === undefined
@@ -168,12 +161,10 @@ function stepOf(value: unknown): AiRunStep {
 }
 
 /**
- * Run lookups, run steps and the approval inbox of the `ai-chat` block: what
- * a durable chat needs to stop or resume a run, and what an activity console
- * shows. Engine-neutral, like `createAiChat`.
+ * Run lookups, run steps and the approval inbox: what a durable chat needs
+ * to stop or resume a run, and what an activity console shows.
  */
-export function createAiRuns(options: AiChatOptions): AiRuns {
-  applyTemporal(options);
+export function aiRunLookups(options: AiChatOptions): AiRuns {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const service = blockCall(
     options.service ?? options.transport,
@@ -249,8 +240,13 @@ export interface AiHarnessSession {
 export interface AiHarnessSessionPatch {
   readonly resumeState?: unknown;
   readonly continueState?: unknown;
-  /** `null` forgets the sandbox. */
+  /**
+   * Registers the session's sandbox in `ai_sandboxes`; `null` marks it
+   * stopped.
+   */
   readonly sandboxId?: string | null;
+  /** Who runs the sandbox, such as `vercel`. Defaults to `harness`. */
+  readonly sandboxProvider?: string;
   readonly status?: AiHarnessStatus;
 }
 
@@ -282,14 +278,6 @@ export interface AiHarnessSessions {
     harnessId: string,
     holder: string,
   ): AsyncResult<boolean>;
-  /**
-   * Marks sessions whose sandbox sat unused for `idleSeconds` (default 900)
-   * as idle and returns them.
-   */
-  idle(options?: {
-    readonly idleSeconds?: number;
-    readonly size?: number;
-  }): AsyncResult<readonly AiHarnessSession[]>;
 }
 
 function harnessOf(value: unknown): AiHarnessSession {
@@ -319,6 +307,9 @@ function patchFields(patch: AiHarnessSessionPatch): Record<string, unknown> {
       ? { continue_state: patch.continueState ?? null }
       : {}),
     ...("sandboxId" in patch ? { sandbox_id: patch.sandboxId ?? null } : {}),
+    ...(patch.sandboxProvider === undefined
+      ? {}
+      : { sandbox_provider: patch.sandboxProvider }),
     ...(patch.status === undefined ? {} : { status: patch.status }),
   };
 }
@@ -372,139 +363,5 @@ export function createHarnessSessions(
         { chat: chatId, harness: harnessId, holder },
         isTrue,
       ),
-    idle: (idleOptions = {}) =>
-      service(
-        "idle_ai_harness_sessions",
-        { idle_seconds: idleOptions.idleSeconds, size: idleOptions.size },
-        (value) => recordsOf(value, "idle_ai_harness_sessions").map(harnessOf),
-      ),
-  };
-}
-
-export interface IdleSandboxStopOptions {
-  readonly sessions: Pick<
-    AiHarnessSessions,
-    "idle" | "load" | "save" | "lock" | "unlock"
-  >;
-  /** Stops one sandbox, such as `Sandbox.get({ sandboxId }).stop()`. */
-  readonly stop: (session: AiHarnessSession) => Promise<unknown>;
-  /** Seconds a sandbox may sit unused. Defaults to 900. */
-  readonly idleSeconds?: number;
-  /** Sessions per run. Defaults to 100. */
-  readonly size?: number;
-  /** How long the stop holds each session's lock. Defaults to 120. */
-  readonly lockSeconds?: number;
-}
-
-/** What one idle-sandbox run did. */
-export interface IdleSandboxStopResult {
-  readonly stopped: number;
-  readonly failed: number;
-  /** Sessions a turn locked or used since `idle` listed them; left running. */
-  readonly skipped: number;
-  /** Why each failed sandbox did not stop. */
-  readonly errors: readonly string[];
-}
-
-type StopOutcome = "stopped" | "skipped" | { readonly error: string };
-
-/**
- * A job handler for a schedule that stops idle harness sandboxes. Each
- * session idle for `idleSeconds` is locked first, so a turn that starts
- * meanwhile keeps its sandbox; a session that is locked, or was used since
- * `idle` listed it, is skipped. A stopped session turns `stopped` without a
- * sandbox, or `error` when `stop` threw.
- */
-export function idleSandboxStop(
-  options: IdleSandboxStopOptions,
-): JobHandler<unknown> {
-  const { sessions } = options;
-  const lockOptions = { ttlSeconds: options.lockSeconds ?? 120 };
-
-  const stopOne = async (
-    listed: AiHarnessSession,
-    holder: string,
-  ): Promise<StopOutcome> => {
-    const { chatId, harnessId } = listed;
-    const locked = await sessions.lock(chatId, harnessId, holder, lockOptions);
-    if (!locked.ok) return { error: locked.error.message };
-    if (!locked.data) return "skipped";
-    try {
-      const current = await sessions.load(chatId, harnessId);
-      if (!current.ok) return { error: current.error.message };
-      const session = current.data;
-      if (session === undefined) return "skipped";
-      if (
-        session.status !== "idle" ||
-        session.sandboxId !== listed.sandboxId ||
-        !session.lastActiveAt.equals(listed.lastActiveAt)
-      ) {
-        // idle() marked it idle; a session used since then goes back to
-        // active so a later run can still find its sandbox.
-        if (session.status === "idle" && session.sandboxId !== undefined) {
-          await sessions.save(
-            chatId,
-            harnessId,
-            { status: "active" },
-            { holder },
-          );
-        }
-        return "skipped";
-      }
-      try {
-        await options.stop(session);
-      } catch (cause) {
-        const marked = await sessions.save(
-          chatId,
-          harnessId,
-          { status: "error" },
-          { holder },
-        );
-        return {
-          error: marked.ok
-            ? errorText(cause)
-            : `${errorText(cause)} (marking it failed: ${marked.error.message})`,
-        };
-      }
-      const saved = await sessions.save(
-        chatId,
-        harnessId,
-        { status: "stopped", sandboxId: null },
-        { holder },
-      );
-      return saved.ok ? "stopped" : { error: saved.error.message };
-    } finally {
-      await sessions.unlock(chatId, harnessId, holder);
-    }
-  };
-
-  return async (): Promise<IdleSandboxStopResult> => {
-    const listed = await sessions
-      .idle({
-        ...(options.idleSeconds === undefined
-          ? {}
-          : { idleSeconds: options.idleSeconds }),
-        ...(options.size === undefined ? {} : { size: options.size }),
-      })
-      .orThrow();
-    const holder = `idle-sandbox-stop:${crypto.randomUUID()}`;
-    let stopped = 0;
-    let skipped = 0;
-    const errors: string[] = [];
-    for (const session of listed) {
-      let outcome: StopOutcome;
-      try {
-        outcome = await stopOne(session, holder);
-      } catch (cause) {
-        outcome = { error: errorText(cause) };
-      }
-      if (outcome === "stopped") stopped += 1;
-      else if (outcome === "skipped") skipped += 1;
-      else
-        errors.push(
-          `${session.sandboxId ?? session.harnessId}: ${outcome.error}`,
-        );
-    }
-    return { stopped, failed: errors.length, skipped, errors };
   };
 }

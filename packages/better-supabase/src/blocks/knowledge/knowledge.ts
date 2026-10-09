@@ -275,14 +275,6 @@ export function chunk(
 }
 
 /**
- * A vector in pgvector's text form, which both transports pass through.
- *
- * @deprecated The block formats embeddings itself; removed in 0.8.
- */
-export const vectorLiteral = (values: readonly number[]): string =>
-  `[${values.join(",")}]`;
-
-/**
  * An `invalid_input` error unless the embedder returned `count` vectors of
  * one non-zero length with finite numbers.
  */

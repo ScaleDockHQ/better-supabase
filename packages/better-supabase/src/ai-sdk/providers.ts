@@ -1,5 +1,6 @@
 import type { Experimental_SandboxSession, JSONValue } from "ai";
 
+import type { AiSandboxes } from "../blocks/ai-chat/sandboxes.ts";
 import type {
   AiProviders,
   ResolvedProviderKey,
@@ -64,8 +65,8 @@ export function tenantGatewayOptions(
 }
 
 export interface TrackedSandboxOptions {
-  /** The providers block with a service transport. */
-  readonly sandboxes: Pick<AiProviders["sandboxes"], "touch">;
+  /** The ai-chat block's sandboxes, with a service transport. */
+  readonly sandboxes: Pick<AiSandboxes, "touch">;
   /** The `ai_sandboxes` row id from `sandboxes.register`. */
   readonly id: string;
   /** Milliseconds between two touches. Default 30000. */

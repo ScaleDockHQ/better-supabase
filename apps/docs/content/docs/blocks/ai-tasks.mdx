@@ -14,16 +14,16 @@ better-supabase sql add ai-tasks   # adds tenant and access as well
 | Table                | Holds                                                              |
 | -------------------- | ------------------------------------------------------------------ |
 | `ai_scheduled_tasks` | The prompt, cron, time zone, optional chat and agent, and next run |
-| `ai_task_runs`       | One row per run: `queued`, `running`, `succeeded` or `failed`      |
+| `ai_task_runs`       | One row per run: `queued`, `running`, `completed` or `failed`      |
 
-A user sees and changes their own tasks; `ai_chat.admin` lists every task
+A user sees and changes their own tasks; `ai.admin` lists every task
 in the organization. With [agents](/docs/blocks/agents) installed, a task
 can name the agent it runs as.
 
-| Permission       | Lets a member                      | Default roles              |
-| ---------------- | ---------------------------------- | -------------------------- |
-| `ai_chat.create` | schedule tasks                     | `owner`, `admin`, `member` |
-| `ai_chat.admin`  | see every task in the organization | `owner`, `admin`           |
+| Permission  | Lets a member                      | Default roles              |
+| ----------- | ---------------------------------- | -------------------------- |
+| `ai.create` | schedule tasks                     | `owner`, `admin`, `member` |
+| `ai.admin`  | see every task in the organization | `owner`, `admin`           |
 
 | Option       | Default       | Sets                                               |
 | ------------ | ------------- | -------------------------------------------------- |
@@ -73,6 +73,10 @@ time zone fails with `AI_TASK_INVALID`.
 
 ## Running tasks
 
+AI tasks are the per-user layer of scheduling; app-level job schedules and
+workflow schedules are compared in
+[three scheduling layers](/docs/blocks/jobs#three-scheduling-layers).
+
 `tick()` claims the due tasks as the service role, queues a run for each
 and sets the next occurrence. With [jobs](/docs/blocks/jobs) installed, each
 run is sent to the `ai_task_run` queue and `runJob()` is its handler;
@@ -83,6 +87,6 @@ stays `queued` longer than the stale timeout is marked `failed` on the
 next `tick()`, so a lost queue message doesn't block its task.
 
 `execute(runId)` marks the run `running`, calls your `run` function and
-marks it `succeeded` or `failed` with the error. It returns `false` when
+marks it `completed` or `failed` with the error. It returns `false` when
 another worker already has the run. The optional `notify` callback gets
 every outcome, for a notification or an email.

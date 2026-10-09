@@ -178,8 +178,6 @@ export interface ListDeadOptions extends CursorPageOptions<number> {
   readonly limit?: number;
   /** Only dead letters with a lower id, for the next page. */
   readonly cursor?: number;
-  /** @deprecated Use `cursor`. Removed in 0.8. */
-  readonly before?: number;
 }
 
 export interface RetryDeadOptions {

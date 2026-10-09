@@ -1,7 +1,10 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { FinalRunState } from "../../core/run-state.ts";
+import type { AiRunState, AiRuns } from "./durable.ts";
 import type { AiMessage, AiMessageRole } from "./message.ts";
+import type { AiSandboxes } from "./sandboxes.ts";
 
 import {
   applyTemporal,
@@ -15,6 +18,7 @@ import {
   oneOf,
   pageOf,
 } from "../shared.ts";
+import { aiRunLookups } from "./durable.ts";
 import {
   approvalOf,
   record,
@@ -36,6 +40,7 @@ import {
   projectFields,
   canonical,
 } from "./rows.ts";
+import { aiSandboxes } from "./sandboxes.ts";
 
 export type AiChatVisibility = "private" | "organization";
 
@@ -97,10 +102,6 @@ export interface AiChatQuery {
   /** The `next` cursor of the previous page. */
   readonly cursor?: string;
   readonly limit?: number;
-  /** @deprecated Use `cursor`. Removed in 0.8. */
-  readonly after?: string;
-  /** @deprecated Use `limit`. Removed in 0.8. */
-  readonly size?: number;
 }
 
 export interface AiChatPage {
@@ -188,7 +189,8 @@ export interface AiStreamClaim {
   readonly runId: string | undefined;
 }
 
-export type AiRunStatus = "done" | "error" | "stopped";
+/** How a run ended, as `runs.release` records it. */
+export type AiRunStatus = Extract<AiRunState, FinalRunState>;
 
 export interface AiRunRelease {
   readonly status?: AiRunStatus;
@@ -403,7 +405,13 @@ export interface AiChat {
     /** Shows the branch through `messageId`; returns the new leaf. */
     switchBranch(chatId: string, messageId: string): AsyncResult<string>;
   };
-  readonly runs: {
+  /**
+   * The sandboxes chats and harness sessions started, with one idle-stop
+   * claim for both (service role, except `list`).
+   */
+  readonly sandboxes: AiSandboxes;
+  /** Runs: the stream claim, lookups, steps and the approval inbox. */
+  readonly runs: AiRuns & {
     /** Claims the chat's answer for one stream (service role). */
     claim(
       chatId: string,
@@ -643,7 +651,9 @@ export function createAiChat(options: AiChatOptions): AiChat {
           (value) => textOf(recordOf(value, "switch_ai_branch")["leaf_id"]),
         ),
     },
+    sandboxes: aiSandboxes(call, service),
     runs: {
+      ...aiRunLookups(options),
       claim: (chatId, streamId, claimOptions = {}) =>
         service(
           "claim_ai_chat_stream",

@@ -25,14 +25,14 @@ better-supabase sql add ai-files   # adds tenant and access as well
 Objects live in the private `ai-files` bucket at
 `{organization_id}/{owner_id}/{file_id}/{filename}`. The storage policies
 accept an upload only to the path of a pending record the caller reserved,
-and allow a read to the owner, an `ai_chat.admin` of the tenant and, with
+and allow a read to the owner, an `ai.admin` of the tenant and, with
 the [`ai-chat`](/docs/blocks/ai-chat) module installed, anyone who can read
 the file's chat.
 
-| Permission       | Lets a member                                         | Default roles              |
-| ---------------- | ----------------------------------------------------- | -------------------------- |
-| `ai_chat.create` | upload files and create documents in the tenant       | `owner`, `admin`, `member` |
-| `ai_chat.admin`  | read and delete every file and document in the tenant | `owner`, `admin`           |
+| Permission  | Lets a member                                         | Default roles              |
+| ----------- | ----------------------------------------------------- | -------------------------- |
+| `ai.create` | upload files and create documents in the tenant       | `owner`, `admin`, `member` |
+| `ai.admin`  | read and delete every file and document in the tenant | `owner`, `admin`           |
 
 The keys are the `ai-chat` keys by default; rename them with
 `sql.modules["ai-files"].permissions.upload` and `.manage`.

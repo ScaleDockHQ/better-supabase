@@ -1373,6 +1373,7 @@
     "values": [
       "BLOCK_EVENT_SOURCE",
       "createBlocks",
+      "FINAL_RUN_STATES",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -1385,7 +1386,9 @@
       "BlockTransport",
       "CreateBlocksOptions",
       "CursorPageOptions",
-      "RpcClient"
+      "FinalRunState",
+      "RpcClient",
+      "RunState"
     ]
   },
   "./blocks/audit": {
@@ -2576,9 +2579,7 @@
       "aiChatTopic",
       "aiMessageSchema",
       "createAiChat",
-      "createAiRuns",
       "createHarnessSessions",
-      "idleSandboxStop",
       "INTERRUPTED_TOOL_OUTPUT",
       "isAiMessage",
       "pathToHistory",
@@ -2634,6 +2635,10 @@
       "AiRunStep",
       "AiRunStepInput",
       "AiRunStepStatus",
+      "AiSandbox",
+      "AiSandboxes",
+      "AiSandboxStatus",
+      "AiSandboxStopper",
       "AiSaveResult",
       "AiShareLink",
       "AiSourcePart",
@@ -2650,8 +2655,7 @@
       "AiToolResultPart",
       "AiUserMessageTrigger",
       "BlockTransport",
-      "IdleSandboxStopOptions",
-      "IdleSandboxStopResult",
+      "NewAiSandbox",
       "SharedAiChat"
     ]
   },
@@ -2706,8 +2710,7 @@
       "chunk",
       "createKnowledge",
       "rpcTransport",
-      "sqlTransport",
-      "vectorLiteral"
+      "sqlTransport"
     ],
     "types": [
       "BlockTransport",
@@ -2838,12 +2841,8 @@
       "AiProviderKeyInput",
       "AiProviders",
       "AiProvidersOptions",
-      "AiSandbox",
-      "AiSandboxStatus",
-      "AiSandboxStopper",
       "BlockTransport",
       "NewAiBatch",
-      "NewAiSandbox",
       "ResolvedProviderKey"
     ]
   },

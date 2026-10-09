@@ -4,11 +4,7 @@ import type { AiFile, AiFiles } from "../../../src/blocks/ai-files/index.ts";
 import type { Embedder } from "../../../src/blocks/knowledge/index.ts";
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
 
-import {
-  chunk,
-  createKnowledge,
-  vectorLiteral,
-} from "../../../src/blocks/knowledge/index.ts";
+import { chunk, createKnowledge } from "../../../src/blocks/knowledge/index.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
 const AT = "2026-01-01T00:00:00Z";
@@ -99,11 +95,6 @@ describe("chunk", () => {
     expect(() => chunk("x", { size: 0 })).toThrow(/size/);
     expect(() => chunk("x", { size: 4, overlap: 4 })).toThrow(/overlap/);
     expect(() => chunk("x", { overlap: -1 })).toThrow(/overlap/);
-  });
-
-  it("writes vectors in pgvector's text form", () => {
-    // oxlint-disable-next-line typescript/no-deprecated -- covers the 0.6 export.
-    expect(vectorLiteral([1, 0.5, -2])).toBe("[1,0.5,-2]");
   });
 });
 

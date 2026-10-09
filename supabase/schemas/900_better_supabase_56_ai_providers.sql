@@ -1,6 +1,6 @@
 -- better-supabase module: ai-providers (0.5.1)
--- @bs-module ai-providers@1 managed
--- A tenant's own provider keys as credential_ref rows, a registry of provider batch jobs with their results and a poll claim, and a registry of sandboxes and containers with an idle-stop claim.
+-- @bs-module ai-providers@2 managed
+-- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -30,7 +30,7 @@ grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
 create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys" for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
@@ -63,7 +63,7 @@ grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
 create policy ai_batches_read on "better_supabase"."ai_batches" for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
+  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
 
 create table if not exists "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
@@ -85,39 +85,6 @@ drop policy if exists ai_batch_items_read on "better_supabase"."ai_batch_items";
 create policy ai_batch_items_read on "better_supabase"."ai_batch_items" for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"));
 
--- Sandboxes and provider containers a chat started, so an idle-stop job can
--- stop the ones nobody used for idle_seconds or past expires_at.
-create table if not exists "better_supabase"."ai_sandboxes" (
-  "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
-  "user_id" uuid references auth.users (id) on delete cascade,
-  "chat_id" uuid,
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
-  "last_used_at" timestamptz not null default now(),
-  "expires_at" timestamptz,
-  "stopped_at" timestamptz,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now(),
-  unique ("provider", "sandbox_id")
-);
-create index if not exists ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
-create index if not exists ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
-create index if not exists ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("organization_id");
-create index if not exists ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
-alter table "better_supabase"."ai_sandboxes" enable row level security;
-revoke all on "better_supabase"."ai_sandboxes" from anon, authenticated;
-grant select on "better_supabase"."ai_sandboxes" to authenticated;
-grant all on "better_supabase"."ai_sandboxes" to service_role;
-drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
-create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes" for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
-
 create or replace function "better_supabase"."list_ai_provider_keys"(tenant uuid)
 returns jsonb
 language sql
@@ -131,7 +98,7 @@ $$;
 revoke execute on function "better_supabase"."list_ai_provider_keys"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_provider_keys"(uuid) to authenticated, service_role;
 
--- Adds or replaces a tenant's key for a provider ('ai_chat.admin' or the service
+-- Adds or replaces a tenant's key for a provider ('ai.admin' or the service
 -- role). Returns the key and the credential_ref it replaced, which the caller
 -- revokes when it differs.
 create or replace function "better_supabase"."save_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
@@ -145,7 +112,7 @@ declare
   v_old jsonb;
   v_row "better_supabase"."ai_provider_keys"%rowtype;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai_chat.admin'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai.admin'), false)) then
     raise exception 'you may not manage provider keys here' using errcode = '42501', hint = 'AI_PROVIDER_KEY_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_ai_provider_key.credential_ref is not null and jsonb_typeof(save_ai_provider_key.credential_ref) <> 'null'
@@ -179,7 +146,7 @@ $$;
 revoke execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
 grant execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
 
--- Deletes a key ('ai_chat.admin' or the service role) and returns it, so the caller
+-- Deletes a key ('ai.admin' or the service role) and returns it, so the caller
 -- revokes its credential; null when there is no such key.
 create or replace function "better_supabase"."delete_ai_provider_key"(id uuid)
 returns jsonb
@@ -191,7 +158,7 @@ declare
   v_row "better_supabase"."ai_provider_keys"%rowtype;
 begin
   select * into v_row from "better_supabase"."ai_provider_keys" x where x."id" = delete_ai_provider_key.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_provider_keys" x where x."id" = v_row."id";
@@ -242,7 +209,7 @@ $$;
 revoke execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) to service_role;
 
--- Records a started batch ('ai_chat.create' or the service role). fields: user_id
+-- Records a started batch ('ai.create' or the service role). fields: user_id
 -- (service role only), item_count, metadata, status, raw_status, counts,
 -- expires_at.
 create or replace function "better_supabase"."record_ai_batch"(tenant uuid, provider text, reference jsonb, fields jsonb default '{}')
@@ -256,7 +223,7 @@ declare
   v_row "better_supabase"."ai_batches"%rowtype;
   v_fields jsonb := coalesce(record_ai_batch.fields, '{}');
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai_chat.create'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai.create'), false))) then
     raise exception 'you may not start batches here' using errcode = '42501', hint = 'AI_BATCH_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_batches" ("organization_id", "user_id", "provider", "reference", "status", "raw_status", "item_count", "counts", "metadata", "expires_at", "next_poll_at")
@@ -427,153 +394,6 @@ $$;
 revoke execute on function "better_supabase"."list_ai_batch_items"(uuid, text, integer) from public, anon;
 grant execute on function "better_supabase"."list_ai_batch_items"(uuid, text, integer) to authenticated, service_role;
 
--- Records a sandbox or container the app started, or marks a known one used
--- (service role). fields: user_id, chat_id, container_id, metadata,
--- idle_seconds, expires_at.
-create or replace function "better_supabase"."register_ai_sandbox"(tenant uuid, provider text, sandbox_id text, fields jsonb default '{}')
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."ai_sandboxes"%rowtype;
-  v_fields jsonb := coalesce(register_ai_sandbox.fields, '{}');
-begin
-  insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
-  values (
-    register_ai_sandbox.tenant,
-    (v_fields ->> 'user_id')::uuid,
-    (v_fields ->> 'chat_id')::uuid,
-    register_ai_sandbox.provider,
-    register_ai_sandbox.sandbox_id,
-    v_fields ->> 'container_id',
-    coalesce(v_fields -> 'metadata', '{}'),
-    coalesce((v_fields ->> 'idle_seconds')::integer, 600),
-    (v_fields ->> 'expires_at')::timestamptz
-  )
-  on conflict ("provider", "sandbox_id") do update set
-    "container_id" = coalesce(excluded."container_id", cur."container_id"),
-    "chat_id" = coalesce(excluded."chat_id", cur."chat_id"),
-    "metadata" = cur."metadata" || excluded."metadata",
-    "idle_seconds" = excluded."idle_seconds",
-    "expires_at" = coalesce(excluded."expires_at", cur."expires_at"),
-    "status" = 'running',
-    "error" = null,
-    "stopped_at" = null,
-    "last_used_at" = now(),
-    "updated_at" = now()
-  where cur."organization_id" = excluded."organization_id"
-  returning * into v_row;
-  if not found then
-    raise exception 'sandbox % belongs to another tenant', register_ai_sandbox.sandbox_id using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
-  end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
-end;
-$$;
-revoke execute on function "better_supabase"."register_ai_sandbox"(uuid, text, text, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."register_ai_sandbox"(uuid, text, text, jsonb) to service_role;
-
--- Marks a sandbox used now (service role); false when it is not running.
-create or replace function "better_supabase"."touch_ai_sandbox"(id uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  update "better_supabase"."ai_sandboxes" x set "last_used_at" = now(), "updated_at" = now()
-  where x."id" = touch_ai_sandbox.id and x."status" = 'running';
-  return found;
-end;
-$$;
-revoke execute on function "better_supabase"."touch_ai_sandbox"(uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."touch_ai_sandbox"(uuid) to service_role;
-
--- The running sandbox of a chat for a provider, to reuse it (service role).
-create or replace function "better_supabase"."ai_sandbox_for"(chat_id uuid, provider text)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_sandboxes" x
-  where x."chat_id" = ai_sandbox_for.chat_id and x."provider" = ai_sandbox_for.provider and x."status" = 'running'
-    and (x."expires_at" is null or x."expires_at" > now())
-  order by x."last_used_at" desc
-  limit 1
-$$;
-revoke execute on function "better_supabase"."ai_sandbox_for"(uuid, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."ai_sandbox_for"(uuid, text) to service_role;
-
--- Claims sandboxes to stop (service role): running ones idle for
--- idle_seconds or past expires_at, and ones a stopper claimed more than
--- lease_seconds ago without finishing.
-create or replace function "better_supabase"."idle_ai_sandboxes"(batch integer default 50, lease_seconds integer default 300)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_rows jsonb;
-begin
-  with due as (
-    select y."id" from "better_supabase"."ai_sandboxes" y
-    where (y."status" = 'running' and (y."last_used_at" + make_interval(secs => y."idle_seconds") <= now() or y."expires_at" <= now()))
-       or (y."status" = 'stopping' and y."updated_at" <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1)))
-    order by y."last_used_at"
-    limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
-    for update skip locked
-  ), claimed as (
-    update "better_supabase"."ai_sandboxes" x set "status" = 'stopping', "updated_at" = now()
-    from due where x."id" = due."id"
-    returning x.*
-  )
-  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."organization_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
-  return v_rows;
-end;
-$$;
-revoke execute on function "better_supabase"."idle_ai_sandboxes"(integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."idle_ai_sandboxes"(integer, integer) to service_role;
-
--- Finishes a stop (service role): stopped, or back to running with the
--- error so the next run tries again.
-create or replace function "better_supabase"."finish_ai_sandbox_stop"(id uuid, stopped boolean, error text default null)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  update "better_supabase"."ai_sandboxes" x set
-    "status" = case when finish_ai_sandbox_stop.stopped then 'stopped' else 'running' end,
-    "stopped_at" = case when finish_ai_sandbox_stop.stopped then now() else null end,
-    "error" = left(finish_ai_sandbox_stop.error, 4000),
-    "updated_at" = now()
-  where x."id" = finish_ai_sandbox_stop.id and x."status" <> 'stopped';
-  return found;
-end;
-$$;
-revoke execute on function "better_supabase"."finish_ai_sandbox_stop"(uuid, boolean, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."finish_ai_sandbox_stop"(uuid, boolean, text) to service_role;
-
-create or replace function "better_supabase"."list_ai_sandboxes"(tenant uuid, chat_id uuid default null)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
-  from "better_supabase"."ai_sandboxes" x
-  where x."organization_id" = list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
-$$;
-revoke execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) to authenticated, service_role;
-
 -- sql.modules.ai-providers.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -685,60 +505,6 @@ set search_path = ''
 as $$ select "better_supabase"."list_ai_batch_items"($1, $2, $3) $$;
 revoke execute on function "api"."list_ai_batch_items"(uuid, text, integer) from public, anon;
 grant execute on function "api"."list_ai_batch_items"(uuid, text, integer) to authenticated, service_role;
-
-create or replace function "api"."register_ai_sandbox"(tenant uuid, provider text, sandbox_id text, fields jsonb default '{}')
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."register_ai_sandbox"($1, $2, $3, $4) $$;
-revoke execute on function "api"."register_ai_sandbox"(uuid, text, text, jsonb) from public, anon, authenticated;
-grant execute on function "api"."register_ai_sandbox"(uuid, text, text, jsonb) to service_role;
-
-create or replace function "api"."touch_ai_sandbox"(id uuid)
-returns boolean
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."touch_ai_sandbox"($1) $$;
-revoke execute on function "api"."touch_ai_sandbox"(uuid) from public, anon, authenticated;
-grant execute on function "api"."touch_ai_sandbox"(uuid) to service_role;
-
-create or replace function "api"."ai_sandbox_for"(chat_id uuid, provider text)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."ai_sandbox_for"($1, $2) $$;
-revoke execute on function "api"."ai_sandbox_for"(uuid, text) from public, anon, authenticated;
-grant execute on function "api"."ai_sandbox_for"(uuid, text) to service_role;
-
-create or replace function "api"."idle_ai_sandboxes"(batch integer default 50, lease_seconds integer default 300)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."idle_ai_sandboxes"($1, $2) $$;
-revoke execute on function "api"."idle_ai_sandboxes"(integer, integer) from public, anon, authenticated;
-grant execute on function "api"."idle_ai_sandboxes"(integer, integer) to service_role;
-
-create or replace function "api"."finish_ai_sandbox_stop"(id uuid, stopped boolean, error text default null)
-returns boolean
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."finish_ai_sandbox_stop"($1, $2, $3) $$;
-revoke execute on function "api"."finish_ai_sandbox_stop"(uuid, boolean, text) from public, anon, authenticated;
-grant execute on function "api"."finish_ai_sandbox_stop"(uuid, boolean, text) to service_role;
-
-create or replace function "api"."list_ai_sandboxes"(tenant uuid, chat_id uuid default null)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."list_ai_sandboxes"($1, $2) $$;
-revoke execute on function "api"."list_ai_sandboxes"(uuid, uuid) from public, anon;
-grant execute on function "api"."list_ai_sandboxes"(uuid, uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

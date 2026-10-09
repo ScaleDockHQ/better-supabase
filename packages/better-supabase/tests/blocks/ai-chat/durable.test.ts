@@ -1,19 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type {
-  AiHarnessSession,
-  BlockTransport,
-} from "../../../src/blocks/ai-chat/index.ts";
-import type { Job } from "../../../src/blocks/jobs/queue.ts";
+import type { BlockTransport } from "../../../src/blocks/ai-chat/index.ts";
 
 import {
-  createAiRuns,
+  createAiChat,
   createHarnessSessions,
-  idleSandboxStop,
 } from "../../../src/blocks/ai-chat/index.ts";
-import { dbError } from "../../../src/core/errors.ts";
-import { AsyncResult } from "../../../src/core/result.ts";
-import { err, ok } from "../../../src/core/result.ts";
 
 const AT = "2026-01-01T00:00:00Z";
 
@@ -92,7 +84,6 @@ const ANSWERS: Record<string, unknown> = {
   save_ai_harness_session: sessionRow,
   lock_ai_harness_session: true,
   unlock_ai_harness_session: false,
-  idle_ai_harness_sessions: [sessionRow],
 };
 
 function fake(answers: Record<string, unknown> = ANSWERS) {
@@ -109,7 +100,7 @@ function fake(answers: Record<string, unknown> = ANSWERS) {
   return {
     user,
     server,
-    runs: createAiRuns({ transport, service }),
+    runs: createAiChat({ transport, service }).runs,
     sessions: createHarnessSessions({ transport, service }),
   };
 }
@@ -117,7 +108,7 @@ function fake(answers: Record<string, unknown> = ANSWERS) {
 const lastArgs = (mock: ReturnType<typeof vi.fn>): unknown =>
   mock.mock.calls.at(-1)?.[2];
 
-describe("createAiRuns", () => {
+describe("ai-chat runs", () => {
   it("reads a run with its durable engine id", async () => {
     const { runs, user } = fake();
     const run = await runs.get("r1").orThrow();
@@ -266,153 +257,5 @@ describe("createHarnessSessions", () => {
     expect(await sessions.unlock("c1", "claude-code", "turn-1").orThrow()).toBe(
       false,
     );
-  });
-
-  it("lists idle sessions", async () => {
-    const { sessions, server } = fake();
-    const idle = await sessions.idle({ idleSeconds: 60, size: 5 }).orThrow();
-    expect(idle).toHaveLength(1);
-    expect(lastArgs(server)).toEqual({ idle_seconds: 60, size: 5 });
-  });
-});
-
-describe("idleSandboxStop", () => {
-  const session = (sandboxId: string | undefined): AiHarnessSession => ({
-    chatId: "c1",
-    harnessId: sandboxId ?? "h",
-    ownerId: "u1",
-    resumeState: undefined,
-    continueState: undefined,
-    sandboxId,
-    status: "idle",
-    lockHolder: undefined,
-    lockedUntil: undefined,
-    lastActiveAt: Temporal.Instant.from(AT),
-    createdAt: Temporal.Instant.from(AT),
-    updatedAt: Temporal.Instant.from(AT),
-  });
-  const job = {} as Job;
-
-  const sessionsOf = (
-    listed: readonly AiHarnessSession[],
-    current: (s: AiHarnessSession) => AiHarnessSession | undefined = (s) => s,
-  ) => {
-    const byHarness = new Map(listed.map((s) => [s.harnessId, s]));
-    return {
-      idle: vi.fn(() => AsyncResult.from(async () => ok(listed))),
-      load: vi.fn((_chat: string, harness: string) =>
-        AsyncResult.from(async () => {
-          const found = byHarness.get(harness);
-          return ok(found === undefined ? undefined : current(found));
-        }),
-      ),
-      save: vi.fn((_chat: string, harness: string) =>
-        AsyncResult.from(async () =>
-          harness === "sbx_bad"
-            ? err(dbError("raised", "locked", { hint: "AI_HARNESS_LOCKED" }))
-            : ok(session("x")),
-        ),
-      ),
-      lock: vi.fn(
-        (
-          _chat: string,
-          harness: string,
-          _holder: string,
-          _options?: { readonly ttlSeconds?: number },
-        ) => AsyncResult.from(async () => ok(harness !== "sbx_busy")),
-      ),
-      unlock: vi.fn(() => AsyncResult.from(async () => ok(true))),
-    };
-  };
-
-  it("locks each idle sandbox, stops it and marks failures", async () => {
-    const sessions = sessionsOf([session("sbx_1"), session(undefined)]);
-    const stop = vi.fn(async (s: AiHarnessSession) => {
-      if (s.sandboxId === undefined) throw new Error("gone");
-    });
-    const handler = idleSandboxStop({
-      sessions,
-      stop,
-      idleSeconds: 60,
-      size: 10,
-      lockSeconds: 30,
-    });
-    const result = await handler(undefined, job, new AbortController().signal);
-    expect(result).toEqual({
-      stopped: 1,
-      failed: 1,
-      skipped: 0,
-      errors: ["h: gone"],
-    });
-    expect(sessions.idle).toHaveBeenCalledWith({ idleSeconds: 60, size: 10 });
-    const holder = sessions.lock.mock.calls[0]?.[2];
-    expect(holder).toMatch(/^idle-sandbox-stop:/);
-    expect(sessions.lock).toHaveBeenCalledWith("c1", "sbx_1", holder, {
-      ttlSeconds: 30,
-    });
-    expect(sessions.save).toHaveBeenCalledWith(
-      "c1",
-      "sbx_1",
-      { status: "stopped", sandboxId: null },
-      { holder },
-    );
-    expect(sessions.save).toHaveBeenCalledWith(
-      "c1",
-      "h",
-      { status: "error" },
-      { holder },
-    );
-    expect(sessions.unlock).toHaveBeenCalledTimes(2);
-  });
-
-  it("skips sessions a turn holds or used, and reports failed saves", async () => {
-    const used = session("sbx_used");
-    const sessions = sessionsOf(
-      [session("sbx_busy"), used, session("sbx_bad")],
-      (s) =>
-        s === used
-          ? {
-              ...s,
-              lastActiveAt: Temporal.Instant.from("2026-01-02T00:00:00Z"),
-            }
-          : s,
-    );
-    const stop = vi.fn(async () => {});
-    const result = await idleSandboxStop({ sessions, stop })(
-      undefined,
-      job,
-      new AbortController().signal,
-    );
-    expect(result).toEqual({
-      stopped: 0,
-      failed: 1,
-      skipped: 2,
-      errors: ["sbx_bad: locked"],
-    });
-    expect(stop).toHaveBeenCalledTimes(1);
-    expect(sessions.lock.mock.calls[0]?.[3]).toEqual({ ttlSeconds: 120 });
-    expect(sessions.save).toHaveBeenCalledWith(
-      "c1",
-      "sbx_used",
-      { status: "active" },
-      expect.anything(),
-    );
-    expect(sessions.unlock).toHaveBeenCalledTimes(2);
-  });
-
-  it("throws when the idle sessions can't be read", async () => {
-    const idle = vi.fn(() =>
-      AsyncResult.from<readonly AiHarnessSession[]>(async () =>
-        err(dbError("unexpected", "down")),
-      ),
-    );
-    const handler = idleSandboxStop({
-      sessions: { ...sessionsOf([]), idle },
-      stop: vi.fn(),
-    });
-    await expect(
-      handler(undefined, job, new AbortController().signal),
-    ).rejects.toThrow("down");
-    expect(idle).toHaveBeenCalledWith({});
   });
 });

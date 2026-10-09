@@ -2,6 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../registry.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
+import { FINAL_RUN_STATES as FINAL } from "../../core/run-state.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   canIn,
@@ -12,6 +13,18 @@ import {
   pageSize,
 } from "../shared.ts";
 import { aiChatExtras } from "./ai-chat-extras.ts";
+
+const FINAL_RUN_STATES = FINAL.map(sqlString).join(", ");
+
+/** Every status an `ai_runs` row can have, as a SQL list. */
+export const AI_RUN_STATES: string = [
+  "queued",
+  "running",
+  "cancel_requested",
+  ...FINAL,
+]
+  .map(sqlString)
+  .join(", ");
 
 /** `jsonb_build_object` of a chat row, with stable keys whatever the column names. */
 function chatJson(names: AiChatNames, row: string): string {
@@ -721,7 +734,7 @@ begin
       ) then
       return jsonb_build_object('claimed', false, 'stream_id', v_chat.${ch.activeStream}, 'run_id', v_chat.${ch.activeRun});
     end if;
-    update ${t.runs} x set ${r.status} = 'stopped', ${r.endedAt} = now()
+    update ${t.runs} x set ${r.status} = 'cancelled', ${r.endedAt} = now()
     where x.${r.id} = v_chat.${ch.activeRun} and x.${r.endedAt} is null;
   end if;
   insert into ${t.runs} (${r.chat}, ${r.owner}, ${r.message}, ${r.stream}, ${r.engine}, ${r.externalRun}, ${r.model})
@@ -737,7 +750,7 @@ ${serviceGrant(`${fn("claim_ai_chat_stream")}(uuid, text, text, text, text, text
 
 -- Ends the claim when the stream finished (the service role only) and
 -- records the run's status, usage, gateway generation id and cost.
-create or replace function ${fn("release_ai_chat_stream")}(chat uuid, stream text, status text default 'done', usage jsonb default null, generation_id text default null, error text default null, cost_micro_usd bigint default null)
+create or replace function ${fn("release_ai_chat_stream")}(chat uuid, stream text, status text default 'completed', usage jsonb default null, generation_id text default null, error text default null, cost_micro_usd bigint default null)
 returns boolean
 language plpgsql
 security definer
@@ -745,14 +758,14 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_status text := coalesce(release_ai_chat_stream.status, 'done');
+  v_status text := coalesce(release_ai_chat_stream.status, 'completed');
   v_found boolean := false;
 begin
   if not ${SERVICE_CALLER} then
     ${serviceOnly}
   end if;
-  if v_status not in ('done', 'error', 'stopped') then
-    ${raise("A run ends done, error or stopped, not %", "22023", "AI_RUN_INVALID", "v_status")}
+  if v_status not in (${FINAL_RUN_STATES}) then
+    ${raise("A run ends completed, failed or cancelled, not %", "22023", "AI_RUN_INVALID", "v_status")}
   end if;
   update ${t.runs} x set
     ${r.status} = v_status,

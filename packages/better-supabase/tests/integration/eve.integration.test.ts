@@ -112,7 +112,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
           "select status from better_supabase.ai_runs where chat_id = $1",
           [chatId],
         ),
-      ).toEqual([{ status: "done" }]);
+      ).toEqual([{ status: "completed" }]);
     } finally {
       await s.close();
     }

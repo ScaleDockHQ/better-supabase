@@ -1,12 +1,13 @@
 ---
 title: AI providers
-description: Each tenant's own provider keys as credential references, a registry of provider batch jobs with a poll schedule, and a sandbox registry with an idle-stop job.
+description: Each tenant's own provider keys as credential references, and a registry of provider batch jobs with a poll schedule.
 ---
 
 The `ai-providers` block holds what an app tracks about the model providers
 it calls on a tenant's behalf: the tenant's own API keys (bring your own
-key), batch jobs that run at the provider for hours, and code sandboxes that
-cost money while they run. It stores no secret and imports no SDK; the
+key) and batch jobs that run at the provider for hours. Code sandboxes live
+in the [ai-chat](/docs/blocks/ai-chat#sandboxes) block. It stores
+no secret and imports no SDK; the
 [AI SDK helpers](/docs/ai-sdk/providers) and [batches](/docs/ai-sdk/batches)
 connect it to the AI SDK.
 
@@ -14,25 +15,23 @@ connect it to the AI SDK.
 better-supabase sql add ai-providers   # adds tenant and access as well
 ```
 
-| Table              | Holds                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------- |
-| `ai_provider_keys` | One key per tenant, provider and name: a `credential_ref`, `settings` and `enabled`   |
-| `ai_batches`       | A provider batch: its reference, status, counts, expiry and when to poll it next      |
-| `ai_batch_items`   | One result per request of a finished batch: status, output, usage and error           |
-| `ai_sandboxes`     | A sandbox or container: provider, id, chat, status, idle seconds and when it was used |
+| Table              | Holds                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| `ai_provider_keys` | One key per tenant, provider and name: a `credential_ref`, `settings` and `enabled` |
+| `ai_batches`       | A provider batch: its reference, status, counts, expiry and when to poll it next    |
+| `ai_batch_items`   | One result per request of a finished batch: status, output, usage and error         |
 
 Organization exports leave out `credential_ref`, and the organization
 purge in [data lifecycle](/docs/blocks/data-lifecycle#credentials) revokes each key's credential before it deletes the row.
 
-| Permission       | Lets a member                                                    | Default roles              |
-| ---------------- | ---------------------------------------------------------------- | -------------------------- |
-| `ai_chat.create` | start batches, and read their own batches and sandboxes          | `owner`, `admin`, `member` |
-| `ai_chat.admin`  | list, save and remove the keys, and read every batch and sandbox | `owner`, `admin`           |
+| Permission  | Lets a member                                        | Default roles              |
+| ----------- | ---------------------------------------------------- | -------------------------- |
+| `ai.create` | start batches, and read their own batches            | `owner`, `admin`, `member` |
+| `ai.admin`  | list, save and remove the keys, and read every batch | `owner`, `admin`           |
 
 | Option      | Default | Sets                                                                 |
 | ----------- | ------- | -------------------------------------------------------------------- |
 | `pollEvery` | 60      | Seconds between two polls of a batch; the first poll waits this long |
-| `idleAfter` | 600     | Seconds without use before the idle-stop job stops a sandbox         |
 
 ## Creating the client
 
@@ -94,35 +93,3 @@ The poll job claims due batches with `due({ batch, leaseSeconds })`, so two
 workers never poll the same one, and writes the outcome with `update` and
 `saveItems`. `items(batchId, { cursor, limit })` pages the results by request
 id. [`aiBatches`](/docs/ai-sdk/batches) does all of this for AI SDK batches.
-
-## Sandboxes
-
-Register each sandbox the app starts, and mark it used while it runs:
-
-```ts
-const row = await providers.sandboxes
-  .register(organizationId, {
-    provider: "vercel",
-    sandboxId: sandbox.id,
-    chatId,
-  })
-  .orThrow();
-await providers.sandboxes.touch(row.id);
-```
-
-`forChat(chatId, provider)` returns the chat's running sandbox so the next
-message reuses it. A sandbox started by another user is not reused:
-`register` fails with the hint `AI_SANDBOX_FORBIDDEN`. Schedule the idle-stop
-job every few minutes; it claims sandboxes that nobody used for their
-`idleSeconds`, or that passed `expiresAt`, and calls your stopper:
-
-```ts
-handlers: {
-  ai_sandbox_idle: providers.sandboxes.idleStopJob((sandbox) =>
-    Sandbox.get({ sandboxId: sandbox.sandboxId }).then((s) => s.stop()),
-  ),
-}
-```
-
-A stopper that throws leaves the sandbox running with the error on the row,
-and the next run tries again.

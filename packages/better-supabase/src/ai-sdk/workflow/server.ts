@@ -14,7 +14,7 @@ import type {
   AiChatRecord,
   AiToolApproval,
 } from "../../blocks/ai-chat/ai-chat.ts";
-import type { AiRun, AiRuns } from "../../blocks/ai-chat/durable.ts";
+import type { AiRun } from "../../blocks/ai-chat/durable.ts";
 import type { StreamStore } from "../../streams/store.ts";
 import type { Assistant, AssistantContext } from "../chat/assistant.ts";
 import type { DurableResume, DurableTurnInput } from "./turn.ts";
@@ -26,11 +26,8 @@ import { resumeFromStore, teeToStore } from "../../streams/tee.ts";
 import { WORKFLOW_ATTRIBUTES } from "../../workflow-sdk/attributes.ts";
 import { durableStopToken, durableTurnToken } from "./turn.ts";
 
-/** Who asks, for one request, with the chat block's durable runs. */
-export interface DurableChatContext extends AssistantContext {
-  /** `createAiRuns` on the same transports as `chats`. */
-  readonly runs: AiRuns;
-}
+/** Who asks, for one request. */
+export type DurableChatContext = AssistantContext;
 
 export interface DurableChatOptions {
   /** The assistant whose `prepare` checks and stores the user's turn. */
@@ -322,7 +319,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       workflowRunId = run.runId;
     } catch (cause) {
       await context.chats.runs.release(chat.id, streamId, {
-        status: "error",
+        status: "failed",
         error: String(cause),
       });
       return problemResponse(
@@ -331,14 +328,14 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         }),
       );
     }
-    const attached = await context.runs.attach(runId, workflowRunId);
+    const attached = await context.chats.runs.attach(runId, workflowRunId);
     if (!attached.ok) {
       // Without the link, stop and resume can't find the run: end it.
       await getRun(workflowRunId)
         .cancel()
         .catch(() => undefined);
       await context.chats.runs.release(chat.id, streamId, {
-        status: "error",
+        status: "failed",
         error: attached.error.message,
       });
       return problemResponse(attached.error);
@@ -353,7 +350,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
   ): Promise<AiRun | Response> {
     const runId = decided.find((row) => row.runId !== undefined)?.runId;
     if (runId === undefined) return notDurable();
-    const run = await context.runs.get(runId);
+    const run = await context.chats.runs.get(runId);
     if (!run.ok) return problemResponse(run.error);
     return run.data.engine === WORKFLOW_ENGINE &&
       run.data.externalRunId !== undefined
@@ -417,7 +414,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       await resumeHook(durableTurnToken(workflowRunId), resume);
     } catch (cause) {
       await context.chats.runs.release(chatId, streamId, {
-        status: "error",
+        status: "failed",
         error: String(cause),
       });
       return problemResponse(
@@ -471,11 +468,11 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     chat: AiChatRecord,
   ): Promise<AiRun | undefined | Response> {
     if (chat.activeRunId !== undefined) {
-      const run = await context.runs.get(chat.activeRunId);
+      const run = await context.chats.runs.get(chat.activeRunId);
       if (!run.ok) return problemResponse(run.error);
       return run.data;
     }
-    const runs = await context.runs.list({ chatId: chat.id, limit: 1 });
+    const runs = await context.chats.runs.list({ chatId: chat.id, limit: 1 });
     if (!runs.ok) return problemResponse(runs.error);
     return runs.data[0];
   }
@@ -536,7 +533,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     const stopped = await context.chats.runs.stop(chatId);
     if (!stopped.ok) return problemResponse(stopped.error);
     if (stopped.data === undefined) return new Response(null, { status: 204 });
-    const run = await context.runs.get(stopped.data.runId);
+    const run = await context.chats.runs.get(stopped.data.runId);
     if (!run.ok) return problemResponse(run.error);
     const workflowRunId = run.data.externalRunId;
     if (workflowRunId === undefined) return new Response(null, { status: 204 });
@@ -550,7 +547,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         cancelled = false;
       }
       await context.chats.runs.release(chatId, stopped.data.streamId, {
-        status: "stopped",
+        status: "cancelled",
       });
       if (!cancelled)
         return problemResponse(

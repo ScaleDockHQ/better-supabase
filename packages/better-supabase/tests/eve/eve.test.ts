@@ -734,7 +734,7 @@ describe("persistSessions", () => {
     });
     expect(calls.at(-1)).toEqual({
       fn: "release",
-      args: [chatId, "eve:sess_1:t1", { status: "done" }],
+      args: [chatId, "eve:sess_1:t1", { status: "completed" }],
     });
   });
 
@@ -753,8 +753,8 @@ describe("persistSessions", () => {
     );
     await hooks["turn.cancelled"](event({ turnId: "t3", sequence: 0 }), ctx);
     expect(calls.map((call) => call.args[2])).toEqual([
-      { status: "error", error: "MODEL_ERROR: boom" },
-      { status: "stopped" },
+      { status: "failed", error: "MODEL_ERROR: boom" },
+      { status: "cancelled" },
     ]);
   });
 
