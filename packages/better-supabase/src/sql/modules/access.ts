@@ -18,7 +18,6 @@ import {
 } from "../shared.ts";
 import {
   accessModel,
-  AI_KEY_ALIASES,
   hasPlatformRoles,
   roleScopeIs,
   rolesOf,
@@ -862,9 +861,7 @@ function accessSql(ctx: ModuleContext, layout: ModuleLayout): string {
 grant usage on schema better_supabase to supabase_auth_admin;
 ${defer ? "set check_function_bodies = off;" : ""}${disabledHelpers(ctx)}${defer ? "\nreset check_function_bodies;" : ""}
 
--- \`*\` grants every key and \`prefix.*\` every key under prefix. Deprecated
--- since 0.7: an ai_chat.<verb> grant still answers the ai.<verb> key the
--- other AI blocks check (removed in 0.8).
+-- \`*\` grants every key and \`prefix.*\` every key under prefix.
 create or replace function better_supabase.permission_matches(granted text, wanted text)
 returns boolean
 language sql
@@ -873,8 +870,6 @@ set search_path = ''
 as $$
   select granted = '*' or granted = wanted
     or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
-    or (wanted in (${Object.keys(AI_KEY_ALIASES).map(sqlString).join(", ")})
-      and (granted = 'ai_chat.*' or granted = 'ai_chat.' || substr(wanted, 4)))
 $$;
 ${body}
 

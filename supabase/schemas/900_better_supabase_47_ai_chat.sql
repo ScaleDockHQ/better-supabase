@@ -997,9 +997,7 @@ revoke execute on function "better_supabase"."claim_ai_chat_stream"(uuid, text, 
 grant execute on function "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text, text) to service_role;
 
 -- Ends the claim when the stream finished (the service role only) and
--- records the run's status, usage, gateway generation id and cost. The
--- pre-0.7 statuses done, error and stopped are deprecated and still map to
--- completed, failed and cancelled.
+-- records the run's status, usage, gateway generation id and cost.
 create or replace function "better_supabase"."release_ai_chat_stream"(chat uuid, stream text, status text default 'completed', usage jsonb default null, generation_id text default null, error text default null, cost_micro_usd bigint default null)
 returns boolean
 language plpgsql
@@ -1008,9 +1006,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_status text := case coalesce(release_ai_chat_stream.status, 'completed')
-    when 'done' then 'completed' when 'error' then 'failed' when 'stopped' then 'cancelled'
-    else coalesce(release_ai_chat_stream.status, 'completed') end;
+  v_status text := coalesce(release_ai_chat_stream.status, 'completed');
   v_found boolean := false;
 begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
@@ -2099,7 +2095,7 @@ begin
     "resume_state" = case when save_ai_harness_session.fields ? 'resume_state' then save_ai_harness_session.fields -> 'resume_state' else x."resume_state" end,
     "continue_state" = case when save_ai_harness_session.fields ? 'continue_state' then save_ai_harness_session.fields -> 'continue_state' else x."continue_state" end,
     -- A save without a status is a turn using the sandbox: an idle session
-    -- turns active again, so a later idle_ai_harness_sessions finds it.
+    -- turns active again.
     "status" = coalesce(v_status, case when x."status" = 'idle' then 'active' else x."status" end),
     "last_active_at" = now(),
     "updated_at" = now()
@@ -2205,49 +2201,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."unlock_ai_harness_session"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, text, text) to service_role;
-
--- Marks active sessions whose sandbox sat unused for idle_seconds as idle
--- and returns them, so a job stops their sandboxes (the service role only).
--- Deprecated since 0.7 and removed in 0.8: idle_ai_sandboxes claims harness
--- sandboxes too.
--- Locked sessions are skipped.
-create or replace function "better_supabase"."idle_ai_harness_sessions"(idle_seconds integer default 900, size integer default 100)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_variable
-declare
-  v_result jsonb;
-begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-    raise exception 'Only the server records this' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
-  end if;
-  with picked as (
-    select x."chat_id", x."harness_id" from "better_supabase"."ai_harness_sessions" x
-    where x."status" = 'active'
-      and exists (
-        select 1 from "better_supabase"."ai_sandboxes" y
-        where y."chat_id" = x."chat_id" and y."harness_id" = x."harness_id" and y."status" = 'running'
-      )
-      and x."last_active_at" < now() - make_interval(secs => greatest(coalesce(idle_ai_harness_sessions.idle_seconds, 900), 1))
-      and (x."locked_until" is null or x."locked_until" <= now())
-    order by x."last_active_at"
-    limit least(greatest(coalesce(idle_ai_harness_sessions.size, 100), 1), 1000)
-    for update skip locked
-  ), marked as (
-    update "better_supabase"."ai_harness_sessions" x set "status" = 'idle', "updated_at" = now()
-    from picked
-    where x."chat_id" = picked."chat_id" and x."harness_id" = picked."harness_id"
-    returning x.*
-  )
-  select coalesce(jsonb_agg(jsonb_build_object('chat_id', marked."chat_id", 'harness_id', marked."harness_id", 'owner_id', marked."owner_id", 'resume_state', marked."resume_state", 'continue_state', marked."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = marked."chat_id" and y."harness_id" = marked."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', marked."status", 'lock_holder', marked."lock_holder", 'locked_until', marked."locked_until", 'last_active_at', marked."last_active_at", 'created_at', marked."created_at", 'updated_at', marked."updated_at")), '[]'::jsonb) into v_result from marked;
-  return v_result;
-end;
-$$;
-revoke execute on function "better_supabase"."idle_ai_harness_sessions"(integer, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."idle_ai_harness_sessions"(integer, integer) to service_role;
 
 -- A chat's readers join ai-chat:{chatId}; each user joins
 -- ai-chats:{userId} for their sidebar. Payloads carry ids only.
@@ -2736,15 +2689,6 @@ set search_path = ''
 as $$ select "better_supabase"."unlock_ai_harness_session"($1, $2, $3) $$;
 revoke execute on function "api"."unlock_ai_harness_session"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."unlock_ai_harness_session"(uuid, text, text) to service_role;
-
-create or replace function "api"."idle_ai_harness_sessions"(idle_seconds integer default 900, size integer default 100)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."idle_ai_harness_sessions"($1, $2) $$;
-revoke execute on function "api"."idle_ai_harness_sessions"(integer, integer) from public, anon, authenticated;
-grant execute on function "api"."idle_ai_harness_sessions"(integer, integer) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
