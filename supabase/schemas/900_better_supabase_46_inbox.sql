@@ -709,7 +709,7 @@ begin
   if v_kind = 'message' and inbox_add_message.direction = 'inbound' then
     
     if v_conv."bot_mode" = 'bot' then
-      perform "better_supabase"."enqueue_job"('inbox_bot', jsonb_build_object('conversation_id', v_conv."id", 'message_id', v_msg."id", 'thread_id', v_conv."thread_id", 'inbox_id', v_conv."inbox_id"), 0, 5, 'inbox:' || v_conv."id"::text, false);
+      perform "better_supabase"."enqueue_job"(queue => 'inbox_bot', payload => jsonb_build_object('conversation_id', v_conv."id", 'message_id', v_msg."id", 'thread_id', v_conv."thread_id", 'inbox_id', v_conv."inbox_id"), dedupe_key => 'inbox:' || v_conv."id"::text, dedupe_running => false);
     end if;
   v_claims := current_setting('request.jwt.claims', true);
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
@@ -731,7 +731,7 @@ begin
     values (v_msg."tenant_id", v_msg."id", v_inbox."channel")
     on conflict do nothing;
     if not coalesce((input ->> 'delivered_by_caller')::boolean, false) then
-      perform "better_supabase"."enqueue_job"('inbox_outbound', jsonb_build_object('message_id', v_msg."id", 'conversation_id', v_conv."id", 'inbox_id', v_conv."inbox_id"), 0, 5, 'inbox-out:' || v_msg."id"::text, false);
+      perform "better_supabase"."enqueue_job"(queue => 'inbox_outbound', payload => jsonb_build_object('message_id', v_msg."id", 'conversation_id', v_conv."id", 'inbox_id', v_conv."inbox_id"), dedupe_key => 'inbox-out:' || v_msg."id"::text, dedupe_running => false);
     end if;
   end if;
   if cardinality(v_mentions) > 0 then
