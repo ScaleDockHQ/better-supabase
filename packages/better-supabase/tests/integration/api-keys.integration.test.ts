@@ -133,6 +133,20 @@ describe.skipIf(!live)("api-keys", () => {
       expect(await keys.verify(rotated.token).orThrow()).toMatchObject({
         status: "ok",
       });
+      await s.client.query(
+        "update auth.users set banned_until = now() + interval '1 day' where id = $1",
+        [member.id],
+      );
+      expect(await keys.verify(rotated.token).orThrow()).toEqual({
+        status: "invalid",
+      });
+      await s.client.query(
+        "update auth.users set banned_until = now() - interval '1 minute' where id = $1",
+        [member.id],
+      );
+      expect(await keys.verify(rotated.token).orThrow()).toMatchObject({
+        status: "ok",
+      });
       await s.as(owner);
       expect(await keys.revoke(personal.key.id).orThrow()).toBe(true);
       expect(

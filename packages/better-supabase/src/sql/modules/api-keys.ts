@@ -373,6 +373,10 @@ begin
     or (found.${c("expiresAt")} is not null and found.${c("expiresAt")} <= now())
     or (found.${c("revokedAt")} is not null and found.${c("revokedAt")} <= now())
     or (found.${c("user")} is not null and better_supabase.user_disabled(found.${c("user")}))
+    or (found.${c("user")} is not null and exists (
+      select 1 from auth.users u
+      where u.id = found.${c("user")} and (u.banned_until > now() or u.deleted_at is not null)
+    ))
     or (found.${c("tenant")} is not null and better_supabase.tenant_disabled(found.${c("tenant")}))
     or (found.${c("user")} is not null and found.${c("tenant")} is not null
       and better_supabase.organization_member_role(found.${c("tenant")}, found.${c("user")}) is null)
