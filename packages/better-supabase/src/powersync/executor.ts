@@ -140,7 +140,12 @@ function decodeValue(column: SqliteColumn, value: unknown): unknown {
     case "timestamptz":
       return typeof value === "string" ? postgrestTimestamp(value) : value;
     case "raw":
-      return typeof value === "bigint" ? Number(value) : value;
+      if (typeof value !== "bigint") return value;
+      // A Number above 2^53 would silently change the value.
+      return value >= Number.MIN_SAFE_INTEGER &&
+        value <= Number.MAX_SAFE_INTEGER
+        ? Number(value)
+        : value.toString();
     default: {
       const exhaustive: never = column.decode;
       return exhaustive;
@@ -330,8 +335,8 @@ async function executeOn(
   context: ExecuteContext,
   options: PowerSyncExecutorOptions,
 ): Promise<Result<ExecuteResult>> {
-  if (context.signal?.aborted)
-    return err(dbError("aborted", "The request was aborted"));
+  const aborted = (): boolean => context.signal?.aborted === true;
+  if (aborted()) return err(dbError("aborted", "The request was aborted"));
   let plan: SqlitePlan;
   try {
     const prepared =
@@ -341,6 +346,8 @@ async function executeOn(
     return err(toDbError(cause));
   }
   if (plan.kind === "never") return ok({ rows: [], count: 0 });
+  // Generating ids can wait on SQLite: an abort in between skips the write.
+  if (aborted()) return err(dbError("aborted", "The request was aborted"));
   let result: ExecuteResult;
   try {
     result = await run(db, plan);
@@ -370,8 +377,9 @@ function mapped(cause: unknown, mappers: readonly ErrorMapper[]): DbError {
  * can't express (includes, full-text search, function sources) returns a
  * `DbError` of kind `unsupported` without running anything.
  * `maxAffected` is checked against the selected keys before any write; a
- * call's `timeout` is checked before the statement starts, and `retry`
- * does nothing here.
+ * call's `timeout` and `signal` are checked before the statements start,
+ * and `retry` does nothing here. A `bigint` beyond `Number.MAX_SAFE_INTEGER`
+ * comes back as its decimal string instead of a rounded number.
  *
  * ```ts
  * const db = betterSupabase.connect(powersyncExecutor(powersync));

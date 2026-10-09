@@ -41,6 +41,12 @@ out of the cookie, and `auth.userStorage` sets where auth-js keeps it instead
 (localStorage by default). Use the same `encode` as the server; see
 [Encoding](/docs/auth/sessions#encoding).
 
+With `local`, the `cookies` options are ignored and no cookie is written, so
+a server (a loader, an API route or the proxy) never sees the session. Send
+the access token as an `Authorization: Bearer` header to call your own API;
+the server adapters read the bearer token before the cookie. Pick one mode
+per app: switching moves the session, so users sign in again once.
+
 For React Native and Expo, use
 [`better-supabase/client/native`](/docs/frontend/react-native) with your own
 supabase-js client. It has the same `bs.db`, `bs.queries` and `bs.auth`, never

@@ -1,4 +1,5 @@
 import type { AuthState } from "../auth/resolve.ts";
+import type { RefreshPolicy } from "./refresh.ts";
 
 import { actorOf, delegationOf } from "../auth/actor.ts";
 import { type Aal, checkAal } from "../auth/mfa.ts";
@@ -43,8 +44,9 @@ export interface MiddlewareOptions extends GuardOptions {
   /**
    * Refresh an expired cookie session and send the new cookies. Only for
    * routes browsers call with cookies; bearer tokens never refresh.
+   * `'navigation'` refreshes page loads and form posts only (`shouldRefresh`).
    */
-  readonly refresh?: boolean;
+  readonly refresh?: RefreshPolicy;
 }
 
 /**

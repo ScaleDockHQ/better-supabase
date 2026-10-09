@@ -14,6 +14,7 @@
     "workflow-builder",
     "streams",
     "notifications",
+    "push",
     "inbox",
     "webhooks-out",
     "webhooks-in",

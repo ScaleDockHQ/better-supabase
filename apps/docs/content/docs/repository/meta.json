@@ -9,6 +9,7 @@
     "pagination",
     "writing",
     "unique-and-errors",
-    "powersync"
+    "powersync",
+    "expo-sqlite"
   ]
 }

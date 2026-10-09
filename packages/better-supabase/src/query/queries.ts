@@ -102,8 +102,19 @@ export interface InfiniteOptionsOf<P, Param> {
   }) => Promise<P>;
   readonly initialPageParam: Param;
   readonly getNextPageParam: (last: P) => Param | undefined;
+  /** Set on numbered pages, so a window trimmed by `maxPages` can load backwards. */
+  readonly getPreviousPageParam?: (first: P) => Param | undefined;
+  readonly maxPages?: number;
   readonly meta: BetterQueryMeta;
   readonly staleTime?: number;
+}
+
+export interface InfiniteExtras {
+  /**
+   * Pages kept in the cache; older ones are dropped as new ones load. Keeps
+   * long feeds from holding every page in memory and refetching them all.
+   */
+  readonly maxPages?: number;
 }
 
 /** Options for `useMutation`. Invalidates every query that read a changed table. */
@@ -163,10 +174,12 @@ export interface TableQueries<M extends AnyModels, T extends TableKey<M>, E> {
     const A extends Omit<CursorPageArgs<M, T>, "after"> & FindExt<E, M, T>,
   >(
     args: A,
+    options?: InfiniteExtras,
   ): InfiniteOptionsOf<CursorPage<Payload<M, T, A>>, string | null>;
   /** Numbered pages for `useInfiniteQuery`, starting at `args.page` (default 1). */
   infinitePages<const A extends OffsetPageArgs<M, T> & FindExt<E, M, T>>(
     args: A,
+    options?: InfiniteExtras,
   ): InfiniteOptionsOf<OffsetPage<Payload<M, T, A>>, number>;
   create<const A extends WriteArgs<M, T> = {}>(
     args?: A,
@@ -225,6 +238,13 @@ export interface QueriesOptions {
    * the server so hydrated data isn't refetched on mount.
    */
   readonly staleTime?: number;
+  /**
+   * Appended to every query key. Give each executor its own scope (`'local'`
+   * for PowerSync, for instance) when several share one QueryClient, so their
+   * results never land in the same cache entry. Invalidation by table still
+   * reaches every scope.
+   */
+  readonly scope?: string;
 }
 
 type AnyRepository = Record<
@@ -260,6 +280,11 @@ interface Runtime {
   readonly betterSupabase: BetterSupabase;
   readonly db: () => AnyDb;
   readonly staleTime: number | undefined;
+  readonly scope: string | undefined;
+}
+
+function scoped(runtime: Runtime, key: readonly unknown[]): readonly unknown[] {
+  return runtime.scope === undefined ? key : [...key, { scope: runtime.scope }];
 }
 
 function specQuery(
@@ -271,19 +296,26 @@ function specQuery(
     runtime.staleTime === undefined ? {} : { staleTime: runtime.staleTime };
   if (isSkip(spec)) {
     return {
-      queryKey: key ?? ["bs", "$skip"],
+      queryKey: scoped(runtime, key ?? ["bs", "$skip"]),
       queryFn: spec,
       meta: { bsTables: [] },
       ...stale,
     };
   }
   return {
-    queryKey: key ?? ["bs", spec.table, spec.method, ...spec.args.map(keyPart)],
+    queryKey: scoped(
+      runtime,
+      key ?? ["bs", spec.table, spec.method, ...spec.args.map(keyPart)],
+    ),
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       runtime.db().$run(spec, { signal }).orThrow(asException),
     meta: { bsTables: runtime.betterSupabase.tablesOf(spec) },
     ...stale,
   };
+}
+
+function maxPagesOf(extras: InfiniteExtras): { maxPages?: number } {
+  return extras.maxPages === undefined ? {} : { maxPages: extras.maxPages };
 }
 
 type SpecTables = Record<
@@ -323,19 +355,45 @@ function tableQueries(
       );
     return fn(...args);
   };
+  const [primaryKey, ...composite] =
+    runtime.betterSupabase.meta.tables[table]?.primaryKey ?? [];
+  /**
+   * The `findById(id)` entry for a full row a write returned, so a detail
+   * view opened next renders without a request. Only writes without read
+   * args return the shape `findById(id)` caches.
+   */
+  const seed = (
+    client: QueryClient,
+    row: unknown,
+    args: object | undefined,
+  ) => {
+    if (primaryKey === undefined || composite.length > 0) return;
+    if (args && Object.keys(args).some((name) => name !== "override")) return;
+    if (!isPlainObject(row)) return;
+    const id = row[primaryKey];
+    if (id === undefined || id === null) return;
+    client.setQueryData(
+      specQuery(runtime, specs["findById"]!(id, undefined)).queryKey,
+      row,
+    );
+  };
   const mutation = (
     op: string,
     run: (variables: never) => AsyncResult<unknown>,
     tables: readonly string[],
+    seedArgs?: { readonly args: object | undefined },
   ) => ({
     mutationKey: [...key, op],
     mutationFn: (variables: never) => run(variables).orThrow(asException),
     onSuccess: (
-      _data: unknown,
+      data: unknown,
       _variables: unknown,
       _result: unknown,
       context: { client: QueryClient },
-    ) => invalidateTables(context.client, tables),
+    ) => {
+      if (seedArgs) seed(context.client, data, seedArgs.args);
+      return invalidateTables(context.client, tables);
+    },
   });
 
   return {
@@ -352,11 +410,11 @@ function tableQueries(
       isSkip(id)
         ? specQuery(runtime, id, [...key, "findById", "$skip"])
         : specQuery(runtime, specs["findById"]!(id, withoutSignal(args))),
-    infinite: (args: object) => {
+    infinite: (args: object, extras: InfiniteExtras = {}) => {
       // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as object;
       return {
-        queryKey: [...key, "infinite", keyPart(base)],
+        queryKey: scoped(runtime, [...key, "infinite", keyPart(base)]),
         queryFn: ({
           signal,
           pageParam,
@@ -371,6 +429,7 @@ function tableQueries(
         initialPageParam: null,
         getNextPageParam: (last: { nextCursor: string | null }) =>
           last.nextCursor ?? undefined,
+        ...maxPagesOf(extras),
         meta: {
           bsTables: runtime.betterSupabase.tablesOf(
             specs["paginate"]!({ ...base, after: null }),
@@ -379,11 +438,11 @@ function tableQueries(
         ...stale,
       };
     },
-    infinitePages: (args: { page?: number }) => {
+    infinitePages: (args: { page?: number }, extras: InfiniteExtras = {}) => {
       // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as { page?: number };
       return {
-        queryKey: [...key, "infinitePages", keyPart(base)],
+        queryKey: scoped(runtime, [...key, "infinitePages", keyPart(base)]),
         queryFn: ({
           signal,
           pageParam,
@@ -398,6 +457,9 @@ function tableQueries(
         initialPageParam: base.page ?? 1,
         getNextPageParam: (last: OffsetPage<unknown>) =>
           last.page.hasMore ? last.page.number + 1 : undefined,
+        getPreviousPageParam: (first: OffsetPage<unknown>) =>
+          first.page.number > 1 ? first.page.number - 1 : undefined,
+        ...maxPagesOf(extras),
         meta: {
           bsTables: runtime.betterSupabase.tablesOf(specs["paginate"]!(base)),
         },
@@ -405,16 +467,21 @@ function tableQueries(
       };
     },
     create: (args?: object) =>
-      mutation("create", (data) => call("create", data, args), [table]),
+      mutation("create", (data) => call("create", data, args), [table], {
+        args,
+      }),
     update: (args?: object) =>
       mutation(
         "update",
         (variables: { id: unknown; patch: unknown }) =>
           call("update", variables.id, variables.patch, args),
         [table],
+        { args },
       ),
     upsert: (args?: object) =>
-      mutation("upsert", (data) => call("upsert", data, args), [table]),
+      mutation("upsert", (data) => call("upsert", data, args), [table], {
+        args,
+      }),
     delete: (args?: object) =>
       mutation(
         "delete",
@@ -452,6 +519,7 @@ export function createQueries<
     betterSupabase: betterSupabase as unknown as Runtime["betterSupabase"],
     db: typeof db === "function" ? db : () => db,
     staleTime: options.staleTime,
+    scope: options.scope,
   };
   const stale =
     options.staleTime === undefined ? {} : { staleTime: options.staleTime };
@@ -468,12 +536,12 @@ export function createQueries<
       args?: unknown,
       rpcOptions: { tables?: readonly string[] } = {},
     ) => ({
-      queryKey: [
+      queryKey: scoped(runtime, [
         "bs",
         "$rpc",
         name,
         isSkip(args) ? "$skip" : keyPart(args ?? {}),
-      ],
+      ]),
       queryFn: isSkip(args)
         ? args
         : ({ signal }: { signal: AbortSignal }) =>

@@ -1,0 +1,119 @@
+---
+title: Push notifications
+description: Push tokens per device with RLS, Expo device registration, and a sender for the Expo Push API that prunes dead tokens.
+---
+
+The `push` block stores the push tokens of each user's devices and sends to
+them. The app registers a device after sign-in and removes it on sign-out;
+the server sends through the Expo Push API and deletes the tokens Expo no
+longer reaches. With the [notifications](/docs/blocks/notifications) block,
+it is a delivery channel.
+
+```bash
+better-supabase sql add push
+```
+
+| Table          | Holds                                                                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `push_devices` | One row per token: `user_id`, `token`, `platform` (`ios`, `android`, `web`), `provider` (`expo` by default), `device_name`, `app_version`, `last_seen_at` |
+
+Each user reads and deletes their own devices; nobody else can. A token
+belongs to one user: when a device signs in as someone else, registering
+moves the token to them. Only the service role reads every user's tokens
+(`push_tokens_for`) and prunes them (`prune_push_tokens`). With the
+[outbox](/docs/blocks/outbox), the functions record `push.device_registered`
+and `push.device_unregistered`.
+
+## Register the device
+
+```tsx title="app/_layout.tsx"
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
+import { Platform } from "react-native";
+import {
+  createPushDevices,
+  registerDevice,
+  rpcTransport,
+  unregisterOnSignOut,
+} from "better-supabase/blocks/push";
+
+const devices = createPushDevices({ transport: rpcTransport(supabase) });
+let token: string | undefined;
+
+export async function onSignedIn() {
+  const device = await registerDevice({
+    notifications: Notifications,
+    devices,
+    platform: Platform.OS,
+    projectId: Constants.easConfig?.projectId,
+    appVersion: Constants.expoConfig?.version,
+  }).orThrow();
+  token = device?.token;
+}
+
+export const signOut = unregisterOnSignOut({
+  signOut: () => supabase.auth.signOut(),
+  devices,
+  token: () => token,
+});
+```
+
+`registerDevice` asks for permission when it isn't granted yet (pass
+`request: false` to only check), reads the Expo push token and registers it
+for the signed-in user. It resolves with `null` when the user says no or the
+platform has no push. Call it after every sign-in: a known token only
+refreshes `last_seen_at`.
+
+`unregisterOnSignOut` returns a sign-out function that removes the token
+first, while the session can still call the database. A failed removal
+doesn't block the sign-out.
+
+## Send
+
+```ts title="server/push.ts"
+import { sqlTransport } from "better-supabase/blocks/push";
+import { createPushDevices, expoPush } from "better-supabase/blocks/push";
+
+const devices = createPushDevices({ transport: sqlTransport(postgres.admin) });
+const push = expoPush({ accessToken: env.EXPO_ACCESS_TOKEN, devices });
+
+const targets = await devices.tokensFor([userId]).orThrow();
+const tickets = await push.send(
+  targets.map((target) => target.token),
+  {
+    title: "New comment",
+    body: "Ada replied to your post",
+    data: { path: "/posts/1" },
+  },
+);
+```
+
+`expoPush` uses `fetch` only, so it runs on every runtime. `send` posts 100
+messages per request and returns one ticket per token, in order. A ticket
+with `DeviceNotRegistered` deletes its token right away. Expo reports most
+failures later, in receipts: about 15 minutes after sending, pass the
+tickets to `checkReceipts`, which prunes the devices Expo no longer reaches
+and returns what failed. `accessToken` is needed only when the Expo project
+turns on push security; it is a server-only key.
+
+## As a notifications channel
+
+```ts title="server/notifications.ts"
+import { createNotifications } from "better-supabase/blocks/notifications";
+import { expoPushChannel } from "better-supabase/blocks/push";
+
+export const notifications = createNotifications({
+  transport: sqlTransport(postgres.admin),
+  types,
+  render,
+  channels: [expoPushChannel({ devices, push })],
+});
+```
+
+`expoPushChannel` sends each `push` delivery to the recipient's Expo
+devices, with the rendered title and body and the notification's id, type
+and `actionPath` in `data`. A recipient without devices is `skipped`. When
+Expo rejects every message for a reason other than an unregistered device,
+the channel throws, and `notifications.deliver()` retries the delivery.
+Pass `message` to build the push yourself, and `onTickets` to keep the
+tickets for `checkReceipts`.

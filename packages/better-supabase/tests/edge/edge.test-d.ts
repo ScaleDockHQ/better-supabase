@@ -30,3 +30,29 @@ describe("betterSupabase.claims(schema) in Edge", () => {
     });
   });
 });
+
+describe("bs.routes params", () => {
+  it("types ctx.params from each route key", () => {
+    const bs = createEdge(defineSupabase(schema));
+    bs.routes({
+      "GET /orgs/:org/customers/:id": (_request, { params }) => {
+        expectTypeOf(params).toEqualTypeOf<{
+          readonly org: string;
+          readonly id: string;
+        }>();
+        return null;
+      },
+      "/files/*": {
+        requireTenant: true,
+        handler: (_request, { params }) => {
+          expectTypeOf(params).toEqualTypeOf<{ readonly "*": string }>();
+          return null;
+        },
+      },
+      "GET /me": (_request, { params }) => {
+        expectTypeOf(params).toEqualTypeOf<Readonly<Record<never, string>>>();
+        return null;
+      },
+    });
+  });
+});

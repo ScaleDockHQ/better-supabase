@@ -1,5 +1,7 @@
 import type { DbStats } from "../core/stats.ts";
 
+import { DB_CALLS_HEADER, parseDbStats } from "../server/entries/timing.ts";
+
 /** The part of a Playwright `Request` the budget check reads. */
 export interface BudgetRequest {
   headers(): Record<string, string>;
@@ -92,12 +94,68 @@ function settle(promise: Promise<unknown>, ms: number): Promise<unknown> {
   });
 }
 
+/** What `expectDbBudget` measures on a plain fetch `Response`. */
+export interface ResponseBudgetExpectation {
+  readonly maxCalls?: number;
+  readonly maxWaves?: number;
+  /** The header `withDbStats` wrote. Defaults to `x-bs-db-calls`. */
+  readonly header?: string;
+}
+
+/** The calls, waves and time one response's request made. */
+export type ResponseDbStats = Pick<DbStats, "calls" | "waves" | "ms">;
+
+function expectResponseBudget(
+  response: Response,
+  expectation: ResponseBudgetExpectation,
+): ResponseDbStats {
+  const header = expectation.header ?? DB_CALLS_HEADER;
+  const stats = parseDbStats(response.headers.get(header));
+  if (!stats) {
+    throw new Error(
+      `expectDbBudget: the response has no ${header} header. Add withDbStats() to the entries.`,
+    );
+  }
+  if (
+    (expectation.maxCalls !== undefined &&
+      stats.calls > expectation.maxCalls) ||
+    (expectation.maxWaves !== undefined && stats.waves > expectation.maxWaves)
+  ) {
+    throw new Error(
+      `expectDbBudget: ${stats.calls} calls in ${stats.waves} waves, over the budget of ${expectation.maxCalls ?? "∞"} calls and ${expectation.maxWaves ?? "∞"} waves`,
+    );
+  }
+  return stats;
+}
+
+/**
+ * Reads the `withDbStats()` header of a fetch `Response` from any adapter
+ * (Hono, SvelteKit, oRPC, an edge function) and fails when its request made
+ * more database calls or waves than allowed.
+ */
+export function expectDbBudget(
+  response: Response,
+  expectation: ResponseBudgetExpectation,
+): ResponseDbStats;
 /**
  * Measures every document and RSC navigation response during `during` and
  * fails when one render makes more database calls or waves than allowed.
  * Needs `createNext(betterSupabase, { debug })` and `bs.debugRoute()` in the app.
  */
-export async function expectDbBudget(
+export function expectDbBudget(
+  page: BudgetPage,
+  expectation: DbBudgetExpectation,
+): Promise<readonly MeasuredRender[]>;
+export function expectDbBudget(
+  target: Response | BudgetPage,
+  expectation: DbBudgetExpectation | ResponseBudgetExpectation,
+): ResponseDbStats | Promise<readonly MeasuredRender[]> {
+  if (target instanceof Response)
+    return expectResponseBudget(target, expectation);
+  return expectPageBudget(target, expectation);
+}
+
+async function expectPageBudget(
   page: BudgetPage,
   expectation: DbBudgetExpectation,
 ): Promise<readonly MeasuredRender[]> {

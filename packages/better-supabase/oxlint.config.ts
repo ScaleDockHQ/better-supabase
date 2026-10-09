@@ -46,6 +46,17 @@ export default defineConfig({
   },
   overrides: [
     {
+      // The React hook and React Compiler rules assume React components;
+      // these bindings run under Vue, Solid and Svelte, where setup()
+      // functions and getters in objects are the idiom. 13 findings when
+      // measured (10 react/todo, 3 react/rules-of-hooks).
+      files: [
+        "src/{vue,solid,svelte}/**/*.ts",
+        "tests/{vue,solid,svelte}/**/*.ts",
+      ],
+      rules: { "react/rules-of-hooks": "off", "react/todo": "off" },
+    },
+    {
       // The SQL blocks are one registry of SQL modules (src/sql/registry.ts registry,
       // AGENTS.md); its SQL text is the bulk of the file.
       files: ["src/sql/registry.ts"],

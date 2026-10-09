@@ -57,6 +57,8 @@ const TOLERANCE = { ratio: 0.05, bytes: 256 };
 /** Entries that may use Node built-ins. Everything else must run on any WinterTC runtime. */
 const NODE_ENTRIES = new Set([
   "./cli",
+  "./nestjs",
+  "./node",
   "./postgres",
   "./testing",
   "./workflow-sdk/world",
@@ -152,7 +154,42 @@ function overBaseline(
   });
 }
 
-const NODE_LOADED = ["./next", "./next/client", "./next/image"];
+/**
+ * Adapter entries that must import in plain Node ESM. `./expo` is left out:
+ * expo-server 57's ESM build uses extensionless relative imports that only
+ * Metro resolves.
+ */
+const NODE_LOADED = [
+  "./next",
+  "./next/client",
+  "./next/image",
+  "./server",
+  "./client",
+  "./query",
+  "./react",
+  "./vue",
+  "./solid",
+  "./svelte",
+  "./hono",
+  "./edge",
+  "./orpc",
+  "./mcp",
+  "./node",
+  "./nestjs",
+  "./astro",
+  "./h3",
+  "./h3/v1",
+  "./nuxt",
+  "./solid-start",
+  "./sveltekit",
+  "./react-router",
+  "./tanstack-start",
+  "./elysia",
+  "./powersync",
+  "./expo-sqlite",
+  "./tanstack-db",
+  "./blocks/push",
+];
 
 type ExportTarget =
   | string

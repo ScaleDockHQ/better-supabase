@@ -8,6 +8,7 @@ import {
   unauthorizedResponse,
 } from "@supabase/server/oauth-protected-resource";
 
+import type { AuthState } from "../auth/resolve.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { ResourceOperation } from "../openapi/index.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
@@ -25,6 +26,7 @@ import { SPEC_PINS } from "../core/spec-pins.ts";
 import { validate } from "../core/standard.ts";
 import { buildJsonSchema } from "../generators/json-schema.ts";
 import { flushEvents } from "../server/adapter.ts";
+import { hasRole } from "../server/kit.ts";
 import {
   defineResource,
   type ResourceHandler,
@@ -97,6 +99,24 @@ export interface ToolContext<
 > extends ServerContext<M, F, E, C, P> {
   readonly request: Request;
   readonly signal: AbortSignal;
+}
+
+/** The refusal for a caller without one of `required`'s roles. */
+function missingRole(
+  auth: AuthState,
+  required: McpOptions<AnyModels, AnyFunctions, unknown>["requiredRoles"],
+): DbError | undefined {
+  if (!required || auth.kind === "service") return undefined;
+  const { roles, claim } =
+    "roles" in required ? required : { roles: required, claim: undefined };
+  if (roles.length === 0 || hasRole(auth, roles, claim)) return undefined;
+  return dbError(
+    "forbidden",
+    `This server needs the role ${roles.join(" or ")}`,
+    {
+      code: "MISSING_ROLE",
+    },
+  );
 }
 
 export interface McpTool<
@@ -212,6 +232,18 @@ export interface McpOptions<
    * the server at all. A missing one answers 403 `insufficient_scope`.
    */
   readonly requiredScopes?: readonly string[];
+  /**
+   * Roles a signed-in user needs to call the server at all, read from a
+   * claim (`app_metadata.role` by default; a string or an array of
+   * strings). Users without one get 403; service-role callers pass.
+   *
+   * ```ts
+   * requiredRoles: { roles: ['admin', 'support'], claim: 'app_metadata.roles' }
+   * ```
+   */
+  readonly requiredRoles?:
+    | readonly string[]
+    | { readonly roles: readonly string[]; readonly claim?: string };
   /** Origins allowed to call the server (DNS rebinding protection). Defaults to any. */
   readonly allowedOrigins?: readonly string[];
   /**
@@ -595,12 +627,15 @@ export function createMcp<
   }
   const registry = new Map<string, Entry>();
   let allTools: ToolInfo[] | undefined;
+  /** Bumped on every registration, so cached visible lists built before it miss. */
+  let generation = 0;
   const register = (entry: Entry): void => {
     if (registry.has(entry.info.name)) {
       throw new TypeError(`Duplicate MCP tool "${entry.info.name}"`);
     }
     registry.set(entry.info.name, entry);
     allTools = undefined;
+    generation++;
   };
   const failure = (error: DbError): ToolResult =>
     textResult(toProblem(error, { expose }), true);
@@ -686,7 +721,11 @@ export function createMcp<
    */
   const visibleLists = new Map<
     string,
-    { readonly tools: ToolInfo[]; readonly until: number }
+    {
+      readonly tools: ToolInfo[];
+      readonly until: number;
+      readonly generation: number;
+    }
   >();
   /** Without a `visible` hook every caller sees the same list, built once. */
   const visibleTools = async (
@@ -697,7 +736,8 @@ export function createMcp<
     const token = ctx.auth.kind === "user" ? ctx.auth.token : undefined;
     const now = Date.now();
     const cached = token === undefined ? undefined : visibleLists.get(token);
-    if (cached && cached.until > now) return cached.tools;
+    if (cached && cached.until > now && cached.generation === generation)
+      return cached.tools;
     const entries = [...registry.values()];
     const shown = await Promise.all(
       entries.map((entry) => isVisible(entry, ctx)),
@@ -709,7 +749,11 @@ export function createMcp<
         const oldest = visibleLists.keys().next();
         if (!oldest.done) visibleLists.delete(oldest.value);
       }
-      visibleLists.set(token, { tools, until: now + LIST_TTL_MS });
+      visibleLists.set(token, {
+        tools,
+        until: now + LIST_TTL_MS,
+        generation,
+      });
     }
     return tools;
   };
@@ -891,6 +935,8 @@ export function createMcp<
       options.requiredScopes,
     );
     if (denied) return refuse(request, denied);
+    const roleDenied = missingRole(ctx.auth, options.requiredRoles);
+    if (roleDenied) return refuse(request, roleDenied);
 
     let message: unknown;
     try {

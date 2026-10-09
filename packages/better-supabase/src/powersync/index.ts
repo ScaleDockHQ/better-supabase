@@ -30,3 +30,21 @@ export type {
   SqliteSelectPlan,
   SqliteValue,
 } from "../compile/sqlite.ts";
+export { syncWithAuth } from "./auth.ts";
+export type {
+  AuthSourceLike,
+  SyncedDatabaseLike,
+  SyncWithAuthOptions,
+} from "./auth.ts";
+export { createUploadConnector, uploadOutcome } from "./connector.ts";
+export type {
+  CrudEntryLike,
+  CrudQueueLike,
+  RejectedChange,
+  RejectedStore,
+  UploadConnector,
+  UploadConnectorOptions,
+  UploadOutcome,
+  UploadRepository,
+  UploadRoute,
+} from "./connector.ts";

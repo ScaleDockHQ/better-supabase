@@ -3,11 +3,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type * as ReactModule from "react";
 
 import { QueryClient } from "@tanstack/query-core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AuthSnapshot } from "../../src/client/index.ts";
+import type { PowerSyncDatabaseLike } from "../../src/powersync/executor.ts";
 import type { ActionResultOf } from "../../src/react/actions.ts";
-import type { SubscriptionStatus } from "../../src/realtime/index.ts";
+import type { PresenceTopic } from "../../src/react/presence.ts";
+import type {
+  PresenceMember,
+  SubscriptionStatus,
+} from "../../src/realtime/index.ts";
 import type { LiveCountSeed } from "../../src/realtime/live.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
@@ -31,7 +36,14 @@ import {
 } from "../../src/blocks/workflows/react/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
-import { AsyncResult } from "../../src/core/result.ts";
+import { AsyncResult, err, ok } from "../../src/core/result.ts";
+import { createUploadConnector } from "../../src/powersync/connector.ts";
+import {
+  type SyncStatusLike,
+  useConflicts,
+  useSyncStatus,
+  useWatch,
+} from "../../src/powersync/react/index.ts";
 import { useAction, useActionForm } from "../../src/react/actions.ts";
 import { fieldErrorsOf } from "../../src/react/field-errors.ts";
 import {
@@ -44,7 +56,19 @@ import {
   useLiveQuery,
   useSupabase,
 } from "../../src/react/hooks.ts";
+import {
+  AuthGate,
+  type LinkingLike,
+  type UseOAuthOptions,
+  useAuthDeepLinks,
+  useOAuth,
+  useProtectedRoute,
+} from "../../src/react/native/index.ts";
+import { usePresence } from "../../src/react/presence.ts";
+import { useDebouncedSearch } from "../../src/react/search.ts";
 import { useSession } from "../../src/react/session.ts";
+import { useSignIn, useSignOut } from "../../src/react/sign-in.ts";
+import { useSignedUrl, useUpload } from "../../src/react/storage.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -486,6 +510,39 @@ describe("useBroadcast", () => {
       null,
     );
     expect(bare.error!.message).toMatch(/or \{ client: supabase \}/);
+  });
+
+  it("reads the user from the token when tokens-only cookies leave a placeholder user", () => {
+    const realtime = fakeRealtime();
+    let callback: (event: string, session: unknown) => void = () => undefined;
+    const supabase = {
+      ...realtime.client,
+      auth: {
+        onAuthStateChange: (next: typeof callback) => {
+          callback = next;
+          return { data: { subscription: { unsubscribe: vi.fn() } } };
+        },
+      },
+    } as unknown as SupabaseClient;
+    const view = renderHook(
+      () => useBroadcast(room, { roomId: "r1" }, {}, { client: supabase }),
+      undefined,
+      null,
+    );
+    const payload = btoa(JSON.stringify({ sub: USER })).replace(/=+$/, "");
+    const placeholder = {
+      get id(): string {
+        throw new Error("tokens-only placeholder");
+      },
+    };
+    expect(() => {
+      callback("SIGNED_IN", {
+        access_token: `e30.${payload}.sig`,
+        user: placeholder,
+      });
+    }).not.toThrow();
+    expect(realtime.client.channel).toHaveBeenCalledTimes(1);
+    view.unmount();
   });
 
   it("needs a query client to invalidate", () => {
@@ -1519,6 +1576,31 @@ describe("useAction", () => {
     return { promise, resolve, reject };
   };
 
+  it("keeps run and reset stable and calls the latest callbacks", async () => {
+    const first = vi.fn();
+    const latest = vi.fn();
+    let onSuccess = first;
+    const action = vi.fn(() =>
+      Promise.resolve<Out>({ ok: true, data: { id: "a" }, error: null }),
+    );
+    const view = renderHook(
+      () => useAction(action, { onSuccess }),
+      undefined,
+      null,
+    );
+    const before = view.result;
+    onSuccess = latest;
+    view.rerender(undefined);
+    // oxlint-disable-next-line typescript/unbound-method -- identity check only; run is never called unbound.
+    expect(view.result.run).toBe(before.run);
+    // oxlint-disable-next-line typescript/unbound-method -- identity check only; reset is never called unbound.
+    expect(view.result.reset).toBe(before.reset);
+    await view.result.run({ id: "a" });
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledOnce();
+    view.unmount();
+  });
+
   it("tracks the inputs in flight and keeps the last data and error", async () => {
     const calls: ReturnType<typeof deferred>[] = [];
     const action = vi.fn((_input: { id: string }) => {
@@ -1958,5 +2040,617 @@ describe("ai-chat hooks", () => {
     view.rerender(null);
     expect(await view.result.create()).toBeUndefined();
     view.unmount();
+  });
+});
+
+describe("usePresence", () => {
+  function fakePresenceTopic() {
+    const joins: {
+      values: unknown;
+      options: {
+        onStatus?: (status: SubscriptionStatus) => void;
+        onPresence?: (
+          members: readonly PresenceMember<{ name: string }>[],
+        ) => void;
+      };
+      tracked: unknown[];
+      untracked: number;
+      left: boolean;
+    }[] = [];
+    const topic: PresenceTopic<
+      "room:{roomId}",
+      { name: string },
+      { name: string }
+    > = {
+      topic: (values) => `room:${values.roomId}`,
+      match: (name) =>
+        name.startsWith("room:") ? { roomId: name.slice(5) } : null,
+      subscribe: (_client, values, _handlers, options = {}) => {
+        const join = {
+          values,
+          options,
+          tracked: [] as unknown[],
+          untracked: 0,
+          left: false,
+        };
+        joins.push(join);
+        options.onStatus?.("subscribed");
+        return {
+          topic: "x",
+          ready: Promise.resolve(),
+          track: (state: unknown) => {
+            join.tracked.push(state);
+            return AsyncResult.from(async () => ok(undefined));
+          },
+          untrack: () => {
+            join.untracked += 1;
+            return AsyncResult.from(async () =>
+              err(dbError("network", "down")),
+            );
+          },
+          members: () => [],
+          unsubscribe: async () => {
+            join.left = true;
+          },
+        } as never;
+      },
+    };
+    return { topic, joins };
+  }
+
+  it("joins, tracks the state, re-tracks when it changes and leaves on unmount", async () => {
+    const { browser, setAuth } = fakeBrowser(LOADING);
+    const { topic, joins } = fakePresenceTopic();
+    const initial: { roomId: string | null; name: string | null } = {
+      roomId: "r1",
+      name: "Ada",
+    };
+    const view = renderHook(
+      (props: typeof initial) =>
+        usePresence(topic, props.roomId ? { roomId: props.roomId } : null, {
+          state: props.name === null ? null : { name: props.name },
+        }),
+      initial,
+      { client: browser },
+    );
+    expect(joins).toHaveLength(0);
+    expect(await view.result.track({ name: "x" })).toMatchObject({
+      kind: "invalid_request",
+    });
+    setAuth(signedIn(USER));
+    expect(joins).toHaveLength(1);
+    expect(view.result.status).toBe("subscribed");
+    expect(joins[0]!.tracked).toEqual([{ name: "Ada" }]);
+
+    joins[0]!.options.onPresence?.([{ key: "k", state: { name: "Ada" } }]);
+    expect(view.result.members).toEqual([{ key: "k", state: { name: "Ada" } }]);
+
+    view.rerender({ roomId: "r1", name: "Ada" });
+    expect(joins[0]!.tracked).toHaveLength(1);
+    view.rerender({ roomId: "r1", name: "Grace" });
+    expect(joins[0]!.tracked).toEqual([{ name: "Ada" }, { name: "Grace" }]);
+    view.rerender({ roomId: "r1", name: null });
+    expect(joins[0]!.untracked).toBe(1);
+
+    expect(await view.result.track({ name: "Z" })).toBeUndefined();
+    expect(await view.result.untrack()).toMatchObject({ kind: "network" });
+
+    view.rerender({ roomId: null, name: null });
+    expect(joins[0]!.left).toBe(true);
+    expect(view.result.members).toEqual([]);
+    expect(view.result.status).toBe("closed");
+    view.unmount();
+  });
+
+  it("needs a client", () => {
+    const { topic } = fakePresenceTopic();
+    const view = renderHook(
+      () => usePresence(topic, { roomId: "r" }),
+      undefined,
+      null,
+    );
+    expect(view.error?.message).toMatch(/usePresence needs/);
+  });
+
+  it("accepts a presence topic from defineTopic", () => {
+    const room = defineTopic("room:{roomId}", { presence: true });
+    expectTypeOf(room).toExtend<
+      PresenceTopic<
+        "room:{roomId}",
+        Readonly<Record<string, unknown>>,
+        Readonly<Record<string, unknown>>
+      >
+    >();
+  });
+});
+
+describe("useSignIn and useSignOut", () => {
+  function fakeAuth() {
+    let next: { error: { message: string } | null } = { error: null };
+    const auth = {
+      signInWithPassword: vi.fn(async () => next),
+      signInWithOtp: vi.fn(async () => next),
+      verifyOtp: vi.fn(async () => next),
+      signInWithOAuth: vi.fn(async () => next),
+      signOut: vi.fn(async () => next),
+    };
+    return {
+      client: { auth } as never,
+      auth,
+      fail: (message: string) => {
+        next = { error: { message } };
+      },
+    };
+  }
+
+  it("tracks pending and error and calls onSuccess", async () => {
+    const { client, auth, fail } = fakeAuth();
+    const onSuccess = vi.fn();
+    const view = renderHook(
+      () => useSignIn({ client, onSuccess }),
+      undefined,
+      null,
+    );
+    expect(view.result.pending).toBe(false);
+    const call = view.result.password({ email: "a@b.c", password: "pw" });
+    expect(view.result.pending).toBe(true);
+    expect(await call).toBeUndefined();
+    expect(view.result.pending).toBe(false);
+    expect(onSuccess).toHaveBeenCalledOnce();
+
+    await view.result.otp({ email: "a@b.c" });
+    await view.result.verifyOtp({ email: "a@b.c", token: "1", type: "email" });
+    await view.result.oauth("github");
+    await view.result.oauth("github", { redirectTo: "/x" });
+    expect(auth.signInWithOAuth).toHaveBeenLastCalledWith({
+      provider: "github",
+      options: { redirectTo: "/x" },
+    });
+
+    fail("bad password");
+    expect(await view.result.password({ email: "a", password: "b" })).toEqual({
+      message: "bad password",
+    });
+    expect(view.result.error).toEqual({ message: "bad password" });
+    expect(onSuccess).toHaveBeenCalledTimes(5);
+  });
+
+  it("resets pending when the call throws", async () => {
+    const { client, auth } = fakeAuth();
+    auth.signOut.mockRejectedValueOnce(new Error("offline"));
+    const view = renderHook(() => useSignOut({ client }), undefined, null);
+    await expect(view.result.signOut()).rejects.toThrow("offline");
+    expect(view.result.pending).toBe(false);
+    await view.result.signOut({ scope: "local" });
+    expect(auth.signOut).toHaveBeenLastCalledWith({ scope: "local" });
+  });
+
+  it("uses the provider's client and explains a missing one", () => {
+    const { browser } = fakeBrowser(SIGNED_OUT);
+    const auth = { signOut: vi.fn(async () => ({ error: null })) };
+    (browser.supabase as { auth?: unknown }).auth = auth;
+    const view = renderHook(() => useSignOut(), undefined, { client: browser });
+    void view.result.signOut();
+    expect(auth.signOut).toHaveBeenCalledWith(undefined);
+    const missing = renderHook(() => useSignIn(), undefined, null);
+    expect(missing.error?.message).toMatch(/useSignIn needs/);
+  });
+});
+
+describe("useDebouncedSearch", () => {
+  it("settles after the delay, trims and escapes the pattern", async () => {
+    const view = renderHook(
+      () => useDebouncedSearch("", { delayMs: 5, minLength: 2 }),
+      undefined,
+      null,
+    );
+    expect(view.result.term).toBeUndefined();
+    view.result.setValue(" 5");
+    expect(view.result.pending).toBe(true);
+    await wait(15);
+    expect(view.result.term).toBeUndefined();
+    view.result.setValue(" 50%_off ");
+    expect(view.result.value).toBe(" 50%_off ");
+    await wait(15);
+    expect(view.result.pending).toBe(false);
+    expect(view.result.term).toBe("50%_off");
+    expect(view.result.pattern).toBe("%50\\%\\_off%");
+    view.unmount();
+  });
+
+  it("starts settled with the initial value", () => {
+    const view = renderHook(() => useDebouncedSearch("acme"), undefined, null);
+    expect(view.result).toMatchObject({ term: "acme", pending: false });
+  });
+});
+
+describe("useSignedUrl", () => {
+  it("signs, re-signs before expiry, keeps the last url on errors and pauses", async () => {
+    vi.useFakeTimers();
+    try {
+      let n = 0;
+      let failing = false;
+      const bucket = {
+        signedUrl: vi.fn((_target: { id: string }) =>
+          AsyncResult.from(async () =>
+            failing
+              ? err(dbError("network", "down"))
+              : ok(`url-${String((n += 1))}`),
+          ),
+        ),
+      };
+      const initial: { id: string | null } = { id: "a" };
+      const view = renderHook(
+        (props: typeof initial) =>
+          useSignedUrl(bucket, props.id ? { id: props.id } : null, { ttl: 10 }),
+        initial,
+        null,
+      );
+      expect(view.result.loading).toBe(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(view.result).toEqual({
+        url: "url-1",
+        error: undefined,
+        loading: false,
+      });
+
+      failing = true;
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(view.result.url).toBe("url-1");
+      expect(view.result.error).toMatchObject({ kind: "network" });
+
+      failing = false;
+      view.rerender({ id: "b" });
+      expect(view.result.url).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(view.result.url).toBe("url-2");
+
+      view.rerender({ id: null });
+      expect(view.result).toEqual({
+        url: undefined,
+        error: undefined,
+        loading: false,
+      });
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("useUpload", () => {
+  it("reports progress, success and errors, and aborts the previous upload", async () => {
+    const signals: AbortSignal[] = [];
+    let release: (() => void) | undefined;
+    const bucket = {
+      upload: vi.fn(
+        (
+          target: { id: string },
+          _body: unknown,
+          options?: { signal?: AbortSignal; onProgress?: (n: number) => void },
+        ) =>
+          AsyncResult.from(async () => {
+            signals.push(options!.signal!);
+            options?.onProgress?.(0.5);
+            if (target.id === "slow")
+              await new Promise<void>((resolve) => {
+                release = resolve;
+              });
+            if (target.id === "bad") return err(dbError("forbidden", "no"));
+            if (target.id === "throw") throw new Error("boom");
+            return ok({ path: target.id });
+          }),
+      ),
+    };
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+    const view = renderHook(
+      () => useUpload(bucket, { onSuccess, onError }),
+      undefined,
+      null,
+    );
+    expect(view.result.status).toBe("idle");
+
+    const slow = view.result.upload({ id: "slow" }, "x");
+    await flush();
+    expect(view.result).toMatchObject({ status: "uploading", progress: 0.5 });
+    const fast = await view.result.upload({ id: "ok" }, "x", { upsert: true });
+    expect(signals[0]!.aborted).toBe(true);
+    expect(fast).toMatchObject({ ok: true, data: { path: "ok" } });
+    expect(view.result).toMatchObject({
+      status: "done",
+      progress: 1,
+      data: { path: "ok" },
+    });
+    release?.();
+    await slow;
+    expect(view.result.data).toEqual({ path: "ok" });
+    expect(onSuccess).toHaveBeenCalledOnce();
+
+    await view.result.upload({ id: "bad" }, "x");
+    expect(view.result).toMatchObject({
+      status: "error",
+      error: { kind: "forbidden" },
+    });
+    expect(onError).toHaveBeenCalledOnce();
+    const thrown = await view.result.upload({ id: "throw" }, "x");
+    expect(thrown.ok).toBe(false);
+
+    view.result.reset();
+    expect(view.result.status).toBe("idle");
+    void view.result.upload({ id: "slow" }, "x");
+    view.unmount();
+    await flush();
+    expect(signals.at(-1)!.aborted).toBe(true);
+    release?.();
+  });
+});
+
+describe("react/native", () => {
+  function fakeNativeAuth() {
+    const auth = {
+      exchangeCodeForSession: vi.fn(async (_code: string) => ({ error: null })),
+      setSession: vi.fn(async () => ({ error: null })),
+      verifyOtp: vi.fn(async () => ({ error: null })),
+      signInWithOAuth: vi.fn(async () => ({
+        data: { url: "https://auth.example/authorize" },
+        error: null,
+      })),
+      signInWithIdToken: vi.fn(async () => ({ error: null })),
+    };
+    return { auth, client: { auth } as never };
+  }
+
+  it("useOAuth signs in through the browser and with an ID token", async () => {
+    const { auth, client } = fakeNativeAuth();
+    const onSuccess = vi.fn();
+    let redirect = { type: "success", url: "app://cb?code=abc" };
+    const browser = {
+      openAuthSessionAsync: vi.fn(async () => redirect),
+    };
+    const view = renderHook(
+      () => useOAuth({ browser, redirectTo: "app://cb", client, onSuccess }),
+      undefined,
+      null,
+    );
+    expect(await view.result.signIn("github")).toBeUndefined();
+    expect(auth.exchangeCodeForSession).toHaveBeenCalledWith("abc");
+    redirect = { type: "success", url: "app://cb#error_description=Denied" };
+    expect(await view.result.signIn("github")).toEqual({ message: "Denied" });
+    expect(view.result.error).toEqual({ message: "Denied" });
+    await view.result.idToken({ provider: "apple", token: "t", nonce: "n" });
+    expect(auth.signInWithIdToken).toHaveBeenCalledWith({
+      provider: "apple",
+      token: "t",
+      nonce: "n",
+    });
+    expect(onSuccess).toHaveBeenCalledTimes(2);
+  });
+
+  it("useAuthDeepLinks handles the initial URL and later links once each", async () => {
+    const { auth, client } = fakeNativeAuth();
+    const listeners = new Set<(event: { url: string }) => void>();
+    const linking: LinkingLike = {
+      getInitialURL: async () => "app://cb?code=first",
+      addEventListener: (_type, listener) => {
+        listeners.add(listener);
+        return { remove: () => void listeners.delete(listener) };
+      },
+    };
+    const onResult = vi.fn();
+    const view = renderHook(
+      () => useAuthDeepLinks(linking, { client, onResult }),
+      undefined,
+      null,
+    );
+    await flush();
+    expect(view.result).toEqual({ type: "signed-in", via: "code" });
+    for (const listener of listeners) {
+      listener({ url: "app://home" });
+      listener({ url: "app://cb?code=first" });
+      listener({ url: "app://cb?token_hash=h&type=email" });
+    }
+    await flush();
+    expect(auth.exchangeCodeForSession).toHaveBeenCalledOnce();
+    expect(auth.verifyOtp).toHaveBeenCalledOnce();
+    expect(onResult).toHaveBeenCalledTimes(2);
+    view.unmount();
+    expect(listeners.size).toBe(0);
+  });
+
+  it("useProtectedRoute redirects by auth status and route group", () => {
+    const { browser, setAuth } = fakeBrowser(LOADING);
+    const router = { replace: vi.fn() };
+    const initial: { segments: readonly string[] } = { segments: ["(app)"] };
+    const view = renderHook(
+      (props) => useProtectedRoute({ segments: props.segments, router }),
+      initial,
+      { client: browser },
+    );
+    expect(view.result).toBe("loading");
+    expect(router.replace).not.toHaveBeenCalled();
+    setAuth(SIGNED_OUT);
+    expect(router.replace).toHaveBeenLastCalledWith("/sign-in");
+    view.rerender({ segments: ["(auth)", "sign-in"] });
+    setAuth(signedIn(USER));
+    expect(router.replace).toHaveBeenLastCalledWith("/");
+    expect(router.replace).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts a real supabase-js client", () => {
+    const asClient = (client: SupabaseClient): UseOAuthOptions["client"] =>
+      client;
+    expectTypeOf(asClient).returns.toEqualTypeOf<UseOAuthOptions["client"]>();
+  });
+
+  it("AuthGate picks the branch for the status", () => {
+    const { browser, setAuth } = fakeBrowser(LOADING);
+    const props = { fallback: "splash", signedOut: "sign-in", children: "app" };
+    const view = renderHook(() => AuthGate(props), undefined, {
+      client: browser,
+    });
+    expect(view.result).toBe("splash");
+    setAuth(SIGNED_OUT);
+    expect(view.result).toBe("sign-in");
+    setAuth(signedIn(USER));
+    expect(view.result).toBe("app");
+    const bare = renderHook(() => AuthGate({}), undefined, { client: browser });
+    expect(bare.result).toBeNull();
+  });
+});
+
+describe("powersync/react", () => {
+  function fakePowerSync() {
+    const handlers = new Set<() => void>();
+    const db = {
+      execute: vi.fn(),
+      getAll: vi.fn(),
+      getOptional: vi.fn(),
+      writeTransaction: vi.fn(),
+      onChange: vi.fn(
+        (
+          handler: { onChange: () => void },
+          options?: { signal?: AbortSignal },
+        ) => {
+          handlers.add(handler.onChange);
+          const remove = () => void handlers.delete(handler.onChange);
+          options?.signal?.addEventListener("abort", remove);
+          return remove;
+        },
+      ),
+    } as unknown as PowerSyncDatabaseLike;
+    return {
+      db,
+      change: () => {
+        for (const handler of handlers) handler();
+      },
+      handlers,
+    };
+  }
+
+  it("useWatch reruns on changes, shares rows and restarts on deps", async () => {
+    const { db, change, handlers } = fakePowerSync();
+    let rows = [{ id: "a", name: "A" }];
+    const query = vi.fn(async (search: string) =>
+      ok(
+        rows
+          .filter((row) => row.name.includes(search))
+          .map((row) => ({ ...row })),
+      ),
+    );
+    const initial = { search: "" };
+    const view = renderHook(
+      (props) =>
+        useWatch({
+          db,
+          query: () => query(props.search),
+          tables: ["customers"],
+          deps: [props.search],
+        }),
+      initial,
+      null,
+    );
+    expect(view.result.loading).toBe(true);
+    await flush();
+    expect(view.result.data).toEqual([{ id: "a", name: "A" }]);
+    const first = view.result.data?.[0];
+    rows = [...rows, { id: "b", name: "B" }];
+    change();
+    await flush();
+    expect(view.result.data).toHaveLength(2);
+    expect(view.result.data?.[0]).toBe(first);
+    view.rerender({ search: "B" });
+    expect(view.result.loading).toBe(true);
+    await flush();
+    expect(view.result.data).toEqual([{ id: "b", name: "B" }]);
+    expect(handlers.size).toBe(1);
+    view.unmount();
+    expect(handlers.size).toBe(0);
+  });
+
+  it("useWatch reports errors and pauses when disabled", async () => {
+    const { db } = fakePowerSync();
+    const query = vi.fn(async () => err(dbError("unexpected", "disk full")));
+    const initial = { enabled: false };
+    const view = renderHook(
+      (props) => useWatch({ db, query, tables: ["t"], enabled: props.enabled }),
+      initial,
+      null,
+    );
+    await flush();
+    expect(query).not.toHaveBeenCalled();
+    view.rerender({ enabled: true });
+    await flush();
+    expect(view.result.error?.message).toBe("disk full");
+    expect(view.result.data).toBeUndefined();
+  });
+
+  it("useSyncStatus re-renders only when a field changes", () => {
+    const listeners = new Set<() => void>();
+    let status: SyncStatusLike = {
+      connected: false,
+      dataFlowStatus: { uploading: false, downloading: false },
+    };
+    const db = {
+      get currentStatus() {
+        return status;
+      },
+      registerListener: (listener: { statusChanged?: () => void }) => {
+        const notify = () => listener.statusChanged?.();
+        listeners.add(notify);
+        return () => void listeners.delete(notify);
+      },
+    };
+    const view = renderHook(() => useSyncStatus(db), undefined, null);
+    expect(view.result).toEqual({
+      connected: false,
+      connecting: false,
+      hasSynced: false,
+      uploading: false,
+      downloading: false,
+      error: undefined,
+    });
+    const before = view.result;
+    status = { ...status };
+    for (const listener of listeners) listener();
+    expect(view.result).toBe(before);
+    const failure = new Error("upload failed");
+    status = {
+      connected: true,
+      hasSynced: true,
+      dataFlowStatus: {
+        uploading: true,
+        downloading: false,
+        uploadError: failure,
+      },
+    };
+    for (const listener of listeners) listener();
+    expect(view.result).toMatchObject({
+      connected: true,
+      hasSynced: true,
+      uploading: true,
+      error: failure,
+    });
+  });
+
+  it("useConflicts follows the connector's refused changes", async () => {
+    const connector = createUploadConnector({
+      endpoint: "e",
+      supabase: {
+        auth: { getSession: async () => ({ data: { session: null } }) },
+      },
+      tables: { notes: async () => err(dbError("conflict", "newer")) },
+    });
+    const view = renderHook(() => useConflicts(connector), undefined, null);
+    expect(view.result.changes).toEqual([]);
+    await connector.uploadData({
+      getCrudBatch: async () => ({
+        crud: [{ op: "PUT", table: "notes", id: "1" }],
+        complete: async () => undefined,
+      }),
+    });
+    expect(view.result.changes).toHaveLength(1);
+    view.result.dismiss();
+    expect(view.result.changes).toEqual([]);
   });
 });

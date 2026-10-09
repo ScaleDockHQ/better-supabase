@@ -72,6 +72,44 @@ describe("secureStorage", () => {
     ).toBe(true);
   });
 
+  it("keeps keys apart that map to the same safe name", async () => {
+    const store = memoryStore();
+    const storage = secureStorage(store);
+    await storage.setItem("a:b", "colon");
+    await storage.setItem("a/b", "slash");
+    await storage.setItem("a_b", "plain");
+    expect(await storage.getItem("a:b")).toBe("colon");
+    expect(await storage.getItem("a/b")).toBe("slash");
+    expect(await storage.getItem("a_b")).toBe("plain");
+    expect(store.values.get("a_b.chunks")).toBe("1");
+  });
+
+  it("passes the store options to every call", async () => {
+    const store = memoryStore();
+    const calls: unknown[] = [];
+    const spy = {
+      getItemAsync: (key: string, options?: unknown) => {
+        calls.push(options);
+        return store.getItemAsync(key);
+      },
+      setItemAsync: (key: string, value: string, options?: unknown) => {
+        calls.push(options);
+        return store.setItemAsync(key, value);
+      },
+      deleteItemAsync: (key: string, options?: unknown) => {
+        calls.push(options);
+        return store.deleteItemAsync(key);
+      },
+    };
+    const storeOptions = { keychainAccessible: 0 };
+    const storage = secureStorage(spy, { storeOptions });
+    await storage.setItem("k", "v");
+    await storage.getItem("k");
+    await storage.removeItem("k");
+    expect(calls.length).toBeGreaterThan(4);
+    expect(calls.every((options) => options === storeOptions)).toBe(true);
+  });
+
   it("reads a missing chunk as no session", async () => {
     const store = memoryStore();
     const storage = secureStorage(store);

@@ -1,4 +1,14 @@
 {
   "title": "Frontend",
-  "pages": ["client", "react-native", "react", "query", "live-queries"]
+  "pages": [
+    "client",
+    "react-native",
+    "react",
+    "vue",
+    "solid",
+    "svelte",
+    "query",
+    "tanstack-db",
+    "live-queries"
+  ]
 }

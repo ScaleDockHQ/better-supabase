@@ -1,6 +1,11 @@
 import type { AnyEntry, Contributions } from "@supabase/middleware";
 
-import { around, bufferInPlace, type Validated } from "./shared.ts";
+import {
+  around,
+  type Around,
+  bufferInPlace,
+  type Validated,
+} from "./shared.ts";
 
 /** The `response` of a request middleware's `next()` result; server function results have none. */
 function responseOf(result: object): Response | undefined {
@@ -13,6 +18,11 @@ function responseOf(result: object): Response | undefined {
 export interface TanStackStartServerArgs<Context, Result> {
   readonly request: Request;
   readonly next: (options: { readonly context: Context }) => Promise<Result>;
+}
+
+export interface ToTanStackStartOptions {
+  /** The host's env object for `getEnv`, read per request. */
+  readonly env?: (request: Request) => unknown;
 }
 
 /**
@@ -30,27 +40,47 @@ export interface TanStackStartServerArgs<Context, Result> {
  */
 export function toTanStackStart<const Entries extends readonly AnyEntry[]>(
   entries: Entries & Validated<Entries>,
+  options: ToTanStackStartOptions = {},
 ): <Result extends object>(
   args: TanStackStartServerArgs<Contributions<Entries>, Result>,
 ) => Promise<Result> {
-  const run = around(entries);
+  return tanStackStartServer(
+    around(entries),
+    options.env,
+    (contributions) =>
+      // SAFETY: around() hands over exactly the entries' contributions.
+      contributions as Contributions<Entries>,
+  );
+}
+
+/** The `.server()` callback over a folded pipeline, with the context `toContext` builds. */
+export function tanStackStartServer<Context>(
+  run: Around,
+  env: ((request: Request) => unknown) | undefined,
+  toContext: (
+    contributions: Record<string, unknown>,
+    request: Request,
+  ) => Context,
+): <Result extends object>(
+  args: TanStackStartServerArgs<Context, Result>,
+) => Promise<Result> {
   return async <Result extends object>({
     request,
     next,
-  }: TanStackStartServerArgs<
-    Contributions<Entries>,
-    Result
-  >): Promise<Result> => {
+  }: TanStackStartServerArgs<Context, Result>): Promise<Result> => {
     bufferInPlace(request);
     const downstream: { result?: Result } = {};
-    const response = await run(request, undefined, async (contributions) => {
-      const result = await next({
-        // SAFETY: around() hands over exactly the entries' contributions.
-        context: contributions as Contributions<Entries>,
-      });
-      downstream.result = result;
-      return responseOf(result) ?? new Response(null, { status: 204 });
-    });
+    const response = await run(
+      request,
+      env?.(request),
+      async (contributions) => {
+        const result = await next({
+          context: toContext(contributions, request),
+        });
+        downstream.result = result;
+        return responseOf(result) ?? new Response(null, { status: 204 });
+      },
+    );
     const { result } = downstream;
     if (result === undefined) {
       // oxlint-disable-next-line typescript/only-throw-error -- TanStack Start sends a thrown Response as the answer, which is how middleware short-circuits.

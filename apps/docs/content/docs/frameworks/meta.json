@@ -12,6 +12,11 @@
     "react-router",
     "h3",
     "elysia",
+    "nuxt",
+    "node",
+    "nestjs",
+    "astro",
+    "solid-start",
     "mcp",
     "other"
   ]

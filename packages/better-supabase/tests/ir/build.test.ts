@@ -5,7 +5,8 @@ import type { Condition } from "../../src/ir/types.ts";
 import type { SchemaMeta, TableMeta } from "../../src/schema/types.ts";
 
 import { DbException } from "../../src/core/errors.ts";
-import { IrBuilder, escapeLike, invalidRequest } from "../../src/ir/build.ts";
+import { IrBuilder, invalidRequest } from "../../src/ir/build.ts";
+import { escapeLike } from "../../src/ir/escape-like.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const ledger: TableMeta = {

@@ -1,4 +1,5 @@
 import {
+  type BuilderWithMiddlewares,
   COMMON_ERROR_STATUS_MAP,
   type DecoratedMiddleware,
   ORPCError,
@@ -15,9 +16,13 @@ import type {
   ServerOptions,
 } from "../server/server.ts";
 
+import { tenantOf, toSession } from "../auth/view.ts";
+import { claimsOf } from "../core/claims.ts";
 import { type DbError, dbErrorOf } from "../core/errors.ts";
 import { type ProblemDetails, toProblem } from "../core/problem.ts";
 import { flushEvents } from "../server/adapter.ts";
+import { authorizeCaller, type KitRequireOptions } from "../server/kit.ts";
+import { refreshFor } from "../server/refresh.ts";
 import {
   defaultExpose,
   guard,
@@ -91,6 +96,28 @@ export type OrpcMiddleware<
   Record<never, never>
 >;
 
+/** Guard and authorize options of `middleware()` and `authed()`. */
+export interface OrpcGuardOptions<C = unknown, P = unknown>
+  extends MiddlewareOptions, KitRequireOptions<C, P> {}
+
+/** `os` with the caller's context: `bs.authed().handler(({ context }) => ...)`. */
+export type OrpcAuthed<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+> = BuilderWithMiddlewares<
+  OrpcRequestContext,
+  OrpcContext<M, F, E, C, P>,
+  Record<never, never>
+>;
+
+/** The Workers execution context, typed structurally. */
+export interface OrpcExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
 export interface BetterOrpc<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -104,16 +131,32 @@ export interface BetterOrpc<
    * `DbError`, become `ORPCError`s. Serve the router with `fetchHandler` so
    * refreshed session cookies and `bs-primary-until` reach the response.
    */
-  middleware(options?: MiddlewareOptions): OrpcMiddleware<M, F, E, C, P>;
+  middleware(options?: OrpcGuardOptions<C, P>): OrpcMiddleware<M, F, E, C, P>;
+  /**
+   * A procedure builder behind `middleware(options)`, so each procedure
+   * starts from the caller's context instead of repeating `.use()`:
+   *
+   * ```ts
+   * export const list = bs.authed({ requireTenant: true })
+   *   .handler(({ context }) => bs.unwrap(context.db.customers.findMany()))
+   * ```
+   */
+  authed(options?: OrpcGuardOptions<C, P>): OrpcAuthed<M, F, E, C, P>;
   /**
    * A fetch handler for an oRPC handler: passes `{ request }` as the initial
    * context, answers 404 when no procedure matched, and applies the cookies
-   * of the request's context (`ctx.apply`).
+   * of the request's context (`ctx.apply`). On Workers, pending event sends
+   * go to the `ctx.waitUntil` of `fetch(request, env, ctx)` when
+   * `OrpcOptions.waitUntil` is unset.
    */
   fetchHandler(
     handler: OrpcFetchHandler,
     options?: OrpcFetchOptions,
-  ): (request: Request) => Promise<Response>;
+  ): (
+    request: Request,
+    env?: unknown,
+    executionContext?: OrpcExecutionContext,
+  ) => Promise<Response>;
   /** A `Result` (or `AsyncResult`) as data, throwing an `ORPCError` on failure. */
   unwrap<T>(value: Result<T> | PromiseLike<Result<T>>): Promise<T>;
   /** Plain values pass through; thrown `DbException`s become `ORPCError`s. */
@@ -150,6 +193,7 @@ export function createOrpc<
 ): BetterOrpc<M, F, E, C, P> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
+  const tenantClaim = claimsOf(betterSupabase.meta).tenant;
   const contexts = new WeakMap<
     Request,
     { ctx: ServerContext<M, F, E, C, P>; refresh: boolean }
@@ -163,53 +207,79 @@ export function createOrpc<
     });
   };
 
+  const middleware = (
+    middlewareOptions: OrpcGuardOptions<C, P> = {},
+  ): OrpcMiddleware<M, F, E, C, P> => {
+    return os
+      .$context<OrpcRequestContext>()
+      .middleware(async ({ context, next }) => {
+        // Nested middleware resolves the request once; the context is kept
+        // before the guard so a denied call still returns rotated cookies.
+        const refresh =
+          refreshFor(middlewareOptions.refresh, context.request) ?? false;
+        const known = contexts.get(context.request);
+        const ctx =
+          known && (known.refresh || !refresh)
+            ? known.ctx
+            : await server.context(context.request, { refresh });
+        contexts.set(context.request, {
+          ctx,
+          refresh: refresh || (known?.refresh ?? false),
+        });
+        const denied = guard(
+          ctx.auth,
+          middlewareOptions.allow,
+          middlewareOptions.aal,
+          middlewareOptions.scopes,
+        );
+        if (denied) throw toOrpcError(denied);
+        if (middlewareOptions.requireTenant || middlewareOptions.authorize) {
+          const caller = await authorizeCaller(
+            ctx.auth,
+            middlewareOptions,
+            undefined,
+            tenantOf(toSession(ctx.auth), tenantClaim),
+          );
+          if ("kind" in caller) throw toOrpcError(caller);
+        }
+        try {
+          return await next({
+            context: { bs: ctx, db: ctx.db, auth: ctx.auth },
+          });
+        } catch (cause) {
+          const thrown = dbErrorOf(cause);
+          if (thrown) throw toOrpcError(thrown);
+          throw cause;
+        }
+      });
+  };
+
   return extendServer<BetterOrpc<M, F, E, C, P>>(server, {
     toOrpcError,
 
-    middleware(middlewareOptions = {}) {
-      return os
-        .$context<OrpcRequestContext>()
-        .middleware(async ({ context, next }) => {
-          // Nested middleware resolves the request once; the context is kept
-          // before the guard so a denied call still returns rotated cookies.
-          const refresh = middlewareOptions.refresh ?? false;
-          const known = contexts.get(context.request);
-          const ctx =
-            known && (known.refresh || !refresh)
-              ? known.ctx
-              : await server.context(context.request, { refresh });
-          contexts.set(context.request, {
-            ctx,
-            refresh: refresh || (known?.refresh ?? false),
-          });
-          const denied = guard(
-            ctx.auth,
-            middlewareOptions.allow,
-            middlewareOptions.aal,
-            middlewareOptions.scopes,
-          );
-          if (denied) throw toOrpcError(denied);
-          try {
-            return await next({
-              context: { bs: ctx, db: ctx.db, auth: ctx.auth },
-            });
-          } catch (cause) {
-            const thrown = dbErrorOf(cause);
-            if (thrown) throw toOrpcError(thrown);
-            throw cause;
-          }
-        });
+    middleware,
+
+    authed(authedOptions) {
+      return os.$context<OrpcRequestContext>().use(middleware(authedOptions));
     },
 
     fetchHandler(handler, fetchOptions = {}) {
-      return async (request) => {
+      return async (request, _env, executionContext) => {
         const { response } = await handler.handle(request, {
           ...(fetchOptions.prefix ? { prefix: fetchOptions.prefix } : {}),
           context: { request },
         });
         const ctx = contexts.get(request)?.ctx;
         const answer = response ?? new Response("Not found", { status: 404 });
-        flushEvents(server, options.waitUntil);
+        flushEvents(
+          server,
+          options.waitUntil ??
+            (executionContext
+              ? (promise) => {
+                  executionContext.waitUntil(promise);
+                }
+              : undefined),
+        );
         return ctx ? ctx.apply(answer) : answer;
       };
     },

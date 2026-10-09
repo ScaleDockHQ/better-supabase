@@ -17,7 +17,7 @@ create table if not exists "better_supabase"."ai_files" (
   "chat_id" uuid,
   "project_id" uuid,
   "bucket" text not null,
-  "filename" text not null check (length("filename") between 1 and 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
+  "filename" text not null check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
   "path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored,
   "media_type" text not null check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "byte_size" bigint not null check ("byte_size" between 0 and 52428800),

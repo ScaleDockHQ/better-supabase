@@ -156,6 +156,8 @@ export default defineConfig({
       agents: { api: "api" },
       connectors: { api: "api" },
       "ai-tasks": { api: "api" },
+      // Device push tokens for the Expo example's push registration.
+      push: { api: "api" },
     },
   },
 });

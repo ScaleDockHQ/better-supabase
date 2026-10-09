@@ -14,7 +14,7 @@ export interface ElysiaBridge<Entries extends readonly AnyEntry[]> {
    */
   wrap(
     handle: (request: Request) => Promise<Response>,
-  ): (request: Request) => Promise<Response>;
+  ): (request: Request, env?: unknown) => Promise<Response>;
   /**
    * The contributions for a request `wrap` is serving. Throws for any other
    * request, so a route reached without the entries fails closed.
@@ -40,9 +40,9 @@ export function toElysia<const Entries extends readonly AnyEntry[]>(
   const run = around(entries);
   const contexts = new WeakMap<Request, Contributions<Entries>>();
   return {
-    wrap: (handle) => (incoming) => {
+    wrap: (handle) => (incoming, env) => {
       const request = incoming.body ? bufferRequest(incoming) : incoming;
-      return run(request, undefined, (contributions) => {
+      return run(request, env, (contributions) => {
         // SAFETY: around() hands over exactly the entries' contributions.
         contexts.set(request, contributions as Contributions<Entries>);
         return handle(request);

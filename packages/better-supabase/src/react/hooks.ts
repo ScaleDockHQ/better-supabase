@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
 
 import {
+  type Context,
   createContext,
   createElement,
   type ReactNode,
@@ -17,46 +18,45 @@ import {
 } from "react";
 
 import type { AuthSession } from "../auth/view.ts";
-import type { AuthSnapshot, ClientAuth } from "../client/index.ts";
+import type {
+  BroadcastOptions,
+  ClientLike,
+  LiveCountHookOptions,
+  LiveQueryHookOptions,
+} from "../bindings/client.ts";
+import type { AuthSnapshot } from "../client/index.ts";
 import type { DbError } from "../core/errors.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type {
   EventSchemas,
-  SubscribeOptions,
   SubscriptionStatus,
   TemplateValues,
   Topic,
   TopicHandlers,
   TopicMessage,
 } from "../realtime/index.ts";
-import type {
-  CountRunner,
-  LiveCountSeed,
-  LiveSource,
-} from "../realtime/live.ts";
-import type { SchemaMeta } from "../schema/types.ts";
+import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
 
-import { claimAt, claimsOf, tenantClaimPaths } from "../core/claims.ts";
+import { claimedTenant, sessionUserId, specKey } from "../bindings/keys.ts";
 import { invalidateTables } from "../query/invalidate.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
 import { liveCount, liveQuery } from "../realtime/live.ts";
 import { useSession } from "./session.ts";
 
-/** The parts of `createClient()` the provider needs. */
-export interface ClientLike {
-  readonly betterSupabase: LiveSource;
-  readonly supabase: SupabaseClient;
-  readonly auth: ClientAuth;
-  readonly db: object;
-  readonly queries: object;
-}
+export type {
+  BroadcastOptions,
+  ClientLike,
+  LiveCountHookOptions,
+  LiveQueryHookOptions,
+} from "../bindings/client.ts";
 
-interface ContextValue {
+export interface ContextValue {
   readonly client: ClientLike;
   readonly queryClient: QueryClient | undefined;
 }
 
-const ClientContext = createContext<ContextValue | null>(null);
+export const ClientContext: Context<ContextValue | null> =
+  createContext<ContextValue | null>(null);
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
 
@@ -161,25 +161,6 @@ export function createHooks<B extends ClientLike>(): BetterHooks<B> {
   };
 }
 
-export interface BroadcastOptions extends Omit<SubscribeOptions, "onStatus"> {
-  /**
-   * A supabase-js client to subscribe with, for apps without
-   * `<BetterSupabaseProvider>`. It resubscribes when the client's user
-   * changes. Defaults to the provider's client.
-   */
-  readonly client?: SupabaseClient;
-  /** The query client `invalidate` refetches with. Defaults to the provider's. */
-  readonly queryClient?: QueryClient;
-  /**
-   * Refetch after each message: table keys (every query that read one of
-   * them), or a function returning query keys. Needs a `queryClient`, here
-   * or on the provider.
-   */
-  readonly invalidate?:
-    | readonly string[]
-    | ((message: TopicMessage) => readonly (readonly unknown[])[]);
-}
-
 /**
  * Subscribes to a topic while mounted. Pass `null` values to pause. It
  * resubscribes when the topic or the signed-in user changes.
@@ -212,6 +193,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   latest.current = { handlers, options };
   const name = values ? topic.topic(values) : null;
   const userId = auth.userId;
+  const self = options?.self;
   if (options?.invalidate && !queryClient) {
     throw new Error(
       "better-supabase: useBroadcast({ invalidate }) needs <BetterSupabaseProvider queryClient={...}> or { queryClient }",
@@ -249,9 +231,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
       matched,
       { "*": forward },
       {
-        ...(latest.current.options?.self === undefined
-          ? {}
-          : { self: latest.current.options.self }),
+        ...(self === undefined ? {} : { self }),
         onStatus: setStatus,
         onInvalid: (message, issues) =>
           latest.current.options?.onInvalid?.(message, issues),
@@ -262,7 +242,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
       setStatus("closed");
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
-  }, [supabase, topic, name, userId, auth.status, queryClient]);
+  }, [supabase, topic, name, userId, auth.status, queryClient, self]);
 
   return status;
 }
@@ -273,7 +253,7 @@ const NO_AUTH = (): (() => void) => () => undefined;
  * The user `useBroadcast` subscribes as: the provider's auth snapshot, or
  * for a plain supabase-js client, its auth state.
  */
-function useBroadcastAuth(
+export function useBroadcastAuth(
   client: ClientLike | undefined,
   supabase: SupabaseClient,
 ): { readonly status: AuthSnapshot["status"]; readonly userId: string | null } {
@@ -291,7 +271,7 @@ function useBroadcastAuth(
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setPlain({
         status: session ? "signed-in" : "signed-out",
-        userId: session?.user.id ?? null,
+        userId: session ? sessionUserId(session) : null,
       });
     });
     return () => {
@@ -301,34 +281,6 @@ function useBroadcastAuth(
   return client
     ? { status: snapshot.status, userId: snapshot.user?.id ?? null }
     : plain;
-}
-
-export interface LiveQueryHookOptions {
-  /**
-   * Tenant for tenant-scoped tables. Defaults to the `config.claims.tenant`
-   * claim (`tenant_id`, top-level or in `app_metadata`).
-   */
-  readonly tenant?: string;
-  /** Defaults to 100 ms. */
-  readonly debounceMs?: number;
-}
-
-function claimedTenant(
-  auth: AuthSnapshot,
-  meta: SchemaMeta,
-): string | undefined {
-  if (auth.status !== "signed-in") return undefined;
-  for (const path of tenantClaimPaths(claimsOf(meta).tenant)) {
-    const value = claimAt(auth.claims, path);
-    if (value !== undefined) return value;
-  }
-  return undefined;
-}
-
-function specKey(spec: QuerySpec): string {
-  return JSON.stringify(spec, (_key, value: unknown) =>
-    typeof value === "bigint" ? { $bigint: value.toString() } : value,
-  );
 }
 
 /**
@@ -401,11 +353,6 @@ export function useLiveQuery(
   }, [client, queryClient, held, tenant, userId, auth.status, debounceMs]);
 
   return status;
-}
-
-export interface LiveCountHookOptions extends LiveQueryHookOptions {
-  /** The count to show before the first fetch, e.g. from the server. */
-  readonly initial?: number;
 }
 
 export interface LiveCount {

@@ -1,8 +1,10 @@
+import type { SqliteCompilerOptions } from "../compile/sqlite.ts";
 import type { Result } from "../core/result.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 import type { PowerSyncDatabaseLike } from "./executor.ts";
 
 import { err, toDbError } from "../core/result.ts";
+import { shareStructure } from "../core/share.ts";
 
 export interface WatchOptions<T> {
   /** SQLite tables whose changes rerun the query (`sqliteTables()` maps app keys). */
@@ -12,12 +14,19 @@ export interface WatchOptions<T> {
   readonly signal?: AbortSignal;
   /** The least time between two runs. Defaults to PowerSync's 30 ms. */
   readonly throttleMs?: number;
+  /**
+   * Keeps unchanged rows' object identity across runs and skips `onResult`
+   * when a run returns what the last one did. Defaults to true.
+   */
+  readonly structuralSharing?: boolean;
 }
 
 /**
  * Reruns a repository call whenever PowerSync reports a change to one of
  * `tables`: local writes and synced rows alike. The same call works with
- * lists, aggregates and single rows. Returns a function that stops it.
+ * lists, aggregates and single rows. Unchanged rows keep their identity
+ * between runs, and a run that changes nothing calls no `onResult`. Returns
+ * a function that stops it.
  *
  * ```ts
  * const stop = watch(powersync, () => customerList.run(db, query), {
@@ -44,6 +53,8 @@ export function watch<T>(
   };
   signal?.addEventListener("abort", stop, { once: true });
   let latest = 0;
+  let previous: Result<T> | undefined;
+  const sharing = options.structuralSharing ?? true;
   const rerun = async (): Promise<void> => {
     latest += 1;
     const run = latest;
@@ -53,7 +64,14 @@ export function watch<T>(
     } catch (cause) {
       result = err(toDbError(cause));
     }
-    if (run === latest && !controller.signal.aborted) options.onResult(result);
+    if (run !== latest || controller.signal.aborted) return;
+    if (sharing) {
+      const shared = shareStructure(previous, result);
+      if (shared === previous) return;
+      result = shared;
+    }
+    previous = result;
+    options.onResult(result);
   };
   void rerun();
   const unsubscribe = db.onChange(
@@ -73,14 +91,19 @@ export function watch<T>(
   };
 }
 
-/** The SQLite table names of app table keys (`customerTags` to `customer_tags`). */
+/**
+ * The SQLite table names of app table keys (`customerTags` to
+ * `customer_tags`). Pass the executor's `tableName` when it renames tables,
+ * so `watch` listens to the names the queries read.
+ */
 export function sqliteTables(
   betterSupabase: { readonly meta: SchemaMeta },
   keys: readonly string[],
+  options: SqliteCompilerOptions = {},
 ): string[] {
   return keys.map((key) => {
     const table = betterSupabase.meta.tables[key];
     if (!table) throw new TypeError(`better-supabase: unknown table "${key}"`);
-    return table.name;
+    return options.tableName ? options.tableName(table) : table.name;
   });
 }

@@ -133,3 +133,48 @@ describe("createHono", () => {
     expect(() => bs.resource("nope" as never)).toThrow('Unknown table "nope"');
   });
 });
+
+describe("bs.require()", () => {
+  const bs = createHono(defineSupabase(schema), {
+    env,
+    auth: { jwks: signer.jwks as never },
+  });
+  const app = bs
+    .app()
+    .use("*", bs.middleware({ allow: ["user", "anon"] }))
+    .get("/open", (c) => c.json(c.var.session.kind))
+    .get(
+      "/admin",
+      bs.require({
+        authorize: (session) =>
+          session.kind === "user" &&
+          session.claims.app_metadata?.["role"] === "admin",
+      }),
+      (c) => c.json("ok"),
+    )
+    .get("/scoped", bs.require({ requireTenant: true }), (c) =>
+      c.json(c.var.tenant),
+    );
+
+  const call = async (path: string, role?: string) =>
+    app.request(
+      path,
+      role
+        ? {
+            headers: {
+              authorization: `Bearer ${await signer.sign({ sub: USER, app_metadata: { role } })}`,
+            },
+          }
+        : {},
+    );
+
+  it("guards a route after the middleware", async () => {
+    expect(await (await call("/open")).json()).toBe("anon");
+    expect((await call("/admin")).status).toBe(401);
+    expect((await call("/admin", "member")).status).toBe(403);
+    expect(await (await call("/admin", "admin")).json()).toBe("ok");
+    const scoped = await call("/scoped", "admin");
+    expect(scoped.status).toBe(403);
+    expect(await scoped.json()).toMatchObject({ code: "NO_TENANT" });
+  });
+});

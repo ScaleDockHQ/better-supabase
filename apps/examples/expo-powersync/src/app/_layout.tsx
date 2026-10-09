@@ -1,8 +1,11 @@
 import { Stack } from "expo-router";
 
-import { useSync } from "../lib/sync";
+import { AppShell } from "../components/app-shell";
 
 export default function RootLayout() {
-  useSync();
-  return <Stack />;
+  return (
+    <AppShell>
+      <Stack />
+    </AppShell>
+  );
 }

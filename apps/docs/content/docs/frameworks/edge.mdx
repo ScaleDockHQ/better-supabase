@@ -60,6 +60,35 @@ Deno.serve(
 On Supabase, the function name is the first path segment, so `basePath` is
 `/<function-name>`.
 
+## Routes
+
+`bs.routes` serves several handlers from one function. Keys are
+`"METHOD /path"` or `"/path"` (any method), with `:name` segments and a
+trailing `/*`. `params` in each handler is typed from its key. A route can be
+a handler or an object with the same guards as Hono's `bs.require`:
+
+```ts
+Deno.serve(
+  bs.routes(
+    {
+      "GET /customers/:id": (_request, { db, params }) =>
+        db.customers.findById(params.id),
+      "POST /customers/:id/archive": {
+        roles: ["admin"],
+        roleClaim: "user_role",
+        requireTenant: true,
+        handler: (_request, { db, params }) =>
+          db.customers.update(params.id, { status: "archived" }),
+      },
+    },
+    { basePath: "/api" },
+  ),
+);
+```
+
+An unknown path returns 404, and a known path with another method returns 405
+with an `Allow` header.
+
 ## Background work
 
 Event sink sends that a handler started (see

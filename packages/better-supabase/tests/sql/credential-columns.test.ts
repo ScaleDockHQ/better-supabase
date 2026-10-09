@@ -26,6 +26,8 @@ const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
   ],
   // A lock token proves who holds a Chat SDK thread lock when it is released.
   "chat-sdk-state": ['"better_supabase"."chat_state_locks".token'],
+  // A push token addresses a device; sending to it needs the provider's own credential.
+  push: ['"better_supabase"."push_devices".token'],
 };
 
 const SENSITIVE = /token|secret|api_?key/;

@@ -72,6 +72,11 @@
       "react-server": "./dist/react/server.js",
       "default": "./dist/react/index.js"
     },
+    "./react/native": {
+      "@better-supabase/source": "./src/react/native/index.ts",
+      "types": "./dist/react/native/index.d.ts",
+      "default": "./dist/react/native/index.js"
+    },
     "./query": {
       "@better-supabase/source": "./src/query/index.ts",
       "types": "./dist/query/index.d.ts",
@@ -86,6 +91,11 @@
       "@better-supabase/source": "./src/powersync/index.ts",
       "types": "./dist/powersync/index.d.ts",
       "default": "./dist/powersync/index.js"
+    },
+    "./powersync/react": {
+      "@better-supabase/source": "./src/powersync/react/index.ts",
+      "types": "./dist/powersync/react/index.d.ts",
+      "default": "./dist/powersync/react/index.js"
     },
     "./postgres": {
       "@better-supabase/source": "./src/postgres/index.ts",
@@ -141,6 +151,51 @@
       "@better-supabase/source": "./src/elysia/index.ts",
       "types": "./dist/elysia/index.d.ts",
       "default": "./dist/elysia/index.js"
+    },
+    "./node": {
+      "@better-supabase/source": "./src/node/index.ts",
+      "types": "./dist/node/index.d.ts",
+      "default": "./dist/node/index.js"
+    },
+    "./nestjs": {
+      "@better-supabase/source": "./src/nestjs/index.ts",
+      "types": "./dist/nestjs/index.d.ts",
+      "default": "./dist/nestjs/index.js"
+    },
+    "./astro": {
+      "@better-supabase/source": "./src/astro/index.ts",
+      "types": "./dist/astro/index.d.ts",
+      "default": "./dist/astro/index.js"
+    },
+    "./h3/v1": {
+      "@better-supabase/source": "./src/h3/v1/index.ts",
+      "types": "./dist/h3/v1/index.d.ts",
+      "default": "./dist/h3/v1/index.js"
+    },
+    "./nuxt": {
+      "@better-supabase/source": "./src/nuxt/index.ts",
+      "types": "./dist/nuxt/index.d.ts",
+      "default": "./dist/nuxt/index.js"
+    },
+    "./solid-start": {
+      "@better-supabase/source": "./src/solid-start/index.ts",
+      "types": "./dist/solid-start/index.d.ts",
+      "default": "./dist/solid-start/index.js"
+    },
+    "./vue": {
+      "@better-supabase/source": "./src/vue/index.ts",
+      "types": "./dist/vue/index.d.ts",
+      "default": "./dist/vue/index.js"
+    },
+    "./solid": {
+      "@better-supabase/source": "./src/solid/index.ts",
+      "types": "./dist/solid/index.d.ts",
+      "default": "./dist/solid/index.js"
+    },
+    "./svelte": {
+      "@better-supabase/source": "./src/svelte/index.ts",
+      "types": "./dist/svelte/index.d.ts",
+      "default": "./dist/svelte/index.js"
     },
     "./orpc": {
       "@better-supabase/source": "./src/orpc/index.ts",
@@ -532,6 +587,21 @@
       "default": "./dist/testing/index.js"
     },
     "./schemas/*.json": "./schemas/*.json",
+    "./expo-sqlite": {
+      "@better-supabase/source": "./src/expo-sqlite/index.ts",
+      "types": "./dist/expo-sqlite/index.d.ts",
+      "default": "./dist/expo-sqlite/index.js"
+    },
+    "./tanstack-db": {
+      "@better-supabase/source": "./src/tanstack-db/index.ts",
+      "types": "./dist/tanstack-db/index.d.ts",
+      "default": "./dist/tanstack-db/index.js"
+    },
+    "./blocks/push": {
+      "@better-supabase/source": "./src/blocks/push/index.ts",
+      "types": "./dist/blocks/push/index.d.ts",
+      "default": "./dist/blocks/push/index.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -561,6 +631,10 @@
         "react-server": "./dist/react/server.js",
         "default": "./dist/react/index.js"
       },
+      "./react/native": {
+        "types": "./dist/react/native/index.d.ts",
+        "default": "./dist/react/native/index.js"
+      },
       "./query": {
         "types": "./dist/query/index.d.ts",
         "default": "./dist/query/index.js"
@@ -572,6 +646,10 @@
       "./powersync": {
         "types": "./dist/powersync/index.d.ts",
         "default": "./dist/powersync/index.js"
+      },
+      "./powersync/react": {
+        "types": "./dist/powersync/react/index.d.ts",
+        "default": "./dist/powersync/react/index.js"
       },
       "./postgres": {
         "types": "./dist/postgres/index.d.ts",
@@ -616,6 +694,42 @@
       "./elysia": {
         "types": "./dist/elysia/index.d.ts",
         "default": "./dist/elysia/index.js"
+      },
+      "./node": {
+        "types": "./dist/node/index.d.ts",
+        "default": "./dist/node/index.js"
+      },
+      "./nestjs": {
+        "types": "./dist/nestjs/index.d.ts",
+        "default": "./dist/nestjs/index.js"
+      },
+      "./astro": {
+        "types": "./dist/astro/index.d.ts",
+        "default": "./dist/astro/index.js"
+      },
+      "./h3/v1": {
+        "types": "./dist/h3/v1/index.d.ts",
+        "default": "./dist/h3/v1/index.js"
+      },
+      "./nuxt": {
+        "types": "./dist/nuxt/index.d.ts",
+        "default": "./dist/nuxt/index.js"
+      },
+      "./solid-start": {
+        "types": "./dist/solid-start/index.d.ts",
+        "default": "./dist/solid-start/index.js"
+      },
+      "./vue": {
+        "types": "./dist/vue/index.d.ts",
+        "default": "./dist/vue/index.js"
+      },
+      "./solid": {
+        "types": "./dist/solid/index.d.ts",
+        "default": "./dist/solid/index.js"
+      },
+      "./svelte": {
+        "types": "./dist/svelte/index.d.ts",
+        "default": "./dist/svelte/index.js"
       },
       "./orpc": {
         "types": "./dist/orpc/index.d.ts",
@@ -931,6 +1045,18 @@
         "default": "./dist/testing/index.js"
       },
       "./schemas/*.json": "./schemas/*.json",
+      "./expo-sqlite": {
+        "types": "./dist/expo-sqlite/index.d.ts",
+        "default": "./dist/expo-sqlite/index.js"
+      },
+      "./tanstack-db": {
+        "types": "./dist/tanstack-db/index.d.ts",
+        "default": "./dist/tanstack-db/index.js"
+      },
+      "./blocks/push": {
+        "types": "./dist/blocks/push/index.d.ts",
+        "default": "./dist/blocks/push/index.js"
+      },
       "./package.json": "./package.json"
     },
     "access": "public",
@@ -964,6 +1090,7 @@
     "@effect/platform-node": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
+    "@nestjs/common": "catalog:",
     "@next/playwright": "catalog:",
     "@openfeature/server-sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
@@ -1006,14 +1133,19 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "redis": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:",
     "smol-toml": "catalog:",
+    "solid-js": "catalog:",
     "stripe": "catalog:",
+    "svelte": "catalog:",
     "temporal-polyfill": "catalog:",
     "tinyexec": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "valibot": "catalog:",
     "vitest": "catalog:",
+    "vue": "catalog:",
     "workflow": "catalog:",
     "zod": "catalog:"
   },
@@ -1021,6 +1153,7 @@
     "@ai-sdk/mcp": "catalog:peers",
     "@ai-sdk/react": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
+    "@nestjs/common": "catalog:peers",
     "@next/playwright": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
     "@orpc/server": "catalog:peers",
@@ -1040,8 +1173,11 @@
     "pg": "catalog:peers",
     "react": "catalog:peers",
     "redis": "catalog:peers",
+    "solid-js": "catalog:peers",
     "stripe": "catalog:peers",
+    "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
+    "vue": "catalog:peers",
     "workflow": "catalog:peers"
   },
   "peerDependenciesMeta": {
@@ -1052,6 +1188,9 @@
       "optional": true
     },
     "@modelcontextprotocol/server": {
+      "optional": true
+    },
+    "@nestjs/common": {
       "optional": true
     },
     "@next/playwright": {
@@ -1108,10 +1247,19 @@
     "redis": {
       "optional": true
     },
+    "solid-js": {
+      "optional": true
+    },
     "stripe": {
       "optional": true
     },
+    "svelte": {
+      "optional": true
+    },
     "temporal-polyfill": {
+      "optional": true
+    },
+    "vue": {
       "optional": true
     },
     "workflow": {

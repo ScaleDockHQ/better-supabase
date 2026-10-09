@@ -13,6 +13,11 @@ export type ExpoParams = Record<string, string | string[]>;
 
 const PARAMS = Symbol("toExpo.params");
 
+export interface ToExpoOptions {
+  /** The host's env object for `getEnv`, read per request (EAS Hosting runs on Workers). */
+  readonly env?: (request: Request) => unknown;
+}
+
 /**
  * Runs an entry array around an Expo Router API route handler
  * (`export const GET = toExpo([...], handler)`). Short-circuit responses
@@ -26,6 +31,7 @@ export function toExpo<const Entries extends readonly AnyEntry[]>(
     ctx: Contributions<Entries>,
     params: ExpoParams,
   ) => Response | Promise<Response>,
+  options: ToExpoOptions = {},
 ): (request: Request, params?: ExpoParams) => Promise<Response> {
   // SAFETY: widening to the constraint; the parameter type already validated the entries.
   const run = pipeline(entries as readonly AnyEntry[], (request, ctx) =>
@@ -40,7 +46,7 @@ export function toExpo<const Entries extends readonly AnyEntry[]>(
   );
   return (request, params = {}) =>
     run(request.body ? bufferRequest(request) : request, {
-      ...seedContext(),
+      ...seedContext(options.env?.(request)),
       [PARAMS]: params,
     });
 }

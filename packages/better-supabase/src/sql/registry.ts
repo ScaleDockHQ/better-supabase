@@ -58,6 +58,7 @@ import { ONBOARDING } from "./modules/onboarding.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PROFILES } from "./modules/profiles.ts";
+import { PUSH } from "./modules/push.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SSO } from "./modules/sso.ts";
 import { STREAMS } from "./modules/streams.ts";
@@ -2243,6 +2244,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(AGENTS_MODULE),
       built(CONNECTORS),
       built(AI_TASKS),
+      built(PUSH),
       ENSURE_RLS,
     ].map((module) => [module.name, module]),
   );

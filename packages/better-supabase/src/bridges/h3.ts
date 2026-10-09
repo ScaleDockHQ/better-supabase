@@ -5,7 +5,23 @@ import { around, bufferInPlace, toResponse, type Validated } from "./shared.ts";
 /** The part of an H3 2 event the bridge reads and writes. */
 export interface H3Event<Context extends object> {
   readonly req: Request;
-  readonly context: Context;
+  readonly context: Context & {
+    /** Nitro's Cloudflare presets put the bindings here. */
+    readonly cloudflare?: { readonly env?: unknown } | undefined;
+  };
+  /** The status and headers a handler set with `event.res`, kept on a plain return value. */
+  readonly res?:
+    | {
+        readonly status?: number | undefined;
+        readonly statusText?: string | undefined;
+        readonly headers?: Headers | undefined;
+      }
+    | undefined;
+}
+
+export interface ToH3Options<Context extends object> {
+  /** The host's env object for `getEnv`; defaults to `event.context.cloudflare.env`. */
+  readonly env?: (event: H3Event<Context>) => unknown;
 }
 
 /** H3 2 middleware, typed structurally so the package does not import `h3`. */
@@ -27,13 +43,22 @@ export type H3Middleware<Context extends object> = (
  */
 export function toH3<const Entries extends readonly AnyEntry[]>(
   entries: Entries & Validated<Entries>,
+  options: ToH3Options<Partial<Contributions<Entries>>> = {},
 ): H3Middleware<Partial<Contributions<Entries>>> {
   const run = around(entries);
   return (event, next) => {
     bufferInPlace(event.req);
-    return run(event.req, undefined, async (contributions) => {
+    const env = options.env
+      ? options.env(event)
+      : event.context.cloudflare?.env;
+    return run(event.req, env, async (contributions) => {
       Object.assign(event.context, contributions);
-      return toResponse(await next());
+      const value = await next();
+      return toResponse(value, {
+        status: event.res?.status,
+        statusText: event.res?.statusText,
+        headers: event.res?.headers,
+      });
     });
   };
 }

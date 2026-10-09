@@ -16,6 +16,16 @@ export type ReactRouterMiddleware<Key, Value> = (
   next: () => Promise<Response>,
 ) => Promise<Response>;
 
+export interface ToReactRouterOptions<Key, Value> {
+  /**
+   * The host's env object for `getEnv`, e.g.
+   * `({ context }) => context.get(cloudflareContext).env` on Workers.
+   */
+  readonly env?: (
+    args: Parameters<ReactRouterMiddleware<Key, Value>>[0],
+  ) => unknown;
+}
+
 /**
  * Runs an entry array as React Router server middleware. The contributions
  * are set under `key` (a `createContext()` key), so loaders and actions
@@ -29,11 +39,13 @@ export type ReactRouterMiddleware<Key, Value> = (
 export function toReactRouter<const Entries extends readonly AnyEntry[], Key>(
   entries: Entries & Validated<Entries>,
   key: Key,
+  options: ToReactRouterOptions<Key, Contributions<Entries>> = {},
 ): ReactRouterMiddleware<Key, Contributions<Entries>> {
   const run = around(entries);
-  return ({ request, context }, next) => {
+  return (args, next) => {
+    const { request, context } = args;
     bufferInPlace(request);
-    return run(request, undefined, async (contributions) => {
+    return run(request, options.env?.(args), async (contributions) => {
       // SAFETY: around() hands over exactly the entries' contributions.
       context.set(key, contributions as Contributions<Entries>);
       return next();

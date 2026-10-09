@@ -1,65 +1,78 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type SubmitEvent, useState } from "react";
-import * as v from "valibot";
+import { optimistic } from "better-supabase/query";
+import {
+  tenantOf,
+  useDebouncedSearch,
+  useLiveQuery,
+  useSignIn,
+  useSignOut,
+} from "better-supabase/react";
+import { type SubmitEvent } from "react";
 
-import { useAuth, useQueries, useSupabase } from "./lib/hooks";
-import { createCustomer, customerList } from "./queries";
-
-/** Supabase custom access token hooks put the tenant in `app_metadata`. */
-const TenantClaims = v.object({
-  app_metadata: v.object({ tenant_id: v.string() }),
-});
+import { useAuth, useQueries } from "./lib/hooks";
+import { createCustomer, customerSpec } from "./queries";
 
 function SignIn() {
-  const supabase = useSupabase();
-  const [error, setError] = useState<string>();
+  const signIn = useSignIn();
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    await signIn.password({
       email: String(form.get("email")),
       password: String(form.get("password")),
     });
-    setError(signInError?.message);
   };
   return (
     <form onSubmit={(event) => void submit(event)}>
       <input name="email" type="email" placeholder="Email" required />
       <input name="password" type="password" placeholder="Password" required />
-      <button type="submit">Sign in</button>
-      {error ? <p role="alert">{error}</p> : null}
+      <button type="submit" disabled={signIn.pending}>
+        Sign in
+      </button>
+      {signIn.error ? <p role="alert">{signIn.error.message}</p> : null}
     </form>
   );
 }
 
 function Customers({ organizationId }: { organizationId: string }) {
   const queries = useQueries();
-  const [search, setSearch] = useState("");
-  const list = useQuery(customerList(queries, search));
-  const create = useMutation(createCustomer(queries));
+  const search = useDebouncedSearch();
+  const spec = customerSpec(search.term);
+  const listQuery = queries.$spec(spec);
+  const list = useQuery(listQuery);
+  // Refetches the list when another tab or user changes a customer.
+  useLiveQuery(spec);
+  // The new row shows at once and rolls back if the insert fails.
+  const create = useMutation({
+    ...createCustomer(queries),
+    ...optimistic.create(
+      listQuery,
+      (input: { readonly name: string }) => ({
+        id: `pending-${input.name}`,
+        name: input.name,
+        status: "active",
+      }),
+      { position: "start" },
+    ),
+  });
   const add = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
     const name = String(new FormData(form).get("name"));
-    create.mutate(
-      { name, organizationId },
-      {
-        onSuccess: () => {
-          form.reset();
-        },
-      },
-    );
+    create.mutate({ name, organizationId });
+    form.reset();
   };
   return (
     <section>
       <input
-        value={search}
+        value={search.value}
         onChange={(event) => {
-          setSearch(event.target.value);
+          search.setValue(event.target.value);
         }}
         placeholder="Search"
       />
       {list.error ? <p role="alert">{list.error.message}</p> : null}
+      {create.error ? <p role="alert">{create.error.message}</p> : null}
       <ul>
         {list.data?.map((customer) => (
           <li key={customer.id}>
@@ -69,9 +82,7 @@ function Customers({ organizationId }: { organizationId: string }) {
       </ul>
       <form onSubmit={add}>
         <input name="name" placeholder="New customer" required />
-        <button type="submit" disabled={create.isPending}>
-          Add
-        </button>
+        <button type="submit">Add</button>
       </form>
     </section>
   );
@@ -79,24 +90,19 @@ function Customers({ organizationId }: { organizationId: string }) {
 
 export function App() {
   const auth = useAuth();
-  const supabase = useSupabase();
+  const { signOut } = useSignOut();
   switch (auth.status) {
     case "loading":
       return <p>Loading…</p>;
     case "signed-out":
       return <SignIn />;
     case "signed-in": {
-      const tenant = v.safeParse(TenantClaims, auth.claims);
-      const organizationId = tenant.success
-        ? tenant.output.app_metadata.tenant_id
-        : undefined;
+      const organizationId = tenantOf(auth);
       return (
         <main>
           <header>
             {auth.user.email}{" "}
-            <button onClick={() => void supabase.auth.signOut()}>
-              Sign out
-            </button>
+            <button onClick={() => void signOut()}>Sign out</button>
           </header>
           {organizationId ? (
             <Customers organizationId={organizationId} />

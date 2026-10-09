@@ -161,6 +161,22 @@ describe("createEdge", () => {
     ).toBe(400);
   });
 
+  it("routes resource requests that carry a body", async () => {
+    const serve = bs.resources({ customers: true }, { basePath: "/api" });
+    const token = await signer.sign({ sub: USER });
+    const response = await serve(
+      new Request("https://project.functions.test/api/customers/c1", {
+        method: "PUT",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ name: "Acme" }),
+      }),
+    );
+    expect(response.status).toBe(405);
+  });
+
   it("allows any origin with cors: true", async () => {
     const open = createEdge(betterSupabase, {
       env,

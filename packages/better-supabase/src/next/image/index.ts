@@ -1,3 +1,5 @@
+import { storageImageUrl } from "../../storage/image-url.ts";
+
 /** What `next/image` passes to a custom loader. */
 export interface ImageLoaderProps {
   readonly src: string;
@@ -19,13 +21,6 @@ export interface ImageLoaderOptions {
   readonly fallback?: ImageLoader;
 }
 
-/** Storage's image transformation limits. */
-const MAX_WIDTH = 2500;
-const QUALITY = { min: 20, max: 100 } as const;
-
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(max, Math.max(min, Math.round(value)));
-
 /**
  * A `next/image` loader that serves public Storage objects through
  * Supabase image transformations (`/render/image/public`), so Next.js does
@@ -40,31 +35,7 @@ const clamp = (value: number, min: number, max: number): number =>
  * were signed with, so sign them with `renderUrl()` at the size you render.
  */
 export function createImageLoader(options: ImageLoaderOptions): ImageLoader {
-  const storage = `${options.url.replace(/\/+$/, "")}/storage/v1`;
-  const publicPrefixes = [
-    `${storage}/object/public/`,
-    `${storage}/render/image/public/`,
-  ].map((prefix) => ({ prefix, length: new URL(prefix).pathname.length }));
+  const imageUrl = storageImageUrl(options);
   const fallback = options.fallback ?? (({ src }) => src);
-
-  return (props) => {
-    const prefix = publicPrefixes.find((candidate) =>
-      props.src.startsWith(candidate.prefix),
-    );
-    if (prefix === undefined) return fallback(props);
-    const source = new URL(props.src);
-    const object = source.pathname.slice(prefix.length);
-    const target = new URL(`${storage}/render/image/public/${object}`);
-    for (const [key, value] of source.searchParams)
-      target.searchParams.set(key, value);
-    target.searchParams.set("width", String(clamp(props.width, 1, MAX_WIDTH)));
-    if (props.quality !== undefined) {
-      target.searchParams.set(
-        "quality",
-        String(clamp(props.quality, QUALITY.min, QUALITY.max)),
-      );
-    }
-    if (options.resize) target.searchParams.set("resize", options.resize);
-    return target.toString();
-  };
+  return (props) => imageUrl(props.src, props) ?? fallback(props);
 }

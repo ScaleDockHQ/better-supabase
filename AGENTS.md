@@ -136,8 +136,10 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     `redis` through a variable specifier in `src/streams/redis/redis.ts`
     (an install message, or pass a client), `@vercel/connect` through a
     variable specifier in `src/vercel-connect/vercel-connect.ts` (an
-    install message), and `@next/playwright` through a variable specifier in
-    `src/testing/instant.ts` (an install message). CLI startup work also loads on
+    install message), `@next/playwright` through a variable specifier in
+    `src/testing/instant.ts` (an install message), and `@nestjs/common`
+    through a synchronous `createRequire` in `src/nestjs/index.ts`, because
+    `@Ctx()` runs while the class is defined (an install message). CLI startup work also loads on
     demand, each with a comment: the commands, config loading and env
     validation in `src/cli/run.ts`, the prompts in `src/cli/bin.ts`, and
     the arktype-backed typegen entries in `src/cli/introspect/typegen.ts`.
@@ -301,6 +303,7 @@ every bump.
 Read the page for the area you are changing. When an agent needs the same
 correction twice, add it to one of these pages.
 
+- [`docs/agents/adapters.md`](docs/agents/adapters.md): shared guards, Node loading checks, native packages and fixture modules for blocks.
 - [`docs/agents/core.md`](docs/agents/core.md): column casing in queries and per-request work in the core.
 - [`docs/agents/blocks.md`](docs/agents/blocks.md): the checklist for adding a block, its SQL module and its subpath.
 - [`docs/agents/database.md`](docs/agents/database.md): the declarative schema workflow and what the diff misses.

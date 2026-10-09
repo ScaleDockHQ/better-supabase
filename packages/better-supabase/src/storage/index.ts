@@ -1,5 +1,7 @@
 export { defineBucket, parseSize, TTL } from "./bucket.ts";
 export { fromStorageError } from "./errors.ts";
+export { storageImageUrl } from "./image-url.ts";
+export type { StorageImageOptions, StorageImageSize } from "./image-url.ts";
 export { defineBuckets } from "./registry.ts";
 export type {
   AnyBucket,

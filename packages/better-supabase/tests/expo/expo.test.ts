@@ -162,6 +162,21 @@ describe("createExpo", () => {
     ).toBeUndefined();
   });
 
+  it("lets callers through to paths under redirectTo and publicPaths", async () => {
+    const middleware = bs.middleware({
+      redirectTo: "/sign-in",
+      publicPaths: ["/", "/legal"],
+    });
+    for (const path of ["/sign-in/callback", "/", "/legal", "/legal/terms"])
+      expect(
+        await middleware(immutable(`https://app.test${path}`)),
+      ).toBeUndefined();
+    for (const path of ["/sign-inx", "/legalese", "/account"])
+      expect(
+        (await middleware(immutable(`https://app.test${path}`)))?.status,
+      ).toBe(303);
+  });
+
   it("answers API routes with JSON and Problem Details", async () => {
     const token = await signer.sign({ sub: USER });
     const handler = bs.handler((_request, ctx, params) =>

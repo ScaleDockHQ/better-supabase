@@ -26,7 +26,16 @@ export interface LiveQueryOptions {
   readonly user?: string;
   /** Waits this long after the last change before calling `onChange`. Defaults to 100 ms. */
   readonly debounceMs?: number;
+  /**
+   * Also reports a channel that errors after it joined (`error`) and its
+   * rejoin (`subscribed`), not only the first join.
+   */
   readonly onStatus?: (status: SubscriptionStatus, error?: Error) => void;
+  /**
+   * Retries a first join that failed, after 1 s and then twice as long each
+   * time, up to 30 s. Pass `false` to stay in `error`. Defaults to `true`.
+   */
+  readonly retry?: boolean;
 }
 
 export interface LiveSubscription extends Disposable, AsyncDisposable {
@@ -81,9 +90,12 @@ export function liveTopic(
   return `${base}:${tenant}`;
 }
 
+type StatusListener = (status: "subscribed" | "error", error?: Error) => void;
+
 interface SharedChannel {
   readonly channel: RealtimeChannel;
   readonly listeners: Set<() => void>;
+  readonly statuses: Set<StatusListener>;
   readonly ready: Promise<void>;
 }
 
@@ -93,6 +105,7 @@ function join(
   client: RealtimeClient,
   topic: string,
   listener: () => void,
+  onStatus?: StatusListener,
 ): { ready: Promise<void>; leave: () => Promise<void> } {
   let byTopic = channels.get(client);
   if (!byTopic) {
@@ -103,6 +116,7 @@ function join(
   if (!shared) {
     const channel = client.channel(topic, { config: { private: true } });
     const listeners = new Set<() => void>();
+    const statuses = new Set<StatusListener>();
     channel.on("broadcast", { event: "change" }, () => {
       for (const notify of listeners) notify();
     });
@@ -119,7 +133,10 @@ function join(
           switch (status) {
             case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED:
               // Broadcasts sent while disconnected are lost: a rejoin counts as a change.
-              if (joined) for (const notify of listeners) notify();
+              if (joined) {
+                for (const notify of listeners) notify();
+                for (const notify of statuses) notify("subscribed");
+              }
               joined = true;
               resolve();
               return;
@@ -127,16 +144,20 @@ function join(
               resolve();
               return;
             case REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR:
-            case REALTIME_SUBSCRIBE_STATES.TIMED_OUT:
-              reject(
+            case REALTIME_SUBSCRIBE_STATES.TIMED_OUT: {
+              const failure =
                 error ??
-                  new Error(`Realtime ${status.toLowerCase()} on ${topic}`),
-              );
+                new Error(`Realtime ${status.toLowerCase()} on ${topic}`);
+              // Settled already once joined: listeners hear it instead.
+              if (joined)
+                for (const notify of statuses) notify("error", failure);
+              reject(failure);
               // A joined channel rejoins on its own; one that never joined is
               // dropped so the next join opens a fresh channel. Removing it
               // reports CLOSED, so this runs after the reject.
               if (!joined) evict();
               return;
+            }
             default: {
               const unknown: never = status;
               reject(new Error(`Unknown realtime status ${String(unknown)}`));
@@ -146,12 +167,13 @@ function join(
       });
     })();
     ready.catch(() => undefined);
-    const entry: SharedChannel = { channel, listeners, ready };
+    const entry: SharedChannel = { channel, listeners, statuses, ready };
     shared = entry;
     byTopic.set(topic, entry);
   }
   const current = shared;
   current.listeners.add(listener);
+  if (onStatus) current.statuses.add(onStatus);
   let left = false;
   return {
     ready: current.ready,
@@ -159,6 +181,7 @@ function join(
       if (left) return;
       left = true;
       current.listeners.delete(listener);
+      if (onStatus) current.statuses.delete(onStatus);
       if (current.listeners.size > 0) return;
       // A join in the same tick (React StrictMode remounts) keeps the channel:
       // removing it first would hand the new listener a closing channel.
@@ -212,35 +235,76 @@ export function liveQuery(
     options.onChange(batch);
   };
 
-  const memberships = tables.map((table) =>
-    join(
-      client,
-      liveTopic(betterSupabase.meta, table, options.tenant, options.user),
+  const onTableChange = (table: string) => () => {
+    changed.add(table);
+    if (timer !== undefined) clearTimeout(timer);
+    timer = setTimeout(flush, debounceMs);
+  };
+  const failed = new Set<string>();
+  const onChannelStatus =
+    (topic: string): StatusListener =>
+    (status, error) => {
+      if (closed) return;
+      if (status === "error") failed.add(topic);
+      else failed.delete(topic);
+      if (status === "error") options.onStatus?.("error", error);
+      else if (failed.size === 0) options.onStatus?.("subscribed");
+    };
+  const topics = tables.map((table) => ({
+    table,
+    topic: liveTopic(betterSupabase.meta, table, options.tenant, options.user),
+  }));
+  const joinAll = () =>
+    topics.map(({ table, topic }) =>
+      join(client, topic, onTableChange(table), onChannelStatus(topic)),
+    );
+  let memberships = joinAll();
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let delay = 1000;
+
+  const settle = (attempt: typeof memberships): Promise<void> =>
+    Promise.all(attempt.map((member) => member.ready)).then(
       () => {
-        changed.add(table);
-        if (timer !== undefined) clearTimeout(timer);
-        timer = setTimeout(flush, debounceMs);
+        if (!closed && tables.length > 0) options.onStatus?.("subscribed");
       },
-    ),
-  );
+      (cause: unknown) => {
+        const error = cause instanceof Error ? cause : new Error(String(cause));
+        if (!closed) {
+          options.onStatus?.("error", error);
+          if (options.retry !== false) scheduleRetry(attempt);
+        }
+        throw error;
+      },
+    );
+  const scheduleRetry = (attempt: typeof memberships): void => {
+    retryTimer = setTimeout(() => {
+      retryTimer = undefined;
+      if (closed || attempt !== memberships) return;
+      void Promise.all(attempt.map((member) => member.leave()));
+      memberships = joinAll();
+      options.onStatus?.("joining");
+      // Changes made while the channel was down were missed.
+      settle(memberships).then(
+        () => {
+          if (closed) return;
+          for (const table of tables) changed.add(table);
+          flush();
+        },
+        () => undefined,
+      );
+    }, delay);
+    delay = Math.min(delay * 2, 30_000);
+  };
 
   options.onStatus?.(tables.length === 0 ? "closed" : "joining");
-  const ready = Promise.all(memberships.map((member) => member.ready)).then(
-    () => {
-      if (!closed && tables.length > 0) options.onStatus?.("subscribed");
-    },
-    (cause: unknown) => {
-      const error = cause instanceof Error ? cause : new Error(String(cause));
-      options.onStatus?.("error", error);
-      throw error;
-    },
-  );
+  const ready = settle(memberships);
   ready.catch(() => undefined);
 
   const unsubscribe = async (): Promise<void> => {
     if (closed) return;
     closed = true;
     if (timer !== undefined) clearTimeout(timer);
+    if (retryTimer !== undefined) clearTimeout(retryTimer);
     await Promise.all(memberships.map((member) => member.leave()));
     options.onStatus?.("closed");
   };

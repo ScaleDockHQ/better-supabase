@@ -1,0 +1,73 @@
+---
+title: Solid
+description: A provider and typed primitives for Solid and SolidStart from better-supabase/solid.
+---
+
+`better-supabase/solid` binds the [browser client](/docs/frontend/client) to
+Solid. Wrap the app in the provider, next to TanStack Solid Query:
+
+```tsx title="src/app.tsx"
+import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
+import { BetterSupabaseProvider } from "better-supabase/solid";
+import { bs } from "./lib/supabase/client";
+
+const queryClient = new QueryClient();
+
+export default function App(props: { children: JSX.Element }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BetterSupabaseProvider client={bs} queryClient={queryClient}>
+        {props.children}
+      </BetterSupabaseProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+With `queryClient`, the provider removes all better-supabase queries when
+the user signs out or switches accounts, and refetches them when the
+token's tenant or role changes. Pass `session` (an accessor, for example
+`createAsync(() => getSession())`) to share a server-verified session with
+`useSession()`.
+
+Create primitives typed for your schema once:
+
+```ts title="src/lib/primitives.ts"
+import { createBindings } from "better-supabase/solid";
+import type { bs } from "./supabase/client";
+
+export const { useDb, useQueries, useAuth, useSession } =
+  createBindings<typeof bs>();
+```
+
+## Primitives
+
+| Primitive                               | Returns                                                          |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| `useAuth()`                             | an accessor for `loading`, `signed-out` or `signed-in`           |
+| `useSupabase()`                         | the supabase-js client                                           |
+| `useLiveQuery(spec, options)`           | an accessor for the subscription status                          |
+| `useLiveCount(source, options)`         | a reactive `{ count, status, error }`                            |
+| `useBroadcast(topic, values, handlers)` | an accessor for the subscription status                          |
+| `usePresence(topic, values, { state })` | a reactive `{ members, status, track, untrack }`                 |
+| `useAction(action, { onSuccess })`      | a reactive `{ pending, pendingInputs, data, error, run, reset }` |
+| `useSession()`, `useSupportSession()`   | the provider's server-verified session                           |
+
+Inputs are accessors, so a subscription follows the signals it reads. A
+`null` spec or `null` values pause it:
+
+```tsx title="src/components/unread-badge.tsx"
+import { useLiveCount } from "better-supabase/solid";
+import { betterSupabase } from "../lib/supabase";
+
+export function UnreadBadge() {
+  const unread = useLiveCount(() =>
+    betterSupabase.spec.messages.count({ where: { read: false } }),
+  );
+  return <span>{unread.count ?? "..."}</span>;
+}
+```
+
+Subscriptions start on mount, never during server rendering, and stop when
+the owner is disposed. For SolidStart server routes, see
+[SolidStart](/docs/frameworks/solid-start).

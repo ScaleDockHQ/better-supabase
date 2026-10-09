@@ -19,82 +19,78 @@ write.
 ## Upload through the repositories
 
 Each queued change has an `op`: `PUT` (insert or replace), `PATCH` (update the
-changed columns) or `DELETE`. Map each one to a repository call:
+changed columns) or `DELETE`. `createUploadConnector` maps each one to the
+table's repository and authenticates sync with the Supabase session:
 
 ```ts title="src/lib/powersync/connector.ts"
-import {
-  type CrudEntry,
-  type PowerSyncBackendConnector,
-  UpdateType,
-} from "@powersync/react-native";
+import { createUploadConnector } from "better-supabase/powersync";
 import { bs, supabase } from "../supabase/native";
 
-function upload(entry: CrudEntry) {
-  const customers = bs.db.customers;
-  const data = entry.opData ?? {};
-  switch (entry.op) {
-    case UpdateType.PUT:
-      return customers.upsert({ ...data, id: entry.id } as never);
-    case UpdateType.PATCH:
-      return customers.update(entry.id, data);
-    case UpdateType.DELETE:
-      return customers.delete(entry.id);
-    default: {
-      const unhandled: never = entry.op;
-      throw new TypeError(`Unhandled op ${String(unhandled)}`);
-    }
-  }
-}
-
-export const connector: PowerSyncBackendConnector = {
-  async fetchCredentials() {
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) return null;
-    return {
-      endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
-      token: data.session.access_token,
-    };
-  },
-  async uploadData(database) {
-    const transaction = await database.getNextCrudTransaction();
-    if (!transaction) return;
-    for (const entry of transaction.crud) {
-      const result = await upload(entry);
-      if (!result.ok && retry(result.error))
-        throw new Error(result.error.message);
-      if (!result.ok) refused(entry, result.error);
-    }
-    await transaction.complete();
-  },
-};
+export const connector = createUploadConnector({
+  endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
+  supabase,
+  tables: { customers: bs.db.customers },
+});
 ```
 
-With more than one table, switch on `entry.table` first. `opData` holds the
-columns as SQLite stored them, under their database names; with
-`casing: 'camel'`, rename them to the app keys before the call.
+It reads the queue in batches of 100 (`batchSize`). Every table that takes
+local writes needs a route: a change to a table missing from `tables` stops
+the upload with an error that names it, so no change is dropped without a
+trace. A route can also be a function of the change, for a table that needs
+custom replay:
+
+```ts
+tables: {
+  customers: bs.db.customers,
+  notes: (entry) => bs.db.notes.upsert({ ...renameColumns(entry.opData), id: entry.id }),
+},
+```
+
+`opData` holds the columns as SQLite stored them, under their database names;
+with `casing: 'camel'`, use a function route that renames them to the app
+keys.
+
+To sync only while someone is signed in, pass the connector to
+`syncWithAuth`. It connects on sign-in, and on sign-out or a change of user it
+disconnects and clears the local database, so one user never reads another's
+rows. Unsynced changes are cleared with them; pass `clearOnSignOut: false` to
+keep the database.
+
+```tsx title="src/lib/powersync/sync.ts"
+import { syncWithAuth } from "better-supabase/powersync";
+
+export function useSync(): void {
+  useEffect(() => syncWithAuth(powersync, bs.auth, { connector }), []);
+}
+```
 
 ## Retry, discard or surface a conflict
 
 A failed upload returns a [`DbError`](/docs/concepts/results). Its `kind`
-decides what happens to the change:
+decides what happens to the change; `uploadOutcome(kind)` is the default
+below, and `classify` overrides it for some errors:
 
-| Kind                                                                                                             | Do                                                                  |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `network`, `timeout`, `aborted`, `rate_limited`, `quota_exceeded`, `serialization`, `unauthorized`, `unexpected` | throw: PowerSync keeps the transaction and calls `uploadData` again |
-| `conflict`, `stale`, `foreign_key`                                                                               | complete it and show the conflict next to the row                   |
-| `forbidden`, `not_found`, `check`, `not_null`, `validation` and the rest                                         | complete it; the server will never accept it                        |
+| Kind                                                                                                             | Do                                                            |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `network`, `timeout`, `aborted`, `rate_limited`, `quota_exceeded`, `serialization`, `unauthorized`, `unexpected` | retry: PowerSync keeps the batch and calls `uploadData` again |
+| `conflict`, `stale`, `foreign_key`                                                                               | conflict: complete it and show the conflict next to the row   |
+| `forbidden`, `not_found`, `check`, `not_null`, `validation` and the rest                                         | discard: complete it; the server will never accept it         |
 
-Throwing for a change the server will never accept blocks the queue for
-good, so the kinds that can't succeed on a retry must complete. Completing
-removes the change from the queue, and the next sync replaces the local row
-with the server's version, so the device ends up where the server is.
+Retrying a change the server will never accept blocks the queue for good,
+so the kinds that can't succeed on a retry complete. Completing removes the
+change from the queue, and the next sync replaces the local row with the
+server's version, so the device ends up where the server is. An
+`unauthorized` error retries while the session lives; once the refresh token
+is dead, the upload stops until the user signs in again.
 
 ## Conflicts
 
-The server's row wins once the change is gone from the queue. To keep the
-user's edit, record the refused change (its `entry.opData` and the error) in
-a local-only table or in memory, show it on the row, and let the user apply
-it again as a new write. A `conflict` error carries the `constraint` and
+The server's row wins once the change is gone from the queue. The connector
+keeps every conflict and discarded change in `connector.rejected` (and calls
+`onConflict` or `onDiscard`), with the queued `entry` and the error.
+`useConflicts(connector)` from `better-supabase/powersync/react` reads them in
+a component: show each on its row, let the user apply it again as a new
+write, then `dismiss` it. A `conflict` error carries the `constraint` and
 `columns` that rejected it, which is enough to point at the field.
 
 For edits that must not overwrite a newer server row, record the
@@ -103,5 +99,4 @@ For edits that must not overwrite a newer server row, record the
 `stale` error when someone else changed the row first, and the user decides.
 
 The [Expo example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/expo-powersync)
-has the full connector, with every error kind sorted into one of the three
-outcomes.
+uses this connector with `syncWithAuth` and `useConflicts`.

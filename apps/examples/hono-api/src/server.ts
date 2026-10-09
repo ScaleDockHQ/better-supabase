@@ -13,6 +13,13 @@ const customers = defineListQuery(betterSupabase, "customers", {
   pageSize: 20,
 });
 
+/** The fixture's token hook writes the role to the top-level `user_role` claim. */
+const admins = bs.require({
+  roles: ["admin"],
+  roleClaim: "user_role",
+  requireTenant: true,
+});
+
 const app = bs
   .app()
   .use("/api/*", bs.middleware())
@@ -33,6 +40,16 @@ const app = bs
       })
       .orThrow();
     return c.json({ items: notes });
+  })
+  .post("/api/customers/:id/archive", admins, async (c) => {
+    const customer = await c.var.db.customers
+      .update(
+        c.req.param("id"),
+        { status: "archived" },
+        { select: ["id", "status"] },
+      )
+      .orThrow();
+    return c.json(customer);
   });
 
 export default app;

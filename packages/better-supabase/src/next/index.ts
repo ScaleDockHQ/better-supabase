@@ -8,8 +8,8 @@ export {
   shouldRefresh,
   STATS_URL_HEADER,
   supportTag,
-  tagFor,
 } from "./create.ts";
+export { tagFor, type TagOptions } from "../core/tags.ts";
 export type {
   ActionOptions,
   ActionResult,
@@ -29,7 +29,6 @@ export type {
   ScopeOptions,
   SessionStaleOptions,
   SupportStarted,
-  TagOptions,
 } from "./create.ts";
 export { REQUEST_ID_HEADER, type DbBudget } from "./collector.ts";
 export type { DbStats } from "../core/stats.ts";

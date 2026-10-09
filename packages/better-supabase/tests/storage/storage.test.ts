@@ -947,6 +947,37 @@ describe("BucketClient URLs", () => {
     expect(calls).toHaveLength(502);
   });
 
+  it("drops cached signed URLs when the object is written, moved or removed", async () => {
+    const { client, calls } = fakeStorage({
+      files: { "docs/o1/u1/a.txt": "a" },
+    });
+    const cached = docs.connect(client, { cacheSignedUrls: true });
+    const signs = () =>
+      calls.filter((call) => call.method === "createSignedUrl").length;
+    await cached.signedUrl(A);
+    await cached.signedUrl({ ...A, file: "b.txt" });
+    await cached.upload(A, "new", { upsert: true });
+    await cached.signedUrl(A);
+    await cached.signedUrl({ ...A, file: "b.txt" });
+    expect(signs()).toBe(3);
+    await cached.move(A, { ...A, file: "c.txt" });
+    await cached.signedUrl(A);
+    expect(signs()).toBe(4);
+    await cached.remove([{ ...A, file: "b.txt" }]);
+    await cached.signedUrl({ ...A, file: "b.txt" });
+    expect(signs()).toBe(5);
+  });
+
+  it("settles an upload with an error when its signal aborts mid-request", async () => {
+    const { client } = fakeStorage();
+    const controller = new AbortController();
+    const pending = docs
+      .connect(client)
+      .upload(A, "a", { signal: controller.signal });
+    controller.abort(new Error("stop"));
+    expect((await pending).ok).toBe(false);
+  });
+
   it("reuses a signed URL per connection when asked, until it nears expiry", async () => {
     vi.useFakeTimers();
     try {
@@ -1419,6 +1450,29 @@ describe("BucketClient sweep", () => {
       dryRun: true,
     });
     expect(result.ok && result.data.orphans).toEqual(["o1/u1/a.txt"]);
+  });
+
+  it("pages through large folders and removes only after the walk", async () => {
+    const many: Record<string, string> = {};
+    for (let index = 0; index < 1005; index++)
+      many[`docs/o1/u1/f${String(index).padStart(4, "0")}.txt`] = "x";
+    const storage = fakeStorage({ files: many });
+    const referenced = vi.fn((paths: readonly string[]) =>
+      paths.filter((path) => !path.endsWith("0.txt")),
+    );
+    const result = await docs.connect(storage.client).sweep({
+      within: { organizationId: "o1", userId: "u1" },
+      olderThan: Temporal.Duration.from({ seconds: 0 }),
+      now: () => NOW,
+      batchSize: 400,
+      referenced,
+    });
+    expect(result.ok && result.data.scanned).toBe(1005);
+    expect(result.ok && result.data.removed).toHaveLength(101);
+    expect(referenced).toHaveBeenCalledTimes(3);
+    const methods = storage.calls.map((call) => call.method);
+    expect(methods.lastIndexOf("list")).toBeLessThan(methods.indexOf("remove"));
+    expect(storage.files.size).toBe(904);
   });
 
   it("returns list and remove failures", async () => {

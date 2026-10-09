@@ -4,10 +4,9 @@ import {
   Schema,
   Table,
 } from "@powersync/react-native";
-import { powersyncExecutor } from "better-supabase/powersync";
+import { powersyncExecutor, sqliteTables } from "better-supabase/powersync";
 
 import { betterSupabase } from "../supabase";
-import { connector } from "./connector";
 
 /** The synced columns of `public.customers`; PowerSync adds the text `id`. */
 const schema = new Schema({
@@ -29,7 +28,5 @@ export const powersync = new PowerSyncDatabase({
 /** Repositories over the device database: the same `db.customers` API, read offline. */
 export const local = betterSupabase.connect(powersyncExecutor(powersync));
 
-export async function startSync(): Promise<void> {
-  await powersync.init();
-  await powersync.connect(connector);
-}
+/** The SQLite tables a customer query reads, for `useWatch`. */
+export const customerTables = sqliteTables(betterSupabase, ["customers"]);

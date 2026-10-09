@@ -5,5 +5,7 @@ declare namespace NodeJS {
     readonly EXPO_PUBLIC_SUPABASE_URL: string;
     readonly EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: string;
     readonly EXPO_PUBLIC_POWERSYNC_URL: string;
+    /** The EAS project id; push tokens need it outside Expo Go. */
+    readonly EXPO_PUBLIC_EAS_PROJECT_ID?: string;
   }
 }

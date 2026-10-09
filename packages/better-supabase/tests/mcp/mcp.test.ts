@@ -741,6 +741,38 @@ describe("createMcp table tool meta", () => {
     expect(called.error?.message).toBe('Unknown tool "tags_list"');
     expect(checks).toBe(2);
   });
+
+  it("rebuilds cached visible lists after a tool is registered", async () => {
+    const betterSupabase = defineSupabase(schema);
+    const mcp = createMcp(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      name: "crm",
+      version: "1.0.0",
+      resources: { tags: { operations: ["list"] } },
+      visible: () => true,
+    });
+    const token = await signer.sign({ sub: USER });
+    const names = async () => {
+      const response = await mcp.fetch(
+        new Request(ENDPOINT, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+        }),
+      );
+      const { result } = (await response.json()) as {
+        result: { tools: { name: string }[] };
+      };
+      return result.tools.map((tool) => tool.name);
+    };
+    expect(await names()).toEqual(["tags_list"]);
+    mcp.tool({ name: "echo", description: "Echo.", run: () => null });
+    expect(await names()).toEqual(["tags_list", "echo"]);
+  });
 });
 
 describe("createMcp cursor lists", () => {

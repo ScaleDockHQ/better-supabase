@@ -36,9 +36,11 @@ export function toEdge<const Entries extends readonly AnyEntry[]>(
     request: Request,
     ctx: Contributions<Entries>,
     executionContext: EdgeExecutionContext | undefined,
+    env: unknown,
   ) => Response | Promise<Response>,
 ): EdgeHandler {
   const EXECUTION = Symbol("toEdge.execution");
+  const ENV = Symbol("toEdge.env");
   // SAFETY: widening to the constraint; the parameter type already validated the entries.
   const run = pipeline(entries as readonly AnyEntry[], (request, ctx) =>
     Promise.resolve(
@@ -48,6 +50,8 @@ export function toEdge<const Entries extends readonly AnyEntry[]>(
         ctx as Contributions<Entries>,
         // SAFETY: the bridge seeds this symbol with the host's execution context.
         (ctx as { readonly [EXECUTION]?: EdgeExecutionContext })[EXECUTION],
+        // SAFETY: the bridge seeds this symbol with the host's second argument.
+        (ctx as { readonly [ENV]?: unknown })[ENV],
       ),
     ),
   );
@@ -55,5 +59,6 @@ export function toEdge<const Entries extends readonly AnyEntry[]>(
     run(request.body ? bufferRequest(request) : request, {
       ...seedContext(env),
       [EXECUTION]: executionContext,
+      [ENV]: env,
     });
 }

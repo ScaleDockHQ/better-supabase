@@ -71,6 +71,13 @@ The example `lint` script runs typegen first so type-aware Oxlint has them on a
 clean CI checkout. Local `next dev` leaves those files around, which hid the
 gap. Docs and marketing do not use those names, so their `lint` stays `oxlint`.
 
+`withWorkflow` (`workflow/next`) bundles the workflow files with esbuild
+when `next typegen` loads the config, and that bundle resolves
+`better-supabase` through the published `dist` exports, not the source
+condition. So `lint` and `typecheck` in the nextjs and eve examples
+depend on `^build` as well as `transit`; without it, a CI run with no remote
+cache fails with `Could not resolve "better-supabase/blocks/..."`.
+
 ## The example app
 
 - Library code imports `next/navigation` by its bare specifier. Next aliases

@@ -28,6 +28,7 @@ catalog:
   "@manypkg/get-packages": 3.1.0
   "@modelcontextprotocol/client": 2.3.0
   "@modelcontextprotocol/server": 2.3.0
+  "@nestjs/common": 12.1.2
   "@next/playwright": 16.3.8
   "@op-engineering/op-sqlite": 18.2.5
   "@openfeature/server-sdk": 1.23.0
@@ -51,6 +52,7 @@ catalog:
   "@tailwindcss/postcss": 4.3.3
   "@tanstack/query-core": 5.104.1
   "@tanstack/react-query": 5.104.1
+  "@types/express": 5.0.6
   "@types/mdx": 2.0.14
   "@types/node": 26.6.4
   "@types/pg": 8.23.1
@@ -89,9 +91,12 @@ catalog:
   expo: 57.0.26
   expo-constants: 57.0.20
   expo-linking: 57.0.11
+  expo-notifications: 57.0.17
   expo-router: 57.0.24
   expo-secure-store: 57.0.4
   expo-server: 57.0.3
+  expo-web-browser: 57.0.2
+  express: 5.2.1
   fastest-levenshtein: 1.0.16
   fumadocs-core: 16.15.18
   fumadocs-mdx: 15.4.6
@@ -118,7 +123,9 @@ catalog:
   postcss: 8.5.28
   publint: 0.3.25
   react: 19.3.0
+  reflect-metadata: 0.2.2
   redis: 6.3.0
+  rxjs: 7.8.2
   react-dom: 19.3.0
   # The versions in expo@57 bundledNativeModules.json; Expo SDK 57 supports
   # React Native 0.86 only.
@@ -131,10 +138,12 @@ catalog:
   shadcn: 4.21.1
   shiki: 4.5.0
   smol-toml: 1.9.0
+  solid-js: 1.9.17
   sonner: 2.0.8
   stripe: 23.0.0
   # Keep on the SUPABASE_CLI_VERSION that CI installs.
   supabase: 2.119.0
+  svelte: 5.57.2
   tailwind-merge: 3.7.0
   tailwindcss: 4.3.3
   temporal-polyfill: 1.0.5
@@ -146,6 +155,7 @@ catalog:
   valibot: 1.5.0
   vite: 8.3.2
   vitest: 5.0.3
+  vue: 3.5.43
   workflow: 5.1.0
   # Only the core package's zod generator fixture imports Zod, and `ai` needs it
   # as a peer (docs/decisions/0002). Lint rejects `zod` imports everywhere else.
@@ -174,6 +184,8 @@ catalogs:
     "@modelcontextprotocol/server": ">=2.3.0 <3"
     # 4.41.0 is the first Chat SDK with the StateAdapter queue and list methods better-supabase/chat-sdk implements.
     chat: ">=4.41 <5"
+    # 11 is the oldest major that runs on Node 24; @Ctx() requires it synchronously.
+    "@nestjs/common": ">=11 <13"
     # 16.2.0 ships instant() with the baseURL option; expectInstant loads it on demand.
     "@next/playwright": ">=16.2 <17"
     "@opentelemetry/api": ">=1.9 <2"
@@ -199,6 +211,11 @@ catalogs:
     oxfmt: ">=0.66.0 <1"
     pg: ">=8.15 <9"
     react: "^19"
+    solid-js: "^1.8"
+    # 5.7.0 added createSubscriber, which the Svelte bindings read through.
+    svelte: "^5.7"
+    # 3.3 added the generic `toValue` and `MaybeRefOrGetter` the Vue composables accept.
+    vue: "^3.3"
     # 5.0.0 is the first node-redis with the camelCase commands the Redis stream store sends.
     redis: ">=5 <7"
     # 17 is the first release with createFetchHttpClient and billing.meterEvents.

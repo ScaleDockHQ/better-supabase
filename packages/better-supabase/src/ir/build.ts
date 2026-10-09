@@ -4,6 +4,7 @@ import { isPlainObject } from "../core/clone.ts";
 import { DbException, dbError } from "../core/errors.ts";
 import { relationMeta } from "../schema/define.ts";
 import { lookupOf } from "../schema/lookup.ts";
+import { escapeLike } from "./escape-like.ts";
 import {
   type AggregateFn,
   type Condition,
@@ -124,11 +125,6 @@ function keyValue(table: TableMeta, name: string, value: unknown): unknown {
     );
   }
   return value;
-}
-
-/** Escapes LIKE wildcards so user input matches literally. */
-export function escapeLike(value: string): string {
-  return value.replaceAll(/[\\%_]/g, (char) => `\\${char}`);
 }
 
 const builders = new WeakMap<SchemaMeta, IrBuilder>();

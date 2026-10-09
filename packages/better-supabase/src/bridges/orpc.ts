@@ -44,7 +44,7 @@ export function toOrpc<const Entries extends readonly AnyEntry[]>(
     { readonly request: Request } & Contributions<Entries>
   >,
   options: ToOrpcOptions = {},
-): (request: Request) => Promise<Response> {
+): (request: Request, env?: unknown) => Promise<Response> {
   // SAFETY: widening to the constraint; the parameter type already validated the entries.
   const run = pipeline(entries as readonly AnyEntry[], async (request, ctx) => {
     const { response } = await handler.handle(request, {
@@ -54,6 +54,6 @@ export function toOrpc<const Entries extends readonly AnyEntry[]>(
     });
     return response ?? new Response("Not found", { status: 404 });
   });
-  return (request) =>
-    run(request.body ? bufferRequest(request) : request, seedContext());
+  return (request, env) =>
+    run(request.body ? bufferRequest(request) : request, seedContext(env));
 }

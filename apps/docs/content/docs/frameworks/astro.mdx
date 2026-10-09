@@ -1,0 +1,84 @@
+---
+title: Astro
+description: Run better-supabase as Astro middleware, guard pages, write Actions that return ActionResults, and render Storage images.
+---
+
+`createAstro(betterSupabase, options)` from `better-supabase/astro` returns
+the server with Astro helpers. Export its middleware:
+
+```ts title="src/lib/server.ts"
+import { createAstro } from "better-supabase/astro";
+import { betterSupabase } from "./supabase";
+
+export const bs = createAstro(betterSupabase, { signIn: "/sign-in" });
+```
+
+```ts title="src/middleware.ts"
+import { bs } from "./lib/server";
+
+export const onRequest = bs.onRequest;
+```
+
+The middleware verifies the caller, refreshes the session cookie on
+navigations and form posts, and puts `db`, `bs`, `auth`, `tenant` and the
+serializable `session` on `locals`. It runs around the page, so the refreshed
+cookies reach the browser. On Cloudflare, `locals.runtime.env` seeds `getEnv`;
+pass `platformEnv` to read the env elsewhere.
+
+## Pages and endpoints
+
+`bs.guard(Astro, options)` returns the refusal for a caller the options
+refuse: a redirect to `signIn` or `mfa`, else Problem Details. Return it from
+the frontmatter:
+
+```astro title="src/pages/admin.astro"
+---
+import { bs } from "../lib/server";
+
+const refused = await bs.guard(Astro, { roles: ["admin"] });
+if (refused) return refused;
+const members = await bs.locals(Astro).db.members.findMany().orThrow();
+---
+<ul>{members.map((member) => <li>{member.name}</li>)}</ul>
+```
+
+`bs.require(context, options)` returns the caller and its repositories, or
+throws the refusal `Response`.
+
+## Actions
+
+`bs.action(options, fn)` is the `handler` of `defineAction`. It checks the
+caller, validates the input with any Standard Schema, and returns an
+`ActionResult` (`{ ok, data, error }`) that the page can render:
+
+```ts title="src/actions/index.ts"
+import { defineAction } from "astro:actions";
+import { bs } from "../lib/server";
+import { NoteInput } from "../lib/schemas";
+
+export const server = {
+  addNote: defineAction({
+    accept: "form",
+    handler: bs.action(
+      { input: NoteInput, requireTenant: true },
+      (input, { db, tenant }) =>
+        db.notes.create({ ...input, tenantId: tenant }),
+    ),
+  }),
+};
+```
+
+## Images
+
+`createImageService({ url })` is an external image service that renders public
+Storage objects through Supabase image transformations and passes other
+sources through. Point `image.service.entrypoint` at a file that exports it:
+
+```ts title="src/image-service.ts"
+import { createImageService } from "better-supabase/astro";
+
+export default createImageService({ url: import.meta.env.PUBLIC_SUPABASE_URL });
+```
+
+The same URL building is available anywhere as `storageImageUrl()` from
+[`better-supabase/storage`](/docs/platform/storage).

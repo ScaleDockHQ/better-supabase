@@ -74,6 +74,11 @@ export function CustomerFeed() {
 }
 ```
 
+Pass `{ maxPages }` as the second argument to keep a window of pages in
+memory on a long feed: `q.customers.infinite({ size: 50 }, { maxPages: 5 })`.
+`infinitePages` also sets `getPreviousPageParam`, so a list opened at
+`page: 4` can load page 3 with `fetchPreviousPage()`.
+
 ## Keys and invalidation
 
 Keys are `['bs', table, operation, args]`. Arguments are part of the key, so
@@ -83,7 +88,9 @@ Every query also carries `meta: { bsTables }`, the tables it read, includes
 and relation filters too. Invalidation matches on that meta, so a write to
 `notes` refetches a `customers.findMany` that included notes. Invalidate by
 hand with `invalidateTables(queryClient, ['notes'])`. See
-[Caching](/docs/concepts/caching).
+[Caching](/docs/concepts/caching). An index from table to cached queries,
+kept current from the query cache's events, finds the matches, so a write to
+a table no cached query read skips the cache scan.
 
 ## Clearing on sign-out
 
@@ -115,6 +122,33 @@ success, including tables changed by cascading deletes. If you pass your own
 `onSuccess`, it replaces that behavior; call `invalidateOnMutation(betterSupabase,
 queryClient)` once instead to invalidate after every write the client makes.
 It attaches the `queryCache(client)` [cache adapter](/docs/extending/interfaces#cacheadapter).
+
+`create`, `update` and `upsert` on a table with a single-column primary key
+also write the returned row into that row's `findById` entry when the write
+selected every column, so a detail page opened next shows it without a fetch.
+
+### Optimistic updates
+
+`optimistic` returns `onMutate`, `onError` and `onSettled` for a mutation: it
+rewrites the cached lists before the request, puts them back when it fails,
+and refetches them once it settles. Spread it next to the mutation option,
+which keeps its own `onSuccess` invalidation:
+
+```tsx title="src/features/customers/rename.tsx"
+import { optimistic } from "better-supabase/query";
+
+const list = q.customers.findMany({ select: ["id", "name"] });
+const rename = useMutation({
+  ...q.customers.update({ select: ["id", "name"] }),
+  ...optimistic.update(list),
+});
+rename.mutate({ id, patch: { name } });
+```
+
+`optimistic.create(list, (input) => row, { position: "start" })` adds a row
+built from the input, `optimistic.remove(list)` drops the row whose id is the
+mutation's variable, and `optimistic(targets, (data, variables) => next)`
+rewrites any cached data. Pass an array to rewrite several lists.
 
 ## Specs and RPCs
 
