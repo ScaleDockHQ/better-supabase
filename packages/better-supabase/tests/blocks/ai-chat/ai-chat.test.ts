@@ -476,12 +476,14 @@ describe("createAiChat", () => {
     expect(lastArgs(server)).toEqual({
       chat: "c1",
       stream: "s1",
-      status: "error",
+      status: "failed",
       usage: { tokens: 1 },
       generation_id: "g",
       error: "boom",
       cost_micro_usd: 5,
     });
+    await chat.runs.release("c1", "s1", { status: "stopped" }).orThrow();
+    expect(lastArgs(server)).toMatchObject({ status: "cancelled" });
     await chat.runs.release("c1", "s1").orThrow();
     expect(await chat.runs.stop("c1").orThrow()).toEqual({
       streamId: "s1",

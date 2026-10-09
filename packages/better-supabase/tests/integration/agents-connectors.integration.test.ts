@@ -342,12 +342,12 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
 
       await s.asRole(member);
       const [listed] = await tasks.list(tenant).orThrow();
-      expect(listed?.lastRun?.status).toBe("succeeded");
+      expect(listed?.lastRun?.status).toBe("completed");
       expect(Temporal.Instant.compare(listed?.nextRunAt ?? past, clock)).toBe(
         1,
       );
       const runs = await tasks.runs(task.id).orThrow();
-      expect(runs.map((run) => run.status)).toEqual(["succeeded", "failed"]);
+      expect(runs.map((run) => run.status)).toEqual(["completed", "failed"]);
       const paused = await tasks.pause(tenant, task.id).orThrow();
       expect(paused).toMatchObject({ enabled: false, nextRunAt: undefined });
       expect(await tasks.remove(task.id).orThrow()).toBe(true);

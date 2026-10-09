@@ -8,7 +8,6 @@ import type {
   AiChat,
   AiChatRecord,
   AiRun,
-  AiRuns,
   AiToolApproval,
 } from "../../../src/blocks/ai-chat/index.ts";
 import type { DbError } from "../../../src/core/errors.ts";
@@ -120,6 +119,16 @@ function setup(options: Setup = {}) {
     };
   const chat = options.chat ?? record("c1", { model: "openai/gpt-5" });
   const runs = options.runs ?? [run()];
+  const aiRuns = {
+    get: log("runs.get", () => {
+      const found = runs[0];
+      return found ? result(found) : failure(dbError("not_found", "none"));
+    }),
+    list: log("runs.list", () => result(runs)),
+    attach: log("attach", () =>
+      options.attach === undefined ? result(true) : failure(options.attach),
+    ),
+  };
   const chats = {
     chats: {
       get: log("chats.get", () =>
@@ -136,6 +145,7 @@ function setup(options: Setup = {}) {
       ),
       release: log("release", () => result(true)),
       stop: log("stop", () => result(options.stopped)),
+      ...aiRuns,
     },
     approvals: {
       decide: log("decide", () => {
@@ -145,22 +155,10 @@ function setup(options: Setup = {}) {
       list: log("list", () => result(options.approvals ?? [approval()])),
     },
   };
-  const aiRuns = {
-    get: log("runs.get", () => {
-      const found = runs[0];
-      return found ? result(found) : failure(dbError("not_found", "none"));
-    }),
-    list: log("runs.list", () => result(runs)),
-    attach: log("attach", () =>
-      options.attach === undefined ? result(true) : failure(options.attach),
-    ),
-  };
   const pending: Promise<unknown>[] = [];
   const context: DurableChatContext = {
     // SAFETY: the fakes implement the calls `durableChat` makes.
     chats: chats as unknown as AiChat,
-    // SAFETY: as above.
-    runs: aiRuns as unknown as AiRuns,
     userId: "user",
     organizationId: "org",
     waitUntil: (promise) => pending.push(promise),
@@ -276,7 +274,7 @@ describe("durableChat respond", () => {
     expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
       "c1",
       "id1",
-      { status: "error", error: "Error: no world" },
+      { status: "failed", error: "Error: no world" },
     ]);
   });
 
@@ -293,7 +291,7 @@ describe("durableChat respond", () => {
     expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
       "c1",
       "id1",
-      { status: "error", error: "offline" },
+      { status: "failed", error: "offline" },
     ]);
   });
 
@@ -415,7 +413,7 @@ describe("durableChat respond", () => {
       code: "AI_CHAT_NOT_WAITING",
     });
     expect(s.calls.find((call) => call.name === "release")?.args[2]).toEqual({
-      status: "error",
+      status: "failed",
       error: "Error: hook gone",
     });
   });
@@ -551,7 +549,7 @@ describe("durableChat stop", () => {
     expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
       "c1",
       "s1",
-      { status: "stopped" },
+      { status: "cancelled" },
     ]);
   });
 
@@ -571,7 +569,7 @@ describe("durableChat stop", () => {
     expect(s.calls.find((call) => call.name === "release")?.args).toEqual([
       "c1",
       "s1",
-      { status: "stopped" },
+      { status: "cancelled" },
     ]);
   });
 

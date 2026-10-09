@@ -40,6 +40,7 @@ export {
   type SharedAiChat,
 } from "./ai-chat.ts";
 export {
+  // oxlint-disable-next-line typescript/no-deprecated -- kept exported until 0.8 for 0.6 callers.
   createAiRuns,
   createHarnessSessions,
   idleSandboxStop,

@@ -5,6 +5,7 @@ import { sqlString } from "../../core/template.ts";
 import {
   canIn,
   raise,
+  replaceColumnCheck,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
@@ -21,6 +22,7 @@ const MEMORIES = {
   scope: "scope",
   agent: "agent_id",
   chat: "chat_id",
+  project: "project_id",
   kind: "kind",
   path: "path",
   content: "content",
@@ -76,6 +78,9 @@ const NAMES: ModuleNames = {
 
 /** A path under `/memories`: segments of letters, digits, dots, dashes, underscores and spaces. */
 const PATH_PATTERN = "^/memories(/[A-Za-z0-9._ -]+)*$";
+/** The namespaces a memory belongs to. */
+const SCOPES = "'user', 'agent', 'chat', 'project', 'organization'";
+
 /** A `.` or `..` segment. */
 const DOT_SEGMENT = "(^|/)[.]{1,2}(/|$)";
 
@@ -116,6 +121,9 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const chatReference = chat
     ? ` references ${chat.table("chats")} (${chat.col("chats", "id")}) on delete cascade`
     : "";
+  const projectReference = chat
+    ? ` references ${chat.table("projects")} (${chat.col("projects", "id")}) on delete cascade`
+    : "";
   const temporaryCheck = chat
     ? `
   if exists (select 1 from ${chat.table("chats")} x where x.${chat.col("chats", "id")} = set_ai_message_embedding.chat_id and x.${chat.col("chats", "temporary")}) then
@@ -123,21 +131,23 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   end if;`
     : "";
   const memoryJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${m.id}, 'organization_id', ${row}.${m.tenant}, 'owner_id', ${row}.${m.owner}, 'scope', ${row}.${m.scope}, 'agent_id', ${row}.${m.agent}, 'chat_id', ${row}.${m.chat}, 'kind', ${row}.${m.kind}, 'path', ${row}.${m.path}, 'content', ${row}.${m.content}, 'version', ${row}.${m.version}, 'embedding_model', ${row}.${m.model}, 'source_message_id', ${row}.${m.sourceMessage}, 'created_at', ${row}.${m.createdAt}, 'updated_at', ${row}.${m.updatedAt})`;
+    `jsonb_build_object('id', ${row}.${m.id}, 'organization_id', ${row}.${m.tenant}, 'owner_id', ${row}.${m.owner}, 'scope', ${row}.${m.scope}, 'agent_id', ${row}.${m.agent}, 'chat_id', ${row}.${m.chat}, 'project_id', ${row}.${m.project}, 'kind', ${row}.${m.kind}, 'path', ${row}.${m.path}, 'content', ${row}.${m.content}, 'version', ${row}.${m.version}, 'embedding_model', ${row}.${m.model}, 'source_message_id', ${row}.${m.sourceMessage}, 'created_at', ${row}.${m.createdAt}, 'updated_at', ${row}.${m.updatedAt})`;
   // Every command names its namespace in ns: {"scope", "agent_id",
-  // "chat_id"} and, for the service role, "owner_id". Organization memory
+  // "chat_id", "project_id"} and, for the service role, "owner_id". Organization memory
   // has no owner and only admins change it.
   const namespace = (name: string, writes: boolean): string => `
   v_scope := coalesce(${name}.ns ->> 'scope', 'user');
   v_agent := (${name}.ns ->> 'agent_id')::uuid;
   v_chat := (${name}.ns ->> 'chat_id')::uuid;
+  v_project := (${name}.ns ->> 'project_id')::uuid;
   v_owner := case when v_scope = 'organization' then null when ${SERVICE_CALLER} then (${name}.ns ->> 'owner_id')::uuid else auth.uid() end;
   if not ${SERVICE_CALLER} and (auth.uid() is null or not ${canIn(`${name}.tenant`, read)}) then
     ${raise("you may not use memory here", "42501", "MEMORY_FORBIDDEN")}
   end if;
-  if v_scope not in ('user', 'agent', 'chat', 'organization')
+  if v_scope not in (${SCOPES})
     or (v_scope = 'agent') <> (v_agent is not null)
     or (v_scope = 'chat') <> (v_chat is not null)
+    or (v_scope = 'project') <> (v_project is not null)
     or (v_scope <> 'organization' and v_owner is null) then
     ${raise("ns % is not a memory namespace", "22023", "MEMORY_NAMESPACE", `${name}.ns`)}
   end if;${
@@ -152,9 +162,10 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   v_scope text;
   v_agent uuid;
   v_chat uuid;
+  v_project uuid;
   v_owner uuid;`;
   const inNamespace = (row: string, tenant: string): string =>
-    `${row}.${m.tenant} = ${tenant} and ${row}.${m.owner} is not distinct from v_owner and ${row}.${m.scope} = v_scope and ${row}.${m.agent} is not distinct from v_agent and ${row}.${m.chat} is not distinct from v_chat and ${row}.${m.supersededBy} is null`;
+    `${row}.${m.tenant} = ${tenant} and ${row}.${m.owner} is not distinct from v_owner and ${row}.${m.scope} = v_scope and ${row}.${m.agent} is not distinct from v_agent and ${row}.${m.chat} is not distinct from v_chat and ${row}.${m.project} is not distinct from v_project and ${row}.${m.supersededBy} is null`;
   const checkPath = (path: string): string => `
   if ${path} is null or length(${path}) > 500 or ${path} !~ ${sqlString(PATH_PATTERN)} or ${path} ~ ${sqlString(DOT_SEGMENT)} then
     ${raise("% is not a path under /memories", "22023", "MEMORY_PATH", path)}
@@ -172,14 +183,16 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
 -- Memory for AI assistants. Core memory is a small set of files under
 -- /memories that the model reads and edits with view, create, str_replace,
 -- insert, delete and rename; archival memory is a list of facts found by
--- similarity. Each belongs to a user, an agent, a chat or the organization.
+-- similarity. Each belongs to a user, an agent, a chat, a project or the
+-- organization.
 create table if not exists ${memories} (
   ${m.id} uuid primary key default gen_random_uuid(),
   ${m.tenant} ${id} not null,
   ${m.owner} uuid references auth.users (id) on delete cascade,
-  ${m.scope} text not null default 'user' check (${m.scope} in ('user', 'agent', 'chat', 'organization')),
+  ${m.scope} text not null default 'user' check (${m.scope} in (${SCOPES})),
   ${m.agent} uuid,
   ${m.chat} uuid${chatReference},
+  ${m.project} uuid${projectReference},
   ${m.kind} text not null check (${m.kind} in ('core', 'archival')),
   ${m.path} text check (${m.path} ~ ${sqlString(PATH_PATTERN)} and ${m.path} !~ ${sqlString(DOT_SEGMENT)}),
   ${m.content} text not null check (length(${m.content}) <= ${String(maxContent)}),
@@ -194,11 +207,12 @@ create table if not exists ${memories} (
   check ((${m.kind} = 'core') = (${m.path} is not null)),
   check ((${m.scope} = 'organization') = (${m.owner} is null))
 );
-create unique index if not exists memories_path_idx on ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.path}) nulls not distinct
+create unique index if not exists memories_path_idx on ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.path}) nulls not distinct
   where ${m.path} is not null and ${m.supersededBy} is null;
 create index if not exists memories_owner_idx on ${memories} (${m.owner}, ${m.tenant}) where ${m.owner} is not null;
 create index if not exists memories_tenant_idx on ${memories} (${m.tenant}, ${m.scope});
 create index if not exists memories_chat_idx on ${memories} (${m.chat}) where ${m.chat} is not null;
+create index if not exists memories_project_idx on ${memories} (${m.project}) where ${m.project} is not null;
 create index if not exists memories_superseded_idx on ${memories} (${m.supersededBy}) where ${m.supersededBy} is not null;
 create index if not exists memories_embedding_idx on ${memories} using hnsw (${m.embedding} ${embedding.opclass});
 create index if not exists memories_tsv_idx on ${memories} using gin (${m.tsv});
@@ -286,8 +300,8 @@ begin${namespace("memory_create", true)}${checkPath("memory_create.path")}${chec
     if coalesce(memory_create.expected_version, 0) <> 0 then
       ${fileNotFound("memory_create.path")}
     end if;
-    insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.kind}, ${m.path}, ${m.content})
-    values (memory_create.tenant, v_owner, v_scope, v_agent, v_chat, 'core', memory_create.path, memory_create.content)
+    insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.kind}, ${m.path}, ${m.content})
+    values (memory_create.tenant, v_owner, v_scope, v_agent, v_chat, v_project, 'core', memory_create.path, memory_create.content)
     returning * into v_row;
   end if;
   return ${memoryJson("v_row")};
@@ -460,8 +474,8 @@ begin${namespace("memory_save", true)}
   if coalesce(length(memory_save.content), 0) = 0 then
     ${raise("memory content is empty", "22023", "MEMORY_EMPTY")}
   end if;${checkContent("memory_save.content")}
-  insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.kind}, ${m.content}, ${m.embedding}, ${m.model}, ${m.sourceMessage})
-  values (memory_save.tenant, v_owner, v_scope, v_agent, v_chat, 'archival', memory_save.content, memory_save.embedding, memory_save.model, memory_save.source_message_id)
+  insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}, ${m.kind}, ${m.content}, ${m.embedding}, ${m.model}, ${m.sourceMessage})
+  values (memory_save.tenant, v_owner, v_scope, v_agent, v_chat, v_project, 'archival', memory_save.content, memory_save.embedding, memory_save.model, memory_save.source_message_id)
   returning * into v_row;
   return ${memoryJson("v_row")};
 end;
@@ -766,6 +780,35 @@ $$;
 ${serviceGrant(signature("purge_memory_documents", "integer"))}`;
 }
 
+function upgradeProjectScope(ctx: ModuleContext): string {
+  const memories = ctx.table("memories");
+  const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;
+  const reference = chat
+    ? ` references ${chat.table("projects")} (${chat.col("projects", "id")}) on delete cascade`
+    : "";
+  return `alter table ${memories} add column if not exists ${ctx.col("memories", "project")} uuid${reference};
+${replaceColumnCheck({
+  table: memories,
+  column: ctx.col("memories", "scope"),
+  name: "memories_scope_check",
+  expression: `${ctx.col("memories", "scope")} in (${SCOPES})`,
+})}
+-- The module file creates the path index again with the project column.
+do $$
+declare
+  v_index regclass;
+begin
+  select i.indexrelid::regclass into v_index
+  from pg_catalog.pg_index i
+  join pg_catalog.pg_class c on c.oid = i.indexrelid
+  where i.indrelid = ${sqlString(memories)}::regclass and c.relname = 'memories_path_idx';
+  if v_index is not null then
+    execute format('drop index %s', v_index);
+  end if;
+end;
+$$;`;
+}
+
 export const MEMORY: ModuleDefinition = {
   name: "memory",
   title: "Memory",
@@ -774,7 +817,15 @@ export const MEMORY: ModuleDefinition = {
   requires: ["tenant", "access", "vector-search"],
   integrates: ["ai-chat"],
   target: "schema",
-  version: 1,
+  version: 2,
   names: NAMES,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Memories gain a project scope: a project_id column, the scope check allows 'project', and the path index covers the project.",
+      sql: upgradeProjectScope,
+    },
+  ],
   build,
 };

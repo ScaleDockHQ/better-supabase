@@ -1,7 +1,9 @@
 import type { AsyncResult } from "../../core/result.ts";
+import type { RunState } from "../../core/run-state.ts";
 import type { JobHandler } from "../jobs/queue.ts";
 import type { AiChatOptions, AiToolApproval } from "./ai-chat.ts";
 
+import { runStateOf } from "../../core/run-state.ts";
 import {
   applyTemporal,
   blockCall,
@@ -18,14 +20,12 @@ import {
 } from "../shared.ts";
 import { approvalOf } from "./rows.ts";
 
-/** Where a run is: written by `runs.claim`, `release` and `stop`. */
-export type AiRunState =
-  | "queued"
-  | "running"
-  | "cancel_requested"
-  | "done"
-  | "error"
-  | "stopped";
+/**
+ * Where a run is: written by `runs.claim`, `release` and `stop`. Runs before
+ * 0.7 stored `done`, `error` and `stopped`, which read as `completed`,
+ * `failed` and `cancelled`.
+ */
+export type AiRunState = Exclude<RunState, "waiting">;
 
 /** One generation of a chat, as `ai_runs` stores it. */
 export interface AiRun {
@@ -89,6 +89,7 @@ export interface AiPendingApproval extends AiToolApproval {
   readonly chatTitle: string;
 }
 
+/** Run lookups and steps; `AiChat.runs` has all of them. */
 export interface AiRuns {
   get(runId: string): AsyncResult<AiRun>;
   list(query?: AiRunQuery): AsyncResult<readonly AiRun[]>;
@@ -107,9 +108,9 @@ const RUN_STATES: readonly AiRunState[] = [
   "queued",
   "running",
   "cancel_requested",
-  "done",
-  "error",
-  "stopped",
+  "completed",
+  "failed",
+  "cancelled",
 ];
 
 const STEP_STATES: readonly AiRunStepStatus[] = [
@@ -140,7 +141,7 @@ function runOf(value: unknown): AiRun {
     engine: textOf(row["engine"]),
     externalRunId: optionalText(row["external_run_id"]),
     model: optionalText(row["model"]),
-    status: oneOf(row["status"], RUN_STATES, "running"),
+    status: runStateOf(row["status"], RUN_STATES, "running"),
     usage: object(row["usage"]),
     costMicroUsd:
       row["cost_micro_usd"] === null || row["cost_micro_usd"] === undefined
@@ -168,12 +169,20 @@ function stepOf(value: unknown): AiRunStep {
 }
 
 /**
- * Run lookups, run steps and the approval inbox of the `ai-chat` block: what
- * a durable chat needs to stop or resume a run, and what an activity console
- * shows. Engine-neutral, like `createAiChat`.
+ * Run lookups, run steps and the approval inbox of the `ai-chat` block.
+ * @deprecated Use `createAiChat(options).runs`, which has the same methods
+ * next to `claim` and `release`. Removed in 0.8.
  */
 export function createAiRuns(options: AiChatOptions): AiRuns {
   applyTemporal(options);
+  return aiRunLookups(options);
+}
+
+/**
+ * Run lookups, run steps and the approval inbox: what a durable chat needs
+ * to stop or resume a run, and what an activity console shows.
+ */
+export function aiRunLookups(options: AiChatOptions): AiRuns {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const service = blockCall(
     options.service ?? options.transport,

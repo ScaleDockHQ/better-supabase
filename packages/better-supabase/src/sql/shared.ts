@@ -98,6 +98,34 @@ export function columnRef(
 }
 
 /**
+ * Replaces the check constraints on one column of a table a module created
+ * earlier: `create table if not exists` never changes an inline check, and
+ * its generated name follows the table's configured name. For upgrade steps.
+ */
+export function replaceColumnCheck(check: {
+  readonly table: string;
+  readonly column: string;
+  readonly name: string;
+  readonly expression: string;
+}): string {
+  return `do $$
+declare
+  v_name name;
+begin
+  for v_name in
+    select c.conname from pg_catalog.pg_constraint c
+    join pg_catalog.pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+    where c.conrelid = ${sqlString(check.table)}::regclass and c.contype = 'c'
+      and cardinality(c.conkey) = 1 and a.attname = ${sqlString(check.column)}
+  loop
+    execute format('alter table %s drop constraint %I', ${sqlString(check.table)}, v_name);
+  end loop;
+end;
+$$;
+alter table ${check.table} add constraint ${sqlIdent(check.name)} check (${check.expression});`;
+}
+
+/**
  * Adds a foreign key to a table a module created earlier, once: `create
  * table if not exists` can't add it to a table that already exists, and the
  * referenced table can come from a module that renders later. Existing rows

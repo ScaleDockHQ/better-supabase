@@ -1,8 +1,11 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { FinalRunState, LegacyRunState } from "../../core/run-state.ts";
+import type { AiRunState, AiRuns } from "./durable.ts";
 import type { AiMessage, AiMessageRole } from "./message.ts";
 
+import { sharedRunState } from "../../core/run-state.ts";
 import {
   applyTemporal,
   blockCall,
@@ -15,6 +18,7 @@ import {
   oneOf,
   pageOf,
 } from "../shared.ts";
+import { aiRunLookups } from "./durable.ts";
 import {
   approvalOf,
   record,
@@ -188,10 +192,12 @@ export interface AiStreamClaim {
   readonly runId: string | undefined;
 }
 
-export type AiRunStatus = "done" | "error" | "stopped";
+/** How a run ended, as `runs.release` records it. */
+export type AiRunStatus = Extract<AiRunState, FinalRunState>;
 
 export interface AiRunRelease {
-  readonly status?: AiRunStatus;
+  /** `done`, `error` and `stopped` still work but are deprecated (removed in 0.8). */
+  readonly status?: AiRunStatus | Exclude<LegacyRunState, "succeeded">;
   readonly usage?: Readonly<Record<string, unknown>>;
   readonly generationId?: string;
   readonly error?: string;
@@ -403,7 +409,8 @@ export interface AiChat {
     /** Shows the branch through `messageId`; returns the new leaf. */
     switchBranch(chatId: string, messageId: string): AsyncResult<string>;
   };
-  readonly runs: {
+  /** Runs: the stream claim, lookups, steps and the approval inbox. */
+  readonly runs: AiRuns & {
     /** Claims the chat's answer for one stream (service role). */
     claim(
       chatId: string,
@@ -644,6 +651,7 @@ export function createAiChat(options: AiChatOptions): AiChat {
         ),
     },
     runs: {
+      ...aiRunLookups(options),
       claim: (chatId, streamId, claimOptions = {}) =>
         service(
           "claim_ai_chat_stream",
@@ -670,7 +678,10 @@ export function createAiChat(options: AiChatOptions): AiChat {
           {
             chat: chatId,
             stream: streamId,
-            status: release.status,
+            status:
+              release.status === undefined
+                ? undefined
+                : sharedRunState(release.status),
             usage: release.usage,
             generation_id: release.generationId,
             error: release.error,

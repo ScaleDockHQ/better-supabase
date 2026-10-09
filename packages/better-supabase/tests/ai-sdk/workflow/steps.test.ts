@@ -163,7 +163,7 @@ describe("durable steps", () => {
         chatId: "c1",
         streamId: "s1",
         organizationId: "org",
-        status: "done",
+        status: "completed",
         usage: {
           inputTokens: 1,
           outputTokens: 2,
@@ -180,7 +180,7 @@ describe("durable steps", () => {
       "c1",
       "s1",
       {
-        status: "done",
+        status: "completed",
         usage: {
           inputTokens: 1,
           outputTokens: 2,
@@ -204,10 +204,10 @@ describe("durable steps", () => {
       chatId: "c1",
       streamId: "s1",
       organizationId: "org",
-      status: "error",
+      status: "failed",
       error: "down",
     });
-    expect(calls[0]?.args[2]).toEqual({ status: "error", error: "down" });
+    expect(calls[0]?.args[2]).toEqual({ status: "failed", error: "down" });
     expect(enqueueCostBackfill).not.toHaveBeenCalled();
   });
 });

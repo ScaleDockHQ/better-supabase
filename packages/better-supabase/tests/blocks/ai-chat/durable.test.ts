@@ -7,7 +7,7 @@ import type {
 import type { Job } from "../../../src/blocks/jobs/queue.ts";
 
 import {
-  createAiRuns,
+  createAiChat,
   createHarnessSessions,
   idleSandboxStop,
 } from "../../../src/blocks/ai-chat/index.ts";
@@ -109,7 +109,7 @@ function fake(answers: Record<string, unknown> = ANSWERS) {
   return {
     user,
     server,
-    runs: createAiRuns({ transport, service }),
+    runs: createAiChat({ transport, service }).runs,
     sessions: createHarnessSessions({ transport, service }),
   };
 }
@@ -117,7 +117,7 @@ function fake(answers: Record<string, unknown> = ANSWERS) {
 const lastArgs = (mock: ReturnType<typeof vi.fn>): unknown =>
   mock.mock.calls.at(-1)?.[2];
 
-describe("createAiRuns", () => {
+describe("ai-chat runs", () => {
   it("reads a run with its durable engine id", async () => {
     const { runs, user } = fake();
     const run = await runs.get("r1").orThrow();

@@ -5,7 +5,6 @@ import type { BlockTransport } from "../../src/blocks/ai-chat/index.ts";
 
 import {
   createAiChat,
-  createAiRuns,
   createHarnessSessions,
   idleSandboxStop,
   sqlTransport,
@@ -171,7 +170,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       let caller: TestUser = owner;
       const { user, service } = transports(s, () => caller);
       const ai = createAiChat({ transport: user, service });
-      const runs = createAiRuns({ transport: user, service });
+      const runs = ai.runs;
 
       const claim = await ai.runs
         .claim(chat, "stream-1", { model: "openai/gpt-5" })
@@ -242,7 +241,10 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       expect(await runs.pendingApprovals().orThrow()).toEqual([]);
       const hidden = await runs.get(runId);
       expect(hidden.ok ? undefined : hidden.error.kind).toBe("not_found");
-      const denied = await createAiRuns({ transport: user }).attach(runId, "x");
+      const denied = await createAiChat({ transport: user }).runs.attach(
+        runId,
+        "x",
+      );
       expect(denied.ok ? undefined : denied.error.kind).toBe("forbidden");
     } finally {
       await s.close();

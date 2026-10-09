@@ -342,7 +342,7 @@ describe.skipIf(!live)("ai-chat module", () => {
         ),
       ).toEqual([
         {
-          status: "stopped",
+          status: "cancelled",
           cost_micro_usd: "1200",
           usage: { inputTokens: 3 },
         },

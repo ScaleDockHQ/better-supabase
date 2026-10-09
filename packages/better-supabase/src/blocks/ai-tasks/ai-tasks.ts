@@ -1,10 +1,12 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
+import type { RunState } from "../../core/run-state.ts";
 import type { JobHandler } from "../jobs/queue.ts";
 
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { runStateOf } from "../../core/run-state.ts";
 import { nowInstant } from "../../core/temporal.ts";
 import { assertCron, nextCronRun } from "../jobs/cron.ts";
 import {
@@ -22,7 +24,11 @@ import {
   injectableOf,
 } from "../shared.ts";
 
-export type AiTaskRunStatus = "queued" | "running" | "succeeded" | "failed";
+/** A task run's state, in the words ai-chat and workflow runs share. */
+export type AiTaskRunStatus = Extract<
+  RunState,
+  "queued" | "running" | "completed" | "failed"
+>;
 
 export interface AiTaskRun {
   readonly id: string;
@@ -157,26 +163,24 @@ export interface AiTasks {
   }): AsyncResult<number>;
 }
 
-const STATUSES: ReadonlySet<string> = new Set([
+const STATUSES: readonly AiTaskRunStatus[] = [
   "queued",
   "running",
-  "succeeded",
+  "completed",
   "failed",
-]);
+];
 
 const instant = (value: unknown): Temporal.Instant =>
   value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
 function runOf(value: unknown): AiTaskRun {
   const row = recordOf(value, "ai_task_runs");
-  const status = textOf(row["status"]);
   return {
     id: textOf(row["id"]),
     taskId: textOf(row["task_id"]),
     organizationId: textOf(row["organization_id"]),
     userId: textOf(row["user_id"]),
-    // SAFETY: STATUSES holds exactly the AiTaskRunStatus members.
-    status: STATUSES.has(status) ? (status as AiTaskRunStatus) : "failed",
+    status: runStateOf(row["status"], STATUSES, "failed"),
     scheduledFor: instant(row["scheduled_for"]),
     chatId: optionalText(row["chat_id"]),
     error: optionalText(row["error"]),

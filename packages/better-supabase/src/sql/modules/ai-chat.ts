@@ -8,10 +8,10 @@ import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { AI_MESSAGE_PART_TYPES } from "../../blocks/ai-chat/message.ts";
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, tenantIn } from "../shared.ts";
+import { replaceColumnCheck, schemaPreamble, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
-import { aiChatFunctions } from "./ai-chat-functions.ts";
+import { AI_RUN_STATES, aiChatFunctions } from "./ai-chat-functions.ts";
 
 const PROJECTS = {
   id: "id",
@@ -565,7 +565,7 @@ create table if not exists ${t.runs} (
   ${r.engine} text not null default 'ai-sdk' check (length(${r.engine}) between 1 and 50),
   ${r.externalRun} text check (length(${r.externalRun}) <= 200),
   ${r.model} text,
-  ${r.status} text not null default 'running' check (${r.status} in ('queued', 'running', 'cancel_requested', 'done', 'error', 'stopped')),
+  ${r.status} text not null default 'running' check (${r.status} in (${AI_RUN_STATES})),
   ${r.generation} text,
   ${r.usage} jsonb not null default '{}' check (jsonb_typeof(${r.usage}) = 'object'),
   ${r.cost} bigint check (${r.cost} >= 0),
@@ -904,6 +904,28 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
+// Runs end completed, failed or cancelled since 0.7, the words ai-tasks and
+// workflow runs use.
+function upgradeRunStates(ctx: ModuleContext): string {
+  const runs = ctx.table("runs");
+  const status = ctx.col("runs", "status");
+  return `${replaceColumnCheck({
+    table: runs,
+    column: status,
+    name: "ai_runs_status_check",
+    expression: `${status} in (${AI_RUN_STATES}, 'done', 'error', 'stopped')`,
+  })}
+update ${runs} set ${status} = case ${status}
+  when 'done' then 'completed' when 'error' then 'failed' else 'cancelled' end
+where ${status} in ('done', 'error', 'stopped');
+${replaceColumnCheck({
+  table: runs,
+  column: status,
+  name: "ai_runs_status_check",
+  expression: `${status} in (${AI_RUN_STATES})`,
+})}`;
+}
+
 export const AI_CHAT: ModuleDefinition = {
   name: "ai-chat",
   title: "AI chat",
@@ -913,8 +935,16 @@ export const AI_CHAT: ModuleDefinition = {
   integrates: ["entitlements"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Runs end completed, failed or cancelled instead of done, error or stopped.",
+      sql: upgradeRunStates,
+    },
+  ],
   contract,
   build,
   topics: (ctx) => [
