@@ -3,10 +3,12 @@ title: Tenant keys and sandboxes
 description: Send each tenant's own provider keys to the AI Gateway as BYOK, and keep the sandbox registry current while a sandbox runs.
 ---
 
-Two helpers in `better-supabase/ai-sdk` connect the
-[AI providers block](/docs/blocks/ai-providers) to model calls: one turns a
-tenant's saved keys into the AI Gateway's `byok` option, the other marks a
-sandbox used so the idle-stop job leaves it running.
+Two helpers in `better-supabase/ai-sdk` connect the blocks to model calls:
+one turns a tenant's saved keys in the
+[AI providers block](/docs/blocks/ai-providers) into the AI Gateway's `byok`
+option, the other marks a sandbox in the
+[AI chat block](/docs/blocks/ai-chat#sandboxes) used so the idle-stop job
+leaves it running.
 
 ## Bring your own key
 
@@ -75,16 +77,18 @@ stopped as idle:
 
 ```ts
 import { trackedSandbox } from "better-supabase/ai-sdk";
+import { createAiChat } from "better-supabase/blocks/ai-chat";
 
-const row = await providers.sandboxes
+const { sandboxes } = createAiChat({ transport, service: serviceTransport });
+const row = await sandboxes
   .register(organizationId, { provider: "vercel", sandboxId, chatId, userId })
   .orThrow();
 const sandbox = trackedSandbox(session, {
-  sandboxes: providers.sandboxes,
+  sandboxes,
   id: row.id,
 });
 ```
 
-Before starting a sandbox for a chat, `providers.sandboxes.forChat(chatId,
-"vercel")` returns the one still running, so the next message reuses it.
-The [idle-stop job](/docs/blocks/ai-providers#sandboxes) stops the rest.
+Before starting a sandbox for a chat, `sandboxes.forChat(chatId, "vercel")`
+returns the one still running, so the next message reuses it. The
+[idle-stop job](/docs/blocks/ai-chat#sandboxes) stops the rest.

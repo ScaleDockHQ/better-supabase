@@ -36,7 +36,7 @@ const batch = await batchesFor(supabase)
 ```
 
 `start` calls the provider, then records the batch as the caller, so a
-member needs `ai_chat.create` in the organization. `metadata` stays in the
+member needs `ai.create` in the organization. `metadata` stays in the
 row and never goes to the provider. A provider error is a `network` error
 with the hint `AI_BATCH_PROVIDER`.
 
@@ -76,7 +76,7 @@ const page = await batches
 ```
 
 Both read as the caller: a member sees the batches they started, and
-`ai_chat.admin` sees every batch in the organization. `cancel(batch)` asks
+`ai.admin` sees every batch in the organization. `cancel(batch)` asks
 the provider to cancel and stores the new status.
 
 | Option      | Default                             | Sets                                                      |

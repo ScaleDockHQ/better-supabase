@@ -23,12 +23,15 @@ visible to the organization's members (`organization`) or to every
 signed-in user (`public`). Moderators see and change every agent in the
 organization.
 
-| Permission         | Lets a member                 | Default roles              |
-| ------------------ | ----------------------------- | -------------------------- |
-| `ai_chat.read`     | see the organization's agents | `owner`, `admin`, `member` |
-| `ai_chat.create`   | create agents                 | `owner`, `admin`, `member` |
-| `ai_chat.share`    | publish an agent              | `owner`, `admin`, `member` |
-| `ai_chat.moderate` | change or delete any agent    | `owner`, `admin`           |
+| Permission    | Lets a member                 | Default roles              |
+| ------------- | ----------------------------- | -------------------------- |
+| `ai.read`     | see the organization's agents | `owner`, `admin`, `member` |
+| `ai.create`   | create agents                 | `owner`, `admin`, `member` |
+| `ai.share`    | publish an agent              | `owner`, `admin`, `member` |
+| `ai.moderate` | change or delete any agent    | `owner`, `admin`           |
+
+Before 0.7 these keys were `ai_chat.read`, `ai_chat.create` and so on; a
+grant or a config that names the old keys keeps working until 0.8.
 
 Rename the keys with `sql.modules.agents.permissions.read`, `.create`,
 `.publish` and `.moderate`. The `maxInstructions` option (100,000

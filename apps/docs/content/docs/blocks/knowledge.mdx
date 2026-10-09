@@ -32,11 +32,14 @@ A document belongs to one scope:
 Members with the manage permission read every document in the tenant.
 A new document is `user` scoped unless you pass `scope`.
 
-| Permission       | Lets a member                                        | Default roles              |
-| ---------------- | ---------------------------------------------------- | -------------------------- |
-| `ai_chat.read`   | read organization and agent documents                | `owner`, `admin`, `member` |
-| `ai_chat.create` | add `user`, `project` and `chat` documents           | `owner`, `admin`, `member` |
-| `ai_chat.admin`  | add organization and agent documents, read every one | `owner`, `admin`           |
+| Permission  | Lets a member                                        | Default roles              |
+| ----------- | ---------------------------------------------------- | -------------------------- |
+| `ai.read`   | read organization and agent documents                | `owner`, `admin`, `member` |
+| `ai.create` | add `user`, `project` and `chat` documents           | `owner`, `admin`, `member` |
+| `ai.admin`  | add organization and agent documents, read every one | `owner`, `admin`           |
+
+Before 0.7 these keys were `ai_chat.read`, `ai_chat.create` and so on; a
+grant or a config that names the old keys keeps working until 0.8.
 
 Rename the keys with `sql.modules.knowledge.permissions.read`, `.write`
 and `.manage`.

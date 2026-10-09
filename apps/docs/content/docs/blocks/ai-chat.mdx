@@ -21,7 +21,8 @@ better-supabase sql add ai-chat   # adds tenant, access and streams as well
 | `ai_messages`          | The tree: `parent_id`, `role`, `parts` in the message format below, `native`, `status`               |
 | `ai_runs`              | One row per answer: model, status, token usage, the gateway's generation id and cost, the engine     |
 | `ai_run_steps`         | The progress of a long run, one row per step key                                                     |
-| `ai_harness_sessions`  | What a coding-agent harness keeps per chat: resume state, sandbox id and a lock (experimental)       |
+| `ai_harness_sessions`  | What a coding-agent harness keeps per chat: resume state, continue state and a lock (experimental)   |
+| `ai_sandboxes`         | Every sandbox or container a chat or harness started: provider, id, status, idle seconds, last use   |
 | `ai_tool_approvals`    | Approval requests for tool calls and the decision                                                    |
 | `ai_tool_policies`     | `auto`, `ask` or `deny` per tool and tenant                                                          |
 | `ai_pending_inputs`    | Questions a run asks the user, and the answer                                                        |
@@ -59,18 +60,19 @@ export const aiChatFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
 `better-supabase/postgres`, pass `sqlTransport(postgres.asUser(claims))` and
 `sqlTransport(postgres.admin)`.
 
-| Group        | Methods                                                                        |
-| ------------ | ------------------------------------------------------------------------------ |
-| `chats`      | `create`, `get`, `list`, `update`, `remove`, `purge` (expired temporary chats) |
-| `projects`   | `create`, `update`, `list`, `remove`                                           |
-| `messages`   | `appendUser`, `saveAssistant`, `path`, `siblings`, `switchBranch`              |
-| `runs`       | `claim`, `release`, `stop`, `setCost`                                          |
-| `approvals`  | `request`, `decide`, `list`, `setPolicy`, `policies`                           |
-| `inputs`     | `open`, `answer`                                                               |
-| `feedback`   | `rate`                                                                         |
-| `shares`     | `create`, `revoke`, `list`, `get` (by token, for anyone who has it)            |
-| `models`     | `allowed` (what the tenant's plans allow), `upsert`                            |
-| `moderation` | `record`, `list`                                                               |
+| Group        | Methods                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| `chats`      | `create`, `get`, `list`, `update`, `remove`, `purge` (expired temporary chats)              |
+| `projects`   | `create`, `update`, `list`, `remove`                                                        |
+| `messages`   | `appendUser`, `saveAssistant`, `path`, `siblings`, `switchBranch`                           |
+| `runs`       | `claim`, `release`, `stop`, `setCost`, `get`, `list`, `attach`, `steps`, `pendingApprovals` |
+| `sandboxes`  | `register`, `touch`, `forChat`, `list`, `idle`, `finishStop`, `stopIdle`, `idleStopJob`     |
+| `approvals`  | `request`, `decide`, `list`, `setPolicy`, `policies`                                        |
+| `inputs`     | `open`, `answer`                                                                            |
+| `feedback`   | `rate`                                                                                      |
+| `shares`     | `create`, `revoke`, `list`, `get` (by token, for anyone who has it)                         |
+| `models`     | `allowed` (what the tenant's plans allow), `upsert`                                         |
+| `moderation` | `record`, `list`                                                                            |
 
 Every method returns a `Result`. Database errors are `DbError` values, never
 exceptions.
@@ -93,17 +95,21 @@ unless that one is older than `staleAfter`. The writer appends to the
 `runs.release` ends the run with its status and usage. `runs.stop` sets the
 stream's cancel flag; the writer sees it on its next append.
 
+A run is `queued`, `running`, `cancel_requested`, `completed`, `failed` or
+`cancelled`. AI tasks and workflow runs use the same names, and
+`FINAL_RUN_STATES` from `better-supabase/blocks` lists the three final
+ones. Before 0.7 a run ended as `done`, `error` or `stopped`; `release`
+still accepts those names until 0.8 and stores the new ones.
+
 ## Durable runs
 
 A run's `engine` is `ai-sdk` for an answer written inside the request and
 `workflow` for one that runs as a workflow
 ([durable chat](/docs/ai-sdk/workflow)), with the engine's own run id in
-`external_run_id`. `createAiRuns` reads them:
+`external_run_id`. `runs` on the chat client reads them:
 
 ```ts
-import { createAiRuns } from "better-supabase/blocks/ai-chat";
-
-const runs = createAiRuns({ transport, service: serviceTransport });
+const { runs } = createAiChat({ transport, service: serviceTransport });
 const mine = await runs.list({ active: true }).orThrow();
 const steps = await runs.steps.list(mine[0].id).orThrow();
 const inbox = await runs.pendingApprovals().orThrow();
@@ -115,6 +121,9 @@ const inbox = await runs.pendingApprovals().orThrow();
 | `attach`                     | Records the engine's run id (service role)                            |
 | `steps.record`, `steps.list` | Records a step by its key (service role); the same key updates it     |
 | `pendingApprovals`           | The caller's undecided approvals across chats, with each chat's title |
+
+`createAiRuns` returns the same lookups on their own; it is deprecated and
+goes in 0.8.
 
 Members read the runs and steps of the chats they can read; only the
 service role writes them.
@@ -130,31 +139,62 @@ Members can't read the table, not even for their own chats, because resume
 state can hold harness credentials. The store is experimental: its shape
 follows the harnesses as they settle.
 
-`idleSandboxStop` is a [job](/docs/blocks/jobs) handler for a schedule. It
-stops each sandbox that sat unused for `idleSeconds` (900 by default) and
-marks the session `stopped`, or `error` when the stop threw. It locks each
-session for `lockSeconds` (120 by default) before the stop, and skips a
-session that a turn holds or used since it was listed; the result counts
-those as `skipped`:
+`save` with a `sandboxId` registers the session's sandbox in
+`ai_sandboxes` (provider `harness` unless `sandboxProvider` names one), and
+`sandboxId: null` marks it stopped. `load` returns the running sandbox's id,
+so a harness reads and writes `sandboxId` as before. The
+[idle-stop job](#sandboxes) stops harness sandboxes with the rest, skips one
+whose session a turn holds the lock of, and marks the session `stopped` once
+its last sandbox stopped.
+
+`idleSandboxStop`, the harness-only stop job from 0.6, still works on the new
+table; it is deprecated and goes in 0.8.
+
+## Sandboxes
+
+`ai_sandboxes` holds every sandbox or provider container a chat or a harness
+session started, so one idle-stop job stops all of them. Register each
+sandbox the app starts, and mark it used while it runs:
+
+```ts
+const { sandboxes } = createAiChat({ transport, service: serviceTransport });
+const row = await sandboxes
+  .register(organizationId, {
+    provider: "vercel",
+    sandboxId: sandbox.id,
+    chatId,
+  })
+  .orThrow();
+await sandboxes.touch(row.id);
+```
+
+`forChat(chatId, provider)` returns the chat's running sandbox so the next
+message reuses it. A sandbox started in another tenant is not reused:
+`register` fails with the hint `AI_SANDBOX_FORBIDDEN`. Schedule the idle-stop
+job every few minutes; it claims sandboxes that nobody used for their
+`idleSeconds`, or that passed `expiresAt`, and calls your stopper:
 
 ```ts title="jobs.ts"
 import { Sandbox } from "@vercel/sandbox";
-import {
-  createHarnessSessions,
-  idleSandboxStop,
-} from "better-supabase/blocks/ai-chat";
 
 export const handlers = {
-  "ai.idle_sandboxes": idleSandboxStop({
-    sessions: createHarnessSessions({ transport: serviceTransport }),
-    stop: async (session) => {
-      if (session.sandboxId === undefined) return;
-      const sandbox = await Sandbox.get({ sandboxId: session.sandboxId });
-      await sandbox.stop();
-    },
-  }),
+  ai_sandbox_idle: sandboxes.idleStopJob((sandbox) =>
+    Sandbox.get({ sandboxId: sandbox.sandboxId }).then((s) => s.stop()),
+  ),
 };
 ```
+
+A harness sandbox reaches the stopper with its `harnessId` set. A stopper
+that throws leaves the sandbox running with the error on the row, and the
+next run tries again.
+
+| Option             | Default | Sets                                                         |
+| ------------------ | ------- | ------------------------------------------------------------ |
+| `sandboxIdleAfter` | 600     | Seconds without use before the idle-stop job stops a sandbox |
+
+With [ai-providers](/docs/blocks/ai-providers) installed and no
+`sandboxIdleAfter`, its `idleAfter` option sets the default, as it did before
+0.7.
 
 ## Share links
 

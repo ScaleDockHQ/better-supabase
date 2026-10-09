@@ -128,7 +128,7 @@ export interface AiTasks {
   /** Enables a task again; it runs at its next occurrence. */
   resume(organizationId: string, taskId: string): AsyncResult<AiTask>;
   remove(taskId: string): AsyncResult<boolean>;
-  /** The caller's tasks, or every task in the tenant with `all` and `ai_chat.admin`. */
+  /** The caller's tasks, or every task in the tenant with `all` and `ai.admin`. */
   list(
     organizationId: string,
     options?: { readonly all?: boolean },

@@ -140,7 +140,7 @@ export interface AiProvidersOptions extends BlockTemporalOptions {
 export interface AiProviders {
   readonly keys: {
     list(organizationId: string): AsyncResult<readonly AiProviderKey[]>;
-    /** Adds or replaces a key (`ai_chat.admin`), and revokes the credential it replaced. */
+    /** Adds or replaces a key (`ai.admin`), and revokes the credential it replaced. */
     save(
       organizationId: string,
       key: AiProviderKeyInput,

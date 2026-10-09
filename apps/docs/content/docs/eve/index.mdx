@@ -192,7 +192,7 @@ export default defineHook({
 | `turn.started`                                    | an `ai_runs` row with the engine `eve`                                   |
 | `message.received`                                | the user message, in the canonical format                                |
 | `message.completed`                               | the assistant message, format `eve`, with eve's event as the native copy |
-| `turn.completed`, `turn.failed`, `turn.cancelled` | the run's status: `done`, `error` or `stopped`                           |
+| `turn.completed`, `turn.failed`, `turn.cancelled` | the run's status: `completed`, `failed` or `cancelled`                   |
 
 Each write is keyed by the event, so a redelivered event stores nothing
 new. The chat id is a UUID derived from the session id, so a client that
