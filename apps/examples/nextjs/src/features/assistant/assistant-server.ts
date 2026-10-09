@@ -12,7 +12,6 @@ import {
   type AiChat,
   type AiRuns,
   createAiChat,
-  createAiRuns,
 } from "better-supabase/blocks/ai-chat";
 import {
   type AiFiles,
@@ -67,11 +66,7 @@ export function aiChat(supabase: RpcClient): AiChat {
 
 /** The chat's runs, steps and approvals as the caller; engine writes go through the service role. */
 export function aiRuns(supabase: RpcClient): AiRuns {
-  return createAiRuns({
-    transport: rpcTransport(supabase, { schema: API_SCHEMA }),
-    service: serviceTransport(),
-    schema: API_SCHEMA,
-  });
+  return aiChat(supabase).runs;
 }
 
 let providersInstance: AiProviders | undefined;
