@@ -1,3 +1,4 @@
+import type { BlockEventMap, BlockEventType } from "../core/block-events.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 
 import {
@@ -67,7 +68,35 @@ export interface ModuleNames {
   readonly hooks?: readonly string[];
   /** The `sql.modules.<name>.options` keys the module reads; any other key is rejected. */
   readonly options?: readonly string[];
+  /** The events the module records; `record` rejects any other type. */
+  readonly events?: ModuleEvents;
 }
+
+/** An event in a module's catalog, checked against what `record` renders. */
+export interface ModuleEventSpec<K extends BlockEventType = BlockEventType> {
+  /** The kebab-case collection every subject starts with, e.g. `organizations`. */
+  readonly subject: string;
+  /** The payload keys, all of them in the event's `BlockEventMap` data. */
+  readonly payload: readonly PayloadKey<K>[];
+  /** A job, a webhook or an engine may call the writer again, so the event needs a `key`. */
+  readonly retries?: boolean;
+}
+
+type PayloadKey<K extends BlockEventType> = K extends BlockEventType
+  ? keyof BlockEventMap[K] & string
+  : never;
+
+export type ModuleEvents = {
+  readonly [K in BlockEventType]?: ModuleEventSpec<K>;
+};
+
+interface CheckedEventSpec {
+  readonly subject: string;
+  readonly payload: readonly string[];
+  readonly retries?: boolean;
+}
+
+const SUBJECT_COLLECTION = /^[a-z]+(-[a-z]+)*s$/;
 
 /** An event a module writes to the outbox, as SQL expressions. */
 export interface ModuleEmit {
@@ -433,7 +462,41 @@ export function createModuleContext(
       );
     }
   };
+  const checkEvent = (event: ModuleEmit): void => {
+    if (!names.events) return;
+    const spec: CheckedEventSpec | undefined = Object.entries(
+      names.events,
+    ).find(([type]) => type === event.type)?.[1];
+    if (!spec) {
+      throw new TypeError(
+        `Module "${module}" records "${event.type}", which its names.events doesn't declare`,
+      );
+    }
+    const fault = (problem: string): never => {
+      throw new TypeError(
+        `Module "${module}" event "${event.type}" ${problem}`,
+      );
+    };
+    if (!SUBJECT_COLLECTION.test(spec.subject)) {
+      fault(`has subject "${spec.subject}", not a kebab-case plural`);
+    }
+    if (!event.subject?.startsWith(`'${spec.subject}/`)) {
+      fault(`needs a subject that starts with '${spec.subject}/'`);
+    }
+    const missing = spec.payload.filter(
+      (key) => !event.payload.includes(`'${key}'`),
+    );
+    if (missing.length > 0) fault(`payload lacks ${missing.join(", ")}`);
+    const tenanted = event.tenant !== undefined && event.tenant !== "null";
+    if (tenanted && !spec.payload.includes("organizationId")) {
+      fault("has a tenant, so its payload needs organizationId");
+    }
+    if (spec.retries === true && event.key === undefined) {
+      fault("is written by a writer that retries, so it needs a key");
+    }
+  };
   const outbox = (event: ModuleEmit): string => {
+    checkEvent(event);
     if (!config.events || !installed.has("outbox")) return "";
     const outboxConfig = resolveModule(modules["outbox"]);
     const template =

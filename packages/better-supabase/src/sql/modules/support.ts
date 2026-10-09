@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -9,7 +9,36 @@ import {
   providerPlatformRoles,
 } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "support.started": {
+    subject: "support-sessions",
+    payload: [
+      "sessionId",
+      "adminId",
+      "targetUserId",
+      "reason",
+      "readOnly",
+      "expiresAt",
+      "organizationId",
+    ],
+  },
+  "support.ended": {
+    subject: "support-sessions",
+    payload: [
+      "sessionId",
+      "adminId",
+      "targetUserId",
+      "reason",
+      "readOnly",
+      "expiresAt",
+      "organizationId",
+      "endedBy",
+    ],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [
     "allowPlatformTargets",
     "allowWrites",
@@ -59,6 +88,11 @@ function sessionJson(ctx: ModuleContext, row: string): string {
     'ended_by', ${optional("endedBy", "null")},
     'metadata', ${optional("metadata", "'{}'::jsonb")}
   )`;
+}
+
+/** The `SupportEventData` payload, in camelCase, from a `sessionJson` value. */
+function supportPayload(session: string, extra = ""): string {
+  return `jsonb_build_object('sessionId', ${session} ->> 'id', 'adminId', ${session} ->> 'admin_id', 'targetUserId', ${session} ->> 'target_user_id', 'reason', ${session} ->> 'reason', 'readOnly', (${session} ->> 'read_only')::boolean, 'expiresAt', ${session} ->> 'expires_at', 'organizationId', ${session} ->> 'tenant'${extra})`;
 }
 
 function table(ctx: ModuleContext): string {
@@ -228,8 +262,8 @@ begin
   ${ctx.hook("after_support_start", [["uuid", "session_id"]])}
   ${ctx.record({
     type: "support.started",
-    payload: "started",
-    subject: "'support_sessions/' || session_id",
+    payload: supportPayload("started"),
+    subject: "'support-sessions/' || session_id",
     tenant: "tenant",
     key: "'support.started:' || session_id",
     audit: {
@@ -295,8 +329,8 @@ begin
   ${ctx.hook("after_support_end", [["uuid", "session_id"]])}
   ${ctx.record({
     type: "support.ended",
-    payload: "ended || jsonb_build_object('ended_by', ended_by)",
-    subject: "'support_sessions/' || session_id",
+    payload: supportPayload("ended", ", 'endedBy', ended_by"),
+    subject: "'support-sessions/' || session_id",
     ...(tenant ? { tenant } : {}),
     key: "'support.ended:' || session_id",
     audit: {

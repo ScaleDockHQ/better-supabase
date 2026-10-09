@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
@@ -20,7 +21,32 @@ import {
 } from "../subjects.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "object.uploaded": {
+    subject: "objects",
+    payload: ["bucket", "path"],
+  },
+  "attachment.uploaded": {
+    subject: "attachments",
+    payload: [
+      "attachmentId",
+      "organizationId",
+      "subjectType",
+      "subjectId",
+      "uploadedBy",
+      "mimeType",
+      "size",
+    ],
+  },
+  "attachment.scanned": {
+    subject: "attachments",
+    payload: ["attachmentId", "organizationId", "status", "uploadedBy"],
+    retries: true,
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [
     "bucket",
     "requireScan",
@@ -297,6 +323,7 @@ function build(ctx: ModuleContext): string {
     payload: `jsonb_build_object('attachmentId', v_row.${c("id")}, 'organizationId', v_row.${c("tenant")}::text, 'status', v_row.${c("status")}, 'uploadedBy', v_row.${c("uploadedBy")})`,
     subject: `'attachments/' || v_row.${c("id")}::text`,
     tenant: `v_row.${c("tenant")}`,
+    key: `'attachment.scanned:' || v_row.${c("id")}::text || ':' || v_row.${c("status")}`,
     audit: false,
   });
   const policy = (name: string): string => sqlIdent(`bs_attachments_${name}`);

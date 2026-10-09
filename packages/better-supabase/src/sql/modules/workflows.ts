@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
@@ -16,7 +17,50 @@ import {
 } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "workflow_run.completed": {
+    subject: "workflow-runs",
+    payload: [
+      "runId",
+      "organizationId",
+      "engine",
+      "externalId",
+      "definition",
+      "status",
+      "error",
+    ],
+    retries: true,
+  },
+  "workflow_run.failed": {
+    subject: "workflow-runs",
+    payload: [
+      "runId",
+      "organizationId",
+      "engine",
+      "externalId",
+      "definition",
+      "status",
+      "error",
+    ],
+    retries: true,
+  },
+  "workflow_run.cancelled": {
+    subject: "workflow-runs",
+    payload: [
+      "runId",
+      "organizationId",
+      "engine",
+      "externalId",
+      "definition",
+      "status",
+      "error",
+    ],
+    retries: true,
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   tables: {
     runs: {
       name: "workflow_runs",
@@ -149,11 +193,11 @@ grant execute on function ${signature} to authenticated, service_role;`;
   )`;
   const emitTerminal = (status: string): string =>
     ctx.record({
-      type: `workflow.run.${status}`,
-      payload: `jsonb_build_object('runId', new.${cr("id")}, 'engine', new.${cr("engine")}, 'externalId', new.${cr("externalId")}, 'definition', new.${cr("definition")}, 'status', new.${cr("status")}, 'error', new.${cr("error")})`,
+      type: `workflow_run.${status}`,
+      payload: `jsonb_build_object('runId', new.${cr("id")}, 'organizationId', new.${cr("tenant")}::text, 'engine', new.${cr("engine")}, 'externalId', new.${cr("externalId")}, 'definition', new.${cr("definition")}, 'status', new.${cr("status")}, 'error', new.${cr("error")})`,
       subject: `'workflow-runs/' || new.${cr("id")}`,
       tenant: `new.${cr("tenant")}`,
-      key: `'workflow.run.${status}:' || new.${cr("id")}`,
+      key: `'workflow_run.${status}:' || new.${cr("id")}`,
       audit: false,
     });
   const terminalEvents = ["completed", "failed", "cancelled"]
@@ -272,7 +316,7 @@ revoke all on ${q} from anon, authenticated;
 grant all on ${q} to service_role;
 
 -- Pings the run's topic and its tenant's topic on every status change, and
--- writes workflow.run.completed, .failed or .cancelled to the outbox.
+-- writes workflow_run.completed, .failed or .cancelled to the outbox.
 create or replace function ${fn("workflow_runs_changed")}()
 returns trigger
 language plpgsql
@@ -864,7 +908,7 @@ export const WORKFLOWS: ModuleDefinition = {
   name: "workflows",
   title: "Workflows",
   description:
-    "Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow.run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.",
+    "Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.",
   requires: ["tenant", "access"],
   target: "schema",
   modes: ["managed", "custom"],

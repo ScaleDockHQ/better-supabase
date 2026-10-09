@@ -1,8 +1,9 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  memberAddedRecord,
   organizationMissing,
   renameSql,
   schemaPreamble,
@@ -44,7 +45,39 @@ import {
 import { assignableRole, roleValue } from "./organizations.ts";
 import { roleThrough } from "./tenant.ts";
 
+const EVENTS: ModuleEvents = {
+  "invitation.created": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId", "email", "role"],
+  },
+  "invitation.resent": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId", "email"],
+  },
+  "invitation.updated": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId", "email", "role"],
+  },
+  "invitation.revoked": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId"],
+  },
+  "invitation.declined": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId"],
+  },
+  "invitation.accepted": {
+    subject: "invitations",
+    payload: ["invitationId", "organizationId", "email", "role"],
+  },
+  "organization.member_added": {
+    subject: "organizations",
+    payload: ["organizationId", "userId", "role"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [
     "maxValidFor",
     "platformRoles",
@@ -752,7 +785,7 @@ begin
     ["uuid", "me"],
   ])}
   ${ctx.record({ type: "invitation.accepted", payload: `jsonb_build_object('invitationId', invite.${c("id")}, 'organizationId', invite.${c("tenant")}::text, 'email', invite.${c("email")}, 'role', invite.${c("role")})`, subject: `'invitations/' || invite.${c("id")}::text`, tenant: `invite.${c("tenant")}`, audit: { category: "membership", targetType: "invitation", recordId: `invite.${c("id")}::text` } })}
-  ${ctx.record({ type: "organization.member_added", payload: `jsonb_build_object('organizationId', invite.${c("tenant")}::text, 'userId', me, 'role', invite.${c("role")})`, subject: `'organizations/' || invite.${c("tenant")}::text`, tenant: `invite.${c("tenant")}`, audit: { category: "membership", targetType: "user", recordId: "me::text" } })}
+  ${memberAddedRecord(ctx, { tenant: `invite.${c("tenant")}`, user: "me", role: `invite.${c("role")}` })}
   return invite.${c("tenant")};
 end;
 $$;

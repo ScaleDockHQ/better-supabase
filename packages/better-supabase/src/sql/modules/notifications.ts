@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
@@ -16,7 +17,16 @@ import {
   notifyNames,
 } from "./notifications-sql.ts";
 
+const EVENTS: ModuleEvents = {
+  "notification.created": {
+    subject: "notifications",
+    payload: ["notificationId", "organizationId", "type", "recipientIds"],
+    retries: true,
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: [
     "channelDefaults",
     "channels",

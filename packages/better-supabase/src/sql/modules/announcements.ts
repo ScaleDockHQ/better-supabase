@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
@@ -9,7 +10,19 @@ import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
+const EVENTS: ModuleEvents = {
+  "announcement.saved": {
+    subject: "announcements",
+    payload: ["announcementId"],
+  },
+  "announcement.deleted": {
+    subject: "announcements",
+    payload: ["announcementId"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["topic", "event"],
   tables: {
     announcements: {

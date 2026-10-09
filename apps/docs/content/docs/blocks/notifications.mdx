@@ -365,6 +365,38 @@ Run `purge()` (`purge_notifications(older_than, batch)` in SQL) from a
 scheduled job to delete notifications older than 90 days with their
 recipients and deliveries, 10,000 per call.
 
+## From outbox events
+
+`notifications.sink({ map })` is an outbox sink that turns events into
+notifications. `map` receives each CloudEvent, with the
+`dev.better-supabase.` prefix stripped from its type, and returns a
+notification or `null` to skip it:
+
+```ts title="app/api/cron/notify/route.ts"
+await outbox.relay(
+  "notify",
+  notifications.sink({
+    map: (event) =>
+      event.type === "organization.member_added"
+        ? {
+            type: "organization.joined",
+            recipients: [String(event.data.userId)],
+            data: { title: "You joined the organization" },
+          }
+        : null,
+  }),
+);
+```
+
+The notification's `key` defaults to the event id and its `tenant` to the
+event's `partitionkey`, so a replayed batch sends nothing twice. A failed
+send throws, and the relay retries the batch.
+
+SQL modules notify through the notifications module in the same
+transaction, not through this sink. The comments module already sends a
+notification for every mention (`comment.mentioned`), so don't map that
+event again.
+
 ## Extending it
 
 | Hook or event                   | Use                                                                           |

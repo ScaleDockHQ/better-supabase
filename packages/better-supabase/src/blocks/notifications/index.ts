@@ -15,6 +15,7 @@ export type {
   NotificationCounts,
   NotificationPage,
   NotificationPreference,
+  NotificationSinkOptions,
   NotificationSubscription,
   NotificationTypes,
   NotificationUpdate,
@@ -24,6 +25,7 @@ export type {
   Rendered,
   SendInput,
   SentNotification,
+  SinkNotification,
   SubscriptionLevel,
 } from "./notifications.ts";
 export type {

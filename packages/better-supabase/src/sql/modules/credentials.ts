@@ -1,13 +1,25 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { schemaPreamble, SERVICE_CALLER, serviceGrant } from "../shared.ts";
 
-const NAMES: ModuleNames = { tables: {} };
+const EVENTS: ModuleEvents = {
+  "credential.set": {
+    subject: "credentials",
+    payload: ["provider", "name"],
+  },
+  "credential.deleted": {
+    subject: "credentials",
+    payload: ["provider", "name"],
+  },
+};
+
+const NAMES: ModuleNames = { tables: {}, events: EVENTS };
 
 /**
  * PL/pgSQL that rejects a credential_ref outside `tenant` unless the service

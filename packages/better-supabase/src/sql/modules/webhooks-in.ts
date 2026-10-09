@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { ModuleContext, ModuleEvents } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -325,7 +325,7 @@ begin
   end if;`
       : ""
   }
-  ${hookEvent("incoming_webhook.rotated", "updated.id", "updated.tenant", "security", ", 'secretRotated', rotate_secret")}
+  ${hookEvent("incoming_webhook.token_rotated", "updated.id", "updated.tenant", "security", ", 'secretRotated', rotate_secret")}
   return jsonb_build_object('id', updated.id, 'token', token, 'secret', v_secret);
 end;
 $$;
@@ -517,6 +517,33 @@ revoke execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) f
 grant execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) to service_role;`;
 }
 
+const EVENTS: ModuleEvents = {
+  "incoming_webhook.created": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId", "name"],
+  },
+  "incoming_webhook.token_rotated": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId", "secretRotated"],
+  },
+  "incoming_webhook.secret_rotated": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId"],
+  },
+  "incoming_webhook.updated": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId", "name", "verify"],
+  },
+  "incoming_webhook.enabled_set": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId", "enabled"],
+  },
+  "incoming_webhook.deleted": {
+    subject: "organizations",
+    payload: ["organizationId", "endpointId"],
+  },
+};
+
 export const WEBHOOKS_IN: ModuleDefinition = {
   internal: [
     "incoming_webhook_tenant_ids",
@@ -529,6 +556,7 @@ export const WEBHOOKS_IN: ModuleDefinition = {
   requires: ["access", "updated-at", "webhook-inbox"],
   target: "schema",
   names: {
+    events: EVENTS,
     tables: {
       endpoints: {
         name: "incoming_webhooks",

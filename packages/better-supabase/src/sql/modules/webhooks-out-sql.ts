@@ -453,9 +453,10 @@ function complete(ctx: ModuleContext, n: HookNames): string {
         ${ctx.record({
           type: "webhook.disabled",
           payload:
-            "jsonb_build_object('endpointId', v_endpoint, 'failingSince', v_since)",
+            "jsonb_build_object('endpointId', v_endpoint, 'organizationId', v_tenant::text, 'failingSince', v_since)",
           subject: "'webhooks/' || v_endpoint::text",
           tenant: "v_tenant::text",
+          key: "'webhook.disabled:' || v_endpoint::text || ':' || v_since::text",
           audit: {
             category: "integration",
             targetType: "webhook_endpoint",

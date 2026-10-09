@@ -12,6 +12,7 @@ import {
   updatedAt,
 } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS, roleNames } from "./access-model.ts";
+import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
 import { organizationReads } from "./organizations-reads.ts";
 import { memberSuspension } from "./organizations-suspension.ts";
 import {
@@ -22,6 +23,7 @@ import {
 } from "./tenant.ts";
 
 const NAMES: ModuleNames = {
+  events: ORGANIZATION_EVENTS,
   options: [
     "assignmentGuard",
     "attributes",

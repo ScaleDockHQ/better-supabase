@@ -1488,6 +1488,7 @@
       "NotificationPreference",
       "Notifications",
       "NotificationSendResult",
+      "NotificationSinkOptions",
       "NotificationsOptions",
       "NotificationSubject",
       "NotificationSubscription",
@@ -1499,6 +1500,7 @@
       "RpcClient",
       "SendInput",
       "SentNotification",
+      "SinkNotification",
       "SubscriptionLevel"
     ]
   },
@@ -1681,6 +1683,7 @@
   "./events": {
     "values": [
       "BLOCK_ATTRIBUTES",
+      "BLOCK_EVENT_RENAMES",
       "blockCloudEvent",
       "blockEventAttributes",
       "forwardBlockEvents",
@@ -1694,8 +1697,14 @@
       "toHttp"
     ],
     "types": [
+      "AgentEventData",
       "AiChatEventData",
+      "AiProviderKeyEventData",
+      "AiToolEventData",
+      "AnnouncementEventData",
+      "ApiKeyEventData",
       "AttachmentEventData",
+      "AuditRevealEventData",
       "BillingEventData",
       "BlockEvent",
       "BlockEventMap",
@@ -1706,21 +1715,34 @@
       "CloudEvent",
       "CloudEventOptions",
       "CommentEventData",
+      "ConnectorEventData",
+      "CredentialEventData",
       "DataExportEventData",
       "EventSink",
+      "FlagEventData",
       "ForwardBlockOptions",
       "ForwardOptions",
       "HttpMode",
       "HttpSinkOptions",
+      "InboxEventData",
+      "IncomingWebhookEventData",
       "InvitationEventData",
+      "InviteCodeEventData",
       "NotificationEventData",
       "OrganizationDeletionEventData",
       "OrganizationDomainEventData",
       "OrganizationEventData",
+      "PushDeviceEventData",
       "RowEventData",
+      "ScimEventData",
+      "SettingEventData",
+      "SsoProviderEventData",
+      "StorageObjectEventData",
       "SupportEventData",
       "WaitlistEventData",
-      "WebhookEventData"
+      "WebhookEventData",
+      "WorkflowEventData",
+      "WorkflowRunEventData"
     ]
   },
   "./blocks/webhooks": {

@@ -59,6 +59,82 @@ const row = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+describe("createNotifications().sink", () => {
+  const event = (type: string, extra: Record<string, unknown> = {}) => ({
+    specversion: "1.0" as const,
+    id: `id-${type}`,
+    source: "better-supabase/organizations",
+    type: `dev.better-supabase.${type}`,
+    data: { organizationId: "organization_1", userId: "u1" },
+    ...extra,
+  });
+
+  it("sends a notification per mapped event, keyed by the event id", async () => {
+    const { transport, calls } = fakeTransport({
+      send_notification: () => ({ id: "e1", recipients: ["u1"] }),
+    });
+    const seen: string[] = [];
+    const sink = createNotifications({ transport, types }).sink({
+      map(cloudEvent) {
+        seen.push(cloudEvent.type);
+        return cloudEvent.type === "organization.member_added"
+          ? {
+              type: "task.assigned",
+              recipients: ["u1"],
+              data: { title: "Welcome" },
+            }
+          : null;
+      },
+    });
+    await sink.send([
+      event("organization.member_added", { partitionkey: "organization_1" }),
+      event("organization.updated"),
+    ]);
+    expect(seen).toEqual(["organization.member_added", "organization.updated"]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args).toMatchObject({
+      notification: {
+        type: "task.assigned",
+        recipients: ["u1"],
+        tenant: "organization_1",
+        key: "id-organization.member_added",
+        data: { title: "Welcome" },
+      },
+    });
+  });
+
+  it("keeps the mapped key and tenant, and rejects when the send fails", async () => {
+    const { transport, calls } = fakeTransport();
+    const sink = createNotifications({ transport, types }).sink({
+      typePrefix: "",
+      map: async (cloudEvent) => ({
+        type: "task.assigned",
+        tenant: "organization_2",
+        key: `own-${cloudEvent.type}`,
+        data: { title: "Hi" },
+      }),
+    });
+    await sink.send([event("x", { partitionkey: "organization_1" })]);
+    expect(calls[0]?.args).toMatchObject({
+      notification: {
+        tenant: "organization_2",
+        key: "own-dev.better-supabase.x",
+      },
+    });
+    const failing = createNotifications({
+      transport: {
+        async call() {
+          throw Object.assign(new Error("denied"), { code: "42501" });
+        },
+      },
+      types,
+    }).sink({
+      map: () => ({ type: "task.assigned", data: { title: "Hi" } }),
+    });
+    await expect(failing.send([event("x")])).rejects.toThrow("denied");
+  });
+});
+
 describe("createNotifications().send", () => {
   it("validates the data, calls notify, emits and runs onSent", async () => {
     const { transport, calls } = fakeTransport({

@@ -1,6 +1,7 @@
 import type {
   ModuleContext,
   ModuleContractFunction,
+  ModuleEvents,
   ModuleNames,
 } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
@@ -17,7 +18,16 @@ import {
 import { MODULE_PERMISSIONS, modulePermission } from "./access-model.ts";
 import { type PlanLookup, platformLists } from "./billing-platform.ts";
 
+const EVENTS: ModuleEvents = {
+  "billing.customer_linked": {
+    subject: "organizations",
+    payload: ["organizationId", "customerId"],
+    retries: true,
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["seatRoles", "plans", "tenantKey"],
   tables: {
     customers: {

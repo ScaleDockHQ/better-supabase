@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-builder (0.5.1)
 -- @bs-module workflow-builder@1 managed
--- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow.alert outbox events.
+-- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -147,7 +147,7 @@ create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs" 
 
 -- Alerts on a definition's runs: failed fires when a run fails, slow when a
 -- run is still unfinished after threshold (check_workflow_alerts). Each
--- fires once per run and writes a workflow.alert outbox event.
+-- fires once per run and writes a workflow_alert.triggered outbox event.
 create table if not exists "better_supabase"."workflow_alerts" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,

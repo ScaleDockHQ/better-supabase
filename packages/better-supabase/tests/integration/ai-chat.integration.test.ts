@@ -95,9 +95,9 @@ describe.skipIf(!live)("ai-chat module", () => {
       ).toEqual([{ source_id: "s1", url: "https://example.com" }]);
       expect(
         await s.rows(
-          "select type from better_supabase.outbox_events where type like 'ai_chat.%'",
+          "select type from better_supabase.outbox_events where type like 'ai_chat%'",
         ),
-      ).toEqual([{ type: "ai_chat.message.completed" }]);
+      ).toEqual([{ type: "ai_chat_message.completed" }]);
 
       await s.as(owner);
       const second = await append({

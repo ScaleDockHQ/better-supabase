@@ -289,7 +289,7 @@ begin
     type: "audit.revealed",
     payload:
       "jsonb_build_object('organizationId', owner::text, 'entries', jsonb_build_array(entry))",
-    subject: "'audit/' || entry",
+    subject: "'audit-entries/' || entry",
     tenant: "owner",
     audit: {
       category: "security",
@@ -337,7 +337,7 @@ begin
       type: "audit.revealed",
       payload:
         "jsonb_build_object('organizationId', revealed.owner, 'entries', revealed.ids)",
-      subject: "'audit/' || coalesce(revealed.owner, 'platform')",
+      subject: "'audit-entries/' || coalesce(revealed.owner, 'platform')",
       tenant: `(revealed.owner)::${ctx.idType}`,
       audit: {
         category: "security",

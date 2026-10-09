@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
+import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition } from "../registry.ts";
 
 import {
@@ -62,7 +62,31 @@ const FINGERPRINTS = {
   createdAt: "created_at",
 } as const;
 
+const EVENTS: ModuleEvents = {
+  "connector.saved": {
+    subject: "organizations",
+    payload: ["organizationId", "serverId", "name"],
+  },
+  "connector.deleted": {
+    subject: "organizations",
+    payload: ["organizationId", "serverId", "name"],
+  },
+  "connector_grant.created": {
+    subject: "organizations",
+    payload: ["organizationId", "grantId", "serverId", "userId"],
+  },
+  "connector_grant.revoked": {
+    subject: "organizations",
+    payload: ["organizationId", "grantId", "serverId", "userId"],
+  },
+  "connector.fingerprint_decided": {
+    subject: "organizations",
+    payload: ["organizationId", "serverId", "name", "fingerprint", "approved"],
+  },
+};
+
 const NAMES: ModuleNames = {
+  events: EVENTS,
   options: ["allowHttp", "trustFirstUse", "sessionTtl"],
   tables: {
     servers: {

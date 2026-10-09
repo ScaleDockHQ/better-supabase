@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { ModuleEvents } from "../../src/sql/context.ts";
+
 import {
   contractSignature,
   createModuleContext,
@@ -598,6 +600,67 @@ describe("statement helpers", () => {
     expect(() =>
       invalid.record({ ...event, audit: { category: "data" } }),
     ).toThrow("sql.modules.demo.options.auditCategory must be a string");
+  });
+
+  it("checks each recorded event against the module's catalog", () => {
+    const catalog = (events: ModuleEvents) =>
+      createModuleContext("demo", () => ({ ...names, events }), {
+        installed: ["demo", "outbox"],
+      });
+    const member = {
+      type: "organization.member_added",
+      payload:
+        "jsonb_build_object('organizationId', t::text, 'userId', u, 'role', r)",
+      subject: "'organizations/' || t::text",
+      tenant: "t",
+      audit: false,
+    } as const;
+    const spec = {
+      subject: "organizations",
+      payload: ["organizationId", "userId", "role"],
+    } as const;
+    expect(
+      catalog({ "organization.member_added": spec }).record(member),
+    ).toContain("emit_event('organization.member_added'");
+    expect(() => catalog({}).record(member)).toThrow(
+      'Module "demo" records "organization.member_added", which its names.events doesn\'t declare',
+    );
+    expect(() =>
+      catalog({
+        "organization.member_added": {
+          ...spec,
+          subject: "organization_members",
+        },
+      }).record(member),
+    ).toThrow("not a kebab-case plural");
+    expect(() =>
+      catalog({
+        "organization.member_added": { ...spec, subject: "members" },
+      }).record(member),
+    ).toThrow("needs a subject that starts with 'members/'");
+    expect(() =>
+      catalog({
+        "organization.member_added": {
+          ...spec,
+          payload: [...spec.payload, "previousRole"],
+        },
+      }).record(member),
+    ).toThrow("payload lacks previousRole");
+    expect(() =>
+      catalog({
+        "organization.member_added": { ...spec, payload: ["userId", "role"] },
+      }).record(member),
+    ).toThrow("has a tenant, so its payload needs organizationId");
+    expect(() =>
+      catalog({
+        "organization.member_added": { ...spec, retries: true },
+      }).record(member),
+    ).toThrow("needs a key");
+    expect(
+      catalog({
+        "organization.member_added": { ...spec, payload: ["userId", "role"] },
+      }).record({ ...member, tenant: "null" }),
+    ).toContain("emit_event(");
   });
 
   it("notifies as the service role and restores the claims", () => {
