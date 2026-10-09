@@ -137,6 +137,7 @@ describe("ai-chat module", () => {
     expect(plan!.to).toBe(2);
     const sql = plan!.steps.map((step) => step.sql).join("\n");
     expect(sql).toContain("when 'error' then 'failed' else 'cancelled' end");
+    expect(sql).toContain("a.attname = 'status'");
     expect(sql).toContain(
       'create table if not exists "better_supabase"."ai_sandboxes" (',
     );
