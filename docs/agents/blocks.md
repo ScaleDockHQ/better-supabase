@@ -23,8 +23,12 @@ better_supabase.tenant_ids_with(key))` in policies. Add the module's keys to
   role should hold them.
 - A table that holds a user's or a tenant's rows declares `lifecycle: {
 user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
-  `data-lifecycle` module exports and purges it. Leave it out for secrets
-  and for rows the purge must not touch.
+  `data-lifecycle` module exports and purges it. Secrets that only the
+  tenant's purge should delete take `export: false`; `omit` lists columns
+  an export leaves out. A `credential_ref` column goes in `credentials`
+  (with `credentialSubject: "user"` when the ref is stored per user): exports
+  leave it out and the organization purger revokes it before the purge.
+  `tests/sql/credential-columns.test.ts` fails on one that isn't declared.
 - Events go through `ctx.record({ type, payload, subject, tenant, key, audit })`,
   which is `null;` without the `outbox` and `audit` modules, so it can stand
   alone as a statement. Never pad a helper with `|| "null;"`, and compare

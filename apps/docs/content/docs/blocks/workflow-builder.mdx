@@ -216,7 +216,9 @@ URL that connects an account for providers that authorize (such as
 call for steps: it returns the token from the provider named in the ref,
 with the row's scopes. `revoke` deletes the row and then revokes the
 secret. Members with `workflow.admin` manage the tenant's credentials;
-members with `workflow.read` list them.
+members with `workflow.read` list them. Organization exports leave out
+`credential_ref`, and the organization purge in [data lifecycle](/docs/blocks/data-lifecycle#credentials) revokes each
+credential before it deletes the row.
 
 ## Run status on the canvas
 
