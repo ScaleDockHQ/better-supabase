@@ -106,7 +106,7 @@ const NAMES: ModuleNames = {
     },
     scimUsers: {
       name: "scim_users",
-      lifecycle: { tenant: "tenant" },
+      lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
         tenant: "organization_id",

@@ -93,7 +93,7 @@ describe("data-lifecycle module", () => {
       expect(sql).toContain(`'${table}'`);
     }
     expect(sql).toMatch(
-      /\('organization', '[a-z_]+\.audit_events', .*, false, '\{\}'::text\[\], true\)/,
+      /\('organization', '[a-z_]+\.audit_events', .*, false, array\['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id'\]::text\[\], true\)/,
     );
     expect(sql).toContain(
       `('organization', 'public.projects', '"public"."projects"', 'organization_id', true, '{}'::text[], true)`,
@@ -132,7 +132,9 @@ describe("data-lifecycle module", () => {
     ]) {
       expect(sql).toContain(row);
     }
-    expect(sql).not.toContain("'better_supabase.webhook_endpoint_secrets'");
+    expect(sql).toContain(
+      `('organization', 'better_supabase.webhook_endpoint_secrets', '"better_supabase"."webhook_endpoint_secrets"', 'organization_id', true, '{}'::text[], false)`,
+    );
     expect(sql).not.toContain("'better_supabase.data_exports'");
     expect(
       renderModules(["usage", "data-lifecycle"], {
@@ -178,7 +180,7 @@ describe("data-lifecycle module", () => {
     expect(sql).toContain("a.attname = 'organization_id'");
     expect(sql).toContain("a.attname = 'owner_id'");
     expect(sql).toContain(
-      "not in ('better_supabase.memberships', 'better_supabase.permission_overrides', 'app.notes')",
+      "not in ('better_supabase.memberships', 'better_supabase.platform_roles', 'better_supabase.permission_overrides', 'app.notes')",
     );
     expect(sql).toContain("like 'public.%\\_log'");
     expect(sql).toMatch(/returns table \(subject text[^$]*\nstable\n/);
@@ -355,6 +357,56 @@ describe("data-lifecycle module", () => {
     const defaults = sqlOf(["data-lifecycle", "invitations"]);
     expect(defaults).toContain(
       `('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'organization_id', true, array['token_hash']::text[], true)`,
+    );
+  });
+
+  it("leaves credential_refs out of exports and lists them for revocation before the purge", () => {
+    const sql = sqlOf([
+      "data-lifecycle",
+      "ai-providers",
+      "connectors",
+      "workflow-builder",
+      "chat-sdk-state",
+    ]);
+    for (const [subject, table, column] of [
+      ["organization", "ai_provider_keys", "organization_id"],
+      ["organization", "connector_servers", "organization_id"],
+      ["organization", "connector_grants", "organization_id"],
+      ["user", "connector_grants", "user_id"],
+      ["organization", "workflow_credentials", "tenant_id"],
+    ]) {
+      expect(sql).toContain(
+        `('${subject}', 'better_supabase.${table}', '"better_supabase"."${table}"', '${column}', true, array['credential_ref']::text[], true)`,
+      );
+    }
+    expect(sql).toContain(
+      `('organization', 'better_supabase.chat_installations', '"better_supabase"."chat_installations"', 'tenant_id', false, array['credential_ref']::text[], true)`,
+    );
+    for (const row of [
+      `('better_supabase.ai_provider_keys', '"better_supabase"."ai_provider_keys"', 'credential_ref', null::text)`,
+      `('better_supabase.connector_grants', '"better_supabase"."connector_grants"', 'credential_ref', 'user_id')`,
+      `('better_supabase.workflow_credentials', '"better_supabase"."workflow_credentials"', 'credential_ref', null::text)`,
+    ]) {
+      expect(sql).toContain(row);
+    }
+    expect(sql).toContain(
+      'join "better_supabase"."data_lifecycle_tables"() t on t.subject = \'organization\' and t.name = c.name and t.purge',
+    );
+    expect(sql).toContain(
+      "''in_tenant'', not (jsonb_typeof(r.ref -> ''tenant'') is distinct from ''string'' or (r.ref ->> ''tenant'') is distinct from ($1)::text)",
+    );
+    expect(sql).toContain("hint = 'ORGANIZATION_DELETION_NOT_DUE'");
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."organization_credential_refs"(uuid) to service_role;',
+    );
+    expect(sqlOf(["data-lifecycle"])).toContain(
+      "select null::text, null::text, null::text, null::text where false",
+    );
+  });
+
+  it("leaves the audit snapshots and impersonation details out of exports", () => {
+    expect(sqlOf(["data-lifecycle", "audit"])).toContain(
+      `('user', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'actor_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true)`,
     );
   });
 });

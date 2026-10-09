@@ -27,6 +27,12 @@ with `CREDENTIAL_REF_FOREIGN`. Server URLs must use `https`
 unless `allowHttp` is on, and sessions expire after `sessionTtl` (`1 hour`
 by default).
 
+Exports leave out `credential_ref` on servers and grants. The organization
+purge in [data lifecycle](/docs/blocks/data-lifecycle#credentials) revokes a server's credential and each grant's (for the
+grant's user) before it deletes the rows, when the ref carries the
+organization; a grant ref without a tenant comes back in
+`credentials.unrevoked`.
+
 | Permission       | Lets a member                      | Default roles              |
 | ---------------- | ---------------------------------- | -------------------------- |
 | `ai_chat.read`   | see the organization's servers     | `owner`, `admin`, `member` |

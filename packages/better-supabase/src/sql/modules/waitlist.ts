@@ -84,6 +84,7 @@ const NAMES: ModuleNames = {
     },
     redemptions: {
       name: "invite_code_redemptions",
+      lifecycle: { user: "user" },
       columns: {
         code: "code_id",
         user: "user_id",

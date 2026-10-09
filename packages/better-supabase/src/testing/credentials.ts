@@ -35,7 +35,8 @@ const kindOf = (result: Result<unknown>): string | undefined =>
  * Runs the `CredentialProvider` contract against `provider`: the API version,
  * an unknown ref, a stored token with its headers, a new value seen after it
  * is stored, separate credentials per user and per tenant (`ref` with a
- * `tenant`, which `seed` must store too), revoke, and inbound checks that
+ * `tenant`, which `seed` must store too), revoke (per user, as the
+ * organization purger revokes connector grants), and inbound checks that
  * accept a signed request and refuse a tampered one.
  */
 export function testCredentialProvider(
@@ -131,6 +132,39 @@ export function testCredentialProvider(
           subject: APP,
         });
         expect(!asApp.ok, "the app read a per-user credential");
+      },
+    ],
+    userRef !== undefined && [
+      "revokes one user's credential only",
+      async () => {
+        const alice: CredentialSubject = {
+          type: "user",
+          id: crypto.randomUUID(),
+        };
+        const bob: CredentialSubject = {
+          type: "user",
+          id: crypto.randomUUID(),
+        };
+        const forBob = value();
+        await seed(userRef, alice, value());
+        await seed(userRef, bob, forBob);
+        expect(
+          await provider.revoke(userRef, { subject: alice }).orThrow(),
+          "revoke found nothing for the user",
+        );
+        const after = await provider.getToken(userRef, { subject: alice });
+        expect(
+          kindOf(after) === "not_found",
+          `after revoke got ${kindOf(after) ?? "a token"}`,
+        );
+        const kept = await provider
+          .getToken(userRef, { subject: bob })
+          .orThrow();
+        expect(
+          kept.token === forBob,
+          "revoking a user's credential removed another user's",
+        );
+        await provider.revoke(userRef, { subject: bob }).orThrow();
       },
     ],
     [

@@ -1005,6 +1005,7 @@ export const ACCESS: ModuleDefinition = {
       },
       platformAssignments: {
         name: "platform_roles",
+        lifecycle: { user: "user" },
         columns: { user: "user_id", role: "role_id" },
         optionalTable: true,
       },

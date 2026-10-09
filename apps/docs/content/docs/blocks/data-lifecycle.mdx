@@ -35,14 +35,23 @@ permission overrides, profiles, settings, comments and activity,
 attachments, API keys, usage counters, events, quotas and history,
 notifications with their deliveries, subscriptions and preferences,
 onboarding progress, flag overrides, invitations, billing customers, SSO
-domains, providers and SCIM rows, support sessions, invite codes, webhook
-endpoints and deliveries, incoming webhook endpoints, announcement dismissals, waitlist entries and the
-audit trail. A module added in a later release joins exports and purges
+domains, providers and SCIM users and members, support sessions, invite
+codes, platform role assignments, outbox events, webhook endpoints,
+deliveries and secrets, incoming webhook endpoints, inbox tables,
+announcement dismissals, waitlist entries and redemptions, AI provider
+keys, connectors and their grants, workflow credentials, chat installations
+and the audit trail. A module added in a later release joins exports and purges
 when you run `sql sync`, and a table you map to another name in
-`sql.modules.<name>.tables` is read under that name. Webhook secrets and the
-module's own export and deletion records stay out, API keys are never
+`sql.modules.<name>.tables` is read under that name. The module's own export
+and deletion records stay out, API keys and webhook secrets are never
 exported, and incoming webhook endpoints and invitations are exported without
-their token hashes and secrets. Add your own tables with their user column (for user
+their token hashes and secrets. Audit events are exported without the row
+snapshots (`old_record`, `new_record`) and the impersonation details, which
+describe other people's data and the support staff. Columns that hold a
+`credential_ref` are never exported, and the purge revokes them first (see
+[Purging](#purging)). An actor's outbox events are left out of user
+exports, because their payloads describe other members too; the purge
+deletes them with the tenant. Add your own tables with their user column (for user
 exports) and tenant column (for organization exports and the purge):
 
 ```ts title="better-supabase.config.ts"
@@ -213,9 +222,10 @@ const purger = createOrganizationPurger({
 await purger.purgeDue({ limit: 20 }).orThrow();
 ```
 
-For each organization it cancels the Stripe subscription
-(`billing.cancelSubscription`, when you pass `billing`), removes every
-object under the organization's prefix in `buckets`, then calls
+For each organization it checks that the deletion is due, cancels the
+Stripe subscription (`billing.cancelSubscription`, when you pass
+`billing`), revokes the organization's credentials, removes every object
+under the organization's prefix in `buckets`, then calls
 `purge_organization`. That function runs your
 `public.on_organization_purge(tenant)` hook when it exists, deletes the
 tenant's rows from each purged table (your tables first), deletes the
@@ -244,6 +254,45 @@ buckets: [
   { bucket: "media", path: (id) => [`public/${id}`, `private/${id}`] },
 ],
 ```
+
+### Credentials
+
+Pass `credentials` with your [credential provider](/docs/extending/credentials)
+and the purger revokes the `credential_ref` of every row the purge deletes,
+such as AI provider keys, connector servers, connector grants (for the
+grant's user) and workflow credentials, before it deletes the rows:
+
+```ts
+const purger = createOrganizationPurger({
+  transport: sqlTransport(postgres.admin),
+  credentials: vaultCredentials({
+    transport: credentialsTransport(postgres.admin),
+  }),
+});
+
+const [purged] = await purger.purgeDue().orThrow();
+purged?.credentials.revoked; // 3
+purged?.credentials.unrevoked; // [{ table, column, ref, subject, reason }]
+```
+
+`better_supabase.organization_credential_refs(tenant)` lists the refs for
+the purger and refuses a deletion that isn't due. The purger revokes a ref
+only when it carries the organization in its `tenant`, the same check that
+guards credential writes, so a purge never revokes another tenant's or the
+app's own secret. The refs it leaves come back in `credentials.unrevoked`
+with a reason, for you to revoke or keep:
+
+| Reason          | The ref                                                        |
+| --------------- | -------------------------------------------------------------- |
+| `foreign`       | carries no tenant or another tenant                            |
+| `no_provider`   | is in the tenant, but the purger has no `credentials` provider |
+| `not_revocable` | belongs to a provider that can't revoke (`env`)                |
+
+A failed revoke stops the purge before it deletes anything, so running it
+again retries. Chat installations keep their rows in the purge (`purge:
+false`): call `uninstallTenant` from the
+[Chat SDK channels](/docs/chat-sdk/channels) before the purge, which revokes
+their credentials.
 
 ## Anonymizing
 
