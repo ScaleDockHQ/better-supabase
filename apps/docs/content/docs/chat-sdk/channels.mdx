@@ -39,7 +39,9 @@ await installations
 A reinstall revokes the credential it replaces, `uninstall(adapter, externalId)`
 revokes the current one, and `uninstallTenant(tenant)` removes every live
 install of an organization before it is deleted. `get` and `list` read
-them back.
+them back. Organization exports leave out `credential_ref`, and the
+[organization purge](/docs/blocks/data-lifecycle#credentials) keeps the
+installation rows and doesn't revoke them, so call `uninstallTenant` first.
 
 ## Building an adapter with its token
 

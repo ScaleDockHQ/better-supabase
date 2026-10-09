@@ -21,6 +21,9 @@ better-supabase sql add ai-providers   # adds tenant and access as well
 | `ai_batch_items`   | One result per request of a finished batch: status, output, usage and error           |
 | `ai_sandboxes`     | A sandbox or container: provider, id, chat, status, idle seconds and when it was used |
 
+Organization exports leave out `credential_ref`, and the organization
+purge in [data lifecycle](/docs/blocks/data-lifecycle#credentials) revokes each key's credential before it deletes the row.
+
 | Permission       | Lets a member                                                    | Default roles              |
 | ---------------- | ---------------------------------------------------------------- | -------------------------- |
 | `ai_chat.create` | start batches, and read their own batches and sandboxes          | `owner`, `admin`, `member` |

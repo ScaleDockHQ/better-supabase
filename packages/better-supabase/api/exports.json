@@ -2059,7 +2059,8 @@
       "OrganizationPurger",
       "OrganizationPurgerOptions",
       "PurgeBucket",
-      "StorageEntry"
+      "StorageEntry",
+      "UnrevokedCredential"
     ]
   },
   "./blocks/sso": {
