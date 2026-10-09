@@ -7,7 +7,7 @@ import { raise, serviceGrant, tenantIn, userGrant } from "../shared.ts";
 const SLUG = "^[a-z0-9][a-z0-9._-]{0,63}$";
 
 /** The provider a harness session's sandbox gets when the save names none. */
-export const HARNESS_SANDBOX_PROVIDER = "harness";
+const HARNESS_SANDBOX_PROVIDER = "harness";
 
 function sandboxJson(names: AiChatNames, row: string): string {
   const s = names.c.sandboxes;
