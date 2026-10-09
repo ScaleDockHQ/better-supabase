@@ -85,3 +85,8 @@
 - Turbo signs remote cache artifacts (`remoteCache.signature`). CI reads the
   key from `TURBO_REMOTE_CACHE_SIGNATURE_KEY` (at least 32 bytes); without it,
   local runs warn and use only the local cache.
+- A `.vercel` link at the repo root (from `vercel link` or `vercel env pull`)
+  makes `withEve` read the root `vercel.json`, whose services have no eve
+  service, so `next typegen` in `apps/examples/eve` fails the `lint` task with
+  `vercel.json already defines services`. CI has no link. Locally, set the
+  folder aside for the run (`mv .vercel .vercel.aside`) and put it back after.
