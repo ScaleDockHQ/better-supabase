@@ -21,7 +21,7 @@ export const addDocument = bs.action(
       text: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100_000)),
     }),
     requireTenant: true,
-    authorize: (session) => can(session, "ai_chat.create"),
+    authorize: (session) => can(session, "ai.create"),
   },
   async ({ title, text }, { tenant, supabase }) => {
     const base = knowledge(supabase);
@@ -41,7 +41,7 @@ export const removeDocument = bs.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
-    authorize: (session) => can(session, "ai_chat.create"),
+    authorize: (session) => can(session, "ai.create"),
   },
   async ({ id }, { supabase }) => {
     const removed = await knowledge(supabase).documents.remove(id);
@@ -65,7 +65,7 @@ export const searchKnowledge = bs.action(
       query: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
     }),
     requireTenant: true,
-    authorize: (session) => can(session, "ai_chat.create"),
+    authorize: (session) => can(session, "ai.create"),
   },
   ({ query }, { tenant, supabase }) =>
     knowledge(supabase)

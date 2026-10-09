@@ -39,7 +39,7 @@ grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
 drop policy if exists ai_files_read on "better_supabase"."ai_files";
 create policy ai_files_read on "better_supabase"."ai_files" for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
@@ -78,7 +78,7 @@ grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
 create policy ai_documents_read on "better_supabase"."ai_documents" for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
 
 create table if not exists "better_supabase"."ai_document_versions" (
   "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
@@ -139,8 +139,8 @@ as $$
     where a."bucket" = ai_file_object_allowed.bucket and a."path" = ai_file_object_allowed.path
       and case ai_file_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."owner_id" = auth.uid()
-        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_chat.admin'), false) or (a."chat_id" is not null and "better_supabase"."ai_chat_can_read"(a."chat_id"))
-        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_chat.admin'), false)
+        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false) or (a."chat_id" is not null and "better_supabase"."ai_chat_can_read"(a."chat_id"))
+        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false)
         else false
       end
   )
@@ -177,7 +177,7 @@ as $$
 declare
   v_row "better_supabase"."ai_files"%rowtype;
 begin
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai_chat.create'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai.create'), false) then
     raise exception 'you may not upload files here' using errcode = '42501', hint = 'AI_FILE_FORBIDDEN';
   end if;
   if byte_size < 0 or byte_size > 52428800 then
@@ -280,7 +280,7 @@ declare
   v_row "better_supabase"."ai_files"%rowtype;
 begin
   select * into v_row from "better_supabase"."ai_files" x where x."id" = delete_ai_file.file_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_files" x where x."id" = v_row."id";
@@ -415,7 +415,7 @@ declare
   v_owner uuid := case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then create_ai_document.owner else auth.uid() end;
   v_row "better_supabase"."ai_documents"%rowtype;
 begin
-  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai_chat.create'), false)) then
+  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai.create'), false)) then
     raise exception 'you may not create documents here' using errcode = '42501', hint = 'AI_DOCUMENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
@@ -448,7 +448,7 @@ declare
   v_row "better_supabase"."ai_documents"%rowtype;
 begin
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = update_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   if expected_version is not null and expected_version <> v_row."current_version" then
@@ -480,7 +480,7 @@ declare
   v_old "better_supabase"."ai_document_versions"%rowtype;
 begin
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = rollback_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
@@ -540,7 +540,7 @@ declare
   v_row "better_supabase"."ai_suggestions"%rowtype;
 begin
   select * into v_doc from "better_supabase"."ai_documents" x where x."id" = suggest_ai_document_edit.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_chat.admin'), false) or (v_doc."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_doc."chat_id")))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false) or (v_doc."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_doc."chat_id")))) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."ai_suggestions" ("document_id", "version", "original_text", "suggested_text", "description", "created_by")
@@ -583,7 +583,7 @@ begin
   if found then
     select * into v_doc from "better_supabase"."ai_documents" x where x."id" = v_row."document_id";
   end if;
-  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_doc."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_chat.admin'), false)) then
+  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_doc."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false)) then
     raise exception 'suggestion % not found', suggestion_id using errcode = 'P0002', hint = 'AI_SUGGESTION_NOT_FOUND';
   end if;
   update "better_supabase"."ai_suggestions" x set "resolved_at" = now(), "accepted" = resolve_ai_suggestion.accepted
@@ -606,7 +606,7 @@ declare
   v_row "better_supabase"."ai_documents"%rowtype;
 begin
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = delete_ai_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_chat.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
     return false;
   end if;
   delete from "better_supabase"."ai_documents" x where x."id" = v_row."id";

@@ -1,5 +1,5 @@
 -- better-supabase module: ai-chat (0.5.1)
--- @bs-module ai-chat@1 managed
+-- @bs-module ai-chat@2 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase sql add`; re-running it overwrites this file.
 -- Change it through `sql.modules` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,7 +113,7 @@ create table if not exists "better_supabase"."ai_runs" (
   "engine" text not null default 'ai-sdk' check (length("engine") between 1 and 50),
   "external_run_id" text check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'done', 'error', 'stopped')),
+  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
   "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
   "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
@@ -318,7 +318,7 @@ create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps" for se
   using ("owner_id" = (select auth.uid()));
 
 -- What a coding-agent harness needs to pick up a chat again: its resume and
--- continue state and the sandbox it runs in. lock_holder and locked_until
+-- continue state; its sandbox is a row in ai_sandboxes. lock_holder and locked_until
 -- keep two turns from driving one sandbox. Experimental.
 create table if not exists "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
@@ -326,7 +326,6 @@ create table if not exists "better_supabase"."ai_harness_sessions" (
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "sandbox_id" text check (length("sandbox_id") <= 500),
   "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
   "lock_holder" text check (length("lock_holder") <= 200),
   "locked_until" timestamptz,
@@ -336,7 +335,7 @@ create table if not exists "better_supabase"."ai_harness_sessions" (
   primary key ("chat_id", "harness_id")
 );
 create index if not exists ai_harness_sessions_owner_idx on "better_supabase"."ai_harness_sessions" ("owner_id");
-create index if not exists ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active' and "sandbox_id" is not null;
+create index if not exists ai_harness_sessions_idle_idx on "better_supabase"."ai_harness_sessions" ("last_active_at") where "status" = 'active';
 alter table "better_supabase"."ai_harness_sessions" enable row level security;
 revoke all on "better_supabase"."ai_harness_sessions" from anon, authenticated;
 grant all on "better_supabase"."ai_harness_sessions" to service_role;
@@ -982,7 +981,7 @@ begin
       ) then
       return jsonb_build_object('claimed', false, 'stream_id', v_chat."active_stream_id", 'run_id', v_chat."active_run_id");
     end if;
-    update "better_supabase"."ai_runs" x set "status" = 'stopped', "ended_at" = now()
+    update "better_supabase"."ai_runs" x set "status" = 'cancelled', "ended_at" = now()
     where x."id" = v_chat."active_run_id" and x."ended_at" is null;
   end if;
   insert into "better_supabase"."ai_runs" ("chat_id", "owner_id", "assistant_message_id", "stream_id", "engine", "external_run_id", "model")
@@ -998,8 +997,10 @@ revoke execute on function "better_supabase"."claim_ai_chat_stream"(uuid, text, 
 grant execute on function "better_supabase"."claim_ai_chat_stream"(uuid, text, text, text, text, text) to service_role;
 
 -- Ends the claim when the stream finished (the service role only) and
--- records the run's status, usage, gateway generation id and cost.
-create or replace function "better_supabase"."release_ai_chat_stream"(chat uuid, stream text, status text default 'done', usage jsonb default null, generation_id text default null, error text default null, cost_micro_usd bigint default null)
+-- records the run's status, usage, gateway generation id and cost. The
+-- pre-0.7 statuses done, error and stopped are deprecated and still map to
+-- completed, failed and cancelled.
+create or replace function "better_supabase"."release_ai_chat_stream"(chat uuid, stream text, status text default 'completed', usage jsonb default null, generation_id text default null, error text default null, cost_micro_usd bigint default null)
 returns boolean
 language plpgsql
 security definer
@@ -1007,14 +1008,16 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_status text := coalesce(release_ai_chat_stream.status, 'done');
+  v_status text := case coalesce(release_ai_chat_stream.status, 'completed')
+    when 'done' then 'completed' when 'error' then 'failed' when 'stopped' then 'cancelled'
+    else coalesce(release_ai_chat_stream.status, 'completed') end;
   v_found boolean := false;
 begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server saves replies' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
-  if v_status not in ('done', 'error', 'stopped') then
-    raise exception 'A run ends done, error or stopped, not %', v_status using errcode = '22023', hint = 'AI_RUN_INVALID';
+  if v_status not in ('completed', 'failed', 'cancelled') then
+    raise exception 'A run ends completed, failed or cancelled, not %', v_status using errcode = '22023', hint = 'AI_RUN_INVALID';
   end if;
   update "better_supabase"."ai_runs" x set
     "status" = v_status,
@@ -1649,6 +1652,213 @@ $$;
 revoke execute on function "better_supabase"."purge_ai_chats"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_ai_chats"(integer) to service_role;
 
+-- Sandboxes and provider containers a chat started, harness sessions'
+-- included, so one idle-stop claim stops the ones nobody used for
+-- idle_seconds or past expires_at.
+create table if not exists "better_supabase"."ai_sandboxes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "organization_id" uuid not null,
+  "user_id" uuid references auth.users (id) on delete cascade,
+  "chat_id" uuid,
+  "harness_id" text check (length("harness_id") between 1 and 200),
+  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null check (length("sandbox_id") between 1 and 200),
+  "container_id" text check (length("container_id") <= 200),
+  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
+  "error" text check (length("error") <= 4000),
+  "last_used_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
+  "stopped_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("provider", "sandbox_id")
+);
+create index if not exists ai_sandboxes_open_idx on "better_supabase"."ai_sandboxes" ("last_used_at") where "status" <> 'stopped';
+create index if not exists ai_sandboxes_chat_idx on "better_supabase"."ai_sandboxes" ("chat_id");
+create index if not exists ai_sandboxes_harness_idx on "better_supabase"."ai_sandboxes" ("chat_id", "harness_id") where "harness_id" is not null;
+create index if not exists ai_sandboxes_tenant_idx on "better_supabase"."ai_sandboxes" ("organization_id");
+create index if not exists ai_sandboxes_user_idx on "better_supabase"."ai_sandboxes" ("user_id");
+alter table "better_supabase"."ai_sandboxes" enable row level security;
+revoke all on "better_supabase"."ai_sandboxes" from anon, authenticated;
+grant select on "better_supabase"."ai_sandboxes" to authenticated;
+grant all on "better_supabase"."ai_sandboxes" to service_role;
+drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
+create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes" for select to authenticated
+  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
+
+-- Records a sandbox or container the app started, or marks a known one used
+-- (service role). fields: user_id, chat_id, harness_id, container_id,
+-- metadata, idle_seconds, expires_at.
+create or replace function "better_supabase"."register_ai_sandbox"(tenant uuid, provider text, sandbox_id text, fields jsonb default '{}')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."ai_sandboxes"%rowtype;
+  v_fields jsonb := coalesce(register_ai_sandbox.fields, '{}');
+begin
+  insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id", "container_id", "metadata", "idle_seconds", "expires_at")
+  values (
+    register_ai_sandbox.tenant,
+    (v_fields ->> 'user_id')::uuid,
+    (v_fields ->> 'chat_id')::uuid,
+    v_fields ->> 'harness_id',
+    register_ai_sandbox.provider,
+    register_ai_sandbox.sandbox_id,
+    v_fields ->> 'container_id',
+    coalesce(v_fields -> 'metadata', '{}'),
+    coalesce((v_fields ->> 'idle_seconds')::integer, 600),
+    (v_fields ->> 'expires_at')::timestamptz
+  )
+  on conflict ("provider", "sandbox_id") do update set
+    "container_id" = coalesce(excluded."container_id", cur."container_id"),
+    "chat_id" = coalesce(excluded."chat_id", cur."chat_id"),
+    "harness_id" = coalesce(excluded."harness_id", cur."harness_id"),
+    "metadata" = cur."metadata" || excluded."metadata",
+    "idle_seconds" = excluded."idle_seconds",
+    "expires_at" = coalesce(excluded."expires_at", cur."expires_at"),
+    "status" = 'running',
+    "error" = null,
+    "stopped_at" = null,
+    "last_used_at" = now(),
+    "updated_at" = now()
+  where cur."organization_id" = excluded."organization_id"
+  returning * into v_row;
+  if not found then
+    raise exception 'sandbox % belongs to another tenant', register_ai_sandbox.sandbox_id using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'provider', v_row."provider", 'sandbox_id', v_row."sandbox_id", 'container_id', v_row."container_id", 'status', v_row."status", 'metadata', v_row."metadata", 'idle_seconds', v_row."idle_seconds", 'error', v_row."error", 'last_used_at', v_row."last_used_at", 'expires_at', v_row."expires_at", 'stopped_at', v_row."stopped_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."register_ai_sandbox"(uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."register_ai_sandbox"(uuid, text, text, jsonb) to service_role;
+
+-- Marks a sandbox used now (service role); false when it is not running.
+create or replace function "better_supabase"."touch_ai_sandbox"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update "better_supabase"."ai_sandboxes" x set "last_used_at" = now(), "updated_at" = now()
+  where x."id" = touch_ai_sandbox.id and x."status" = 'running';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."touch_ai_sandbox"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."touch_ai_sandbox"(uuid) to service_role;
+
+-- The running sandbox of a chat for a provider, to reuse it (service role).
+create or replace function "better_supabase"."ai_sandbox_for"(chat_id uuid, provider text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_sandboxes" x
+  where x."chat_id" = ai_sandbox_for.chat_id and x."provider" = ai_sandbox_for.provider and x."status" = 'running'
+    and (x."expires_at" is null or x."expires_at" > now())
+  order by x."last_used_at" desc
+  limit 1
+$$;
+revoke execute on function "better_supabase"."ai_sandbox_for"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."ai_sandbox_for"(uuid, text) to service_role;
+
+-- Claims sandboxes to stop (service role): running ones idle for
+-- idle_seconds or past expires_at, and ones a stopper claimed more than
+-- lease_seconds ago without finishing. A sandbox whose harness session a
+-- turn holds the lock of is skipped.
+create or replace function "better_supabase"."idle_ai_sandboxes"(batch integer default 50, lease_seconds integer default 300)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_rows jsonb;
+begin
+  with due as (
+    select y."id" from "better_supabase"."ai_sandboxes" y
+    where ((y."status" = 'running' and (y."last_used_at" + make_interval(secs => y."idle_seconds") <= now() or y."expires_at" <= now()))
+       or (y."status" = 'stopping' and y."updated_at" <= now() - make_interval(secs => greatest(idle_ai_sandboxes.lease_seconds, 1))))
+      and not exists (
+        select 1 from "better_supabase"."ai_harness_sessions" z
+        where z."chat_id" = y."chat_id" and z."harness_id" = y."harness_id" and z."locked_until" > now()
+      )
+    order by y."last_used_at"
+    limit least(greatest(idle_ai_sandboxes.batch, 1), 500)
+    for update skip locked
+  ), claimed as (
+    update "better_supabase"."ai_sandboxes" x set "status" = 'stopping', "updated_at" = now()
+    from due where x."id" = due."id"
+    returning x.*
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."organization_id", 'user_id', claimed."user_id", 'chat_id', claimed."chat_id", 'harness_id', claimed."harness_id", 'provider', claimed."provider", 'sandbox_id', claimed."sandbox_id", 'container_id', claimed."container_id", 'status', claimed."status", 'metadata', claimed."metadata", 'idle_seconds', claimed."idle_seconds", 'error', claimed."error", 'last_used_at', claimed."last_used_at", 'expires_at', claimed."expires_at", 'stopped_at', claimed."stopped_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
+  return v_rows;
+end;
+$$;
+revoke execute on function "better_supabase"."idle_ai_sandboxes"(integer, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."idle_ai_sandboxes"(integer, integer) to service_role;
+
+-- Finishes a stop the caller claimed (service role): stopped, or back to
+-- running with the error so the next run tries again. A stopped harness
+-- sandbox also stops its session. False when a turn used the sandbox again
+-- since the claim.
+create or replace function "better_supabase"."finish_ai_sandbox_stop"(id uuid, stopped boolean, error text default null)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."ai_sandboxes"%rowtype;
+begin
+  update "better_supabase"."ai_sandboxes" x set
+    "status" = case when finish_ai_sandbox_stop.stopped then 'stopped' else 'running' end,
+    "stopped_at" = case when finish_ai_sandbox_stop.stopped then now() else null end,
+    "error" = left(finish_ai_sandbox_stop.error, 4000),
+    "updated_at" = now()
+  where x."id" = finish_ai_sandbox_stop.id and x."status" = 'stopping'
+  returning x.* into v_row;
+  if not found then
+    return false;
+  end if;
+  if finish_ai_sandbox_stop.stopped and v_row."harness_id" is not null then
+    update "better_supabase"."ai_harness_sessions" z set "status" = 'stopped', "updated_at" = now()
+    where z."chat_id" = v_row."chat_id" and z."harness_id" = v_row."harness_id"
+      and z."status" in ('active', 'idle')
+      and not exists (
+        select 1 from "better_supabase"."ai_sandboxes" y
+        where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped'
+      );
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."finish_ai_sandbox_stop"(uuid, boolean, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."finish_ai_sandbox_stop"(uuid, boolean, text) to service_role;
+
+create or replace function "better_supabase"."list_ai_sandboxes"(tenant uuid, chat_id uuid default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'chat_id', x."chat_id", 'harness_id', x."harness_id", 'provider', x."provider", 'sandbox_id', x."sandbox_id", 'container_id', x."container_id", 'status', x."status", 'metadata', x."metadata", 'idle_seconds', x."idle_seconds", 'error', x."error", 'last_used_at', x."last_used_at", 'expires_at', x."expires_at", 'stopped_at', x."stopped_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
+  from "better_supabase"."ai_sandboxes" x
+  where x."organization_id" = list_ai_sandboxes.tenant and (list_ai_sandboxes.chat_id is null or x."chat_id" = list_ai_sandboxes.chat_id)
+$$;
+revoke execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."list_ai_sandboxes"(uuid, uuid) to authenticated, service_role;
+
 -- One run, when the caller may read its chat.
 create or replace function "better_supabase"."get_ai_run"(run uuid)
 returns jsonb
@@ -1839,16 +2049,17 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', v_row."sandbox_id", 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."load_ai_harness_session"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."load_ai_harness_session"(uuid, text) to service_role;
 
 -- Saves a harness session (the service role only). fields may set
--- resume_state, continue_state, sandbox_id and status; a key that is absent
--- keeps its value. A session locked by another holder raises
--- AI_HARNESS_LOCKED.
+-- resume_state, continue_state, sandbox_id (with sandbox_provider) and
+-- status; a key that is absent keeps its value. sandbox_id registers the
+-- session's sandbox in ai_sandboxes, and null marks it stopped. A session
+-- locked by another holder raises AI_HARNESS_LOCKED.
 create or replace function "better_supabase"."save_ai_harness_session"(chat uuid, harness text, fields jsonb, holder text default null)
 returns jsonb
 language plpgsql
@@ -1887,7 +2098,6 @@ begin
   update "better_supabase"."ai_harness_sessions" x set
     "resume_state" = case when save_ai_harness_session.fields ? 'resume_state' then save_ai_harness_session.fields -> 'resume_state' else x."resume_state" end,
     "continue_state" = case when save_ai_harness_session.fields ? 'continue_state' then save_ai_harness_session.fields -> 'continue_state' else x."continue_state" end,
-    "sandbox_id" = case when save_ai_harness_session.fields ? 'sandbox_id' then save_ai_harness_session.fields ->> 'sandbox_id' else x."sandbox_id" end,
     -- A save without a status is a turn using the sandbox: an idle session
     -- turns active again, so a later idle_ai_harness_sessions finds it.
     "status" = coalesce(v_status, case when x."status" = 'idle' then 'active' else x."status" end),
@@ -1895,7 +2105,31 @@ begin
     "updated_at" = now()
   where x."chat_id" = v_row."chat_id" and x."harness_id" = v_row."harness_id"
   returning * into v_row;
-  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', v_row."sandbox_id", 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  if save_ai_harness_session.fields ? 'sandbox_id' then
+    if nullif(save_ai_harness_session.fields ->> 'sandbox_id', '') is null then
+      update "better_supabase"."ai_sandboxes" y set "status" = 'stopped', "stopped_at" = now(), "updated_at" = now()
+      where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped';
+    else
+      insert into "better_supabase"."ai_sandboxes" as cur ("organization_id", "user_id", "chat_id", "harness_id", "provider", "sandbox_id")
+      values (v_chat."organization_id", v_chat."owner_id", v_chat."id", v_row."harness_id", coalesce(nullif(save_ai_harness_session.fields ->> 'sandbox_provider', ''), 'harness'), save_ai_harness_session.fields ->> 'sandbox_id')
+      on conflict ("provider", "sandbox_id") do update set
+        "chat_id" = excluded."chat_id",
+        "harness_id" = excluded."harness_id",
+        "status" = 'running',
+        "error" = null,
+        "stopped_at" = null,
+        "last_used_at" = now(),
+        "updated_at" = now()
+      where cur."organization_id" = excluded."organization_id";
+      if not found then
+        raise exception 'sandbox % belongs to another tenant', save_ai_harness_session.fields ->> 'sandbox_id' using errcode = '42501', hint = 'AI_SANDBOX_FORBIDDEN';
+      end if;
+    end if;
+  elsif save_ai_harness_session.fields ->> 'status' is null then
+    update "better_supabase"."ai_sandboxes" y set "last_used_at" = now(), "updated_at" = now()
+    where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" = 'running';
+  end if;
+  return jsonb_build_object('chat_id', v_row."chat_id", 'harness_id', v_row."harness_id", 'owner_id', v_row."owner_id", 'resume_state', v_row."resume_state", 'continue_state', v_row."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = v_row."chat_id" and y."harness_id" = v_row."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', v_row."status", 'lock_holder', v_row."lock_holder", 'locked_until', v_row."locked_until", 'last_active_at', v_row."last_active_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_harness_session"(uuid, text, jsonb, text) from public, anon, authenticated;
@@ -1974,6 +2208,8 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 
 -- Marks active sessions whose sandbox sat unused for idle_seconds as idle
 -- and returns them, so a job stops their sandboxes (the service role only).
+-- Deprecated since 0.7 and removed in 0.8: idle_ai_sandboxes claims harness
+-- sandboxes too.
 -- Locked sessions are skipped.
 create or replace function "better_supabase"."idle_ai_harness_sessions"(idle_seconds integer default 900, size integer default 100)
 returns jsonb
@@ -1990,7 +2226,11 @@ begin
   end if;
   with picked as (
     select x."chat_id", x."harness_id" from "better_supabase"."ai_harness_sessions" x
-    where x."status" = 'active' and x."sandbox_id" is not null
+    where x."status" = 'active'
+      and exists (
+        select 1 from "better_supabase"."ai_sandboxes" y
+        where y."chat_id" = x."chat_id" and y."harness_id" = x."harness_id" and y."status" = 'running'
+      )
       and x."last_active_at" < now() - make_interval(secs => greatest(coalesce(idle_ai_harness_sessions.idle_seconds, 900), 1))
       and (x."locked_until" is null or x."locked_until" <= now())
     order by x."last_active_at"
@@ -2002,7 +2242,7 @@ begin
     where x."chat_id" = picked."chat_id" and x."harness_id" = picked."harness_id"
     returning x.*
   )
-  select coalesce(jsonb_agg(jsonb_build_object('chat_id', marked."chat_id", 'harness_id', marked."harness_id", 'owner_id', marked."owner_id", 'resume_state', marked."resume_state", 'continue_state', marked."continue_state", 'sandbox_id', marked."sandbox_id", 'status', marked."status", 'lock_holder', marked."lock_holder", 'locked_until', marked."locked_until", 'last_active_at', marked."last_active_at", 'created_at', marked."created_at", 'updated_at', marked."updated_at")), '[]'::jsonb) into v_result from marked;
+  select coalesce(jsonb_agg(jsonb_build_object('chat_id', marked."chat_id", 'harness_id', marked."harness_id", 'owner_id', marked."owner_id", 'resume_state', marked."resume_state", 'continue_state', marked."continue_state", 'sandbox_id', (select y."sandbox_id" from "better_supabase"."ai_sandboxes" y where y."chat_id" = marked."chat_id" and y."harness_id" = marked."harness_id" and y."status" <> 'stopped' order by y."last_used_at" desc limit 1), 'status', marked."status", 'lock_holder', marked."lock_holder", 'locked_until', marked."locked_until", 'last_active_at', marked."last_active_at", 'created_at', marked."created_at", 'updated_at', marked."updated_at")), '[]'::jsonb) into v_result from marked;
   return v_result;
 end;
 $$;
@@ -2173,7 +2413,7 @@ as $$ select "better_supabase"."claim_ai_chat_stream"($1, $2, $3, $4, $5, $6) $$
 revoke execute on function "api"."claim_ai_chat_stream"(uuid, text, text, text, text, text) from public, anon, authenticated;
 grant execute on function "api"."claim_ai_chat_stream"(uuid, text, text, text, text, text) to service_role;
 
-create or replace function "api"."release_ai_chat_stream"(chat uuid, stream text, status text default 'done', usage jsonb default null, generation_id text default null, error text default null, cost_micro_usd bigint default null)
+create or replace function "api"."release_ai_chat_stream"(chat uuid, stream text, status text default 'completed', usage jsonb default null, generation_id text default null, error text default null, cost_micro_usd bigint default null)
 returns boolean
 language sql
 security invoker
@@ -2352,6 +2592,60 @@ set search_path = ''
 as $$ select "better_supabase"."purge_ai_chats"($1) $$;
 revoke execute on function "api"."purge_ai_chats"(integer) from public, anon, authenticated;
 grant execute on function "api"."purge_ai_chats"(integer) to service_role;
+
+create or replace function "api"."register_ai_sandbox"(tenant uuid, provider text, sandbox_id text, fields jsonb default '{}')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."register_ai_sandbox"($1, $2, $3, $4) $$;
+revoke execute on function "api"."register_ai_sandbox"(uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function "api"."register_ai_sandbox"(uuid, text, text, jsonb) to service_role;
+
+create or replace function "api"."touch_ai_sandbox"(id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."touch_ai_sandbox"($1) $$;
+revoke execute on function "api"."touch_ai_sandbox"(uuid) from public, anon, authenticated;
+grant execute on function "api"."touch_ai_sandbox"(uuid) to service_role;
+
+create or replace function "api"."ai_sandbox_for"(chat_id uuid, provider text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."ai_sandbox_for"($1, $2) $$;
+revoke execute on function "api"."ai_sandbox_for"(uuid, text) from public, anon, authenticated;
+grant execute on function "api"."ai_sandbox_for"(uuid, text) to service_role;
+
+create or replace function "api"."idle_ai_sandboxes"(batch integer default 50, lease_seconds integer default 300)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."idle_ai_sandboxes"($1, $2) $$;
+revoke execute on function "api"."idle_ai_sandboxes"(integer, integer) from public, anon, authenticated;
+grant execute on function "api"."idle_ai_sandboxes"(integer, integer) to service_role;
+
+create or replace function "api"."finish_ai_sandbox_stop"(id uuid, stopped boolean, error text default null)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."finish_ai_sandbox_stop"($1, $2, $3) $$;
+revoke execute on function "api"."finish_ai_sandbox_stop"(uuid, boolean, text) from public, anon, authenticated;
+grant execute on function "api"."finish_ai_sandbox_stop"(uuid, boolean, text) to service_role;
+
+create or replace function "api"."list_ai_sandboxes"(tenant uuid, chat_id uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_ai_sandboxes"($1, $2) $$;
+revoke execute on function "api"."list_ai_sandboxes"(uuid, uuid) from public, anon;
+grant execute on function "api"."list_ai_sandboxes"(uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."get_ai_run"(run uuid)
 returns jsonb
