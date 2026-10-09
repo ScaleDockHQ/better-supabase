@@ -75,10 +75,27 @@ describe("memory module", () => {
     );
   });
 
+  it("puts hnsw.iterative_scan back after a vector search", () => {
+    const sql = body();
+    for (const name of ["memory_search", "recall_ai_messages"]) {
+      const start = sql.indexOf(`function "better_supabase"."${name}"(`);
+      const fn = sql.slice(
+        start,
+        sql.indexOf("$$;", sql.indexOf("as $$", start)),
+      );
+      expect(fn).toContain("volatile");
+      expect(fn).not.toMatch(/^stable$/m);
+      expect(fn).toContain(
+        "set_config('hnsw.iterative_scan', coalesce(nullif(v_scan, ''), 'off'), true)",
+      );
+    }
+  });
+
   it("keeps embedding writes to the service role", () => {
     const sql = body();
     for (const name of [
       "set_memory_embedding",
+      "set_memory_embeddings",
       "pending_memory_embeddings",
       "set_ai_message_embedding",
     ]) {

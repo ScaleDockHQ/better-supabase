@@ -3,6 +3,7 @@ import type { ModuleContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
+import { tenantRefGuard } from "./credentials.ts";
 
 export type BuilderAction =
   keyof (typeof MODULE_PERMISSIONS)["workflow-builder"];
@@ -427,6 +428,7 @@ begin
   if not ${allowed("tenant", "admin")} then
     ${forbidden("You may not manage workflow credentials here")}
   end if;
+  ${tenantRefGuard("save_workflow_credential.ref", "save_workflow_credential.tenant")}
   insert into ${c} as x (${cc("tenant")}, ${cc("kind")}, ${cc("name")}, ${cc("ref")}, ${cc("scopes")}, ${cc("createdBy")})
   values (tenant, kind, name, ref, coalesce(scopes, '{}'), (select auth.uid()))
   on conflict on constraint workflow_credentials_tenant_name_key do update set

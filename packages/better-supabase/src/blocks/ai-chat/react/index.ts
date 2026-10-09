@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { DbError } from "../../../core/errors.ts";
 import type { AsyncResult, Result } from "../../../core/result.ts";
@@ -48,6 +48,7 @@ function useResultState<T>(): {
   readonly apply: (result: Result<T>) => void;
   readonly fail: (error: DbError) => void;
   readonly set: (update: (current: T | undefined) => T | undefined) => void;
+  readonly reset: () => void;
 } {
   const [data, setData] = useState<T | undefined>(undefined);
   const [error, setError] = useState<DbError | undefined>(undefined);
@@ -59,7 +60,11 @@ function useResultState<T>(): {
       setError(result.error);
     }
   }, []);
-  return { data, error, apply, fail: setError, set: setData };
+  const reset = useCallback(() => {
+    setData(undefined);
+    setError(undefined);
+  }, []);
+  return { data, error, apply, fail: setError, set: setData, reset };
 }
 
 /** Runs a write and returns its data, or records the error and returns `undefined`. */
@@ -125,30 +130,66 @@ export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
     }),
     [organizationId, search, projectId, pinned, archived, size],
   );
-  const { apply, fail, set } = state;
-
-  const applyPage = useCallback(
-    (result: Result<AiChatPage>) => {
-      if (result.ok) setNext(result.data.next);
-      apply(result.ok ? ok(result.data.items) : result);
-    },
-    [apply],
+  const { apply, fail, set, reset } = state;
+  // The list the loaded items belong to; writes for an older one are dropped.
+  const scope = useMemo(
+    () => ({ client, query, userId }),
+    [client, query, userId],
   );
+  const [shown, setShown] = useState(scope);
+  if (shown !== scope) {
+    setShown(scope);
+    reset();
+    setNext(undefined);
+  }
+  const current = useRef(scope);
+  // Every list request takes a ticket; only the latest one is applied.
+  const ticket = useRef(0);
+  // How many pages are shown, so a reload fetches all of them again.
+  const pages = useRef(1);
 
-  const load = useCallback(async () => {
-    applyPage(await client.chats.list(query));
-  }, [client, query, applyPage]);
+  const loadWindow = useCallback(async () => {
+    if (scope.userId === null || current.current !== scope) return;
+    const run = ++ticket.current;
+    const items: AiChatRecord[] = [];
+    let page: AiChatPage | undefined;
+    for (let loaded = 0; loaded < pages.current; loaded += 1) {
+      const result: Result<AiChatPage> = await scope.client.chats.list(
+        page?.next === undefined
+          ? scope.query
+          : { ...scope.query, after: page.next },
+      );
+      if (run !== ticket.current) return;
+      if (!result.ok) {
+        fail(result.error);
+        return;
+      }
+      page = result.data;
+      items.push(...page.items);
+      if (page.next === undefined) break;
+    }
+    apply(ok(items));
+    setNext(page?.next);
+  }, [scope, apply, fail]);
 
   const loadMore = useCallback(async () => {
-    if (next === undefined) return;
-    const page = await attempt(
-      client.chats.list({ ...query, after: next }),
-      fail,
-    );
-    if (!page) return;
-    set((current) => [...(current ?? []), ...page.items]);
+    if (next === undefined || current.current !== scope) return;
+    const run = ++ticket.current;
+    pages.current += 1;
+    const result = await scope.client.chats.list({
+      ...scope.query,
+      after: next,
+    });
+    if (run !== ticket.current) return;
+    if (!result.ok) {
+      pages.current -= 1;
+      fail(result.error);
+      return;
+    }
+    const page = result.data;
+    set((items) => [...(items ?? []), ...page.items]);
     setNext(page.next);
-  }, [client, query, next, fail, set]);
+  }, [scope, next, fail, set]);
 
   const create = useCallback(
     async (input?: AiChatInput) => {
@@ -157,60 +198,56 @@ export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
         client.chats.create(organizationId, input),
         fail,
       );
-      if (chat && !chat.temporary) {
-        set((current) => [
+      if (chat && !chat.temporary && current.current === scope) {
+        set((items) => [
           chat,
-          ...(current ?? []).filter((item) => item.id !== chat.id),
+          ...(items ?? []).filter((item) => item.id !== chat.id),
         ]);
       }
       return chat;
     },
-    [client, organizationId, fail, set],
+    [client, scope, organizationId, fail, set],
   );
 
   const update = useCallback(
     async (chatId: string, patch: AiChatPatch) => {
       const chat = await attempt(client.chats.update(chatId, patch), fail);
-      if (chat) {
-        set((current) =>
-          current?.map((item) => (item.id === chat.id ? chat : item)),
+      if (chat && current.current === scope) {
+        set((items) =>
+          items?.map((item) => (item.id === chat.id ? chat : item)),
         );
       }
       return chat;
     },
-    [client, fail, set],
+    [client, scope, fail, set],
   );
 
   const remove = useCallback(
     async (chatId: string) => {
       const removed = await attempt(client.chats.remove(chatId), fail);
-      if (removed) {
-        set((current) => current?.filter((item) => item.id !== chatId));
+      if (removed && current.current === scope) {
+        set((items) => items?.filter((item) => item.id !== chatId));
       }
     },
-    [client, fail, set],
+    [client, scope, fail, set],
   );
 
   useEffect(() => {
-    if (userId === null) return;
-    let active = true;
-    const reload = () =>
-      void client.chats.list(query).then((result) => {
-        if (active) applyPage(result);
-      });
-    reload();
-    const leave = prefix
-      ? watchTopic(supabase, aiChatListTopic(userId, prefix), {
-          onMessage: reload,
-          onRejoin: reload,
-          onStatus: setStatus,
-        })
-      : undefined;
-    return () => {
-      active = false;
-      leave?.();
-    };
-  }, [client, supabase, prefix, query, userId, applyPage]);
+    current.current = scope;
+    ticket.current += 1;
+    pages.current = 1;
+    void loadWindow();
+  }, [scope, loadWindow]);
+
+  useEffect(() => {
+    if (userId === null || !prefix) return;
+    const reload = () => void loadWindow();
+    return watchTopic(supabase, aiChatListTopic(userId, prefix), {
+      onMessage: reload,
+      onRejoin: reload,
+      onStatus: setStatus,
+    });
+  }, [supabase, prefix, userId, loadWindow]);
 
   return {
     items: state.data,
@@ -218,7 +255,7 @@ export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
     status,
     error: state.error,
     loadMore,
-    refresh: load,
+    refresh: loadWindow,
     create,
     update,
     remove,
@@ -259,67 +296,82 @@ export function useAiChatTree(
   const state = useResultState<readonly AiStoredMessage[]>();
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
   const prefix = options.topic === undefined ? "ai-chat" : options.topic;
-  const { apply, fail } = state;
+  const { apply, fail, reset } = state;
   const path = state.data;
+  // The chat the shown path belongs to; answers for another one are dropped.
+  const scope = useMemo(() => ({ client, chatId }), [client, chatId]);
+  const [shown, setShown] = useState(scope);
+  if (shown !== scope) {
+    setShown(scope);
+    reset();
+  }
+  const current = useRef(scope);
+  // Every path request takes a ticket; only the latest one is applied.
+  const ticket = useRef(0);
 
-  const refresh = useCallback(async () => {
-    if (!chatId) return;
-    apply(await client.messages.path(chatId));
-  }, [client, chatId, apply]);
+  const loadPath = useCallback(
+    async (leafId?: string) => {
+      const id = scope.chatId;
+      if (!id || current.current !== scope) return;
+      const run = ++ticket.current;
+      const result = await scope.client.messages.path(
+        id,
+        leafId === undefined ? undefined : { leafId },
+      );
+      if (run === ticket.current) apply(result);
+    },
+    [scope, apply],
+  );
+
+  const refresh = useCallback(() => loadPath(), [loadPath]);
 
   const switchBranch = useCallback(
     async (messageId: string) => {
-      if (!chatId) return;
-      const leaf = await attempt(
-        client.messages.switchBranch(chatId, messageId),
-        fail,
-      );
-      if (leaf !== undefined) {
-        apply(await client.messages.path(chatId, { leafId: leaf }));
-      }
+      const id = scope.chatId;
+      if (!id || current.current !== scope) return;
+      const result = await scope.client.messages.switchBranch(id, messageId);
+      if (current.current !== scope) return;
+      if (result.ok) await loadPath(result.data);
+      else fail(result.error);
     },
-    [client, chatId, apply, fail],
+    [scope, loadPath, fail],
   );
 
   const step = useCallback(
     async (messageId: string, offset: number) => {
-      if (!chatId) return;
-      const siblings = await attempt(
-        client.messages.siblings(chatId, messageId),
-        fail,
-      );
-      if (!siblings) return;
+      const id = scope.chatId;
+      if (!id || current.current !== scope) return;
+      const result = await scope.client.messages.siblings(id, messageId);
+      if (current.current !== scope) return;
+      if (!result.ok) {
+        fail(result.error);
+        return;
+      }
+      const siblings = result.data;
       const index = siblings.findIndex((item) => item.id === messageId);
       const target = siblings[index + offset];
       if (index >= 0 && target) await switchBranch(target.id);
     },
-    [client, chatId, fail, switchBranch],
+    [scope, fail, switchBranch],
   );
 
   useEffect(() => {
-    if (!chatId) return;
-    let active = true;
-    const reload = () =>
-      void client.messages.path(chatId).then((result) => {
-        if (active) apply(result);
-      });
-    reload();
-    const leave = prefix
-      ? watchTopic(supabase, aiChatTopic(chatId, prefix), {
-          onMessage: (event) => {
-            if (event === "message.saved" || event === "leaf.changed") {
-              reload();
-            }
-          },
-          onRejoin: reload,
-          onStatus: setStatus,
-        })
-      : undefined;
-    return () => {
-      active = false;
-      leave?.();
-    };
-  }, [client, supabase, prefix, chatId, apply]);
+    current.current = scope;
+    ticket.current += 1;
+    void loadPath();
+  }, [scope, loadPath]);
+
+  useEffect(() => {
+    if (!chatId || !prefix) return;
+    const reload = () => void loadPath();
+    return watchTopic(supabase, aiChatTopic(chatId, prefix), {
+      onMessage: (event) => {
+        if (event === "message.saved" || event === "leaf.changed") reload();
+      },
+      onRejoin: reload,
+      onStatus: setStatus,
+    });
+  }, [supabase, prefix, chatId, loadPath]);
 
   return { path, status, error: state.error, refresh, switchBranch, step };
 }

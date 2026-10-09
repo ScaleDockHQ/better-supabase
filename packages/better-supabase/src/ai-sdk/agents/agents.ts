@@ -3,7 +3,9 @@ import {
   type LanguageModelMiddleware,
   type StopCondition,
   stepCountIs,
+  type ToolApprovalStatus,
   ToolLoopAgent,
+  type ToolLoopAgentSettings,
   type ToolSet,
 } from "ai";
 
@@ -19,6 +21,7 @@ import type {
   KnowledgeSearchOptions,
 } from "../../blocks/knowledge/knowledge.ts";
 
+import { DbException } from "../../core/db-exception.ts";
 import {
   searchTool,
   type SearchToolOptions,
@@ -56,6 +59,52 @@ export function agentToolApproval(
   return approval;
 }
 
+/** A `toolApproval` function, as `ToolLoopAgent` takes it. */
+export type AgentToolApprovalFunction = Extract<
+  NonNullable<ToolLoopAgentSettings<never, ToolSet>["toolApproval"]>,
+  (options: never) => unknown
+>;
+
+const APPROVAL_RANK = {
+  "not-applicable": 0,
+  approved: 1,
+  "user-approval": 2,
+  denied: 3,
+} as const;
+
+const approvalType = (
+  status: ToolApprovalStatus,
+): keyof typeof APPROVAL_RANK =>
+  status === undefined
+    ? "not-applicable"
+    : typeof status === "string"
+      ? status
+      : status.type;
+
+/**
+ * The app's `toolApproval` with the tenant's `ask` tools: the app decides
+ * first, and the stricter of the two answers wins (`denied`, then
+ * `user-approval`). A function that throws denies the call.
+ */
+function composedApproval(
+  approve: AgentToolApprovalFunction,
+  tenant: Readonly<Record<string, "user-approval">>,
+): AgentToolApprovalFunction {
+  return async (options) => {
+    let status: ToolApprovalStatus;
+    try {
+      status = await approve(options);
+    } catch {
+      return { type: "denied", reason: "The tool approval check failed" };
+    }
+    const asked = tenant[options.toolCall.toolName] !== undefined;
+    return asked &&
+      APPROVAL_RANK[approvalType(status)] < APPROVAL_RANK["user-approval"]
+      ? "user-approval"
+      : status;
+  };
+}
+
 /** The knowledge scopes an agent searches; `agent` without an id is its own. */
 export function agentScopes(
   agent: Pick<Agent, "id" | "knowledgeScopes">,
@@ -85,6 +134,12 @@ export interface AgentRuntimeOptions {
   readonly instructions?: string;
   /** Default 20 steps. */
   readonly stopWhen?: StopCondition<ToolSet> | StopCondition<ToolSet>[];
+  /**
+   * The app's approval check for each tool call, such as an authorization
+   * check. It runs before the tenant's `policies`, and the stricter answer
+   * wins: `denied` over `user-approval` over `approved`. A throw denies.
+   */
+  readonly toolApproval?: AgentToolApprovalFunction;
 }
 
 /** A `ToolLoopAgent` from an agent row. */
@@ -111,7 +166,13 @@ export function createAgentRuntime(
     id: agent.id,
     model: options.model(agent.model),
     tools,
-    toolApproval: agentToolApproval(tools, options.policies),
+    toolApproval:
+      options.toolApproval === undefined
+        ? agentToolApproval(tools, options.policies)
+        : composedApproval(
+            options.toolApproval,
+            agentToolApproval(tools, options.policies),
+          ),
     ...(instructions === "" ? {} : { instructions }),
     stopWhen: options.stopWhen ?? stepCountIs(20),
   });
@@ -189,7 +250,7 @@ export function moderationMiddleware(
       ...(options.userId === undefined ? {} : { userId: options.userId }),
       ...(verdict.score === undefined ? {} : { score: verdict.score }),
     });
-    if (!recorded.ok) throw new Error(recorded.error.message);
+    if (!recorded.ok) throw new DbException(recorded.error);
     return verdict;
   };
 

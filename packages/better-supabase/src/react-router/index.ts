@@ -15,8 +15,8 @@ export type {
   ActionResult,
   AuthorizedContext,
   AuthorizeOptions,
-  KitActionOptions,
-  KitRequireOptions,
+  BlockActionOptions,
+  BlockRequireOptions,
 } from "../server/kit.ts";
 export type { FrameworkLocals, FrameworkOptions } from "../server/framework.ts";
 export type { RefusalRedirects } from "../server/refusal.ts";

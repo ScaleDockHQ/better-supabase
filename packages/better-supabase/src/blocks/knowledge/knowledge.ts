@@ -1,9 +1,10 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
 import type { AiFile, AiFiles } from "../ai-files/ai-files.ts";
 import type { JobHandler } from "../jobs/queue.ts";
 
-import { dbError } from "../../core/errors.ts";
+import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -185,9 +186,14 @@ export interface Knowledge {
    * the document failed with the error.
    */
   embedJob(): JobHandler<{ readonly document_id: string }>;
-  /** Processes pending documents without a queue (service role). Returns how many. */
+  /**
+   * Processes pending documents without a queue (service role). Returns how
+   * many. A document is marked failed only after `attempts` (default 3)
+   * tries fail, and never when the signal aborted it.
+   */
   drain(options?: {
     readonly batch?: number;
+    readonly attempts?: number;
     readonly signal?: AbortSignal;
   }): AsyncResult<number>;
   search(
@@ -266,6 +272,35 @@ export function chunk(
 /** A vector in pgvector's text form, which both transports pass through. */
 export const vectorLiteral = (values: readonly number[]): string =>
   `[${values.join(",")}]`;
+
+/**
+ * An `invalid_input` error unless the embedder returned `count` vectors of
+ * one non-zero length with finite numbers.
+ */
+export function checkVectors(
+  vectors: readonly (readonly number[])[],
+  count: number,
+): DbError | undefined {
+  const invalid = (message: string): DbError =>
+    dbError("invalid_input", message, { hint: "EMBEDDING_INVALID" });
+  if (vectors.length !== count) {
+    return invalid(
+      `The embedder returned ${vectors.length} vectors for ${count} values`,
+    );
+  }
+  const size = vectors[0]?.length ?? 0;
+  for (const vector of vectors) {
+    if (vector.length === 0 || vector.length !== size) {
+      return invalid(
+        "The embedder returned vectors of different or zero length",
+      );
+    }
+    if (!vector.every(Number.isFinite)) {
+      return invalid("The embedder returned a vector with a non-finite number");
+    }
+  }
+  return undefined;
+}
 
 const scopeOf = (value: unknown): KnowledgeScope => {
   const text = textOf(value);
@@ -422,7 +457,8 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
     documentId: string,
     processOptions: { readonly signal?: AbortSignal | undefined } = {},
   ): AsyncResult<number> =>
-    AsyncResult.from(async () => {
+    AsyncResult.from(async (): Promise<Result<number>> => {
+      let before = Number.POSITIVE_INFINITY;
       for (;;) {
         const pending = await service(
           "pending_knowledge_chunks",
@@ -436,6 +472,8 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           processOptions.signal,
         );
         if (!vectors.ok) return vectors;
+        const invalid = checkVectors(vectors.data, pending.data.length);
+        if (invalid) return err(invalid);
         const remaining = await service(
           "set_knowledge_embeddings",
           {
@@ -443,6 +481,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
             embeddings: {
               items: pending.data.map((row, index) => ({
                 idx: Number(row["idx"]),
+                hash: row["hash"],
                 embedding: vectorLiteral(vectors.data[index] ?? []),
               })),
             },
@@ -452,6 +491,10 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         );
         if (!remaining.ok || remaining.data === 0) return remaining;
         if (processOptions.signal?.aborted) return ok(remaining.data);
+        // Chunks rewritten while they were embedded stay pending; stop when a
+        // round makes no progress instead of embedding them in a loop.
+        if (remaining.data >= before) return ok(remaining.data);
+        before = remaining.data;
       }
     });
 
@@ -529,7 +572,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           (value) => value,
         );
       }
-      throw new Error(result.error.message);
+      throw new DbException(result.error);
     },
     drain: (drainOptions = {}) =>
       service(
@@ -538,13 +581,21 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         (value) => (Array.isArray(value) ? value.map(textOf) : []),
       ).andThen((ids) =>
         AsyncResult.from(async () => {
+          const attempts = Math.max(1, drainOptions.attempts ?? 3);
           let done = 0;
           for (const id of ids) {
             if (drainOptions.signal?.aborted) break;
-            const result = await process(id, drainOptions);
+            let result = await process(id, drainOptions);
+            for (
+              let attempt = 1;
+              !result.ok && attempt < attempts && !drainOptions.signal?.aborted;
+              attempt += 1
+            ) {
+              result = await process(id, drainOptions);
+            }
             if (result.ok) {
               done += 1;
-            } else {
+            } else if (!drainOptions.signal?.aborted) {
               await service(
                 "fail_knowledge_document",
                 { document_id: id, error: result.error.message },

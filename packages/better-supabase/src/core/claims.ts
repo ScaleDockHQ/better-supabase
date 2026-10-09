@@ -5,7 +5,34 @@ export const DEFAULT_CLAIMS: ClaimsMeta = {
   tenant: "tenant_id",
   scope: "tenant",
   features: "features",
+  memberships: "memberships",
 };
+
+/** Where an adapter reads each claim the SQL modules and the provider's hook write. */
+export interface ClaimPaths {
+  /** The active tenant: the top-level claim, then the same key in `app_metadata`. */
+  readonly tenant: readonly [string, string];
+  /** `{ [tenantId]: string[] }` of plan features. */
+  readonly features: string;
+  /** The caller's memberships, a list of `{ scope, id, roles }` or a map of tenant id to role. */
+  readonly memberships: string;
+  /** The `scope` of tenant entries in the memberships list. */
+  readonly scope: string;
+}
+
+/**
+ * The claim paths for `config.claims`, with defaults. For a generated
+ * schema, pass `claimsOf(meta)`.
+ */
+export function claimPaths(claims?: Partial<ClaimsMeta>): ClaimPaths {
+  const resolved = { ...DEFAULT_CLAIMS, ...claims };
+  return {
+    tenant: tenantClaimPaths(resolved.tenant),
+    features: resolved.features,
+    memberships: resolved.memberships,
+    scope: resolved.scope,
+  };
+}
 
 /** The configured claim names, with defaults for the ones codegen left out. */
 export function claimsOf(

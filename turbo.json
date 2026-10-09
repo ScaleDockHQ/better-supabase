@@ -149,12 +149,23 @@
     "//#check:no-permdock": {
       "inputs": [
         "scripts/check-no-permdock.ts",
+        "README.md",
+        "server.json",
+        ".claude-plugin/**",
+        ".cursor-plugin/**",
+        "packages/better-supabase/README.md",
+        "packages/better-supabase/api/**",
         "packages/better-supabase/src/**",
         "packages/better-supabase/skills/**",
         "packages/better-supabase/schemas/**",
+        "packages/better-supabase/tests/**",
         "apps/docs/content/**",
+        "apps/marketing/**",
         "apps/examples/**",
-        "supabase/schemas/**"
+        "supabase/schemas/**",
+        "supabase/seed.sql",
+        "supabase/tests/**",
+        "tests/**"
       ]
     },
     "//#docs:drift": {

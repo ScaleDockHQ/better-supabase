@@ -16,7 +16,7 @@ import { err } from "../core/result.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
 import { EVERY_CALLER } from "../server/framework.ts";
-import { type KitRequireOptions, requireCaller } from "../server/kit.ts";
+import { type BlockRequireOptions, requireCaller } from "../server/kit.ts";
 import {
   defineResource,
   type ResourceHandler,
@@ -34,7 +34,7 @@ export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export { toEdge } from "../bridges/edge.ts";
 export type { EdgeExecutionContext, EdgeHandler } from "../bridges/edge.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
-export type { KitRequireOptions } from "../server/kit.ts";
+export type { BlockRequireOptions } from "../server/kit.ts";
 
 export interface CorsOptions {
   /** Allowed origins, or `*`. Defaults to `*`. */
@@ -110,7 +110,7 @@ export interface EdgeRoute<
   C = unknown,
   P = unknown,
   Params = Readonly<Record<string, string>>,
-> extends KitRequireOptions<C, P> {
+> extends BlockRequireOptions<C, P> {
   readonly handler: EdgeRouteHandler<M, F, E, C, P, Params>;
 }
 

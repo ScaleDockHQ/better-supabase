@@ -1,5 +1,8 @@
 export {
+  credentialRefInTenant,
+  foreignCredentialRef,
   subjectFor,
+  tenantCredentialRef,
   type CompleteAuthorizationOptions,
   type CredentialCapabilities,
   type CredentialProvider,

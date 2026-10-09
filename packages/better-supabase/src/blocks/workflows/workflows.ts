@@ -211,13 +211,14 @@ const STATUSES: ReadonlySet<string> = new Set<WorkflowRunStatus>([
   "cancelled",
 ]);
 
+function isStatus(text: string): text is WorkflowRunStatus {
+  return STATUSES.has(text);
+}
+
+/** An engine may add statuses: an unknown one reads as `running`, never as finished. */
 function statusOf(value: unknown): WorkflowRunStatus {
   const text = textOf(value);
-  if (!STATUSES.has(text)) {
-    throw new TypeError(`workflows: unknown run status "${text}"`);
-  }
-  // SAFETY: STATUSES holds exactly the WorkflowRunStatus members.
-  return text as WorkflowRunStatus;
+  return isStatus(text) ? text : "running";
 }
 
 function instantOf(value: unknown, field: string): Temporal.Instant {

@@ -324,6 +324,53 @@ describe("durableTurn", () => {
     h.stop.push({});
     await expect(running).resolves.toMatchObject({ status: "stopped" });
     expect(reads).toBe(1);
+    expect(h.calls.at(-1)).toEqual({
+      name: "release",
+      input: {
+        chatId: "c1",
+        streamId: "s2",
+        organizationId: "org",
+        status: "stopped",
+      },
+    });
+  });
+
+  it("releases a claimed segment that a later resume replaces", async () => {
+    let reads = 0;
+    let pass = 0;
+    const h = harness(
+      async (args) => {
+        pass += 1;
+        return {
+          messages: [...args.messages, pass === 1 ? asking : answer("No.")],
+          steps: [],
+        };
+      },
+      () => {
+        reads += 1;
+        return reads === 1
+          ? []
+          : [{ approvalId: "approval-t1", approved: false }];
+      },
+    );
+    const running = h.run();
+    await vi.waitFor(() => {
+      expect(h.calls).toHaveLength(3);
+    });
+    h.turn.push({ streamId: "s2", runId: "run2" });
+    await vi.waitFor(() => {
+      expect(reads).toBe(1);
+    });
+    h.turn.push({ streamId: "s3", runId: "run3" });
+    await expect(running).resolves.toMatchObject({
+      status: "done",
+      segments: 2,
+    });
+    expect(h.namespaces).toEqual(["s1", "s3"]);
+    const released = h.calls
+      .filter((call) => call.name === "release")
+      .map((call) => (call.input as { streamId: string }).streamId);
+    expect(released).toEqual(["s1", "s2", "s3"]);
   });
 
   it("stops while it waits on approvals", async () => {

@@ -26,6 +26,7 @@ import {
   recordsOf,
   stringsOf,
   textOf,
+  oneOf,
 } from "../shared.ts";
 
 export const INBOX_CHANNELS: readonly InboxChannel[] = [
@@ -43,15 +44,6 @@ export const INBOX_CHANNELS: readonly InboxChannel[] = [
   "linear",
   "other",
 ];
-
-function oneOf<T extends string>(
-  value: unknown,
-  allowed: readonly T[],
-  fallback: T,
-): T {
-  const found = allowed.find((item) => item === value);
-  return found ?? fallback;
-}
 
 const channelOf = (value: unknown): InboxChannel =>
   oneOf(value, INBOX_CHANNELS, "other");

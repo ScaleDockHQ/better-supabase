@@ -107,7 +107,7 @@ describe("entitlementsMode", () => {
           "/project",
         ),
       ),
-    ).toEqual(invalid(/tenantScope is "workspace".*organization, project/));
+    ).toEqual(invalid(/tenantScope "workspace" is not a scope/));
     expect(
       entitlementsMode(
         resolveConfig(
@@ -119,9 +119,7 @@ describe("entitlementsMode", () => {
           "/project",
         ),
       ),
-    ).toEqual(
-      invalid(/the type numeric, but the entitlements module renders only/),
-    );
+    ).toEqual(invalid(/scope "organization" has idType "numeric"/));
     expect(
       entitlementsMode(
         resolveConfig(

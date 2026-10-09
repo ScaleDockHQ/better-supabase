@@ -6,7 +6,7 @@ import type { AsyncResult } from "../core/result.ts";
 import type { BetterQueryMeta } from "../query/invalidate.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 
-import { DbException } from "../core/errors.ts";
+import { DbException } from "../core/db-exception.ts";
 
 /** The query a collection loads: `queries.<table>.findMany(args)` from `better-supabase/query`. */
 export interface CollectionQuery<Row> {

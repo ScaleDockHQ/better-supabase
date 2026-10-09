@@ -1,10 +1,11 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Result } from "../../core/result.ts";
 import type { Embedder } from "../knowledge/knowledge.ts";
 
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, ok } from "../../core/result.ts";
-import { vectorLiteral } from "../knowledge/knowledge.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
+import { checkVectors, vectorLiteral } from "../knowledge/knowledge.ts";
 import {
   applyTemporal,
   blockCall,
@@ -480,8 +481,12 @@ export function createMemory(options: MemoryOptions): Memory {
     ns: MemoryNamespace | undefined,
     saveOptions: { readonly sourceMessageId?: string } = {},
     viaService = false,
+    embedded?: string,
   ): AsyncResult<MemoryRecord> =>
-    embedOne(content).andThen((embedding) =>
+    (embedded === undefined
+      ? embedOne(content)
+      : AsyncResult.ok<string | undefined>(embedded)
+    ).andThen((embedding) =>
       (viaService ? service : call)(
         "memory_save",
         {
@@ -502,8 +507,12 @@ export function createMemory(options: MemoryOptions): Memory {
     ns: MemoryNamespace | undefined,
     searchOptions: { readonly k?: number; readonly signal?: AbortSignal } = {},
     viaService = false,
+    embedded?: string,
   ): AsyncResult<readonly MemoryHit[]> =>
-    embedOne(query, searchOptions.signal).andThen((embedding) =>
+    (embedded === undefined
+      ? embedOne(query, searchOptions.signal)
+      : AsyncResult.ok<string | undefined>(embedded)
+    ).andThen((embedding) =>
       (viaService ? service : call)(
         "memory_search",
         {
@@ -668,17 +677,29 @@ export function createMemory(options: MemoryOptions): Memory {
         return text + close;
       }),
     saveExtracted: (organizationId, facts, ns, saveOptions) =>
-      AsyncResult.from(async () => {
+      AsyncResult.from(async (): Promise<Result<MemoryRecord[]>> => {
         const saved: MemoryRecord[] = [];
-        for (const fact of facts) {
-          const content = fact.trim();
-          if (content === "") continue;
+        const contents = facts
+          .map((fact) => fact.trim())
+          .filter((content) => content !== "");
+        if (contents.length === 0) return ok(saved);
+        let embeddings: readonly (string | undefined)[] = [];
+        if (embedder) {
+          const vectors = await run(() => embedder.embed(contents));
+          if (!vectors.ok) return vectors;
+          const invalid = checkVectors(vectors.data, contents.length);
+          if (invalid) return err(invalid);
+          embeddings = vectors.data.map(vectorLiteral);
+        }
+        for (const [index, content] of contents.entries()) {
+          const embedding = embeddings[index];
           const similar = await search(
             organizationId,
             content,
             ns,
             { k: 1 },
             true,
+            embedding,
           );
           if (!similar.ok) return similar;
           const nearest = similar.data[0];
@@ -695,6 +716,7 @@ export function createMemory(options: MemoryOptions): Memory {
             ns,
             saveOptions,
             true,
+            embedding,
           );
           if (!record.ok) return record;
           saved.push(record.data);
@@ -719,23 +741,22 @@ export function createMemory(options: MemoryOptions): Memory {
                 ),
               );
               if (!vectors.ok) return vectors;
-              let done = 0;
-              for (const [index, row] of rows.entries()) {
-                const vector = vectors.data[index];
-                if (vector === undefined) continue;
-                const stored = await service(
-                  "set_memory_embedding",
-                  {
-                    memory_id: textOf(row["id"]),
-                    embedding: vectorLiteral(vector),
-                    model: embedder.model,
+              const invalid = checkVectors(vectors.data, rows.length);
+              if (invalid) return err(invalid);
+              return service(
+                "set_memory_embeddings",
+                {
+                  items: {
+                    items: rows.map((row, index) => ({
+                      id: textOf(row["id"]),
+                      hash: row["hash"],
+                      embedding: vectorLiteral(vectors.data[index] ?? []),
+                    })),
                   },
-                  (value) => value === true,
-                );
-                if (!stored.ok) return stored;
-                if (stored.data) done += 1;
-              }
-              return ok(done);
+                  model: embedder.model,
+                },
+                Number,
+              );
             }),
           )
         : AsyncResult.err(noEmbedder()),

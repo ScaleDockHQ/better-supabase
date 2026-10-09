@@ -12,6 +12,8 @@ import { reenqueueActiveRuns } from "@workflow/world";
 import { createWorld as createPostgresWorld } from "@workflow/world-postgres";
 import { Pool } from "pg";
 
+import { dbError } from "../../core/errors.ts";
+import { problemResponse } from "../../core/problem.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { WORLD_POSTGRES_VERSION } from "../../sql/modules/workflow-sdk-world-ddl.generated.ts";
 import {
@@ -69,6 +71,12 @@ export interface SupabaseWorldOptions {
   readonly pollInterval?: number;
   /** Seconds a claimed message stays leased; the delivery extends it while it runs (default 60). */
   readonly lease?: number;
+  /**
+   * Seconds a poll delivery may wait for the flow route before it is
+   * aborted, failed and retried; the lease stops being extended then
+   * (default 300, at least `lease`).
+   */
+  readonly deliveryTimeout?: number;
   /** The queue namespace, as `WORKFLOW_QUEUE_NAMESPACE`. */
   readonly namespace?: string;
 }
@@ -244,6 +252,32 @@ export async function verifyDelivery(
   return constantTimeEqual(await hmacHex(secret, `${t}.${job}.${body}`), v1);
 }
 
+/** `load` once; a rejection is not kept, so the next call reads again. */
+function memoized<T>(load: () => Promise<T>): () => Promise<T> {
+  let promise: Promise<T> | undefined;
+  return () =>
+    (promise ??= load().catch((cause: unknown) => {
+      promise = undefined;
+      throw cause;
+    }));
+}
+
+/** Unsigned poll deliveries are accepted only when `NODE_ENV` is `development` or `test`. */
+function unsignedAllowed(): boolean {
+  const mode = env("NODE_ENV");
+  return mode === "development" || mode === "test";
+}
+
+function deliveryProblem(
+  kind: "invalid_request" | "unauthorized" | "network",
+  detail: string,
+): Response {
+  return problemResponse(
+    dbError(kind, detail, { code: "WORKFLOW_DELIVERY_REJECTED" }),
+    { expose: true },
+  );
+}
+
 /** Retry delay after a failed delivery, as world-postgres (exp(min(attempt, 10)) seconds). */
 const backoffSeconds = (attempt: number): number =>
   Math.ceil(Math.exp(Math.min(attempt, 10)));
@@ -276,6 +310,7 @@ export function createSupabaseWorld(
   const concurrency = Math.max(1, options.concurrency ?? 50);
   const pollInterval = Math.max(10, options.pollInterval ?? 250);
   const lease = Math.max(5, options.lease ?? 60);
+  const deliveryTimeout = Math.max(lease, options.deliveryTimeout ?? 300);
   const pool =
     options.pool ??
     new Pool({
@@ -292,6 +327,7 @@ export function createSupabaseWorld(
       : { namespace: options.namespace }),
   });
 
+  /** The Vault secret, `undefined` when no row has the name; a failed read rejects. */
   const vault = async (name: string): Promise<string | undefined> => {
     const result = await pool.query<{ secret: string | null }>(
       "select decrypted_secret as secret from vault.decrypted_secrets where name = $1",
@@ -299,22 +335,17 @@ export function createSupabaseWorld(
     );
     return result.rows[0]?.secret ?? undefined;
   };
-  let secretPromise: Promise<string | undefined> | undefined;
-  const deliverySecret = (): Promise<string | undefined> =>
-    (secretPromise ??=
-      options.deliverySecret === undefined
-        ? vault(WORKFLOW_VAULT_SECRETS.deliverySecret).catch(() => undefined)
-        : Promise.resolve(options.deliverySecret));
-  let masterPromise: Promise<Uint8Array | undefined> | undefined;
-  const masterKey = (): Promise<Uint8Array | undefined> =>
-    (masterPromise ??= (async () => {
-      const text =
-        options.encryptionKey ??
-        (await vault(WORKFLOW_VAULT_SECRETS.encryptionKey).catch(
-          () => undefined,
-        ));
-      return text === undefined ? undefined : parseMasterKey(text);
-    })());
+  const deliverySecret = memoized(
+    async () =>
+      options.deliverySecret ?? vault(WORKFLOW_VAULT_SECRETS.deliverySecret),
+  );
+  const masterKey = memoized(async () => {
+    const text =
+      options.encryptionKey ??
+      (await vault(WORKFLOW_VAULT_SECRETS.encryptionKey));
+    return text === undefined ? undefined : parseMasterKey(text);
+  });
+  const allowUnsigned = unsignedAllowed();
 
   const call = async <T>(
     fn: string,
@@ -476,36 +507,45 @@ export function createSupabaseWorld(
     const attempt = payload.attempt + job.attempts - 1;
     const body = Buffer.from(payload.body, "base64");
     const headers = deliveryHeaders(payload, attempt);
-    const secret = await deliverySecret();
-    if (secret !== undefined) {
-      headers.set(
-        SIGNATURE_HEADER,
-        await signDelivery(secret, "", body.toString("utf8")),
+    const beat = heartbeat(job.id, job.attempts);
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      controller.abort(
+        new Error(
+          `The flow route did not answer within ${String(deliveryTimeout)} seconds`,
+        ),
       );
-    }
-    const stop = heartbeat(job.id, job.attempts);
+    }, deliveryTimeout * 1000);
+    const stop = (): void => {
+      clearTimeout(timer);
+      beat();
+    };
+    controller.signal.addEventListener("abort", stop, { once: true });
     try {
+      const secret = await deliverySecret();
+      if (secret !== undefined) {
+        headers.set(
+          SIGNATURE_HEADER,
+          await signDelivery(secret, "", body.toString("utf8")),
+        );
+      }
       const response = await fetch(flowUrl(), {
         method: "POST",
         headers,
         body,
+        signal: controller.signal,
       });
-      await settle(
-        job,
-        payload,
-        attempt,
-        response.status,
-        await response.text(),
-      );
+      const text = await response.text();
+      stop();
+      await settle(job, payload, attempt, response.status, text);
     } catch (cause) {
+      stop();
       await fail(
         job.id,
         job.attempts,
         cause instanceof Error ? cause.message : String(cause),
         attempt,
       );
-    } finally {
-      stop();
     }
   };
 
@@ -582,9 +622,23 @@ export function createSupabaseWorld(
     const inner = base.createQueueHandler(prefix, handler);
     return async (req) => {
       const job = req.headers.get(JOB_HEADER);
-      const secret = await deliverySecret();
+      let secret: string | undefined;
+      try {
+        secret = await deliverySecret();
+      } catch {
+        return deliveryProblem(
+          "network",
+          "The workflow delivery secret could not be read from Vault",
+        );
+      }
       if (job === null) {
-        if (secret === undefined && delivery === "poll") return inner(req);
+        if (secret === undefined && delivery === "poll") {
+          if (allowUnsigned) return inner(req);
+          return deliveryProblem(
+            "unauthorized",
+            "Unsigned workflow delivery: set WORKFLOW_DELIVERY_SECRET or the Vault secret workflow_delivery_secret",
+          );
+        }
         const text = await req.text();
         if (
           secret === undefined ||
@@ -595,7 +649,7 @@ export function createSupabaseWorld(
             text,
           ))
         ) {
-          return new Response("Unsigned workflow delivery", { status: 401 });
+          return deliveryProblem("unauthorized", "Unsigned workflow delivery");
         }
         return inner(
           new Request(req.url, {
@@ -615,9 +669,10 @@ export function createSupabaseWorld(
           text,
         ))
       ) {
-        return new Response("Bad workflow delivery signature", {
-          status: 401,
-        });
+        return deliveryProblem(
+          "unauthorized",
+          "Bad workflow delivery signature",
+        );
       }
       const [jobQueue, id, readCount] = job.split(":");
       const attempts = Number(readCount);
@@ -634,7 +689,10 @@ export function createSupabaseWorld(
         !Number.isInteger(attempts) ||
         !isStoredMessage(payload)
       ) {
-        return new Response("Malformed workflow delivery", { status: 400 });
+        return deliveryProblem(
+          "invalid_request",
+          "Malformed workflow delivery",
+        );
       }
       const claimed = { id, attempts };
       const attempt = payload.attempt + attempts - 1;

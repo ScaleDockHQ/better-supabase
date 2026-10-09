@@ -33,7 +33,7 @@ async function providerSchema(
     );
     create table ${schema}.custom_roles (organization_id uuid, key text);
     insert into ${schema}.custom_roles values ('${organization}', 'auditor');
-    create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+    create function ${schema}.organization_ids_with(permission text) returns setof uuid
       language sql stable as $$
         select m.organization_id from ${schema}.team_members m
         where m.user_id = auth.uid() and m.role in ('owner', 'admin') $$;
@@ -66,7 +66,7 @@ const provider = (
   scope: "organization",
   idType: "uuid",
   functions: {
-    idsWith: `${schema}.permitted_{scope}_ids({permission})`,
+    idsWith: `${schema}.{scope}_ids_with({permission})`,
     isPlatform: `${schema}.is_platform({permission})`,
     canAssign: `${schema}.can_assign({role}, {tenant}::text)`,
     ...(canAssignFor ? { canAssignFor } : {}),
@@ -509,7 +509,7 @@ async function sharedSchema(
       revoked_at timestamptz,
       prefill jsonb not null default '{}'
     );
-    create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+    create function ${schema}.organization_ids_with(permission text) returns setof uuid
       language sql stable as $$
         select m.organization_id from ${schema}.team_members m
         join ${schema}.roles r on r.id = m.role_id

@@ -86,3 +86,25 @@ describe("usage module", () => {
     );
   });
 });
+
+describe("usage module under the provider access model", () => {
+  it("checks membership through the provider's memberIds", () => {
+    const sql = moduleBody("usage", {
+      modules: { access: { model: "provider" } },
+      accessProvider: {
+        name: "stub",
+        scope: "organization",
+        idType: "uuid",
+        functions: {
+          idsWith: "authz.ids_with({permission}, {scope})",
+          isPlatform: "authz.is_platform({permission})",
+          memberIds: "authz.member_ids({scope})",
+        },
+      },
+    })!;
+    expect(sql).toContain(
+      "tenant::text in (select t.id::text from authz.member_ids(organization) as t(id))",
+    );
+    expect(sql).not.toContain("has_organization_role(tenant)");
+  });
+});

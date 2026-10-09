@@ -54,6 +54,7 @@ export type {
   AuthorizationScope,
   AuthorizationTokenHook,
 } from "./authorization.ts";
+export { providerApiProblem } from "./authorization.ts";
 export type {
   AccessModuleConfig,
   ActiveTenantSource,
@@ -64,7 +65,12 @@ export type {
 } from "./modules.ts";
 export { DEFAULT_ACTIVE_TENANT } from "./modules.ts";
 export type * from "./snapshot.ts";
-export { DEFAULT_CLAIMS, tenantClaimPaths } from "../core/claims.ts";
+export {
+  type ClaimPaths,
+  claimPaths,
+  DEFAULT_CLAIMS,
+  tenantClaimPaths,
+} from "../core/claims.ts";
 export {
   buildJsonSchema,
   jsonSchema,

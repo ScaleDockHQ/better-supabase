@@ -14,6 +14,7 @@ import type {
 } from "../../../src/credentials/provider.ts";
 import type { VaultCredentials } from "../../../src/credentials/vault.ts";
 
+import { DbException } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
 const mcp = vi.hoisted(() => ({
@@ -271,6 +272,9 @@ describe("vaultOAuthProvider", () => {
     expect(await provider.tokens()).toBeUndefined();
     expect(await provider.clientInformation()).toBeUndefined();
     await expect(provider.saveCodeVerifier("v")).rejects.toThrow("vault down");
+    await expect(provider.saveCodeVerifier("v")).rejects.toBeInstanceOf(
+      DbException,
+    );
     await expect(
       provider.saveClientInformation?.({ client_id: "c" }),
     ).rejects.toThrow("vault down");
@@ -500,11 +504,24 @@ describe("connectTools", () => {
       connectors: fake.connectors,
       server: server({
         authType: "header",
-        credentialRef: { provider: "vault", secret: "k" },
+        credentialRef: { provider: "vault", secret: "k", tenant: "o1" },
       }),
       userId: "u1",
       credentials,
     }).orThrow();
+    const foreign = await connectTools({
+      connectors: fake.connectors,
+      server: server({
+        authType: "header",
+        credentialRef: { provider: "vault", secret: "k", tenant: "o2" },
+      }),
+      userId: "u1",
+      credentials,
+    });
+    expect(foreign.ok ? undefined : foreign.error.hint).toBe(
+      "CREDENTIAL_REF_FOREIGN",
+    );
+    expect(tokens).toHaveLength(1);
     const connectRef = { provider: "vercel-connect", connector: "gh" };
     await connectTools({
       connectors: fake.connectors,

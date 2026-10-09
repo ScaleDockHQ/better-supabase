@@ -9,6 +9,19 @@ import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 
 const NAMES: ModuleNames = { tables: {} };
 
+/**
+ * PL/pgSQL that rejects a credential_ref outside `tenant` unless the service
+ * role calls: a tenant admin's ref must carry `"tenant": <tenant>`, so a
+ * provider resolves it only inside that tenant's namespace.
+ */
+export function tenantRefGuard(ref: string, tenant: string): string {
+  return `if not (${SERVICE_CALLER}) and ${ref} is not null and jsonb_typeof(${ref}) <> 'null'
+    and (jsonb_typeof(${ref} -> 'tenant') is distinct from 'string' or (${ref} ->> 'tenant') is distinct from (${tenant})::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', ${tenant}
+      using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
+  end if;`;
+}
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") return "";
   const fn = (name: string): string => ctx.fn(name);

@@ -1,6 +1,6 @@
--- The policy shapes CentraKit uses with PermDock's helpers, against stand-ins:
--- a contact reads quotes through `customer_id in (select permitted_customer_ids(...))`,
--- an employee through `organization_id in (select permitted_organization_ids(...))`.
+-- The policy shapes CentraKit uses with its authorization provider's helpers, against stand-ins:
+-- a contact reads quotes through `customer_id in (select customer_ids_with(...))`,
+-- an employee through `organization_id in (select organization_ids_with(...))`.
 -- Everything lives in a schema this transaction creates and rolls back.
 begin;
 select plan(9);
@@ -8,7 +8,7 @@ select plan(9);
 create schema scopes_probe;
 grant usage on schema scopes_probe to authenticated;
 
--- Stand-in for PermDock's memberships: which permission a user holds where.
+-- Stand-in for the provider's memberships: which permission a user holds where.
 create table scopes_probe.scope_grants (
   user_id uuid not null,
   scope text not null check (scope in ('customer', 'organization')),
@@ -27,7 +27,7 @@ create table scopes_probe.invoices (
   customer_id bigint not null
 );
 
-create function scopes_probe.permitted_customer_ids(p_permission text)
+create function scopes_probe.customer_ids_with(p_permission text)
 returns setof bigint
 language sql stable security definer set search_path = ''
 as $$
@@ -35,7 +35,7 @@ as $$
   where g.user_id = auth.uid() and g.scope = 'customer' and g.permission = p_permission
 $$;
 
-create function scopes_probe.permitted_organization_ids(p_permission text)
+create function scopes_probe.organization_ids_with(p_permission text)
 returns setof uuid
 language sql stable security definer set search_path = ''
 as $$
@@ -46,15 +46,15 @@ $$;
 alter table scopes_probe.quotes enable row level security;
 alter table scopes_probe.invoices enable row level security;
 create policy quotes_read on scopes_probe.quotes for select to authenticated using (
-  customer_id in (select scopes_probe.permitted_customer_ids('quotes.view'))
-  or organization_id in (select scopes_probe.permitted_organization_ids('quotes.view'))
+  customer_id in (select scopes_probe.customer_ids_with('quotes.view'))
+  or organization_id in (select scopes_probe.organization_ids_with('quotes.view'))
 );
 create policy invoices_read on scopes_probe.invoices for select to authenticated using (
-  customer_id in (select scopes_probe.permitted_customer_ids('invoices.view'))
-  or organization_id in (select scopes_probe.permitted_organization_ids('invoices.view'))
+  customer_id in (select scopes_probe.customer_ids_with('invoices.view'))
+  or organization_id in (select scopes_probe.organization_ids_with('invoices.view'))
 );
 grant select on scopes_probe.quotes, scopes_probe.invoices to authenticated;
-grant execute on function scopes_probe.permitted_customer_ids(text), scopes_probe.permitted_organization_ids(text) to authenticated;
+grant execute on function scopes_probe.customer_ids_with(text), scopes_probe.organization_ids_with(text) to authenticated;
 
 -- Organization A (…0a) has customers 42 and 43, organization B (…0b) customer 50.
 insert into scopes_probe.quotes values

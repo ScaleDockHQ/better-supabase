@@ -341,6 +341,7 @@ describe("useInbox", () => {
       conversation_id: "c1",
     });
     view.unmount();
+    await flush();
     expect(client.removeChannel).toHaveBeenCalledTimes(1);
   });
 

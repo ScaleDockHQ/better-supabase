@@ -28,9 +28,13 @@ import type {
 import type { VaultCredentials } from "../../credentials/vault.ts";
 
 import { errorText, isRecord, sha256Hex } from "../../blocks/shared.ts";
-import { dbError } from "../../core/errors.ts";
+import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { nowInstant } from "../../core/temporal.ts";
+import {
+  credentialRefInTenant,
+  foreignCredentialRef,
+} from "../../credentials/provider.ts";
 
 /** What the Vault keeps for one user's OAuth connection to one server. */
 interface StoredConnection {
@@ -108,7 +112,7 @@ export function vaultOAuthProvider(
       subject,
       description: `MCP connection to ${server.id}`,
     });
-    if (!saved.ok) throw new Error(saved.error.message);
+    if (!saved.ok) throw new DbException(saved.error);
   };
   const metadata: OAuthClientMetadata = options.clientMetadata ?? {
     client_name: "better-supabase",
@@ -160,7 +164,7 @@ export function vaultOAuthProvider(
         JSON.stringify(information),
         { description: `MCP client for ${server.id}` },
       );
-      if (!saved.ok) throw new Error(saved.error.message);
+      if (!saved.ok) throw new DbException(saved.error);
     },
     invalidateCredentials: async (scope) => {
       if (scope === "all" || scope === "client") {
@@ -337,6 +341,12 @@ async function authOf(options: ConnectToolsOptions): Promise<
             `${server.name} needs credentials`,
             "CONNECTOR_NOT_AUTHORIZED",
           ),
+        };
+      }
+      if (!credentialRefInTenant(server.credentialRef, server.organizationId)) {
+        return {
+          ok: false,
+          error: foreignCredentialRef(server.organizationId),
         };
       }
       const token = await options.credentials.getToken(server.credentialRef, {

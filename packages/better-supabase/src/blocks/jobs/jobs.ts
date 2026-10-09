@@ -762,27 +762,5 @@ export function createWebhookInbox(
   };
 }
 
-/**
- * @deprecated Use `createWebhookInbox`; `createInbox` is removed in the next minor.
- * @alias
- */
-export const createInbox: typeof createWebhookInbox = createWebhookInbox;
-/** @deprecated Use `WebhookInbox`. */
-export type Inbox = WebhookInbox;
-/** @deprecated Use `WebhookInboxOptions`. */
-export type InboxOptions = WebhookInboxOptions;
-/** @deprecated Use `WebhookInboxEntry`. */
-export type InboxEntry = WebhookInboxEntry;
-/** @deprecated Use `WebhookInboxEvent`. */
-export type InboxEvent = WebhookInboxEvent;
-/** @deprecated Use `WebhookInboxMessage`. */
-export type InboxMessage<T = unknown> = WebhookInboxMessage<T>;
-/** @deprecated Use `WebhookInboxListOptions`. */
-export type InboxListOptions = WebhookInboxListOptions;
-/** @deprecated Use `WebhookInboxProcessOptions`. */
-export type InboxProcessOptions = WebhookInboxProcessOptions;
-/** @deprecated Use `WebhookInboxPurgeOptions`. */
-export type InboxPurgeOptions = WebhookInboxPurgeOptions;
-
 // ---------------------------------------------------------------------------
 // Audit retention (SQL module `audit`)

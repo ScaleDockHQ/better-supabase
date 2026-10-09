@@ -472,7 +472,8 @@ end;
 $$;
 ${userGrant(`${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb)`)}
 
--- The chunks of a document still waiting for an embedding, for the worker.
+-- The chunks of a document still waiting for an embedding, for the worker,
+-- with the md5 of each content it passes back to set_knowledge_embeddings.
 create or replace function ${fn("pending_knowledge_chunks")}(document_id uuid, batch integer default 64)
 returns jsonb
 language sql
@@ -480,7 +481,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('idx', x.${c.index}, 'content', x.${c.content}) order by x.${c.index}), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('idx', x.${c.index}, 'content', x.${c.content}, 'hash', md5(x.${c.content})) order by x.${c.index}), '[]')
   from (
     select * from ${chunks} y
     where y.${c.document} = pending_knowledge_chunks.document_id and y.${c.embedding} is null
@@ -490,8 +491,10 @@ as $$
 $$;
 ${serviceGrant(`${fn("pending_knowledge_chunks")}(uuid, integer)`)}
 
--- Stores embeddings ([{"idx", "embedding"}], or {"items": list}) and marks the document ready
--- once no chunk is missing one. Returns how many chunks still wait.
+-- Stores embeddings ([{"idx", "hash", "embedding"}], or {"items": list}) and marks the
+-- document ready once no chunk is missing one. Returns how many chunks still wait.
+-- hash is the md5 of the content that was embedded: a chunk rewritten since
+-- then keeps waiting instead of taking a vector of its old text.
 create or replace function ${fn("set_knowledge_embeddings")}(document_id uuid, embeddings jsonb, model text default null)
 returns integer
 language plpgsql
@@ -504,9 +507,10 @@ declare
 begin
   update ${chunks} t set
     ${c.embedding} = (e.value ->> 'embedding')::${embedding.column},
-    ${c.hash} = md5(t.${c.content})
+    ${c.hash} = e.value ->> 'hash'
   from jsonb_array_elements(coalesce(v_items, '[]')) e
-  where t.${c.document} = set_knowledge_embeddings.document_id and t.${c.index} = (e.value ->> 'idx')::integer;
+  where t.${c.document} = set_knowledge_embeddings.document_id and t.${c.index} = (e.value ->> 'idx')::integer
+    and md5(t.${c.content}) = e.value ->> 'hash';
   select count(*)::integer into v_remaining from ${chunks} t
   where t.${c.document} = set_knowledge_embeddings.document_id and t.${c.embedding} is null;
   update ${documents} x set

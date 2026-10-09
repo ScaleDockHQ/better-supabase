@@ -822,6 +822,7 @@ export const COMMENTS: ModuleDefinition = {
   description:
     "Comments on any subject in a tenant, with replies, mentions that notify (with the notifications module) and comment.* outbox events, plus an activity_entries feed that activitySink() fills from outbox events.",
   requires: ["tenant", "access"],
+  providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 3,

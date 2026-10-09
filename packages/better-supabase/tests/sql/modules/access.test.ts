@@ -347,7 +347,7 @@ describe("access module", () => {
     ).toThrow(/\{nope\} is not available/);
   });
 
-  it("fails closed when the provider model has no assignment rule", () => {
+  it("leaves role assignment to the service role without an assignment rule", () => {
     expect(provider({}, CALLER_ONLY)).toMatch(
       /or coalesce\(\(false\), false\)/,
     );
@@ -357,9 +357,10 @@ describe("access module", () => {
     })
       .map((file) => file.contents)
       .join("\n");
-    expect(withTenant).toContain(
-      "can_assign.role <> 'owner' or better_supabase.has_organization_role(can_assign.tenant, array['owner'])",
+    expect(withTenant).not.toContain(
+      "better_supabase.has_organization_role(can_assign.tenant, array['owner'])",
     );
+    expect(withTenant).toContain("Without either, only the service role");
   });
 
   it("counts tenant overrides when the catalog model checks an assignment", () => {
@@ -393,5 +394,33 @@ describe("access module", () => {
     const sql = access({ idType: "bigint" }, { idType: "bigint" });
     expect(sql).toContain("can(text, bigint, text)");
     expect(sql).toContain("returns setof bigint");
+  });
+});
+
+describe("access module with the provider's permissionsFor", () => {
+  it("fills member_permissions and permission_claims from the template", () => {
+    const sql = provider(
+      {},
+      {
+        ...PROVIDER,
+        functions: {
+          ...PROVIDER.functions,
+          permissionsFor: "authz.permissions_for({user}, {tenant})",
+        },
+      },
+    );
+    expect(sql).toContain(
+      "then coalesce((authz.permissions_for(member, tenant)), '{}'::text[])",
+    );
+    expect(sql).toMatch(
+      /function better_supabase\.permission_claims[\s\S]*jsonb_object_agg\(t\.id::text/,
+    );
+  });
+
+  it("keeps both empty without permissionsFor", () => {
+    const sql = provider();
+    expect(sql).toMatch(
+      /function better_supabase\.member_permissions[\s\S]*?select '\{\}'::text\[\]/,
+    );
   });
 });

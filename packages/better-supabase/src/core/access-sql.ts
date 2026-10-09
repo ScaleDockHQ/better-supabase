@@ -20,7 +20,112 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   memberIdsFor: ["user", "scope"],
   canAssign: ["role", "tenant", "scope"],
   canAssignFor: ["user", "role", "tenant", "scope"],
+  permissionsFor: ["user", "tenant", "scope"],
+  canApprove: ["tool", "tenant", "scope"],
 };
+
+/** The Postgres types a scope's ids can have. */
+export const SCOPE_ID_TYPES: readonly string[] = [
+  "uuid",
+  "text",
+  "bigint",
+  "integer",
+];
+
+/**
+ * What is wrong with a provider's scopes: an unknown tenant scope or
+ * parent, a parent cycle, an id type outside `SCOPE_ID_TYPES`, or a tenant
+ * scope without one.
+ */
+export function scopeProblems(provider: {
+  readonly scopes: readonly {
+    readonly name: string;
+    readonly idType?: string | undefined;
+    readonly parent?: string | undefined;
+  }[];
+  readonly tenantScope: string;
+}): string[] {
+  const problems: string[] = [];
+  const byName = new Map(provider.scopes.map((scope) => [scope.name, scope]));
+  for (const scope of provider.scopes) {
+    if (scope.idType !== undefined && !SCOPE_ID_TYPES.includes(scope.idType)) {
+      problems.push(
+        `scope "${scope.name}" has idType "${scope.idType}"; use ${SCOPE_ID_TYPES.join(", ")}`,
+      );
+    }
+    if (scope.parent !== undefined && !byName.has(scope.parent)) {
+      problems.push(
+        `scope "${scope.name}" has parent "${scope.parent}", which is not a scope`,
+      );
+    }
+  }
+  const cyclic = new Set<string>();
+  for (const scope of provider.scopes) {
+    const seen = new Set<string>();
+    let current: string | undefined = scope.name;
+    while (current !== undefined && !seen.has(current)) {
+      seen.add(current);
+      current = byName.get(current)?.parent;
+    }
+    if (current !== undefined && !cyclic.has(current)) {
+      for (const name of seen) cyclic.add(name);
+      problems.push(`scope "${current}" is its own ancestor (a parent cycle)`);
+    }
+  }
+  const tenant = byName.get(provider.tenantScope);
+  if (tenant === undefined) {
+    problems.push(`tenantScope "${provider.tenantScope}" is not a scope`);
+  } else if (tenant.idType === undefined) {
+    problems.push(`tenant scope "${tenant.name}" has no idType`);
+  }
+  return problems;
+}
+
+const CALL_KEYWORDS = new Set([
+  "all",
+  "and",
+  "any",
+  "array",
+  "as",
+  "cast",
+  "coalesce",
+  "exists",
+  "from",
+  "greatest",
+  "in",
+  "is",
+  "least",
+  "not",
+  "nullif",
+  "on",
+  "or",
+  "row",
+  "select",
+  "some",
+  "values",
+  "when",
+  "where",
+]);
+
+/**
+ * What makes a template unsafe to put into generated SQL: a `$$`, `;` or
+ * `--` (outside string literals), or a function call without a schema.
+ */
+export function templateProblems(template: string): string[] {
+  const code = template
+    .replaceAll(/'(?:[^']|'')*'/g, "''")
+    .replaceAll(/\{(\w+)\}/g, "$1");
+  const problems: string[] = [];
+  for (const token of ["$$", ";", "--"]) {
+    if (code.includes(token)) problems.push(`contains "${token}"`);
+  }
+  for (const match of code.matchAll(/(?<![\w$.":])"?([a-z_][\w$]*)"?\s*\(/gi)) {
+    const name = match[1]!;
+    if (CALL_KEYWORDS.has(name.toLowerCase())) continue;
+    problems.push(`calls ${name}() without a schema`);
+  }
+  return problems;
+}
 
 /** The `{name}` placeholders in a template. */
 export const templatePlaceholders = (template: string): string[] => [
@@ -68,7 +173,30 @@ export function templateFunctions(template: string, scope?: string): string[] {
 export interface AccessTarget {
   /** `tenant` (default), `platform`, or with `sql` any scope its templates take. */
   readonly scope?: string;
-  readonly sql?: AccessPolicySql;
+  /** `"provider"` is replaced with `authorization.functions` by `gen`. */
+  readonly sql?: AccessPolicySql | "provider";
+}
+
+/**
+ * `target` with `sql: "provider"` replaced by the provider's `idsWith` and
+ * `isPlatform`. `where` names the policy in the error when there is no
+ * provider.
+ */
+export function resolveProviderSql<T extends AccessTarget>(
+  where: string,
+  target: T,
+  functions: AuthorizationFunctions | undefined,
+): T {
+  if (target.sql !== "provider") return target;
+  if (functions === undefined) {
+    throw new TypeError(
+      `${where}: sql "provider" needs \`authorization\` in better-supabase.config.ts`,
+    );
+  }
+  return {
+    ...target,
+    sql: { idsWith: functions.idsWith, isPlatform: functions.isPlatform },
+  };
 }
 
 /**
@@ -86,6 +214,11 @@ export function accessCheck(
   if (key === "") throw new TypeError(`${where}: a permission key is empty`);
   const scope = target.scope ?? "tenant";
   const permission = sqlString(key);
+  if (target.sql === "provider") {
+    throw new TypeError(
+      `${where}: sql "provider" needs the config's authorization provider; write the policy with \`better-supabase gen\` or pass its templates`,
+    );
+  }
   if (!target.sql) {
     if (scope === "platform")
       return `(select better_supabase.is_platform(${permission}))`;

@@ -199,6 +199,27 @@ describe("compileGraph", () => {
     expect(() => compileGraph(huge)).toThrow("dynamic workflows take at most");
   });
 
+  it("refuses node ids that could break out of the generated source", () => {
+    for (const id of ["a\u2028globalThis.x=1//", "a\u2029b", "a b", "*/", ""]) {
+      expect(() =>
+        compileGraph({
+          nodes: [
+            { id: "t", kind: "trigger" },
+            { id, kind: "step", step: "x" },
+          ],
+          edges: [{ id: "1", source: "t", target: id }],
+        }),
+      ).toThrow("letters, digits, underscores or hyphens");
+    }
+    const comments = compileGraph(GRAPH)
+      .source.split("\n")
+      .filter((line) => line.trimStart().startsWith("//"));
+    expect(comments.length).toBe(GRAPH.nodes.length);
+    for (const line of comments) {
+      expect(line).toMatch(/^ {2}\/\/ [a-z]+ node \d+$/);
+    }
+  });
+
   it("reads a stored compiled graph back", () => {
     const compiled = compileGraph(GRAPH);
     expect(compiledGraphOf(JSON.parse(JSON.stringify(compiled)))).toEqual(
@@ -247,16 +268,16 @@ describe("graphStarter", () => {
     ]);
   });
 
-  it("uses the stored compiled form and refuses steps it wasn't given", async () => {
+  it("never runs a stored compiled form, and refuses steps it wasn't given", async () => {
     const compiled = {
       ...compileGraph(GRAPH),
-      source: "async function workflow() {}",
+      source: "async function workflow() { globalThis.pwned = true; }",
     };
     await graphStarter({ steps, dynamic: true })({
       ...CALL,
       version: { ...CALL.version, compiled },
     });
-    expect(start.mock.calls[0]?.[0]).toBe("async function workflow() {}");
+    expect(start.mock.calls[0]?.[0]).toBe(compileGraph(GRAPH).source);
     await expect(
       graphStarter({ steps: {}, dynamic: true })(CALL),
     ).rejects.toThrow('the graph uses step "crm.lookup"');

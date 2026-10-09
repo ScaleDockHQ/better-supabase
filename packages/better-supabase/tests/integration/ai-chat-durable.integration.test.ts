@@ -373,10 +373,10 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
 
       await s.asRole(owner);
       expect(
-        await s.rows<{ harness_id: string }>(
+        await s.hint(
           "select harness_id from better_supabase.ai_harness_sessions",
         ),
-      ).toEqual([{ harness_id: "claude" }]);
+      ).not.toBe("no error");
     } finally {
       await s.close();
     }
@@ -429,6 +429,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       expect(result).toEqual({
         stopped: 1,
         failed: 1,
+        skipped: 0,
         errors: ["sbx_bad: gone"],
       });
       expect(stopped).toEqual(["sbx_ok"]);
@@ -447,6 +448,43 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       expect(await after("busy")).toMatchObject({ status: "active" });
       expect(await after("fresh")).toMatchObject({ status: "active" });
       expect(await sessions.idle({ idleSeconds: 600 }).orThrow()).toEqual([]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("turns an idle session active again when a turn saves it", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      const { owner, chat } = await setUp(s);
+      const { user, service } = transports(s, () => owner);
+      const sessions = createHarnessSessions({ transport: user, service });
+
+      await sessions.save(chat, "claude", { sandboxId: "sbx_race" }).orThrow();
+      await s.service();
+      await s.rows(
+        "update better_supabase.ai_harness_sessions set last_active_at = now() - interval '1 hour' where chat_id = $1",
+        [chat],
+      );
+      await s.as(owner);
+      expect(
+        (await sessions.idle({ idleSeconds: 600 }).orThrow()).map(
+          (session) => session.status,
+        ),
+      ).toEqual(["idle"]);
+
+      expect(await sessions.lock(chat, "claude", "turn-1").orThrow()).toBe(
+        true,
+      );
+      await sessions
+        .save(chat, "claude", { resumeState: { b: 2 } }, { holder: "turn-1" })
+        .orThrow();
+      await sessions.unlock(chat, "claude", "turn-1").orThrow();
+
+      expect(await sessions.load(chat, "claude").orThrow()).toMatchObject({
+        status: "active",
+        sandboxId: "sbx_race",
+      });
     } finally {
       await s.close();
     }

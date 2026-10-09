@@ -43,7 +43,12 @@ export {
   policyGrants,
   type PolicyGrant,
 } from "./schema-scan.ts";
-export { templateFunctions } from "../core/access-sql.ts";
+export {
+  resolveProviderSql,
+  SCOPE_ID_TYPES,
+  scopeProblems,
+  templateFunctions,
+} from "../core/access-sql.ts";
 export { contractSignature } from "./context.ts";
 export type {
   ModuleContext,

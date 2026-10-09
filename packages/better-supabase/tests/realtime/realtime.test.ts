@@ -192,6 +192,16 @@ describe("defineTopic", () => {
     ).toThrow(/invalid scope/);
   });
 
+  it('renders sql: "provider" with the templates sql() receives', () => {
+    const topic = defineTopic("organization:{organizationId}:board", {
+      access: { receive: "board.read", scope: "organization", sql: "provider" },
+    });
+    expect(() => topic.sql()).toThrow(/sql "provider" needs `authorization`/);
+    expect(topic.sql({ functions: SQL })).toContain(
+      "in (select t.id::text from authz.ids_organization('board.read') as t(id))",
+    );
+  });
+
   it("generates a row-change trigger with database column names", () => {
     const sql = defineTopic(topics.customers).triggerSql(
       betterSupabase,

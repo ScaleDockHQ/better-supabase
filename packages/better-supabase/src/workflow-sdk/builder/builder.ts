@@ -162,7 +162,7 @@ export function compileGraph(graph: WorkflowGraph): CompiledGraph {
       aliases[alias] = node.step ?? "";
     }
     const body = nodeBody(node, alias);
-    const comment = `  // ${node.kind} ${JSON.stringify(node.id).slice(1, -1).replaceAll("*/", "* /")}`;
+    const comment = `  // ${node.kind} node ${String(index)}`;
     if (node.kind === "trigger") return `${comment}\n  {\n    ${body}\n  }`;
     return `${comment}\n  if (${guard(incoming.get(node.id) ?? [])}) {\n    ${body}\n  }`;
   });
@@ -254,8 +254,9 @@ function contextOf(call: BuilderStartCall): RequestContext {
 
 /**
  * The `start` for `createBuilder`: starts the published version as dynamic
- * source when dynamic workflows are on (compiling it again when the stored
- * form is missing), and through `executor` otherwise. Runs carry
+ * source when dynamic workflows are on, and through `executor` otherwise.
+ * The source is always compiled from the version's graph; a stored
+ * compiled form is never run. Runs carry
  * `bs.tenant`, `bs.actor`, `bs.definition`, `bs.version` and `bs.key`, and
  * a repeated key returns the first run.
  */
@@ -280,8 +281,7 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
       ...(options.world === undefined ? {} : { world: options.world }),
     };
     if (options.dynamic ?? dynamicEnabled()) {
-      const compiled =
-        compiledGraphOf(call.version.compiled) ?? compileGraph(graph);
+      const compiled = compileGraph(graph);
       const steps: Record<string, GraphStep> = {};
       for (const [alias, name] of Object.entries(compiled.aliases)) {
         const step = options.steps[name];

@@ -9,7 +9,13 @@ import type {
 } from "../../src/credentials/index.ts";
 
 import { signWebhook } from "../../src/blocks/webhooks/verify.ts";
-import { subjectFor, vaultCredentials } from "../../src/credentials/index.ts";
+import {
+  credentialRefInTenant,
+  foreignCredentialRef,
+  subjectFor,
+  tenantCredentialRef,
+  vaultCredentials,
+} from "../../src/credentials/index.ts";
 import { credentialProviderOf } from "../../src/credentials/provider.ts";
 import { testCredentialProvider } from "../../src/testing/index.ts";
 
@@ -77,7 +83,50 @@ describe("vaultCredentials", () => {
         vault.set(ref, value, { subject }).orThrow(),
     });
     expect(report.checks.every((check) => check.ok)).toBe(true);
-    expect(report.checks).toHaveLength(7);
+    expect(report.checks).toHaveLength(8);
+  });
+
+  it("stores a tenant's ref under tenant/<tenant>/ and refuses slash tricks", async () => {
+    const vault = fakeVault();
+    const provider = vaultCredentials({ transport: vault.transport });
+    const ref = tenantCredentialRef("org-1", tokenRef);
+    await provider.set(ref, "tenant-token").orThrow();
+    expect(vault.secrets.get("bs:cred:vault:tenant/org-1/slack")).toBe(
+      "tenant-token",
+    );
+    vault.secrets.set("bs:cred:vault:slack", "app-token");
+    expect(
+      (await provider.getToken(ref, { subject: APP }).orThrow()).token,
+    ).toBe("tenant-token");
+    for (const bad of [
+      { provider: "vault", secret: "x", tenant: "org/../other" },
+      { provider: "vault", secret: "other/x", tenant: "org-1" },
+      { provider: "vault", secret: "tenant/org-2/slack" },
+      { provider: "vault", secret: "x", tenant: 7 } as unknown as CredentialRef,
+    ]) {
+      const result = await provider.getToken(bad, { subject: APP });
+      expect(result.ok ? undefined : result.error.hint).toBe(
+        "CREDENTIAL_REF_INVALID",
+      );
+    }
+  });
+
+  it("binds refs to a tenant", () => {
+    const ref = tenantCredentialRef("org-1", tokenRef);
+    expect(ref).toEqual({
+      provider: "vault",
+      secret: "slack",
+      tenant: "org-1",
+    });
+    expect(credentialRefInTenant(ref, "org-1")).toBe(true);
+    expect(credentialRefInTenant(ref, "org-2")).toBe(false);
+    expect(credentialRefInTenant(tokenRef, "org-1")).toBe(false);
+    expect(credentialRefInTenant(tokenRef, undefined)).toBe(true);
+    expect(credentialRefInTenant(ref, undefined)).toBe(false);
+    expect(foreignCredentialRef("org-1")).toMatchObject({
+      kind: "forbidden",
+      hint: "CREDENTIAL_REF_FOREIGN",
+    });
   });
 
   it("builds the header from the ref", async () => {

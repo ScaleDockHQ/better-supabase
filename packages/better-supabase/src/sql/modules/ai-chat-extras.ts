@@ -1,7 +1,10 @@
 import type { ModuleContext } from "../context.ts";
+import type { ModuleLayout } from "../registry.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { SERVICE_CALLER } from "../shared.ts";
+import { accessModel } from "./access-model.ts";
 import { canIn, raise, serviceGrant, userGrant } from "./ai-chat-sql.ts";
 
 /** `jsonb_build_object` of an approval row, with stable keys. */
@@ -25,7 +28,60 @@ function moderationJson(names: AiChatNames, row: string): string {
   return `jsonb_build_object('id', ${row}.${md.id}, 'organization_id', ${row}.${md.tenant}, 'chat_id', ${row}.${md.chat}, 'message_id', ${row}.${md.message}, 'user_id', ${row}.${md.user}, 'stage', ${row}.${md.stage}, 'category', ${row}.${md.category}, 'score', ${row}.${md.score}, 'action', ${row}.${md.action}, 'created_at', ${row}.${md.createdAt})`;
 }
 
-function approvals(ctx: ModuleContext, names: AiChatNames): string {
+/** The provider's `canApprove` and `approvals`, when the `provider` access model decides. */
+function approvalProvider(
+  ctx: ModuleContext,
+  layout: ModuleLayout,
+):
+  | {
+      readonly scope: string;
+      readonly canApprove: string;
+      readonly distinct: boolean;
+    }
+  | undefined {
+  const provider = layout.accessProvider;
+  const canApprove = provider?.functions.canApprove;
+  if (canApprove === undefined || accessModel(ctx) !== "provider")
+    return undefined;
+  return {
+    scope: provider!.scope,
+    canApprove,
+    distinct: provider!.approvals?.distinctApprover === true,
+  };
+}
+
+/**
+ * Who may decide a waiting tool call besides the service role: a user the
+ * provider's `canApprove` allows (never the requester with
+ * `approvals.distinctApprover`), else the chat's owner.
+ */
+function approver(
+  names: AiChatNames,
+  provider: ReturnType<typeof approvalProvider>,
+): string {
+  const a = names.c.approvals;
+  const ch = names.c.chats;
+  if (provider === undefined) return `v_row.${a.owner} = (select auth.uid())`;
+  const check = fillTemplate(
+    "authorization.functions.canApprove",
+    provider.canApprove,
+    {
+      scope: provider.scope,
+      tenant: `(select c.${ch.tenant} from ${names.t.chats} c where c.${ch.id} = v_row.${a.chat})`,
+      tool: `v_row.${a.tool}`,
+    },
+  );
+  const distinct = provider.distinct
+    ? `v_row.${a.owner} is distinct from (select auth.uid()) and `
+    : "";
+  return `(select auth.uid()) is not null and ${distinct}coalesce((${check}), false)`;
+}
+
+function approvals(
+  ctx: ModuleContext,
+  names: AiChatNames,
+  layout: ModuleLayout,
+): string {
   const fn = (name: string): string => ctx.fn(name);
   const { t, perm } = names;
   const ch = names.c.chats;
@@ -33,6 +89,7 @@ function approvals(ctx: ModuleContext, names: AiChatNames): string {
   const po = names.c.policies;
   const i = names.c.inputs;
   const can = canIn;
+  const provider = approvalProvider(ctx, layout);
   const serviceOnly = raise(
     "Only the server records this",
     "42501",
@@ -78,8 +135,8 @@ end;
 $$;
 ${serviceGrant(`${fn("record_ai_tool_approval")}(uuid, jsonb)`)}
 
--- Approves or denies a waiting tool call, once; the chat's owner or the
--- service role. Repeating the same decision returns the row.
+-- Approves or denies a waiting tool call, once; the service role or ${provider === undefined ? "the chat's owner" : `a user the authorization provider's canApprove allows${provider.distinct ? " other than the chat's owner" : ""}`}.
+-- Repeating the same decision returns the row.
 create or replace function ${fn("decide_ai_tool_approval")}(approval_id text, approved boolean, reason text default null)
 returns jsonb
 language plpgsql
@@ -92,7 +149,7 @@ declare
   v_decision text := case when decide_ai_tool_approval.approved then 'approved' else 'denied' end;
 begin
   select * into v_row from ${t.approvals} x where x.${a.id} = decide_ai_tool_approval.approval_id for update;
-  if not found or not (${SERVICE_CALLER} or v_row.${a.owner} = (select auth.uid())) then
+  if not found or not (${SERVICE_CALLER} or ${approver(names, provider)}) then
     ${raise("No approval %", "P0002", "AI_APPROVAL_NOT_FOUND", "decide_ai_tool_approval.approval_id")}
   end if;
   if decide_ai_tool_approval.approved is null then
@@ -574,8 +631,12 @@ ${serviceGrant(`${fn("purge_ai_chats")}(integer)`)}`;
 }
 
 /** Approvals, policies, questions, feedback, links, models and moderation. */
-export function aiChatExtras(ctx: ModuleContext, names: AiChatNames): string {
-  return `${approvals(ctx, names)}
+export function aiChatExtras(
+  ctx: ModuleContext,
+  names: AiChatNames,
+  layout: ModuleLayout,
+): string {
+  return `${approvals(ctx, names, layout)}
 
 ${sharing(ctx, names)}
 

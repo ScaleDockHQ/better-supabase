@@ -42,11 +42,11 @@ const testProvider = (
   scope: "organization",
   idType: "uuid",
   functions: {
-    idsWith: `${schema}.permitted_{scope}_ids({permission})`,
+    idsWith: `${schema}.{scope}_ids_with({permission})`,
     isPlatform: `${schema}.is_platform({permission})`,
     ...(forUser
       ? {
-          idsWithFor: `${schema}.permitted_{scope}_ids_for({user}, {permission})`,
+          idsWithFor: `${schema}.{scope}_ids_with_for({user}, {permission})`,
           isPlatformFor: `${schema}.is_platform_for({user}, {permission})`,
           canAssign: `${schema}.can_assign({role}, {tenant}::text)`,
           canAssignFor: `${schema}.can_assign_for({user}, {role}, {tenant}::text)`,
@@ -719,7 +719,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           role_id uuid not null references ${schema}.app_roles (id),
           primary key (user_id, role_id)
         );
-        create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+        create function ${schema}.organization_ids_with(permission text) returns setof uuid
           language sql stable as $$ select null::uuid where false $$;
         create function ${schema}.is_platform(permission text) returns boolean
           language sql stable as $$ select auth.uid() = '${USERS.owner}' and permission = 'platform.invite' $$;
@@ -828,11 +828,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
           role_id uuid not null references ${schema}.app_roles (id),
           primary key (user_id, role_id)
         );
-        create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+        create function ${schema}.organization_ids_with(permission text) returns setof uuid
           language sql stable as $$
             select m.organization_id from ${schema}.team_members m
             where m.user_id = auth.uid() and m.role = 'owner' $$;
-        create function ${schema}.permitted_organization_ids_for(p_user uuid, p_grant text) returns setof uuid
+        create function ${schema}.organization_ids_with_for(p_user uuid, p_grant text) returns setof uuid
           language sql stable as $$
             select m.organization_id from ${schema}.team_members m
             where m.user_id = p_user and m.role = 'owner' $$;
@@ -1003,12 +1003,12 @@ describe.skipIf(!live)("organizations and invitations", () => {
           ('${organization}', '${USERS.admin}', 'admin');
         insert into ${schema}.grants values
           ('${USERS.owner}', 'members.invite'), ('${USERS.admin}', 'members.invite');
-        create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+        create function ${schema}.organization_ids_with(permission text) returns setof uuid
           language sql stable as $$
             select m.organization_id from ${schema}.team_members m
-            join ${schema}.grants g on g.user_id = m.user_id and g.permission = permitted_organization_ids.permission
+            join ${schema}.grants g on g.user_id = m.user_id and g.permission = organization_ids_with.permission
             where m.user_id = auth.uid() $$;
-        create function ${schema}.permitted_organization_ids_for(p_user uuid, p_grant text) returns setof uuid
+        create function ${schema}.organization_ids_with_for(p_user uuid, p_grant text) returns setof uuid
           language sql stable as $$
             select m.organization_id from ${schema}.team_members m
             join ${schema}.grants g on g.user_id = m.user_id and g.permission = p_grant

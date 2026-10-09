@@ -6,7 +6,7 @@ import type {
 import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble } from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { builderRuntimeSql, builderSql } from "./workflow-builder-sql.ts";
 
 const NAMES: ModuleNames = {
@@ -378,8 +378,8 @@ begin
     return jsonb_build_array('A graph has a nodes array and an edges array');
   end if;
   for v_node in select value from jsonb_array_elements(v_nodes) loop
-    if coalesce(jsonb_typeof(v_node -> 'id'), '') <> 'string' or length(v_node ->> 'id') not between 1 and 100 then
-      v_errors := array_append(v_errors, 'Every node has an id of 1 to 100 characters');
+    if coalesce(jsonb_typeof(v_node -> 'id'), '') <> 'string' or (v_node ->> 'id') !~ '^[A-Za-z0-9_-]{1,100}$' then
+      v_errors := array_append(v_errors, 'Every node has an id of 1 to 100 letters, digits, underscores or hyphens');
       continue;
     end if;
     if (v_node ->> 'id') = any (v_ids) then
@@ -528,9 +528,10 @@ end;
 $$;
 ${callable(`${fn("save_workflow_draft")}(uuid, jsonb)`)}
 
--- Publishes a version with the engine's compiled form: workflow.publish in
--- its tenant, and a graph validate_workflow_graph accepts. The version
--- published before is archived.
+-- Publishes a version: workflow.publish in its tenant, and a graph
+-- validate_workflow_graph accepts. The version published before is
+-- archived. Only the service role may store the engine's compiled form,
+-- also on a version that is already published.
 create or replace function ${fn("publish_workflow_version")}(version uuid, compiled jsonb default null)
 returns jsonb
 language plpgsql
@@ -551,7 +552,15 @@ begin
   if not ${allowed("v_tenant", "publish")} then
     ${forbidden("You may not publish this workflow")}
   end if;
+  if compiled is not null and not (${SERVICE_CALLER}) then
+    raise exception 'Only the service role may store a compiled form' using errcode = '42501', hint = 'WORKFLOW_COMPILED_FORBIDDEN';
+  end if;
   if v_row.${cv("status")} = 'published' then
+    if compiled is not null then
+      update ${v} x set ${cv("compiled")} = compiled
+      where x.${cv("id")} = v_row.${cv("id")}
+      returning * into v_row;
+    end if;
     return ${versionJson("v_row", true)};
   end if;
   v_errors := ${fn("validate_workflow_graph")}(v_row.${cv("graph")});

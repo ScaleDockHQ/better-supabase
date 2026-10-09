@@ -152,8 +152,19 @@ export function vercelConnectCredentials(
 
   const run = <T>(
     ref: CredentialRef,
+    subject: CredentialSubject,
     fn: (module: VercelConnectModule, parsed: VercelConnectRef) => Promise<T>,
   ): AsyncResult<T> => {
+    // Connect has no tenant namespace: the app subject would resolve the
+    // app's own installation for every tenant.
+    if (ref.tenant !== undefined && subject.type === "app")
+      return AsyncResult.err(
+        dbError(
+          "forbidden",
+          "vercel-connect has no per-tenant credentials; use a user subject or a provider with tenant namespaces",
+          { hint: "CREDENTIAL_REF_FOREIGN" },
+        ),
+      );
     const parsed = connectRef(ref);
     if (!parsed.ok) return AsyncResult.err(parsed.error);
     return AsyncResult.from(async () => {
@@ -185,30 +196,34 @@ export function vercelConnectCredentials(
     apiVersion: 1,
     name: "vercel-connect",
     getToken(ref, getOptions) {
-      return run(ref, async (module, parsed): Promise<CredentialToken> => {
-        const response = await module.getTokenResponse(
-          parsed.connector,
-          params(
-            parsed,
-            getOptions.subject,
-            getOptions.scopes,
-            getOptions.installationId,
-          ),
-          connectOptions,
-        );
-        const temporal = optionalTemporal();
-        return {
-          token: response.token,
-          ...(temporal === undefined
-            ? {}
-            : {
-                expiresAt: temporal.Instant.fromEpochMilliseconds(
-                  response.expiresAt,
-                ),
-              }),
-          headers: { authorization: `Bearer ${response.token}` },
-        };
-      });
+      return run(
+        ref,
+        getOptions.subject,
+        async (module, parsed): Promise<CredentialToken> => {
+          const response = await module.getTokenResponse(
+            parsed.connector,
+            params(
+              parsed,
+              getOptions.subject,
+              getOptions.scopes,
+              getOptions.installationId,
+            ),
+            connectOptions,
+          );
+          const temporal = optionalTemporal();
+          return {
+            token: response.token,
+            ...(temporal === undefined
+              ? {}
+              : {
+                  expiresAt: temporal.Instant.fromEpochMilliseconds(
+                    response.expiresAt,
+                  ),
+                }),
+            headers: { authorization: `Bearer ${response.token}` },
+          };
+        },
+      );
     },
     capabilities() {
       return {
@@ -219,7 +234,7 @@ export function vercelConnectCredentials(
       };
     },
     startAuthorization(ref, startOptions) {
-      return run(ref, async (module, parsed) => {
+      return run(ref, startOptions.subject, async (module, parsed) => {
         const { url } = await module.startAuthorization(
           parsed.connector,
           params(parsed, startOptions.subject, startOptions.scopes, undefined),
@@ -229,7 +244,7 @@ export function vercelConnectCredentials(
       });
     },
     revoke(ref, revokeOptions) {
-      return run(ref, async (module, parsed) => {
+      return run(ref, revokeOptions.subject, async (module, parsed) => {
         await module.revokeToken(
           parsed.connector,
           {

@@ -261,6 +261,9 @@ export function edgeOf(value: unknown): WorkflowGraphEdge | undefined {
   };
 }
 
+/** Node ids reach generated source and SQL; `validate_workflow_graph` uses the same pattern. */
+const NODE_ID = /^[A-Za-z0-9_-]{1,100}$/;
+
 const BRANCHING: ReadonlySet<WorkflowNodeKind> = new Set([
   "condition",
   "approval",
@@ -288,13 +291,10 @@ export function validateGraph(
   let triggers = 0;
   for (const value of graph["nodes"]) {
     const id: unknown = isGraphRecord(value) ? value["id"] : undefined;
-    if (
-      !isGraphRecord(value) ||
-      typeof id !== "string" ||
-      id.length === 0 ||
-      id.length > 100
-    ) {
-      errors.push("Every node has an id of 1 to 100 characters");
+    if (!isGraphRecord(value) || typeof id !== "string" || !NODE_ID.test(id)) {
+      errors.push(
+        "Every node has an id of 1 to 100 letters, digits, underscores or hyphens",
+      );
       continue;
     }
     if (nodes.has(id)) errors.push(`Node ${id} appears twice`);

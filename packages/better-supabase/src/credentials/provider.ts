@@ -1,14 +1,56 @@
 import type { AuthState } from "../auth/resolve.ts";
 import type { AsyncResult } from "../core/result.ts";
 
+import { type DbError, dbError } from "../core/errors.ts";
+
 /**
  * Names a credential without holding it. Tables store this as a
  * `credential_ref jsonb` column; `provider` picks the `CredentialProvider`
  * and the other keys are that provider's.
  */
-export type CredentialRef = { readonly provider: string } & Readonly<
-  Record<string, unknown>
->;
+export type CredentialRef = {
+  readonly provider: string;
+  /**
+   * The tenant that owns the credential. A provider resolves, sets and
+   * revokes a ref with `tenant` only inside that tenant's namespace, so a
+   * tenant admin who picks a ref can never name another tenant's or the
+   * app's secret.
+   */
+  readonly tenant?: string;
+} & Readonly<Record<string, unknown>>;
+
+/** `ref` bound to `tenant`'s namespace. */
+export function tenantCredentialRef<R extends CredentialRef>(
+  tenant: string,
+  ref: R,
+): R & { readonly tenant: string } {
+  return { ...ref, tenant };
+}
+
+/**
+ * Whether `ref` belongs to `tenant`: its `tenant` is exactly that tenant.
+ * Without a tenant (an app-level row), only a ref without one belongs.
+ */
+export function credentialRefInTenant(
+  ref: CredentialRef,
+  tenant: string | undefined,
+): boolean {
+  const owner: unknown = ref.tenant;
+  return tenant === undefined
+    ? owner === undefined
+    : typeof owner === "string" && owner === tenant;
+}
+
+/** The error for a ref that names a credential outside the row's tenant. */
+export function foreignCredentialRef(tenant: string | undefined): DbError {
+  return dbError(
+    "forbidden",
+    tenant === undefined
+      ? "An app-level credential_ref can't name a tenant's credential"
+      : `The credential_ref names a credential outside tenant "${tenant}"`,
+    { hint: "CREDENTIAL_REF_FOREIGN" },
+  );
+}
 
 /** Whose credential to use: the app's own, or one a user connected. */
 export type CredentialSubject =

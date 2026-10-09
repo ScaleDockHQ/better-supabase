@@ -418,14 +418,13 @@ describe("createMcp", () => {
     });
   });
 
-  it("enforces requiredScopes on delegated tokens and keeps the scopes alias", async () => {
+  it("enforces requiredScopes on delegated tokens", async () => {
     const scoped = createMcp(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
       name: "crm",
       version: "1.0.0",
-      // oxlint-disable-next-line typescript/no-deprecated -- checks the alias.
-      scopes: ["openid"],
+      advertisedScopes: ["openid"],
       requiredScopes: ["crm.read"],
     });
     const call = async (claims: Record<string, unknown>) =>

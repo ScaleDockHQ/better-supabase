@@ -21,6 +21,7 @@ import type {
 
 import { DEFAULT_CLAIMS, tenantClaimPaths } from "../../config/index.ts";
 import { toCamel } from "../../index.ts";
+import { resolveProviderSql } from "../../sql/index.ts";
 import { toCatalog } from "../introspect/catalog.ts";
 import {
   type GeneratorMetadata,
@@ -833,7 +834,18 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
                   name.replaceAll(/[A-Z]/g, (char) => `-${char.toLowerCase()}`),
                 public: bucket.public ?? false,
                 path: bucket.path,
-                ...(bucket.policy ? { policy: bucket.policy } : {}),
+                ...(bucket.policy
+                  ? {
+                      policy:
+                        typeof bucket.policy === "string"
+                          ? bucket.policy
+                          : resolveProviderSql(
+                              `buckets.${name}`,
+                              bucket.policy,
+                              config.authorization?.functions,
+                            ),
+                    }
+                  : {}),
                 ...(bucket.policy === "tenant" && tenantClaim
                   ? { tenant: { claim: tenantClaim } }
                   : {}),

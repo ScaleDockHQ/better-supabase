@@ -71,6 +71,10 @@ export type AuthState<C = unknown, P = unknown> =
       readonly organizationId?: string;
       readonly userId?: string;
       readonly scopes: readonly string[];
+      /** When the key was created. */
+      readonly createdAt?: Temporal.Instant;
+      /** The user who created the key, when the row records one. */
+      readonly createdBy?: string;
       /** `sub` (the user, or the key for an organization key), `role: authenticated` and `api_key`. */
       readonly claims: JWTClaims;
     }

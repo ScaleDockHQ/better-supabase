@@ -367,7 +367,7 @@ describe.skipIf(!live)("organizations member guards", () => {
       const staff = await s.user("staff");
       const member = await s.user("member");
       await s.client.query(`
-        create function ${schema}.permitted_organization_ids(permission text) returns setof uuid
+        create function ${schema}.organization_ids_with(permission text) returns setof uuid
           language sql stable as $$
             select m.organization_id from ${schema}.team_members m
             where m.user_id = auth.uid() and m.role = 'owner' $$;
@@ -381,7 +381,7 @@ describe.skipIf(!live)("organizations member guards", () => {
           scope: "organization",
           idType: "uuid",
           functions: {
-            idsWith: `${schema}.permitted_{scope}_ids({permission})`,
+            idsWith: `${schema}.{scope}_ids_with({permission})`,
             isPlatform: `${schema}.is_platform({permission})`,
           },
         },

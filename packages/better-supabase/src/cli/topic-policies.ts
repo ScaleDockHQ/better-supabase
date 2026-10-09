@@ -1,6 +1,9 @@
 import { resolve } from "node:path";
 
-import type { ResolvedConfig } from "../config/index.ts";
+import type {
+  AuthorizationFunctions,
+  ResolvedConfig,
+} from "../config/index.ts";
 import type { ModuleTopic } from "../sql/index.ts";
 
 import { importFresh } from "./fresh-import.ts";
@@ -8,7 +11,7 @@ import { importFresh } from "./fresh-import.ts";
 /** What the writer reads from a `defineTopic` result. */
 interface TopicLike {
   readonly template: string;
-  sql(): string;
+  sql(options?: { readonly functions?: AuthorizationFunctions }): string;
 }
 
 const isTopic = (value: unknown): value is TopicLike =>
@@ -50,10 +53,13 @@ export async function topicPolicyFile(
   topics.sort((a, b) =>
     a.template < b.template ? -1 : a.template > b.template ? 1 : 0,
   );
+  const functions = config.authorization?.functions;
+  const sqlOf = (topic: TopicLike): string =>
+    topic.sql(functions === undefined ? undefined : { functions });
   const skipped: string[] = [];
   const written = topics.filter((topic) => {
     const owner = owned.find((entry) => owns(entry.topic, topic.template));
-    if (owner === undefined || !receivesOnly(topic.sql())) return true;
+    if (owner === undefined || !receivesOnly(sqlOf(topic))) return true;
     skipped.push(
       `-- Skipped topic ${topic.template}: the ${owner.module} module writes its receive policy.`,
     );
@@ -66,6 +72,6 @@ export async function topicPolicyFile(
   ].join("\n");
   return {
     path: policies.output,
-    contents: `${header}\n\n${written.map((topic) => topic.sql()).join("\n")}`,
+    contents: `${header}\n\n${written.map(sqlOf).join("\n")}`,
   };
 }

@@ -201,6 +201,38 @@ describe.skipIf(!live)("memory module", () => {
       );
       expect(await memory.embedPending().orThrow()).toBe(1);
 
+      await s.client.query("set local hnsw.iterative_scan = 'strict_order'");
+      await memory.archival.search(tenant, "dog", ns).orThrow();
+      expect(
+        await s.value<string>("current_setting('hnsw.iterative_scan')"),
+      ).toBe("strict_order");
+
+      await s.client.query(
+        "update better_supabase.memories set embedding = null where id = $1",
+        [fact.id],
+      );
+      const editing = createMemory({
+        transport: sqlTransport(s.sql),
+        embedder: {
+          model: embedder.model,
+          embed: async (values, options) => {
+            await s.client.query(
+              "update better_supabase.memories set content = 'The user has a cat.' where id = $1",
+              [fact.id],
+            );
+            return embedder.embed(values, options);
+          },
+        },
+      });
+      expect(await editing.embedPending().orThrow()).toBe(0);
+      expect(
+        await s.value<boolean>(
+          "(select embedding is null from better_supabase.memories where id = $1)",
+          [fact.id],
+        ),
+      ).toBe(true);
+      expect(await memory.embedPending().orThrow()).toBe(1);
+
       await s.asRole(owner);
       const chat = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1, $2)",

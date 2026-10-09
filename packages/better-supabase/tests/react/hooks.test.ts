@@ -1009,7 +1009,7 @@ describe("useNotifications", () => {
     expect(view.result.status).toBe("subscribed");
     expect(client.channel.mock.calls[0]).toEqual([
       topic,
-      { config: { private: true } },
+      { config: { private: true, broadcast: { self: false } } },
     ]);
 
     emit(topic, "notification_created", { id: "x" });
@@ -1024,6 +1024,7 @@ describe("useNotifications", () => {
     expect(view.result.status).toBe("error");
 
     view.unmount();
+    await flush();
     expect(client.removeChannel).toHaveBeenCalledTimes(1);
   });
 
@@ -1223,6 +1224,7 @@ describe("useAnnouncements", () => {
     await view.result.refresh();
     expect(view.result.error).toBeUndefined();
     view.unmount();
+    await flush();
     expect(client.removeChannel).toHaveBeenCalledTimes(1);
   });
 
@@ -1312,6 +1314,7 @@ describe("workflow run hooks", () => {
     expect(view.result.error?.message).toBe("offline");
     expect(view.result.runs).toHaveLength(2);
     view.unmount();
+    await flush();
     expect(client.removeChannel).toHaveBeenCalledTimes(1);
   });
 
@@ -1534,6 +1537,7 @@ describe("workflow builder hooks", () => {
     await view.result.refresh();
     expect(view.result.error?.message).toBe("no nodes");
     view.unmount();
+    await flush();
     expect(client.removeChannel).toHaveBeenCalledTimes(1);
   });
 
@@ -1824,12 +1828,13 @@ describe("ai-chat hooks", () => {
     first = [chat("b")];
     emit(`ai-chats:${USER}`, "chat.updated", {});
     await flush();
-    expect(view.result.items?.map((item) => item.id)).toEqual(["b"]);
+    // The reload fetches both loaded pages again.
+    expect(view.result.items?.map((item) => item.id)).toEqual(["b", "c"]);
 
     expect((await view.result.create({ title: "New" }))?.id).toBe("n");
-    expect(view.result.items?.map((item) => item.id)).toEqual(["n", "b"]);
+    expect(view.result.items?.map((item) => item.id)).toEqual(["n", "b", "c"]);
     await view.result.create({ temporary: true });
-    expect(view.result.items).toHaveLength(2);
+    expect(view.result.items).toHaveLength(3);
 
     first = [chat("a"), chat("b")];
     await view.result.refresh();
@@ -1838,18 +1843,19 @@ describe("ai-chat hooks", () => {
     );
     expect(view.result.items?.[0]?.title).toBe("Renamed");
     await view.result.remove("a");
-    expect(view.result.items?.map((item) => item.id)).toEqual(["b"]);
+    expect(view.result.items?.map((item) => item.id)).toEqual(["b", "c"]);
 
     fail = true;
     await view.result.remove("b");
     expect(view.result.error?.message).toBe("denied");
     expect(await view.result.update("b", {})).toBeUndefined();
     await view.result.refresh();
-    expect(view.result.items?.map((item) => item.id)).toEqual(["b"]);
+    expect(view.result.items?.map((item) => item.id)).toEqual(["b", "c"]);
     fail = false;
     await view.result.refresh();
     expect(view.result.error).toBeUndefined();
     view.unmount();
+    await flush();
     expect(client.removeChannel).toHaveBeenCalledTimes(1);
   });
 
@@ -1890,6 +1896,180 @@ describe("ai-chat hooks", () => {
       archived: true,
     });
     expect(once.client.channel).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  /** Holds the RPC answers `hold` picks until `release` lets them through. */
+  function heldRpc(
+    client: object,
+    answer: (fn: string, args: Record<string, unknown>) => unknown,
+  ) {
+    const held: (() => void)[] = [];
+    const control = {
+      hold: (_fn: string, _args: Record<string, unknown>) => false,
+      release: () => {
+        for (const resume of held.splice(0)) resume();
+      },
+    };
+    const rpc = withRpc(client, async (fn, args) => {
+      const value = answer(fn, args);
+      if (control.hold(fn, args))
+        await new Promise<void>((resume) => {
+          held.push(resume);
+        });
+      return value;
+    });
+    return { rpc, control };
+  }
+
+  it("keeps loaded pages on a live reload and drops an older reload's answer", async () => {
+    const { browser, client, emit } = fakeBrowser(signedIn(USER));
+    let first = [chat("a"), chat("b")];
+    let offline = false;
+    const { control } = heldRpc(client, (_fn, args) => {
+      if (!args["after"]) return { items: first, next: "cursor" };
+      if (offline) throw new Error("offline");
+      return { items: [chat("c")], next: null };
+    });
+    const view = renderHook(() => useAiChats(), undefined, {
+      client: browser,
+    });
+    await flush();
+    offline = true;
+    await view.result.loadMore();
+    expect(view.result.error?.message).toBe("offline");
+    expect(view.result.items?.map((item) => item.id)).toEqual(["a", "b"]);
+    offline = false;
+    await view.result.loadMore();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["a", "b", "c"]);
+
+    first = [chat("old")];
+    control.hold = (_fn, args) => args["after"] === undefined;
+    emit(`ai-chats:${USER}`, "chat.updated", {});
+    await flush();
+    control.hold = () => false;
+    first = [chat("new")];
+    emit(`ai-chats:${USER}`, "chat.updated", {});
+    await flush();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["new", "c"]);
+    expect(view.result.hasMore).toBe(false);
+
+    control.release();
+    await flush();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["new", "c"]);
+    view.unmount();
+  });
+
+  it("starts over when the query changes and drops the older query's page", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const { rpc, control } = heldRpc(client, (_fn, args) => {
+      const search = String(args["search"]);
+      return args["after"]
+        ? { items: [chat(`${search}-2`)], next: null }
+        : { items: [chat(`${search}-1`)], next: "cursor" };
+    });
+    const view = renderHook<string, ReturnType<typeof useAiChats>>(
+      (search) => useAiChats({ search, topic: null }),
+      "x",
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["x-1"]);
+
+    control.hold = (_fn, args) => args["after"] !== undefined;
+    const stale = view.result.loadMore;
+    const pending = view.result.loadMore();
+    view.rerender("y");
+    expect(view.result.items).toBeUndefined();
+    expect(view.result.hasMore).toBe(false);
+    control.hold = () => false;
+    await flush();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["y-1"]);
+    expect(view.result.hasMore).toBe(true);
+
+    control.release();
+    await pending;
+    await flush();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["y-1"]);
+    const calls = rpc.mock.calls.length;
+    await stale();
+    expect(rpc.mock.calls.length).toBe(calls);
+
+    await view.result.loadMore();
+    expect(view.result.items?.map((item) => item.id)).toEqual(["y-1", "y-2"]);
+    expect(rpc).toHaveBeenLastCalledWith("list_ai_chats", {
+      tenant: null,
+      search: "y",
+      after: "cursor",
+    });
+    view.unmount();
+  });
+
+  it("clears the chats on sign-out and drops answers for the old user", async () => {
+    const { browser, client, emit, setAuth } = fakeBrowser(signedIn(USER));
+    const { control } = heldRpc(client, () => ({
+      items: [chat("a")],
+      next: "cursor",
+    }));
+    const view = renderHook(() => useAiChats(), undefined, {
+      client: browser,
+    });
+    await flush();
+    expect(view.result.items).toHaveLength(1);
+
+    control.hold = () => true;
+    emit(`ai-chats:${USER}`, "chat.updated", {});
+    setAuth(SIGNED_OUT);
+    expect(view.result).toMatchObject({
+      items: undefined,
+      hasMore: false,
+      status: "closed",
+      error: undefined,
+    });
+    control.release();
+    await flush();
+    expect(view.result.items).toBeUndefined();
+    await view.result.refresh();
+    await view.result.loadMore();
+    expect(view.result.items).toBeUndefined();
+    await flush();
+    expect(client.removeChannel).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+
+  it("clears the old path while another chat loads and ignores its answers", async () => {
+    const { browser, client } = fakeBrowser(signedIn(USER));
+    const { control } = heldRpc(client, (fn, args) =>
+      fn === "switch_ai_branch"
+        ? { leaf_id: "a2" }
+        : [message(`${String(args["chat"])}-u`, null)],
+    );
+    const view = renderHook<string | null, ReturnType<typeof useAiChatTree>>(
+      (id) => useAiChatTree(id, { topic: null }),
+      "c1",
+      { client: browser },
+    );
+    await flush();
+    expect(view.result.path?.map((item) => item.id)).toEqual(["c1-u"]);
+
+    control.hold = (_fn, args) => args["chat"] === "c1";
+    const { refresh, switchBranch } = view.result;
+    const refreshing = refresh();
+    const switching = switchBranch("a2");
+    view.rerender("c2");
+    expect(view.result.path).toBeUndefined();
+    await flush();
+    expect(view.result.path?.map((item) => item.id)).toEqual(["c2-u"]);
+
+    control.release();
+    await refreshing;
+    await switching;
+    await flush();
+    expect(view.result.path?.map((item) => item.id)).toEqual(["c2-u"]);
+    expect(view.result.error).toBeUndefined();
+
+    view.rerender(null);
+    expect(view.result.path).toBeUndefined();
     view.unmount();
   });
 

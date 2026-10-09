@@ -19,6 +19,7 @@ import {
   ModerationBlockedError,
   moderationMiddleware,
 } from "../../../src/ai-sdk/agents/index.ts";
+import { DbException } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 import { fakeChats } from "../chat/fakes.ts";
 
@@ -190,6 +191,104 @@ describe("createAgentRuntime", () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  describe("toolApproval", () => {
+    const calling = () => {
+      let calls = 0;
+      return new MockLanguageModelV4({
+        doGenerate: () => {
+          calls += 1;
+          return Promise.resolve(
+            calls === 1
+              ? {
+                  content: [
+                    {
+                      type: "tool-call" as const,
+                      toolCallId: "call1",
+                      toolName: "a",
+                      input: "{}",
+                    },
+                  ],
+                  finishReason: {
+                    unified: "tool-calls" as const,
+                    raw: "tool_calls",
+                  },
+                  usage,
+                  warnings: [],
+                }
+              : {
+                  content: [{ type: "text" as const, text: "Done" }],
+                  finishReason: { unified: "stop" as const, raw: "stop" },
+                  usage,
+                  warnings: [],
+                },
+          );
+        },
+      });
+    };
+    const run = async (
+      toolApproval: NonNullable<
+        Parameters<typeof createAgentRuntime>[0]["toolApproval"]
+      >,
+      policies: Record<string, "ask" | "auto"> = {},
+    ) => {
+      const execute = vi.fn(() => Promise.resolve("ran"));
+      const runtime = createAgentRuntime({
+        agent: agent(),
+        model: calling,
+        tools: {
+          a: tool({
+            description: "a",
+            inputSchema: jsonSchema({ type: "object" }),
+            execute,
+          }),
+        },
+        policies,
+        toolApproval,
+      });
+      const result = await runtime.generate({ prompt: "Hi" });
+      const parts = result.steps.flatMap((step) => step.content);
+      return {
+        execute,
+        types: parts.map((part) => part.type),
+        responses: parts.filter(
+          (part) => part.type === "tool-approval-response",
+        ),
+      };
+    };
+
+    it("runs the app's check and lets it approve", async () => {
+      const approve = vi.fn(() => "approved" as const);
+      const { execute } = await run(approve);
+      expect(approve).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolCall: expect.objectContaining({ toolName: "a" }),
+        }),
+      );
+      expect(execute).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the tenant's ask over the app's approval", async () => {
+      const { execute, types } = await run(() => "approved", { a: "ask" });
+      expect(types).toContain("tool-approval-request");
+      expect(execute).not.toHaveBeenCalled();
+    });
+
+    it("denies when the app denies or its check throws", async () => {
+      for (const approve of [
+        () => ({ type: "denied" as const, reason: "not yours" }),
+        () => {
+          throw new Error("down");
+        },
+      ]) {
+        const { execute, responses } = await run(approve, { a: "ask" });
+        expect(responses).toEqual([
+          expect.objectContaining({ approved: false }),
+        ]);
+        expect(execute).not.toHaveBeenCalled();
+      }
+    });
+  });
+
   it("skips knowledge without scopes and empty instructions", () => {
     const runtime = createAgentRuntime({
       agent: agent({ instructions: "" }),
@@ -316,6 +415,8 @@ describe("moderationMiddleware", () => {
         model: wrapLanguageModel({ model: model("x"), middleware }),
         prompt: "Hi",
       }),
-    ).rejects.toThrow("down");
+    ).rejects.toSatisfy(
+      (error) => error instanceof DbException && error.message === "down",
+    );
   });
 });

@@ -120,8 +120,6 @@ export interface SupabaseOptions {
    * when that is lower.
    */
   readonly urlLengthLimit?: number;
-  /** @deprecated Renamed to `urlLengthLimit`, which wins when both are set. */
-  readonly maxUrlLength?: number;
   /**
    * The PostgREST version the app talks to, as in `postgrestVersion` in
    * the better-supabase config. `maxAffected` needs 13 or later, and fails
@@ -494,11 +492,9 @@ export class BetterSupabase<
    * own executor and should chunk reads the same way.
    */
   executorOptions(): PostgrestExecutorOptions {
-    // oxlint-disable-next-line typescript/no-deprecated -- the alias stays readable until it is removed.
-    const { urlLengthLimit, maxUrlLength, postgrestVersion } = this.options;
-    const limit = urlLengthLimit ?? maxUrlLength;
+    const { urlLengthLimit, postgrestVersion } = this.options;
     return {
-      ...(limit === undefined ? {} : { urlLengthLimit: limit }),
+      ...(urlLengthLimit === undefined ? {} : { urlLengthLimit }),
       ...(postgrestVersion === undefined ? {} : { postgrestVersion }),
     };
   }

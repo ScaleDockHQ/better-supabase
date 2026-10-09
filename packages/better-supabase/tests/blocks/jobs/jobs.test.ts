@@ -6,7 +6,6 @@ import type { Executor } from "../../../src/core/executor.ts";
 
 import {
   createIdempotency,
-  createInbox,
   withLease,
   createWebhookInbox,
   createJobs,
@@ -2088,11 +2087,6 @@ describe("createWebhookInbox", () => {
       body: text,
     });
   }
-
-  it("keeps createInbox as a deprecated alias", () => {
-    // oxlint-disable-next-line typescript/no-deprecated -- checks the alias.
-    expect(createInbox).toBe(createWebhookInbox);
-  });
 
   it("stores events without secrets or verify, and refuses to receive", async () => {
     const fake = fakeSql([["receive_webhook", [{ id: 3, duplicate: false }]]]);

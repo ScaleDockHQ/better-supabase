@@ -83,22 +83,6 @@ describe("actorOf and delegationOf", () => {
       ok: true,
       actor: { kind: "support", id: admin, sessionId: "s1", readOnly: true },
     });
-    // 0.5.0 minted support tokens without kind; session_id marks them until 0.6.
-    expect(
-      actorOf({
-        ...base,
-        act: { sub: admin, session_id: "s1", read_only: false, reason: "r" },
-      }),
-    ).toEqual({
-      ok: true,
-      actor: {
-        kind: "support",
-        id: admin,
-        sessionId: "s1",
-        readOnly: false,
-        reason: "r",
-      },
-    });
     expect(
       actorOf({ ...base, act: { kind: "impersonation", sub: admin } }),
     ).toEqual({ ok: true, actor: { kind: "impersonation", id: admin } });
@@ -112,6 +96,7 @@ describe("actorOf and delegationOf", () => {
       { kind: "support", sub: "a" },
       { kind: "support", sub: "a", session_id: "" },
       { sub: "a", session_id: 7 },
+      { sub: "a", session_id: "s1", read_only: false },
       { kind: "support", sub: "a", session_id: "s1", read_only: "yes" },
     ]) {
       expect(actorOf({ ...base, act })).toEqual({

@@ -293,7 +293,9 @@ begin
     ${h.resume} = case when save_ai_harness_session.fields ? 'resume_state' then save_ai_harness_session.fields -> 'resume_state' else x.${h.resume} end,
     ${h.continue} = case when save_ai_harness_session.fields ? 'continue_state' then save_ai_harness_session.fields -> 'continue_state' else x.${h.continue} end,
     ${h.sandbox} = case when save_ai_harness_session.fields ? 'sandbox_id' then save_ai_harness_session.fields ->> 'sandbox_id' else x.${h.sandbox} end,
-    ${h.status} = coalesce(v_status, x.${h.status}),
+    -- A save without a status is a turn using the sandbox: an idle session
+    -- turns active again, so a later idle_ai_harness_sessions finds it.
+    ${h.status} = coalesce(v_status, case when x.${h.status} = 'idle' then 'active' else x.${h.status} end),
     ${h.lastActiveAt} = now(),
     ${h.updatedAt} = now()
   where x.${h.chat} = v_row.${h.chat} and x.${h.harness} = v_row.${h.harness}

@@ -293,28 +293,111 @@ describe("idleSandboxStop", () => {
   });
   const job = {} as Job;
 
-  it("stops each idle sandbox and marks failures", async () => {
-    const save = vi.fn(() => AsyncResult.from(async () => ok(session("x"))));
-    const idle = vi.fn(() =>
-      AsyncResult.from(async () => ok([session("sbx_1"), session(undefined)])),
-    );
+  const sessionsOf = (
+    listed: readonly AiHarnessSession[],
+    current: (s: AiHarnessSession) => AiHarnessSession | undefined = (s) => s,
+  ) => {
+    const byHarness = new Map(listed.map((s) => [s.harnessId, s]));
+    return {
+      idle: vi.fn(() => AsyncResult.from(async () => ok(listed))),
+      load: vi.fn((_chat: string, harness: string) =>
+        AsyncResult.from(async () => {
+          const found = byHarness.get(harness);
+          return ok(found === undefined ? undefined : current(found));
+        }),
+      ),
+      save: vi.fn((_chat: string, harness: string) =>
+        AsyncResult.from(async () =>
+          harness === "sbx_bad"
+            ? err(dbError("raised", "locked", { hint: "AI_HARNESS_LOCKED" }))
+            : ok(session("x")),
+        ),
+      ),
+      lock: vi.fn(
+        (
+          _chat: string,
+          harness: string,
+          _holder: string,
+          _options?: { readonly ttlSeconds?: number },
+        ) => AsyncResult.from(async () => ok(harness !== "sbx_busy")),
+      ),
+      unlock: vi.fn(() => AsyncResult.from(async () => ok(true))),
+    };
+  };
+
+  it("locks each idle sandbox, stops it and marks failures", async () => {
+    const sessions = sessionsOf([session("sbx_1"), session(undefined)]);
     const stop = vi.fn(async (s: AiHarnessSession) => {
       if (s.sandboxId === undefined) throw new Error("gone");
     });
     const handler = idleSandboxStop({
-      sessions: { idle, save },
+      sessions,
       stop,
       idleSeconds: 60,
       size: 10,
+      lockSeconds: 30,
     });
     const result = await handler(undefined, job, new AbortController().signal);
-    expect(result).toEqual({ stopped: 1, failed: 1, errors: ["h: gone"] });
-    expect(idle).toHaveBeenCalledWith({ idleSeconds: 60, size: 10 });
-    expect(save).toHaveBeenCalledWith("c1", "sbx_1", {
-      status: "stopped",
-      sandboxId: null,
+    expect(result).toEqual({
+      stopped: 1,
+      failed: 1,
+      skipped: 0,
+      errors: ["h: gone"],
     });
-    expect(save).toHaveBeenCalledWith("c1", "h", { status: "error" });
+    expect(sessions.idle).toHaveBeenCalledWith({ idleSeconds: 60, size: 10 });
+    const holder = sessions.lock.mock.calls[0]?.[2];
+    expect(holder).toMatch(/^idle-sandbox-stop:/);
+    expect(sessions.lock).toHaveBeenCalledWith("c1", "sbx_1", holder, {
+      ttlSeconds: 30,
+    });
+    expect(sessions.save).toHaveBeenCalledWith(
+      "c1",
+      "sbx_1",
+      { status: "stopped", sandboxId: null },
+      { holder },
+    );
+    expect(sessions.save).toHaveBeenCalledWith(
+      "c1",
+      "h",
+      { status: "error" },
+      { holder },
+    );
+    expect(sessions.unlock).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips sessions a turn holds or used, and reports failed saves", async () => {
+    const used = session("sbx_used");
+    const sessions = sessionsOf(
+      [session("sbx_busy"), used, session("sbx_bad")],
+      (s) =>
+        s === used
+          ? {
+              ...s,
+              lastActiveAt: Temporal.Instant.from("2026-01-02T00:00:00Z"),
+            }
+          : s,
+    );
+    const stop = vi.fn(async () => {});
+    const result = await idleSandboxStop({ sessions, stop })(
+      undefined,
+      job,
+      new AbortController().signal,
+    );
+    expect(result).toEqual({
+      stopped: 0,
+      failed: 1,
+      skipped: 2,
+      errors: ["sbx_bad: locked"],
+    });
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(sessions.lock.mock.calls[0]?.[3]).toEqual({ ttlSeconds: 120 });
+    expect(sessions.save).toHaveBeenCalledWith(
+      "c1",
+      "sbx_used",
+      { status: "active" },
+      expect.anything(),
+    );
+    expect(sessions.unlock).toHaveBeenCalledTimes(2);
   });
 
   it("throws when the idle sessions can't be read", async () => {
@@ -324,7 +407,7 @@ describe("idleSandboxStop", () => {
       ),
     );
     const handler = idleSandboxStop({
-      sessions: { idle, save: vi.fn() },
+      sessions: { ...sessionsOf([]), idle },
       stop: vi.fn(),
     });
     await expect(

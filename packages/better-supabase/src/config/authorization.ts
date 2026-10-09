@@ -29,6 +29,17 @@ export interface AuthorizationFunctions {
   readonly canAssign?: string;
   /** Whether `{user}` may assign `{role}` in `{tenant}`. */
   readonly canAssignFor?: string;
+  /**
+   * The permission keys `{user}` holds in `{tenant}`, as a `text[]`. It
+   * fills `member_permissions` and the `permissions` claim; without it
+   * both are empty.
+   */
+  readonly permissionsFor?: string;
+  /**
+   * Whether the caller may decide the tool call `{tool}` (text) waits on in
+   * `{tenant}`. Without it only the chat's owner and the service role decide.
+   */
+  readonly canApprove?: string;
 }
 
 /** One scope the provider decides permissions in, such as `organization`. */
@@ -144,6 +155,25 @@ export interface AuthorizationProvider {
   /** `schema.table.column` of every column that decides access (BS213). */
   readonly decidingColumns?: readonly string[];
   readonly tokenHook?: AuthorizationTokenHook;
+  /** How `canApprove` decisions are made. */
+  readonly approvals?: {
+    /** The user who asked for the tool call can't approve it. Default `false`. */
+    readonly distinctApprover?: boolean;
+  };
   /** What the provider found wrong while building this, for doctor. */
   readonly problems?: readonly string[];
+}
+
+/**
+ * The error for a provider built for another API version, or `undefined`
+ * for version 1.
+ */
+export function providerApiProblem(provider: {
+  readonly name?: unknown;
+  readonly apiVersion?: unknown;
+}): string | undefined {
+  const version = provider.apiVersion;
+  if (version === 1) return undefined;
+  const name = typeof provider.name === "string" ? provider.name : "provider";
+  return `authorization "${name}" targets authorization provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`;
 }

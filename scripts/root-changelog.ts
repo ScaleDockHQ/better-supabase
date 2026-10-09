@@ -1,11 +1,11 @@
+// Prepends a dated section with every pending changeset summary to the root
+// CHANGELOG.md. `changeset version` deletes the changeset files, so
+// `pnpm version-packages` runs this first.
 import { assembleReleasePlan } from "@changesets/assemble-release-plan";
 import { readConfig } from "@changesets/config";
 import { readPreState } from "@changesets/pre";
 import { readChangesets } from "@changesets/read";
 import { getPackages } from "@manypkg/get-packages";
-// Prepends a dated section with every pending changeset summary to the root
-// CHANGELOG.md. `changeset version` deletes the changeset files, so
-// `pnpm version-packages` runs this first.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cwd, exit } from "node:process";

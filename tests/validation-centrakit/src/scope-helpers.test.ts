@@ -6,10 +6,10 @@ import { dbUrl, reachable } from "./stack.ts";
 
 const live = await reachable();
 
-describe.skipIf(!live)("PermDock policy shapes (pgTAP)", () => {
-  it("passes every assertion in permitted-scopes.test.sql", async () => {
+describe.skipIf(!live)("authorization provider policy shapes (pgTAP)", () => {
+  it("passes every assertion in scope-helpers.test.sql", async () => {
     const file = await readFile(
-      new URL("../supabase/permitted-scopes.test.sql", import.meta.url),
+      new URL("../supabase/scope-helpers.test.sql", import.meta.url),
       "utf8",
     );
     // The file rolls back its own transaction, extension included.

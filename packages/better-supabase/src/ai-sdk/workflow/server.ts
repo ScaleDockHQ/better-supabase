@@ -160,8 +160,15 @@ function streamOf<T>(iterable: AsyncIterable<T>): ReadableStream<T> {
 
 async function* chunksOf(
   stream: ReadableStream<UIMessageChunk>,
+  signal?: AbortSignal,
 ): AsyncGenerator<UIMessageChunk> {
   const reader = stream.getReader();
+  // getReadable takes no signal: cancelling the reader closes the World's stream.
+  const cancel = (): void => {
+    reader.cancel(signal?.reason).catch(() => undefined);
+  };
+  if (signal?.aborted === true) cancel();
+  else signal?.addEventListener("abort", cancel, { once: true });
   try {
     for (;;) {
       const next = await reader.read();
@@ -169,6 +176,7 @@ async function* chunksOf(
       yield next.value;
     }
   } finally {
+    signal?.removeEventListener("abort", cancel);
     reader.releaseLock();
   }
 }
@@ -179,6 +187,7 @@ function segmentChunks(
   streamId: string,
   messageId: string | undefined,
   uiStartIndex: number,
+  signal?: AbortSignal,
 ): ReadableStream<UIMessageChunk> {
   const parts = getRun(workflowRunId).getReadable<ModelCallStreamPart>({
     namespace: streamId,
@@ -196,7 +205,7 @@ function segmentChunks(
         },
       }),
     );
-  return streamOf(normalizeUIMessageStreamParts(chunksOf(chunks)));
+  return streamOf(normalizeUIMessageStreamParts(chunksOf(chunks, signal)));
 }
 
 /** `stream` once its first chunk arrives, or `undefined` when reading it fails. */
@@ -322,7 +331,18 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         }),
       );
     }
-    await context.runs.attach(runId, workflowRunId);
+    const attached = await context.runs.attach(runId, workflowRunId);
+    if (!attached.ok) {
+      // Without the link, stop and resume can't find the run: end it.
+      await getRun(workflowRunId)
+        .cancel()
+        .catch(() => undefined);
+      await context.chats.runs.release(chat.id, streamId, {
+        status: "error",
+        error: attached.error.message,
+      });
+      return problemResponse(attached.error);
+    }
     return streamSegment(context, chat, workflowRunId, streamId, messageId);
   }
 
@@ -488,6 +508,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
             streamId,
             run.assistantMessageId,
             startIndex,
+            resumeOptions.signal,
           ).pipeThrough(new JsonToSseTransformStream()),
         );
       } catch {
@@ -522,13 +543,21 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     try {
       await resumeHook(durableStopToken(workflowRunId), {});
     } catch {
+      let cancelled = true;
       try {
         await getRun(workflowRunId).cancel();
-      } finally {
-        await context.chats.runs.release(chatId, stopped.data.streamId, {
-          status: "stopped",
-        });
+      } catch {
+        cancelled = false;
       }
+      await context.chats.runs.release(chatId, stopped.data.streamId, {
+        status: "stopped",
+      });
+      if (!cancelled)
+        return problemResponse(
+          dbError("unexpected", "The answer could not be stopped.", {
+            code: "AI_CHAT_STOP_FAILED",
+          }),
+        );
     }
     return new Response(null, { status: 204 });
   }

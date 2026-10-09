@@ -816,21 +816,6 @@ grant select (${readable.join(", ")}) on ${log} to authenticated;`
 }`;
 }
 
-/** The 0.4 table name and columns, read-only, until the next minor release. */
-function legacyView(ctx: ModuleContext): string {
-  const log = ctx.table("log");
-  const view = `${sqlIdent(ctx.tableName("log").schema)}.audit_log`;
-  return `-- Recreated, since new log columns change what l.* expands to.
-drop view if exists ${view};
-create view ${view}
-  with (security_invoker = true) as
-  select l.*, l.${ctx.col("log", "occurredAt")} as at, l.${ctx.col("log", "tenant")} as org_id
-  from ${log} l;
-comment on view ${view} is 'deprecated: use ${ctx.tableName("log").schema}.${ctx.tableName("log").name}';
-revoke all on ${view} from anon, authenticated;
-grant select on ${view} to service_role;`;
-}
-
 function auditSql(ctx: ModuleContext, layout: ModuleLayout): string {
   const restricted = restrictedOn(ctx);
   const tenantColumn = ctx.text(
@@ -867,7 +852,7 @@ export const AUDIT: ModuleDefinition = {
       : [],
   target: "schema",
   modes: ["managed", "adopt"],
-  version: 4,
+  version: 5,
   names: NAMES,
   contract: () => [
     {
@@ -922,7 +907,7 @@ export const AUDIT: ModuleDefinition = {
     {
       from: 1,
       description:
-        "Renames audit_log to audit_events (with a read-only audit_log view until 0.6), at to occurred_at, org_id to organization_id and audit_trigger() to audit_row_change(); audit() takes redact, category, event_prefix, target_type and tenant_column; audit_event() records semantic events; purge_audit_log() takes a tenant.",
+        "Renames audit_log to audit_events (with a read-only audit_log view, dropped in 0.6), at to occurred_at, org_id to organization_id and audit_trigger() to audit_row_change(); audit() takes redact, category, event_prefix, target_type and tenant_column; audit_event() records semantic events; purge_audit_log() takes a tenant.",
       sql: (ctx) =>
         [
           ctx.manages
@@ -967,6 +952,13 @@ export const AUDIT: ModuleDefinition = {
         "The row trigger reads the JWT and the request headers once per row; list_audit_events and count_audit_events filter only on the arguments you pass; per-tenant retention deletes tenant by tenant through the index.",
       sql: () => "",
     },
+    {
+      from: 4,
+      description:
+        "Drops the read-only audit_log view that 0.5 kept for the 0.4 names; read better_supabase.audit_events.",
+      sql: (ctx) =>
+        `drop view if exists ${sqlIdent(ctx.tableName("log").schema)}.audit_log;`,
+    },
   ],
   deprecated: [
     {
@@ -974,7 +966,7 @@ export const AUDIT: ModuleDefinition = {
       symbol: "better_supabase.audit_log",
       use: "better_supabase.audit_events (occurred_at, organization_id)",
       since: "0.5.0",
-      wrapper: (ctx) => (ctx.manages ? legacyView(ctx) : ""),
+      removed: "0.6.0",
     },
     {
       kind: "function",

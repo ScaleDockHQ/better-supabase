@@ -16,7 +16,7 @@ import {
   supabaseEmbed,
   toSourceParts,
 } from "../../../src/ai-sdk/embeddings/index.ts";
-import { dbError } from "../../../src/core/errors.ts";
+import { DbException, dbError } from "../../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 
 const hit = (documentId: string, index: number, score = 1): KnowledgeHit => ({
@@ -141,7 +141,9 @@ describe("searchTool", () => {
         { query: "q" },
         { toolCallId: "c3", messages: [], context: {} },
       ),
-    ).rejects.toThrow("nope");
+    ).rejects.toSatisfy(
+      (error) => error instanceof DbException && error.message === "nope",
+    );
   });
 });
 

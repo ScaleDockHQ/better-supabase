@@ -155,6 +155,47 @@ describe.skipIf(!live)("knowledge module", () => {
     }
   });
 
+  it("keeps a chunk rewritten during its embedding waiting", async () => {
+    const s = await BlockSession.open(pool);
+    try {
+      await s.install(["organizations", "knowledge"]);
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+      let rewrite = true;
+      const inner = wordEmbedder();
+      const racing: Embedder = {
+        model: inner.model,
+        embed: async (values, options) => {
+          if (rewrite) {
+            rewrite = false;
+            await s.client.query(
+              "update better_supabase.knowledge_chunks set content = 'Koalas sleep' where content = 'Penguins swim'",
+            );
+          }
+          return inner.embed(values, options);
+        },
+      };
+      const knowledge = createKnowledge({
+        transport: sqlTransport(s.sql),
+        embedder: racing,
+      });
+      await s.asRole(owner);
+      const doc = await knowledge.ingest
+        .text(tenant, { title: "Race", text: "Penguins swim" })
+        .orThrow();
+      await s.service();
+      expect(await knowledge.process(doc.id).orThrow()).toBe(0);
+      const [row] = await s.rows<{ fresh: boolean }>(
+        "select embedding_hash = md5(content) as fresh from better_supabase.knowledge_chunks where document_id = $1",
+        [doc.id],
+      );
+      expect(row?.fresh).toBe(true);
+      expect(inner.calls).toBe(2);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("marks a document failed when the embed job gives up", async () => {
     const s = await BlockSession.open(pool);
     try {

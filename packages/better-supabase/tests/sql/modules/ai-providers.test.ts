@@ -48,6 +48,12 @@ describe("ai-providers module", () => {
     }
   });
 
+  it("rejects a key credential_ref outside the key's tenant", () => {
+    expect(body()).toContain(
+      "(save_ai_provider_key.credential_ref ->> 'tenant') is distinct from (save_ai_provider_key.tenant)::text",
+    );
+  });
+
   it("takes the poll and idle intervals from its options", () => {
     const sql = body({
       "ai-providers": { options: { pollEvery: 120, idleAfter: 900 } },

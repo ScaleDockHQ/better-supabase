@@ -62,7 +62,7 @@ describe("workflow-sdk-world module", () => {
     );
     expect(sql).toContain("- 'bs.tenant' - 'bs.actor'");
     expect(sql).toContain(
-      "better_supabase.claim_jobs('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1))",
+      `"better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1))`,
     );
   });
 
@@ -90,7 +90,7 @@ describe("workflow-sdk-world module", () => {
       },
     })!;
     expect(body).toContain(
-      "claim_jobs('wf_q', 40, greatest(coalesce(batch, 5), 1))",
+      `"claim_jobs"('wf_q', 40, greatest(coalesce(batch, 5), 1))`,
     );
     expect(body).toContain(
       "to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)')",

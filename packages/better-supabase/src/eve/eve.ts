@@ -15,7 +15,7 @@ import type {
 import { resolveAuth } from "../auth/resolve.ts";
 import { isAnonymousUser } from "../auth/view.ts";
 import { isRecord } from "../blocks/shared.ts";
-import { claimAt, tenantClaimPaths } from "../core/claims.ts";
+import { claimAt, DEFAULT_CLAIMS, tenantClaimPaths } from "../core/claims.ts";
 import { type DbError, DbException } from "../core/errors.ts";
 
 /**
@@ -65,6 +65,8 @@ export interface SupabaseAuthOptions extends Omit<
 > {
   /** The tenant claim, `config.claims.tenant`. Defaults to `tenant_id`. */
   readonly tenantClaim?: string;
+  /** The memberships claim, `config.claims.memberships`. Defaults to `memberships`. */
+  readonly membershipsClaim?: string;
   /** Extra attributes from the verified claims, merged over the defaults. */
   readonly attributes?: (
     claims: Readonly<Record<string, unknown>>,
@@ -74,8 +76,9 @@ export interface SupabaseAuthOptions extends Omit<
 function rolesIn(
   claims: Readonly<Record<string, unknown>>,
   tenantId: string | undefined,
+  claim: string,
 ): readonly string[] {
-  const memberships = claims["memberships"];
+  const memberships = claims[claim];
   const strings = (value: unknown): string[] =>
     Array.isArray(value)
       ? value.filter((role): role is string => typeof role === "string")
@@ -98,7 +101,10 @@ function rolesIn(
 /** The eve principal for a verified Supabase user, or `null` for anyone else. */
 export function principalOf(
   auth: AuthState,
-  options: Pick<SupabaseAuthOptions, "tenantClaim" | "attributes"> = {},
+  options: Pick<
+    SupabaseAuthOptions,
+    "tenantClaim" | "membershipsClaim" | "attributes"
+  > = {},
 ): EveSessionAuth | null {
   if (auth.kind !== "user") return null;
   const claims: Readonly<Record<string, unknown>> = auth.claims;
@@ -115,7 +121,11 @@ export function principalOf(
     ...(issuer === undefined ? {} : { issuer }),
     attributes: {
       ...(tenantId === undefined ? {} : { tenantId }),
-      roles: rolesIn(claims, tenantId),
+      roles: rolesIn(
+        claims,
+        tenantId,
+        options.membershipsClaim ?? DEFAULT_CLAIMS.memberships,
+      ),
       isAnonymous: isAnonymousUser(claims) ? "true" : "false",
       ...options.attributes?.(claims),
     },

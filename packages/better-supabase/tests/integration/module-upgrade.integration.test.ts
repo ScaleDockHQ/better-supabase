@@ -33,7 +33,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   afterAll(() => pool.end());
 
-  it("renames the 0.4.0 tables and columns and keeps rows, triggers and the old names", async () => {
+  it("renames the 0.4.0 tables and columns and keeps rows and triggers, and drops the old view", async () => {
     const client = await pool.connect();
     const table = `public.bs_upgrade_${crypto.randomUUID().slice(0, 8)}`;
     const organization = crypto.randomUUID();
@@ -93,16 +93,10 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
       ).toBe(true);
       expect(events[0]!.occurred_at).toBeInstanceOf(Date);
 
-      const { rows: legacy } = await client.query<{ org_id: string; at: Date }>(
-        "select org_id, at from better_supabase.audit_log where table_name = $1",
-        [table],
-      );
-      expect(legacy).toHaveLength(2);
-      expect(legacy[0]!.org_id).toBe(organization);
-
       const { rows: names } = await client.query<Record<string, unknown>>(
         `select
            to_regprocedure('better_supabase.audit_row_change()') is not null as row_change,
+           to_regclass('better_supabase.audit_log') is null as legacy_view_removed,
            to_regclass('better_supabase.audit_events_record_idx') is not null as record_idx,
            to_regclass('better_supabase.audit_events_organization_idx') is not null as organization_idx,
            (select count(*)::int from better_supabase.memberships where organization_id = $1) as members,
@@ -111,6 +105,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
       );
       expect(names[0]).toEqual({
         row_change: true,
+        legacy_view_removed: true,
         record_idx: true,
         organization_idx: true,
         members: 1,

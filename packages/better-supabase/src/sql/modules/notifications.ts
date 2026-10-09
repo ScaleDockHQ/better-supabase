@@ -606,6 +606,7 @@ export const NOTIFICATIONS: ModuleDefinition = {
   description:
     "In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.",
   requires: ["updated-at"],
+  providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 4,

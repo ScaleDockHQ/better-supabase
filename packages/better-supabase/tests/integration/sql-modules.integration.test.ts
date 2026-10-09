@@ -1397,7 +1397,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         scope: "organization",
         idType: "uuid",
         functions: {
-          idsWith: `${pd}.permitted_{scope}_ids({permission})`,
+          idsWith: `${pd}.{scope}_ids_with({permission})`,
           isPlatform: `${pd}.is_platform({permission})`,
         },
       },
@@ -1417,7 +1417,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query("begin");
       await client.query(`
         create schema ${pd};
-        create function ${pd}.permitted_organization_ids(permission text) returns setof uuid
+        create function ${pd}.organization_ids_with(permission text) returns setof uuid
         language sql stable as $$ select '${ACME}'::uuid where permission = 'members.read' $$;
         create function ${pd}.is_platform(permission text) returns boolean
         language sql stable as $$ select false $$;`);

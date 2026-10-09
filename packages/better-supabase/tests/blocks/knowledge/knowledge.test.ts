@@ -221,9 +221,9 @@ describe("createKnowledge", () => {
 
   it("processes pending chunks in batches until the document is ready", async () => {
     let pending = [
-      { idx: 0, content: "a" },
-      { idx: 1, content: "b" },
-      { idx: 2, content: "c" },
+      { idx: 0, content: "a", hash: "ha" },
+      { idx: 1, content: "b", hash: "hb" },
+      { idx: 2, content: "c", hash: "hc" },
     ];
     const { transport: service, calls } = fakeTransport({
       pending_knowledge_chunks: (args) =>
@@ -252,13 +252,54 @@ describe("createKnowledge", () => {
       document_id: "d1",
       embeddings: {
         items: [
-          { idx: 0, embedding: "[0,0.5]" },
-          { idx: 1, embedding: "[1,0.5]" },
+          { idx: 0, hash: "ha", embedding: "[0,0.5]" },
+          { idx: 1, hash: "hb", embedding: "[1,0.5]" },
         ],
       },
       model: "m1",
     });
     expect(await knowledge.process("d1").orThrow()).toBe(0);
+  });
+
+  it("rejects vectors that don't match the chunks", async () => {
+    const { transport, calls } = fakeTransport({
+      pending_knowledge_chunks: () => [
+        { idx: 0, content: "a", hash: "ha" },
+        { idx: 1, content: "b", hash: "hb" },
+      ],
+      set_knowledge_embeddings: () => 0,
+    });
+    for (const vectors of [
+      [[1, 2]],
+      [[1, 2], [3]],
+      [
+        [1, 2],
+        [Number.NaN, 1],
+      ],
+      [[], []],
+    ]) {
+      const result = await createKnowledge({
+        transport,
+        embedder: { model: "m1", embed: () => Promise.resolve(vectors) },
+      }).process("d1");
+      expect(result.ok ? undefined : result.error).toMatchObject({
+        kind: "invalid_input",
+        hint: "EMBEDDING_INVALID",
+      });
+    }
+    expect(calls.some((c) => c.fn === "set_knowledge_embeddings")).toBe(false);
+  });
+
+  it("stops when a round leaves the same chunks waiting", async () => {
+    const { transport, calls } = fakeTransport({
+      pending_knowledge_chunks: () => [{ idx: 0, content: "a", hash: "old" }],
+      set_knowledge_embeddings: () => 1,
+    });
+    const knowledge = createKnowledge({ transport, embedder: embedder() });
+    expect(await knowledge.process("d1").orThrow()).toBe(1);
+    expect(
+      calls.filter((c) => c.fn === "set_knowledge_embeddings"),
+    ).toHaveLength(2);
   });
 
   it("stops processing on abort and fails without an embedder", async () => {
@@ -295,16 +336,39 @@ describe("createKnowledge", () => {
         args["document_id"] === "d1" ? [] : [{ idx: 0, content: "x" }],
       fail_knowledge_document: () => true,
     });
+    const embed = vi.fn(() => Promise.reject(new Error("down")));
     const knowledge = createKnowledge({
       transport,
-      embedder: { model: "m1", embed: () => Promise.reject(new Error("down")) },
+      embedder: { model: "m1", embed },
     });
     expect(await knowledge.drain({ batch: 5 }).orThrow()).toBe(1);
+    expect(embed).toHaveBeenCalledTimes(3);
     expect(calls.find((c) => c.fn === "fail_knowledge_document")?.args).toEqual(
       {
         document_id: "d2",
         error: "down",
       },
+    );
+    const flaky = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("blip"))
+      .mockResolvedValue([[1]]);
+    const retried = fakeTransport({
+      pending_knowledge_documents: () => ["d3"],
+      pending_knowledge_chunks: () => [{ idx: 0, content: "x", hash: "h" }],
+      set_knowledge_embeddings: () => 0,
+      fail_knowledge_document: () => true,
+    });
+    expect(
+      await createKnowledge({
+        transport: retried.transport,
+        embedder: { model: "m1", embed: flaky },
+      })
+        .drain({ attempts: 2 })
+        .orThrow(),
+    ).toBe(1);
+    expect(retried.calls.some((c) => c.fn === "fail_knowledge_document")).toBe(
+      false,
     );
     const controller = new AbortController();
     controller.abort();

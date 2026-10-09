@@ -3,6 +3,7 @@ import type { ModuleDefinition } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
+import { MODULE_PERMISSIONS } from "./access-model.ts";
 import {
   WORLD_POSTGRES_DDL,
   WORLD_POSTGRES_VERSION,
@@ -47,6 +48,8 @@ function build(ctx: ModuleContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const workflows = ctx.of("workflows");
   const record = workflows.fn("record_workflow_run");
+  const runKey = workflows.permission("run", MODULE_PERMISSIONS.workflows.run);
+  const claimJobs = ctx.of("jobs").fn("claim_jobs");
   const id = ctx.idType;
   const queue = sqlString(deliveryQueueOf(ctx));
   const batch = Math.max(1, Math.trunc(ctx.number("batch", 20)));
@@ -79,7 +82,9 @@ grant usage, select on all sequences in schema workflow to service_role;
 create index if not exists workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
 
 -- Copies each World run into workflow_runs: its tenant and actor come from
--- the bs.tenant and bs.actor attributes that startFor sets.
+-- the bs.tenant and bs.actor attributes that startFor sets. A run with an
+-- actor keeps its tenant only when the actor holds workflow.run there; a
+-- run without one was started by the server, which is trusted.
 create or replace function ${fn("workflow_sdk_mirror_run")}()
 returns trigger
 language plpgsql
@@ -100,6 +105,10 @@ begin
   exception when others then
     v_actor := null;
   end;
+  if v_tenant is not null and v_actor is not null
+    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, ${runKey}), false) then
+    v_tenant := null;
+  end if;
   perform ${record}(
     'workflow-sdk',
     new.id,
@@ -151,7 +160,7 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets ${WORKFLOW_VAULT_SECRETS.flowUrl} and ${WORKFLOW_VAULT_SECRETS.deliverySecret} before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
-  for v_job in select * from better_supabase.claim_jobs(${queue}, ${String(lease)}, greatest(coalesce(batch, ${String(batch)}), 1)) loop
+  for v_job in select * from ${claimJobs}(${queue}, ${String(lease)}, greatest(coalesce(batch, ${String(batch)}), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := ${queue} || ':' || v_job.id::text || ':' || v_job.attempts::text;
@@ -199,7 +208,8 @@ export const WORKFLOW_SDK_WORLD: ModuleDefinition = {
   name: "workflow-sdk-world",
   title: "Workflow SDK World",
   description: `The tables of the Workflow SDK World (@workflow/world-postgres ${WORLD_POSTGRES_VERSION}) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, and a pg_net dispatcher for the delivery queue on a pg_cron schedule.`,
-  requires: ["workflows"],
+  requires: ["workflows", "jobs", "access"],
+  providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

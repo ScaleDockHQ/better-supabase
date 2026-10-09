@@ -15,6 +15,7 @@ import type {
   MemoryNamespace,
 } from "../../blocks/memory/memory.ts";
 
+import { DbException } from "../../core/db-exception.ts";
 import { SPEC_PINS } from "../../core/spec-pins.ts";
 
 const PATH: JSONSchema7 = {
@@ -176,7 +177,7 @@ export function recallTool(
         k: options.k ?? 5,
         ...(abortSignal === undefined ? {} : { signal: abortSignal }),
       });
-      if (!found.ok) throw new Error(found.error.message);
+      if (!found.ok) throw new DbException(found.error);
       return {
         memories: found.data.map((hit) => ({
           id: hit.id,
@@ -256,7 +257,7 @@ export function extractMemories(
         ? {}
         : { sourceMessageId: payload.source_message_id },
     );
-    if (!saved.ok) throw new Error(saved.error.message);
+    if (!saved.ok) throw new DbException(saved.error);
     return saved.data.length;
   };
 }

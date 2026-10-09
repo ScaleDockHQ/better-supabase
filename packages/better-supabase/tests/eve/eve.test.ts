@@ -123,6 +123,22 @@ describe("supabaseAuth", () => {
     expect((rejected as EveAuthRejection).response.status).toBe(401);
   });
 
+  it("reads roles from the configured memberships claim", () => {
+    const auth = {
+      kind: "user",
+      claims: {
+        sub: USER,
+        role: "authenticated",
+        tenant_id: ORG,
+        held: { [ORG]: ["editor"] },
+      },
+    } as unknown as Parameters<typeof principalOf>[0];
+    expect(principalOf(auth)?.attributes["roles"]).toEqual([]);
+    expect(
+      principalOf(auth, { membershipsClaim: "held" })?.attributes["roles"],
+    ).toEqual(["editor"]);
+  });
+
   it("gives a user without a tenant no roles", () => {
     expect(
       principalOf({
