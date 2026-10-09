@@ -4,18 +4,25 @@ import type { AsyncResult } from "../../core/result.ts";
 import type { Embedder } from "../knowledge/knowledge.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
-export type MemoryScope = "user" | "agent" | "chat" | "organization";
+export type MemoryScope =
+  | "user"
+  | "agent"
+  | "chat"
+  | "project"
+  | "organization";
 export type MemoryKind = "core" | "archival";
 
 /**
  * Whose memory a call reads or changes. The default is the caller's own
  * memory; `organization` memory is shared and only admins change it. The
- * service role names the user in `ownerId`.
+ * `project` scope takes a `projectId` (an ai-chat project) and no other
+ * scope does. The service role names the user in `ownerId`.
  */
 export interface MemoryNamespace {
   readonly scope?: MemoryScope;
   readonly agentId?: string;
   readonly chatId?: string;
+  readonly projectId?: string;
   readonly ownerId?: string;
 }
 
@@ -26,6 +33,7 @@ export interface MemoryRecord {
   readonly scope: MemoryScope;
   readonly agentId: string | undefined;
   readonly chatId: string | undefined;
+  readonly projectId: string | undefined;
   readonly kind: MemoryKind;
   /** A path under `/memories`, for core memory. */
   readonly path: string | undefined;

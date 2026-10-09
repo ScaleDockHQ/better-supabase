@@ -44,6 +44,7 @@ const nsArg = (ns: MemoryNamespace = {}): Record<string, string> => {
   if (ns.scope !== undefined) arg["scope"] = ns.scope;
   if (ns.agentId !== undefined) arg["agent_id"] = ns.agentId;
   if (ns.chatId !== undefined) arg["chat_id"] = ns.chatId;
+  if (ns.projectId !== undefined) arg["project_id"] = ns.projectId;
   if (ns.ownerId !== undefined) arg["owner_id"] = ns.ownerId;
   return arg;
 };

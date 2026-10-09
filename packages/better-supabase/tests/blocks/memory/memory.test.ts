@@ -17,6 +17,7 @@ const memoryRow = (overrides: Record<string, unknown> = {}) => ({
   scope: "user",
   agent_id: null,
   chat_id: null,
+  project_id: null,
   kind: "core",
   path: "/memories/a.md",
   content: "hello",
@@ -239,6 +240,22 @@ describe("createMemory", () => {
       embedding: undefined,
       model: undefined,
     });
+  });
+
+  it("reads and writes project memory", async () => {
+    const { transport, calls } = fakeTransport({
+      memory_list: () => [
+        memoryRow({ scope: "project", project_id: "p1", kind: "archival" }),
+      ],
+    });
+    const [listed] = await createMemory({ transport })
+      .archival.list("o1", { scope: "project", projectId: "p1" })
+      .orThrow();
+    expect(calls[0]?.args["ns"]).toEqual({
+      scope: "project",
+      project_id: "p1",
+    });
+    expect(listed).toMatchObject({ scope: "project", projectId: "p1" });
   });
 
   it("saves only facts it doesn't remember yet, as the service role", async () => {

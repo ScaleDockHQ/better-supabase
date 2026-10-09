@@ -21,6 +21,7 @@ const SCOPES: readonly MemoryScope[] = [
   "user",
   "agent",
   "chat",
+  "project",
   "organization",
 ];
 
@@ -39,6 +40,7 @@ export function memoryOf(value: unknown): MemoryRecord {
     scope: scopeOf(row["scope"]),
     agentId: optionalText(row["agent_id"]),
     chatId: optionalText(row["chat_id"]),
+    projectId: optionalText(row["project_id"]),
     kind: row["kind"] === "core" ? "core" : "archival",
     path: optionalText(row["path"]),
     content: textOf(row["content"]),
