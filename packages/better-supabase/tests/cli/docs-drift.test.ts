@@ -9,6 +9,7 @@ import {
   type TemplateContext,
   TEMPLATES,
 } from "../../src/cli/templates.ts";
+import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const repo = join(import.meta.dirname, "../../../..");
 const docs = join(repo, "apps/docs/content/docs");
@@ -185,3 +186,29 @@ const FACTORIES = new Set([
   "createPostgres",
   "createQueries",
 ]);
+
+describe("blocks overview", () => {
+  it("lists every module with what it requires and works with", async () => {
+    const page = await readFile(join(docs, "blocks/index.mdx"), "utf8");
+    const section = page.slice(page.indexOf("## How modules work together"));
+    const cell = (names: readonly string[]): string =>
+      names.length === 0
+        ? "none"
+        : names
+            .map((name) =>
+              name === "*" ? "every installed module" : `\`${name}\``,
+            )
+            .join(", ");
+    const rows = [
+      ...section.matchAll(/^\| `([a-z-]+)` +\| (.+?) +\| (.+?) +\|$/gm),
+    ].map(([, name, requires, works]) => `${name} | ${requires} | ${works}`);
+    const expected = Object.values(SQL_MODULES).map((module) => {
+      const required = new Set(module.requires);
+      const works = (module.integrates ?? []).filter(
+        (name) => !required.has(name),
+      );
+      return `${module.name} | ${cell(module.requires)} | ${cell(works)}`;
+    });
+    expect(rows).toEqual(expected);
+  });
+});

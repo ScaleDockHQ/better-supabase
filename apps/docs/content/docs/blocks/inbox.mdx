@@ -14,8 +14,11 @@ tables through the [Chat SDK adapters](/docs/chat-sdk).
 pnpm better-supabase sql add inbox
 ```
 
-The module needs the [access contract](/docs/blocks/access) and the
-[jobs](/docs/blocks/jobs) module. With [notifications](/docs/blocks/notifications)
+The module needs the [access contract](/docs/blocks/access). With the
+[jobs](/docs/blocks/jobs) module installed, an inbound message to a bot
+conversation queues a bot job and an outbound message on a channel queues a
+delivery job; without it, nothing is queued and the app delivers the
+messages itself. With [notifications](/docs/blocks/notifications)
 installed, assignees and mentioned staff get a notification, and with the
 [outbox](/docs/blocks/outbox) every change emits a block event.
 

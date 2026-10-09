@@ -223,18 +223,18 @@ export default defineConfig({
 });
 ```
 
-| Key           | What it sets                                                                               |
-| ------------- | ------------------------------------------------------------------------------------------ |
-| `mode`        | `managed`, `adopt` or `custom`                                                             |
-| `schema`      | the schema of the module's functions and managed tables (`better_supabase`)                |
-| `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have    |
-| `columns`     | logical table to logical column to column name; `null` for an optional column              |
-| `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                        |
-| `permissions` | block action to permission key, checked through the [access contract](/docs/blocks/access) |
-| `options`     | module options, listed on each module's page                                               |
-| `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)         |
-| `events`      | `false` stops the module writing its events to the outbox                                  |
-| `api`         | a schema for the Data API that gets entry points for the module's functions (see below)    |
+| Key           | What it sets                                                                                                                                          |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`        | `managed`, `adopt` or `custom`                                                                                                                        |
+| `schema`      | the schema of the module's functions and managed tables (`better_supabase`); `jobs` takes none, and `access` keeps its functions in `better_supabase` |
+| `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have                                                               |
+| `columns`     | logical table to logical column to column name; `null` for an optional column                                                                         |
+| `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                                                                                   |
+| `permissions` | block action to permission key, checked through the [access contract](/docs/blocks/access)                                                            |
+| `options`     | module options, listed on each module's page                                                                                                          |
+| `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)                                                                    |
+| `events`      | `false` stops the module writing its events to the outbox                                                                                             |
+| `api`         | a schema for the Data API that gets entry points for the module's functions (see below)                                                               |
 
 ### Calling a module over the Data API
 

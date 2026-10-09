@@ -107,6 +107,88 @@ expose the module schema itself.
 | [Push notifications](/docs/blocks/push)                     | `better-supabase/blocks/push`                                                                                                      | `push`                                 |
 | [AI cache](/docs/blocks/ai-cache)                           | `better-supabase/blocks/ai-cache`                                                                                                  | `ai-cache`                             |
 | [AI providers](/docs/blocks/ai-providers)                   | `better-supabase/blocks/ai-providers`                                                                                              | `ai-providers`                         |
+| [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
+
+## SDK adapters
+
+An adapter connects a third-party SDK to the blocks above. It owns no tables
+and no SQL modules of its own: install the modules of the blocks it uses.
+
+| Adapter                                   | Subpath                                                                               | Uses the SQL modules of                                                                          |
+| ----------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [AI SDK](/docs/ai-sdk)                    | `better-supabase/ai-sdk` and its `chat`, `files`, `cache`, `memory` and other entries | `ai-chat`, `ai-files`, `ai-cache`, `memory`, `knowledge`, `agents`, `connectors`, `ai-providers` |
+| [Chat SDK](/docs/chat-sdk)                | `better-supabase/chat-sdk`, `better-supabase/chat-sdk/react`                          | `chat-sdk-state`, `inbox`                                                                        |
+| [Workflow SDK](/docs/blocks/workflow-sdk) | `better-supabase/workflow-sdk`, `better-supabase/workflow-sdk/world`                  | `workflow-sdk-world`, `workflows`                                                                |
+| [eve](/docs/eve)                          | `better-supabase/eve`                                                                 | `workflow-sdk-world`, `ai-chat`, `memory`, `knowledge`, `credentials`, `inbox`                   |
+
+## How modules work together
+
+`sql add` installs a module with the modules it requires. The modules it
+works with are optional: when one of them is installed too, the module calls
+it (it queues a job, sends a notification, checks a plan), and without it the
+module installs and runs without that step. Every module also writes its
+events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
+`better-supabase sql list` prints both lists for each module.
+
+| Module               | Requires                                | Works with                                                                 |
+| -------------------- | --------------------------------------- | -------------------------------------------------------------------------- |
+| `updated-at`         | none                                    | none                                                                       |
+| `actor`              | none                                    | none                                                                       |
+| `audit`              | none                                    | `access`, `organizations`                                                  |
+| `tenant`             | `updated-at`                            | `access`, `invitations`, `organizations`                                   |
+| `invitations`        | `tenant`, `access`, `updated-at`        | `organizations`, `profiles`                                                |
+| `reserved-slugs`     | none                                    | none                                                                       |
+| `jobs`               | none                                    | none                                                                       |
+| `idempotency`        | none                                    | none                                                                       |
+| `webhook-inbox`      | none                                    | none                                                                       |
+| `realtime-tables`    | none                                    | none                                                                       |
+| `jsonb-schemas`      | none                                    | none                                                                       |
+| `pgtap`              | none                                    | none                                                                       |
+| `grants`             | none                                    | none                                                                       |
+| `read-sets`          | none                                    | none                                                                       |
+| `mfa`                | none                                    | none                                                                       |
+| `entitlements`       | `tenant`                                | none                                                                       |
+| `rate-limit`         | none                                    | none                                                                       |
+| `vector-search`      | none                                    | none                                                                       |
+| `access`             | `tenant`                                | `invitations`, `organizations`                                             |
+| `support-sessions`   | `access`, `audit`                       | `invitations`                                                              |
+| `organizations`      | `tenant`, `access`, `updated-at`        | `audit`, `data-lifecycle`, `entitlements`, `invitations`, `reserved-slugs` |
+| `profiles`           | none                                    | `tenant`                                                                   |
+| `outbox`             | none                                    | none                                                                       |
+| `notifications`      | `updated-at`                            | `access`, `profiles`                                                       |
+| `webhooks-out`       | `updated-at`                            | `access`                                                                   |
+| `sessions`           | none                                    | none                                                                       |
+| `webhooks-in`        | `access`, `updated-at`, `webhook-inbox` | none                                                                       |
+| `api-keys`           | `tenant`, `access`                      | none                                                                       |
+| `settings`           | `tenant`, `access`                      | `jsonb-schemas`                                                            |
+| `usage`              | `tenant`, `access`                      | `entitlements`                                                             |
+| `billing`            | `tenant`, `access`                      | `organizations`                                                            |
+| `flags`              | `tenant`                                | `access`, `entitlements`                                                   |
+| `comments`           | `tenant`, `access`                      | `jsonb-schemas`, `notifications`                                           |
+| `attachments`        | `tenant`, `access`                      | none                                                                       |
+| `data-lifecycle`     | `tenant`, `access`                      | every installed module                                                     |
+| `sso`                | `tenant`, `access`                      | `organizations`                                                            |
+| `onboarding`         | `tenant`, `access`                      | `outbox`                                                                   |
+| `waitlist`           | `tenant`, `access`                      | `invitations`, `organizations`                                             |
+| `announcements`      | `tenant`, `access`                      | `entitlements`                                                             |
+| `streams`            | none                                    | none                                                                       |
+| `credentials`        | none                                    | none                                                                       |
+| `workflows`          | `tenant`, `access`                      | none                                                                       |
+| `workflow-sdk-world` | `workflows`, `jobs`, `access`           | none                                                                       |
+| `workflow-builder`   | `workflows`, `tenant`, `access`         | none                                                                       |
+| `chat-sdk-state`     | none                                    | none                                                                       |
+| `inbox`              | `tenant`, `access`, `updated-at`        | `jobs`, `notifications`                                                    |
+| `ai-chat`            | `tenant`, `access`, `streams`           | `entitlements`                                                             |
+| `ai-files`           | `tenant`, `access`                      | `ai-chat`                                                                  |
+| `knowledge`          | `tenant`, `access`, `vector-search`     | `ai-chat`, `ai-files`, `jobs`                                              |
+| `memory`             | `tenant`, `access`, `vector-search`     | `ai-chat`                                                                  |
+| `agents`             | `tenant`, `access`                      | none                                                                       |
+| `connectors`         | `tenant`, `access`                      | none                                                                       |
+| `ai-tasks`           | `tenant`, `access`                      | `agents`, `ai-chat`, `jobs`                                                |
+| `push`               | none                                    | none                                                                       |
+| `ai-cache`           | none                                    | none                                                                       |
+| `ai-providers`       | `tenant`, `access`                      | none                                                                       |
+| `ensure-rls`         | none                                    | none                                                                       |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,
 `support-sessions` and the rest) are listed on the

@@ -25,8 +25,19 @@ better_supabase.tenant_ids_with(key))` in policies. Add the module's keys to
 user, tenant, purge }` (logical column names) in its `NAMES` entry, so the
   `data-lifecycle` module exports and purges it. Leave it out for secrets
   and for rows the purge must not touch.
-- Events go through `ctx.emit({ type, payload, subject, tenant })`, which is
-  empty without the `outbox` module.
+- Events go through `ctx.record({ type, payload, subject, tenant, key })`,
+  which is `null;` without the `outbox` module, so it can stand alone as a
+  statement. Never pad a helper with `|| "null;"`.
+- A module reads another module only through `ctx.installed(name)` and
+  `ctx.of(name)`, and only one it lists in `requires` or `integrates`; both
+  throw for any other name. Prefer `integrates` and a helper that does
+  nothing without the module (`ctx.notify`, `ctx.enqueue`,
+  `ctx.entitlements`, `ctx.staff`) to a hard requirement. The matrix in
+  `blocks/index.mdx` is checked against both lists by
+  `tests/cli/docs-drift.test.ts`.
+- Shared SQL lives in `src/sql/shared.ts`: `raise`, `canIn`, `userGrant`,
+  `serviceGrant`, `serviceOnly`, `sha256Hex` and `pageSize`. Don't copy them
+  into a module.
 - Raise errors with an `errcode` and a `hint` such as `API_KEY_FORBIDDEN`;
   the TypeScript side passes the hint through as the `DbError` hint.
 - Module functions never create temporary tables. `supabase db lint` runs

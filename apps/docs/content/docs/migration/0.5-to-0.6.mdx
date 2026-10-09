@@ -248,6 +248,15 @@ These apply once `better-supabase sql sync` rewrites the module files:
   writes too, through `bs_role_scope` triggers.
 - `mark_notifications_read` and the other notification state functions
   return the changed notifications with the count.
+- `inbox` no longer installs `jobs` and `streams`, `workflows` no longer
+  installs `jobs`, and `ai-cache` no longer installs `tenant`. Keep them in
+  `sql.modules` when you use them: without `jobs`, the inbox queues no bot
+  or delivery jobs.
+- `webhooks-in` installs `updated-at`.
+- `support.ended` carries the session's tenant in its audit entry and outbox
+  event.
+- `sql.modules.jobs.schema` is an error. Remove it: the jobs functions were
+  always in `better_supabase`.
 
 ## Run the codemod
 
