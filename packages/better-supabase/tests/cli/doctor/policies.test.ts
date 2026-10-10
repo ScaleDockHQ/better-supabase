@@ -64,6 +64,91 @@ const policy = (overrides: Partial<CatalogPolicy>): CatalogPolicy => ({
   ...overrides,
 });
 
+describe("tables without a policy that are still granted (BS115)", () => {
+  const granted = snapshot((tables) => {
+    table(tables, "tags").policies = [];
+    table(tables, "tags").grants = [
+      { role: "authenticated", privileges: ["SELECT"] },
+      { role: "service_role", privileges: ["SELECT"] },
+    ];
+  });
+
+  it("reports RLS tables with API grants and no permissive policy", async () => {
+    expect(await run(context(granted), "BS115")).toMatchObject([
+      {
+        severity: "warning",
+        target: "public.tags",
+        message: expect.stringContaining(
+          "revoke all on table public.tags from public, anon, authenticated;",
+        ),
+      },
+    ]);
+  });
+
+  it("skips exposed, excluded, service-only and policy-covered tables", async () => {
+    const withConfig = (config: Parameters<typeof resolveConfig>[0]) => ({
+      ...context(granted),
+      config: resolveConfig(config, "/project"),
+    });
+    for (const config of [
+      { expose: { tags: ["select" as const] } },
+      { tables: { tags: { exclude: true } } },
+      { tables: { tags: { serviceRole: true } } },
+    ])
+      expect(await run(withConfig(config), "BS115")).toEqual([]);
+    const covered = snapshot((tables) => {
+      table(tables, "tags").policies = [policy({ name: "tags_read" })];
+      table(tables, "tags").grants = [
+        { role: "authenticated", privileges: ["SELECT"] },
+      ];
+    });
+    expect(await run(context(covered), "BS115")).toEqual([]);
+    const ungranted = snapshot((tables) => {
+      table(tables, "tags").policies = [];
+      table(tables, "tags").grants = [
+        { role: "service_role", privileges: ["SELECT"] },
+      ];
+    });
+    expect(await run(context(ungranted), "BS115")).toEqual([]);
+  });
+
+  it("makes BS106 expect no grants for such tables under fromPolicies", async () => {
+    const bare = snapshot((tables) => {
+      table(tables, "tags").policies = [];
+      table(tables, "tags").grants = [];
+    });
+    const config = (fromPolicies: boolean) => ({
+      ...context(bare),
+      config: resolveConfig(
+        {
+          sql: {
+            modules: { grants: { options: { fromPolicies } } },
+          },
+        },
+        "/project",
+      ),
+    });
+    const targets = async (fromPolicies: boolean) =>
+      (await run(config(fromPolicies), "BS106")).map(
+        (finding) => finding.target,
+      );
+    expect(await targets(false)).toContain("public.tags:authenticated");
+    expect(await targets(true)).not.toContain("public.tags:authenticated");
+    const open = snapshot((tables) => {
+      table(tables, "tags").policies = [];
+      table(tables, "tags").grants = [];
+      table(tables, "tags").rls = false;
+    });
+    const rlsOff = {
+      ...context(open),
+      config: config(true).config,
+    };
+    expect(
+      (await run(rlsOff, "BS106")).map((finding) => finding.target),
+    ).toContain("public.tags:authenticated");
+  });
+});
+
 describe("policy security rules", () => {
   it("pass the fixture schema", async () => {
     for (const code of [
@@ -73,6 +158,8 @@ describe("policy security rules", () => {
       "BS112",
       "BS113",
       "BS114",
+      "BS115",
+      "BS116",
       "BS215",
     ])
       expect(await run(context(base), code)).toEqual([]);
@@ -186,6 +273,61 @@ describe("policy security rules", () => {
     expect(await run(context(withFunction(checked)), "BS112")).toEqual([]);
     const revoked = withFunction(open, { ...definer, execute: [] });
     expect(await run(context(revoked), "BS112")).toEqual([]);
+  });
+
+  it("flags security definer functions open to the API roles that nothing exposes (BS116)", async () => {
+    const definer: ExtrasFunction = {
+      schema: "public",
+      name: "wipe",
+      signature: "organization uuid",
+      language: "sql",
+      volatility: "volatile",
+      securityDefiner: true,
+      settings: { search_path: '""' },
+      execute: ["anon", "authenticated"],
+    };
+    const withFunctions = (
+      functions: ExtrasFunction[],
+      config: Parameters<typeof resolveConfig>[0] = {},
+      snap: Snapshot = base,
+    ): DoctorContext => ({
+      ...context({ ...snap, extras: { ...snap.extras, functions } }),
+      config: resolveConfig(config, "/project"),
+    });
+    expect(await run(withFunctions([definer]), "BS116")).toMatchObject([
+      {
+        severity: "warning",
+        target: "public.wipe",
+        message: expect.stringContaining(
+          "revoke all on function public.wipe(organization uuid) from public, anon, authenticated;",
+        ),
+      },
+    ]);
+    expect(
+      await run(
+        withFunctions([definer], {
+          expose: { "wipe(uuid)": { execute: ["authenticated"] } },
+        }),
+        "BS116",
+      ),
+    ).toEqual([]);
+    expect(
+      await run(withFunctions([{ ...definer, execute: [] }]), "BS116"),
+    ).toEqual([]);
+    expect(
+      await run(
+        withFunctions([{ ...definer, securityDefiner: false }]),
+        "BS116",
+      ),
+    ).toEqual([]);
+    const called = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        policy({ using: "public.wipe(id)", functions: ["public.wipe"] }),
+      ];
+    });
+    expect(await run(withFunctions([definer], {}, called), "BS116")).toEqual(
+      [],
+    );
   });
 
   it("flags storage inserts without the upsert policies (BS113)", async () => {

@@ -46,6 +46,31 @@ describe("sessionStatus", () => {
     }
   });
 
+  it("reports a banned account from the Auth error code", async () => {
+    for (const status of [401, 403])
+      await expect(
+        sessionStatus(live, {
+          url: PROJECT,
+          publishableKey: "pk",
+          fetch: vi.fn<typeof fetch>(async () =>
+            Response.json(
+              { code: status, error_code: "user_banned", msg: "User banned" },
+              { status },
+            ),
+          ),
+        }),
+      ).resolves.toBe("banned");
+    await expect(
+      sessionStatus(live, {
+        url: PROJECT,
+        publishableKey: "pk",
+        fetch: vi.fn<typeof fetch>(
+          async () => new Response("not json", { status: 403 }),
+        ),
+      }),
+    ).resolves.toBe("ended");
+  });
+
   it("keeps the session on server errors, timeouts and network failures", async () => {
     const options = { url: PROJECT, publishableKey: "pk" };
     await expect(

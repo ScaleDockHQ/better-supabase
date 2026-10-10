@@ -406,6 +406,38 @@ export const typing = defineTopic("bs:t:{room}", { send: true });
     );
   });
 
+  it("revokes declared tables that no policy or expose entry reaches with fromPolicies", async () => {
+    const schemas = join(root, "supabase/schemas");
+    await mkdir(schemas, { recursive: true });
+    await writeFile(
+      join(schemas, "010_notes.sql"),
+      'create table public.notes (id int);\ncreate table public.jobs (id int);\ncreate table public.tags (id int);\ncreate table public.open (id int);\ncreate table public.later (id int);\nalter table public.jobs enable row level security;\nalter table only "public"."later" enable row level security;\nalter table public.later disable row level security;\ncreate policy notes_read on public.notes for select to authenticated using (true);\n',
+    );
+    await sql(["sync"], {
+      expose: { tags: ["select"] },
+      sql: { modules: { grants: { options: { fromPolicies: true } } } },
+    });
+    const file = await readFile(
+      join(schemas, "900_better_supabase_13_grants.sql"),
+      "utf8",
+    );
+    expect(file).toContain(
+      [
+        'revoke all on table "public"."jobs" from public, anon, authenticated, service_role;',
+        'grant select, insert, update, delete on table "public"."jobs" to service_role;',
+      ].join("\n"),
+    );
+    expect(file).toContain(
+      'grant select on table "public"."notes" to authenticated;',
+    );
+    expect(file).toContain(
+      'grant select on table "public"."tags" to authenticated;',
+    );
+    expect(file).not.toContain(
+      'grant select, insert, update, delete on table "public"."tags" to authenticated',
+    );
+  });
+
   it("reads policies and tables from the declarative schema, not old migrations", async () => {
     await mkdir(join(root, "supabase/schemas"), { recursive: true });
     await mkdir(join(root, "supabase/migrations"), { recursive: true });

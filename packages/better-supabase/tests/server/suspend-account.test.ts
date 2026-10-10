@@ -6,6 +6,7 @@ import type { SqlClient } from "../../src/postgres/executor.ts";
 
 import {
   endSessions,
+  lastSignIns,
   suspendAccount,
 } from "../../src/server/suspend-account.ts";
 
@@ -153,5 +154,58 @@ describe("suspendAccount", () => {
       await suspendAccount(client, sql, "nope", { suspended: true }),
     ).toMatchObject({ ok: false, error: { kind: "invalid_request" } });
     expect(updateUserById).not.toHaveBeenCalled();
+  });
+});
+
+describe("lastSignIns", () => {
+  const OTHER = "0b9d6a54-3c2e-4f10-8a7b-1c2d3e4f5a6b";
+
+  it("reads every user in one query and keys the result by user id", async () => {
+    const queryRaw = vi.fn(async () => [
+      { user_id: USER, last_sign_in_at: new Date("2026-05-01T10:00:00Z") },
+      { user_id: OTHER, last_sign_in_at: null },
+    ]);
+    const sql = { queryRaw } as unknown as SqlClient;
+    const found = await lastSignIns(sql, [USER, OTHER, USER]).orThrow();
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    expect(queryRaw).toHaveBeenCalledWith(
+      expect.stringContaining("better_supabase.last_sign_ins($1::uuid[])"),
+      [[USER, OTHER]],
+    );
+    expect(found.get(USER)?.lastSignInAt?.toString()).toBe(
+      "2026-05-01T10:00:00Z",
+    );
+    expect(found.get(OTHER)).toEqual({ userId: OTHER, lastSignInAt: null });
+    expect(found.has("missing")).toBe(false);
+  });
+
+  it("accepts timestamps that arrive as strings and skips the query without ids", async () => {
+    const queryRaw = vi.fn(async () => [
+      { user_id: USER, last_sign_in_at: "2026-05-01T10:00:00.5+00:00" },
+    ]);
+    const sql = { queryRaw } as unknown as SqlClient;
+    const found = await lastSignIns(sql, [USER]).orThrow();
+    expect(found.get(USER)?.lastSignInAt?.toString()).toBe(
+      "2026-05-01T10:00:00.5Z",
+    );
+    queryRaw.mockClear();
+    expect((await lastSignIns(sql, []).orThrow()).size).toBe(0);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("refuses an id that is not a uuid and maps a Postgres error", async () => {
+    const queryRaw = vi.fn(async () => {
+      throw Object.assign(new Error("permission denied"), { code: "42501" });
+    });
+    const sql = { queryRaw } as unknown as SqlClient;
+    expect(await lastSignIns(sql, [USER, "nope"])).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_request" },
+    });
+    expect(queryRaw).not.toHaveBeenCalled();
+    expect(await lastSignIns(sql, [USER])).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden" },
+    });
   });
 });

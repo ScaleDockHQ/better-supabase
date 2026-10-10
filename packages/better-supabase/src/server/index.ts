@@ -1,11 +1,16 @@
+export { csvColumns, toCsv } from "../blocks/csv.ts";
+export type { CsvOptions } from "../blocks/csv.ts";
+export { csvResponse } from "./csv.ts";
+export type { CsvResponseOptions } from "./csv.ts";
 export { deleteAccount } from "./delete-account.ts";
 export type {
   DeleteAccountOptions,
   DeleteAccountResult,
 } from "./delete-account.ts";
-export { endSessions, suspendAccount } from "./suspend-account.ts";
+export { endSessions, lastSignIns, suspendAccount } from "./suspend-account.ts";
 export type {
   EndSessionsResult,
+  LastSignIn,
   SuspendAccountOptions,
   SuspendAccountResult,
 } from "./suspend-account.ts";

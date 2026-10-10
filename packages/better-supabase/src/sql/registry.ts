@@ -472,6 +472,23 @@ $$;
 revoke execute on function better_supabase.session_active() from public, anon;
 grant execute on function better_supabase.session_active() to authenticated;
 
+-- The last sign-in of many users in one query, for admin lists. auth.users
+-- isn't readable through the Data API, so only the service role calls this.
+create or replace function better_supabase.last_sign_ins(p_users uuid[])
+returns table (user_id uuid, last_sign_in_at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.id, u.last_sign_in_at
+  from auth.users u
+  where u.id = any(p_users)
+$$;
+
+revoke execute on function better_supabase.last_sign_ins(uuid[]) from public, anon, authenticated;
+grant execute on function better_supabase.last_sign_ins(uuid[]) to service_role;
+
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
 -- a select, it runs one indexed lookup per statement:
 -- create policy session_required on public.invoices as restrictive
@@ -2333,6 +2350,8 @@ export interface ModuleLayout {
   readonly policyGrants?: readonly TableGrant[];
   /** The tables the schema files create, for `sql.modules.sessions.options.policies`. */
   readonly declaredTables?: readonly string[];
+  /** The declared tables with row level security on, for tables `fromPolicies` makes service-only. */
+  readonly rlsTables?: readonly string[];
   /** `config.readSets`, compiled: the functions the `read-sets` module writes. */
   readonly readSets?: readonly {
     readonly name: string;
@@ -2748,7 +2767,8 @@ const keyOf = (name: string): string =>
  * Each listed table's complete privilege set: everything is revoked from
  * the API roles first, then the listed privileges are granted. Policy
  * grants fill tables `expose` doesn't list, with every privilege for
- * `service_role`.
+ * `service_role`. With policy grants on, a declared table that `expose`
+ * doesn't list, with RLS on and no permissive policy reaching it, is service-only.
  */
 function tableGrants(layout: ModuleLayout): string {
   const listed = layout.grants ?? [];
@@ -2757,10 +2777,22 @@ function tableGrants(layout: ModuleLayout): string {
     (grant) => !named.has(keyOf(grant.table)),
   );
   const derivedTables = [...new Set(derived.map((grant) => grant.table))];
+  const reached = new Set(
+    (layout.policyGrants ?? []).map((grant) => keyOf(grant.table)),
+  );
+  const serviceOnly =
+    layout.policyGrants === undefined
+      ? []
+      : (layout.declaredTables ?? []).filter(
+          (table) =>
+            (layout.rlsTables ?? []).includes(table) &&
+            !named.has(keyOf(table)) &&
+            !reached.has(keyOf(table)),
+        );
   const grants = [
     ...listed,
     ...derived,
-    ...derivedTables.map((table): TableGrant => ({
+    ...[...derivedTables, ...serviceOnly].map((table): TableGrant => ({
       table,
       role: "service_role",
       privileges: ["select", "insert", "update", "delete"],
@@ -2789,7 +2821,7 @@ function tableGrants(layout: ModuleLayout): string {
   });
   const all = [...statements, ...functions];
   if (all.length === 0) return "";
-  return `\n-- config.expose${derived.length > 0 ? " and the policies (sql.modules.grants.options.fromPolicies)" : ""}\n${all.join("\n")}\n`;
+  return `\n-- config.expose${derived.length > 0 || serviceOnly.length > 0 ? " and the policies (sql.modules.grants.options.fromPolicies)" : ""}\n${all.join("\n")}\n`;
 }
 
 /** A jsonb column and the JSON Schema its values must match. */

@@ -151,6 +151,11 @@ export interface ProxyOptions<C = unknown, P = unknown> {
 export interface EndedSessionOptions {
   readonly paths?: readonly string[];
   readonly redirect?: string;
+  /** The `reason` query value on the redirect. Defaults to `session_ended` and `account_banned`. */
+  readonly reasons?: {
+    readonly ended?: string;
+    readonly banned?: string;
+  };
 }
 
 export interface ActionOptions<
@@ -609,9 +614,13 @@ export function requireAal(
   };
 }
 
-function endedRedirect(request: NextRequest, path: string): Response {
+function endedRedirect(
+  request: NextRequest,
+  path: string,
+  reason: string,
+): Response {
   const target = new URL(path, request.url);
-  target.searchParams.set("reason", "session_ended");
+  target.searchParams.set("reason", reason);
   return NextResponse.redirect(target);
 }
 
@@ -949,7 +958,13 @@ export function createNext<
         resolution.sessionEnded === true &&
         sessionCheck?.redirect !== undefined &&
         request.nextUrl.pathname !== sessionCheck.redirect
-          ? endedRedirect(request, sessionCheck.redirect)
+          ? endedRedirect(
+              request,
+              sessionCheck.redirect,
+              resolution.sessionEndedReason === "banned"
+                ? (sessionCheck.reasons?.banned ?? "account_banned")
+                : (sessionCheck.reasons?.ended ?? "session_ended"),
+            )
           : undefined;
       const custom =
         ended ??

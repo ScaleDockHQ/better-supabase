@@ -1,0 +1,178 @@
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
+import { dirname, join, relative, resolve, sep } from "node:path";
+
+import type { ResolvedConfig } from "../config/index.ts";
+import type {
+  ModuleAccessProvider,
+  ModuleEntitlementsProvider,
+  ModuleLayout,
+} from "../sql/index.ts";
+
+import {
+  type AuditedTable,
+  adoptedColumnProblems,
+  auditRegistrations,
+  declaredTables,
+  extensionSchema,
+  moduleLayout,
+  policyGrants,
+  resolveModules,
+  rlsTables,
+} from "../sql/index.ts";
+import {
+  declarativeSchemasDir,
+  readSupabaseToml,
+  schemaPaths,
+} from "./supabase-toml.ts";
+
+/** The declarative schema files, then the migrations oldest first. */
+async function schemaTexts(
+  config: ResolvedConfig,
+): Promise<{ readonly text: string }[]> {
+  const toml = await readSupabaseToml(config.root);
+  const migrations = resolve(config.root, migrationsDir(config));
+  const paths = [
+    ...(await schemaPaths(config.root, toml)).files,
+    ...(existsSync(migrations)
+      ? (await readdir(migrations))
+          .filter((name) => name.endsWith(".sql"))
+          .toSorted()
+          .map((name) => join(migrations, name))
+      : []),
+  ];
+  return Promise.all(
+    paths.map(async (path) => ({
+      text: await readFile(resolve(config.root, path), "utf8"),
+    })),
+  );
+}
+
+async function declarativeTexts(
+  config: ResolvedConfig,
+): Promise<{ readonly text: string }[]> {
+  const { files } = await schemaPaths(
+    config.root,
+    await readSupabaseToml(config.root),
+  );
+  if (files.length === 0) return schemaTexts(config);
+  return Promise.all(
+    files.map(async (path) => ({
+      text: await readFile(resolve(config.root, path), "utf8"),
+    })),
+  );
+}
+
+/**
+ * The `better_supabase.audit(...)` calls in the declarative schemas, then
+ * the migrations oldest first, so a later call or `unaudit` wins.
+ */
+async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
+  return auditRegistrations(await schemaTexts(config));
+}
+
+/** What differs between the callers of `moduleLayoutFor`: the providers and the compiled read sets. */
+export interface LayoutInput {
+  readonly names: readonly string[];
+  readonly testsDir?: string | undefined;
+  readonly readSets?: ModuleLayout["readSets"] | undefined;
+  readonly entitlementsProvider?: ModuleEntitlementsProvider | undefined;
+  readonly accessProvider?: ModuleAccessProvider | undefined;
+  readonly permissionCatalog?: readonly string[] | undefined;
+}
+
+/**
+ * The layout `sql sync` and doctor render the module files with, so both
+ * see the same grants, session policies, audit triggers and vector schema.
+ */
+export async function moduleLayoutFor(
+  config: ResolvedConfig,
+  input: LayoutInput,
+): Promise<ModuleLayout> {
+  const resolved = new Set(
+    resolveModules(input.names, {
+      ...(input.entitlementsProvider
+        ? { entitlementsProvider: input.entitlementsProvider }
+        : {}),
+    }).map((module) => module.name),
+  );
+  const adopted = adoptedColumnProblems(
+    config.sql.modules,
+    await declarativeTexts(config),
+    config.schemas,
+  );
+  if (adopted.length > 0) throw new TypeError(adopted.join("\n"));
+  const fromPolicies =
+    resolved.has("grants") &&
+    config.sql.modules["grants"]?.options?.["fromPolicies"] === true;
+  const sessionPolicies =
+    resolved.has("sessions") &&
+    config.sql.modules["sessions"]?.options?.["policies"] === true;
+  return {
+    ...moduleLayout(
+      config,
+      input.testsDir,
+      input.readSets ?? [],
+      input.entitlementsProvider,
+      input.accessProvider,
+      input.permissionCatalog,
+    ),
+    schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
+    ...(resolved.has("audit")
+      ? { auditedTables: await auditedTables(config) }
+      : {}),
+    ...(resolved.has("vector-search")
+      ? vectorSchemaOf(await schemaTexts(config))
+      : {}),
+    ...(fromPolicies
+      ? {
+          policyGrants: policyGrants(
+            await declarativeTexts(config),
+            config.schemas,
+          ),
+        }
+      : {}),
+    ...(fromPolicies
+      ? {
+          rlsTables: rlsTables(await declarativeTexts(config), config.schemas),
+        }
+      : {}),
+    ...(fromPolicies || sessionPolicies
+      ? {
+          declaredTables: declaredTables(
+            await declarativeTexts(config),
+            config.schemas,
+          ),
+        }
+      : {}),
+  };
+}
+
+function vectorSchemaOf(sources: readonly { readonly text: string }[]): {
+  vectorSchema?: string;
+} {
+  const schema = extensionSchema(sources, "vector");
+  return schema === undefined ? {} : { vectorSchema: schema };
+}
+
+/**
+ * The migrations folder next to the `config.toml` found walking up from
+ * `sql.dir`, relative to the root; `supabase/migrations` without one. The
+ * walk stops where `sql.dir` and the root meet, so a `sql.dir` outside the
+ * project (a shared stack in a monorepo) finds that stack's folder.
+ */
+export function migrationsDir(config: ResolvedConfig): string {
+  const root = resolve(config.root);
+  let dir = resolve(root, config.sql.dir);
+  let stop = root;
+  while (dir !== stop && !dir.startsWith(stop + sep) && dirname(stop) !== stop)
+    stop = dirname(stop);
+  for (;;) {
+    if (existsSync(join(dir, "config.toml"))) {
+      return relative(root, join(dir, "migrations")).replaceAll("\\", "/");
+    }
+    if (dir === stop || dirname(dir) === dir) break;
+    dir = dirname(dir);
+  }
+  return "supabase/migrations";
+}

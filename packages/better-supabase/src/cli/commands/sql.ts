@@ -1,14 +1,12 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile, rm } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 
 import {
-  type AuditedTable,
-  auditRegistrations,
   contractSignature,
   customContracts,
   type InstalledModule,
@@ -24,10 +22,6 @@ import {
   moduleBody,
   moduleSchemaExtensions,
   moduleTopics,
-  adoptedColumnProblems,
-  declaredTables,
-  extensionSchema,
-  policyGrants,
   renderModules,
   resolveModules,
   sameModuleFile,
@@ -44,6 +38,7 @@ import { defineCliCommand } from "../command.ts";
 import { fileDiff } from "../diff.ts";
 import { display, sameText, writeIfChanged } from "../io.ts";
 import { compiledReadSets } from "../read-sets.ts";
+import { migrationsDir, moduleLayoutFor } from "../sql-layout.ts";
 import { type Paint, painter, plain } from "../style.ts";
 import {
   declarativeSchemasDir,
@@ -52,6 +47,8 @@ import {
   schemaPaths,
 } from "../supabase-toml.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
+
+export { migrationsDir };
 
 const SQL_ARGS = {
   action: {
@@ -185,54 +182,9 @@ async function layout(
   };
 }
 
-/** The declarative schema files, then the migrations oldest first. */
-async function schemaTexts(
-  config: ResolvedConfig,
-): Promise<{ readonly text: string }[]> {
-  const toml = await readSupabaseToml(config.root);
-  const migrations = resolve(config.root, migrationsDir(config));
-  const paths = [
-    ...(await schemaPaths(config.root, toml)).files,
-    ...(existsSync(migrations)
-      ? (await readdir(migrations))
-          .filter((name) => name.endsWith(".sql"))
-          .toSorted()
-          .map((name) => join(migrations, name))
-      : []),
-  ];
-  return Promise.all(
-    paths.map(async (path) => ({
-      text: await readFile(resolve(config.root, path), "utf8"),
-    })),
-  );
-}
-
-async function declarativeTexts(
-  config: ResolvedConfig,
-): Promise<{ readonly text: string }[]> {
-  const { files } = await schemaPaths(
-    config.root,
-    await readSupabaseToml(config.root),
-  );
-  if (files.length === 0) return schemaTexts(config);
-  return Promise.all(
-    files.map(async (path) => ({
-      text: await readFile(resolve(config.root, path), "utf8"),
-    })),
-  );
-}
-
-/**
- * The `better_supabase.audit(...)` calls in the declarative schemas, then
- * the migrations oldest first, so a later call or `unaudit` wins.
- */
-async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
-  return auditRegistrations(await schemaTexts(config));
-}
-
 /**
  * The layout, with `config.readSets` compiled when `names` includes
- * `read-sets` and the audited tables when it includes `audit`.
+ * `read-sets`.
  */
 async function layoutFor(
   config: ResolvedConfig,
@@ -245,54 +197,15 @@ async function layoutFor(
       ...(entitlementsProvider ? { entitlementsProvider } : {}),
     }).map((module) => module.name),
   );
-  const adopted = adoptedColumnProblems(
-    config.sql.modules,
-    await declarativeTexts(config),
-    config.schemas,
-  );
-  if (adopted.length > 0) throw new TypeError(adopted.join("\n"));
-  return {
-    ...moduleLayout(
-      config,
-      args["tests-dir"],
-      resolved.has("read-sets") ? await compiledReadSets(config) : [],
-      entitlementsProvider,
-      accessProviderFor(config, names),
-      permissionKeysFor(config),
-    ),
-    schemasDir: declarativeSchemasDir(await readSupabaseToml(config.root)),
-    ...(resolved.has("audit")
-      ? { auditedTables: await auditedTables(config) }
-      : {}),
-    ...(resolved.has("vector-search")
-      ? vectorSchemaOf(await schemaTexts(config))
-      : {}),
-    ...(resolved.has("grants") &&
-    config.sql.modules["grants"]?.options?.["fromPolicies"] === true
-      ? {
-          policyGrants: policyGrants(
-            await declarativeTexts(config),
-            config.schemas,
-          ),
-        }
-      : {}),
-    ...(resolved.has("sessions") &&
-    config.sql.modules["sessions"]?.options?.["policies"] === true
-      ? {
-          declaredTables: declaredTables(
-            await declarativeTexts(config),
-            config.schemas,
-          ),
-        }
-      : {}),
-  };
-}
-
-function vectorSchemaOf(sources: readonly { readonly text: string }[]): {
-  vectorSchema?: string;
-} {
-  const schema = extensionSchema(sources, "vector");
-  return schema === undefined ? {} : { vectorSchema: schema };
+  const accessProvider = accessProviderFor(config, names);
+  return moduleLayoutFor(config, {
+    names,
+    testsDir: args["tests-dir"],
+    readSets: resolved.has("read-sets") ? await compiledReadSets(config) : [],
+    ...(entitlementsProvider ? { entitlementsProvider } : {}),
+    ...(accessProvider ? { accessProvider } : {}),
+    permissionCatalog: permissionKeysFor(config),
+  });
 }
 
 const MODULE_TEST_MARKER = /^-- @bs-module-test ([a-z0-9-]+)$/m;
@@ -324,28 +237,6 @@ async function staleModuleTests(
     if (module !== undefined && modules.has(module)) stale.push(path);
   }
   return stale;
-}
-
-/**
- * The migrations folder next to the `config.toml` found walking up from
- * `sql.dir`, relative to the root; `supabase/migrations` without one. The
- * walk stops where `sql.dir` and the root meet, so a `sql.dir` outside the
- * project (a shared stack in a monorepo) finds that stack's folder.
- */
-export function migrationsDir(config: ResolvedConfig): string {
-  const root = resolve(config.root);
-  let dir = resolve(root, config.sql.dir);
-  let stop = root;
-  while (dir !== stop && !dir.startsWith(stop + sep) && dirname(stop) !== stop)
-    stop = dirname(stop);
-  for (;;) {
-    if (existsSync(join(dir, "config.toml"))) {
-      return relative(root, join(dir, "migrations")).replaceAll("\\", "/");
-    }
-    if (dir === stop || dirname(dir) === dir) break;
-    dir = dirname(dir);
-  }
-  return "supabase/migrations";
 }
 
 /** `YYYYMMDDHHMMSS` in UTC, the Supabase CLI's migration prefix. */

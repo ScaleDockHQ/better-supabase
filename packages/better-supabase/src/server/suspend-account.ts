@@ -5,10 +5,11 @@ import type { SqlClient } from "../postgres/executor.ts";
 import {
   type DbError,
   dbError,
-  isDbError,
+  dbErrorOf,
   mapDbError,
 } from "../core/errors.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
+import { temporal } from "../core/temporal-required.ts";
 import { fromPgError } from "../postgres/executor.ts";
 import { fromAuthError } from "./delete-account.ts";
 
@@ -45,7 +46,8 @@ function invalidUser(userId: string): DbError {
 }
 
 function fromSqlError(cause: unknown): DbError {
-  if (isDbError(cause)) return cause;
+  const known = dbErrorOf(cause);
+  if (known) return known;
   const raw = fromPgError(cause);
   if (raw) return { ...mapDbError(raw), table: "auth.sessions" };
   return dbError(
@@ -68,6 +70,57 @@ export function endSessions(
     if (!UUID.test(userId)) return err(invalidUser(userId));
     try {
       return ok({ userId, ended: await deleteSessions(sql, userId) });
+    } catch (cause) {
+      return err(fromSqlError(cause));
+    }
+  });
+}
+
+export interface LastSignIn {
+  readonly userId: string;
+  /** `null` for a user who never signed in. */
+  readonly lastSignInAt: Temporal.Instant | null;
+}
+
+const LAST_SIGN_INS = `select user_id, last_sign_in_at
+from better_supabase.last_sign_ins($1::uuid[])`;
+
+/**
+ * The last sign-in of each user, in one query (`better_supabase.last_sign_ins`
+ * from the `sessions` module, which only the service role may call). Users
+ * that don't exist are missing from the map.
+ */
+export function lastSignIns(
+  sql: SqlClient,
+  userIds: readonly string[],
+): AsyncResult<ReadonlyMap<string, LastSignIn>> {
+  return AsyncResult.from(async () => {
+    const invalid = userIds.find((userId) => !UUID.test(userId));
+    if (invalid !== undefined) return err(invalidUser(invalid));
+    if (userIds.length === 0) return ok(new Map<string, LastSignIn>());
+    try {
+      const rows = await sql.queryRaw<{
+        user_id: string;
+        last_sign_in_at: Date | string | null;
+      }>(LAST_SIGN_INS, [[...new Set(userIds)]]);
+      return ok(
+        new Map(
+          rows.map((row): [string, LastSignIn] => [
+            row.user_id,
+            {
+              userId: row.user_id,
+              lastSignInAt:
+                row.last_sign_in_at === null
+                  ? null
+                  : temporal().Instant.from(
+                      row.last_sign_in_at instanceof Date
+                        ? row.last_sign_in_at.toISOString()
+                        : row.last_sign_in_at,
+                    ),
+            },
+          ]),
+        ),
+      );
     } catch (cause) {
       return err(fromSqlError(cause));
     }

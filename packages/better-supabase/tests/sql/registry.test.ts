@@ -529,6 +529,22 @@ describe("sameModuleFile", () => {
     ).not.toContain("bs_session_active");
   });
 
+  it("writes a service-only last_sign_ins in the sessions module", () => {
+    const [file] = renderModules(["sessions"], {});
+    expect(file!.contents).toContain(
+      "create or replace function better_supabase.last_sign_ins(p_users uuid[])\nreturns table (user_id uuid, last_sign_in_at timestamptz)",
+    );
+    expect(file!.contents).toContain(
+      [
+        "revoke execute on function better_supabase.last_sign_ins(uuid[]) from public, anon, authenticated;",
+        "grant execute on function better_supabase.last_sign_ins(uuid[]) to service_role;",
+      ].join("\n"),
+    );
+    expect(file!.contents).toMatch(
+      /last_sign_ins[\s\S]*security definer\s+set search_path = ''/,
+    );
+  });
+
   it("derives table grants from policies for tables expose doesn't list", () => {
     const config = resolveConfig(
       {
@@ -568,6 +584,61 @@ describe("sameModuleFile", () => {
         'grant select, insert, update, delete on table "public"."notes" to service_role;',
       ].join("\n"),
     );
+  });
+
+  it("makes declared tables without a policy or expose entry service-only under fromPolicies", () => {
+    const config = resolveConfig(
+      {
+        expose: { customers: ["select"] },
+        sql: { modules: { grants: { options: { fromPolicies: true } } } },
+      },
+      "/project",
+    );
+    const layout = {
+      ...moduleLayout(config),
+      policyGrants: [
+        {
+          table: "public.notes",
+          role: "authenticated" as const,
+          privileges: ["select"],
+        },
+      ],
+      declaredTables: [
+        "public.customers",
+        "public.notes",
+        "public.jobs",
+        "audit.entries",
+      ],
+      rlsTables: [
+        "public.customers",
+        "public.notes",
+        "public.jobs",
+        "audit.entries",
+      ],
+    };
+    const [file] = renderModules(["grants"], layout);
+    expect(file!.contents).toContain(
+      [
+        'revoke all on table "public"."jobs" from public, anon, authenticated, service_role;',
+        'grant select, insert, update, delete on table "public"."jobs" to service_role;',
+        'revoke all on table "audit"."entries" from public, anon, authenticated, service_role;',
+        'grant select, insert, update, delete on table "audit"."entries" to service_role;',
+      ].join("\n"),
+    );
+    expect(file!.contents).not.toContain(
+      'grant select, insert, update, delete on table "public"."notes" to authenticated',
+    );
+    const [rlsOff] = renderModules(["grants"], {
+      ...layout,
+      rlsTables: ["audit.entries"],
+    });
+    expect(rlsOff!.contents).not.toContain('"public"."jobs"');
+    expect(rlsOff!.contents).toContain('"audit"."entries"');
+    const [without] = renderModules(["grants"], {
+      ...moduleLayout(config),
+      declaredTables: layout.declaredTables,
+    });
+    expect(without!.contents).not.toContain('"public"."jobs"');
   });
 
   it("rejects a function entry without a signature and table privileges on a function", () => {

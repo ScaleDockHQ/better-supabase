@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -10,8 +10,14 @@ import type {
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
 
+import { parseCommandArgs } from "../../../src/cli/command.ts";
 import { renderFiles } from "../../../src/cli/commands/gen.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
+import {
+  runSql,
+  sqlCommand,
+  type SqlArgs,
+} from "../../../src/cli/commands/sql.ts";
 import {
   type DoctorContext,
   RULES,
@@ -525,6 +531,35 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(await run("BS304", rooted(config))).toEqual([]);
   });
 
+  it("renders the same layout as sql sync for schema-derived modules", async () => {
+    await write(
+      "supabase/schemas/010_notes.sql",
+      "create table public.notes (id int);\ncreate table public.jobs (id int);\nalter table public.jobs enable row level security;\ncreate policy notes_read on public.notes for select to authenticated using (true);\n",
+    );
+    const config: BetterSupabaseConfig = {
+      sql: {
+        modules: {
+          grants: { options: { fromPolicies: true } },
+          sessions: { options: { policies: true } },
+        },
+      },
+    };
+    const ctx = rooted(config);
+    const missing = await run("BS304", ctx);
+    expect(missing.length).toBeGreaterThanOrEqual(2);
+    const synced = await runSql(
+      ctx.config,
+      parseCommandArgs(sqlCommand, ["sync"]) as SqlArgs,
+    );
+    expect(synced.code).toBe(0);
+    expect(await run("BS304", ctx)).toEqual([]);
+    const grants = await readFile(
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      "utf8",
+    );
+    expect(grants).toContain('"public"."jobs"');
+  });
+
   it("checks the SQL modules in sql.modules", async () => {
     expect(await run("BS304", rooted())).toEqual([]);
     const ctx = rooted({ sql: { modules: ["updated-at", "audit"] } });
@@ -896,6 +931,28 @@ describe("rate limits wired to PostgREST (BS313)", () => {
         context(base, {}, { sql: { modules: ["rate-limit"] } }),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("rate limits without the pre-request hook (BS313)", () => {
+  it("skips the check when preRequest is false", async () => {
+    const database = {
+      describe: "test",
+      session: true,
+      query: <R>() => Promise.resolve([{ hook: null, calls: false }] as R[]),
+    };
+    const modules = (preRequest: boolean) =>
+      context(
+        base,
+        { database },
+        {
+          sql: {
+            modules: { "rate-limit": { options: { preRequest } } },
+          },
+        },
+      );
+    expect(await run("BS313", modules(false))).toEqual([]);
+    expect(await run("BS313", modules(true))).toHaveLength(1);
   });
 });
 

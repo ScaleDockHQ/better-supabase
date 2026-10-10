@@ -195,7 +195,10 @@ export interface AuthResolution<C = unknown, P = unknown> {
   readonly requestCookies: readonly CookieRecord[];
   /** Adds `cookies` and `headers` to a response. */
   apply(response: Response): Response;
+  /** The session was ended server-side (revoked, deleted or banned); the cookies are cleared. */
   readonly sessionEnded?: boolean;
+  /** Why `sessionEnded` is set: `banned` when Auth rejected the user as banned. */
+  readonly sessionEndedReason?: "ended" | "banned";
 }
 
 function expiryOf(session: StoredSession): number | undefined {
@@ -536,13 +539,13 @@ function resolution(
   auth: AuthState,
   cookies: () => readonly CookieRecord[],
   writes: readonly CookieWrite[] = [],
-  ended = false,
+  ended?: "ended" | "banned",
 ): AuthResolution {
   const headers = writes.length > 0 ? AUTH_CACHE_HEADERS : {};
   let requestCookies: readonly CookieRecord[] | undefined;
   return {
     auth,
-    ...(ended ? { sessionEnded: true } : {}),
+    ...(ended ? { sessionEnded: true, sessionEndedReason: ended } : {}),
     cookies: writes,
     headers,
     /** Parsed on first read: bearer requests rarely need their cookies. */
@@ -672,19 +675,19 @@ export async function resolveAuth(
       options,
       "cookie",
     );
-    if (
-      state.kind === "user" &&
-      options.checkSession &&
-      (await sessionStatus(state.token, {
-        url: options.env.url,
-        publishableKey: options.env.publishableKey,
-        ...(options.fetch ? { fetch: options.fetch } : {}),
-        ...(options.refreshTimeoutMs === undefined
-          ? {}
-          : { timeoutMs: options.refreshTimeoutMs }),
-        ...(options.now ? { now: options.now } : {}),
-      })) === "ended"
-    ) {
+    const status =
+      state.kind === "user" && options.checkSession
+        ? await sessionStatus(state.token, {
+            url: options.env.url,
+            publishableKey: options.env.publishableKey,
+            ...(options.fetch ? { fetch: options.fetch } : {}),
+            ...(options.refreshTimeoutMs === undefined
+              ? {}
+              : { timeoutMs: options.refreshTimeoutMs }),
+            ...(options.now ? { now: options.now } : {}),
+          })
+        : undefined;
+    if (status === "ended" || status === "banned") {
       return resolution(
         { kind: "anon", reason: "signed_out" },
         cookies,
@@ -697,7 +700,7 @@ export async function resolveAuth(
               encoding,
             )
           : [],
-        true,
+        status,
       );
     }
     // A refresh can't fix claims the schema or the act check rejects, nor an unreachable JWKS.
@@ -752,6 +755,7 @@ export async function resolveAuth(
       { kind: "anon", reason: "signed_out" },
       cookies,
       writeSession(cookies(), name, null, options.cookie?.options, encoding),
+      outcome.code === "user_banned" ? "banned" : undefined,
     );
   }
   const writes = writeSession(

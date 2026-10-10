@@ -24,6 +24,28 @@ describe("refreshSession", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("returns the Auth error code of a rejected refresh", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json(
+        { code: 403, error_code: "user_banned", msg: "User banned" },
+        { status: 403 },
+      ),
+    );
+    expect(
+      await refreshSession("banned-token", {
+        url: "https://banned.test",
+        publishableKey: "pk",
+        fetch,
+      }),
+    ).toEqual({
+      ok: false,
+      reason: "rejected",
+      status: 403,
+      code: "user_banned",
+      message: "User banned",
+    });
+  });
+
   it("reuses a slow refresh for the whole window after it finishes", async () => {
     let clock = 1_000_000;
     const fetch = vi.fn<typeof globalThis.fetch>(async () => {
