@@ -319,9 +319,17 @@ export interface DataExporter {
    * emits `data_export.completed`). A failure marks it failed and returns the error.
    */
   run(exportId: string, signal?: AbortSignal): AsyncResult<DataExport>;
-  /** A jobs handler: `queue.work('data-exports', exporter.job)`. */
+  /**
+   * A jobs handler: `queue.work('data-exports', exporter.job)`. An export
+   * that is no longer pending or failed (cancelled, deleted, running or
+   * ready) completes the job; other errors throw so the queue retries.
+   */
   readonly job: JobHandler<DataExportJob>;
-  /** An outbox sink that runs each `data_export.requested` export. */
+  /**
+   * An outbox sink that runs each `data_export.requested` export. An event
+   * for an export that is no longer pending or failed is skipped, so it never
+   * holds up the events behind it; other errors throw so the relay retries.
+   */
   sink(): EventSink;
 }
 
@@ -449,10 +457,16 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
       },
     );
 
+  const settle = async (ran: AsyncResult<DataExport>): Promise<void> => {
+    const result = await ran;
+    if (result.ok || result.error.hint === "DATA_EXPORT_NOT_FOUND") return;
+    await ran.orThrow();
+  };
+
   return {
     run,
     job: async (payload, _job, signal) => {
-      await run(payload.exportId, signal).orThrow();
+      await settle(run(payload.exportId, signal));
     },
     sink: () => ({
       async send(events) {
@@ -464,7 +478,7 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
             continue;
           }
           const id = optionalText(event.data["exportId"]);
-          if (id !== undefined) await run(id).orThrow();
+          if (id !== undefined) await settle(run(id));
         }
       },
     }),

@@ -160,7 +160,11 @@ stops the others from starting, and the export is marked failed.
 
 `exporter.job` is a [jobs](/docs/blocks/jobs) handler for an `{ exportId }`
 payload when you prefer a queue. A failure marks the export `failed` with
-the error, and running it again starts over.
+the error, and running it again starts over. An event or job for an export
+that is no longer pending or failed (cancelled, deleted, already running or
+ready) is done: the sink skips it and the job completes, so it never blocks
+the events behind it in the relay. `exporter.run()` still returns `not_found`
+with the hint `DATA_EXPORT_NOT_FOUND` for it.
 
 `data_export.completed` carries the requester and the files, so a
 [notifications](/docs/blocks/notifications) consumer can tell them it's
