@@ -1,5 +1,17 @@
 # better-supabase
 
+## 0.6.1
+
+### Patch Changes
+
+- [#123](https://github.com/ScaleDockHQ/better-supabase/pull/123) [`7d705dd`](https://github.com/ScaleDockHQ/better-supabase/commit/7d705ddcbc5d4eedae265f5a5a79b263ddf57181) Thanks [@mick340](https://github.com/mick340)! - The attachment scanner's `sink()` and `job` no longer fail for an attachment that was deleted before its scan. A missing attachment made the sink throw, so the outbox relay retried the whole batch until it dead-lettered it and every later event for that consumer waited behind it. The sink now skips that event and the job completes; download, transport and `scan` errors still throw and retry. The object scanner does the same for an object deleted from storage (`NoSuchKey`), while a missing bucket still throws. `scanner.scan()` and `objects.scan()` keep returning the `not_found` error.
+
+- [#119](https://github.com/ScaleDockHQ/better-supabase/pull/119) [`b82078d`](https://github.com/ScaleDockHQ/better-supabase/commit/b82078d82b5605d4239bc9383717413ee8b7e9f5) Thanks [@mick340](https://github.com/mick340)! - Audit entries record the request and correlation ids of the action that made them, so an app can group an event with the row changes of the same request. `createServer` gives every context a request id (the incoming `x-request-id` when valid, else a new UUID) and a correlation id (the incoming `x-correlation-id`, else the request id), exposes them as `ctx.requestId` and `ctx.correlationId`, sends them as headers on `ctx.db` requests and sets them as the transaction-local `better_supabase.request_id` and `better_supabase.correlation_id` settings for `ctx.sql`. The `requestIds` server option renames the headers, ignores the incoming ones or turns the ids off, and `ContextOptions` takes `requestId` and `correlationId` for jobs.
+  
+  The audit module (version 6) reads the ids from those settings, then from the request headers (`requestIdHeader` and `correlationIdHeader` options), keeps only ids of 1 to 128 safe characters through `better_supabase.request_id_or_null`, and indexes `correlation_id` on a managed log. The ids are metadata and never grant access. Run `better-supabase sql sync` and generate a migration to pick up the module change.
+
+- [#123](https://github.com/ScaleDockHQ/better-supabase/pull/123) [`302bf48`](https://github.com/ScaleDockHQ/better-supabase/commit/302bf487652ed72c74ad090f9685ad555548f18a) Thanks [@mick340](https://github.com/mick340)! - The data exporter's `sink()` and `job` no longer fail for an export they can't claim, such as one cancelled, deleted or already finished before its `data_export.requested` event arrived. The sink threw `DATA_EXPORT_NOT_FOUND`, so the outbox relay retried the batch until it dead-lettered it and held every later event for that consumer behind it. The sink now skips that event and the job completes; a failing export still throws and retries. `exporter.run()` keeps returning the `not_found` error.
+
 ## 0.6.0
 
 ### Minor Changes
