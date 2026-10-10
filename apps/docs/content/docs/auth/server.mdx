@@ -166,12 +166,61 @@ tracing, rate limits or log fields:
 
 ```ts
 export const bs = createServer(betterSupabase, {
-  headers: (request) => ({
-    "x-channel": "web",
-    "x-request-id": request.headers.get("x-request-id") ?? crypto.randomUUID(),
-  }),
+  headers: (request) => ({ "x-channel": "web" }),
 });
 ```
+
+## Request and correlation ids
+
+Every context carries a request id and a correlation id, which the
+[audit module](/docs/blocks/sql#request-and-correlation-ids) records on each
+row change and event. `ctx.db` sends them as the `x-request-id` and
+`x-correlation-id` headers, and `ctx.sql` sets them as the transaction-local
+`better_supabase.request_id` and `better_supabase.correlation_id` settings.
+The request id is the incoming request's `x-request-id` when it is valid, else
+a new UUID, kept for every context built from the same `Request`. The
+correlation id is the incoming `x-correlation-id`, else the request id.
+
+An id is valid when it has 1 to 128 characters from `A-Z`, `a-z`, `0-9` and
+`. _ : ; , @ / + = -`; anything else is dropped. The ids are log metadata: a
+client can send any value, so never use them to decide access.
+
+`requestIds` changes the header names, ignores the incoming headers, or turns
+the ids off:
+
+```ts
+export const bs = createServer(betterSupabase, {
+  requestIds: {
+    requestHeader: "x-vercel-id",
+    correlationHeader: "x-correlation-id",
+    incoming: true,
+    generate: true,
+  },
+});
+```
+
+| Option              | Default            | What it does                                                     |
+| ------------------- | ------------------ | ---------------------------------------------------------------- |
+| `requestHeader`     | `x-request-id`     | the header the request id is read from and sent as               |
+| `correlationHeader` | `x-correlation-id` | the header the correlation id is read from and sent as           |
+| `incoming`          | `true`             | reuse valid ids from the incoming request's headers              |
+| `generate`          | `true`             | generate a request id when the incoming request has no valid one |
+
+`requestIds: false` reads and generates nothing. Set the audit module's
+`requestIdHeader` and `correlationIdHeader` options to the same header names.
+A job without a request passes its own ids, and the `headers` option still
+wins over the id headers:
+
+```ts
+const ctx = server.contextFor(auth, {
+  requestId: job.id,
+  correlationId: job.data.correlationId,
+});
+```
+
+`ctx.requestId` and `ctx.correlationId` hold the ids, for an
+[audit event](/docs/blocks/audit#recording-events) written with a
+service-role transport or a log line.
 
 ## Active tenant
 

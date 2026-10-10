@@ -613,6 +613,7 @@
       "RefreshOutcome",
       "RefreshPolicy",
       "ReplicaState",
+      "RequestIdOptions",
       "ResolveAuthOptions",
       "ResolvedState",
       "ResourceHandler",

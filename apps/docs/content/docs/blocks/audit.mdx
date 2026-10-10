@@ -35,7 +35,8 @@ const id = await audit
     organizationId,
     record: ticket.id,
     summary: "Escalated to the on-call team",
-    requestId: request.headers.get("x-request-id") ?? undefined,
+    requestId: ctx.requestId,
+    correlationId: ctx.correlationId,
     metadata: { ticketId: ticket.id, priority: 2 },
   })
   .orThrow();
@@ -44,7 +45,12 @@ const id = await audit
 Its fields are the arguments of `audit_event`. `actorId`, `actorKind`,
 `actorLabel`, `ip`, `userAgent`, `sessionId`, `requestId` and `scope` count
 only for the service role and direct admin connections; any other caller
-gets its own user and the request's `x-request-id` header. `scope` defaults
+gets its own user and the request's id. Pass `ctx.requestId` and
+`ctx.correlationId` from the [server context](/docs/auth/server#request-and-correlation-ids)
+so the event and the row changes of the same action share them; without
+them, `audit_event` reads the request's settings and headers (see
+[Request and correlation ids](/docs/blocks/sql#request-and-correlation-ids)).
+An id that isn't 1 to 128 safe characters is dropped. `scope` defaults
 to `tenant` with an organization and `platform` without one, and an adopted
 log can take its own value (`region`, say). An adopted log's columns outside
 the module's model are filled from metadata keys with

@@ -491,6 +491,107 @@ describe("createServer contextFor", () => {
   });
 });
 
+describe("createServer request ids", () => {
+  const UUID =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+  it("forwards valid incoming ids to PostgREST and the Postgres settings", async () => {
+    const { sent } = stubFetch();
+    const { postgres, sessions } = fakePostgres();
+    const server = createServer(defineSupabase(schema), { env, postgres });
+    const ctx = await server.context(
+      new Request("https://app.test/", {
+        headers: {
+          "x-request-id": "iad1::abc-123",
+          "x-correlation-id": "checkout/42",
+        },
+      }),
+    );
+    expect(ctx.requestId).toBe("iad1::abc-123");
+    expect(ctx.correlationId).toBe("checkout/42");
+    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    expect(sent(0).headers.get("x-request-id")).toBe("iad1::abc-123");
+    expect(sent(0).headers.get("x-correlation-id")).toBe("checkout/42");
+    await ctx.sql!.customers.findMany({ select: ["id"] }).orThrow();
+    expect(sessions).toEqual([
+      {
+        settings: {
+          "better_supabase.request_id": "iad1::abc-123",
+          "better_supabase.correlation_id": "checkout/42",
+        },
+      },
+    ]);
+  });
+
+  it("generates one id per request when the incoming one is missing or invalid", async () => {
+    const { sent } = stubFetch();
+    const server = createServer(defineSupabase(schema), { env });
+    const request = new Request("https://app.test/", {
+      headers: {
+        "x-request-id": "has spaces",
+        "x-correlation-id": "x".repeat(129),
+      },
+    });
+    const resolution = await server.resolve(request);
+    const first = server.contextFromResolution(resolution, request);
+    const second = server.contextFromResolution(resolution, request);
+    expect(first.requestId).toMatch(UUID);
+    expect(second.requestId).toBe(first.requestId);
+    expect(first.correlationId).toBe(first.requestId);
+    const other = await server.context(new Request("https://app.test/"));
+    expect(other.requestId).toMatch(UUID);
+    expect(other.requestId).not.toBe(first.requestId);
+    await first.db.customers.findMany({ select: ["id"] }).orThrow();
+    expect(sent(0).headers.get("x-request-id")).toBe(first.requestId);
+    expect(sent(0).headers.get("x-correlation-id")).toBe(first.requestId);
+  });
+
+  it("takes header names, explicit ids and app headers from the options", async () => {
+    const { sent } = stubFetch();
+    const server = createServer(defineSupabase(schema), {
+      env,
+      requestIds: {
+        requestHeader: "X-Trace",
+        correlationHeader: "x-action",
+        incoming: false,
+      },
+      headers: () => ({ "x-action": "from-app" }),
+    });
+    const ctx = await server.context(
+      new Request("https://app.test/", { headers: { "x-trace": "client" } }),
+      { correlationId: "flow-7" },
+    );
+    expect(ctx.requestId).toMatch(UUID);
+    expect(ctx.correlationId).toBe("flow-7");
+    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    expect(sent(0).headers.get("x-trace")).toBe(ctx.requestId);
+    expect(sent(0).headers.get("x-action")).toBe("from-app");
+    expect(sent(0).headers.get("x-request-id")).toBeNull();
+  });
+
+  it("sends nothing with requestIds false, and only explicit ids without a request", async () => {
+    const { sent } = stubFetch();
+    const off = createServer(defineSupabase(schema), {
+      env,
+      requestIds: false,
+    });
+    const ctx = await off.context(
+      new Request("https://app.test/", { headers: { "x-request-id": "r1" } }),
+    );
+    expect(ctx.requestId).toBeUndefined();
+    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    expect(sent(0).headers.get("x-request-id")).toBeNull();
+
+    const server = createServer(defineSupabase(schema), { env });
+    expect(server.contextFor(anon).requestId).toBeUndefined();
+    const job = server.contextFor(anon, { requestId: "job-1" });
+    expect(job.correlationId).toBe("job-1");
+    await job.db.customers.findMany({ select: ["id"] }).orThrow();
+    expect(sent(1).headers.get("x-request-id")).toBe("job-1");
+    expect(sent(1).headers.get("x-correlation-id")).toBe("job-1");
+  });
+});
+
 describe("createServer tenant", () => {
   const TENANT = "33333333-3333-4333-8333-333333333333";
 
@@ -515,14 +616,20 @@ describe("createServer tenant", () => {
     expect(sent(0).headers.get(TENANT_HEADER)).toBe(TENANT);
     await ctx.sql!.customers.findMany({ select: ["id"] }).orThrow();
     expect(sessions).toEqual([
-      { settings: { "better_supabase.tenant": TENANT } },
+      {
+        settings: {
+          "better_supabase.request_id": ctx.requestId,
+          "better_supabase.correlation_id": ctx.requestId,
+          "better_supabase.tenant": TENANT,
+        },
+      },
     ]);
 
     const none = await server.context(new Request("https://app.test/"));
     expect(none.db.$context.tenant).toBeUndefined();
     await none.sql!.customers.findMany({ select: ["id"] }).orThrow();
     expect(sessions).toHaveLength(2);
-    expect(sessions[1]).toBeUndefined();
+    expect(sessions[1]?.settings).not.toHaveProperty("better_supabase.tenant");
   });
 
   it("prefers options.tenant, and needs it for async resolvers without context()", async () => {

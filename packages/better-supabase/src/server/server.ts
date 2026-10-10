@@ -75,6 +75,12 @@ import {
   routedExecutor,
   withPrimaryPin,
 } from "./replicas.ts";
+import {
+  type RequestIdOptions,
+  requestIdPolicy,
+  type RequestIds,
+  sessionWith,
+} from "./request-ids.ts";
 import { defaultPrefetchJwks } from "./respond.ts";
 import { supportOff } from "./support-off.ts";
 import {
@@ -124,6 +130,7 @@ export interface ServerOptions {
    * `current_setting('request.headers')` (channel, request id, client IP for audit).
    */
   readonly headers?: (request: Request) => Readonly<Record<string, string>>;
+  readonly requestIds?: RequestIdOptions | false;
   /**
    * PostgREST URL for the caller's reads: a read replica or the `<ref>-all`
    * load balancer. Defaults to `SUPABASE_READ_URL`; `false` reads from the
@@ -236,6 +243,8 @@ export interface ServerContext<
   readonly support?: ActiveSupport;
   /** `options.credentials`, when the server has one. */
   readonly credentials?: CredentialProvider;
+  readonly requestId?: string;
+  readonly correlationId?: string;
 }
 
 export interface ContextOptions {
@@ -253,6 +262,8 @@ export interface ContextOptions {
    * looks it up itself; `contextFromResolution` only uses this.
    */
   readonly support?: ActiveSupport;
+  readonly requestId?: string;
+  readonly correlationId?: string;
 }
 
 export interface BetterServer<
@@ -655,6 +666,7 @@ export function createServer<
   };
 
   const pinMs = options.replicas?.pinMs ?? DEFAULT_PIN_MS;
+  const idPolicy = requestIdPolicy(options.requestIds);
 
   if (options.support && !options.postgres) {
     throw new TypeError(
@@ -679,6 +691,7 @@ export function createServer<
     active: ActiveSupport,
     parent: StatsRecorder | undefined,
     tenant: string | undefined,
+    ids: RequestIds,
   ): ServerContext<M, F, E, C, P> => {
     const { session, claims } = active;
     const record = (key: string): Record<string, unknown> | undefined => {
@@ -714,12 +727,7 @@ export function createServer<
     const base = userContext(user, claims);
     const context: RequestContext =
       scope === undefined ? base : { ...base, tenant: scope };
-    const sessionOptions: SessionOptions = {
-      ...(session.readOnly ? { readOnly: true } : {}),
-      ...(scope === undefined
-        ? {}
-        : { settings: { "better_supabase.tenant": scope } }),
-    };
+    const sessionOptions = sessionWith(ids, scope, session.readOnly);
     const recorder = new StatsRecorder(parent);
     // SAFETY: SqlClaims is the JWT payload; claims holds the target's.
     const sqlClaims = claims as SqlClaims;
@@ -732,6 +740,7 @@ export function createServer<
     let sql: Db<M, F, E, undefined> | undefined;
     return {
       ...credentials,
+      ...ids,
       auth,
       resolution,
       support: active,
@@ -769,20 +778,19 @@ export function createServer<
     auth: Extract<AuthState, { kind: "apiKey" }>,
     parent: StatsRecorder | undefined,
     tenant: string | undefined,
+    ids: RequestIds,
   ): ServerContext<M, F, E, C, P> => {
     const scope = tenant ?? auth.organizationId;
     const base = authContext(auth);
     const context: RequestContext =
       scope === undefined ? base : { ...base, tenant: scope };
-    const session: SessionOptions | undefined =
-      scope === undefined
-        ? undefined
-        : { settings: { "better_supabase.tenant": scope } };
+    const session = sessionWith(ids, scope);
     const recorder = new StatsRecorder(parent);
     let db: Db<M, F, E, SupabaseClient> | undefined;
     let sql: Db<M, F, E, undefined> | undefined;
     return {
       ...credentials,
+      ...ids,
       auth: resolution.auth,
       resolution,
       get supabase(): SupabaseClient {
@@ -817,23 +825,24 @@ export function createServer<
     until = 0,
     tenant?: string,
     active?: ActiveSupport,
+    ids: RequestIds = {},
   ): ServerContext<M, F, E, C, P> => {
-    if (active) return supportContextFor(resolution, active, parent, tenant);
+    if (active)
+      return supportContextFor(resolution, active, parent, tenant, ids);
     const { auth } = resolution;
     if (auth.kind === "apiKey")
-      return apiKeyContextFor(resolution, auth, parent, tenant);
+      return apiKeyContextFor(resolution, auth, parent, tenant, ids);
     const context: RequestContext =
       tenant === undefined
         ? authContext(auth)
         : { ...authContext(auth), tenant };
-    const headers =
+    const clientHeaders =
       tenant === undefined
         ? requestHeaders
         : { ...requestHeaders, [TENANT_HEADER]: tenant };
-    const session: SessionOptions | undefined =
-      tenant === undefined
-        ? undefined
-        : { settings: { "better_supabase.tenant": tenant } };
+    const headers = { ...idPolicy.headers(ids), ...clientHeaders };
+    const sharesClient = auth.kind !== "user";
+    const session = sessionWith(ids, tenant);
     const recorder = new StatsRecorder(parent);
     let supabase: SupabaseClient | undefined;
     let db: Db<M, F, E, SupabaseClient> | undefined;
@@ -845,7 +854,7 @@ export function createServer<
           ? { role: "anon" }
           : undefined;
     const client = (): SupabaseClient =>
-      (supabase ??= supabaseFor(auth, headers));
+      (supabase ??= supabaseFor(auth, sharesClient ? clientHeaders : headers));
     let replica: ReplicaState | undefined;
     const replicaUrl = (): string | undefined => {
       const url = readUrl();
@@ -854,6 +863,7 @@ export function createServer<
     };
     return {
       ...credentials,
+      ...ids,
       auth,
       resolution,
       get supabase() {
@@ -863,7 +873,8 @@ export function createServer<
         if (db) return db;
         const url = replicaUrl();
         const rest: PostgrestClientLike =
-          supabase ?? restAt(env().url, auth, headers);
+          (sharesClient ? undefined : supabase) ??
+          restAt(env().url, auth, headers);
         const connected = betterSupabase.connect(rest, context, {
           stats: recorder,
           ...(url && replica
@@ -918,6 +929,7 @@ export function createServer<
         (readUrl() ? pinnedUntil(resolution.requestCookies) : 0),
       tenant,
       contextOptions.support,
+      idPolicy.forRequest(request, contextOptions),
     );
 
   const resolve = async (
@@ -1009,6 +1021,7 @@ export function createServer<
         contextOptions.pinnedUntil,
         contextOptions.tenant,
         contextOptions.support,
+        idPolicy.forRequest(undefined, contextOptions),
       ),
     context(request, contextOptions = {}) {
       const { refresh, cookies, ...rest } = contextOptions;
@@ -1160,12 +1173,7 @@ export function createServer<
                 }
               : {}),
         };
-        const session: SessionOptions = {
-          ...(support?.readOnly ? { readOnly: true } : {}),
-          ...(tenant === undefined
-            ? {}
-            : { settings: { "better_supabase.tenant": tenant } }),
-        };
+        const session = sessionWith({}, tenant, support?.readOnly);
         return ok(
           sqlFor(
             claims,
@@ -1180,7 +1188,7 @@ export function createServer<
               ...(tenant === undefined ? {} : { tenant }),
             },
             undefined,
-            Object.keys(session).length === 0 ? undefined : session,
+            session,
           ),
         );
       });
