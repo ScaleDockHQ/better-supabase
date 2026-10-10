@@ -1,7 +1,7 @@
 {
   "name": "better-supabase",
   "displayName": "better-supabase",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Agent skills for better-supabase: typed Supabase repositories, adapters, auth, codegen and RLS tests, plus the docs MCP server.",
   "author": {
     "name": "ScaleDock",
