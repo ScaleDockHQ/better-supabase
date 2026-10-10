@@ -1,5 +1,5 @@
 ---
-"better-supabase": minor
+"better-supabase": patch
 ---
 
 Audit entries record the request and correlation ids of the action that made them, so an app can group an event with the row changes of the same request. `createServer` gives every context a request id (the incoming `x-request-id` when valid, else a new UUID) and a correlation id (the incoming `x-correlation-id`, else the request id), exposes them as `ctx.requestId` and `ctx.correlationId`, sends them as headers on `ctx.db` requests and sets them as the transaction-local `better_supabase.request_id` and `better_supabase.correlation_id` settings for `ctx.sql`. The `requestIds` server option renames the headers, ignores the incoming ones or turns the ids off, and `ContextOptions` takes `requestId` and `correlationId` for jobs.
