@@ -350,9 +350,27 @@ describe("resolveAuth", async () => {
       },
     );
     expect(rejected.auth).toEqual({ kind: "anon", reason: "signed_out" });
+    expect(rejected.sessionEnded).toBeUndefined();
     expect(rejected.cookies.every((write) => write.options.maxAge === 0)).toBe(
       true,
     );
+
+    const banned = await resolveAuth(
+      cookieRequest(sessionFor(stale, "refresh-banned")),
+      {
+        ...options,
+        refresh: true,
+        fetch: async () =>
+          Response.json(
+            { code: 403, error_code: "user_banned", msg: "User banned" },
+            { status: 403 },
+          ),
+      },
+    );
+    expect(banned).toMatchObject({
+      sessionEnded: true,
+      sessionEndedReason: "banned",
+    });
 
     const offline = await resolveAuth(
       cookieRequest(sessionFor(stale, "refresh-offline")),

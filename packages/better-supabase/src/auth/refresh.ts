@@ -30,6 +30,8 @@ export type RefreshOutcome =
       /** `rejected`: the refresh token is dead, sign the user out. `network`: keep the session and retry later. */
       readonly reason: "rejected" | "network";
       readonly status?: number;
+      /** The Auth server's `error_code`, such as `user_banned` or `refresh_token_not_found`. */
+      readonly code?: string;
       readonly message: string;
     };
 
@@ -121,6 +123,9 @@ async function request(
           ? "network"
           : "rejected",
       status: response.status,
+      ...(typeof body?.["error_code"] === "string"
+        ? { code: body["error_code"] }
+        : {}),
       message,
     };
   }

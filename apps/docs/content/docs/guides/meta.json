@@ -7,6 +7,7 @@
     "read-replicas",
     "offline-first",
     "without-a-session",
+    "csv-downloads",
     "limitations"
   ]
 }

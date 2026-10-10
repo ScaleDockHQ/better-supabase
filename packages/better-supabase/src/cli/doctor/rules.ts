@@ -11,7 +11,6 @@ import {
   type ModuleFile,
   moduleFileVersion,
   type ModuleLayout,
-  moduleLayout,
   moduleVersion,
   renderModules,
   sameModuleFile,
@@ -21,12 +20,8 @@ import { defineBucket, parseSize } from "../../storage/index.ts";
 import { renderFiles } from "../commands/gen.ts";
 import { byCodePoint } from "../compare.ts";
 import { configFor } from "../gen/shared.ts";
-import {
-  declarativeSchemasDir,
-  diffEngine,
-  migrationCommand,
-  tomlGet,
-} from "../supabase-toml.ts";
+import { moduleLayoutFor } from "../sql-layout.ts";
+import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { advisorRule } from "./advisor-rules.ts";
 import {
   accessModule,
@@ -40,7 +35,7 @@ import { skippedForMetadata } from "./metadata.ts";
 import { MODULE_RULES } from "./modules.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { POLICY_RULES } from "./policies.ts";
-import { RLS_RULES } from "./rls.ts";
+import { appliesTo, RLS_RULES } from "./rls.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
 import {
   catalogOf,
@@ -168,17 +163,17 @@ async function moduleFiles(context: DoctorContext): Promise<ModuleFileState[]> {
   const skipped = readSets !== undefined && "skipped" in readSets;
   let rendered: ModuleFile[];
   try {
-    rendered = renderModules(context.config.sql.moduleNames, {
-      ...moduleLayout(
-        context.config,
-        context.config.sql.testsDir,
-        skipped ? [] : readSets,
-        entitlementsModule(context),
-        access.kind === "provider" ? access.access : undefined,
-        permissionCatalogKeys(context),
-      ),
-      schemasDir: declarativeSchemasDir(context.configToml),
-    });
+    rendered = renderModules(
+      context.config.sql.moduleNames,
+      await moduleLayoutFor(context.config, {
+        names: context.config.sql.moduleNames,
+        testsDir: context.config.sql.testsDir,
+        readSets: skipped ? [] : readSets,
+        entitlementsProvider: entitlementsModule(context),
+        accessProvider: access.kind === "provider" ? access.access : undefined,
+        permissionCatalog: permissionCatalogKeys(context),
+      }),
+    );
   } catch {
     // A config `sql sync` refuses (such as api-keys scopes "catalog" without
     // a catalog) has no files to compare; `sql sync` reports why.
@@ -339,7 +334,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "error",
     title: "Table not granted to the Data API",
     description:
-      "Supabase no longer grants new tables to anon and authenticated. Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated. Tables marked `serviceRole` in `tables` must have no grants for either role.",
+      "Supabase no longer grants new tables to anon and authenticated. Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated, except tables with no permissive policy under `sql.modules.grants.options.fromPolicies`, which are service-only. Tables marked `serviceRole` in `tables` must have no grants for either role.",
     check: (context) => {
       const auto = context.configToml
         ? tomlGet(context.configToml.document, [
@@ -383,10 +378,20 @@ const OWN_RULES: readonly Rule[] = [
             ];
           });
         }
+        const serviceOnly =
+          context.config.sql.moduleNames.includes("grants") &&
+          context.config.sql.modules["grants"]?.options?.["fromPolicies"] ===
+            true &&
+          table.rls &&
+          !table.policies.some(
+            (policy) =>
+              policy.permissive &&
+              (appliesTo(policy, "anon") || appliesTo(policy, "authenticated")),
+          );
         const wanted = context.config.expose[qualified(table)] ??
           context.config.expose[table.name] ?? {
             anon: [],
-            authenticated: ["select" as const],
+            authenticated: serviceOnly ? [] : ["select" as const],
           };
         return (["anon", "authenticated"] as const).flatMap((role) => {
           const have = granted(role);

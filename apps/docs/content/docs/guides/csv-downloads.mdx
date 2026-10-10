@@ -1,0 +1,42 @@
+---
+title: CSV downloads
+description: Turn rows into RFC 4180 CSV or a download response with toCsv, csvColumns and csvResponse from better-supabase/server.
+---
+
+`better-supabase/server` exports the CSV writer the audit log and the data
+exporter use, so an admin list or a report can offer a download without a
+second CSV library.
+
+```ts title="app/api/customers/export/route.ts"
+import { csvResponse } from "better-supabase/server";
+
+export const GET = bs.handler(async (_request, ctx) => {
+  const customers = await ctx.db.customers
+    .findMany({ orderBy: { name: "asc" } })
+    .orThrow();
+  return csvResponse(customers, {
+    filename: "customers.csv",
+    columns: ["name", "email", "createdAt"],
+  });
+});
+```
+
+`csvResponse(rows, options)` answers with `Content-Type: text/csv;
+charset=utf-8` and a `Content-Disposition: attachment` header that carries the
+file name as both `filename` and the UTF-8 `filename*` form, so names with
+accents survive. `status` and `headers` are optional; the two headers above
+always win.
+
+| Option           | Default                           | Meaning                                                                    |
+| ---------------- | --------------------------------- | -------------------------------------------------------------------------- |
+| `filename`       | required                          | The download name, such as `customers.csv`                                 |
+| `columns`        | every key, in order of appearance | The columns in order; `csvColumns(rows)` returns the default               |
+| `escapeFormulas` | `true`                            | Prefixes text cells that start with `=`, `+`, `-`, `@`, tab or CR with `'` |
+| `status`         | `200`                             | The response status                                                        |
+| `headers`        | none                              | Extra headers, such as `cache-control: no-store`                           |
+
+`toCsv(rows, { columns, escapeFormulas })` returns the same text as a string,
+with a header row and CRLF line ends. Objects and arrays are written as JSON,
+and `null` and `undefined` as empty cells. Leave `escapeFormulas` on for any
+file a person opens in a spreadsheet: a cell such as `=HYPERLINK(...)` that a
+user typed would otherwise run as a formula (CSV injection).

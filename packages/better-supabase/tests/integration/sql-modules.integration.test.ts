@@ -823,6 +823,36 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("last_sign_ins reads many users at once and only for the service role", async () => {
+    const created = await pool.query<{ id: string }>(
+      `insert into auth.users (id, instance_id, aud, role, email, last_sign_in_at) values
+        (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1, '2026-05-01T10:00:00Z'),
+        (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2, null)
+       returning id`,
+      [`last-a-${RUN}@example.com`, `last-b-${RUN}@example.com`],
+    );
+    const ids = created.rows.map((row) => row.id);
+    try {
+      const rows = await pool.query<{ user_id: string; at: Date | null }>(
+        "select user_id, last_sign_in_at as at from better_supabase.last_sign_ins($1::uuid[])",
+        [ids],
+      );
+      expect(rows.rows).toHaveLength(2);
+      expect(rows.rows.filter((row) => row.at !== null)).toHaveLength(1);
+      await expect(
+        postgres
+          .asUser({ sub: ids[0]! })
+          .queryRaw("select * from better_supabase.last_sign_ins($1::uuid[])", [
+            ids,
+          ]),
+      ).rejects.toMatchObject({ code: "42501" });
+    } finally {
+      await pool.query("delete from auth.users where id = any($1::uuid[])", [
+        ids,
+      ]);
+    }
+  });
+
   it("writes the session policy on every declared table with options.policies", async () => {
     const name = `bs_sessions_${RUN}`;
     const user = await pool.query<{ id: string }>(

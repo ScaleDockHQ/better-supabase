@@ -80,6 +80,15 @@ Restrictive policies grant nothing. A policy without `to` (or `to public`)
 counts for `authenticated` only, so `anon` needs a policy that names it.
 Tables in `expose` keep their listed privileges.
 
+A table the schema files create and enable row level security on, that no
+`expose` entry and no permissive policy reaches, is service-only (tables
+without RLS keep their grants): the module revokes everything from `public`,
+`anon` and `authenticated` and grants `service_role` every privilege, as if
+`expose` listed it with `authenticated: []`. To open such a table, add a
+policy for the roles that need it, or list it in `expose`. Doctor reports a
+table like that which still holds grants on the live database as
+[BS115](/docs/cli/doctor#bs115), until the migration is applied.
+
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   schemas: ["public"],
@@ -107,7 +116,7 @@ Tables with a `serial` column also need `usage` on the sequence for inserts
 `better-supabase doctor` reports [BS106](/docs/cli/doctor#bs106) for every
 table the Data API roles can't reach. Tables in `expose` need the privileges
 listed there. Other tables in the generated schemas need at least `select`
-for `authenticated`.
+for `authenticated`, except tables that `fromPolicies` makes service-only.
 
 Some tables are for the server only: an audit log or a job queue that only
 `service_role` reads and writes. Revoke the Data API roles and set

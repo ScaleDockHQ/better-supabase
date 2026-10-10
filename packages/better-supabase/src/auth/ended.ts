@@ -11,7 +11,8 @@ import {
   writeSession,
 } from "./session.ts";
 
-export type SessionStatus = "active" | "ended" | "unknown";
+/** `banned`: Auth rejected the token with `error_code: "user_banned"`. */
+export type SessionStatus = "active" | "ended" | "banned" | "unknown";
 
 export interface SessionStatusOptions {
   readonly url: string;
@@ -62,8 +63,15 @@ export async function sessionStatus(
       },
       signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
+    if (response.status === 401 || response.status === 403) {
+      // SAFETY: the Auth server responds with a JSON object, and the field is checked before use.
+      const body = (await response.json().catch(() => null)) as Record<
+        string,
+        unknown
+      > | null;
+      return body?.["error_code"] === "user_banned" ? "banned" : "ended";
+    }
     await response.body?.cancel();
-    if (response.status === 401 || response.status === 403) return "ended";
     return response.ok ? "active" : "unknown";
   } catch {
     return "unknown";

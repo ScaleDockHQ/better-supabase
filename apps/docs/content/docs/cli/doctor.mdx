@@ -144,8 +144,10 @@ tables to `anon` and `authenticated` (new projects from May 30, 2026, existing
 projects from October 30, 2026). Without a grant, every request fails with
 `42501` before RLS runs. Tables listed in [`expose`](/docs/guides/data-api-grants)
 need exactly the privileges listed; other tables in the generated schemas need
-`select` for `authenticated`. Add the table to `expose` and run
-`better-supabase sql add grants`. When `config.toml` sets
+`select` for `authenticated`, except tables with no permissive policy when
+`sql.modules.grants.options.fromPolicies` is on: those are service-only, so
+BS106 expects no grants for them ([BS115](#bs115)). Add the table to `expose`
+and run `better-supabase sql add grants`. When `config.toml` sets
 `[api] auto_expose_new_tables = false`, the finding says so.
 
 A table that only the server reads, such as an audit log written with the
@@ -235,6 +237,33 @@ migrations; add the missing ones with the same bucket and path check.
 `app_metadata`, which only the service role can write. Splinter's
 `rls_references_user_metadata` (BS100) covers the policy text; this check
 covers the functions policies call, and the functions those call.
+
+### BS115
+
+**Warning: table without a policy still granted to the Data API.** A table
+with RLS on and no permissive policy for `anon` or `authenticated` answers
+every request with no rows or a denied write, yet a grant lists it in the API
+schema. With `sql.modules.grants.options.fromPolicies`, `better-supabase sql sync`
+revokes `anon`, `authenticated` and `public` on every table in `schemas` that
+no `expose` entry and no permissive policy reaches, and keeps the privileges
+of `service_role`. Until the migration is applied, doctor reports the grants
+that are still on the database. Tables in `expose`, `tables.<name>.exclude`
+and `tables.<name>.serviceRole` are skipped.
+
+### BS116
+
+**Warning: security definer function open to the API roles but not
+exposed.** Postgres grants `execute` on a new function to `public`, so a
+`security definer` function in an exposed schema is callable at `/rpc` by
+`anon` and `authenticated` unless it is revoked. When no
+[`expose`](/docs/guides/data-api-grants) entry lists the function and no
+policy calls it, nothing in the project says the API roles should reach it.
+Doctor never revokes anything. Run
+`revoke all on function schema.name(args) from public, anon, authenticated;`,
+then grant `execute` to the roles that call it (or list the function in
+`expose`). [BS112](#bs112) reports the same functions when they also skip a
+caller check. Needs a snapshot taken with this version, which records who may
+execute each function.
 
 ## Performance
 
@@ -530,7 +559,9 @@ is the same check as `gen --check`.
 ### BS304
 
 **Warning: SQL module files are out of date.** A module in `sql.modules` differs from
-the version this release ships. Run `better-supabase sql sync`, then
+the version this release ships. Doctor renders the files with the same layout
+as `sql sync` (grants from policies, session policies, audited tables and the
+vector schema), so the two agree on what is out of date. Run `better-supabase sql sync`, then
 `supabase db schema declarative sync` (`supabase db diff` on migra) to create
 a migration.
 
@@ -624,7 +655,9 @@ back to `schemas` in `better-supabase.config.ts` without a `config.toml`.
 `better_supabase.check_request()`, so Data API writes are never counted. Apply
 the migration `better-supabase sql data` writes, which sets the hook when no
 other one is set, or call `check_request()` from your own pre-request
-function. Doctor needs a database connection for this check.
+function. Doctor needs a database connection for this check. With
+`sql.modules["rate-limit"].options.preRequest` set to `false`, the app calls
+`check_request()` itself and BS313 does not run.
 
 ### BS314
 

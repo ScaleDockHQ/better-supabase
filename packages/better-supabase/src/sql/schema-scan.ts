@@ -95,6 +95,44 @@ export function declaredTables(
   return [...found];
 }
 
+const RLS_TOGGLE = new RegExp(
+  String.raw`\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${NAME}(?:\s*\.\s*${NAME})?)\s+(enable|disable)\s+row\s+level\s+security\b`,
+  "gi",
+);
+
+/**
+ * The tables in `schemas` that `files` leave with row level security on:
+ * `alter table ... enable row level security`, until a later `disable` or
+ * `drop table`.
+ */
+export function rlsTables(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): string[] {
+  const found = new Set<string>();
+  for (const file of files) {
+    const text = withoutComments(file.text);
+    inOrder([
+      [...text.matchAll(RLS_TOGGLE)].map((match) => ({
+        index: match.index,
+        apply: () => {
+          const table = qualified(match[1]!);
+          if (!schemas.includes(table.slice(0, table.indexOf(".")))) return;
+          if (match[2]!.toLowerCase() === "enable") found.add(table);
+          else found.delete(table);
+        },
+      })),
+      [...text.matchAll(DROP_TABLE)].map((match) => ({
+        index: match.index,
+        apply: () => {
+          for (const table of droppedTables(match[1]!)) found.delete(table);
+        },
+      })),
+    ]);
+  }
+  return [...found];
+}
+
 const TABLE_CONSTRAINT =
   /^(constraint|check|unique|primary|foreign|exclude|like)\b/i;
 

@@ -1,6 +1,7 @@
 import type { CatalogPolicy, CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
+import { configFor } from "../gen/shared.ts";
 import {
   appliesTo,
   COMMANDS,
@@ -13,6 +14,7 @@ import {
 import {
   catalogOf,
   exposed,
+  exposedSchemas,
   policyObject,
   qualified,
   tableObject,
@@ -260,6 +262,94 @@ export const POLICY_RULES: readonly Rule[] = [
           },
         ];
       }),
+  },
+  {
+    code: "BS115",
+    severity: "warning",
+    title: "Table without a policy still granted to the Data API",
+    description:
+      "A table with RLS on and no permissive policy for `anon` or `authenticated` answers every Data API request with no rows or a denied write, yet a grant lists it in the API schema. Under `sql.modules.grants.options.fromPolicies`, `better-supabase sql sync` revokes these grants and keeps `service_role`; until the migration is applied, doctor reports the live grants. Tables in `expose` are skipped.",
+    check: (context) =>
+      exposed(context).flatMap((table): FindingInput[] => {
+        if (table.kind !== "table" || !table.rls) return [];
+        const options = configFor(
+          context.config.tables,
+          table.schema,
+          table.name,
+        );
+        if (options?.exclude || options?.serviceRole) return [];
+        if (
+          context.config.expose[qualified(table)] ??
+          context.config.expose[table.name]
+        )
+          return [];
+        const roles = (["anon", "authenticated"] as const).filter((role) =>
+          table.grants.some(
+            (grant) =>
+              (grant.role === role || grant.role === "PUBLIC") &&
+              grant.privileges.length > 0,
+          ),
+        );
+        if (roles.length === 0) return [];
+        if (
+          table.policies.some(
+            (policy) =>
+              policy.permissive &&
+              roles.some((role) => appliesTo(policy, role)),
+          )
+        )
+          return [];
+        return [
+          {
+            message: `${qualified(table)} has RLS on and no permissive policy for ${roles.join(" or ")}, but ${roles.join(" and ")} still hold grants on it. Run \`revoke all on table ${qualified(table)} from public, anon, authenticated;\`, or set \`sql.modules.grants.options.fromPolicies\` and run \`better-supabase sql sync\` so the migration revokes it.`,
+            target: qualified(table),
+            object: tableObject(table),
+          },
+        ];
+      }),
+  },
+  {
+    code: "BS116",
+    severity: "warning",
+    title:
+      "Security definer function open to the API roles without being exposed",
+    description:
+      "Postgres grants `execute` on a new function to `public`, so a `security definer` function in an exposed schema is callable at `/rpc` by `anon` and `authenticated` unless it is revoked. When no `expose` entry lists it and no policy calls it, nothing in the project says the API roles should reach it. Doctor never revokes it; list it in `expose` with the roles that call it, or revoke `execute` from `public`, `anon` and `authenticated` and grant it back to those roles.",
+    check: (context) => {
+      const schemas = exposedSchemas(context);
+      const listed = new Set(
+        Object.keys(context.config.exposeFunctions).map((signature) => {
+          const name = signature.slice(0, signature.indexOf("(")).trim();
+          return name.includes(".") ? name : `public.${name}`;
+        }),
+      );
+      const inPolicies = new Set(
+        catalogOf(context).tables.flatMap((table) =>
+          table.policies.flatMap((policy) => policy.functions ?? []),
+        ),
+      );
+      return (context.snapshot.extras.functions ?? []).flatMap(
+        (fn): FindingInput[] => {
+          const name = `${fn.schema}.${fn.name}`;
+          const callers = fn.execute ?? [];
+          if (
+            !fn.securityDefiner ||
+            !schemas.includes(fn.schema) ||
+            callers.length === 0 ||
+            listed.has(name) ||
+            inPolicies.has(name)
+          )
+            return [];
+          return [
+            {
+              message: `${name}(${fn.signature}) is security definer, ${callers.join(" and ")} may execute it through /rpc, and no \`expose\` entry or policy uses it. Run \`revoke all on function ${name}(${fn.signature}) from public, anon, authenticated;\`, then \`grant execute on function ${name}(${fn.signature}) to <the roles that call it>;\`, or list it in \`expose\`.`,
+              target: name,
+              object: functionObject(fn),
+            },
+          ];
+        },
+      );
+    },
   },
   {
     code: "BS215",

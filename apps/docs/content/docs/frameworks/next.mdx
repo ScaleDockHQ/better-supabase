@@ -67,7 +67,8 @@ signed out elsewhere, revoked or deleted. RLS that checks the session then
 hides every row, and the app looks empty. `endedSession` asks Auth whether
 the session still exists (`GET /auth/v1/user`) on document loads and on the
 paths you list. When Auth answers 401 or 403, the proxy clears the session
-cookies and redirects to `redirect` with `?reason=session_ended`:
+cookies and redirects to `redirect` with `?reason=session_ended`, or
+`?reason=account_banned` when Auth reports the user as banned:
 
 ```ts
 export const proxy = (request: NextRequest) =>
@@ -77,15 +78,18 @@ export const proxy = (request: NextRequest) =>
   });
 ```
 
-| Option     | Default | Meaning                                                                    |
-| ---------- | ------- | -------------------------------------------------------------------------- |
-| `paths`    | none    | Paths checked on client navigations too, such as the page after sign-in    |
-| `redirect` | none    | Where an ended session goes; without it `protect` gets a signed-out caller |
+| Option     | Default                           | Meaning                                                                    |
+| ---------- | --------------------------------- | -------------------------------------------------------------------------- |
+| `paths`    | none                              | Paths checked on client navigations too, such as the page after sign-in    |
+| `redirect` | none                              | Where an ended session goes; without it `protect` gets a signed-out caller |
+| `reasons`  | `session_ended`, `account_banned` | The `reason` query values for `{ ended, banned }` on the redirect          |
 
 Each checked request costs one Auth request, so client navigations, server
 actions and prefetches keep the local token check unless their path is in
 `paths`. A request to `redirect` itself only clears the cookies. When Auth
 cannot be reached or answers with a server error, the session is kept.
+The resolution also carries `sessionEnded` and `sessionEndedReason`
+(`"ended"` or `"banned"`) for a `protect` that renders its own page.
 `endedSession: true` checks document loads without a redirect. Use
 `shouldCheckSession(request, options)` to see whether a request is checked.
 A proxy that does not use `bs.proxy` can run the same check with

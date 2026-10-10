@@ -108,6 +108,8 @@ async function rateLimitHook(context: DoctorContext): Promise<FindingInput[]> {
   const db = context.database;
   if (
     !context.config.sql.moduleNames.includes("rate-limit") ||
+    context.config.sql.modules["rate-limit"]?.options?.["preRequest"] ===
+      false ||
     !db ||
     "skipped" in db
   )

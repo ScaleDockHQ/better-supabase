@@ -39,6 +39,7 @@ export { auditRegistrations } from "./audit-registrations.ts";
 export type { AuditedTable } from "./audit-registrations.ts";
 export {
   declaredTables,
+  rlsTables,
   extensionSchema,
   policyGrants,
   type PolicyGrant,

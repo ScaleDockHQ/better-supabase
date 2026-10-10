@@ -255,6 +255,39 @@ describe("createNext", () => {
       );
     });
 
+    it("redirects a banned account with its own reason", async () => {
+      const banned = () =>
+        Response.json(
+          { code: 403, error_code: "user_banned" },
+          { status: 403 },
+        );
+      const { cookie } = await session();
+      fresh.mockResolvedValue(banned());
+      const response = await bs.proxy(page({ cookie }), {
+        endedSession: { redirect: "/login" },
+      });
+      expect(response.headers.get("location")).toBe(
+        "https://app.test/login?reason=account_banned",
+      );
+      fresh.mockResolvedValue(banned());
+      const named = await bs.proxy(page({ cookie }), {
+        endedSession: {
+          redirect: "/login",
+          reasons: { banned: "suspended", ended: "expired" },
+        },
+      });
+      expect(named.headers.get("location")).toBe(
+        "https://app.test/login?reason=suspended",
+      );
+      fresh.mockResolvedValue(ended());
+      const gone = await bs.proxy(page({ cookie }), {
+        endedSession: { redirect: "/login", reasons: { banned: "suspended" } },
+      });
+      expect(gone.headers.get("location")).toBe(
+        "https://app.test/login?reason=session_ended",
+      );
+    });
+
     it("hands an ended session to protect without a redirect", async () => {
       const { cookie } = await session();
       fresh.mockResolvedValue(ended());
