@@ -24,6 +24,12 @@ import {
   storedMetadata,
 } from "./audit-metadata.ts";
 import { REGISTER } from "./audit-register.ts";
+import {
+  correlationIdSql,
+  REQUEST_ID_OR_NULL,
+  requestHeader,
+  requestIdSql,
+} from "./audit-request.ts";
 import { retention } from "./audit-retention.ts";
 import { auditTests } from "./audit-tests.ts";
 import { auditWrite, tenantLabel } from "./audit-values.ts";
@@ -39,6 +45,7 @@ const NAMES: ModuleNames = {
   events: EVENTS,
   options: [
     "appendOnly",
+    "correlationIdHeader",
     "eventCategory",
     "eventRoles",
     "trustedRoles",
@@ -48,6 +55,7 @@ const NAMES: ModuleNames = {
     "keepMappedMetadata",
     "metadataColumns",
     "readPolicy",
+    "requestIdHeader",
     "restricted",
     "tenantColumn",
     "tenantLabel",
@@ -175,10 +183,6 @@ function castId(value: string, idType: ModuleIdType): string {
   }
 }
 
-/** The request header `name`, or null outside a Data API request. */
-const requestHeader = (name: string): string =>
-  `better_supabase.request_header(${sqlString(name)})`;
-
 /** How the caller acted: service, support, impersonation, oauth-client, user or system. */
 const ACTOR_KIND = `case
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
@@ -211,7 +215,7 @@ function contextPairs(
     ["tenantLabel", tenantLabel(ctx, tenant)],
     ["targetLabel", values.targetLabel],
     ["summary", values.summary],
-    ["requestId", values.requestId ?? requestHeader("x-request-id")],
+    ["requestId", values.requestId ?? requestIdSql(ctx)],
     ["correlationId", values.correlationId],
     [
       "scope",
@@ -298,6 +302,11 @@ ${
     : ""
 }create index if not exists audit_events_organization_idx on ${log} (${c("tenant")}, ${c("occurredAt")} desc);
 create index if not exists audit_events_occurred_at_idx on ${log} (${c("occurredAt")});${
+    ctx.has("log", "correlationId")
+      ? `
+create index if not exists audit_events_correlation_idx on ${log} (${c("correlationId")}) where ${c("correlationId")} is not null;`
+      : ""
+  }${
     ctx.has("log", "idempotencyKey")
       ? `
 create unique index if not exists audit_events_idempotency_idx on ${log} (${c("idempotencyKey")}, ${c("tenant")}) nulls not distinct where ${c("idempotencyKey")} is not null;`
@@ -351,6 +360,8 @@ exception when others then
   return null;
 end;
 $$;
+
+${REQUEST_ID_OR_NULL}
 
 -- The client address the API gateway appended to x-forwarded-for (the
 -- right-most hop; clients can forge the ones before it), or null.
@@ -463,7 +474,7 @@ function triggerFunction(
     ...contextPairs(ctx, "row_tenant", {
       targetLabel: "row_data ->> entry.label_column",
       summary: "null",
-      correlationId: requestHeader("x-correlation-id"),
+      correlationId: correlationIdSql(ctx),
     }),
   ]);
   const tenantValue = castId(
@@ -612,10 +623,10 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
     ...contextPairs(ctx, "tenant", {
       targetLabel: "target_label",
       summary: "summary",
-      correlationId: `coalesce(correlation_id, ${requestHeader("x-correlation-id")})`,
+      correlationId: `coalesce(better_supabase.request_id_or_null(correlation_id), ${correlationIdSql(ctx)})`,
       actorKind: `coalesce(actor_kind, ${ACTOR_KIND})`,
       actorLabel: `coalesce(actor_label, ${ACTOR_LABEL})`,
-      requestId: `coalesce(request_id, ${requestHeader("x-request-id")})`,
+      requestId: `coalesce(better_supabase.request_id_or_null(request_id), ${requestIdSql(ctx)})`,
       scope:
         "coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)",
     }),
@@ -879,7 +890,7 @@ export const AUDIT: ModuleDefinition = {
       : [],
   target: "schema",
   modes: ["managed", "adopt"],
-  version: 5,
+  version: 6,
   names: NAMES,
   contract: () => [
     {
@@ -985,6 +996,12 @@ export const AUDIT: ModuleDefinition = {
         "Drops the read-only audit_log view that 0.5 kept for the 0.4 names; read better_supabase.audit_events.",
       sql: (ctx) =>
         `drop view if exists ${sqlIdent(ctx.tableName("log").schema)}.audit_log;`,
+    },
+    {
+      from: 5,
+      description:
+        "Row changes and audit_event read the request and correlation ids from the better_supabase.request_id and better_supabase.correlation_id settings, then from the requestIdHeader and correlationIdHeader headers, and keep only ids of up to 128 safe characters; managed logs index correlation_id.",
+      sql: () => "",
     },
   ],
   deprecated: [

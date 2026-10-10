@@ -3242,6 +3242,103 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("groups row changes and events by the request's correlation id", async () => {
+    const client = await pool.connect();
+    const name = `bs_audit_ids_${RUN}`;
+    try {
+      await client.query("begin");
+      await client.query(
+        moduleBody("audit", {
+          modules: {
+            audit: {
+              options: {
+                requestIdHeader: "x-trace",
+                correlationIdHeader: "x-action",
+              },
+            },
+          },
+        })!,
+      );
+      await client.query(
+        `create table public.${name} (id int primary key, organization_id uuid, title text)`,
+      );
+      await client.query(`select better_supabase.audit('public.${name}')`);
+      await client.query(
+        `select set_config('request.jwt.claims', $1, true),
+                set_config('request.headers', $2, true)`,
+        [
+          JSON.stringify({ role: "service_role" }),
+          JSON.stringify({
+            "x-trace": "hdr-req",
+            "x-action": "hdr-action",
+            "x-request-id": "ignored",
+          }),
+        ],
+      );
+      await client.query(
+        `insert into public.${name} values (1, '${ACME}', 'From headers')`,
+      );
+      await client.query(
+        `select set_config('better_supabase.request_id', 'srv-req', true),
+                set_config('better_supabase.correlation_id', 'srv-action', true)`,
+      );
+      await client.query(
+        `update public.${name} set title = 'From settings' where id = 1`,
+      );
+      await client.query(
+        `select better_supabase.audit_event('report.sent', tenant => '${ACME}')`,
+      );
+      await client.query(
+        `select better_supabase.audit_event('report.queued', tenant => '${ACME}',
+           request_id => 'bad id', correlation_id => 'job-3')`,
+      );
+      await client.query(
+        `select set_config('better_supabase.request_id', $1, true),
+                set_config('better_supabase.correlation_id', '', true),
+                set_config('request.headers', '{"x-action": "has spaces"}', true)`,
+        ["r".repeat(129)],
+      );
+      await client.query(`delete from public.${name} where id = 1`);
+      const { rows } = await client.query(
+        `select coalesce(table_name, event_type) as entry, request_id, correlation_id
+         from better_supabase.audit_events
+         where table_name = $1 or event_type in ('report.sent', 'report.queued')
+         order by id`,
+        [`public.${name}`],
+      );
+      expect(rows).toEqual([
+        {
+          entry: `public.${name}`,
+          request_id: "hdr-req",
+          correlation_id: "hdr-action",
+        },
+        {
+          entry: `public.${name}`,
+          request_id: "srv-req",
+          correlation_id: "srv-action",
+        },
+        {
+          entry: "report.sent",
+          request_id: "srv-req",
+          correlation_id: "srv-action",
+        },
+        {
+          entry: "report.queued",
+          request_id: "srv-req",
+          correlation_id: "job-3",
+        },
+        { entry: `public.${name}`, request_id: null, correlation_id: null },
+      ]);
+      const grouped = await client.query<{ n: number }>(
+        `select jsonb_array_length(better_supabase.list_audit_events(for_correlation_ids => '{srv-action}')) as n`,
+      );
+      expect(grouped.rows[0]!.n).toBe(2);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("lists and reveals audit entries through the audit functions", async () => {
     const client = await pool.connect();
     const name = `bs_audit_api_${RUN}`;

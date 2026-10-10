@@ -172,6 +172,64 @@ describe("audit module", () => {
     );
   });
 
+  it("reads the request and correlation ids from settings, then headers", () => {
+    const sql = audit();
+    expect(sql).toContain(
+      "create or replace function better_supabase.request_id_or_null(value text)",
+    );
+    expect(sql).toContain(
+      "select case when value ~ '^[A-Za-z0-9._:;,@/+=-]{1,128}$' then value end;",
+    );
+    expect(sql).toContain(
+      "coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id')))",
+    );
+    expect(sql).toContain(
+      "coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id')))",
+    );
+    expect(sql).toContain(
+      "coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id'))))",
+    );
+    expect(sql).toContain(
+      "coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id'))))",
+    );
+    expect(sql).toContain(
+      'create index if not exists audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;',
+    );
+  });
+
+  it("takes the request and correlation header names from the options", () => {
+    const sql = audit({
+      options: {
+        requestIdHeader: "X-Amzn-Trace-Id",
+        correlationIdHeader: "x-action-id",
+      },
+    });
+    expect(sql).toContain("(v_headers ->> 'x-amzn-trace-id')");
+    expect(sql).toContain("(v_headers ->> 'x-action-id')");
+    expect(sql).toContain("better_supabase.request_header('x-action-id')");
+    expect(sql).not.toContain("'x-request-id'");
+    expect(sql).not.toContain("'x-correlation-id'");
+  });
+
+  it("records the ids on an adopted log that maps them, and indexes only managed logs", () => {
+    const sql = audit({
+      ...CENTRAKIT,
+      columns: {
+        ...CENTRAKIT.columns,
+        log: { ...CENTRAKIT.columns!["log"], correlationId: "trace_group" },
+      },
+    });
+    expect(sql).toMatch(
+      /insert into "public"\."audit_logs" \([^)]*"trace_group"/,
+    );
+    expect(sql).not.toContain("audit_events_correlation_idx");
+  });
+
+  it("upgrades from version 5 without SQL of its own", () => {
+    const [plan] = upgradePlan([{ module: "audit", version: 5 }]);
+    expect(plan!.steps.map((step) => step.sql)).toEqual([""]);
+  });
+
   it("drops the old signatures when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "audit", version: 1 }]);
     expect(plan!.steps[0]!.sql).toContain(
