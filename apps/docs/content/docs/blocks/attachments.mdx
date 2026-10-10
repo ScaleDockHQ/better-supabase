@@ -213,7 +213,11 @@ await outbox.relay("attachment-scans", scanner.sink());
 clean or infected is not scanned again, so replays are safe. When `scan`
 throws, the file is marked `failed` with the error as `scan_detail`, the
 result is an error with the hint `ATTACHMENT_SCAN_FAILED`, and the next
-attempt scans it again.
+attempt scans it again. An event or job for an attachment that was deleted
+before its scan is done: the sink skips it and the job completes, so one
+deleted file never blocks the events behind it in the relay. Other errors,
+such as a failed download or a throwing `scan`, still throw so the relay or
+the queue retries.
 
 ### Any bucket
 
@@ -239,8 +243,10 @@ await outbox.relay("object-scans", objects.sink());
 With `scanBuckets: ["files"]`, a trigger on `storage.objects` gives each new
 or replaced object in those buckets a `pending` row and writes an
 `object.uploaded` event (`{ bucket, path }`), which `objects.sink()` scans;
-`objects.job` takes the same payload from a queue. Scanning an attachment
-also records its object in `scanned_objects`, so both gates agree.
+`objects.job` takes the same payload from a queue. An object deleted from
+storage before its scan (`NoSuchKey`) is skipped the same way; a missing
+bucket or any other error still throws. Scanning an attachment also records
+its object in `scanned_objects`, so both gates agree.
 
 ## Events
 

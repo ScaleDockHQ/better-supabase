@@ -448,7 +448,7 @@ describe("createDataExporter", () => {
         undefined as never,
         new AbortController().signal,
       ),
-    ).rejects.toThrow(/No pending export/);
+    ).resolves.toBeUndefined();
 
     const { transport, calls } = fakeTransport({
       claim_data_export: { ...claimed, tables: [] },
@@ -489,6 +489,62 @@ describe("createDataExporter", () => {
       "claim_data_export",
       "complete_data_export",
     ]);
+  });
+
+  it("skips events for exports it can't claim and runs the rest", async () => {
+    const { transport, calls } = fakeTransport({
+      claim_data_export: (args: Record<string, unknown>) =>
+        args["id"] === "gone"
+          ? null
+          : { ...claimed, id: args["id"], tables: [] },
+      complete_data_export: (args: Record<string, unknown>) =>
+        exportRow({ id: args["id"], files: [] }),
+    });
+    await createDataExporter({ transport, storage: fakeStorage().storage })
+      .sink()
+      .send([
+        {
+          specversion: "1.0",
+          id: "1",
+          source: "/t",
+          type: "data_export.requested",
+          data: { exportId: "gone" },
+        },
+        {
+          specversion: "1.0",
+          id: "2",
+          source: "/t",
+          type: "data_export.requested",
+          data: { exportId: "x2" },
+        },
+      ]);
+    expect(calls).toEqual([
+      ["claim_data_export", { id: "gone" }],
+      ["claim_data_export", { id: "x2" }],
+      ["complete_data_export", { id: "x2", files: [] }],
+    ]);
+  });
+
+  it("still throws from the sink when an export fails", async () => {
+    const { transport, calls } = fakeTransport({
+      claim_data_export: claimed,
+      data_export_rows: new Error("connection reset"),
+      fail_data_export: null,
+    });
+    await expect(
+      createDataExporter({ transport, storage: fakeStorage().storage })
+        .sink()
+        .send([
+          {
+            specversion: "1.0",
+            id: "1",
+            source: "/t",
+            type: "data_export.requested",
+            data: { exportId: "x1" },
+          },
+        ]),
+    ).rejects.toThrow(/connection reset/);
+    expect(calls.at(-1)?.[0]).toBe("fail_data_export");
   });
 });
 
