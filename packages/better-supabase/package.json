@@ -1,6 +1,6 @@
 {
   "name": "better-supabase",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Strongly typed Supabase: generated schema, typed repositories, plugins, auth glue, framework integrations and the better-supabase CLI.",
   "keywords": [
     "cli",
