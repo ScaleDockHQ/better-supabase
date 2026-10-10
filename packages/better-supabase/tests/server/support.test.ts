@@ -247,7 +247,13 @@ describe("support sessions on the server", () => {
         read_only: true,
       },
     });
-    expect(pg.sessions[0]).toEqual({ readOnly: true });
+    expect(pg.sessions[0]).toEqual({
+      readOnly: true,
+      settings: {
+        "better_supabase.request_id": ctx.requestId,
+        "better_supabase.correlation_id": ctx.requestId,
+      },
+    });
     expect(ctx.stats().calls).toBe(2);
     expect(ctx.apply(new Response()).status).toBe(200);
 
@@ -293,7 +299,11 @@ describe("support sessions on the server", () => {
     await ctx.sql!.customers.findMany({ select: ["id"] }).orThrow();
     expect(pg.claims[0]).toMatchObject({ custom: true });
     expect(pg.sessions[0]).toEqual({
-      settings: { "better_supabase.tenant": "t1" },
+      settings: {
+        "better_supabase.request_id": ctx.requestId,
+        "better_supabase.correlation_id": ctx.requestId,
+        "better_supabase.tenant": "t1",
+      },
     });
     expect(ctx.auth.kind === "user" && ctx.auth.claims["act"]).toMatchObject({
       read_only: false,

@@ -449,7 +449,11 @@ describe("API keys in a server", () => {
       api_key: { organization_id: ORG },
     });
     expect(sessions[0]).toEqual({
-      settings: { "better_supabase.tenant": ORG },
+      settings: {
+        "better_supabase.request_id": expect.any(String),
+        "better_supabase.correlation_id": expect.any(String),
+        "better_supabase.tenant": ORG,
+      },
     });
     expect((await app.request("/write/x", { headers })).status).toBe(403);
     expect((await app.request("/users/x", { headers })).status).toBe(403);
