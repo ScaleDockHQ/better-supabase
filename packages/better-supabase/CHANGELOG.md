@@ -1,5 +1,19 @@
 # better-supabase
 
+## 0.7.0
+
+### Minor Changes
+
+- [#124](https://github.com/ScaleDockHQ/better-supabase/pull/124) [`ccea7cf`](https://github.com/ScaleDockHQ/better-supabase/commit/ccea7cfe506d62f49a86bb6748dd30a438a5f010) Thanks [@mick340](https://github.com/mick340)! - `sessionStatus` returns `banned` when Auth rejects a token with `error_code: "user_banned"`, a rejected `refreshSession` outcome carries the Auth `code`, and the resolution reports `sessionEndedReason`. `bs.proxy({ endedSession })` redirects banned accounts with `reason=account_banned`; `endedSession.reasons` renames the `reason` values. `SessionStatus` gains `"banned"`, so a switch over it needs a case for the new value.
+
+- [#124](https://github.com/ScaleDockHQ/better-supabase/pull/124) [`ccea7cf`](https://github.com/ScaleDockHQ/better-supabase/commit/ccea7cfe506d62f49a86bb6748dd30a438a5f010) Thanks [@mick340](https://github.com/mick340)! - `better-supabase/server` exports `toCsv`, `csvColumns` and `csvResponse`, which answers with a CSV attachment. The `sessions` SQL module adds `better_supabase.last_sign_ins(uuid[])`, callable by the service role only, and `better-supabase/server` exports `lastSignIns` to read many users' last sign-in in one query. Run `better-supabase sql sync` to write the function.
+
+- [#124](https://github.com/ScaleDockHQ/better-supabase/pull/124) [`ccea7cf`](https://github.com/ScaleDockHQ/better-supabase/commit/ccea7cfe506d62f49a86bb6748dd30a438a5f010) Thanks [@mick340](https://github.com/mick340)! - With `sql.modules.grants.options.fromPolicies`, a table the schema files create that has no permissive policy and no `expose` entry is now service-only: `sql sync` revokes `public`, `anon` and `authenticated` on it and grants `service_role` every privilege. BS106 no longer asks for a `select` grant on those tables. New doctor check BS115 reports such tables that still hold grants on the live database, and BS116 reports `security definer` functions in an exposed schema that `anon` or `authenticated` can execute while no `expose` entry or policy uses them.
+
+### Patch Changes
+
+- [#124](https://github.com/ScaleDockHQ/better-supabase/pull/124) [`ccea7cf`](https://github.com/ScaleDockHQ/better-supabase/commit/ccea7cfe506d62f49a86bb6748dd30a438a5f010) Thanks [@mick340](https://github.com/mick340)! - Doctor's BS304 now renders the SQL module files with the same layout as `sql sync` (grants from policies, session policies, audited tables and the vector schema), so the two no longer disagree about stale files. BS313 skips projects that set `sql.modules["rate-limit"].options.preRequest` to `false`.
+
 ## 0.6.1
 
 ### Patch Changes
