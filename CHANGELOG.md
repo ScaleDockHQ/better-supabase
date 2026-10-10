@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0 (2026-10-10)
+
+- `sessionStatus` returns `banned` when Auth rejects a token with `error_code: "user_banned"`, a rejected `refreshSession` outcome carries the Auth `code`, and the resolution reports `sessionEndedReason`. `bs.proxy({ endedSession })` redirects banned accounts with `reason=account_banned`; `endedSession.reasons` renames the `reason` values. `SessionStatus` gains `"banned"`, so a switch over it needs a case for the new value.
+- `better-supabase/server` exports `toCsv`, `csvColumns` and `csvResponse`, which answers with a CSV attachment. The `sessions` SQL module adds `better_supabase.last_sign_ins(uuid[])`, callable by the service role only, and `better-supabase/server` exports `lastSignIns` to read many users' last sign-in in one query. Run `better-supabase sql sync` to write the function.
+- With `sql.modules.grants.options.fromPolicies`, a table the schema files create that has no permissive policy and no `expose` entry is now service-only: `sql sync` revokes `public`, `anon` and `authenticated` on it and grants `service_role` every privilege. BS106 no longer asks for a `select` grant on those tables. New doctor check BS115 reports such tables that still hold grants on the live database, and BS116 reports `security definer` functions in an exposed schema that `anon` or `authenticated` can execute while no `expose` entry or policy uses them.
+- Doctor's BS304 now renders the SQL module files with the same layout as `sql sync` (grants from policies, session policies, audited tables and the vector schema), so the two no longer disagree about stale files. BS313 skips projects that set `sql.modules["rate-limit"].options.preRequest` to `false`.
+
 ## 0.6.1 (2026-10-10)
 
 - The attachment scanner's `sink()` and `job` no longer fail for an attachment that was deleted before its scan. A missing attachment made the sink throw, so the outbox relay retried the whole batch until it dead-lettered it and every later event for that consumer waited behind it. The sink now skips that event and the job completes; download, transport and `scan` errors still throw and retry. The object scanner does the same for an object deleted from storage (`NoSuchKey`), while a missing bucket still throws. `scanner.scan()` and `objects.scan()` keep returning the `not_found` error.
