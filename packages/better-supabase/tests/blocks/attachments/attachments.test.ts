@@ -43,7 +43,8 @@ function fakeTransport(results: Record<string, unknown>) {
         args: Readonly<Record<string, unknown>>,
       ) {
         calls.push([fn, { ...args }]);
-        const result = results[fn];
+        const reply = results[fn];
+        const result = typeof reply === "function" ? reply(args) : reply;
         return result instanceof Error
           ? Promise.reject(result)
           : Promise.resolve(result);
@@ -57,11 +58,16 @@ interface Reply {
   error: unknown;
 }
 
-function fakeStorage(replies: Partial<Record<string, Reply | Error>> = {}) {
+function fakeStorage(
+  replies: Partial<
+    Record<string, Reply | Error | ((...args: unknown[]) => Reply)>
+  > = {},
+) {
   const calls: unknown[][] = [];
   const reply = (method: string, fallback: unknown, ...args: unknown[]) => {
     calls.push([method, ...args]);
-    const value = replies[method];
+    const found = replies[method];
+    const value = typeof found === "function" ? found(...args) : found;
     if (value instanceof Error) return Promise.reject(value);
     return Promise.resolve(value ?? { data: fallback, error: null });
   };
@@ -515,6 +521,77 @@ describe("createAttachmentScanner", () => {
       "set_attachment_status",
     ]);
   });
+  it("skips events and jobs for deleted attachments and scans the rest", async () => {
+    const { scanner: s, calls } = scanner(
+      {
+        get_attachment: (args: Record<string, unknown>) =>
+          args["id"] === "gone"
+            ? null
+            : row({ id: args["id"], status: "pending" }),
+        set_attachment_status: (args: Record<string, unknown>) =>
+          row({ id: args["id"] }),
+      },
+      () => ({ status: "clean" }),
+    );
+    await s.sink().send([
+      {
+        specversion: "1.0",
+        id: "1",
+        source: "/t",
+        type: "dev.better-supabase.attachment.uploaded",
+        data: { attachmentId: "gone" },
+      },
+      {
+        specversion: "1.0",
+        id: "2",
+        source: "/t",
+        type: "dev.better-supabase.attachment.uploaded",
+        data: { attachmentId: "a2" },
+      },
+    ]);
+    expect(calls).toEqual([
+      ["get_attachment", { id: "gone" }],
+      ["get_attachment", { id: "a2" }],
+      [
+        "set_attachment_status",
+        { id: "a2", status: "clean", detail: undefined },
+      ],
+    ]);
+    await expect(
+      s.job(
+        { attachmentId: "gone" },
+        undefined as never,
+        new AbortController().signal,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("still throws from the sink when the file can't be read", async () => {
+    const transport = fakeTransport({
+      get_attachment: row({ status: "pending" }),
+    });
+    const s = createAttachmentScanner({
+      transport: transport.transport,
+      storage: fakeStorage({
+        download: {
+          data: null,
+          error: { status: 503, message: "Storage is down" },
+        },
+      }).storage,
+      scan: () => ({ status: "clean" }),
+    });
+    await expect(
+      s.sink().send([
+        {
+          specversion: "1.0",
+          id: "1",
+          source: "/t",
+          type: "attachment.uploaded",
+          data: { attachmentId: "a1" },
+        },
+      ]),
+    ).rejects.toThrow(/Storage is down/);
+  });
 });
 
 describe("createObjectScanner", () => {
@@ -604,5 +681,98 @@ describe("createObjectScanner", () => {
       new AbortController().signal,
     );
     expect(fresh.seen).toEqual(["files/a/b.pdf", "files/c.pdf"]);
+  });
+
+  it("skips objects deleted from storage and scans the rest", async () => {
+    const transport = fakeTransport({
+      object_scan: null,
+      set_object_scan: (args: Record<string, unknown>) => ({
+        bucket: args["bucket"],
+        object_path: args["path"],
+        status: args["status"],
+        scanned_at: "2026-10-06T12:00:00Z",
+      }),
+    });
+    const storage = fakeStorage({
+      download: (path) =>
+        path === "gone.pdf"
+          ? {
+              data: null,
+              error: {
+                status: 404,
+                statusCode: "404",
+                code: "NoSuchKey",
+                message: "Object not found",
+              },
+            }
+          : { data: new Blob(["hello"]), error: null },
+    });
+    const seen: string[] = [];
+    const scanner = createObjectScanner({
+      transport: transport.transport,
+      storage: storage.storage,
+      scan: (_file, object) => {
+        seen.push(object.path);
+        return { status: "clean" };
+      },
+    });
+    await scanner.sink().send([
+      {
+        id: "1",
+        type: "dev.better-supabase.object.uploaded",
+        source: "s",
+        specversion: "1.0",
+        data: { bucket: "files", path: "gone.pdf" },
+      },
+      {
+        id: "2",
+        type: "dev.better-supabase.object.uploaded",
+        source: "s",
+        specversion: "1.0",
+        data: { bucket: "files", path: "kept.pdf" },
+      },
+    ]);
+    expect(seen).toEqual(["kept.pdf"]);
+    await expect(
+      scanner.job(
+        { bucket: "files", path: "gone.pdf" },
+        {} as never,
+        new AbortController().signal,
+      ),
+    ).resolves.toBeUndefined();
+    const direct = await scanner.scan("files", "gone.pdf");
+    expect(direct.ok ? undefined : direct.error).toMatchObject({
+      kind: "not_found",
+      code: "NoSuchKey",
+    });
+  });
+
+  it("still throws for a missing bucket", async () => {
+    const scanner = createObjectScanner({
+      transport: fakeTransport({ object_scan: null }).transport,
+      storage: fakeStorage({
+        download: {
+          data: null,
+          error: {
+            status: 404,
+            statusCode: "404",
+            code: "NoSuchBucket",
+            message: "Bucket not found",
+          },
+        },
+      }).storage,
+      scan: () => ({ status: "clean" }),
+    });
+    await expect(
+      scanner.sink().send([
+        {
+          id: "1",
+          type: "object.uploaded",
+          source: "s",
+          specversion: "1.0",
+          data: { bucket: "files", path: "a.pdf" },
+        },
+      ]),
+    ).rejects.toThrow(/Bucket not found/);
   });
 });

@@ -215,6 +215,26 @@ function stored<T>(
   });
 }
 
+/**
+ * Waits for a scan from a job or an event. A scan whose target is gone (the
+ * attachment row, or for an object the stored object) is done, not a
+ * failure, so the job or event is not retried; every other error throws.
+ */
+async function settle(
+  scanned: AsyncResult<unknown>,
+  gone: (error: DbError) => boolean,
+): Promise<void> {
+  const result = await scanned;
+  if (result.ok || gone(result.error)) return;
+  await scanned.orThrow();
+}
+
+const attachmentGone = (error: DbError): boolean =>
+  error.kind === "not_found" && error.hint === "ATTACHMENT_NOT_FOUND";
+
+const objectGone = (error: DbError): boolean =>
+  error.kind === "not_found" && error.code === "NoSuchKey";
+
 function lookup(
   call: ReturnType<typeof blockCall>,
   id: string,
@@ -368,9 +388,16 @@ export interface AttachmentScanJob {
 export interface AttachmentScanner {
   /** Scans one uploaded file and records the verdict. */
   scan(id: string, signal?: AbortSignal): AsyncResult<Attachment>;
-  /** A jobs handler: `queue.work('attachment-scans', scanner.job)`. */
+  /**
+   * A jobs handler: `queue.work('attachment-scans', scanner.job)`. A deleted
+   * attachment completes the job; other errors throw so the queue retries.
+   */
   readonly job: JobHandler<AttachmentScanJob>;
-  /** An outbox sink that scans each `attachment.uploaded` event's file. */
+  /**
+   * An outbox sink that scans each `attachment.uploaded` event's file. An
+   * event for a deleted attachment is skipped, so it never holds up the
+   * events behind it; other errors throw so the relay retries the batch.
+   */
   sink(): EventSink;
 }
 
@@ -435,7 +462,7 @@ export function createAttachmentScanner(
   return {
     scan,
     job: async (payload, _job, signal) => {
-      await scan(payload.attachmentId, signal).orThrow();
+      await settle(scan(payload.attachmentId, signal), attachmentGone);
     },
     sink: () => ({
       async send(events) {
@@ -445,7 +472,7 @@ export function createAttachmentScanner(
             : event.type;
           if (type !== "attachment.uploaded" || !isRecord(event.data)) continue;
           const id = optionalText(event.data["attachmentId"]);
-          if (id !== undefined) await scan(id).orThrow();
+          if (id !== undefined) await settle(scan(id), attachmentGone);
         }
       },
     }),
@@ -490,9 +517,16 @@ export interface ObjectScanner {
     path: string,
     signal?: AbortSignal,
   ): AsyncResult<ScannedObject>;
-  /** A jobs handler: `queue.work('object-scans', scanner.job)`. */
+  /**
+   * A jobs handler: `queue.work('object-scans', scanner.job)`. An object
+   * deleted from storage completes the job; other errors throw.
+   */
   readonly job: JobHandler<ObjectScanJob>;
-  /** An outbox sink that scans each `object.uploaded` event's object. */
+  /**
+   * An outbox sink that scans each `object.uploaded` event's object. An
+   * event for an object deleted from storage is skipped; other errors throw
+   * so the relay retries the batch.
+   */
   sink(): EventSink;
 }
 
@@ -569,7 +603,7 @@ export function createObjectScanner(
   return {
     scan,
     job: async (payload, _job, signal) => {
-      await scan(payload.bucket, payload.path, signal).orThrow();
+      await settle(scan(payload.bucket, payload.path, signal), objectGone);
     },
     sink: () => ({
       async send(events) {
@@ -581,7 +615,7 @@ export function createObjectScanner(
           const bucket = optionalText(event.data["bucket"]);
           const path = optionalText(event.data["path"]);
           if (bucket !== undefined && path !== undefined)
-            await scan(bucket, path).orThrow();
+            await settle(scan(bucket, path), objectGone);
         }
       },
     }),
