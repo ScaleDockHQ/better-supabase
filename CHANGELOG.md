@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1 (2026-10-11)
+
+- `suspendAccount` with `suspended: true` bans the user and keeps their sessions, so Auth answers refresh and `GET /auth/v1/user` with `user_banned`, `sessionStatus` returns `"banned"` and `bs.proxy({ endedSession })` redirects with `reason=account_banned`. Deleting the sessions made Auth answer `session_not_found`, so a suspended user read as `"ended"`. The `sessions` SQL module's `session_active()` already refuses a banned user's tokens. `suspended: false` now ends the sessions kept during the ban before it lifts it, so a reinstated user signs in again, and `ended` is `0` on a suspension. Pass `endSessions: true` to delete the sessions on suspension too, for apps without the `sessions` module. Doctor's BS106 description and the docs now say that `fromPolicies` makes only tables with RLS on service-only.
+
 ## 0.7.0 (2026-10-10)
 
 - `sessionStatus` returns `banned` when Auth rejects a token with `error_code: "user_banned"`, a rejected `refreshSession` outcome carries the Auth `code`, and the resolution reports `sessionEndedReason`. `bs.proxy({ endedSession })` redirects banned accounts with `reason=account_banned`; `endedSession.reasons` renames the `reason` values. `SessionStatus` gains `"banned"`, so a switch over it needs a case for the new value.
