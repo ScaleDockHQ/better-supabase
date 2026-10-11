@@ -2,8 +2,8 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { authContext } from "../../src/auth/context.ts";
 import {
-  authContext,
   clearVerifiedTokens,
   resolveAuth,
   type ResolveAuthOptions,

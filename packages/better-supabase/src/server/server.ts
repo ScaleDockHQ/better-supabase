@@ -21,6 +21,7 @@ import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { ActiveSupport, SupportApi, SupportSessions } from "./support.ts";
 
 import { actorOf } from "../auth/actor.ts";
+import { authContext } from "../auth/context.ts";
 import {
   actClaim,
   type ImpersonationOptions,
@@ -30,7 +31,6 @@ import {
 import {
   type AuthResolution,
   type AuthState,
-  authContext,
   prefetchJwks,
   resolveAuth,
   type ResolveAuthOptions,

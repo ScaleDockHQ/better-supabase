@@ -1,9 +1,10 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { DbError } from "../core/errors.ts";
 
-import { authContext, type AuthState } from "../auth/resolve.ts";
+import { authContext } from "../auth/context.ts";
 import { toSession } from "../auth/view.ts";
 import {
   checkPermission,

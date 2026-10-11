@@ -9,7 +9,6 @@ import { extractCredentials, verifyCredentials } from "@supabase/server/core";
 
 import type { RefreshEvent } from "../core/events.ts";
 import type { Logger } from "../core/logger.ts";
-import type { RequestContext } from "../core/plugin.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { BetterSupabaseEnv } from "../env/index.ts";
 
@@ -19,7 +18,6 @@ import { consoleLogger } from "../core/logger.ts";
 import { actorOf } from "./actor.ts";
 import { sessionStatus } from "./ended.ts";
 import { isSharedSecretToken, verifyHs256 } from "./hs256.ts";
-import { userContext } from "./impersonation.ts";
 import { refreshSession } from "./refresh.ts";
 import {
   applyCookieWrites,
@@ -822,43 +820,4 @@ export async function resolveAuth(
     "cookie",
   );
   return resolution(state, cookies, writes);
-}
-
-/** The repository context (`actor`, `claims`) for an auth state. */
-export function authContext(auth: AuthState): RequestContext {
-  switch (auth.kind) {
-    case "user":
-      return userContext(auth.user, auth.claims);
-    case "service":
-      return {
-        actor: {
-          id: `service:${auth.keyName}`,
-          kind: "service",
-          role: "service_role",
-        },
-        claims: { role: "service_role" },
-      };
-    case "apiKey":
-      return {
-        actor: auth.userId
-          ? { id: auth.userId, kind: "user", role: "authenticated" }
-          : {
-              id: `api-key:${auth.keyId}`,
-              kind: "service",
-              role: "authenticated",
-            },
-        claims: auth.claims,
-        ...(auth.organizationId ? { tenant: auth.organizationId } : {}),
-      };
-    case "anon":
-    case "invalid":
-      return {
-        actor: { id: "anon", kind: "anon", role: "anon" },
-        claims: { role: "anon" },
-      };
-    default: {
-      const exhaustive: never = auth;
-      return exhaustive;
-    }
-  }
 }
