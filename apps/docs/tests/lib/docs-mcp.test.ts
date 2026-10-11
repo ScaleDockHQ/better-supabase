@@ -9,7 +9,6 @@ import {
   createDocsMcpServer,
   DOCS_MCP_NAME,
   type DocsMcpSource,
-  docsUrl,
 } from "../../lib/docs-mcp";
 
 const PAGES = {
@@ -160,16 +159,5 @@ describe("docs MCP server", () => {
     );
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(DOCS_MCP_NAME);
-  });
-});
-
-describe("docsUrl", () => {
-  it("normalizes paths, hosts, suffixes and anchors", () => {
-    expect(docsUrl("/docs/frameworks/hono")).toBe("/docs/frameworks/hono");
-    expect(docsUrl("frameworks/hono/")).toBe("/docs/frameworks/hono");
-    expect(docsUrl("https://bettersupabase.com/docs/cli/gen.md?x=1")).toBe(
-      "/docs/cli/gen",
-    );
-    expect(docsUrl("/docs")).toBe("/docs");
   });
 });

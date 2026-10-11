@@ -119,3 +119,14 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   set `VERCEL_DEEP_CLONE=true` so the dates come from git.
 - The AutoTypeTable remark plugin resolves `path` from the repo root
   (`basePath: "../.."`).
+- The docs page sits in a Suspense boundary under Cache Components, so
+  `notFound()` there streams a 200. `proxy.ts` answers unknown `/docs` URLs
+  with a 404 instead, from `lib/page-slugs.json`. `build` and `dev` write that
+  file (`scripts/page-slugs.ts`); `generateStaticParams` throws when it drifts
+  from the source, and a test checks it. Commit it after adding a page.
+- Markdown for agents (`.md`, `llms*.txt`, `/mcp`, Ask AI) goes through
+  `docsLlms` in `lib/source.ts`, which renders MDX components with their
+  Markdown forms in `components/mdx-markdown.tsx`. A component without one
+  prints as JSX in `llms-full.txt`; add its form there.
+- Next drops `Vary: Accept` from prerendered HTML pages even when the proxy
+  sets it; the Markdown rewrite keeps it.

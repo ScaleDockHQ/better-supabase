@@ -1,16 +1,72 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import {
+  DefaultChatTransport,
+  getToolName,
+  isToolUIPart,
+  type UIMessage,
+} from "ai";
 import { X } from "lucide-react";
 import { type SubmitEvent, useState } from "react";
+import * as v from "valibot";
 
 const transport = new DefaultChatTransport({ api: "/docs/api/chat" });
 
-function messageText(message: UIMessage): string {
-  return message.parts
-    .map((part) => (part.type === "text" ? part.text : ""))
-    .join("");
+const SearchInput = v.object({ query: v.string() });
+const PageInput = v.object({ url: v.string() });
+
+type Part = UIMessage["parts"][number];
+
+/** One line for a tool call, such as "Searched the docs for verify token". */
+function toolStep(part: Part): string | undefined {
+  if (!isToolUIPart(part)) return undefined;
+  const done = part.state === "output-available";
+  const failed = part.state === "output-error";
+  const name = getToolName(part);
+  if (name === "search_docs") {
+    const input = v.safeParse(SearchInput, part.input);
+    const query = input.success ? ` for "${input.output.query}"` : "";
+    return `${done || failed ? "Searched" : "Searching"} the docs${query}`;
+  }
+  if (name === "read_page") {
+    const input = v.safeParse(PageInput, part.input);
+    const url = input.success ? ` ${input.output.url}` : "";
+    return `${done || failed ? "Read" : "Reading"}${url}`;
+  }
+  return undefined;
+}
+
+function MessageParts({ parts }: { parts: readonly Part[] }) {
+  const nodes = [];
+  let text = "";
+  let after = "start";
+  const flush = () => {
+    if (text !== "") nodes.push(<span key={`text-${after}`}>{text}</span>);
+    text = "";
+  };
+  for (const part of parts) {
+    if (part.type === "text") {
+      text += part.text;
+      continue;
+    }
+    if (!isToolUIPart(part)) continue;
+    flush();
+    after = part.toolCallId;
+    const step = toolStep(part);
+    if (step !== undefined) {
+      nodes.push(
+        <span
+          key={after}
+          className="text-fd-muted-foreground my-1 block text-xs"
+        >
+          {step}
+        </span>,
+      );
+    }
+  }
+  flush();
+  return nodes;
 }
 
 /** `useChat` creates a random chat id, so it mounts only once the panel opens. */
@@ -55,7 +111,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
                 : "whitespace-pre-wrap"
             }
           >
-            {messageText(message)}
+            <MessageParts parts={message.parts} />
           </li>
         ))}
         {error === undefined ? null : (

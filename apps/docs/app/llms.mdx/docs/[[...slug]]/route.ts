@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import {
-  getLLMText,
+  docsLlms,
   getPageMarkdownUrl,
   markdownHeaders,
   source,
@@ -16,14 +16,20 @@ export async function GET(
   context: MarkdownRouteContext,
 ): Promise<Response> {
   const { slug } = await context.params;
-  const page = source.getPage(slug?.slice(0, -1));
+  // Drop the appended `content.md`; `/docs/index.md` is the root page.
+  const slugs = slug?.slice(0, -1) ?? [];
+  if (slugs.at(-1) === "index") slugs.pop();
+  const page = source.getPage(slugs);
   if (!page) notFound();
 
-  return new Response(await getLLMText(page), { headers: markdownHeaders });
+  return new Response(await docsLlms.page(page), { headers: markdownHeaders });
 }
 
 export function generateStaticParams() {
-  return source.getPages().map((page) => ({
-    slug: getPageMarkdownUrl(page).segments,
-  }));
+  return [
+    ...source.getPages().map((page) => ({
+      slug: getPageMarkdownUrl(page).segments,
+    })),
+    { slug: ["index", "content.md"] },
+  ];
 }

@@ -12,7 +12,7 @@ import { notFound } from "next/navigation";
 
 import { getMDXComponents } from "@/components/mdx";
 import { gitConfig } from "@/lib/shared";
-import { getPageMarkdownUrl, source } from "@/lib/source";
+import { getPagePublicMarkdownUrl, source } from "@/lib/source";
 
 /** One docs page: the MDX body, the copy and view actions, and the last edit date. */
 export async function DocsArticle({
@@ -24,7 +24,7 @@ export async function DocsArticle({
   if (!page) notFound();
 
   const MDX = page.data.body;
-  const markdownUrl = getPageMarkdownUrl(page).url;
+  const markdownUrl = getPagePublicMarkdownUrl(page);
   const { lastModified } = page.data;
 
   return (
