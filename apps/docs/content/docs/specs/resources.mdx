@@ -1,0 +1,191 @@
+---
+title: Resources
+description: REST resources that serve and document the same routes, with hooks for business logic, custom actions, response overrides and permissions checked by your authorizer.
+---
+
+A resource serves a table as REST routes, and `defineApi` documents the same
+object, so the routes and the spec can't drift. The adapters mount them:
+[Hono](/docs/frameworks/hono#resources) with `bs.resource(table, options)`,
+[Edge Functions](/docs/frameworks/edge#rest-resources) and
+[Next.js](/docs/frameworks/next#rest-resources) with
+`bs.resources(map, options)`, and [MCP](/docs/frameworks/mcp#table-tools)
+as table tools.
+
+```ts title="src/api/customers.ts"
+import { defineAction } from "better-supabase/hono";
+import { ok } from "better-supabase";
+
+export const customers = {
+  operations: ["list", "get", "update", "delete"],
+  select: ["id", "name", "status", "organizationId"],
+  input: { update: CustomerPatch },
+  permissions: { update: "customers.update", delete: "customers.delete" },
+  hooks: {
+    beforeUpdate: (ctx, data) =>
+      ok({ ...data, updatedBy: ctx.context.actor?.id }),
+  },
+  actions: {
+    archive: defineAction({
+      method: "POST",
+      path: "/{id}/archive",
+      summary: "Archive a customer",
+      permission: "customers.archive",
+      handler: (ctx, { id }) =>
+        ctx.db.customers.update(String(id), { status: "archived" }),
+    }),
+  },
+} as const;
+```
+
+```ts title="src/server.ts"
+app.route("/api/customers", bs.resource("customers", customers));
+
+export const api = defineApi(betterSupabase, {
+  info: { title: "CRM API", version: "1.0.0" },
+  basePath: "/api",
+  authorizer,
+  resources: { customers },
+});
+```
+
+The options are the [resource description](/docs/specs/customize#resources)
+plus what only the server needs: `select` (the columns every operation
+returns), `input` (Standard Schemas that validate bodies before they reach
+the repository), `hooks` and the action handlers.
+
+| Route              | Operation | Success                            |
+| ------------------ | --------- | ---------------------------------- |
+| `GET /`            | `list`    | `200` page                         |
+| `POST /`           | `create`  | `201` row                          |
+| `GET /{key}`       | `get`     | `200` row, `404` when RLS hides it |
+| `PATCH /{key}`     | `update`  | `200` row                          |
+| `DELETE /{key}`    | `delete`  | `204`                              |
+| an action's `path` | an action | `200` with an output, else `204`   |
+
+A method a resource doesn't serve answers `405` with an `Allow` header, a
+malformed key or body answers `400`, and a cross-site form post that rides
+on the session cookie answers `403` with `code: "CROSS_SITE_REQUEST"`.
+
+## Hooks
+
+Hooks put business logic around the repository. Each one returns a
+`Result` (or a promise of one): an error `Result` ends the request with that
+error, and a thrown error becomes an `unexpected` error. They run after the
+authorizer.
+
+| Hook                                               | Runs                              | Returns              |
+| -------------------------------------------------- | --------------------------------- | -------------------- |
+| `authorize(ctx, operation, target)`                | before every operation and action | an error to deny it  |
+| `beforeCreate(ctx, data)`                          | before the insert                 | the values to insert |
+| `beforeUpdate(ctx, data, target)`                  | before the update                 | the values to update |
+| `beforeDelete(ctx, target)`                        | before the delete                 | an error to stop it  |
+| `afterList(ctx, page)`                             | after the list query              | the response         |
+| `afterGet(ctx, row)`, `afterCreate`, `afterUpdate` | after the operation               | the response         |
+
+`ctx` is `{ db, table, request, context }`: the repositories bound to the
+caller (RLS applies), the table key, the HTTP request when there is one, and
+the verified request context (actor, tenant and claims). `target` is
+`{ id, data, query, row }`, where `row` is set when a permission check
+already fetched the row.
+
+## Change the response shape
+
+An `after*` hook can return another shape than the row. Describe it in
+`output`, keyed by operation, so the document matches; for `list` it is the
+item schema inside the page:
+
+```ts
+const customers = {
+  output: { get: CustomerView, list: CustomerSummary },
+  hooks: {
+    afterGet: (ctx, row) => ok(toView(row)),
+    afterList: (ctx, page) => ok({ ...page, items: page.items.map(toSummary) }),
+  },
+};
+```
+
+## Actions
+
+An action is a custom operation on the collection (`/export`) or on one row
+(`/{id}/send`). `defineAction` types the handler's `data` and `query` from
+the `input` and `query` schemas, which are validated first:
+
+```ts
+import { defineAction } from "better-supabase/hono";
+
+const send = defineAction({
+  method: "POST",
+  path: "/{id}/send",
+  input: SendInput,
+  query: SendQuery,
+  output: SendResult,
+  emits: ["customer.sent"],
+  handler: (ctx, { id, data, query }) => sendCustomer(ctx.db, id, data, query),
+});
+```
+
+| Field                                  | What it does                                                         |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `method`                               | `GET`, `POST`, `PUT`, `PATCH` or `DELETE`                            |
+| `path`                                 | Starts with `/`; the only parameter it may name is the table's key   |
+| `input`, `query`, `output`             | Standard Schemas for the body, the query parameters and the response |
+| `status`                               | Defaults to 200 with an `output`, 204 without                        |
+| `summary`, `description`, `deprecated` | Documented on the operation                                          |
+| `permission`                           | Checked by the authorizer before the handler runs                    |
+| `emits`                                | Event names, written as `x-better-supabase-emits`                    |
+
+The handler returns a `Result`, a plain value or a `Response`. Action names
+start with a letter, use letters, digits and `_`, and can't be `list`,
+`get`, `create`, `update` or `delete`. The operation id is
+`<action><Table>` (`archiveCustomers`). `defineAction` is exported from
+`better-supabase/hono`, `better-supabase/edge` and `better-supabase/next`.
+
+## Permissions
+
+`permissions` gives an operation a permission reference, and an action has
+its own `permission`. The server's [authorizer](/docs/extending/authorizers)
+decides each one, before the hooks run:
+
+| Operation           | The resource the authorizer sees                          |
+| ------------------- | --------------------------------------------------------- |
+| `get`               | the table, the key and the row (fetched first, under RLS) |
+| `update`, `delete`  | the table, the key and the current row (fetched first)    |
+| `create`            | the table and the request body                            |
+| `list`              | each row of the page, in one batch                        |
+| an item action      | the table, the key and the row                            |
+| a collection action | the table and the request body                            |
+
+`list` filters instead of refusing: rows the authorizer denies are left out
+of `items`, and the other page fields stay as the query returned them.
+`permissions: true` asks the authorizer's `forOperation(table, operation)`
+for every enabled operation; it throws when the authorizer has no
+`forOperation`.
+
+A refusal is a 403 [Problem Details](/docs/auth/problems) response with the
+permission key:
+
+```http
+HTTP/1.1 403 Forbidden
+Content-Type: application/problem+json
+
+{
+  "type": "https://bettersupabase.com/problems/forbidden",
+  "title": "Forbidden",
+  "status": 403,
+  "kind": "forbidden",
+  "detail": "customers.delete needs an approval",
+  "code": "APPROVAL_REQUIRED",
+  "permission": "customers.delete",
+  "approval": { "id": "apr_9" }
+}
+```
+
+`code` is `PERMISSION_DENIED` for a denial and `APPROVAL_REQUIRED` when the
+authorizer asks for an approval first; `approval.id` names the request to
+approve. A declared permission without an authorizer denies every caller,
+so a forgotten setup never opens a route. RLS still decides which rows the
+caller can reach.
+
+In the document, every operation with a permission carries
+`x-better-supabase-permission` with the key, and its 403 is the shared
+`PermissionDenied` response with examples for each code.

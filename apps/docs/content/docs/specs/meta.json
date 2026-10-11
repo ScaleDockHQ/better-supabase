@@ -1,0 +1,11 @@
+{
+  "title": "API documents",
+  "pages": [
+    "index",
+    "customize",
+    "openapi",
+    "overlay",
+    "resources",
+    "diagnostics"
+  ]
+}

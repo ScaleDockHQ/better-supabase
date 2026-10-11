@@ -1,0 +1,74 @@
+---
+title: Diagnostics
+description: Every code defineApi, the OpenAPI renderer and its checks report, with its severity, its cause and how to fix it.
+---
+
+Building and rendering an API document never fails silently. Each finding
+is a `SpecDiagnostic`:
+
+```ts
+interface SpecDiagnostic {
+  code: string;
+  severity: "error" | "warning" | "info";
+  message: string;
+  pointer?: string; // a JSON Pointer into the model or the document
+}
+```
+
+`defineApi(...).diagnostics` holds the findings from building the model, and
+every render result's `diagnostics` adds the ones from that render. The
+list has no duplicates. `createOpenApi` throws on any `error` and passes the
+rest to `onDiagnostic`. Match on `code`; the message text can change.
+
+The [overlay codes](/docs/specs/overlay#diagnostics) are on the overlay
+page.
+
+## Building the model
+
+| Code                     | Severity | Cause                                                                                                  | Fix                                                                                 |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `component-conflict`     | error    | Two different schemas got the same component name; the first one is kept                               | Give one of them another `$id`, or rename it in `componentName`                     |
+| `operation-id-duplicate` | error    | Two operations have the same id                                                                        | Set `operationId` on the route, or change the `operationId` option                  |
+| `permission-unresolved`  | error    | The authorizer's `key()` threw for a permission, or a permission that isn't a string has no authorizer | Pass the `authorizer` to `defineApi`, or fix the reference                          |
+| `permission-missing`     | error    | With `requirePermissions: true`, a write declares no permission                                        | Add a `permission` to the route or action, or `permissions` to the resource         |
+| `schema-unconvertible`   | warning  | A Standard Schema has no Standard JSON Schema, so the document accepts any value there                 | Use a schema library that implements Standard JSON Schema, such as zod 4 or ArkType |
+| `extend-unknown`         | warning  | A resource's `extend` names no operation or action of it                                               | Fix the key, or use `*` for every operation                                         |
+| `plugin-describe-failed` | warning  | A plugin's `describe` hook threw; the rest of the model is built                                       | Fix the plugin                                                                      |
+
+## Rendering
+
+| Code                   | Severity | Cause                                                                                              | Fix                                                                                |
+| ---------------------- | -------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `preview-version`      | warning  | The version is a preview (`3.3-preview`), whose fields can change                                  | Render a stable version for anything you publish                                   |
+| `preview-only`         | info     | A Security Profiles scheme is left out of a version before 3.3, with the requirements that name it | Expected; render `3.3-preview` to see it                                           |
+| `method-unsupported`   | warning  | A `query` operation is left out of 3.0 or 3.1                                                      | Render 3.2, or add a `GET` or `POST` route for old clients                         |
+| `webhooks-unsupported` | warning  | 3.0 has no webhooks, so they are left out                                                          | Render 3.1 or later                                                                |
+| `fragment-conflict`    | warning  | A fragment replaced a generated value; the pointer says which                                      | Expected when you meant to override it; otherwise use `extend` or fix the fragment |
+
+## Checks on the finished document
+
+These run last, after `transform` and overlays, so they also catch what
+those broke.
+
+| Code                     | Severity | Cause                                                           |
+| ------------------------ | -------- | --------------------------------------------------------------- |
+| `operation-id-duplicate` | error    | Two operations in the document share an `operationId`           |
+| `security-unresolved`    | error    | A security requirement names a scheme the document doesn't have |
+| `path-param-unknown`     | error    | A path parameter is declared but isn't in the path template     |
+| `path-param-missing`     | error    | A `{name}` in the path template has no parameter                |
+| `ref-unresolved`         | error    | A local `$ref` (one that starts with `#`) points nowhere        |
+
+## Fail a build on errors
+
+```ts title="scripts/openapi.ts"
+const { document, diagnostics } = api.openapi({ version: "3.1" });
+
+const errors = diagnostics.filter(
+  (diagnostic) => diagnostic.severity === "error",
+);
+if (errors.length > 0) {
+  for (const error of errors)
+    console.error(`${error.code}: ${error.message} ${error.pointer ?? ""}`);
+  process.exit(1);
+}
+```
