@@ -270,6 +270,15 @@ Valibot gets the same through `v.title`, `v.description`, `v.examples`,
 OpenAPI document (`createOpenApi`) reads only the generated metadata, so it
 has none of this; serve the generated JSON Schema when you need it there.
 
+### Coming from supabase-to-zod
+
+`supabase-to-zod` converts the `database.types.ts` file into zod 3 schemas
+through `ts-to-zod`. The `zod()` generator writes zod 4 schemas from the
+database catalog instead, so they carry the CHECK bounds, comments and codecs
+above, and it keeps separate `Row`, `Insert` and `Update` schemas per table.
+Replace the `supabase-to-zod` script with `generators: [zod()]` and import
+`<table>Row` from `generated.zod.ts`.
+
 ## Snapshots
 
 ```bash

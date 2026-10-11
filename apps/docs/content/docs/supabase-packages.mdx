@@ -1,0 +1,63 @@
+---
+title: Supabase packages
+description: Which Supabase packages better-supabase builds on, how each one is installed and which docs page covers it.
+---
+
+better-supabase adds types and glue on top of Supabase's own packages; it
+replaces none of them. This page lists every Supabase package it touches, how
+it gets into your app and where it is documented. [Peers](/docs/getting-started/peers)
+lists the version range of every peer.
+
+## Runtime packages
+
+These run in your app. Only the first four are dependencies of
+`better-supabase`; you install `@supabase/supabase-js` yourself.
+
+| Package                                                                                                    | What better-supabase uses it for                                                                                             | How it is installed | Docs                                |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------- | ----------------------------------- |
+| [`@supabase/server`](https://github.com/supabase/server)                                                   | Verifies access tokens locally, defines the claim, auth-mode and env types, and builds the RFC 9728 metadata for MCP servers | Dependency          | [Auth](/docs/auth)                  |
+| [`@supabase/middleware`](https://github.com/supabase/middleware)                                           | The request pipeline (`ctx.supabase`, `ctx.postgres`) and the bridge for each framework                                      | Dependency          | [Middleware](/docs/auth/middleware) |
+| [`@supabase/ssr`](https://github.com/supabase/ssr)                                                         | The browser client and the session cookie format                                                                             | Dependency          | [Auth](/docs/auth)                  |
+| [`@supabase/postgrest-js`](https://github.com/supabase/supabase-js/tree/master/packages/core/postgrest-js) | A bare PostgREST client for `ctx.db` when no shared supabase-js client is passed                                             | Dependency          | [Repository](/docs/repository)      |
+| [`@supabase/supabase-js`](https://github.com/supabase/supabase-js)                                         | Per-request user, anon and service clients, Storage, Realtime and the auth admin calls                                       | Required peer       | [Quickstart](/docs/getting-started) |
+
+supabase-js brings the service clients along. better-supabase never imports
+them directly; it reaches each one through the supabase-js client:
+
+| Package                  | Reached through                                                                   | Docs                                    |
+| ------------------------ | --------------------------------------------------------------------------------- | --------------------------------------- |
+| `@supabase/auth-js`      | `client.auth` (sign-in helpers, `auth.admin` for account deletion and suspension) | [Auth](/docs/auth)                      |
+| `@supabase/storage-js`   | `client.storage` (typed buckets, analytics and vector buckets)                    | [Storage](/docs/platform/storage)       |
+| `@supabase/realtime-js`  | `client.channel` (typed topics, presence and live queries)                        | [Realtime](/docs/platform/realtime)     |
+| `@supabase/functions-js` | `client.functions`                                                                | [Edge Functions](/docs/frameworks/edge) |
+
+`@supabase/gotrue-js` is the old name of `@supabase/auth-js` and is
+deprecated; don't install it next to supabase-js. `@supabase/shared-types` is
+an internal Supabase package, and better-supabase doesn't use it.
+
+## CLI packages
+
+`better-supabase gen` and the other commands load these only when they need
+them. Apps that only run the runtime entries never install them.
+
+| Package                                                                                    | What the CLI uses it for                                                                                            | How it is installed                                  | Docs                       |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------- |
+| [`@supabase/postgrest-typegen`](https://www.npmjs.com/package/@supabase/postgrest-typegen) | Reads the database catalog and writes `database.types.ts`, the same file `supabase gen types` writes                | Optional peer (`>=0.4.0 <0.5`, tested against 0.4.0) | [gen](/docs/cli/gen)       |
+| [`@supabase/config`](https://www.npmjs.com/package/@supabase/config)                       | Interpolates `env()` in `supabase/config.toml` the way the Supabase CLI does; without it, smol-toml parses the file | Optional peer                                        | [Config](/docs/cli/config) |
+
+## The Supabase CLI
+
+The [`supabase`](https://www.npmjs.com/package/supabase) CLI runs your local
+stack, and better-supabase works next to it rather than wrapping it:
+
+- `better-supabase gen` writes the same `database.types.ts` as
+  `supabase gen types`, through `@supabase/postgrest-typegen`, and adds its
+  own files next to it. It reads the schema over `pg`, so it doesn't call the
+  Supabase CLI.
+- `better-supabase env` runs `supabase status` to read the local URLs and
+  keys. It uses `$SUPABASE_BIN` when set, then `supabase` on the `PATH`, then
+  `npx supabase`.
+- `better-supabase init` prints the `supabase` commands to run next
+  (`supabase start`, `supabase db reset`).
+
+See [Local development](/docs/cli/local) for the commands and their output.
