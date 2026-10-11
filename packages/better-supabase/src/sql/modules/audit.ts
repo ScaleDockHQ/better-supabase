@@ -4,7 +4,7 @@ import type {
   ModuleIdType,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleLayout, ModuleDefinition } from "../registry.ts";
+import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
 import type { AuditInsert } from "./audit-metadata.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";

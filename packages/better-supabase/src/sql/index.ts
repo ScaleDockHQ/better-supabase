@@ -1,39 +1,34 @@
 export {
   customContracts,
-  isModuleIdType,
-  moduleDeprecations,
-  moduleFilePaths,
-  moduleFileVersion,
-  moduleIdType,
-  MODULE_ID_TYPES,
-  modulePermissionKeys,
   moduleBody,
+  moduleTopics,
+  renderModules,
+} from "./render.ts";
+export { isModuleIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
+export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
+export { moduleFilePaths } from "./paths.ts";
+export { moduleFileVersion, sameModuleFile } from "./markers.ts";
+export {
+  modulePermissionKeys,
   moduleEventTriggers,
   moduleSchemaExtensions,
-  moduleTopics,
-  moduleVersion,
-  renderModules,
-  resolveModules,
-  sameModuleFile,
-  SQL_MODULES,
-  upgradePlan,
-} from "./registry.ts";
+} from "./introspect.ts";
+export { moduleVersion } from "./module-types.ts";
+export { resolveModules, SQL_MODULES } from "./registry.ts";
+export type { InstalledModule, ModuleUpgradePlan } from "./upgrade.ts";
 export type {
-  InstalledModule,
   ModuleDeprecation,
-  ModuleExtension,
   ModuleAccessProvider,
   ModuleFile,
-  ModuleIdType,
   ModuleLayout,
   ModuleEntitlementsProvider,
-  ModulePermissionKey,
   ModuleTestFile,
-  ModuleTopic,
   ModuleUpgrade,
-  ModuleUpgradePlan,
   SqlModule,
-} from "./registry.ts";
+} from "./module-types.ts";
+export type { ModuleExtension, ModulePermissionKey } from "./introspect.ts";
+export type { ModuleIdType } from "./context.ts";
+export type { ModuleTopic } from "./render.ts";
 export { adoptedColumnProblems } from "./adopted-columns.ts";
 export { auditRegistrations } from "./audit-registrations.ts";
 export type { AuditedTable } from "./audit-registrations.ts";

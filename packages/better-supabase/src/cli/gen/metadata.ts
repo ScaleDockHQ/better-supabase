@@ -36,7 +36,7 @@ export const EMITS = [
 
 type Emit = (typeof EMITS)[number];
 
-export const isEmit = (value: string): value is Emit =>
+const isEmit = (value: string): value is Emit =>
   EMITS.some((emit) => emit === value);
 
 /** The configured generator for an `--emit` target, or one with its defaults. */

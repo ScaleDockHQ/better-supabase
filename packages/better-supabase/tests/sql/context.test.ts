@@ -7,17 +7,18 @@ import {
   createModuleContext,
   NOTHING,
 } from "../../src/sql/context.ts";
+import { isModuleDataFile, moduleFileVersion } from "../../src/sql/markers.ts";
+import { moduleContext } from "../../src/sql/module-context.ts";
 import {
   checkModules,
-  customContracts,
-  isModuleDataFile,
-  moduleContext,
-  moduleFileVersion,
-  moduleBody,
-  renderModules,
   resolveModules,
   SQL_MODULES,
 } from "../../src/sql/registry.ts";
+import {
+  customContracts,
+  moduleBody,
+  renderModules,
+} from "../../src/sql/render.ts";
 
 const names = {
   tables: {

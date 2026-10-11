@@ -1,8 +1,9 @@
-import type { ModuleLayout } from "./registry.ts";
+import type { ModuleLayout } from "./module-types.ts";
 
+import { moduleContext } from "./module-context.ts";
 import { platformRolesProblem } from "./modules/invitations-roles.ts";
 import { sharedRolesProblem } from "./modules/tenant.ts";
-import { moduleContext, resolveModules } from "./registry.ts";
+import { resolveModules } from "./registry.ts";
 
 /**
  * Why a roles table that holds both tenant and platform roles (the tenant

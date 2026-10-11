@@ -56,7 +56,7 @@ const EXTENSIONS_SUFFIX = "_better_supabase_extensions.sql";
 const MIGRATION_EXTENSION =
   /^\s*create\s+extension\s+(?:if\s+not\s+exists\s+)?"?([a-z_][a-z0-9_]*)"?/gim;
 
-export async function unmigratedExtensions(
+async function unmigratedExtensions(
   config: ResolvedConfig,
   files: readonly ModuleFile[],
 ): Promise<{
@@ -106,7 +106,7 @@ export async function writeExtensionsMigration(
 
 export const DATA_NEXT =
   "The better-supabase-data files hold rows and settings a schema diff skips: after the schema migration, run `better-supabase sql data`.";
-export const DATA_SUFFIX = "_better_supabase_module_data.sql";
+const DATA_SUFFIX = "_better_supabase_module_data.sql";
 
 /**
  * Writes the data files of `sql.modules` into one migration, meant to run after

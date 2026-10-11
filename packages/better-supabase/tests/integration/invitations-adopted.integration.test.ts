@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/registry.ts";
+import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import {
   BlockSession,

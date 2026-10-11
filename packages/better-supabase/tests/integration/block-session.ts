@@ -1,9 +1,9 @@
 import { Pool, type PoolClient } from "pg";
 
 import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { ModuleLayout } from "../../src/sql/registry.ts";
+import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
-import { renderModules } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
 
 export const dbUrl: string =
   process.env["SUPABASE_DB_URL"] ??

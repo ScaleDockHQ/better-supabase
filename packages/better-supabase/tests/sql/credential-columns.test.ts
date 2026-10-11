@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody, SQL_MODULES } from "../../src/sql/registry.ts";
+import { SQL_MODULES } from "../../src/sql/registry.ts";
+import { moduleBody } from "../../src/sql/render.ts";
 
 /** Modules that own secrets by design: Vault itself and webhook signing. */
 const ALLOWED = (name: string): boolean =>

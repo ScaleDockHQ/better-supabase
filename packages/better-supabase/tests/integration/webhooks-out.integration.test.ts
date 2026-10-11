@@ -6,14 +6,14 @@ import type {
   WebhookTransport,
 } from "../../src/blocks/webhooks/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { ModuleLayout } from "../../src/sql/registry.ts";
+import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import {
   createWebhooks,
   sqlTransport,
   verifyWebhook,
 } from "../../src/blocks/webhooks/index.ts";
-import { renderModules } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??

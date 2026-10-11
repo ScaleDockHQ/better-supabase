@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { sqlSupportStore, supportClaims } from "../../src/auth/support.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
-import { renderModules } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
 import { testSupportSessionStore } from "../../src/testing/conformance.ts";
 import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 

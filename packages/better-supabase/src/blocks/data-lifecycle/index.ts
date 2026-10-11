@@ -20,6 +20,6 @@ export {
   type StorageEntry,
   type UnrevokedCredential,
 } from "./data-lifecycle.ts";
-export type { LifecycleTable } from "../../sql/modules/data-lifecycle.ts";
+export type { LifecycleTable } from "../../sql/modules/data-lifecycle-entries.ts";
 export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";

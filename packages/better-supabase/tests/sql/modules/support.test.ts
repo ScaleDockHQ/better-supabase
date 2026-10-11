@@ -2,11 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { ModuleConfig } from "../../../src/config/modules.ts";
 
-import {
-  moduleBody,
-  renderModules,
-  resolveModules,
-} from "../../../src/sql/registry.ts";
+import { resolveModules } from "../../../src/sql/registry.ts";
+import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const support = (config: ModuleConfig = {}) =>

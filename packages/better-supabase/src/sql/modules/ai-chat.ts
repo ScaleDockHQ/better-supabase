@@ -4,7 +4,7 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { sqlString } from "../../core/template.ts";

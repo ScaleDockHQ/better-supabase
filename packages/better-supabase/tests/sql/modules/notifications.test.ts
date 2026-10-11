@@ -6,7 +6,7 @@ import {
   customContracts,
   moduleBody,
   renderModules,
-} from "../../../src/sql/registry.ts";
+} from "../../../src/sql/render.ts";
 import { callerOnlyProvider } from "../../fixtures/authorization-provider.ts";
 
 const body = (modules: ModulesConfig = {}) =>

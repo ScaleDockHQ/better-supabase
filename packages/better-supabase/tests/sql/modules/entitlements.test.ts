@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { EntitlementPlansSource } from "../../../src/config/index.ts";
 
-import { renderModules } from "../../../src/sql/registry.ts";
+import { renderModules } from "../../../src/sql/render.ts";
 
 const entitlements = (
   source: "stripe-sync" | "custom" | EntitlementPlansSource,

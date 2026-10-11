@@ -2,12 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { ModuleConfig } from "../../../src/config/modules.ts";
 
-import {
-  moduleBody,
-  renderModules,
-  resolveModules,
-  upgradePlan,
-} from "../../../src/sql/registry.ts";
+import { resolveModules } from "../../../src/sql/registry.ts";
+import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const audit = (config: ModuleConfig = {}) =>
   moduleBody("audit", { modules: { audit: config } })!;

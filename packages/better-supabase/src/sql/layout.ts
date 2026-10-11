@@ -3,7 +3,7 @@ import type {
   ModuleAccessProvider,
   ModuleEntitlementsProvider,
   ModuleLayout,
-} from "./registry.ts";
+} from "./module-types.ts";
 
 import { resolveJsonSchema } from "../config/json.ts";
 import { VERSION } from "../core/version.ts";

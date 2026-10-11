@@ -4,7 +4,7 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../registry.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { schemaPreamble, updatedAt } from "../shared.ts";

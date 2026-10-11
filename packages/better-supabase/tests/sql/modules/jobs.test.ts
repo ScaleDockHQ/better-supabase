@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  moduleBody,
-  SQL_MODULES,
-  upgradePlan,
-} from "../../../src/sql/registry.ts";
+import { SQL_MODULES } from "../../../src/sql/registry.ts";
+import { moduleBody } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const jobs = (options?: Readonly<Record<string, unknown>>) =>
   moduleBody("jobs", options ? { modules: { jobs: { options } } } : {})!;

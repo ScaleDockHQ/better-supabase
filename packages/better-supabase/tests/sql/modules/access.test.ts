@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { AccessModuleConfig } from "../../../src/config/modules.ts";
-import type { ModuleAccessProvider } from "../../../src/sql/registry.ts";
+import type { ModuleAccessProvider } from "../../../src/sql/module-types.ts";
 
 import { DEFAULT_ROLES } from "../../../src/sql/modules/access-model.ts";
-import {
-  moduleBody,
-  renderModules,
-  SQL_MODULES,
-} from "../../../src/sql/registry.ts";
+import { SQL_MODULES } from "../../../src/sql/registry.ts";
+import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 import {
   callerOnlyProvider,
   moduleProvider,

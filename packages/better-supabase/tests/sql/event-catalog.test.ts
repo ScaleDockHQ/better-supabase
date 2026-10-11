@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { BLOCK_EVENT_RENAMES } from "../../src/core/block-events.ts";
-import { renderModules, SQL_MODULES } from "../../src/sql/registry.ts";
+import { SQL_MODULES } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
 
 const source = (path: string): string =>
   readFileSync(new URL(path, import.meta.url), "utf8");

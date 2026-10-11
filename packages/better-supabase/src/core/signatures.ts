@@ -5,7 +5,7 @@ import { err, ok, type Result } from "./result.ts";
 import { temporalMissing } from "./temporal-required.ts";
 import { nowInstant, optionalTemporal } from "./temporal.ts";
 
-export { hmacHex, timingSafeEqual, toHex } from "./hmac.ts";
+export { hmacHex, timingSafeEqual } from "./hmac.ts";
 
 // ---------------------------------------------------------------------------
 // Standard Webhooks

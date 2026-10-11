@@ -1,5 +1,5 @@
 import type { AuthorizationProvider } from "../../src/config/index.ts";
-import type { ModuleAccessProvider } from "../../src/sql/registry.ts";
+import type { ModuleAccessProvider } from "../../src/sql/module-types.ts";
 
 type StubProvider = AuthorizationProvider & {
   readonly functions: Required<

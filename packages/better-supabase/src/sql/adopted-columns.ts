@@ -1,6 +1,7 @@
 import type { ModulesConfig } from "../config/modules.ts";
 
-import { moduleContext, SQL_MODULES } from "./registry.ts";
+import { moduleContext } from "./module-context.ts";
+import { SQL_MODULES } from "./registry.ts";
 import { declaredTableColumns } from "./schema-scan.ts";
 
 /**

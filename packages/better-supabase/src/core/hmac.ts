@@ -14,7 +14,7 @@ export function timingSafeEqual(a: string, b: string): boolean {
 }
 
 /** Lowercase hex of a byte array. */
-export const toHex = (bytes: Uint8Array): string =>
+const toHex = (bytes: Uint8Array): string =>
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 
 /** The hex HMAC-SHA-256 of `message`, keyed with the UTF-8 bytes of `secret`. */

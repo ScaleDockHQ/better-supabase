@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
-import { moduleBody, upgradePlan } from "../../../src/sql/registry.ts";
+import { moduleBody } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const body = (modules: ModulesConfig = {}) =>
   moduleBody("ai-providers", { modules })!;

@@ -3,7 +3,7 @@ import type {
   ModuleAccessProvider,
   ModuleLayout,
   ModuleDefinition,
-} from "../registry.ts";
+} from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";

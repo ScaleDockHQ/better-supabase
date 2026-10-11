@@ -6,7 +6,7 @@ import {
   customContracts,
   moduleBody,
   renderModules,
-} from "../../../src/sql/registry.ts";
+} from "../../../src/sql/render.ts";
 
 const schemaOf = (names: readonly string[]) =>
   renderModules(names, {})

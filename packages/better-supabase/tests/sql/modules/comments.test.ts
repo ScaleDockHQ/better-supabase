@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/registry.ts";
+import { renderModules } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   names: readonly string[],
