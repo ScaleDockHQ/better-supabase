@@ -468,7 +468,7 @@ export function eventParts<Ref>(
 }
 
 /** Channels and messages from the realtime tables, topics and CloudEvents. */
-export function buildEvents<Ref>(
+function buildEvents<Ref>(
   events: EventsOptions<Ref> | undefined,
   ctx: EventsContext<Ref>,
 ): BuiltEvents {

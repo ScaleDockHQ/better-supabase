@@ -79,7 +79,7 @@ export interface SpecManifest {
   readonly summary: Readonly<Record<DiagnosticSeverity, number>>;
 }
 
-export const MANIFEST_SCHEMA =
+const MANIFEST_SCHEMA =
   "https://unpkg.com/better-supabase/schemas/spec-manifest-v1.json";
 
 export function buildManifest(

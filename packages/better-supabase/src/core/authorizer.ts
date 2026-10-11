@@ -137,7 +137,7 @@ function isOutcome(value: unknown): value is AuthorizationOutcome {
 }
 
 /** The `forbidden` error for an outcome other than `granted`, or `undefined`. */
-export function outcomeError(
+function outcomeError(
   outcome: unknown,
   permission: string,
 ): DbErrorOf<"forbidden"> | undefined {

@@ -9,7 +9,7 @@ import { openapiFormat } from "../../openapi/index.ts";
  * through a `formats` export, for example `createArazzoFormat()` with
  * other source description URLs.
  */
-export const BUILTIN_FORMATS: readonly AnyDocumentFormat[] = [
+const BUILTIN_FORMATS: readonly AnyDocumentFormat[] = [
   openapiFormat,
   asyncapiFormat,
   arazzoFormat,

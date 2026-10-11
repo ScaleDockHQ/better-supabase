@@ -5,8 +5,6 @@ import type { JsonSchema } from "./model.ts";
 
 import { buildJsonSchema } from "../generators/json-schema.ts";
 
-export type TableVariant = "Row" | "Insert" | "Update";
-
 /** `customer_tags` to `CustomerTags`. */
 export function pascal(value: string): string {
   return value.replaceAll(
@@ -100,13 +98,4 @@ export function convertStandard(
   const result = { schema: rest, ...(name ? { name } : {}) };
   cache.set(direction, result);
   return result;
-}
-
-export function isStandard(value: unknown): value is StandardLike {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "~standard" in value &&
-    typeof value["~standard"] === "object"
-  );
 }
