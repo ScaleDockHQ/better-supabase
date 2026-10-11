@@ -8,13 +8,23 @@ rewrites: auth wiring, typed repositories, pagination, includes, nested
 filters, soft delete, timestamps, upserts, cache invalidation, list pages,
 storage paths and realtime topics.
 
-It is built directly on the new Supabase packages:
+## Built on Supabase
 
-- [`@supabase/server`](https://github.com/supabase/server) for per-request
-  clients, auth modes and the admin client,
+It is built directly on Supabase's own packages:
+
+- [`@supabase/supabase-js`](https://github.com/supabase/supabase-js) for the
+  per-request clients, Storage, Realtime and Edge Functions,
+- [`@supabase/server`](https://github.com/supabase/server) for local token
+  verification, auth modes and the env shape,
 - [`@supabase/middleware`](https://github.com/supabase/middleware) for
   composable context (`ctx.supabase`, `ctx.postgres`),
-- [`@supabase/ssr`](https://github.com/supabase/ssr) for cookie sessions.
+- [`@supabase/ssr`](https://github.com/supabase/ssr) for cookie sessions,
+- [`@supabase/postgrest-typegen`](https://www.npmjs.com/package/@supabase/postgrest-typegen)
+  for the `database.types.ts` the CLI writes, the same file
+  `supabase gen types` writes.
+
+[Supabase packages](/docs/supabase-packages) lists every package, how it is
+installed and how it relates to the `supabase` CLI.
 
 ## What you get
 
