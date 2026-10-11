@@ -131,6 +131,49 @@ export type HasFlag<M, T, F extends string> = M extends AnyModels
     : false
   : false;
 
+/** A parameter a plugin adds to the operations of a table in the API spec. */
+export interface DescribeParameter {
+  readonly name: string;
+  readonly in: "query" | "header" | "cookie";
+  readonly required?: boolean;
+  readonly description?: string;
+  /** JSON Schema 2020-12. */
+  readonly schema: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * What `Plugin.describe` can change in the API model `defineApi` builds.
+ * Every method ignores tables and columns the API does not serve.
+ */
+export interface PluginDescribeApi {
+  readonly schema: SchemaMeta;
+  /** Prefix of generated `x-` fields, e.g. `x-better-supabase-`. */
+  readonly extensionPrefix: string;
+  /** The served tables, with the names of their operations and actions. */
+  readonly resources: readonly {
+    readonly table: TableMeta;
+    readonly operations: readonly string[];
+  }[];
+  /** Adds a parameter to the table's operations, or to the named ones. */
+  addParameter(
+    table: string,
+    parameter: DescribeParameter,
+    operations?: readonly string[],
+  ): void;
+  /**
+   * Marks a column `readOnly` in the table's schemas and drops it from the
+   * required fields of request bodies. `description` is used when the
+   * column has none.
+   */
+  markReadOnly(table: string, column: string, description?: string): void;
+  /** Deep-merges JSON Schema fields into the column's schemas. */
+  describeColumn(
+    table: string,
+    column: string,
+    patch: Readonly<Record<string, unknown>>,
+  ): void;
+}
+
 export const PLUGIN_API_VERSION = 1;
 
 /**
@@ -185,6 +228,12 @@ export interface Plugin<
   readonly repository?: (
     api: RepositoryApi,
   ) => Readonly<Record<string, (...args: never[]) => unknown>> | undefined;
+  /**
+   * `spec`: describe what the plugin does to the served tables in the API
+   * model (`defineApi`, `createOpenApi`): parameters it reads, columns it
+   * manages. A throw is reported as `plugin-describe-failed`.
+   */
+  readonly describe?: (api: PluginDescribeApi) => void;
   /** Phantom carrying the repository extension type. */
   readonly "~ext"?: Ext;
 }
