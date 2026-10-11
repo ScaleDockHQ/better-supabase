@@ -65,11 +65,19 @@ npx skills add supabase/agent-skills
 
 ## Docs as Markdown
 
-- [`/llms.txt`](/llms.txt) is an index of every page, and
-  [`/llms-full.txt`](/llms-full.txt) is every page as one Markdown file.
+- [`/llms.txt`](/llms.txt) is an index of every page with absolute links to
+  their Markdown, grouped by the sidebar sections, and
+  [`/llms-full.txt`](/llms-full.txt) is every page as one Markdown file. Both
+  also answer under `/docs`: `/docs/llms.txt` and `/docs/llms-full.txt`.
 - Every page is also Markdown at its own URL plus `.md`, for example
-  [`/docs/repository/filtering.md`](/docs/repository/filtering.md). Requests
-  with `Accept: text/markdown` get the same content at the normal URL.
+  [`/docs/repository/filtering.md`](/docs/repository/filtering.md), and the
+  docs home is [`/docs.md`](/docs.md). Requests with `Accept: text/markdown`
+  get the same content at the normal URL, and each page links its Markdown
+  with `<link rel="alternate" type="text/markdown">`.
+- Callouts, steps, cards, tabs and prop tables come out as plain Markdown
+  (blockquotes, numbered headings, link lists and tables), not as JSX.
+- An unknown docs URL answers 404, so an agent can tell a missing page from a
+  real one.
 
 ## Docs MCP server
 
@@ -106,6 +114,17 @@ reads:
   }
 }
 ```
+
+## Ask AI and browser agents
+
+The Ask AI panel on every docs page answers from these docs. It searches the
+pages and reads the ones it needs before it answers, and shows each search
+and page it read.
+
+In a browser with [WebMCP](https://webmachinelearning.github.io/webmcp/),
+the docs pages register two read-only tools on `document.modelContext`:
+`search_docs` and `read_page`, which returns a page's Markdown. A browser
+agent can call them without reading the rendered page.
 
 ## What agents should rely on
 
