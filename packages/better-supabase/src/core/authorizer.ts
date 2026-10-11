@@ -126,8 +126,9 @@ export function requestOf(context: RequestContext | undefined): {
 }
 
 function isOutcome(value: unknown): value is AuthorizationOutcome {
-  if (typeof value !== "object" || value === null) return false;
-  const { outcome } = value as { outcome?: unknown };
+  if (typeof value !== "object" || value === null || !("outcome" in value))
+    return false;
+  const { outcome } = value;
   return (
     outcome === "granted" ||
     outcome === "denied" ||
@@ -249,7 +250,9 @@ export async function checkEach<Ref>(
     const outcomes = authorizer.evaluations
       ? await authorizer.evaluations(requests)
       : await Promise.all(
-          requests.map((request) => authorizer.evaluate(request)),
+          requests.map((request) =>
+            Promise.resolve(authorizer.evaluate(request)),
+          ),
         );
     return requests.map(
       (_, index) =>
