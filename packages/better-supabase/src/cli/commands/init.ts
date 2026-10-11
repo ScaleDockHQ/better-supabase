@@ -8,7 +8,17 @@ import type { Prompter } from "../prompts.ts";
 
 import { defineCliCommand, list } from "../command.ts";
 import { findConfig, loadConfig } from "../config.ts";
-import { parseNames } from "../errors.ts";
+import {
+  CANCELLED,
+  chooseIntegrations,
+  integrationFiles,
+  overwrite,
+  packagesFor,
+  parseIntegrations,
+  templateContextFor,
+  type WriteFlags,
+  writeFiles,
+} from "../glue.ts";
 import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
 import { display, writeIfChanged } from "../io.ts";
 import {
@@ -26,24 +36,14 @@ import {
 } from "../supabase-toml.ts";
 import {
   baseFiles,
-  INTEGRATIONS,
-  isIntegration,
-  libEntry,
   needsLib,
   resolveIntegrations,
   suggestedIntegrations,
-  type Integration,
-  type TemplateContext,
-  type TemplateFile,
   TEMPLATES,
 } from "../templates.ts";
-import { VERSION } from "../version.ts";
 import { detectWorkspace, suggestedPackage } from "../workspace.ts";
 
-const WRITE_ARGS = {
-  force: { type: "boolean", description: "Overwrite files that exist" },
-  "dry-run": { type: "boolean", description: "Show what would be written" },
-} as const;
+export type InitArgs = CliArgs<typeof INIT_ARGS>;
 
 const INIT_ARGS = {
   casing: {
@@ -72,75 +72,6 @@ const INIT_ARGS = {
   "dry-run": { type: "boolean", description: "Show what would be written" },
 } as const;
 
-const ADD_ARGS = {
-  integration: {
-    type: "positional",
-    required: false,
-    description:
-      "next, hono, orpc, edge, expo, mcp, client or react. Defaults to the integrations in the config that have no files yet",
-  },
-  force: { type: "boolean", description: "Overwrite files that exist" },
-  "dry-run": { type: "boolean", description: "Show what would be written" },
-} as const;
-
-type WriteArgs = CliArgs<typeof WRITE_ARGS>;
-export type InitArgs = CliArgs<typeof INIT_ARGS>;
-export type AddArgs = CliArgs<typeof ADD_ARGS>;
-
-const CANCELLED: CommandResult = { code: 1, error: "Cancelled." };
-
-/** `--force`, or the person's answer when files exist; `undefined` when they cancel. */
-async function overwrite(
-  root: string,
-  files: readonly TemplateFile[],
-  args: WriteArgs,
-  prompts: Prompter | undefined,
-  base: string = root,
-): Promise<boolean | undefined> {
-  if (args.force === true) return true;
-  const existing = [
-    ...new Set(
-      files
-        .map((file) => file.path)
-        .filter((path) => existsSync(resolve(root, path))),
-    ),
-  ];
-  if (!prompts || existing.length === 0) return false;
-  return prompts.confirm(
-    `${existing.map((path) => display(base, resolve(root, path))).join(", ")} ${existing.length === 1 ? "exists" : "exist"}. Overwrite?`,
-  );
-}
-
-async function writeFiles(
-  root: string,
-  files: readonly TemplateFile[],
-  args: WriteArgs,
-  force: boolean,
-  base: string = root,
-): Promise<string[]> {
-  const dryRun = args["dry-run"] === true;
-  const lines: string[] = [];
-  const seen = new Set<string>();
-  for (const file of files) {
-    if (seen.has(file.path)) continue;
-    seen.add(file.path);
-    const path = resolve(root, file.path);
-    const shown = display(base, path);
-    if (existsSync(path) && !force) {
-      lines.push(`Kept    ${shown} (exists)`);
-      continue;
-    }
-    if (dryRun) {
-      lines.push(`Would write ${shown}`);
-      continue;
-    }
-    lines.push(
-      `${(await writeIfChanged(path, file.contents)) ? "Wrote  " : "Same   "} ${shown}`,
-    );
-  }
-  return lines;
-}
-
 /**
  * Adds `[experimental.pgdelta] enabled = true` to `supabase/config.toml`
  * when it has no such table, so `supabase db schema declarative sync`
@@ -148,7 +79,7 @@ async function writeFiles(
  */
 async function enablePgDelta(
   root: string,
-  args: WriteArgs,
+  args: WriteFlags,
   base: string,
 ): Promise<string[]> {
   const supabaseRoot = findSupabaseRoot(root);
@@ -176,35 +107,6 @@ async function enablePgDelta(
   return [`Enabled pg-delta in ${shown}`];
 }
 
-function context(project: Project, generated: string): TemplateContext {
-  return {
-    srcDir: project.srcDir,
-    generated,
-    tsExtensions: project.tsExtensions,
-    frameworks: project.frameworks,
-    version: VERSION,
-  };
-}
-
-function integrationFiles(
-  names: readonly Integration[],
-  templateContext: TemplateContext,
-): TemplateFile[] {
-  return names.flatMap((name) => TEMPLATES[name].files(templateContext));
-}
-
-function packagesFor(
-  project: Project,
-  names: readonly Integration[],
-): string[] {
-  const wanted = [
-    "better-supabase",
-    "@supabase/supabase-js",
-    ...names.flatMap((name) => TEMPLATES[name].packages),
-  ];
-  return [...new Set(wanted)].filter((name) => !(name in project.dependencies));
-}
-
 /** The minor of `@supabase/lite` the `backend: 'lite'` option targets. */
 const LITE_VERSION = "0.11";
 
@@ -223,27 +125,6 @@ function devPackages(project: Project, lite: boolean): string[][] {
       : [`@supabase/postgrest-typegen@${TYPEGEN_VERSION}`]),
   ];
   return missing.length === 0 ? [] : [missing];
-}
-
-function chooseIntegrations(
-  prompts: Prompter,
-  initial: readonly Integration[],
-): Promise<Integration[] | undefined> {
-  return prompts.multiselect(
-    "Integrations",
-    INTEGRATIONS.map((name) => ({
-      value: name,
-      label: name,
-      hint: TEMPLATES[name].description,
-    })),
-    initial,
-  );
-}
-
-function parseIntegrations(
-  values: readonly string[],
-): readonly Integration[] | string {
-  return parseNames(values, isIntegration, "integration", INTEGRATIONS);
 }
 
 /** Where `init` writes: `--cwd`, `--package`, or the workspace package the person picks. */
@@ -344,7 +225,7 @@ export async function runInit(
   );
   if (hasConfig)
     generated = inPackage ? (await loadConfig(root)).output : config.output;
-  const templateContext = context(project, generated);
+  const templateContext = templateContextFor(project, generated);
 
   const files = [
     ...baseFiles(templateContext, casing, needsLib(integrations), integrations),
@@ -397,75 +278,6 @@ export async function runInit(
   return { code: 0, output: lines.join("\n") };
 }
 
-export async function runAdd(
-  config: ResolvedConfig,
-  args: AddArgs,
-  prompts?: Prompter,
-): Promise<CommandResult> {
-  const project = await detectProject(config.root);
-  const templateContext = context(project, config.output);
-  const fromConfig = args._.length === 0 && config.integrations.length > 0;
-  const missing = config.integrations.filter((name) =>
-    integrationFiles([name], templateContext).some(
-      (file) => !existsSync(resolve(config.root, file.path)),
-    ),
-  );
-  if (fromConfig && missing.length === 0)
-    return {
-      code: 0,
-      output: `Every integration in the config is set up: ${config.integrations.join(", ")}.`,
-    };
-  const named = fromConfig
-    ? missing
-    : args._.length === 0 && prompts
-      ? await chooseIntegrations(prompts, [])
-      : args._;
-  if (named === undefined) return CANCELLED;
-  if (named.length === 0)
-    return {
-      code: 2,
-      error: `Name at least one integration (${INTEGRATIONS.join(", ")}), or list them in integrations in the config.`,
-    };
-  const requested = parseIntegrations(named);
-  if (typeof requested === "string") return { code: 2, error: requested };
-  const integrations = resolveIntegrations(requested);
-  const files = integrationFiles(integrations, templateContext);
-  const force = await overwrite(config.root, files, args, prompts);
-  if (force === undefined) return CANCELLED;
-  const lines = await writeFiles(config.root, files, args, force);
-  const lib = libEntry(templateContext);
-  if (
-    !existsSync(resolve(config.root, lib)) &&
-    integrations.some((name) => needsLib([name]))
-  ) {
-    lines.push(
-      "",
-      `Warning: ${lib} is missing. Run \`better-supabase init\` first.`,
-    );
-  }
-  const packages = packagesFor(project, integrations).filter(
-    (name) => name !== "better-supabase" && name !== "@supabase/supabase-js",
-  );
-  if (packages.length > 0)
-    lines.push(
-      "",
-      `Install: ${installCommand(project.packageManager, packages)}`,
-    );
-  for (const name of integrations) {
-    for (const hint of TEMPLATES[name].next ?? []) lines.push(`- ${hint}`);
-  }
-  const unlisted = integrations.filter(
-    (name) => !config.integrations.includes(name),
-  );
-  if (unlisted.length > 0)
-    lines.push(
-      "",
-      "Add them to your config so `better-supabase add` sets them up in a fresh checkout:",
-      `  integrations: [${[...config.integrations, ...unlisted].map((name) => `'${name}'`).join(", ")}]`,
-    );
-  return { code: 0, output: lines.join("\n") };
-}
-
 export const initCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "init",
@@ -475,13 +287,4 @@ export const initCommand: AnyCommand = defineCliCommand({
   args: INIT_ARGS,
   lists: ["with"],
   run: (args, { config, io }) => runInit(config, args, io.prompts),
-});
-
-export const addCommand: AnyCommand = defineCliCommand({
-  meta: {
-    name: "add",
-    description: "Adds glue for an integration to an existing project",
-  },
-  args: ADD_ARGS,
-  run: (args, { config, io }) => runAdd(config, args, io.prompts),
 });

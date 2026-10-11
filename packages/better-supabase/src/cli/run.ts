@@ -9,7 +9,9 @@ import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
 import type { ResolvedConfig } from "../config/index.ts";
+import type { CliEntry } from "./builtin-commands.ts";
 
+import { builtinCommands } from "./builtin-commands.ts";
 import {
   type AnyCommand,
   type CliContext,
@@ -24,137 +26,297 @@ import { type Rendered, renderError, renderResult } from "./output.ts";
 import { painter } from "./style.ts";
 import { VERSION } from "./version.ts";
 
-type Loader = () => Promise<AnyCommand>;
+export interface RunOptions {
+  /** Directory `--cwd` is relative to. */
+  readonly cwd?: string;
+  /** Environment variables. Empty unless passed; the bin passes `process.env`. */
+  readonly env?: Readonly<Record<string, string | undefined>>;
+  readonly io?: CliIo;
+  readonly signal?: AbortSignal;
+}
 
-type Entry =
-  | {
-      readonly load: Loader;
-      /** Shown in the root usage without loading the command. */
-      readonly description: string;
+export interface CreateCliOptions {
+  /** The commands the CLI dispatches, by name. `createCli` copies the map. */
+  readonly commands: ReadonlyMap<string, CliEntry>;
+}
+
+export interface Cli {
+  /** Runs the CLI. Never exits the process; returns the exit code and output. */
+  run(argv: readonly string[], options?: RunOptions): Promise<RunResult>;
+  /** The usage text for the CLI, or for one command; plain unless `color` is set. */
+  help(command?: string, color?: boolean): Promise<string>;
+  /** The names `run()` dispatches, registered commands included. */
+  commandNames(): string[];
+  /** The root usage's description of each lazily loaded command, for checking against the command. */
+  commandDescriptions(): ReadonlyMap<string, string>;
+  /** Adds a command that is already loaded. */
+  register(name: string, command: AnyCommand): void;
+}
+
+/** Global options that take a value, so the command name is the token after them. */
+const GLOBAL_VALUE_FLAGS: ReadonlySet<string> = new Set(
+  Object.entries(GLOBAL_ARGS).flatMap(([name, definition]) =>
+    definition.type === "string" ? [`--${name}`] : [],
+  ),
+);
+
+/** The index of the command name: the first token that is not an option or an option's value. */
+function commandIndex(argv: readonly string[]): number {
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index]!;
+    if (token === "--") return -1;
+    if (!token.startsWith("-")) return index;
+    if (GLOBAL_VALUE_FLAGS.has(token)) index += 1;
+  }
+  return -1;
+}
+
+function isCommandResult(value: unknown): value is CommandResult {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "code" in value &&
+    typeof value.code === "number"
+  );
+}
+
+const SHOWS_USAGE = new Set<CliErrorCode>(["usage", "unknown_command"]);
+
+function withoutPrompts(io: CliIo): CliIo {
+  const { prompts: _prompts, ...rest } = io;
+  return rest;
+}
+
+/** The registered command closest to a mistyped one, if it is close enough to be a typo. */
+async function suggestCommand(
+  name: string,
+  names: readonly string[],
+): Promise<string | undefined> {
+  if (names.length === 0) return undefined;
+  const { closest, distance } = await import("fastest-levenshtein");
+  const candidate = closest(name, [...names]);
+  return distance(name, candidate) <= Math.max(2, Math.floor(name.length / 3))
+    ? candidate
+    : undefined;
+}
+
+/** A CLI over its own command registry, so tests and embedders don't share state through the module. */
+export function createCli(init: CreateCliOptions): Cli {
+  const commands = new Map(init.commands);
+
+  const root = defineCommand({
+    meta: {
+      name: "better-supabase",
+      version: VERSION,
+      description:
+        "Typed Supabase: codegen, doctor, the SQL modules and project setup",
+    },
+    args: GLOBAL_ARGS,
+    subCommands: () =>
+      Object.fromEntries(
+        [...commands].map(([name, entry]) => [
+          name,
+          "command" in entry
+            ? entry.command
+            : defineCommand({
+                meta: { name, description: entry.description },
+              }),
+        ]),
+      ),
+  });
+
+  const help = async (command?: string, color = false): Promise<string> => {
+    const load =
+      command === undefined ? undefined : commands.get(command)?.load;
+    const text = load
+      ? await renderUsage(await load(), root)
+      : await renderUsage(root);
+    return color ? text : stripVTControlCharacters(text);
+  };
+
+  const run = async (
+    argv: readonly string[],
+    options: RunOptions = {},
+  ): Promise<RunResult> => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const io: CliIo = options.io ?? {
+      stdout: (text) => {
+        stdout.push(text);
+      },
+      stderr: (text) => {
+        stderr.push(text);
+      },
+    };
+    const out = (text: string): void => {
+      const line = text.endsWith("\n") ? text : `${text}\n`;
+      if (options.io) stdout.push(line);
+      io.stdout(line);
+    };
+    const fail = (text: string): void => {
+      const line = text.endsWith("\n") ? text : `${text}\n`;
+      if (options.io) stderr.push(line);
+      io.stderr(line);
+    };
+    const paint = painter(io.color);
+    const usage = (command?: string): Promise<string> =>
+      help(command, io.color === true);
+    const finish = (code: number): RunResult => ({
+      code,
+      stdout: stdout.join(""),
+      stderr: stderr.join(""),
+    });
+
+    const index = commandIndex(argv);
+    const name = index === -1 ? undefined : argv[index];
+    const rest = index === -1 ? [...argv] : argv.toSpliced(index, 1);
+    const flags = new Set(
+      rest.slice(0, rest.includes("--") ? rest.indexOf("--") : undefined),
+    );
+    const wantsHelp = flags.has("--help") || flags.has("-h");
+    const json = flags.has("--json");
+    const report = (rendered: Rendered): void => {
+      if (rendered.stdout) out(rendered.stdout);
+      if (rendered.stderr) fail(rendered.stderr);
+    };
+    const reportError = async (cause: unknown): Promise<RunResult> => {
+      const error = toCliError(cause);
+      const shown =
+        error.code === "usage"
+          ? new CliError("usage", stripVTControlCharacters(error.message))
+          : error;
+      report(
+        renderError(shown, {
+          json,
+          paint,
+          ...(SHOWS_USAGE.has(error.code)
+            ? { usage: await usage(error.code === "usage" ? name : undefined) }
+            : {}),
+        }),
+      );
+      return finish(error.exitCode);
+    };
+
+    if (flags.has("--version") || name === "version") {
+      out(json ? JSON.stringify({ version: VERSION }) : VERSION);
+      return finish(0);
     }
-  | { readonly load: Loader; readonly command: AnyCommand };
+    if (name === undefined) {
+      (wantsHelp ? out : fail)(await usage());
+      return finish(wantsHelp ? 0 : 2);
+    }
+    if (name === "help") {
+      const topic = rest.find((token) => !token.startsWith("-"));
+      out(await usage(topic));
+      return finish(0);
+    }
+    const load = commands.get(name)?.load;
+    if (!load) {
+      const suggestion = await suggestCommand(name, [...commands.keys()]);
+      return reportError(
+        new CliError(
+          "unknown_command",
+          `Unknown command "${name}".${suggestion ? ` Did you mean "${suggestion}"?` : ""}`,
+          suggestion ? { suggestion } : {},
+        ),
+      );
+    }
+    if (wantsHelp) {
+      out(await usage(name));
+      return finish(0);
+    }
 
-const COMMANDS = new Map<string, Entry>([
-  [
-    "init",
-    {
-      load: () => import("./commands/init.ts").then((m) => m.initCommand),
-      description:
-        "Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json",
+    let context: CliContext;
+    let command: CommandDef;
+    try {
+      // Config loading (c12) and env validation (valibot) stay out of `--version` and `--help`.
+      const [
+        loaded,
+        { discoverConfig, loadConfig },
+        { configEnvironment, parseEnv },
+      ] = await Promise.all([
+        load(),
+        import("./config.ts"),
+        import("./env.ts"),
+      ]);
+      command = loaded;
+      const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
+      const cwd = resolve(options.cwd ?? ".", globals.cwd ?? ".");
+      const env = parseEnv(options.env ?? {});
+      const environment = configEnvironment(globals.env, env);
+      const reloadConfig = (): Promise<ResolvedConfig> =>
+        loadConfig(cwd, globals.config, environment).catch((cause: unknown) => {
+          throw cause instanceof CliError
+            ? cause
+            : new CliError("config_invalid", toCliError(cause).message, {
+                cause,
+              });
+        });
+      const config = await reloadConfig();
+      const configFile = discoverConfig(cwd, globals.config);
+      const interactive =
+        globals.json !== true && globals.yes !== true && env.CI === undefined;
+      context = {
+        cwd,
+        config,
+        ...(configFile ? { configFile } : {}),
+        reloadConfig,
+        io: interactive ? io : withoutPrompts(io),
+        env,
+        json: globals.json === true,
+        signal: options.signal,
+      };
+    } catch (cause) {
+      return reportError(cause);
+    }
+
+    try {
+      const { result } = await runCommand(command, {
+        rawArgs: joinRepeated(rest, listArgs(command)),
+        data: context,
+      });
+      if (!isCommandResult(result)) return finish(0);
+      report(renderResult(result, { json, paint }));
+      return finish(result.code);
+    } catch (cause) {
+      return reportError(cause);
+    }
+  };
+
+  return {
+    run,
+    help,
+    commandNames: () => [...commands.keys()],
+    commandDescriptions: () =>
+      new Map(
+        [...commands].flatMap(([name, entry]) =>
+          "description" in entry ? [[name, entry.description] as const] : [],
+        ),
+      ),
+    register: (name, command) => {
+      commands.set(name, {
+        load: () => Promise.resolve(command),
+        command,
+      });
     },
-  ],
-  [
-    "add",
-    {
-      load: () => import("./commands/init.ts").then((m) => m.addCommand),
-      description: "Adds glue for an integration to an existing project",
-    },
-  ],
-  [
-    "env",
-    {
-      load: () => import("./commands/env.ts").then((m) => m.envCommand),
-      description:
-        "Writes the local stack's URL and keys from `supabase status` to an env file, keeping its other lines",
-    },
-  ],
-  [
-    "keys",
-    {
-      load: () => import("./commands/keys.ts").then((m) => m.keysCommand),
-      description:
-        "Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones",
-    },
-  ],
-  [
-    "skills",
-    {
-      load: () => import("./commands/skills.ts").then((m) => m.skillsCommand),
-      description:
-        "Installs the Agent Skills that ship with this version of better-supabase",
-    },
-  ],
-  [
-    "gen",
-    {
-      load: () => import("./commands/gen.ts").then((m) => m.genCommand),
-      description:
-        "Writes the typed client from the database, then every other generated file the config sets up",
-    },
-  ],
-  [
-    "introspect",
-    {
-      load: () =>
-        import("./commands/introspect.ts").then((m) => m.introspectCommand),
-      description: "Saves the database schema as a snapshot for offline gen",
-    },
-  ],
-  [
-    "openapi",
-    {
-      load: () => import("./commands/openapi.ts").then((m) => m.openapiCommand),
-      description:
-        "Writes the document your createOpenApi() module exports, so CI can check it for drift",
-    },
-  ],
-  [
-    "spec",
-    {
-      load: () => import("./commands/spec.ts").then((m) => m.specCommand),
-      description:
-        "Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders",
-    },
-  ],
-  [
-    "scaffold",
-    {
-      load: () =>
-        import("./commands/scaffold.ts").then((m) => m.scaffoldCommand),
-      description:
-        "Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js",
-    },
-  ],
-  [
-    "seed",
-    {
-      load: () => import("./commands/seed.ts").then((m) => m.seedCommand),
-      description:
-        "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL",
-    },
-  ],
-  [
-    "doctor",
-    {
-      load: () => import("./commands/doctor.ts").then((m) => m.doctorCommand),
-      description:
-        "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict",
-    },
-  ],
-  [
-    "sql",
-    {
-      load: () => import("./commands/sql.ts").then((m) => m.sqlCommand),
-      description: "Lists, adds, syncs, upgrades and prints SQL modules",
-    },
-  ],
-  [
-    "config",
-    {
-      load: () => import("./commands/config.ts").then((m) => m.configCommand),
-      description:
-        "Prints the resolved config: the file it came from, the active environment and every option with its default",
-    },
-  ],
-  [
-    "codemod",
-    {
-      load: () => import("./commands/codemod.ts").then((m) => m.codemodCommand),
-      description:
-        "Rewrites imports and calls for renamed better-supabase APIs",
-    },
-  ],
-]);
+  };
+}
+
+/** The CLI the `better-supabase` bin runs, with every built-in command. */
+const defaultCli: Cli = createCli({ commands: builtinCommands() });
+
+export const run: Cli["run"] = (argv, options) => defaultCli.run(argv, options);
+
+export const help: Cli["help"] = (command, color) =>
+  defaultCli.help(command, color);
+
+/** The names `run()` dispatches, registered commands included. */
+export const commandNames: Cli["commandNames"] = () =>
+  defaultCli.commandNames();
+
+/** The root usage's description of each built-in command, for checking against the command. */
+export const commandDescriptions: Cli["commandDescriptions"] = () =>
+  defaultCli.commandDescriptions();
 
 /** Registers a citty command; `defineCliCommand` gives it the `CliContext`. */
 export function registerCommand(name: string, command: AnyCommand): void;
@@ -169,245 +331,10 @@ export function registerCommand(
   command: AnyCommand | Command,
   help?: string,
 ): void {
-  const def =
+  defaultCli.register(
+    name,
     typeof command === "function"
       ? legacyCommand(name, command, help)
-      : command;
-  COMMANDS.set(name, { load: () => Promise.resolve(def), command: def });
-}
-
-const ROOT = defineCommand({
-  meta: {
-    name: "better-supabase",
-    version: VERSION,
-    description:
-      "Typed Supabase: codegen, doctor, the SQL modules and project setup",
-  },
-  args: GLOBAL_ARGS,
-  subCommands: () =>
-    Object.fromEntries(
-      [...COMMANDS].map(([name, entry]) => [
-        name,
-        "command" in entry
-          ? entry.command
-          : defineCommand({ meta: { name, description: entry.description } }),
-      ]),
-    ),
-});
-
-/** The root usage's description of each built-in command, for checking against the command. */
-export function commandDescriptions(): ReadonlyMap<string, string> {
-  return new Map(
-    [...COMMANDS].flatMap(([name, entry]) =>
-      "description" in entry ? [[name, entry.description] as const] : [],
-    ),
+      : command,
   );
-}
-
-/** The usage text for the CLI, or for one command; plain unless `color` is set. */
-export async function help(command?: string, color = false): Promise<string> {
-  const load = command === undefined ? undefined : COMMANDS.get(command)?.load;
-  const text = load
-    ? await renderUsage(await load(), ROOT)
-    : await renderUsage(ROOT);
-  return color ? text : stripVTControlCharacters(text);
-}
-
-export interface RunOptions {
-  /** Directory `--cwd` is relative to. */
-  readonly cwd?: string;
-  /** Environment variables. Empty unless passed; the bin passes `process.env`. */
-  readonly env?: Readonly<Record<string, string | undefined>>;
-  readonly io?: CliIo;
-  readonly signal?: AbortSignal;
-}
-
-/** The index of the command name: the first token that is not an option or an option's value. */
-function commandIndex(argv: readonly string[]): number {
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index]!;
-    if (token === "--") return -1;
-    if (!token.startsWith("-")) return index;
-    if (token === "--cwd" || token === "--config" || token === "--env")
-      index += 1;
-  }
-  return -1;
-}
-
-function isCommandResult(value: unknown): value is CommandResult {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "code" in value &&
-    typeof value.code === "number"
-  );
-}
-
-/** The names `run()` dispatches, registered commands included. */
-export function commandNames(): string[] {
-  return [...COMMANDS.keys()];
-}
-
-/** The registered command closest to a mistyped one, if it is close enough to be a typo. */
-async function suggestCommand(name: string): Promise<string | undefined> {
-  const names = [...COMMANDS.keys()];
-  if (names.length === 0) return undefined;
-  const { closest, distance } = await import("fastest-levenshtein");
-  const candidate = closest(name, names);
-  return distance(name, candidate) <= Math.max(2, Math.floor(name.length / 3))
-    ? candidate
-    : undefined;
-}
-
-const SHOWS_USAGE = new Set<CliErrorCode>(["usage", "unknown_command"]);
-
-function withoutPrompts(io: CliIo): CliIo {
-  const { prompts: _prompts, ...rest } = io;
-  return rest;
-}
-
-/** Runs the CLI. Never exits the process; returns the exit code and output. */
-export async function run(
-  argv: readonly string[],
-  options: RunOptions = {},
-): Promise<RunResult> {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  const io: CliIo = options.io ?? {
-    stdout: (text) => {
-      stdout.push(text);
-    },
-    stderr: (text) => {
-      stderr.push(text);
-    },
-  };
-  const out = (text: string): void => {
-    const line = text.endsWith("\n") ? text : `${text}\n`;
-    if (options.io) stdout.push(line);
-    io.stdout(line);
-  };
-  const fail = (text: string): void => {
-    const line = text.endsWith("\n") ? text : `${text}\n`;
-    if (options.io) stderr.push(line);
-    io.stderr(line);
-  };
-  const paint = painter(io.color);
-  const usage = (command?: string): Promise<string> =>
-    help(command, io.color === true);
-  const finish = (code: number): RunResult => ({
-    code,
-    stdout: stdout.join(""),
-    stderr: stderr.join(""),
-  });
-
-  const index = commandIndex(argv);
-  const name = index === -1 ? undefined : argv[index];
-  const rest = index === -1 ? [...argv] : argv.toSpliced(index, 1);
-  const flags = new Set(
-    rest.slice(0, rest.includes("--") ? rest.indexOf("--") : undefined),
-  );
-  const wantsHelp = flags.has("--help") || flags.has("-h");
-  const json = flags.has("--json");
-  const report = (rendered: Rendered): void => {
-    if (rendered.stdout) out(rendered.stdout);
-    if (rendered.stderr) fail(rendered.stderr);
-  };
-  const reportError = async (cause: unknown): Promise<RunResult> => {
-    const error = toCliError(cause);
-    const shown =
-      error.code === "usage"
-        ? new CliError("usage", stripVTControlCharacters(error.message))
-        : error;
-    report(
-      renderError(shown, {
-        json,
-        paint,
-        ...(SHOWS_USAGE.has(error.code)
-          ? { usage: await usage(error.code === "usage" ? name : undefined) }
-          : {}),
-      }),
-    );
-    return finish(error.exitCode);
-  };
-
-  if (flags.has("--version") || name === "version") {
-    out(json ? JSON.stringify({ version: VERSION }) : VERSION);
-    return finish(0);
-  }
-  if (name === undefined) {
-    (wantsHelp ? out : fail)(await usage());
-    return finish(wantsHelp ? 0 : 2);
-  }
-  if (name === "help") {
-    const topic = rest.find((token) => !token.startsWith("-"));
-    out(await usage(topic));
-    return finish(0);
-  }
-  const load = COMMANDS.get(name)?.load;
-  if (!load) {
-    const suggestion = await suggestCommand(name);
-    return reportError(
-      new CliError(
-        "unknown_command",
-        `Unknown command "${name}".${suggestion ? ` Did you mean "${suggestion}"?` : ""}`,
-        suggestion ? { suggestion } : {},
-      ),
-    );
-  }
-  if (wantsHelp) {
-    out(await usage(name));
-    return finish(0);
-  }
-
-  let context: CliContext;
-  let command: CommandDef;
-  try {
-    // Config loading (c12) and env validation (valibot) stay out of `--version` and `--help`.
-    const [
-      loaded,
-      { discoverConfig, loadConfig },
-      { configEnvironment, parseEnv },
-    ] = await Promise.all([load(), import("./config.ts"), import("./env.ts")]);
-    command = loaded;
-    const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
-    const cwd = resolve(options.cwd ?? ".", globals.cwd ?? ".");
-    const env = parseEnv(options.env ?? {});
-    const environment = configEnvironment(globals.env, env);
-    const reloadConfig = (): Promise<ResolvedConfig> =>
-      loadConfig(cwd, globals.config, environment).catch((cause: unknown) => {
-        throw cause instanceof CliError
-          ? cause
-          : new CliError("config_invalid", toCliError(cause).message, {
-              cause,
-            });
-      });
-    const config = await reloadConfig();
-    const configFile = discoverConfig(cwd, globals.config);
-    const interactive =
-      globals.json !== true && globals.yes !== true && env.CI === undefined;
-    context = {
-      cwd,
-      config,
-      ...(configFile ? { configFile } : {}),
-      reloadConfig,
-      io: interactive ? io : withoutPrompts(io),
-      env,
-      json: globals.json === true,
-      signal: options.signal,
-    };
-  } catch (cause) {
-    return reportError(cause);
-  }
-
-  try {
-    const { result } = await runCommand(command, {
-      rawArgs: joinRepeated(rest, listArgs(command)),
-      data: context,
-    });
-    if (!isCommandResult(result)) return finish(0);
-    report(renderResult(result, { json, paint }));
-    return finish(result.code);
-  } catch (cause) {
-    return reportError(cause);
-  }
 }
