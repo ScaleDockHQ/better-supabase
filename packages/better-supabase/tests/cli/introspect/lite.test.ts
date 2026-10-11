@@ -99,5 +99,43 @@ describe("liteSource", { timeout: 30_000 }, () => {
     await expect(liteSource(root, toml, "sqlite")).rejects.toThrow(
       /sqlite-postgres/,
     );
+    await expect(liteSource(root, undefined, "postgres")).rejects.toThrow(
+      /\[db\] url/,
+    );
+  });
+
+  it("reads the postgres driver's [db] url", async () => {
+    const root = await project({
+      "supabase/config.toml":
+        '[db]\ndriver = "postgres"\nurl = "postgresql://u:p@db/x"\n',
+    });
+    const urls: string[] = [];
+    const source = await liteSource(
+      root,
+      await readSupabaseToml(root),
+      "postgres",
+      (url) => {
+        urls.push(url);
+        return Promise.resolve({
+          client: { query: <R>() => Promise.resolve({ rows: [] as R[] }) },
+          pooled: true,
+          close: () => Promise.resolve(),
+          describe: "postgresql://u:***@db/x",
+        });
+      },
+    );
+    expect(urls).toEqual(["postgresql://u:p@db/x"]);
+    expect(source.describe).toBe("postgresql://u:***@db/x");
+  });
+
+  it("opens an empty PGlite when the project has no schema files", async () => {
+    const root = await project({});
+    const source = await liteSource(root, undefined, "pglite");
+    try {
+      const snapshot = await introspect(source.queryable, ["public"]);
+      expect(snapshot.generator.tables).toEqual([]);
+    } finally {
+      await source.close();
+    }
   });
 });
