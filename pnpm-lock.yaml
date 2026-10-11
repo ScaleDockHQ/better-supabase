@@ -275,6 +275,9 @@ catalogs:
     '@supabase-labs/middleware-openfeature':
       specifier: 0.2.0
       version: 0.2.0
+    '@supabase-labs/tanstack-db':
+      specifier: 0.1.0
+      version: 0.1.0
     '@supabase/config':
       specifier: 0.11.1
       version: 0.11.1
@@ -302,6 +305,9 @@ catalogs:
     '@tailwindcss/postcss':
       specifier: 4.3.3
       version: 4.3.3
+    '@tanstack/db':
+      specifier: 0.12.3
+      version: 0.12.3
     '@tanstack/query-core':
       specifier: 5.104.1
       version: 5.104.1
@@ -1588,6 +1594,9 @@ importers:
       '@supabase-labs/middleware-openfeature':
         specifier: 'catalog:'
         version: 0.2.0(typescript@7.0.2)
+      '@supabase-labs/tanstack-db':
+        specifier: 'catalog:'
+        version: 0.1.0(@opentelemetry/api@1.9.1)(typescript@7.0.2)
       '@supabase/config':
         specifier: 'catalog:'
         version: 0.11.1(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0(@opentelemetry/api@1.9.1)))(effect@4.0.0)
@@ -1600,6 +1609,9 @@ importers:
       '@t3-oss/env-core':
         specifier: 'catalog:'
         version: 0.13.11(arktype@2.2.3)(typescript@7.0.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.5)
+      '@tanstack/db':
+        specifier: 'catalog:'
+        version: 0.12.3(typescript@7.0.2)
       '@tanstack/query-core':
         specifier: 'catalog:'
         version: 5.104.1
@@ -5277,6 +5289,9 @@ packages:
       typescript:
         optional: true
 
+  '@supabase-labs/tanstack-db@0.1.0':
+    resolution: {integrity: sha512-4KccEP0NsmhwzTUw9g+1izvsLdIWXLIOKFP6ycoK1XI42vgiCAvGseXGllGp/ZPwddt5H15pKFJXoJ4uWskAFw==}
+
   '@supabase/auth-js@2.117.2':
     resolution: {integrity: sha512-Z3WnGwrphYZubrLbxp5Iv0tLA9A5GhvKzJ/ZXglxqwd2QEH2R4dXRltjVJ8sIn4xEW2BSFIGT0yALVJIgZeDYw==}
     engines: {node: '>=22.0.0'}
@@ -5726,8 +5741,28 @@ packages:
   '@tailwindcss/postcss@4.3.3':
     resolution: {integrity: sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg==}
 
+  '@tanstack/db-ivm@0.1.26':
+    resolution: {integrity: sha512-Td2HbR68RfpMPv4zyMNQk83z/5gTjGl/I1LA/07A26LXMEPGh+hTsNbfPSr5YPZhq6KXX9lDFjDzv3Qz3DjV5w==}
+    peerDependencies:
+      typescript: '>=4.7'
+
+  '@tanstack/db@0.12.3':
+    resolution: {integrity: sha512-Plm3nLRSv0S4xY9sGvWPuQ10QiBoMRYjEJmvLCgjz4Sog6ypjIDMVeUByiRSmDHfKj7na2u4NF7T/HshwHEvDw==}
+    peerDependencies:
+      typescript: '>=4.7'
+
+  '@tanstack/pacer-lite@0.2.2':
+    resolution: {integrity: sha512-eQ1MyLKCHyXiH7NbdmB80W77OhiMgGBUb+qDx/8WMGbwg5Lf/NlfD0TfNYAqY77i8V3AxoDoYdICrQE5ADw4Yw==}
+    engines: {node: '>=18'}
+
   '@tanstack/query-core@5.104.1':
     resolution: {integrity: sha512-TiRghcrGkUTE+M4JBxvpPSpBhxvIzQairw+cksrHYGr+2uwC77yW1SY9nYxnYRYOppvucf8rEg6b5byoz4rTpw==}
+
+  '@tanstack/query-db-collection@1.4.2':
+    resolution: {integrity: sha512-i26s+m60qoCYOX3CesPBNuFWayPOS7KM1mMlOGeQ5gLO9+bh/wyrSEwPab6NmMrFQMO5qTC8LViQ0+w4tsB07w==}
+    peerDependencies:
+      '@tanstack/query-core': ^5.0.0
+      typescript: '>=4.7'
 
   '@tanstack/react-query@5.104.1':
     resolution: {integrity: sha512-Zz70EgjahNI7aCz8BZxM3vUGU44ycxEAzMuCUjLeA7SVhhOkg3ZgPjPJPvHjs6Rmky/dtmnu1WzjGHNHmhCoZQ==}
@@ -8329,6 +8364,10 @@ packages:
   forwarded@0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
     engines: {node: '>= 0.6'}
+
+  fractional-indexing@3.4.0:
+    resolution: {integrity: sha512-8J3glhz2rrpKG6KmI7wmJo3zH1VjeOpN+vTJSw1fOyO+Viqq3zX6/5NGh6oaZB2qIAYdOYuu5Dz9xp4faOO0Pg==}
+    engines: {node: ^14.13.1 || >=16.0.0}
 
   framer-motion@13.4.1:
     resolution: {integrity: sha512-6DsbU4hsNsokXkwSp3ezdMWMiv5yWzCcdjFgakkeUC6FVIK01Py8ToSzsXvBw8cYA5hff/oXFvZFU7ltbVyUYA==}
@@ -11085,6 +11124,9 @@ packages:
   sort-keys@1.1.2:
     resolution: {integrity: sha512-vzn8aSqKgytVik0iwdBEi+zevbTYZogewTUM6dtpmGwEcdzbub/TX4bCzRhebDCRC3QzXgJsLRKB2V/Oof7HXg==}
     engines: {node: '>=0.10.0'}
+
+  sorted-btree@1.8.1:
+    resolution: {integrity: sha512-395+XIP+wqNn3USkFSrNz7G3Ss/MXlZEqesxvzCRFwL14h6e8LukDHdLBePn5pwbm5OQ9vGu8mDyz2lLDIqamQ==}
 
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
@@ -15888,6 +15930,18 @@ snapshots:
     optionalDependencies:
       typescript: 7.0.2
 
+  '@supabase-labs/tanstack-db@0.1.0(@opentelemetry/api@1.9.1)(typescript@7.0.2)':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      '@supabase/postgrest-js': 2.117.2
+      '@supabase/supabase-js': 2.117.2(@opentelemetry/api@1.9.1)
+      '@tanstack/db': 0.12.3(typescript@7.0.2)
+      '@tanstack/query-core': 5.104.1
+      '@tanstack/query-db-collection': 1.4.2(@tanstack/query-core@5.104.1)(typescript@7.0.2)
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - typescript
+
   '@supabase/auth-js@2.117.2':
     dependencies:
       tslib: 2.8.1
@@ -16293,7 +16347,29 @@ snapshots:
       postcss: 8.5.28
       tailwindcss: 4.3.3
 
+  '@tanstack/db-ivm@0.1.26(typescript@7.0.2)':
+    dependencies:
+      fractional-indexing: 3.4.0
+      sorted-btree: 1.8.1
+      typescript: 7.0.2
+
+  '@tanstack/db@0.12.3(typescript@7.0.2)':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      '@tanstack/db-ivm': 0.1.26(typescript@7.0.2)
+      '@tanstack/pacer-lite': 0.2.2
+      typescript: 7.0.2
+
+  '@tanstack/pacer-lite@0.2.2': {}
+
   '@tanstack/query-core@5.104.1': {}
+
+  '@tanstack/query-db-collection@1.4.2(@tanstack/query-core@5.104.1)(typescript@7.0.2)':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      '@tanstack/db': 0.12.3(typescript@7.0.2)
+      '@tanstack/query-core': 5.104.1
+      typescript: 7.0.2
 
   '@tanstack/react-query@5.104.1(react@19.3.0)':
     dependencies:
@@ -19604,6 +19680,8 @@ snapshots:
       package-manager-detector: 1.8.0
 
   forwarded@0.2.0: {}
+
+  fractional-indexing@3.4.0: {}
 
   framer-motion@13.4.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
@@ -23296,6 +23374,8 @@ snapshots:
   sort-keys@1.1.2:
     dependencies:
       is-plain-obj: 1.1.0
+
+  sorted-btree@1.8.1: {}
 
   source-map-js@1.2.2: {}
 

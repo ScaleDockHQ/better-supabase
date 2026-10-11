@@ -21,6 +21,7 @@ peer as BS601.
 | `better-result`                | `>=3 <4`             | The types of `better-supabase/better-result` ([better-result](/docs/concepts/better-result))                                          |
 | `react`                        | `^19`                | `better-supabase/react`, `react/native`, `next/client`, `powersync/react` and the `/react` entries of blocks, `ai-sdk` and `chat-sdk` |
 | `@tanstack/query-core`         | `^5.62.0`            | `better-supabase/query`, `react`, `vue`, `solid`, `svelte`, `tanstack-db`                                                             |
+| `@supabase-labs/tanstack-db`   | `>=0.1.0 <0.2`       | `better-supabase/tanstack-db/supabase`                                                                                                |
 | `vue`                          | `^3.3`               | `better-supabase/vue`                                                                                                                 |
 | `solid-js`                     | `^1.8`               | `better-supabase/solid`                                                                                                               |
 | `svelte`                       | `^5.7`               | `better-supabase/svelte`                                                                                                              |
@@ -51,6 +52,8 @@ releases don't have. `@supabase/postgrest-typegen` accepts any 0.4 release,
 but the CLI is tested against 0.4.0: `gen` prints a notice for any other
 release, because `database.types.ts` can then differ from `supabase gen types`
 output. Pin it with `pnpm add -D @supabase/postgrest-typegen@0.4.0`.
+`@supabase-labs/tanstack-db` is a 0.x Supabase Labs package, so the range
+stops at its next minor release.
 
 When another package in your app needs a version outside a range, and you
 don't import the subpath that needs it, allow it in `pnpm-workspace.yaml`:

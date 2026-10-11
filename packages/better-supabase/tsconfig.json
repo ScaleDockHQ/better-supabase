@@ -3,5 +3,8 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src", "tests", "scripts"]
+  "include": ["src", "tests", "scripts"],
+  // @tanstack/query-db-collection registers its own queryMeta; Vitest's
+  // typecheck checks this file in a program without it.
+  "exclude": ["tests/query/register.test-d.ts"]
 }

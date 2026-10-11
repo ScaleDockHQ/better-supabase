@@ -188,6 +188,7 @@ const NODE_LOADED = [
   "./powersync",
   "./expo-sqlite",
   "./tanstack-db",
+  "./tanstack-db/supabase",
   "./blocks/push",
 ];
 

@@ -116,6 +116,7 @@
   "./testing": 116196,
   "./expo-sqlite": 28545,
   "./tanstack-db": 1437,
+  "./tanstack-db/supabase": 1693,
   "./blocks/push": 32184,
   "better-supabase CLI (startup)": 12911
 }
