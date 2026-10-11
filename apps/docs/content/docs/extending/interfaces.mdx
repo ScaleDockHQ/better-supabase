@@ -212,7 +212,8 @@ route guards and MCP tools. It has `apiVersion: 1`, a `name`, `key(ref)`
 and `evaluate(request)`, plus optional `forOperation` and the batch
 `evaluations`. Requests follow the AuthZEN subject, action, resource and
 context model, and anything but a `granted` outcome refuses.
-[Authorizers](/docs/extending/authorizers) describes the contract, and
+`defineAuthorizer` from `better-supabase/server` builds one and sets
+`apiVersion`. [Authorizers](/docs/extending/authorizers) describes the contract, and
 `testAuthorizer` from `better-supabase/testing` is its conformance block.
 
 ## DocumentFormat

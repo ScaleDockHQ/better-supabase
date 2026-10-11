@@ -40,19 +40,36 @@ are typed from the authorizer you pass, so a typo fails to compile when
 the API document (`x-better-supabase-permission`), error responses and logs
 use.
 
-A minimal authorizer over a table of grants:
+`defineAuthorizer` from `better-supabase/server` builds one. It sets
+`apiVersion: 1`, infers `Ref` from `key()`, and types the request
+`evaluate` receives. A minimal authorizer over a table of grants:
 
 ```ts title="src/lib/authorizer.ts"
-export const authorizer = {
-  apiVersion: 1,
+import { defineAuthorizer } from "better-supabase/server";
+
+export const authorizer = defineAuthorizer({
   name: "grants",
   key: (permission: string) => permission,
   async evaluate({ subject, action, context }) {
-    const granted = await hasGrant(subject.id, action, context.tenant);
+    const granted = await hasGrant(subject.id, action, context["tenant"]);
     return granted ? { outcome: "granted" } : { outcome: "denied" };
   },
-} as const;
+});
 ```
+
+Pass a type argument for typed references:
+`defineAuthorizer<Permission>({ ... })`. The types come from the same
+subpath:
+
+| Type                    | What it is                                                                   |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `Authorizer<Ref>`       | The contract above                                                           |
+| `AnyAuthorizer`         | An authorizer of any `Ref`, for code that stores or forwards one             |
+| `AuthorizationRequest`  | The request `evaluate` receives (see below)                                  |
+| `AuthorizationOutcome`  | What `evaluate` returns                                                      |
+| `AuthorizationSubject`  | The request's `subject`                                                      |
+| `AuthorizationResource` | The request's `resource`                                                     |
+| `PermissionRef<A>`      | The reference type of authorizer `A`, `string` when `A` is not an authorizer |
 
 ## The request
 
