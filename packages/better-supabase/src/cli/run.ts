@@ -99,6 +99,23 @@ const COMMANDS = new Map<string, Entry>([
     },
   ],
   [
+    "spec",
+    {
+      load: () => import("./commands/spec.ts").then((m) => m.specCommand),
+      description:
+        "Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders",
+    },
+  ],
+  [
+    "scaffold",
+    {
+      load: () =>
+        import("./commands/scaffold.ts").then((m) => m.scaffoldCommand),
+      description:
+        "Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js",
+    },
+  ],
+  [
     "seed",
     {
       load: () => import("./commands/seed.ts").then((m) => m.seedCommand),

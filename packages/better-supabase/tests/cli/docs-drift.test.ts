@@ -22,6 +22,8 @@ const PAGES: Readonly<Record<string, string>> = {
   keys: "cli/local.mdx",
   seed: "cli/local.mdx",
   openapi: "cli/local.mdx",
+  spec: "cli/spec.mdx",
+  scaffold: "cli/scaffold.mdx",
   gen: "cli/gen.mdx",
   introspect: "cli/introspect.mdx",
   doctor: "cli/doctor.mdx",

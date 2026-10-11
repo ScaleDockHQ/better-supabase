@@ -200,6 +200,28 @@ OPTIONS
 "
 `;
 
+exports[`help > documents scaffold 1`] = `
+"Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js (better-supabase scaffold v<version>)
+
+USAGE better-supabase scaffold [OPTIONS] [KIND]
+
+ARGUMENTS
+
+  KIND    api
+
+OPTIONS
+
+  --framework=<name>    hono or next. Defaults to the one in package.json                                
+     --tables=<list>    Tables to serve. Defaults to every table and view in the public schema           
+       --name=<name>    The API module's name: lib/<name>.ts and lib/<name>.generated.ts. Defaults to api
+  --base-path=<path>    Where the resources are served. Defaults to /api                                 
+         --cwd=<dir>    Project directory                                                                
+     --config=<file>    Config file, relative to --cwd                                                   
+              --json    Print one JSON document on stdout; errors as Problem Details                     
+           -y, --yes    Ask nothing; use the flags and the defaults                                      
+"
+`;
+
 exports[`help > documents seed 1`] = `
 "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL (better-supabase seed v<version>)
 
@@ -241,6 +263,36 @@ OPTIONS
 "
 `;
 
+exports[`help > documents spec 1`] = `
+"Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders (better-supabase spec v<version>)
+
+USAGE better-supabase spec [OPTIONS] [ACTION] [FORMAT]
+
+ARGUMENTS
+
+  ACTION    emit, check or validate                                            
+  FORMAT    Only this format (openapi, asyncapi, arazzo, or one the entry adds)
+
+OPTIONS
+
+  --spec-version=<version>    Render this version of the format instead of the configured one                                 
+              --out=<file>    Write the one selected output to this file                                                      
+            --entry=<file>    Defaults to specs.entry. Exports \`api\` (defineApi) or a document                                
+                    --yaml    Write YAML instead of JSON                                                                      
+               --ui=<name>    Also write a reference page next to OpenAPI outputs: scalar, swagger, redoc, elements or rapidoc
+         --fail-on=<level>    Exit 1 on findings at this level: error (default), warning or never                             
+         --manifest=<file>    Also write the diagnostics manifest (JSON) to this file                                         
+                   --cache    Reuse renders whose inputs did not change (Default: true)                                       
+                --no-cache    Render every output again                                                                       
+                   --watch    With emit, render again whenever the entry, the config or an overlay changes                    
+           --interval=<ms>    Milliseconds between checks in --watch. Defaults to 1000                                        
+               --cwd=<dir>    Project directory                                                                               
+           --config=<file>    Config file, relative to --cwd                                                                  
+                    --json    Print one JSON document on stdout; errors as Problem Details                                    
+                 -y, --yes    Ask nothing; use the flags and the defaults                                                     
+"
+`;
+
 exports[`help > documents sql 1`] = `
 "Lists, adds, syncs, upgrades and prints SQL modules, and writes their data migration (better-supabase sql v<version>)
 
@@ -266,7 +318,7 @@ OPTIONS
 exports[`help > lists the commands and the global options 1`] = `
 "Typed Supabase: codegen, doctor, the SQL modules and project setup (better-supabase v<version>)
 
-USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|seed|doctor|sql|config|codemod
+USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|spec|scaffold|seed|doctor|sql|config|codemod
 
 OPTIONS
 
@@ -285,6 +337,8 @@ COMMANDS
          gen    Writes database.types.ts, generated.ts and its metadata module from the database                       
   introspect    Saves the database schema as a snapshot for offline gen                                                
      openapi    Writes the document your createOpenApi() module exports, so CI can check it for drift                  
+        spec    Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders       
+    scaffold    Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js                     
         seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                                
       doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict 
          sql    Lists, adds, syncs, upgrades and prints SQL modules                                                    
