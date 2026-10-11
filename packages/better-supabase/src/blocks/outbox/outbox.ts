@@ -9,6 +9,7 @@ import {
 } from "../../core/problem.ts";
 import { type AsyncResult, toDbError } from "../../core/result.ts";
 import { sqlIdent } from "../../core/template.ts";
+import { DEFAULT_TYPE_PREFIX } from "../../events/cloud-event.ts";
 import {
   asDbError,
   run,
@@ -256,7 +257,7 @@ export function outboxCloudEvent(
     specversion: "1.0",
     id: event.id,
     source: options.source,
-    type: `${options.typePrefix ?? "dev.better-supabase"}.${event.type}`,
+    type: `${options.typePrefix ?? DEFAULT_TYPE_PREFIX}.${event.type}`,
     ...(event.subject ? { subject: event.subject } : {}),
     time: event.createdAt.toString(),
     datacontenttype: "application/json",

@@ -17,6 +17,7 @@ import {
 } from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { stripTypePrefix } from "../../events/cloud-event.ts";
 import {
   applyTemporal,
   type BlockTemporalOptions,
@@ -528,15 +529,12 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       };
     },
     sink: (sinkOptions = {}) => {
-      const prefix = `${sinkOptions.typePrefix ?? "dev.better-supabase"}.`;
       return {
         async send(events: readonly CloudEvent[]) {
           for (const event of events) {
             const tenant = event["partitionkey"];
             await call("publish_webhook_event", {
-              event_type: event.type.startsWith(prefix)
-                ? event.type.slice(prefix.length)
-                : event.type,
+              event_type: stripTypePrefix(event.type, sinkOptions.typePrefix),
               payload: event.data ?? {},
               tenant: typeof tenant === "string" ? tenant : null,
               event_id: event.id,

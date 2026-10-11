@@ -18,6 +18,7 @@ import type { ApiOptions } from "./options.ts";
 
 import { isPlainObject } from "../core/clone.ts";
 import { dataschemaOf } from "../events/cloud-event.ts";
+import { DEFAULT_TYPE_PREFIX } from "../events/cloud-event.ts";
 import { ROW_EVENT_TYPES } from "../events/index.ts";
 import {
   convertStandard,
@@ -412,7 +413,7 @@ function cloudEventChannel<Ref>(
   }
 
   for (const [event, schema] of Object.entries(input.blocks ?? {})) {
-    const type = `${input.typePrefix ?? "dev.better-supabase"}.${event}`;
+    const type = `${input.typePrefix ?? DEFAULT_TYPE_PREFIX}.${event}`;
     add(
       `block${keyPart(event)}`,
       type,

@@ -27,6 +27,7 @@ import {
 } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { stripTypePrefix } from "../../events/cloud-event.ts";
 import {
   applyTemporal,
   blockCall,
@@ -918,13 +919,10 @@ export function createNotifications<
       );
     },
     sink(sinkOptions) {
-      const prefix = sinkOptions.typePrefix ?? "dev.better-supabase.";
       return {
         async send(events) {
           for (const event of events) {
-            const type = event.type.startsWith(prefix)
-              ? event.type.slice(prefix.length)
-              : event.type;
+            const type = stripTypePrefix(event.type, sinkOptions.typePrefix);
             const mapped = await sinkOptions.map({ ...event, type });
             if (mapped === null) continue;
             const { type: notificationType, ...rest } = mapped;

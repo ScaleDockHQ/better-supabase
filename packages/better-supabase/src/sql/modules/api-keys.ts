@@ -7,7 +7,7 @@ import type {
 import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER, fail } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 
 const EVENTS: ModuleEvents = {
@@ -61,9 +61,6 @@ const NAMES: ModuleNames = {
     },
   },
 };
-
-const fail = (code: string, message: string, errcode = "42501"): string =>
-  `raise exception '${message}' using errcode = '${errcode}', hint = '${code}';`;
 
 const SCOPE = /^(\*|[A-Za-z][A-Za-z0-9_.:-]*)$/;
 const PREFIX = /^[a-z][a-z0-9]*$/;

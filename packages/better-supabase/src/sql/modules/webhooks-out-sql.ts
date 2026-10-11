@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER } from "../shared.ts";
+import { SERVICE_CALLER, fail } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";
 
 export interface HookNames {
@@ -134,9 +134,6 @@ export function hookNames(ctx: ModuleContext): HookNames {
         : `case ${expression} ${WEBHOOK_STATUSES.map((status) => `when '${status}' then ${sqlString(values[status])}`).join(" ")} end`,
   };
 }
-
-const fail = (code: string, message: string, errcode = "42501"): string =>
-  `raise exception '${message}' using errcode = '${errcode}', hint = '${code}';`;
 
 const VARIABLES = "#variable_conflict use_column";
 

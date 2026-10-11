@@ -179,9 +179,11 @@ export function createSvelteKit<
     const env = event.platform?.env;
     return run(event.request, env, async (contributions) => {
       Object.assign(event.locals, localsOf<M, F, E, C, P>(contributions));
-      const response = await resolve(event);
-      flushEvents(server, options.waitUntil ?? platformWaitUntil(platform));
-      return response;
+      try {
+        return await resolve(event);
+      } finally {
+        flushEvents(server, options.waitUntil ?? platformWaitUntil(platform));
+      }
     });
   };
 

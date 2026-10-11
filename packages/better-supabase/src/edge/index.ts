@@ -267,12 +267,15 @@ export function createEdge<
         )
       : routed;
     return async (request, env, executionContext) => {
-      const response = await answer(request, env, executionContext);
-      flushEvents(
-        server,
-        options.waitUntil ?? executionContext?.waitUntil.bind(executionContext),
-      );
-      return response;
+      try {
+        return await answer(request, env, executionContext);
+      } finally {
+        flushEvents(
+          server,
+          options.waitUntil ??
+            executionContext?.waitUntil.bind(executionContext),
+        );
+      }
     };
   };
 

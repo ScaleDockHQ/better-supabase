@@ -12,6 +12,7 @@ import type {
 
 import { dbError } from "../../core/errors.ts";
 import { type AsyncResult, err, ok } from "../../core/result.ts";
+import { stripTypePrefix } from "../../events/cloud-event.ts";
 import { defineListQuery } from "../../list/list-query.ts";
 import {
   blockCall,
@@ -372,16 +373,13 @@ function subjectOf(
  */
 export function activitySink(options: ActivitySinkOptions): EventSink {
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
-  const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
   return {
     async send(events) {
       const entries: Record<string, unknown>[] = [];
       for (const event of events) {
         const tenant = optionalText(event["partitionkey"]);
         if (tenant === undefined) continue;
-        const type = event.type.startsWith(prefix)
-          ? event.type.slice(prefix.length)
-          : event.type;
+        const type = stripTypePrefix(event.type, options.typePrefix);
         if (options.types && !matches(options.types, type)) continue;
         const described = options.describe ? options.describe(event, type) : {};
         if (described === null) continue;

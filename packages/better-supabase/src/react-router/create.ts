@@ -145,9 +145,11 @@ export function createReactRouter<
         async (contributions) => {
           // SAFETY: the key is the one this factory created, for Locals.
           args.context.set(key as never, localsOf(contributions) as never);
-          const response = await next();
-          flushEvents(server, options.waitUntil);
-          return response;
+          try {
+            return await next();
+          } finally {
+            flushEvents(server, options.waitUntil);
+          }
         },
       );
     },

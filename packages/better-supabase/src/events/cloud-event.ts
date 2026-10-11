@@ -15,6 +15,18 @@ export interface CloudEvent<T = unknown> {
   readonly [extension: string]: unknown;
 }
 
+/** The CloudEvents type prefix when no `typePrefix` is set. */
+export const DEFAULT_TYPE_PREFIX = "dev.better-supabase";
+
+/** `type` without `typePrefix` and its dot, as sinks store it. Other types come back unchanged. */
+export function stripTypePrefix(
+  type: string,
+  typePrefix: string = DEFAULT_TYPE_PREFIX,
+): string {
+  const prefix = `${typePrefix.replace(/\.$/, "")}.`;
+  return type.startsWith(prefix) ? type.slice(prefix.length) : type;
+}
+
 export interface CloudEventOptions {
   /** URI-reference of the producer, e.g. `https://crm.example.com` or `/crm`. */
   readonly source: string;
@@ -67,7 +79,7 @@ export function blockCloudEvent(
   event: BlockEvent,
   options: CloudEventOptions,
 ): CloudEvent {
-  const type = `${options.typePrefix ?? "dev.better-supabase"}.${event.type}`;
+  const type = `${options.typePrefix ?? DEFAULT_TYPE_PREFIX}.${event.type}`;
   return {
     specversion: "1.0",
     id: options.id?.() ?? crypto.randomUUID(),

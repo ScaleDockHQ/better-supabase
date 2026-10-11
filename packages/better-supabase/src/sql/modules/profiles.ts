@@ -6,6 +6,7 @@ import {
   EQUIVALENT_TRIGGERS,
   schemaPreamble,
   SERVICE_CALLER,
+  fail,
 } from "../shared.ts";
 
 const NAMES: ModuleNames = {
@@ -87,9 +88,6 @@ export function hasAvatarPath(ctx: ModuleContext): boolean {
 const USERNAME_SOURCES = ["user_name", "preferred_username", "username"];
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
-
-const fail = (code: string, message: string, errcode = "42501"): string =>
-  `raise exception '${message}' using errcode = '${errcode}', hint = '${code}';`;
 
 function column(where: string, name: string): string {
   if (!IDENT.test(name) || name.length > 63) {

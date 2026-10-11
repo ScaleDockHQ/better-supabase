@@ -216,8 +216,11 @@ export function createHono<
         },
       );
       return async (c, next) => {
-        await run(c, next);
-        flushEvents(server, waitUntilOf(c));
+        try {
+          await run(c, next);
+        } finally {
+          flushEvents(server, waitUntilOf(c));
+        }
       };
     },
 

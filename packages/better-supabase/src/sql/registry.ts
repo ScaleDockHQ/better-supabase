@@ -3608,6 +3608,7 @@ export function upgradePlan(
 ): ModuleUpgradePlan[] {
   checkModules(layout.modules, modules);
   const names = installed.map((entry) => entry.module);
+  const defaults = withProviderDefaults(layout);
   return installed.flatMap((entry): ModuleUpgradePlan[] => {
     const module = modules[entry.module];
     if (!module) return [];
@@ -3617,7 +3618,7 @@ export function upgradePlan(
       entry.module,
       (name) => modules[name]?.names,
       {
-        ...(layout.modules ? { modules: layout.modules } : {}),
+        ...(defaults ? { modules: defaults } : {}),
         ...(layout.claims ? { claims: layout.claims } : {}),
         installed: names,
         ...providerIdType(layout),
