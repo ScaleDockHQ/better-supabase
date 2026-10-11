@@ -107,7 +107,7 @@ describe("SPEC_PINS", async () => {
   );
 
   it("the page lists no pin that the code lacks", () => {
-    const listed = [...page.matchAll(/^SPEC_PINS\.([a-zA-Z]+);/gm)].map(
+    const listed = [...page.matchAll(/^SPEC_PINS\.([a-zA-Z0-9]+);/gm)].map(
       (match) => match[1],
     );
     expect(new Set(listed)).toEqual(new Set(Object.keys(SPEC_PINS)));
