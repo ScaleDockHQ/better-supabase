@@ -88,6 +88,39 @@ describe("testAuthorizer", () => {
     ]);
   });
 
+  it("refuses an authorizer that trusts forged claims", async () => {
+    const readers: Record<string, (request: AuthorizationRequest) => unknown> =
+      {
+        resource: (request) => request.resource.properties?.["claims"],
+        "context claims": (request) => request.context["claims"],
+        "context memberships": (request) => request.context["memberships"],
+      };
+    for (const read of Object.values(readers)) {
+      const trusting = defineAuthorizer({
+        name: "claims",
+        key: (ref) => ref,
+        evaluate: (request) =>
+          read(request) ? { outcome: "granted" } : { outcome: "denied" },
+      });
+      expect(await failures(trusting, ["read"])).toEqual([
+        "decides from the subject, never from the input",
+      ]);
+    }
+  });
+
+  it("passes an authorizer that reads the subject's claims", async () => {
+    const reading = defineAuthorizer({
+      name: "reading",
+      key: (ref) => ref,
+      evaluate: (request) =>
+        request.subject.properties?.["claims"]
+          ? { outcome: "granted" }
+          : { outcome: "denied" },
+    });
+    const report = await testAuthorizer(reading, { permissions: ["read"] });
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+  });
+
   it("refuses unstable keys, references that aren't JSON and unknown grants", async () => {
     let calls = 0;
     const unstable = defineAuthorizer({

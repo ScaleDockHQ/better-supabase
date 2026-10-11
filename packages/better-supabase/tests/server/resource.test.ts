@@ -543,7 +543,10 @@ describe("defineResource permissions", () => {
       subject: {
         type: "user",
         id: "u1",
-        properties: { role: "authenticated" },
+        properties: {
+          role: "authenticated",
+          claims: { scope: "read write" },
+        },
       },
       action: "customers.update",
       resource: {

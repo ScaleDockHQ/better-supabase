@@ -13,12 +13,12 @@ maps the request one to one.
 
 ## The request
 
-| AuthZEN field | Authorizer field                        | Where it comes from                                                                                      |
-| ------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Subject       | `subject` (`type`, `id`, `properties`)  | The verified request context only: `user`, `service`, `anon`, or `agent` for a token with an `act` chain |
-| Action        | `action`                                | The declared permission reference; `key()` gives its string form                                         |
-| Resource      | `resource` (`type`, `id`, `properties`) | The table, topic or action target; `get`, `update` and `delete` pass the row as `properties`             |
-| Context       | `context`                               | The tenant, the assurance level (`aal`) and the token's scopes                                           |
+| AuthZEN field | Authorizer field                        | Where it comes from                                                                                                                                             |
+| ------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Subject       | `subject` (`type`, `id`, `properties`)  | The verified request context only, with the verified token claims in `properties.claims`: `user`, `service`, `anon`, or `agent` for a token with an `act` chain |
+| Action        | `action`                                | The declared permission reference; `key()` gives its string form                                                                                                |
+| Resource      | `resource` (`type`, `id`, `properties`) | The table, topic or action target; `get`, `update` and `delete` pass the row as `properties`                                                                    |
+| Context       | `context`                               | The tenant, the assurance level (`aal`) and the token's scopes                                                                                                  |
 
 The subject is never read from the request body, a header or a parameter, so
 a caller cannot claim to be someone else.

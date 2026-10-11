@@ -1,5 +1,6 @@
 import type { RequestContext } from "./plugin.ts";
 
+import { cloneValue, deepFreeze, isPlainObject } from "./clone.ts";
 import { dbError, type DbErrorOf } from "./errors.ts";
 import { err, ok, type Result } from "./result.ts";
 
@@ -10,6 +11,12 @@ export interface AuthorizationSubject {
   /** `user`, `service`, `anon`, or `agent` for a delegated token with an `act` chain. */
   readonly type: string;
   readonly id: string;
+  /**
+   * `role`, `email` and `impersonator` when set, and `claims`: the verified
+   * access-token claims (a frozen copy, including what a token hook wrote,
+   * such as `memberships`, `roles` and `act`). The client never supplies
+   * them. Anonymous subjects have no properties.
+   */
   readonly properties?: JsonObject;
 }
 
@@ -90,6 +97,13 @@ function scopesOf(claims: JsonObject | undefined): readonly string[] {
   return typeof scope === "string" ? scope.split(" ").filter(Boolean) : [];
 }
 
+/** A frozen copy of the verified claims, so an authorizer cannot change them. */
+function claimsProperty(claims: unknown): { readonly claims?: JsonObject } {
+  if (!isPlainObject(claims)) return {};
+  // SAFETY: cloneValue keeps the shape of a plain claims object.
+  return { claims: deepFreeze(cloneValue(claims) as JsonObject) };
+}
+
 /** The subject and context of a request, from the verified context only. */
 export function requestOf(context: RequestContext | undefined): {
   readonly subject: AuthorizationSubject;
@@ -111,6 +125,7 @@ export function requestOf(context: RequestContext | undefined): {
           ...(actor.impersonator === undefined
             ? {}
             : { impersonator: actor.impersonator }),
+          ...claimsProperty(claims),
         },
       }
     : ANONYMOUS;
