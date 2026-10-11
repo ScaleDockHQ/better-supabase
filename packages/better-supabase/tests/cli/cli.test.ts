@@ -606,6 +606,17 @@ describe("config JSON Schema", () => {
       openapi: true,
       specs: true,
       doctor: true,
+      gen: true,
+      env: true,
+      scaffold: true,
+      integrations: true,
+      skills: true,
+      keys: true,
+      $env: true,
+      $development: true,
+      $production: true,
+      $test: true,
+      $ci: true,
     };
     expect(Object.keys(schema.properties).sort()).toEqual(
       Object.keys(keys).sort(),

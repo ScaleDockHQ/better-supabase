@@ -35,7 +35,7 @@ export const configCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "config",
     description:
-      "Prints the resolved config: the file it came from and every option with its default",
+      "Prints the resolved config: the file it came from, the active environment and every option with its default",
   },
   args: {},
   run: (_args, context) => {
@@ -43,10 +43,12 @@ export const configCommand: AnyCommand = defineCliCommand({
     const file = context.configFile
       ? display(context.cwd, context.configFile)
       : null;
+    const environment = context.config.environment ?? null;
+    const header = file ? `# ${file}` : "# no config file, defaults only";
     return Promise.resolve({
       code: 0,
-      output: `${file ? `# ${file}` : "# no config file, defaults only"}\n${JSON.stringify(config, null, 2)}`,
-      data: { file, config },
+      output: `${header}${environment ? ` (environment: ${environment})` : ""}\n${JSON.stringify(config, null, 2)}`,
+      data: { file, environment, config },
     });
   },
 });

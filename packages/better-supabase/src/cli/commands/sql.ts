@@ -34,7 +34,7 @@ import {
   moduleKeyProblems,
   providerLabel,
 } from "../authorization.ts";
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand, parseCliArgs } from "../command.ts";
 import { fileDiff } from "../diff.ts";
 import { display, sameText, writeIfChanged } from "../io.ts";
 import { compiledReadSets } from "../read-sets.ts";
@@ -788,6 +788,19 @@ export async function runSql(
         error: `Unknown sql action "${action}".\n${USAGE}`,
       };
   }
+}
+
+/** `sql sync`, or `sql sync --check`: the `sql` step of `gen`. */
+export function syncSql(
+  config: ResolvedConfig,
+  check: boolean,
+  paint: Paint = plain,
+): Promise<CommandResult> {
+  return runSql(
+    config,
+    parseCliArgs(SQL_ARGS, ["sync", ...(check ? ["--check"] : [])]),
+    paint,
+  );
 }
 
 export const sqlCommand: AnyCommand = defineCliCommand({

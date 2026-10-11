@@ -1,9 +1,13 @@
 import * as v from "valibot";
 
-import type { BetterSupabaseConfig } from "../config/index.ts";
+import type {
+  BetterSupabaseConfig,
+  EnvironmentConfig,
+} from "../config/index.ts";
 
 import { providerApiProblem } from "../config/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
+import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
 
 const strings = v.array(v.string());
 const stringRecord = v.record(v.string(), v.string());
@@ -241,8 +245,7 @@ const checkedAuthorization = v.pipe(
   }),
 );
 
-const ConfigSchema = v.strictObject({
-  $schema: v.optional(v.string()),
+const ENTRIES = {
   source: v.optional(
     v.strictObject({
       dbUrl: v.optional(v.string()),
@@ -454,17 +457,66 @@ const ConfigSchema = v.strictObject({
         ),
       ),
       failOn: v.optional(v.picklist(["error", "warning", "never"])),
+      manifest: v.optional(v.string()),
     }),
   ),
   doctor: v.optional(
     v.strictObject({
       ignore: v.optional(strings),
+      only: v.optional(strings),
       strict: v.optional(v.boolean()),
+      format: v.optional(v.picklist(["text", "sarif", "github"])),
+      output: v.optional(v.string()),
       sources: v.optional(strings),
       policyHelperLimit: v.optional(v.number()),
       claimsLimit: v.optional(v.number()),
     }),
   ),
+  gen: v.optional(
+    v.strictObject({
+      tasks: v.optional(v.array(v.picklist(GEN_TASKS))),
+      watchInterval: v.optional(
+        v.pipe(v.number(), v.minValue(1, "must be a positive number of ms")),
+      ),
+    }),
+  ),
+  env: v.optional(
+    v.strictObject({
+      output: v.optional(v.string()),
+      prefix: v.optional(v.string()),
+    }),
+  ),
+  scaffold: v.optional(
+    v.strictObject({
+      api: v.optional(
+        v.strictObject({
+          framework: v.optional(v.picklist(["hono", "next"])),
+          tables: v.optional(strings),
+          name: v.optional(v.string()),
+          basePath: v.optional(v.string()),
+        }),
+      ),
+    }),
+  ),
+  integrations: v.optional(v.array(v.picklist(INTEGRATIONS))),
+  skills: v.optional(
+    v.strictObject({
+      agents: v.optional(v.array(v.picklist(["cursor", "claude", "agents"]))),
+    }),
+  ),
+  keys: v.optional(v.strictObject({ output: v.optional(v.string()) })),
+} satisfies { [K in keyof Required<EnvironmentConfig>]: v.GenericSchema };
+
+const EnvironmentSchema = v.strictObject(ENTRIES);
+
+const ConfigSchema = v.strictObject({
+  $schema: v.optional(v.string()),
+  ...ENTRIES,
+  $env: v.optional(v.record(v.string(), EnvironmentSchema)),
+  $development: v.optional(EnvironmentSchema),
+  $production: v.optional(EnvironmentSchema),
+  $test: v.optional(EnvironmentSchema),
+  $ci: v.optional(EnvironmentSchema),
 } satisfies { [K in keyof Required<BetterSupabaseConfig>]: v.GenericSchema });
 
 /** Each issue as `path: message`, the path in config keys. */

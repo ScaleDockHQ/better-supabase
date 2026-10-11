@@ -244,13 +244,89 @@ export interface SpecsConfig {
   readonly outputs?: readonly SpecOutputConfig[];
   /** The lowest severity that fails `spec emit`, `check` and `validate`. Defaults to `error`. */
   readonly failOn?: "error" | "warning" | "never";
+  /** Also write the diagnostics manifest (JSON) to this file, like `spec --manifest`. */
+  readonly manifest?: string;
+}
+
+/** A step `better-supabase gen` runs. */
+export type GenTask = "types" | "sql" | "spec" | "seed" | "scaffold" | "env";
+
+export interface GenConfig {
+  /**
+   * The steps `better-supabase gen` runs, in this order: `types` (the
+   * generated modules and `generators`), `sql` (`sql sync`), `spec` (`spec
+   * emit`), `seed`, `scaffold` (`scaffold api`, its generated file only) and
+   * `env`. Without a list, `types` runs, plus `sql` when `sql.modules` or
+   * `realtime.policies` is set, `spec` and `seed` when their entry file
+   * exists, and `scaffold` when `scaffold.api` is set. `env` runs only when
+   * listed, because it needs the local stack. A listed step always runs.
+   */
+  readonly tasks?: readonly GenTask[];
+  /** Milliseconds between checks in `gen --watch` and `spec emit --watch`. */
+  readonly watchInterval?: number;
+}
+
+/** Glue `better-supabase init` and `add` write for a framework or runtime. */
+export type IntegrationName =
+  | "next"
+  | "hono"
+  | "orpc"
+  | "edge"
+  | "expo"
+  | "mcp"
+  | "client"
+  | "react";
+
+export interface EnvFileConfig {
+  /** Env file `better-supabase env` writes. Defaults to `.env.local`. */
+  readonly output?: string;
+  /**
+   * Prefix for the browser variables, such as `NEXT_PUBLIC_`; `'none'` for
+   * no prefix. Detected from the framework by default.
+   */
+  readonly prefix?: string;
+}
+
+export interface ScaffoldApiConfig {
+  /** Detected from `package.json` when the project has exactly one of them. */
+  readonly framework?: "hono" | "next";
+  /** Tables to serve. Defaults to every table and view in the public schema. */
+  readonly tables?: readonly string[];
+  /** The API module's name: `lib/<name>.ts` and `lib/<name>.generated.ts`. Defaults to `api`. */
+  readonly name?: string;
+  /** Where the resources are served. Defaults to `/api`. */
+  readonly basePath?: string;
+}
+
+export interface ScaffoldConfig {
+  /** What `better-supabase scaffold api` writes; the `scaffold` gen step keeps its generated file current. */
+  readonly api?: ScaffoldApiConfig;
+}
+
+/** An agent folder `better-supabase skills install` writes to. */
+export type SkillsAgent = "cursor" | "claude" | "agents";
+
+export interface SkillsConfig {
+  /** Defaults to the agent folders the project has, else `agents`. */
+  readonly agents?: readonly SkillsAgent[];
+}
+
+export interface KeysConfig {
+  /** Signing key file `better-supabase keys` writes. Defaults to `supabase/signing_keys.json`. */
+  readonly output?: string;
 }
 
 export interface DoctorConfig {
   /** Finding codes to skip, e.g. `['BS204']`. */
   readonly ignore?: readonly string[];
+  /** Run only these checks, e.g. `['BS100', 'BS304']`. */
+  readonly only?: readonly string[];
   /** Treat warnings as errors. */
   readonly strict?: boolean;
+  /** Report format: `text` (default), `sarif` (code scanning) or `github` (workflow annotations). `--json` still wins. */
+  readonly format?: "text" | "sarif" | "github";
+  /** Write the report to this file. */
+  readonly output?: string;
   /**
    * App source files doctor scans for API use (BS210). Globs relative to the
    * root. Defaults to `['src/**\/*.{ts,tsx}']`.
@@ -648,7 +724,35 @@ export interface BetterSupabaseConfig {
   /** The documents `better-supabase spec emit` writes (OpenAPI, AsyncAPI, Arazzo). */
   readonly specs?: SpecsConfig;
   readonly doctor?: DoctorConfig;
+  /** What `better-supabase gen` runs. */
+  readonly gen?: GenConfig;
+  readonly env?: EnvFileConfig;
+  readonly scaffold?: ScaffoldConfig;
+  /** The integrations `init` and `add` wrote; `add` without a name sets up the ones that have no files yet. */
+  readonly integrations?: readonly IntegrationName[];
+  readonly skills?: SkillsConfig;
+  readonly keys?: KeysConfig;
+  /**
+   * Overrides per environment, keyed by name. The CLI applies the block
+   * for `--env <name>`, else `$BETTER_SUPABASE_ENV`, else `ci` when `$CI`
+   * is set. Objects merge into the config; arrays and other values replace.
+   */
+  readonly $env?: Readonly<Record<string, EnvironmentConfig>>;
+  /** Shorthand for `$env.development`. */
+  readonly $development?: EnvironmentConfig;
+  /** Shorthand for `$env.production`. */
+  readonly $production?: EnvironmentConfig;
+  /** Shorthand for `$env.test`. */
+  readonly $test?: EnvironmentConfig;
+  /** Shorthand for `$env.ci`, which the CLI picks when `$CI` is set. */
+  readonly $ci?: EnvironmentConfig;
 }
+
+/** The keys an environment block may override. */
+export type EnvironmentConfig = Omit<
+  BetterSupabaseConfig,
+  "$schema" | "$env" | "$development" | "$production" | "$test" | "$ci"
+>;
 
 function entitlementsOf(
   config: EntitlementsConfig = {},
@@ -772,9 +876,19 @@ export interface ResolvedConfig {
     readonly entry: string;
     readonly outputs: readonly SpecOutputConfig[];
     readonly failOn: NonNullable<SpecsConfig["failOn"]>;
+    readonly manifest?: string;
   };
-  readonly doctor: Required<Omit<DoctorConfig, "claimsLimit">> &
-    Pick<DoctorConfig, "claimsLimit">;
+  readonly doctor: Required<Omit<DoctorConfig, "claimsLimit" | "output">> &
+    Pick<DoctorConfig, "claimsLimit" | "output">;
+  /** `tasks` stays unset without a list, so `gen` picks the steps the project uses. */
+  readonly gen: GenConfig;
+  readonly env: { readonly output: string; readonly prefix?: string };
+  readonly scaffold: ScaffoldConfig;
+  readonly integrations: readonly IntegrationName[];
+  readonly skills: SkillsConfig;
+  readonly keys: KeysConfig;
+  /** The environment block the CLI applied, when one was active. */
+  readonly environment?: string;
 }
 
 export const CONFIG_SCHEMA_URL =
@@ -978,15 +1092,34 @@ export function resolveConfig(
         { format: "openapi", output: legacyOpenApi?.output ?? "openapi.json" },
       ],
       failOn: config.specs?.failOn ?? "error",
+      ...(config.specs?.manifest === undefined
+        ? {}
+        : { manifest: config.specs.manifest }),
     },
     doctor: {
       ignore: config.doctor?.ignore ?? [],
+      only: config.doctor?.only ?? [],
       strict: config.doctor?.strict ?? false,
+      format: config.doctor?.format ?? "text",
       sources: config.doctor?.sources ?? ["src/**/*.{ts,tsx}"],
       policyHelperLimit: config.doctor?.policyHelperLimit ?? 5,
+      ...(config.doctor?.output === undefined
+        ? {}
+        : { output: config.doctor.output }),
       ...(config.doctor?.claimsLimit === undefined
         ? {}
         : { claimsLimit: config.doctor.claimsLimit }),
     },
+    gen: config.gen ?? {},
+    env: {
+      output: config.env?.output ?? ".env.local",
+      ...(config.env?.prefix === undefined
+        ? {}
+        : { prefix: config.env.prefix }),
+    },
+    scaffold: config.scaffold ?? {},
+    integrations: config.integrations ?? [],
+    skills: config.skills ?? {},
+    keys: config.keys ?? {},
   };
 }

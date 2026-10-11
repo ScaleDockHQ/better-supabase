@@ -132,4 +132,74 @@ describe("scaffold api", () => {
     expect(missing.stderr).toContain("Run `better-supabase gen` first");
     expect((await scaffold("api", "--tables", "orders")).code).toBe(0);
   });
+
+  it("prints the scaffold.api entry for the flags it was given", async () => {
+    await project({ next: "16.0.0", hono: "4.0.0" });
+    const result = await scaffold(
+      "api",
+      "--framework",
+      "hono",
+      "--tables",
+      "customers",
+      "--base-path",
+      "v1",
+    );
+    expect(result.stdout).toContain(
+      "scaffold: { api: { framework: 'hono', basePath: '/v1', tables: ['customers'] } }",
+    );
+  });
+});
+
+describe("scaffold from the config", () => {
+  const configure = (api: object) =>
+    writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ scaffold: { api } }),
+    );
+
+  it("reads the flags from scaffold.api", async () => {
+    await project({ next: "16.0.0", hono: "4.0.0" });
+    await configure({
+      framework: "hono",
+      tables: ["customers"],
+      basePath: "/v2",
+    });
+    const result = await scaffold("api");
+    expect(result.code).toBe(0);
+    expect(result.stdout).not.toContain("scaffold: { api:");
+    expect(await read("src/lib/api.generated.ts")).toContain(
+      'export const basePath = "/v2";',
+    );
+  });
+
+  it("lets a flag win over scaffold.api", async () => {
+    await project({ hono: "4.0.0" });
+    await configure({ framework: "hono", basePath: "/v2" });
+    expect((await scaffold("api", "--base-path", "/v3")).code).toBe(0);
+    expect(await read("src/lib/api.generated.ts")).toContain(
+      'export const basePath = "/v3";',
+    );
+  });
+
+  it("runs as a gen task: the generated file only, and --check", async () => {
+    await project({ hono: "4.0.0" });
+    await configure({ framework: "hono", tables: ["customers"] });
+    const gen = (...args: string[]) =>
+      run(["gen", "--tasks", "scaffold", ...args, "--cwd", dir]);
+
+    const stale = await gen("--check");
+    expect(stale.code).toBe(1);
+    expect(stale.stderr).toContain("Out of date: src/lib/api.generated.ts");
+
+    const written = await gen();
+    expect(written.stderr).toBe("");
+    expect(written.code).toBe(0);
+    expect(written.stdout).toContain("Wrote src/lib/api.generated.ts");
+    expect(written.stdout).not.toContain("Next:");
+    await expect(read("src/lib/api.ts")).rejects.toThrow(/ENOENT/);
+
+    const current = await gen("--check");
+    expect(current.code).toBe(0);
+    expect(current.stdout).toContain("src/lib/api.generated.ts is up to date.");
+  });
 });

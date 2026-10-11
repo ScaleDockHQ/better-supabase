@@ -29,7 +29,11 @@ security`, a policy per role and command the app uses, and an index on
    `better-supabase.config.ts` and run `pnpm better-supabase sql add grants`:
    new tables get no Data API grants on their own.
 3. Apply it with `supabase db reset` (or `supabase migration up`).
-4. Run `pnpm better-supabase gen`, then fix the type errors it surfaces.
+4. Run `pnpm better-supabase gen`, then fix the type errors it surfaces. It
+   also runs every other generator the config sets up (`sql sync`, `spec
+emit`, the seed client, `scaffold api`); set `gen.tasks` to change the
+   list. Put flags you would repeat in `better-supabase.config.ts` (with a
+   `$ci` block for CI) instead of on the command line.
 5. Run `pnpm better-supabase doctor` and fix every error it reports (RLS off,
    missing policies, missing grants, unindexed foreign keys, drift).
 6. Commit the generated files. CI runs `better-supabase gen --check`, which

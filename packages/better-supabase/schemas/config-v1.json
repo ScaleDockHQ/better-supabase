@@ -1196,6 +1196,10 @@
           "enum": ["error", "warning", "never"],
           "default": "error",
           "description": "The lowest severity that fails spec emit, check and validate."
+        },
+        "manifest": {
+          "type": "string",
+          "description": "Also write the diagnostics manifest (JSON) to this file, like spec --manifest."
         }
       }
     },
@@ -1210,8 +1214,25 @@
             "pattern": "^BS\\d{3}$"
           }
         },
+        "only": {
+          "type": "array",
+          "description": "Run only these checks.",
+          "items": {
+            "type": "string",
+            "pattern": "^BS\\d{3}$"
+          }
+        },
         "strict": {
           "type": "boolean"
+        },
+        "format": {
+          "enum": ["text", "sarif", "github"],
+          "default": "text",
+          "description": "Report format. The global --json flag still picks the JSON report."
+        },
+        "output": {
+          "type": "string",
+          "description": "Write the report to this file."
         },
         "sources": {
           "type": "array",
@@ -1228,9 +1249,172 @@
           "minimum": 1
         }
       }
+    },
+    "gen": {
+      "type": "object",
+      "description": "What better-supabase gen runs.",
+      "additionalProperties": false,
+      "properties": {
+        "tasks": {
+          "type": "array",
+          "description": "The steps gen runs, in order. Without a list: types, plus sql, spec, seed and scaffold when the project uses them. env runs only when listed.",
+          "items": {
+            "enum": ["types", "sql", "spec", "seed", "scaffold", "env"]
+          }
+        },
+        "watchInterval": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Milliseconds between checks in gen --watch and spec emit --watch."
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "description": "The env file better-supabase env writes.",
+      "additionalProperties": false,
+      "properties": {
+        "output": {
+          "type": "string",
+          "default": ".env.local"
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix for browser variables, such as NEXT_PUBLIC_; none for no prefix. Detected from the framework by default."
+        }
+      }
+    },
+    "scaffold": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api": {
+          "type": "object",
+          "description": "What better-supabase scaffold api writes; the scaffold gen step keeps its generated file current.",
+          "additionalProperties": false,
+          "properties": {
+            "framework": {
+              "enum": ["hono", "next"]
+            },
+            "tables": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "name": {
+              "type": "string",
+              "default": "api"
+            },
+            "basePath": {
+              "type": "string",
+              "default": "/api"
+            }
+          }
+        }
+      }
+    },
+    "integrations": {
+      "type": "array",
+      "description": "The integrations init and add wrote.",
+      "items": {
+        "enum": [
+          "next",
+          "hono",
+          "orpc",
+          "edge",
+          "expo",
+          "mcp",
+          "client",
+          "react"
+        ]
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "type": "array",
+          "description": "Agent folders skills install writes to. Defaults to the ones the project has, else agents.",
+          "items": {
+            "enum": ["cursor", "claude", "agents"]
+          }
+        }
+      }
+    },
+    "keys": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "output": {
+          "type": "string",
+          "description": "Signing key file better-supabase keys writes. Defaults to supabase/signing_keys.json."
+        }
+      }
+    },
+    "$env": {
+      "type": "object",
+      "description": "Overrides per environment, keyed by name. Picked by --env, $BETTER_SUPABASE_ENV, or ci when $CI is set.",
+      "additionalProperties": {
+        "$ref": "#/$defs/environment"
+      }
+    },
+    "$development": {
+      "$ref": "#/$defs/environment"
+    },
+    "$production": {
+      "$ref": "#/$defs/environment"
+    },
+    "$test": {
+      "$ref": "#/$defs/environment"
+    },
+    "$ci": {
+      "$ref": "#/$defs/environment"
     }
   },
   "$defs": {
+    "environment": {
+      "type": "object",
+      "description": "Keys an environment block overrides. Objects merge into the config; arrays and other values replace.",
+      "additionalProperties": false,
+      "properties": {
+        "source": { "$ref": "#/properties/source" },
+        "schemas": { "$ref": "#/properties/schemas" },
+        "casing": { "$ref": "#/properties/casing" },
+        "tables": { "$ref": "#/properties/tables" },
+        "output": { "$ref": "#/properties/output" },
+        "postgrestVersion": { "$ref": "#/properties/postgrestVersion" },
+        "codecs": { "$ref": "#/properties/codecs" },
+        "relations": { "$ref": "#/properties/relations" },
+        "json": { "$ref": "#/properties/json" },
+        "generators": { "$ref": "#/properties/generators" },
+        "plugins": { "$ref": "#/properties/plugins" },
+        "claims": { "$ref": "#/properties/claims" },
+        "buckets": { "$ref": "#/properties/buckets" },
+        "topics": { "$ref": "#/properties/topics" },
+        "sensitive": { "$ref": "#/properties/sensitive" },
+        "storagePaths": { "$ref": "#/properties/storagePaths" },
+        "functions": { "$ref": "#/properties/functions" },
+        "expose": { "$ref": "#/properties/expose" },
+        "readSets": { "$ref": "#/properties/readSets" },
+        "entitlements": { "$ref": "#/properties/entitlements" },
+        "authorization": { "$ref": "#/properties/authorization" },
+        "vectorSearch": { "$ref": "#/properties/vectorSearch" },
+        "realtime": { "$ref": "#/properties/realtime" },
+        "sql": { "$ref": "#/properties/sql" },
+        "seed": { "$ref": "#/properties/seed" },
+        "openapi": { "$ref": "#/properties/openapi" },
+        "specs": { "$ref": "#/properties/specs" },
+        "doctor": { "$ref": "#/properties/doctor" },
+        "gen": { "$ref": "#/properties/gen" },
+        "env": { "$ref": "#/properties/env" },
+        "scaffold": { "$ref": "#/properties/scaffold" },
+        "integrations": { "$ref": "#/properties/integrations" },
+        "skills": { "$ref": "#/properties/skills" },
+        "keys": { "$ref": "#/properties/keys" }
+      }
+    },
     "stringRecord": {
       "type": "object",
       "additionalProperties": {

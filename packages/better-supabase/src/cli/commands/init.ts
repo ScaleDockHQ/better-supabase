@@ -75,7 +75,8 @@ const ADD_ARGS = {
   integration: {
     type: "positional",
     required: false,
-    description: "next, hono, orpc, edge, expo, mcp, client or react",
+    description:
+      "next, hono, orpc, edge, expo, mcp, client or react. Defaults to the integrations in the config that have no files yet",
   },
   force: { type: "boolean", description: "Overwrite files that exist" },
   "dry-run": { type: "boolean", description: "Show what would be written" },
@@ -346,7 +347,7 @@ export async function runInit(
   const templateContext = context(project, generated);
 
   const files = [
-    ...baseFiles(templateContext, casing, needsLib(integrations)),
+    ...baseFiles(templateContext, casing, needsLib(integrations), integrations),
     ...integrationFiles(integrations, templateContext),
   ];
   const force = await overwrite(root, files, args, prompts, config.root);
@@ -401,21 +402,33 @@ export async function runAdd(
   args: AddArgs,
   prompts?: Prompter,
 ): Promise<CommandResult> {
-  const named =
-    args._.length === 0 && prompts
+  const project = await detectProject(config.root);
+  const templateContext = context(project, config.output);
+  const fromConfig = args._.length === 0 && config.integrations.length > 0;
+  const missing = config.integrations.filter((name) =>
+    integrationFiles([name], templateContext).some(
+      (file) => !existsSync(resolve(config.root, file.path)),
+    ),
+  );
+  if (fromConfig && missing.length === 0)
+    return {
+      code: 0,
+      output: `Every integration in the config is set up: ${config.integrations.join(", ")}.`,
+    };
+  const named = fromConfig
+    ? missing
+    : args._.length === 0 && prompts
       ? await chooseIntegrations(prompts, [])
       : args._;
   if (named === undefined) return CANCELLED;
   if (named.length === 0)
     return {
       code: 2,
-      error: `Name at least one integration: ${INTEGRATIONS.join(", ")}`,
+      error: `Name at least one integration (${INTEGRATIONS.join(", ")}), or list them in integrations in the config.`,
     };
   const requested = parseIntegrations(named);
   if (typeof requested === "string") return { code: 2, error: requested };
-  const project = await detectProject(config.root);
   const integrations = resolveIntegrations(requested);
-  const templateContext = context(project, config.output);
   const files = integrationFiles(integrations, templateContext);
   const force = await overwrite(config.root, files, args, prompts);
   if (force === undefined) return CANCELLED;
@@ -441,6 +454,15 @@ export async function runAdd(
   for (const name of integrations) {
     for (const hint of TEMPLATES[name].next ?? []) lines.push(`- ${hint}`);
   }
+  const unlisted = integrations.filter(
+    (name) => !config.integrations.includes(name),
+  );
+  if (unlisted.length > 0)
+    lines.push(
+      "",
+      "Add them to your config so `better-supabase add` sets them up in a fresh checkout:",
+      `  integrations: [${[...config.integrations, ...unlisted].map((name) => `'${name}'`).join(", ")}]`,
+    );
   return { code: 0, output: lines.join("\n") };
 }
 

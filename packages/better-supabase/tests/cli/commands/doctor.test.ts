@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -101,6 +101,31 @@ describe("doctor command", () => {
     ]);
     expect(open.urls).toEqual(["postgresql://u:pw@h/db"]);
     expect(open.closed()).toBe(1);
+  });
+
+  it("reads only, format and output from the doctor config", async () => {
+    const config: BetterSupabaseConfig = {
+      doctor: { only: ["BS208"], format: "sarif", output: "doctor.sarif" },
+    };
+    const options = () => ({
+      connect: fakeConnect(fakeSql([TEMP_FILES]).pg).connect,
+      dbUrl: "postgresql://u:pw@h/db",
+    });
+    const sarif = await doctor([], options(), config);
+    expect(sarif.code).toBe(0);
+    const written = JSON.parse(
+      await readFile(join(root, "doctor.sarif"), "utf8"),
+    ) as { runs: { results: { ruleId: string }[] }[] };
+    expect(written.runs[0]!.results.map((result) => result.ruleId)).toEqual([
+      "BS208",
+    ]);
+
+    await rm(join(root, "doctor.sarif"));
+    const json = await doctor(["--json"], options(), config);
+    expect(findings(json).map((finding) => finding.code)).toEqual(["BS208"]);
+    await expect(readFile(join(root, "doctor.sarif"), "utf8")).rejects.toThrow(
+      /ENOENT/,
+    );
   });
 
   it("closes the shared connection when introspection fails", async () => {

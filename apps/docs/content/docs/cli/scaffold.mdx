@@ -22,6 +22,25 @@ pnpm better-supabase scaffold api --framework hono --tables customers,tags
 | `--name <name>`      | `api`                                                  | The module name: `lib/<name>.ts` and `lib/<name>.generated.ts` |
 | `--base-path <path>` | `/api`                                                 | Where the resources are served                                 |
 
+Each option falls back to the same key under `scaffold.api` in the config
+(`framework`, `tables`, `name`, `basePath`) before its default. Without a
+`scaffold.api` entry, the command prints one for the flags you passed.
+
+## From gen
+
+With `scaffold.api` set, [`gen`](/docs/cli/gen#tasks) runs scaffold as a
+task after it writes the metadata, so a new table reaches the API without
+another command:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  scaffold: { api: { framework: "hono", tables: ["customers", "tags"] } },
+});
+```
+
+The task rewrites only `lib/<name>.generated.ts`, never the module you edit
+or the routes, and `gen --check` fails when that file is out of date.
+
 `--tables` names are checked against the metadata module
 (`generated.meta.js`), and an unknown table fails with the list of known
 ones. Without a metadata module, pass `--tables`; the names are used as

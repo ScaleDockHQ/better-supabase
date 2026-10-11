@@ -67,17 +67,18 @@ const ARGS = {
   format: {
     type: "string",
     description:
-      "text (default), sarif (code scanning) or github (workflow annotations); --json for the JSON report",
+      "text, sarif (code scanning) or github (workflow annotations); also doctor.format, default text. --json for the JSON report",
     valueHint: "format",
   },
   out: {
     type: "string",
-    description: "Write the report to a file",
+    description: "Write the report to a file; also doctor.output",
     valueHint: "file",
   },
   only: {
     type: "string",
-    description: "Run only these checks, e.g. --only BS100,BS304",
+    description:
+      "Run only these checks, e.g. --only BS100,BS304; also doctor.only",
     valueHint: "codes",
   },
   ignore: {
@@ -246,8 +247,11 @@ export function locate(
 
 const FLAG_FORMATS = DOCTOR_FORMATS.filter((format) => format !== "json");
 
-/** `--json` picks the JSON report; `--format` picks between the others. */
-function reportFormat(args: DoctorArgs): DoctorFormat {
+/** `--json` picks the JSON report; `--format`, then `doctor.format`, picks between the others. */
+function reportFormat(
+  args: DoctorArgs,
+  configured: DoctorFormat,
+): DoctorFormat {
   if (args.format === "json") {
     throw new CliError("usage", "--format json is now the global --json flag");
   }
@@ -257,7 +261,7 @@ function reportFormat(args: DoctorArgs): DoctorFormat {
     }
     return "json";
   }
-  if (args.format === undefined) return "text";
+  if (args.format === undefined) return configured;
   const format = FLAG_FORMATS.find((candidate) => candidate === args.format);
   if (!format) {
     throw new CliError(
@@ -392,8 +396,9 @@ export async function runDoctor(
   env: CliEnv,
   options: DoctorOptions = {},
 ): Promise<CommandResult> {
-  const format = reportFormat(args);
-  const only = list(args.only);
+  const format = reportFormat(args, config.doctor.format);
+  const only =
+    args.only === undefined ? [...config.doctor.only] : list(args.only);
   const ignore = new Set([...config.doctor.ignore, ...list(args.ignore)]);
   const unknown = [...only, ...ignore].filter(
     (code) => !RULE_CODES.includes(code),
@@ -528,7 +533,9 @@ export async function runDoctor(
     return location ? { ...finding, location } : finding;
   });
 
-  const out = args.out;
+  const out =
+    args.out ??
+    (format === config.doctor.format ? config.doctor.output : undefined);
   const fromRepo = format === "sarif" || format === "github";
   const repoRoot = findRepoRoot(config.root);
   const repoPath = (file: string): string =>

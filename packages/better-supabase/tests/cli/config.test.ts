@@ -3,7 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { discoverConfig, loadConfig } from "../../src/cli/config.ts";
+import {
+  applyEnvironment,
+  discoverConfig,
+  loadConfig,
+} from "../../src/cli/config.ts";
+import { configEnvironment } from "../../src/cli/env.ts";
+import { run } from "../../src/cli/run.ts";
 import { findRepoRoot } from "../../src/cli/supabase-toml.ts";
 
 describe("config discovery", () => {
@@ -72,5 +78,95 @@ describe("config discovery", () => {
     await mkdir(join(repo, "supabase"));
     await writeFile(join(repo, "supabase/config.toml"), "");
     expect(findRepoRoot(pkg)).toBe(repo);
+  });
+});
+
+describe("config environments", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "better-supabase-env-"));
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        casing: "camel",
+        doctor: { ignore: ["BS100"], strict: false },
+        gen: { tasks: ["types", "spec"] },
+        $env: { staging: { doctor: { strict: true } } },
+        $ci: {
+          doctor: {
+            format: "sarif",
+            output: "doctor.sarif",
+            ignore: ["BS304"],
+          },
+          gen: { tasks: ["types"] },
+        },
+      }),
+    );
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("applies no block without an environment", async () => {
+    const config = await loadConfig(dir);
+    expect(config.environment).toBeUndefined();
+    expect(config.doctor.format).toBe("text");
+    expect(config.gen.tasks).toEqual(["types", "spec"]);
+  });
+
+  it("merges objects and replaces arrays", async () => {
+    const config = await loadConfig(dir, undefined, "ci");
+    expect(config.environment).toBe("ci");
+    expect(config.casing).toBe("camel");
+    expect(config.doctor).toMatchObject({
+      format: "sarif",
+      output: "doctor.sarif",
+      ignore: ["BS304"],
+      strict: false,
+    });
+    expect(config.gen.tasks).toEqual(["types"]);
+  });
+
+  it("reads a named block from $env", async () => {
+    const config = await loadConfig(dir, undefined, "staging");
+    expect(config.doctor.strict).toBe(true);
+    expect(config.doctor.ignore).toEqual(["BS100"]);
+  });
+
+  it("keeps the base for an environment with no block", async () => {
+    const config = await loadConfig(dir, undefined, "preview");
+    expect(config.environment).toBe("preview");
+    expect(config.doctor.strict).toBe(false);
+  });
+
+  it("rejects a block that makes the config invalid", () => {
+    expect(() =>
+      applyEnvironment({ $test: { gen: { watchInterval: 0 } } }, "test"),
+    ).toThrow("The test environment makes the config invalid");
+  });
+
+  it("picks --env, then $BETTER_SUPABASE_ENV, then ci in CI", () => {
+    expect(
+      configEnvironment("staging", { BETTER_SUPABASE_ENV: "x", CI: "1" }),
+    ).toBe("staging");
+    expect(
+      configEnvironment(undefined, { BETTER_SUPABASE_ENV: "x", CI: "1" }),
+    ).toBe("x");
+    expect(configEnvironment(undefined, { CI: "true" })).toBe("ci");
+    expect(configEnvironment(undefined, { CI: "false" })).toBeUndefined();
+    expect(configEnvironment(undefined, {})).toBeUndefined();
+  });
+
+  it("prints the active environment", async () => {
+    const result = await run(["config", "--env", "ci", "--cwd", dir], {
+      env: {},
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toMatch(
+      /^# better-supabase\.config\.json \(environment: ci\)/,
+    );
+    expect(result.stdout).toContain('"format": "sarif"');
   });
 });

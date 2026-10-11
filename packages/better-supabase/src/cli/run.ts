@@ -79,7 +79,7 @@ const COMMANDS = new Map<string, Entry>([
     {
       load: () => import("./commands/gen.ts").then((m) => m.genCommand),
       description:
-        "Writes database.types.ts, generated.ts and its metadata module from the database",
+        "Writes the typed client from the database, then every other generated file the config sets up",
     },
   ],
   [
@@ -143,7 +143,7 @@ const COMMANDS = new Map<string, Entry>([
     {
       load: () => import("./commands/config.ts").then((m) => m.configCommand),
       description:
-        "Prints the resolved config: the file it came from and every option with its default",
+        "Prints the resolved config: the file it came from, the active environment and every option with its default",
     },
   ],
   [
@@ -228,7 +228,8 @@ function commandIndex(argv: readonly string[]): number {
     const token = argv[index]!;
     if (token === "--") return -1;
     if (!token.startsWith("-")) return index;
-    if (token === "--cwd" || token === "--config") index += 1;
+    if (token === "--cwd" || token === "--config" || token === "--env")
+      index += 1;
   }
   return -1;
 }
@@ -362,14 +363,18 @@ export async function run(
   let command: CommandDef;
   try {
     // Config loading (c12) and env validation (valibot) stay out of `--version` and `--help`.
-    const [loaded, { discoverConfig, loadConfig }, { parseEnv }] =
-      await Promise.all([load(), import("./config.ts"), import("./env.ts")]);
+    const [
+      loaded,
+      { discoverConfig, loadConfig },
+      { configEnvironment, parseEnv },
+    ] = await Promise.all([load(), import("./config.ts"), import("./env.ts")]);
     command = loaded;
     const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
     const cwd = resolve(options.cwd ?? ".", globals.cwd ?? ".");
     const env = parseEnv(options.env ?? {});
+    const environment = configEnvironment(globals.env, env);
     const reloadConfig = (): Promise<ResolvedConfig> =>
-      loadConfig(cwd, globals.config).catch((cause: unknown) => {
+      loadConfig(cwd, globals.config, environment).catch((cause: unknown) => {
         throw cause instanceof CliError
           ? cause
           : new CliError("config_invalid", toCliError(cause).message, {

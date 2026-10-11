@@ -7,6 +7,7 @@ import type {
   GeneratedFile,
   Generator,
   GeneratorModel,
+  GenTask,
   ResolvedConfig,
 } from "../../config/index.ts";
 import type { AnyCommand, CliArgs, CliContext } from "../command.ts";
@@ -27,7 +28,7 @@ import {
   sameModuleFile,
 } from "../../sql/index.ts";
 import { providerLabel, unsafeKey } from "../authorization.ts";
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand, list } from "../command.ts";
 import { stdinDatabaseUrl } from "../config.ts";
 import { fileDiff } from "../diff.ts";
 import { providerBucketKeys } from "../doctor/authorization.ts";
@@ -59,9 +60,17 @@ import {
   sameText,
   writeIfChanged,
 } from "../io.ts";
+import { GEN_TASKS } from "../names.ts";
 import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
-import { type Paint, painter } from "../style.ts";
+import { type Paint, painter, plain } from "../style.ts";
+import {
+  combineResults,
+  runSteps,
+  parseTasks,
+  selectTasks,
+  stepInputs,
+} from "./gen-pipeline.ts";
 import {
   loadSnapshot,
   openSource,
@@ -662,17 +671,24 @@ const ARGS = {
       "With --metadata, write every generated file into this directory instead of printing one",
     valueHint: "dir",
   },
+  tasks: {
+    type: "string",
+    description: `Tasks to run: ${GEN_TASKS.join(", ")}. Defaults to gen.tasks, or every task the config sets up`,
+    valueHint: "list",
+  },
   check: {
     type: "boolean",
     description: "Fail when a generated file is out of date",
   },
   watch: {
     type: "boolean",
-    description: "Regenerate whenever the schema or the config file changes",
+    description:
+      "Run again whenever the schema, the config file or a task's input changes",
   },
   interval: {
     type: "string",
-    description: "Milliseconds between checks in --watch. Defaults to 2000",
+    description:
+      "Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000",
     valueHint: "ms",
   },
   ...SOURCE_ARGS,
@@ -707,14 +723,40 @@ async function poll(
   return marker === last ? { marker } : { marker, snapshot };
 }
 
-const regenerate = (
+/**
+ * Runs `tasks`: `types` through `runGen`, then the steps after it. Without
+ * `types` in the list, `snapshot` is unused.
+ */
+async function runTasks(
+  tasks: readonly GenTask[],
   options: GenOptions,
-  snapshot: Snapshot,
-): Promise<CommandResult> =>
-  runGen({ ...options, snapshot }).catch((cause: unknown): CommandResult => ({
-    code: 1,
-    error: cause instanceof Error ? cause.message : String(cause),
-  }));
+): Promise<CommandResult> {
+  const types = tasks.includes("types")
+    ? [
+        {
+          task: "types" as const,
+          result: await runGen(options).catch(
+            (cause: unknown): CommandResult => ({
+              code: 1,
+              error: cause instanceof Error ? cause.message : String(cause),
+            }),
+          ),
+        },
+      ]
+    : [];
+  return combineResults(
+    await runSteps(
+      tasks,
+      {
+        config: options.config,
+        env: options.env,
+        check: options.check,
+        paint: options.paint ?? plain,
+      },
+      types,
+    ),
+  );
+}
 
 const modified = (file: string | undefined): Promise<number | undefined> =>
   file
@@ -724,21 +766,29 @@ const modified = (file: string | undefined): Promise<number | undefined> =>
       )
     : Promise.resolve(undefined);
 
+const stampFiles = async (files: readonly string[]): Promise<string> =>
+  JSON.stringify([files, await Promise.all(files.map(modified))]);
+
 /**
- * Regenerates whenever the schema or the config file changes. A database
- * source keeps one connection open and polls the catalog fingerprint, so an
- * unchanged schema costs one small query per interval; a source without a
- * fingerprint is introspected each time and compared. A changed config file
- * is loaded again and forces a run. A failed run is retried every interval
- * until it succeeds, and the same error is printed once.
+ * Runs the tasks again whenever the schema, the config file or a task's
+ * input (the spec entry and its overlays, the seed entry) changes. A
+ * database source keeps one connection open and polls the catalog
+ * fingerprint, so an unchanged schema costs one small query per interval; a
+ * source without a fingerprint is introspected each time and compared. The
+ * schema is read only when `types` runs. A changed config file is loaded
+ * again and forces a run; a changed input reruns the steps after `types`. A
+ * failed run is retried every interval until it succeeds, and the same
+ * error is printed once.
  */
 async function watch(
   initial: GenOptions,
+  requested: readonly GenTask[] | undefined,
   interval: number,
   { io, signal, configFile, reloadConfig }: CliContext,
 ): Promise<CommandResult> {
   let options = initial;
   let last = "";
+  let inputs = "";
   let reported = "";
   let stamp = await modified(configFile);
   let db: IntrospectionSource | undefined;
@@ -759,6 +809,7 @@ async function watch(
           options = { ...options, config: await reloadConfig() };
           stamp = changed;
           last = "";
+          inputs = "";
           await closeDb();
         } catch (cause) {
           report(cause instanceof Error ? cause.message : String(cause));
@@ -766,25 +817,41 @@ async function watch(
           continue;
         }
       }
+      const tasks = selectTasks(options.config, requested);
+      const current = await stampFiles(stepInputs(options.config, tasks));
       let polled: { marker: string; snapshot?: Snapshot } | undefined;
-      try {
-        db ??=
-          snapshotFile(options.config, options) === undefined
-            ? await openSource(options.config, options.env, options)
-            : undefined;
-        polled = await poll(options, db, last);
-      } catch (cause) {
-        report(cause instanceof Error ? cause.message : String(cause));
-        await closeDb();
+      if (tasks.includes("types")) {
+        try {
+          db ??=
+            snapshotFile(options.config, options) === undefined
+              ? await openSource(options.config, options.env, options)
+              : undefined;
+          polled = await poll(options, db, last);
+        } catch (cause) {
+          report(cause instanceof Error ? cause.message : String(cause));
+          await closeDb();
+          await sleep(interval, signal);
+          continue;
+        }
       }
-      const result = polled?.snapshot
-        ? await regenerate(options, polled.snapshot)
-        : undefined;
+      const run: readonly GenTask[] | undefined = polled?.snapshot
+        ? tasks
+        : current === inputs
+          ? undefined
+          : tasks.filter((task) => task !== "types");
+      const result =
+        run && run.length > 0
+          ? await runTasks(run, {
+              ...options,
+              ...(polled?.snapshot ? { snapshot: polled.snapshot } : {}),
+            })
+          : undefined;
       if (result && result.code !== 0) {
         report(result.error ?? `gen exited with code ${result.code}`);
-      } else if (polled) {
+      } else {
         if (result?.output) io.stdout(`${result.output}\n`);
-        last = polled.marker;
+        if (polled) last = polled.marker;
+        inputs = current;
         reported = "";
       }
       await sleep(interval, signal);
@@ -799,9 +866,10 @@ export const genCommand: AnyCommand = defineCliCommand({
   meta: {
     name: "gen",
     description:
-      "Writes database.types.ts, generated.ts and its metadata module from the database",
+      "Writes the typed client from the database, then every other generated file the config sets up",
   },
   args: ARGS,
+  lists: ["tasks"],
   run: async (args, context) => {
     if (args.metadata !== undefined) {
       const conflicting = [
@@ -835,6 +903,11 @@ export const genCommand: AnyCommand = defineCliCommand({
         error: `${args.emit === undefined ? "--out" : "--emit"} only applies with --metadata`,
       };
     }
+    const requested =
+      args.tasks === undefined ? undefined : parseTasks(list(args.tasks));
+    if (typeof requested === "string") return { code: 2, error: requested };
+    const tasks = selectTasks(context.config, requested);
+    if (tasks.length === 0) return { code: 2, error: "--tasks names no task." };
     const options: GenOptions = {
       config: context.config,
       env: context.env,
@@ -844,7 +917,9 @@ export const genCommand: AnyCommand = defineCliCommand({
       ...(context.signal ? { signal: context.signal } : {}),
       cache: true,
     };
-    const interval = Number(args.interval ?? 2000);
+    const interval = Number(
+      args.interval ?? context.config.gen.watchInterval ?? 2000,
+    );
     if (!Number.isFinite(interval) || interval <= 0) {
       return {
         code: 2,
@@ -852,9 +927,9 @@ export const genCommand: AnyCommand = defineCliCommand({
       };
     }
     return args.watch === true
-      ? watch(options, interval, context)
+      ? watch(options, requested, interval, context)
       : withSpinner(context.io.prompts, "Generating from the schema", () =>
-          runGen(options),
+          runTasks(tasks, options),
         );
   },
 });

@@ -12,7 +12,9 @@ pnpm better-supabase init  # once it is a dependency
 
 - `better-supabase.config.ts` with `casing` written out (`--casing camel|snake`;
   `init` picks `camel` by default, while a config without `casing` means
-  `snake`)
+  `snake`). It lists the integrations it set up under `integrations`, and
+  carries commented `gen`, `env` and `doctor` entries for the options you
+  would otherwise pass on every run (see [Flags and the config](/docs/cli/config#flags-and-the-config))
 - `src/lib/supabase/index.ts`, which exports `betterSupabase` and the `Models` and `Functions` types
 - glue for every framework it finds, the same files `add` writes
 
@@ -85,6 +87,11 @@ packages.
 ```bash
 pnpm better-supabase add hono mcp
 ```
+
+`add` without an argument sets up every integration in the config's
+`integrations` list whose files are missing, which is how a fresh checkout
+or a new package in a workspace gets its glue. When you name integrations
+the config doesn't list yet, `add` prints the `integrations` entry to paste.
 
 | Integration | Writes                                                                                            |
 | ----------- | ------------------------------------------------------------------------------------------------- |
