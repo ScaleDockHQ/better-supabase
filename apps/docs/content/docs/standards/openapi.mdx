@@ -1,20 +1,21 @@
 ---
 title: OpenAPI
-description: An OpenAPI 3.1 document for your tables, built from the generated schema.
+description: OpenAPI 3.0, 3.1 and 3.2 documents, and a 3.3 preview, rendered from one API model built from the generated schema.
 ---
 
-`createOpenApi` describes REST resources over your tables. Schemas come from
+`defineApi` builds one version-neutral API model from your tables, routes,
+webhooks and security, and renders it to any OpenAPI version. Schemas come from
 the same metadata as the repository, so the document can't drift from the
 database types.
 
-```ts title="lib/openapi.ts"
-import { createOpenApi } from "better-supabase/openapi";
+```ts title="lib/api.ts"
+import { defineApi } from "better-supabase/spec";
 import { customerList } from "./lists";
 import { betterSupabase } from "./supabase";
 
-export const openapi = createOpenApi(betterSupabase, {
+export const api = defineApi(betterSupabase, {
   info: { title: "CRM API", version: "1.0.0" },
-  servers: [{ url: "https://crm.example.com" }],
+  servers: [{ url: "https://crm.example.com", name: "production" }],
   basePath: "/api",
   resources: {
     customers: { list: customerList },
@@ -23,31 +24,110 @@ export const openapi = createOpenApi(betterSupabase, {
   security: ["bearer", "oauth2"],
   supabaseUrl: process.env.SUPABASE_URL,
 });
+
+const { document, diagnostics } = api.openapi({ version: "3.2" });
 ```
 
-Serve it from a route (`Response.json(openapi)`), or write it to disk and
-check it in CI with `better-supabase openapi emit --check`.
+`api.openapi()` renders 3.1 when you pass no version. `createOpenApi` from
+`better-supabase/openapi` takes the same options plus `version` and returns
+the document directly; it throws when rendering finds an error. To write the
+documents to disk and check them in CI, run `better-supabase spec check`.
 
-## What's in it
+## Versions
+
+| Version       | Status  | `openapi` field             | Pin                          |
+| ------------- | ------- | --------------------------- | ---------------------------- |
+| `3.0`         | legacy  | `SPEC_PINS.openapi30`       | `SPEC_PINS.openapi30`        |
+| `3.1`         | default | `SPEC_PINS.openapi31`       | `SPEC_PINS.openapi31`        |
+| `3.2`         | stable  | `SPEC_PINS.openapi32`       | `SPEC_PINS.openapi32`        |
+| `3.3-preview` | preview | `3.3.0` (the draft's value) | `SPEC_PINS.openapi33Preview` |
+
+Each version is lowered from the same model, and the output of 3.0, 3.1 and
+3.2 is validated against the official schema of that version in
+`openapi-versions.test.ts`. A field a version cannot hold is either moved to
+an extension or left out with a diagnostic, never dropped silently.
+
+### 3.0
+
+For tools that only read OpenAPI 3.0. Schemas are lowered from JSON Schema
+2020-12 to the 3.0 Schema Object: `["string", "null"]` becomes
+`nullable: true`, `const` becomes a one-value `enum`, and `examples` becomes
+`example`. There is no `jsonSchemaDialect`, `info.summary` or
+`license.identifier`. Webhooks are left out with a `webhooks-unsupported`
+warning, and `QUERY` operations with `method-unsupported`.
+
+### 3.1
+
+The default. Schemas are JSON Schema 2020-12, the 3.1 dialect, so nullable
+columns become `["string", "null"]` and enums and CHECK unions become `enum`.
+Webhooks render under `webhooks`. Fields that 3.2 added travel as the
+registered `x-oai-*` extensions: `x-oai-$self`, a server's `x-oai-name`, a
+response's `x-oai-summary` and a stream's `x-oai-itemSchema`. Fields without
+a registered extension (nested tags, the OAuth metadata URL) use the model's
+prefix, `x-better-supabase-` by default.
+
+### 3.2
+
+The same fields as native 3.2 fields: `$self`, named servers, nested tags
+with `parent`, `summary` and `kind`, `itemSchema` for streams,
+`oauth2MetadataUrl`, and the `query` method. A 3.2 document does not validate
+against the 3.1 schema, so pick it only when your tools read 3.2.
+
+## 3.3-preview
+
+`3.3-preview` follows the OpenAPI `v3.3-dev` branch at the commit in
+`SPEC_PINS.openapi33Preview`, with the Security Profiles proposal pinned in
+`SPEC_PINS.securityProfiles`. You opt in by passing the version; it is never a
+default. On top of 3.2 it adds:
+
+- `security` on the Path Item, when every operation of the path shares it.
+- Security schemes of `type: profile` with `profileMetadata`, and
+  `components.securityProfileRequirements`. Other versions leave profile
+  schemes out with a `preview-only` info finding.
+- An `x-better-supabase-preview` field with the pin, so a reader can tell
+  which draft the document follows.
+
+Every render reports a `preview-version` warning, because the draft's fields
+can change before 3.3 is released. There is no official 3.3 schema yet; the
+test validates the preview against the 3.2 schema after removing the draft
+fields.
+
+## What's in the document
 
 - **Paths:** `GET /customers` (list), `POST /customers`,
   `GET|PATCH|DELETE /customers/{id}`. Views get `list` and `get` only. Item
-  paths need a single-column primary key.
+  paths need a single-column primary key. Routes and resource actions add
+  their own operations.
 - **Schemas:** `CustomersRow`, `CustomersInsert`, `CustomersUpdate` and
-  `CustomersPage`, as JSON Schema 2020-12 (the OpenAPI 3.1 dialect). Enums and
-  CHECK unions become `enum`; nullable columns become `["string", "null"]`.
+  `CustomersPage`.
 - **List parameters:** pass a [list query](/docs/platform/list) and its search,
   sort, page, size and facet parameters are used as they are. Otherwise
   `page`/`size`, or `after`/`size` with `pagination: 'cursor'` on the
   resource, capped by its `maxPageSize`. Cursor resources get a
   `CustomersPage` of `items`, `nextCursor` and `hasMore`.
-- **Errors:** `400`–`422` responses use `application/problem+json` with a
+- **Errors:** `400` to `422` responses use `application/problem+json` with a
   shared `Problem` schema that matches what [route handlers](/docs/auth/problems)
   send.
-- **Security:** `supabaseJwt` (HTTP bearer with a Supabase access token) and
-  `supabaseOAuth` (authorization code flow against the Supabase OAuth server).
-- **Extensions:** each operation has `x-better-supabase-table` and
-  `x-better-supabase-operation`. The [Hono and oRPC adapters](/docs/frameworks)
-  use them to implement the same routes.
+- **Security:** `supabaseJwt` (HTTP bearer with a Supabase access token),
+  `supabaseOAuth` (authorization code flow against the Supabase OAuth server)
+  and `supabaseApiKey` (the publishable key), or your own schemes.
 
-The `openapi` version comes from `SPEC_PINS.openapi`.
+## Extensions
+
+Operations carry `x-better-supabase-table`, `x-better-supabase-operation`,
+`x-better-supabase-action` and, when a permission is declared,
+`x-better-supabase-permission` with the authorizer's key. Set
+`extensionPrefix` to change the prefix.
+
+These fields document the model for readers and tools. Nothing in
+better-supabase reads them back: the server, Hono, Next.js, edge and MCP
+surfaces serve the routes from the same API model the document is rendered
+from, not from the document.
+
+## Changing the output
+
+Use `transform` for the last change to the lowered document (it receives a
+copy typed for the version), `fragments` for parsed OpenAPI pieces merged
+over the generated document, and [Overlays](/docs/standards/overlay) for
+changes you keep in separate files. The [document formats](/docs/extending/document-formats)
+page shows how to add a format of your own.

@@ -1,0 +1,91 @@
+---
+title: Arazzo
+description: Arazzo 1.0 and 1.1 workflows over your OpenAPI and AsyncAPI documents, checked against the operations the API has.
+---
+
+An [Arazzo](https://spec.openapis.org/arazzo/latest.html) document describes
+sequences of API calls: create a row and read it back, walk a paginated list,
+sign in and call an operation. `better-supabase/arazzo` renders the workflows
+of the same API model as the [OpenAPI document](/docs/standards/openapi), so a
+step that names a missing operation is a finding, not a broken document.
+
+```ts title="lib/arazzo.ts"
+import {
+  createArazzo,
+  createThenGetWorkflows,
+  defineWorkflow,
+  paginationWorkflows,
+  type ResourceOperationIds,
+} from "better-supabase/arazzo";
+import { betterSupabase } from "./supabase";
+
+const onboarding = defineWorkflow<ResourceOperationIds<"customers">>({
+  id: "onboardCustomer",
+  inputs: { type: "object", properties: { row: { type: "object" } } },
+  steps: [
+    {
+      id: "create",
+      operationId: "createCustomers",
+      requestBody: "$inputs.row",
+      outputs: { id: "$response.body#/id" },
+    },
+    {
+      id: "get",
+      operationId: "getCustomers",
+      parameters: { id: "$steps.create.outputs.id" },
+    },
+  ],
+});
+
+export const arazzo = createArazzo(betterSupabase, {
+  info: { title: "CRM workflows", version: "1.0.0" },
+  resources: { customers: { pagination: "cursor" } },
+  workflows: [onboarding, paginationWorkflows(), createThenGetWorkflows()],
+});
+```
+
+`createArazzo` throws when rendering finds an error. To read every finding
+instead, render the format from an API: `defineApi(...).render(arazzoFormat)`.
+
+## Versions
+
+| Version | Pin                  | Status  |
+| ------- | -------------------- | ------- |
+| `1.0`   | `SPEC_PINS.arazzo10` | default |
+| `1.1`   | `SPEC_PINS.arazzo11` | stable  |
+
+1.0 is the default. Steps that send or receive on an AsyncAPI channel, and
+`parameters` on success and failure actions, need 1.1; in 1.0 they are
+findings (`arazzo-channel-step-unsupported`,
+`arazzo-action-parameters-unsupported`).
+
+## Built-in workflows
+
+- `paginationWorkflows()`: for each cursor-paginated list, read the first
+  page, then the next one from its `nextCursor`.
+- `createThenGetWorkflows()`: for each resource with `create` and `get`,
+  create a row and read it back by its key.
+- `authWorkflow({ call })`: sign in, then call an operation with the access
+  token. A 403 Problem Details answer with the code `APPROVAL_REQUIRED` ends
+  the workflow, so a client can wait for the approval instead of retrying.
+
+## Source descriptions
+
+The document points at the OpenAPI document as `api` (the model's `self`, or
+`openapi.json`) and at the AsyncAPI document as `events` (`asyncapi.json`).
+Pass `openapi` and `asyncapi` to `createArazzo`, or use `createArazzoFormat`,
+to point them at your published URLs.
+
+## Findings
+
+Rendering checks what a schema cannot: unknown operations and channels
+(`arazzo-operation-unknown`, `arazzo-channel-unknown`), steps that read the
+outputs of a later or unknown step (`arazzo-step-output-order`,
+`arazzo-step-output-unknown`), undeclared inputs, duplicate ids and
+`goto` targets that do not exist.
+
+## Conformance
+
+`arazzo.test.ts` renders the built-in workflows over a cursor-paginated
+resource and validates the result against the official Arazzo 1.0 and 1.1
+schemas.
