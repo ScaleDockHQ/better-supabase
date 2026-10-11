@@ -6,6 +6,7 @@ import type {
 import { describe, expect, it } from "vitest";
 
 import { validate } from "../../src/core/standard.ts";
+import { tableSchema } from "../../src/core/table-schema.ts";
 import { envSchema } from "../../src/env/index.ts";
 import { defineTool } from "../../src/mcp/index.ts";
 
@@ -156,5 +157,50 @@ describe("Standard JSON Schema v1", () => {
       run: () => "",
     });
     expect(tool.info.inputSchema).toEqual({ type: "object" });
+  });
+});
+
+describe("tableSchema() (the standardSchema() generator output)", () => {
+  const schema = tableSchema<{ name: string; tags?: string[] }>({
+    fields: {
+      name: { kind: "string", minLength: 1 },
+      tags: { kind: "string", array: true, optional: true },
+    },
+  });
+
+  it("implements Standard Schema v1 and works with validate()", async () => {
+    const props: StandardSchemaV1.Props<{ name: string; tags?: string[] }> =
+      schema["~standard"];
+    expect(props.version).toBe(1);
+    expect(props.vendor).toBe("better-supabase");
+    await expect(validate(schema, { name: "Ada" })).resolves.toMatchObject({
+      ok: true,
+      data: { name: "Ada" },
+    });
+    const result = await validate(schema, { name: "", tags: [1] }, "customer");
+    expect(!result.ok && result.error).toMatchObject({
+      kind: "validation",
+      message: "Invalid customer",
+      issues: [
+        { message: "Expected at least 1 character", path: ["name"] },
+        { message: "Expected a string", path: ["tags", 0] },
+      ],
+    });
+  });
+
+  it("implements Standard JSON Schema v1 for both recommended targets", () => {
+    const props: StandardJSONSchemaV1.Props = schema["~standard"];
+    for (const target of ["draft-2020-12", "draft-07"] as const) {
+      for (const direction of ["input", "output"] as const) {
+        expect(props.jsonSchema[direction]({ target })).toMatchObject({
+          type: "object",
+          required: ["name"],
+          additionalProperties: false,
+        });
+      }
+    }
+    expect(() => props.jsonSchema.input({ target: "draft-04" })).toThrow(
+      "Unsupported JSON Schema target",
+    );
   });
 });

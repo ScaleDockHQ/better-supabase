@@ -27,7 +27,8 @@ the same generator behind `supabase gen types typescript`, and writes:
    imports the main module. Each table and function is one line of JSON, which
    keeps the module small to load and a schema change visible per entry in a
    diff. Commit both files with the main module;
-4. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`);
+4. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`,
+   `standardSchema()`);
 5. with `readSets` configured, the `read-sets` SQL module file: one function per
    [read set](/docs/repository/read-sets). `gen` imports those modules after
    writing the main module, since they import it.
@@ -83,7 +84,7 @@ and each introspection query after 2 minutes.
 | `--db-url-stdin`       | Reads the connection string from stdin; overrides the config, `$DATABASE_URL` and `$SUPABASE_DB_URL`.                                                            |
 | `--project-ref <ref>`  | Reads a hosted project through the Management API.                                                                                                               |
 | `--metadata <path\|->` | Reads a `GeneratorMetadata` document (`-` for stdin) and prints one file on stdout. See [From a GeneratorMetadata document](#from-a-generatormetadata-document). |
-| `--emit <file>`        | With `--metadata`, the file to print: `schema` (default), `types`, `zod`, `valibot` or `json-schema`.                                                            |
+| `--emit <file>`        | With `--metadata`, the file to print: `schema` (default), `types`, `zod`, `valibot`, `json-schema` or `standard-schema`.                                         |
 | `--out <dir>`          | With `--metadata`, writes every generated file into this directory instead of printing one.                                                                      |
 
 With `--json`, `gen` prints `{ "tables", "written" }`, and `gen --check`
@@ -219,7 +220,7 @@ extra round trips:
 
 ## Documentation in the validators
 
-The `zod()`, `valibot()` and `jsonSchema()` generators carry what the
+The `zod()`, `valibot()`, `jsonSchema()` and `standardSchema()` generators carry what the
 database says about a table into the schemas, so an OpenAPI document or an MCP
 tool built from them describes each field:
 
@@ -266,7 +267,8 @@ export const customersInsert = z
 
 Valibot gets the same through `v.title`, `v.description`, `v.examples`,
 `v.minLength` and `v.minValue` in a pipe, and the JSON Schema through
-`title`, `description`, `examples`, `minLength` and `minimum`. The runtime
+`title`, `description`, `examples`, `minLength` and `minimum`. The
+`standardSchema()` output carries them in each field spec. The runtime
 OpenAPI document (`createOpenApi`) reads only the generated metadata, so it
 has none of this; serve the generated JSON Schema when you need it there.
 
@@ -278,6 +280,69 @@ database catalog instead, so they carry the CHECK bounds, comments and codecs
 above, and it keeps separate `Row`, `Insert` and `Update` schemas per table.
 Replace the `supabase-to-zod` script with `generators: [zod()]` and import
 `<table>Row` from `generated.zod.ts`.
+
+## Standard Schema without a validation library
+
+`standardSchema()` writes `<output>.standard.ts`: a schema per table for its
+Row, Insert and Update shapes that needs no zod or valibot install. Each one
+implements [Standard Schema](https://standardschema.dev) (`~standard.validate`)
+and Standard JSON Schema (`~standard.jsonSchema`), so it works anywhere a
+Standard Schema does: the [validation plugin](/docs/plugins/validation),
+`validate()`, form libraries, oRPC and MCP tool inputs.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig, standardSchema } from "better-supabase/config";
+
+export default defineConfig({
+  output: "src/lib/supabase/generated.ts",
+  generators: [
+    standardSchema({ json: { "customers.metadata": "./schemas.ts#metadata" } }),
+  ],
+});
+```
+
+```ts title="src/lib/supabase/generated.standard.ts"
+import { type TableSchema, tableSchema } from "better-supabase";
+
+export const customersInsert: TableSchema<InsertOf<"customers">> = tableSchema({
+  title: "Customers insert",
+  fields: {
+    name: { kind: "string", minLength: 1, maxLength: 200 },
+    status: {
+      kind: "enum",
+      values: ["lead", "active", "archived"],
+      optional: true,
+    },
+    metadata: {
+      kind: "json",
+      nullable: true,
+      optional: true,
+      schema: metadata,
+    },
+  },
+});
+
+export const validators = {
+  customers: { insert: customersInsert, update: customersUpdate },
+};
+```
+
+The checks match the `zod()` output: uuid, integer and ISO date formats,
+enum values, CHECK bounds, `null` only on nullable columns, and Temporal
+values on `instant` and `plainDateTime` codec columns. A present key never
+accepts `undefined`, and unknown keys are dropped from the validated value.
+`json` takes a Standard Schema per typed jsonb column; its issues keep their
+path under the column, and its JSON Schema is used when it has one.
+
+`~standard.jsonSchema.input()` and `output()` return the same JSON Schema the
+`jsonSchema()` generator writes for that shape, for the `draft-2020-12`,
+`draft-07` and `openapi-3.0` targets:
+
+```ts
+const schema = customersInsert["~standard"].jsonSchema.input({
+  target: "draft-07",
+});
+```
 
 ## Snapshots
 
@@ -323,13 +388,14 @@ It follows the registry's contract for an out-of-process tool:
 
 `--emit` picks the file:
 
-| `--emit`      | Prints                                                                                                                                                    |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema`      | The `defineSchema` module, with the metadata written into it instead of a separate `generated.meta.js`. It imports `Database` from `databaseTypesOutput`. |
-| `types`       | `database.types.ts`, formatted when oxfmt is installed.                                                                                                   |
-| `zod`         | The `zod()` generator's file, with the options from the config when it lists `zod()`.                                                                     |
-| `valibot`     | The `valibot()` generator's file, likewise.                                                                                                               |
-| `json-schema` | The `jsonSchema()` generator's document, likewise.                                                                                                        |
+| `--emit`          | Prints                                                                                                                                                    |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`          | The `defineSchema` module, with the metadata written into it instead of a separate `generated.meta.js`. It imports `Database` from `databaseTypesOutput`. |
+| `types`           | `database.types.ts`, formatted when oxfmt is installed.                                                                                                   |
+| `zod`             | The `zod()` generator's file, with the options from the config when it lists `zod()`.                                                                     |
+| `valibot`         | The `valibot()` generator's file, likewise.                                                                                                               |
+| `json-schema`     | The `jsonSchema()` generator's document, likewise.                                                                                                        |
+| `standard-schema` | The `standardSchema()` generator's file, likewise.                                                                                                        |
 
 `--out <dir>` writes the usual files (`database.types.ts`, the main module,
 its metadata module and each configured generator's file) into one directory
@@ -366,7 +432,14 @@ export const betterSupabase = externalLanguage(
       name: "emit",
       audience: "user",
       kind: "choice",
-      choices: ["schema", "types", "zod", "valibot", "json-schema"],
+      choices: [
+        "schema",
+        "types",
+        "zod",
+        "valibot",
+        "json-schema",
+        "standard-schema",
+      ],
       default: "schema",
       help: "The file to generate: the defineSchema module, database.types.ts or a validator file",
     },

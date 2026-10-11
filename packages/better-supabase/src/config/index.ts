@@ -77,6 +77,10 @@ export {
   type JsonSchemaGeneratorOptions,
 } from "../generators/json-schema.ts";
 export {
+  standardSchema,
+  type StandardSchemaGeneratorOptions,
+} from "../generators/standard-schema.ts";
+export {
   valibot,
   type ValibotGeneratorOptions,
 } from "../generators/valibot.ts";

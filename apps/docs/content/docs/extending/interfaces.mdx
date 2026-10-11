@@ -14,7 +14,7 @@ has a [conformance kit](/docs/extending/conformance).
 | [`CacheAdapter`](#cacheadapter)                         | `nextCache()`, `queryCache(client)`, `memoryCache()`        | `betterSupabase.cache(adapter)`                                         |
 | [`EventSink`](#eventsink)                               | `httpSink()`                                                | `forwardMutations(betterSupabase, sink, { source })`                    |
 | [`AuthResolver`](#authresolver)                         | Bearer and cookie resolution; `localAuth()` in `/testing`   | `createServer(betterSupabase, { auth: { resolvers } })`                 |
-| [`Generator`](#generator)                               | `zod()`, `valibot()`, `jsonSchema()`                        | `generators` in the config                                              |
+| [`Generator`](#generator)                               | `zod()`, `valibot()`, `jsonSchema()`, `standardSchema()`    | `generators` in the config                                              |
 | [`Logger`](#logger)                                     | `consoleLogger`, `silentLogger`                             | `defineSupabase(schema, { logger })`                                    |
 | [`QueueBackend`](#queuebackend)                         | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`         | `createJobs(backend, queues)`                                           |
 | [`SupportSessionStore`](#supportsessionstore)           | `sqlSupportStore(postgres)`                                 | `createServer(betterSupabase, { support: supportSessions({ store }) })` |

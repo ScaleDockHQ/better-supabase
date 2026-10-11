@@ -10,6 +10,7 @@ import {
   type BetterSupabaseConfig,
   jsonSchema,
   resolveConfig,
+  standardSchema,
   valibot,
   zod,
 } from "../../../src/config/index.ts";
@@ -66,7 +67,7 @@ export async function renderFixtures(): Promise<
       ...fixtureConfig,
       casing: "camel",
       output: "tests/fixtures/generated-camel.ts",
-      generators: [zod(), valibot(), jsonSchema()],
+      generators: [zod(), valibot(), jsonSchema(), standardSchema()],
     },
   ];
   const files = new Map<string, string>();
