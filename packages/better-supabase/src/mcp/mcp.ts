@@ -41,6 +41,11 @@ import {
 } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import {
+  schemaTargetFor,
+  type ToolSchemaTarget,
+  toolDialects,
+} from "./dialect.ts";
+import {
   discovery,
   endpointPreflight,
   isMetadataRequest,
@@ -128,6 +133,11 @@ export interface McpTool<
   P = unknown,
 > {
   readonly info: ToolInfo;
+  /**
+   * The input schema in another dialect, for clients on an older protocol
+   * revision. Without it, `info.inputSchema` is rewritten.
+   */
+  readonly inputSchemaFor?: (target: ToolSchemaTarget) => Json | undefined;
   /** Validates arguments; its output is what `run` receives. */
   readonly input?: StandardSchemaV1;
   /** Opaque data for the `authorize` and `visible` hooks. Never sent to clients. */
@@ -170,6 +180,12 @@ export interface ToolDefinition<
   readonly input?: StandardSchemaV1<unknown, I>;
   readonly inputSchema?: Json;
   readonly outputSchema?: Json;
+  /**
+   * The dialect `input` converts to for `ToolInfo` and the `tools` list.
+   * Defaults to `draft-2020-12`. `tools/list` converts again for clients on
+   * 2025-06-18 and earlier, which get draft-07.
+   */
+  readonly jsonSchemaTarget?: ToolSchemaTarget;
   readonly annotations?: ToolAnnotations;
   /** Opaque data for the `authorize` and `visible` hooks. Never sent to clients. */
   readonly meta?: unknown;
@@ -339,9 +355,13 @@ export function defineTool<
   const standard = definition.input?.["~standard"] as
     | Partial<StandardJSONSchemaV1.Props>
     | undefined;
+  const convert =
+    definition.inputSchema === undefined ? standard?.jsonSchema : undefined;
   const inputSchema =
     definition.inputSchema ??
-    standard?.jsonSchema?.input({ target: "draft-2020-12" }) ??
+    convert?.input({
+      target: definition.jsonSchemaTarget ?? "draft-2020-12",
+    }) ??
     (definition.input ? undefined : { type: "object", properties: {} });
   if (!inputSchema) {
     throw new TypeError(
@@ -350,6 +370,22 @@ export function defineTool<
   }
   const { $schema: _, ...schema } = inputSchema;
   return {
+    ...(convert
+      ? {
+          inputSchemaFor: (target: ToolSchemaTarget) => {
+            try {
+              const { $schema: _dialect, ...converted } = convert.input({
+                target,
+              });
+              return converted;
+            } catch {
+              // A library may not convert to every target; the caller then
+              // rewrites the default schema instead.
+              return;
+            }
+          },
+        }
+      : {}),
     info: {
       name: definition.name,
       ...(definition.title ? { title: definition.title } : {}),
@@ -622,10 +658,13 @@ export function createMcp<
   }
   type Invocation = ToolResult | Refusal;
   interface Entry extends ToolRef {
+    /** The listed tool with its schemas in `target`'s dialect, built once per target. */
+    infoFor(target: ToolSchemaTarget): ToolInfo;
     call(args: unknown, ctx: ToolContext<M, F, E, C, P>): Promise<Invocation>;
   }
   const registry = new Map<string, Entry>();
   let allTools: ToolInfo[] | undefined;
+  const listed = new Map<ToolSchemaTarget, ToolInfo[]>();
   /** Bumped on every registration, so cached visible lists built before it miss. */
   let generation = 0;
   const register = (entry: Entry): void => {
@@ -634,6 +673,7 @@ export function createMcp<
     }
     registry.set(entry.info.name, entry);
     allTools = undefined;
+    listed.clear();
     generation++;
   };
   const failure = (error: DbError): ToolResult =>
@@ -669,6 +709,7 @@ export function createMcp<
       const ref: ToolRef = { info, meta: meta?.[operation] };
       register({
         ...ref,
+        infoFor: toolDialects(info),
         async call(args, ctx) {
           // SAFETY: resource tools declare an object input schema, and the
           // arguments default to an empty object.
@@ -694,6 +735,7 @@ export function createMcp<
     const ref: ToolRef = { info: tool.info, meta: tool.meta };
     register({
       ...ref,
+      infoFor: toolDialects(tool.info, tool.inputSchemaFor),
       async call(args, ctx) {
         let value: unknown = args ?? {};
         if (tool.input) {
@@ -714,6 +756,14 @@ export function createMcp<
 
   const listTools = (): ToolInfo[] =>
     (allTools ??= [...registry.values()].map((entry) => entry.info));
+  const listFor = (target: ToolSchemaTarget): ToolInfo[] => {
+    let tools = listed.get(target);
+    if (!tools) {
+      tools = [...registry.values()].map((entry) => entry.infoFor(target));
+      listed.set(target, tools);
+    }
+    return tools;
+  };
   /**
    * A user's visible list per token, for as long as clients may cache it
    * (`ttlMs`). `tools/call` still checks `visible` on every call.
@@ -721,7 +771,7 @@ export function createMcp<
   const visibleLists = new Map<
     string,
     {
-      readonly tools: ToolInfo[];
+      readonly entries: Entry[];
       readonly until: number;
       readonly generation: number;
     }
@@ -729,19 +779,18 @@ export function createMcp<
   /** Without a `visible` hook every caller sees the same list, built once. */
   const visibleTools = async (
     context: () => ToolContext<M, F, E, C, P>,
+    target: ToolSchemaTarget,
   ): Promise<ToolInfo[]> => {
-    if (!options.visible) return listTools();
+    if (!options.visible) return listFor(target);
     const ctx = context();
     const token = ctx.auth.kind === "user" ? ctx.auth.token : undefined;
     const now = Date.now();
     const cached = token === undefined ? undefined : visibleLists.get(token);
     if (cached && cached.until > now && cached.generation === generation)
-      return cached.tools;
-    const entries = [...registry.values()];
-    const shown = await Promise.all(
-      entries.map((entry) => isVisible(entry, ctx)),
-    );
-    const tools = entries.filter((_, index) => shown[index]).map((e) => e.info);
+      return cached.entries.map((entry) => entry.infoFor(target));
+    const all = [...registry.values()];
+    const shown = await Promise.all(all.map((entry) => isVisible(entry, ctx)));
+    const entries = all.filter((_, index) => shown[index]);
     if (token !== undefined) {
       visibleLists.delete(token);
       if (visibleLists.size >= VISIBLE_LISTS_MAX) {
@@ -749,12 +798,12 @@ export function createMcp<
         if (!oldest.done) visibleLists.delete(oldest.value);
       }
       visibleLists.set(token, {
-        tools,
+        entries,
         until: now + LIST_TTL_MS,
         generation,
       });
     }
-    return tools;
+    return entries.map((entry) => entry.infoFor(target));
   };
   const urls = discovery(options, () => server.env.url);
   const { metadataUrl } = urls;
@@ -1012,7 +1061,14 @@ export function createMcp<
         return modern ? notFound() : reply({});
       case "tools/list":
         return reply({
-          tools: await visibleTools(toolContext),
+          // A request without the header is on 2025-03-26, the revision
+          // before the header existed.
+          tools: await visibleTools(
+            toolContext,
+            schemaTargetFor(
+              modern ? MCP_PROTOCOL_VERSION : (header ?? "2025-03-26"),
+            ),
+          ),
           ...(modern ? { ttlMs: LIST_TTL_MS, cacheScope: "private" } : {}),
         });
       case "tools/call": {

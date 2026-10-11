@@ -49,6 +49,19 @@ describe("block CloudEvents", () => {
     expect(plain.id).toMatch(/^[\da-f-]{36}$/);
   });
 
+  it("sets dataschema per event type", () => {
+    const event = blockCloudEvent(
+      { type: "organization.created", data: { organizationId: "o1" }, time },
+      {
+        ...fixed,
+        dataschema: ({ type }) => `https://crm.test/schemas/${type}.json`,
+      },
+    );
+    expect(event.dataschema).toBe(
+      "https://crm.test/schemas/dev.better-supabase.organization.created.json",
+    );
+  });
+
   it("forwards matching block events and reports sink failures", async () => {
     const events = new EventHub();
     const sent: CloudEvent[][] = [];

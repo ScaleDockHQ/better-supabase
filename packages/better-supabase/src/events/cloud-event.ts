@@ -22,6 +22,35 @@ export interface CloudEventOptions {
   readonly typePrefix?: string;
   readonly id?: () => string;
   readonly now?: () => Temporal.Instant;
+  /**
+   * The `dataschema` attribute: the URI (or `$id`) of the JSON Schema the
+   * event's `data` conforms to, e.g. a schema emitted next to an AsyncAPI
+   * document. A function picks one per event type and leaves it out by
+   * returning `undefined`. Defaults to none.
+   */
+  readonly dataschema?:
+    | string
+    | ((event: DataschemaContext) => string | undefined);
+}
+
+/** What a `dataschema` function sees of an event. */
+export interface DataschemaContext {
+  /** The CloudEvents `type`, with the configured prefix. */
+  readonly type: string;
+  /** App key of the mutated table, for row events. */
+  readonly table?: string;
+}
+
+/** The `dataschema` attribute for an event, or nothing. */
+export function dataschemaOf(
+  options: Pick<CloudEventOptions, "dataschema">,
+  event: DataschemaContext,
+): { readonly dataschema?: string } {
+  const uri =
+    typeof options.dataschema === "function"
+      ? options.dataschema(event)
+      : options.dataschema;
+  return uri === undefined ? {} : { dataschema: uri };
 }
 
 /** Sends events somewhere: a queue, a bus, an outbox table, an HTTP endpoint. */
@@ -38,14 +67,16 @@ export function blockCloudEvent(
   event: BlockEvent,
   options: CloudEventOptions,
 ): CloudEvent {
+  const type = `${options.typePrefix ?? "dev.better-supabase"}.${event.type}`;
   return {
     specversion: "1.0",
     id: options.id?.() ?? crypto.randomUUID(),
     source: options.source,
-    type: `${options.typePrefix ?? "dev.better-supabase"}.${event.type}`,
+    type,
     ...(event.subject ? { subject: event.subject } : {}),
     time: (options.now?.() ?? event.time).toString(),
     datacontenttype: "application/json",
+    ...dataschemaOf(options, { type }),
     data: event.actorId
       ? { ...event.data, actorId: event.actorId }
       : event.data,

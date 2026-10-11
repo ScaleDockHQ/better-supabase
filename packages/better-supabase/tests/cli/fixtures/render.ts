@@ -67,7 +67,16 @@ export async function renderFixtures(): Promise<
       ...fixtureConfig,
       casing: "camel",
       output: "tests/fixtures/generated-camel.ts",
-      generators: [zod(), valibot(), jsonSchema(), standardSchema()],
+      generators: [
+        zod(),
+        zod({
+          flavor: "mini",
+          output: "tests/fixtures/generated-camel.zod-mini.ts",
+        }),
+        valibot(),
+        jsonSchema(),
+        standardSchema(),
+      ],
     },
   ];
   const files = new Map<string, string>();

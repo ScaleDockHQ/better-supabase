@@ -29,7 +29,15 @@ export interface ZodGeneratorOptions {
   readonly output?: string;
   /** Schemas for typed jsonb columns: `{ 'customers.metadata': './schemas.ts#metadata' }`. */
   readonly json?: Readonly<Record<string, string>>;
+  /**
+   * `classic` (the default) imports `zod` and chains methods; `mini` imports
+   * `zod/mini` and uses its functional API (`z.nullable(...)`, `.check(...)`),
+   * which tree-shakes to a smaller bundle. Both need zod 4.
+   */
+  readonly flavor?: ZodFlavor;
 }
+
+export type ZodFlavor = "classic" | "mini";
 
 function scalar(kind: ScalarKind): string {
   switch (kind.kind) {
@@ -66,7 +74,22 @@ function scalar(kind: ScalarKind): string {
   }
 }
 
-function bounds(docs: FieldDocs): string {
+function bounds(docs: FieldDocs, flavor: ZodFlavor): string {
+  if (flavor === "mini") {
+    const checks = [
+      docs.minimum === undefined ? "" : `z.gte(${docs.minimum})`,
+      docs.exclusiveMinimum === undefined
+        ? ""
+        : `z.gt(${docs.exclusiveMinimum})`,
+      docs.maximum === undefined ? "" : `z.lte(${docs.maximum})`,
+      docs.exclusiveMaximum === undefined
+        ? ""
+        : `z.lt(${docs.exclusiveMaximum})`,
+      docs.minLength === undefined ? "" : `z.minLength(${docs.minLength})`,
+      docs.maxLength === undefined ? "" : `z.maxLength(${docs.maxLength})`,
+    ].filter((check) => check !== "");
+    return checks.length === 0 ? "" : `.check(${checks.join(", ")})`;
+  }
   return [
     docs.minimum === undefined ? "" : `.min(${docs.minimum})`,
     docs.exclusiveMinimum === undefined ? "" : `.gt(${docs.exclusiveMinimum})`,
@@ -77,14 +100,17 @@ function bounds(docs: FieldDocs): string {
   ].join("");
 }
 
-/** `.meta({ ... })` for the entries that are set, or nothing. */
-function meta(entries: Readonly<Record<string, unknown>>): string {
+/** `.meta({ ... })` (`.check(z.meta({ ... }))` in mini) for the entries that are set, or nothing. */
+function meta(
+  entries: Readonly<Record<string, unknown>>,
+  flavor: ZodFlavor,
+): string {
   const set = Object.entries(entries).filter(
     ([, value]) => value !== undefined,
   );
-  return set.length === 0
-    ? ""
-    : `.meta({ ${set.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join(", ")} })`;
+  if (set.length === 0) return "";
+  const object = `{ ${set.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join(", ")} }`;
+  return flavor === "mini" ? `.check(z.meta(${object}))` : `.meta(${object})`;
 }
 
 function field(
@@ -92,24 +118,38 @@ function field(
   plan: FieldPlan,
   jsonImports: ReadonlyMap<string, string>,
   docs: FieldDocs,
+  flavor: ZodFlavor,
 ): string {
+  const mini = flavor === "mini";
   const imported = jsonImports.get(`${table}.${plan.column.db}`);
   let expr =
     imported ??
     (plan.customJson
       ? `z.custom<NonNullable<RowOf<'${table}'>['${plan.name}']>>((value) => value !== undefined)`
       : plan.column.storage === undefined
-        ? `${scalar(plan.scalar)}${bounds(docs)}`
-        : `(z.string() as unknown as z.ZodType<${rowType(table, plan)}>)`);
+        ? `${scalar(plan.scalar)}${bounds(docs, flavor)}`
+        : `(z.string() as unknown as ${typeName(flavor)}<${rowType(table, plan)}>)`);
   if (plan.column.array) expr = `z.array(${expr})`;
-  if (plan.nullable) expr = `${expr}.nullable()`;
-  expr += meta({ description: docs.description, examples: docs.examples });
-  if (plan.optional) expr = `${expr}.exactOptional()`;
+  if (plan.nullable) expr = mini ? `z.nullable(${expr})` : `${expr}.nullable()`;
+  expr += meta(
+    { description: docs.description, examples: docs.examples },
+    flavor,
+  );
+  if (plan.optional)
+    expr = mini ? `z.exactOptional(${expr})` : `${expr}.exactOptional()`;
   return `  ${propertyKey(plan.name)}: ${expr},`;
 }
 
-/** Zod 4 schemas for every table's Row, Insert and Update shape. */
+function typeName(flavor: ZodFlavor): string {
+  return flavor === "mini" ? "z.ZodMiniType" : "z.ZodType";
+}
+
+/**
+ * Zod 4 schemas for every table's Row, Insert and Update shape, for `zod`
+ * or, with `flavor: 'mini'`, `zod/mini`.
+ */
 export function zod(options: ZodGeneratorOptions = {}): Generator {
+  const flavor = options.flavor ?? "classic";
   return {
     apiVersion: 1,
     name: "zod",
@@ -135,7 +175,9 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
 
       const lines = [
         HEADER,
-        'import { z } from "zod";',
+        flavor === "mini"
+          ? 'import { z } from "zod/mini";'
+          : 'import { z } from "zod";',
         ...optionalLine(temporalGuardImport(input)),
         "",
         `import type { InsertOf, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
@@ -154,13 +196,15 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
         for (const variant of variants) {
           const name = schemaName(key, variant);
           lines.push(
-            `export const ${name}: z.ZodType<${variant}Of<'${key}'>> = z.object({`,
+            `export const ${name}: ${typeName(flavor)}<${variant}Of<'${key}'>> = z.object({`,
           );
           for (const plan of fieldsFor(table, variant, input)) {
-            lines.push(field(key, plan, jsonImports, fieldDocs(docs, plan)));
+            lines.push(
+              field(key, plan, jsonImports, fieldDocs(docs, plan), flavor),
+            );
           }
           lines.push(
-            `})${docs ? meta({ title: variantTitle(docs, variant), description: docs.description }) : ""};`,
+            `})${docs ? meta({ title: variantTitle(docs, variant), description: docs.description }, flavor) : ""};`,
           );
         }
         if (variants.includes("Insert")) {

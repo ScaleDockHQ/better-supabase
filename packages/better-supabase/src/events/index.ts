@@ -10,6 +10,7 @@ import type {
 
 import { jsonReplacer } from "../core/json.ts";
 import { nowInstant } from "../core/temporal.ts";
+import { dataschemaOf } from "./cloud-event.ts";
 
 export { blockCloudEvent, forwardBlockEvents } from "./cloud-event.ts";
 export type {
@@ -65,6 +66,7 @@ export function toCloudEvents(
   const tenant = notice.tenant ?? notice.context.tenant;
   const rows = notice.rows.length > 0 ? notice.rows : (notice.keys ?? []);
   const actorId = notice.context.actor?.id;
+  const dataschema = dataschemaOf(options, { type, table: notice.table });
   return rows.map((row) => {
     const subject = subjectOf(options.meta, notice.table, row);
     return {
@@ -75,6 +77,7 @@ export function toCloudEvents(
       ...(subject ? { subject } : {}),
       time,
       datacontenttype: "application/json",
+      ...dataschema,
       data: { table: notice.table, row, ...(actorId ? { actorId } : {}) },
       ...(tenant ? { partitionkey: tenant } : {}),
     };

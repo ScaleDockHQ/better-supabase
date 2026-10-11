@@ -69,7 +69,7 @@ function toOpenApi30(schema: JsonSchema): JsonSchema {
 }
 
 /** The schema with the target's `$schema`, or in the OpenAPI 3.0 dialect. */
-function forTarget(
+export function forTarget(
   schema: JsonSchema,
   target: StandardJSONSchemaV1.Target,
 ): JsonSchema {

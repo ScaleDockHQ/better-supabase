@@ -31,6 +31,10 @@ export interface ColumnMeta {
   readonly sensitive?: true;
   /** Bucket id of the objects this text column points to (`config.storagePaths`). */
   readonly storage?: string;
+  /** The column's `COMMENT ON`, without its `@example` and `@deprecated` lines. */
+  readonly description?: string;
+  /** The column's comment has a `@deprecated` line. */
+  readonly deprecated?: true;
 }
 
 /**
@@ -91,6 +95,10 @@ export interface TableMeta {
   readonly uniqueKeys: Readonly<Record<string, readonly string[]>>;
   readonly relations: Readonly<Record<string, RelationMeta>>;
   readonly flags: TableFlags;
+  /** The table's `COMMENT ON`, without its `@example` and `@deprecated` lines. */
+  readonly description?: string;
+  /** The table's comment has a `@deprecated` line. */
+  readonly deprecated?: true;
 }
 
 export interface FunctionMeta extends FunctionSignature {
