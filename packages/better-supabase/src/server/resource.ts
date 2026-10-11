@@ -22,6 +22,7 @@ import {
   type Authorizer,
 } from "../core/authorizer.ts";
 import { dbError, isDbError, type ValidationIssue } from "../core/errors.ts";
+import { methodNotAllowed } from "../core/problem.ts";
 import { err, ok, toDbError, type Result } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import {
@@ -386,13 +387,6 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 async function settled(value: unknown): Promise<Result<unknown>> {
   // SAFETY: repository methods resolve to a Result, and every caller passes one.
   return (await value) as Result<unknown>;
-}
-
-function notAllowed(allowed: readonly string[]): Response {
-  return new Response(null, {
-    status: 405,
-    headers: { allow: allowed.join(", ") },
-  });
 }
 
 function failure(cause: unknown, message: string): Result<never> {
@@ -885,7 +879,7 @@ export function defineResource<
       const found = matchAction(plan, method, segments);
       if (found === "method") {
         return [
-          notAllowed(
+          methodNotAllowed(
             plan.actions
               .filter((candidate) => actionFits(candidate, segments))
               .map((candidate) => candidate.method),
@@ -923,7 +917,7 @@ export function defineResource<
           201,
         ];
       }
-      return [notAllowed(collectionMethods)];
+      return [methodNotAllowed(collectionMethods)];
     }
     if (segments.length > 1 || !keyParam)
       return [new Response(null, { status: 404 })];
@@ -941,7 +935,7 @@ export function defineResource<
     if (request.method === "DELETE" && has("delete")) {
       return [await execute(db, "delete", { id, request })];
     }
-    return [notAllowed(itemMethods)];
+    return [methodNotAllowed(itemMethods)];
   };
 
   const reply = async (

@@ -7,6 +7,7 @@ import type {
 
 import { isRecord } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
+import { importOptionalPeer } from "../core/optional-peer.ts";
 import { AsyncResult, err, ok, type Result } from "../core/result.ts";
 import { optionalTemporal } from "../core/temporal.ts";
 
@@ -64,14 +65,8 @@ const isModule = (value: unknown): value is VercelConnectModule =>
  * Loads `@vercel/connect` on first use. The specifier is a variable so
  * bundlers leave the optional peer out of apps that don't use it.
  */
-async function loadConnect(): Promise<unknown> {
-  const specifier = "@vercel/connect";
-  try {
-    return await import(specifier);
-  } catch {
-    return undefined;
-  }
-}
+const loadConnect = (): Promise<unknown> =>
+  importOptionalPeer("@vercel/connect");
 
 function connectRef(ref: CredentialRef): Result<VercelConnectRef> {
   const { connector, installationId, scopes } = ref;

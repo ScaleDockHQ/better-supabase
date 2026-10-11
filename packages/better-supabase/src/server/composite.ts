@@ -23,7 +23,7 @@ import {
   withAuthMode,
   withJwtClaims,
   withUserClaims,
-} from "./entries/claims.ts";
+} from "../auth/claims.ts";
 import { withServerContext } from "./entries/context.ts";
 import { type ServerCore, serverCore } from "./entries/core.ts";
 import { withDb } from "./entries/db.ts";

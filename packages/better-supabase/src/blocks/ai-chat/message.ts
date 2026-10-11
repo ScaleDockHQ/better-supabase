@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { isRecord } from "../shared.ts";
 
 /** `$id` of `schemas/ai-message-v1.json`, the JSON Schema of `AiMessage`. */
@@ -110,17 +111,7 @@ export interface AiMessage {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export const AI_MESSAGE_PART_TYPES: readonly AiMessagePartType[] = [
-  "text",
-  "reasoning",
-  "file",
-  "tool-call",
-  "tool-result",
-  "tool-approval",
-  "source",
-  "data",
-  "step",
-];
+export { AI_MESSAGE_PART_TYPES };
 
 const ROLES: ReadonlySet<string> = new Set<AiMessageRole>([
   "system",

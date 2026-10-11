@@ -2,7 +2,7 @@ import type { AuthMode, JWTClaims, UserClaims } from "@supabase/server";
 
 import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
 
-import type { AuthState } from "../../auth/resolve.ts";
+import type { AuthState } from "./resolve.ts";
 
 /** Entry contributing `ctx.auth`, the typed caller, from `ctx.bs`. */
 export function withAuth<C, P>(): SingleKeyEntry<

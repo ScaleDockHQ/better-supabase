@@ -5,9 +5,11 @@ import type { SqlClient } from "../../postgres/executor.ts";
 import { type DbError, dbError } from "../../core/errors.ts";
 import {
   type BlockProblemOptions,
+  methodNotAllowed,
   problemResponse,
 } from "../../core/problem.ts";
 import { type AsyncResult, toDbError } from "../../core/result.ts";
+import { verifySharedSecret } from "../../core/signatures.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { DEFAULT_TYPE_PREFIX } from "../../events/cloud-event.ts";
 import {
@@ -20,7 +22,6 @@ import {
   type CursorPageOptions,
   pageOf,
 } from "../shared.ts";
-import { verifySharedSecret } from "../webhooks/verify.ts";
 
 // ---------------------------------------------------------------------------
 // Outbox (SQL module `outbox`)
@@ -444,10 +445,7 @@ export function createOutbox(
       return async (request) => {
         const instance = new URL(request.url).pathname;
         if (request.method !== "GET" && request.method !== "POST") {
-          return new Response(null, {
-            status: 405,
-            headers: { allow: "GET, POST" },
-          });
+          return methodNotAllowed(["GET", "POST"]);
         }
         if (!verifySharedSecret(request, secret)) {
           return problemResponse(

@@ -223,3 +223,11 @@ export function fromProblem(problem: ProblemDetails): DbError {
     extra as DbErrorKinds["validation"],
   );
 }
+
+/** An empty `405` that lists the methods a route does accept. */
+export function methodNotAllowed(allowed: readonly string[]): Response {
+  return new Response(null, {
+    status: 405,
+    headers: { allow: allowed.join(", ") },
+  });
+}

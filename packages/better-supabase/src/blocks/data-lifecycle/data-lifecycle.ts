@@ -8,11 +8,11 @@ import type {
 import type { EventSink } from "../../events/index.ts";
 import type { JobHandler } from "../jobs/queue.ts";
 
+import { toCsv } from "../../core/csv.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { credentialRefInTenant } from "../../credentials/provider.ts";
 import { fromStorageError } from "../../storage/errors.ts";
-import { toCsv } from "../csv.ts";
 import {
   blockCall,
   errorText,

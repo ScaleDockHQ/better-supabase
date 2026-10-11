@@ -1,5 +1,5 @@
-export { csvColumns, toCsv } from "../blocks/csv.ts";
-export type { CsvOptions } from "../blocks/csv.ts";
+export { csvColumns, toCsv } from "../core/csv.ts";
+export type { CsvOptions } from "../core/csv.ts";
 export { csvResponse } from "./csv.ts";
 export type { CsvResponseOptions } from "./csv.ts";
 export { deleteAccount } from "./delete-account.ts";
@@ -82,7 +82,7 @@ export { withSession } from "./entries/session.ts";
 export type { SessionEntryConfig } from "./entries/session.ts";
 export { withGuard } from "./entries/guard.ts";
 export type { GuardEntryConfig } from "./entries/guard.ts";
-export { authModeOf, jwtClaimsOf, userClaimsOf } from "./entries/claims.ts";
+export { authModeOf, jwtClaimsOf, userClaimsOf } from "../auth/claims.ts";
 export { serverCore } from "./entries/core.ts";
 export type { ServerCore } from "./entries/core.ts";
 export {

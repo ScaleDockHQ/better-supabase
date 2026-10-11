@@ -68,7 +68,7 @@ export type {
 } from "../bindings/client.ts";
 export type { AuthSnapshot } from "../client/index.ts";
 export type { AuthSession } from "../auth/view.ts";
-export { fieldErrorsOf } from "../react/field-errors.ts";
+export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
 /** A value read through `.current`, reactive in templates, `$derived` and `$effect`. */
 export interface Current<T> {

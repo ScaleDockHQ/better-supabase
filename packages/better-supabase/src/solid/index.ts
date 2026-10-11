@@ -81,7 +81,7 @@ export type {
 export type { AuthSnapshot } from "../client/index.ts";
 export type { AuthSession } from "../auth/view.ts";
 export type { SupportView } from "../auth/support-view.ts";
-export { fieldErrorsOf } from "../react/field-errors.ts";
+export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
 /** A value, or an accessor Solid tracks. */
 export type MaybeAccessor<T> = T | Accessor<T>;

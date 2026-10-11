@@ -21,9 +21,14 @@ import type {
 import { base64ToText } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { jsonReplacer, jsonResponse } from "../core/json.ts";
-import { problemResponse, toProblem } from "../core/problem.ts";
+import {
+  methodNotAllowed,
+  problemResponse,
+  toProblem,
+} from "../core/problem.ts";
 import { SPEC_PINS } from "../core/spec-pins.ts";
 import { validate } from "../core/standard.ts";
+import { boundedTtlCache } from "../core/ttl-cache.ts";
 import { buildJsonSchema } from "../generators/json-schema.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { withExtra } from "../server/extra.ts";
@@ -787,14 +792,10 @@ export function createMcp<
    * A user's visible list per token, for as long as clients may cache it
    * (`ttlMs`). `tools/call` still checks `visible` on every call.
    */
-  const visibleLists = new Map<
+  const visibleLists = boundedTtlCache<
     string,
-    {
-      readonly entries: Entry[];
-      readonly until: number;
-      readonly generation: number;
-    }
-  >();
+    { readonly entries: Entry[]; readonly generation: number }
+  >({ max: VISIBLE_LISTS_MAX });
   /** Without a `visible` hook or permissions every caller sees the same list, built once. */
   const visibleTools = async (
     context: () => ToolContext<M, F, E, C, P>,
@@ -805,9 +806,8 @@ export function createMcp<
     if (!options.visible && !gated) return listFor(target);
     const ctx = context();
     const token = ctx.auth.kind === "user" ? ctx.auth.token : undefined;
-    const now = Date.now();
     const cached = token === undefined ? undefined : visibleLists.get(token);
-    if (cached && cached.until > now && cached.generation === generation)
+    if (cached?.generation === generation)
       return cached.entries.map((entry) => entry.infoFor(target));
     const [shown, permitted] = await Promise.all([
       Promise.all(all.map((entry) => isVisible(entry, ctx))),
@@ -818,18 +818,12 @@ export function createMcp<
       ),
     ]);
     const entries = all.filter((_, index) => shown[index] && permitted[index]);
-    if (token !== undefined) {
-      visibleLists.delete(token);
-      if (visibleLists.size >= VISIBLE_LISTS_MAX) {
-        const oldest = visibleLists.keys().next();
-        if (!oldest.done) visibleLists.delete(oldest.value);
-      }
-      visibleLists.set(token, {
-        entries,
-        until: now + LIST_TTL_MS,
-        generation,
-      });
-    }
+    if (token !== undefined)
+      visibleLists.set(
+        token,
+        { entries, generation },
+        Date.now() + LIST_TTL_MS,
+      );
     return entries.map((entry) => entry.infoFor(target));
   };
   const urls = discovery(options, () => server.env.url);
@@ -991,10 +985,7 @@ export function createMcp<
       return endpointPreflight(request, options.allowedOrigins);
     }
     if (request.method !== "POST") {
-      return new Response(null, {
-        status: 405,
-        headers: { allow: cors ? "POST, OPTIONS" : "POST" },
-      });
+      return methodNotAllowed(cors ? ["POST", "OPTIONS"] : ["POST"]);
     }
     const header = request.headers.get("mcp-protocol-version");
     if (header && !SUPPORTED_VERSIONS.includes(header)) {

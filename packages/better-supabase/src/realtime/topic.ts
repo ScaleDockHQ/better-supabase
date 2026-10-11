@@ -25,12 +25,13 @@ import {
   parseTemplate,
   slug,
   sqlIdent,
+  claimSql,
   sqlString,
   type Template,
   type TemplateParams,
   type TemplateValues,
 } from "../core/template.ts";
-import { toApp } from "../plugins/shared.ts";
+import { toApp } from "../schema/casing.ts";
 import { refreshRealtimeAuth } from "./auth.ts";
 import { joinTopic, type Subscriber } from "./channels.ts";
 
@@ -313,18 +314,6 @@ function validateValue(_name: string, value: string): string | undefined {
   return VALUE.test(value)
     ? undefined
     : "contains characters topics do not allow";
-}
-
-function claimSql(claim: string | readonly string[]): string {
-  const paths = typeof claim === "string" ? [claim] : claim;
-  const expressions = paths.map((path) => {
-    const keys = path.split(".");
-    const last = keys.pop()!;
-    return `(select auth.jwt())${keys.map((key) => ` -> ${sqlString(key)}`).join("")} ->> ${sqlString(last)}`;
-  });
-  return expressions.length === 1
-    ? expressions[0]!
-    : `coalesce(${expressions.join(", ")})`;
 }
 
 async function validate(

@@ -7,6 +7,7 @@ import type { EveSessionAuth, EveSessionContext } from "./types.ts";
 
 import { isRecord } from "../core/block-helpers.ts";
 import { type DbError, DbException } from "../core/errors.ts";
+import { importOptionalPeer } from "../core/optional-peer.ts";
 import { stableUuid } from "./ids.ts";
 
 export { EveAuthRejection, principalOf, supabaseAuth } from "./auth.ts";
@@ -219,14 +220,7 @@ const isToolsModule = (value: unknown): value is EveToolsModule =>
  * Loads `eve/tools` when the provider first builds its tools. The specifier
  * is a variable so bundlers leave the optional peer out.
  */
-async function loadTools(): Promise<unknown> {
-  const specifier = "eve/tools";
-  try {
-    return await import(specifier);
-  } catch {
-    return undefined;
-  }
-}
+const loadTools = (): Promise<unknown> => importOptionalPeer("eve/tools");
 
 const isRecallResult = (value: unknown): value is EveRecallResult =>
   isRecord(value) &&

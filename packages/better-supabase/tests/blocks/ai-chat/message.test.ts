@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   AI_MESSAGE_PART_TYPES,
+  type AiMessagePartType,
   AI_MESSAGE_SCHEMA_ID,
   aiMessageSchema,
   isAiMessage,
@@ -15,6 +16,9 @@ describe("aiMessageSchema", () => {
     expect(AI_MESSAGE_SCHEMA_ID).toBe(
       "https://unpkg.com/better-supabase/schemas/ai-message-v1.json",
     );
+    expectTypeOf<AiMessagePartType>().toEqualTypeOf<
+      (typeof AI_MESSAGE_PART_TYPES)[number]
+    >();
     expect(AI_MESSAGE_PART_TYPES).toHaveLength(9);
     expect(aiMessageSchema["~standard"]).toMatchObject({
       version: 1,

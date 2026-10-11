@@ -35,7 +35,7 @@ export {
 // Kept external by tsdown so it stays a `'use client'` module: a Server
 // Component layout can render it and pass the session promise across.
 export { SessionProvider } from "./session.js";
-export { fieldErrorsOf } from "./field-errors.ts";
+export { fieldErrorsOf } from "../bindings/field-errors.ts";
 export { escapeLike } from "../ir/escape-like.ts";
 export { tenantOf } from "../auth/tenant.ts";
 export type {

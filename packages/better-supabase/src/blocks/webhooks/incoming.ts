@@ -4,9 +4,15 @@ import type { SqlClient } from "../../postgres/executor.ts";
 import { dbError, mapDbError } from "../../core/errors.ts";
 import {
   type BlockProblemOptions,
+  methodNotAllowed,
   problemResponse,
 } from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
+import {
+  hmacHex,
+  timingSafeEqual,
+  verifyWebhook,
+} from "../../core/signatures.ts";
 import { fromPgError } from "../../postgres/executor.ts";
 import {
   isRecord,
@@ -16,7 +22,6 @@ import {
   type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
-import { timingSafeEqual, verifyWebhook } from "./verify.ts";
 
 // ---------------------------------------------------------------------------
 // Incoming webhook endpoints (SQL module `webhooks-in`)
@@ -182,22 +187,6 @@ function verifyOf(value: unknown): IncomingVerify {
   return mode;
 }
 
-const encoder = /* @__PURE__ */ new TextEncoder();
-
-async function hmacHex(secret: string, body: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const mac = new Uint8Array(
-    await crypto.subtle.sign("HMAC", key, encoder.encode(body)),
-  );
-  return Array.from(mac, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 function asDbError(cause: unknown): DbError {
   const raw = fromPgError(cause);
   return raw ? mapDbError(raw) : toDbError(cause);
@@ -240,7 +229,7 @@ export function createIncomingWebhooks(
     async receive(request, token) {
       const instance = new URL(request.url).pathname;
       if (request.method !== "POST") {
-        return new Response(null, { status: 405, headers: { allow: "POST" } });
+        return methodNotAllowed(["POST"]);
       }
       const problem = (error: DbError, endpoint?: string) =>
         (endpoint === undefined

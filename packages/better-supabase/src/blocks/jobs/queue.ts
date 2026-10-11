@@ -20,6 +20,7 @@ import {
   type Result,
   toDbError,
 } from "../../core/result.ts";
+import { verifySharedSecret } from "../../core/signatures.ts";
 import { validate } from "../../core/standard.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { nowInstant } from "../../core/temporal.ts";
@@ -33,7 +34,6 @@ import {
   type CursorPageOptions,
   pageOf,
 } from "../shared.ts";
-import { verifySharedSecret } from "../webhooks/verify.ts";
 import {
   millis,
   type QueueBackend,

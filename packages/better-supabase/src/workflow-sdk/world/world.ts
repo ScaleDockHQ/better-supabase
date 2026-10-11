@@ -13,6 +13,8 @@ import { createWorld as createPostgresWorld } from "@workflow/world-postgres";
 import { Pool } from "pg";
 
 import { dbError } from "../../core/errors.ts";
+import { hmacHex, timingSafeEqual } from "../../core/hmac.ts";
+import { memoized } from "../../core/optional-peer.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { WORLD_POSTGRES_VERSION } from "../../sql/modules/workflow-sdk-world-ddl.generated.ts";
@@ -192,31 +194,6 @@ export async function deriveRunKey(
   return new Uint8Array(bits);
 }
 
-async function hmacHex(secret: string, message: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(message),
-  );
-  return Buffer.from(signature).toString("hex");
-}
-
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let index = 0; index < a.length; index += 1) {
-    diff |= (a.codePointAt(index) ?? 0) ^ (b.codePointAt(index) ?? 0);
-  }
-  return diff === 0;
-}
-
 /** `t=<unix>,v1=<hex>` over `<t>.<job>.<body>`. */
 export async function signDelivery(
   secret: string,
@@ -249,17 +226,7 @@ export async function verifyDelivery(
   if (Math.abs(now / 1000 - Number(t)) > SIGNATURE_TOLERANCE_SECONDS) {
     return false;
   }
-  return constantTimeEqual(await hmacHex(secret, `${t}.${job}.${body}`), v1);
-}
-
-/** `load` once; a rejection is not kept, so the next call reads again. */
-function memoized<T>(load: () => Promise<T>): () => Promise<T> {
-  let promise: Promise<T> | undefined;
-  return () =>
-    (promise ??= load().catch((cause: unknown) => {
-      promise = undefined;
-      throw cause;
-    }));
+  return timingSafeEqual(await hmacHex(secret, `${t}.${job}.${body}`), v1);
 }
 
 /** Unsigned poll deliveries are accepted only when `NODE_ENV` is `development` or `test`. */

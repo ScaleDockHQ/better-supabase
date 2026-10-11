@@ -1,6 +1,6 @@
 import type { AuditColumns, AuditDetails, AuditRecord } from "./client.ts";
 
-import { toCsv } from "../csv.ts";
+import { toCsv } from "../../core/csv.ts";
 
 /** A CSV export column: a key, or a key and the header to write for it. */
 export type AuditCsvColumn =

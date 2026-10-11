@@ -7,6 +7,7 @@ import {
   problemResponse,
 } from "../../core/problem.ts";
 import { type AsyncResult, ok, type Result } from "../../core/result.ts";
+import { verifyWebhook } from "../../core/signatures.ts";
 import {
   errorText,
   readBodyCapped,
@@ -17,7 +18,6 @@ import {
   type BlockTemporalOptions,
   applyTemporal,
 } from "../shared.ts";
-import { verifyWebhook } from "../webhooks/verify.ts";
 
 // ---------------------------------------------------------------------------
 // Idempotency keys (SQL module `idempotency`)

@@ -16,6 +16,7 @@ import type {
 import type { LiveCountSeed } from "../../src/realtime/live.ts";
 import type { SchemaMeta } from "../../src/schema/types.ts";
 
+import { fieldErrorsOf } from "../../src/bindings/field-errors.ts";
 import {
   useAiChats,
   useAiChatTree,
@@ -45,7 +46,6 @@ import {
   useWatch,
 } from "../../src/powersync/react/index.ts";
 import { useAction, useActionForm } from "../../src/react/actions.ts";
-import { fieldErrorsOf } from "../../src/react/field-errors.ts";
 import {
   BetterSupabaseProvider,
   type ClientLike,

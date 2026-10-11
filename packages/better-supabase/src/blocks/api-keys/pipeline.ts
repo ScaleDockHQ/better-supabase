@@ -11,13 +11,13 @@ import type { AuthState } from "../../auth/resolve.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { ApiKeyResolverOptions } from "./api-keys.ts";
 
-import { dbError } from "../../core/errors.ts";
-import { problemResponse } from "../../core/problem.ts";
 import {
   withAuthMode,
   withJwtClaims,
   withUserClaims,
-} from "../../server/entries/claims.ts";
+} from "../../auth/claims.ts";
+import { dbError } from "../../core/errors.ts";
+import { problemResponse } from "../../core/problem.ts";
 import { apiKeyResolver } from "./api-keys.ts";
 
 export interface WithApiKeyOptions

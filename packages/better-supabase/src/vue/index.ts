@@ -85,7 +85,7 @@ export type {
 export type { AuthSnapshot } from "../client/index.ts";
 export type { AuthSession } from "../auth/view.ts";
 export type { SupportView } from "../auth/support-view.ts";
-export { fieldErrorsOf } from "../react/field-errors.ts";
+export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
 interface Context {
   readonly client: ClientLike;

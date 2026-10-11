@@ -17,6 +17,7 @@ import {
 import {
   slug,
   sqlIdent,
+  claimSql,
   sqlString,
   type TemplateParams,
   type TemplateValues,
@@ -447,18 +448,6 @@ export function parseSize(value: string | number): number {
   if (!match || unit === undefined)
     throw new TypeError(`Invalid size "${value}"`);
   return Math.round(Number(match[1]) * unit);
-}
-
-function claimSql(claim: string | readonly string[]): string {
-  const paths = typeof claim === "string" ? [claim] : claim;
-  const expressions = paths.map((path) => {
-    const keys = path.split(".");
-    const last = keys.pop()!;
-    return `(select auth.jwt())${keys.map((key) => ` -> ${sqlString(key)}`).join("")} ->> ${sqlString(last)}`;
-  });
-  return expressions.length === 1
-    ? expressions[0]!
-    : `coalesce(${expressions.join(", ")})`;
 }
 
 /**

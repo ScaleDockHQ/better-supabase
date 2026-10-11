@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { BetterPostgres, SqlClaims } from "../../../src/postgres/pool.ts";
 
+import { authModeOf } from "../../../src/auth/claims.ts";
 import {
   readSession,
   sessionCookieName,
@@ -13,7 +14,6 @@ import {
 import { defineSupabase } from "../../../src/core/define.ts";
 import { postgresExecutor } from "../../../src/postgres/executor.ts";
 import { withBetterSupabase } from "../../../src/server/composite.ts";
-import { authModeOf } from "../../../src/server/entries/claims.ts";
 import { serverCore } from "../../../src/server/entries/core.ts";
 import { PRIMARY_COOKIE } from "../../../src/server/replicas.ts";
 import { createServer } from "../../../src/server/server.ts";

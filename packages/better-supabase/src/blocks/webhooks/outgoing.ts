@@ -13,6 +13,7 @@ import { rawError } from "../../core/block-transport.ts";
 import { dbError, mapDbError } from "../../core/errors.ts";
 import {
   type BlockProblemOptions,
+  methodNotAllowed,
   problemResponse,
 } from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
@@ -503,10 +504,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       return async (request) => {
         const instance = new URL(request.url).pathname;
         if (request.method !== "GET" && request.method !== "POST")
-          return new Response(null, {
-            status: 405,
-            headers: { allow: "GET, POST" },
-          });
+          return methodNotAllowed(["GET", "POST"]);
         if (!verifySharedSecret(request, secret))
           return problemResponse(
             dbError(

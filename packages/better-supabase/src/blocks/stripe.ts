@@ -1,3 +1,5 @@
+import { importOptionalPeer } from "../core/optional-peer.ts";
+
 /**
  * The part of the Stripe SDK (`stripe`, an optional peer) the billing and
  * usage blocks call, typed structurally so the blocks never import it.
@@ -146,14 +148,7 @@ const isModule = (value: unknown): value is StripeModule =>
  * the optional peer out of apps that pass their own client; a missing
  * install returns `undefined` and the caller explains how to add it.
  */
-async function loadStripeModule(): Promise<unknown> {
-  const specifier = "stripe";
-  try {
-    return await import(specifier);
-  } catch {
-    return undefined;
-  }
-}
+const loadStripeModule = (): Promise<unknown> => importOptionalPeer("stripe");
 
 /**
  * The client `source` names: itself, or one created with Stripe's fetch HTTP
