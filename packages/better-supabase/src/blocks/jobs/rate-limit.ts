@@ -92,7 +92,7 @@ type Hit = (
   scope: string,
   key: string,
   max: number | null,
-  period: string | null,
+  period: string | null | null,
 ) => AsyncResult<RateLimitDecision>;
 
 const overTransport =
