@@ -6,6 +6,7 @@ const docsOrigin = env.DOCS_ORIGIN;
 
 const docsPaths = [
   "/docs",
+  "/docs.md",
   "/docs/:path*",
   "/api/search",
   "/llms.txt",

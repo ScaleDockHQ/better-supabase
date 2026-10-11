@@ -33,6 +33,12 @@
       }
     },
     {
+      "source": "/docs.md",
+      "destination": {
+        "service": "docs"
+      }
+    },
+    {
       "source": "/docs/(.*)",
       "destination": {
         "service": "docs"

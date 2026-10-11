@@ -4,8 +4,10 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { DocsArticle, DocsArticleSkeleton } from "@/components/docs-article";
+import { assertSameSlugs } from "@/lib/page-slugs";
+import pageSlugs from "@/lib/page-slugs.json" with { type: "json" };
 import { siteUrl } from "@/lib/site-url";
-import { getPageImage, source } from "@/lib/source";
+import { getPageImage, getPagePublicMarkdownUrl, source } from "@/lib/source";
 
 type DocsPageProps = {
   params: Promise<{ slug?: string[] }>;
@@ -21,6 +23,10 @@ export default function Page({ params }: DocsPageProps) {
 }
 
 export function generateStaticParams() {
+  assertSameSlugs(
+    pageSlugs,
+    source.getPages().map((page) => page.slugs.join("/")),
+  );
   return source.generateParams();
 }
 
@@ -35,7 +41,10 @@ export async function generateMetadata(
   return {
     title: page.data.title,
     description: page.data.description,
-    alternates: { canonical: siteUrl(page.url) },
+    alternates: {
+      canonical: siteUrl(page.url),
+      types: { "text/markdown": siteUrl(getPagePublicMarkdownUrl(page)) },
+    },
     openGraph: { images: image },
     twitter: { card: "summary_large_image", images: image },
   };
