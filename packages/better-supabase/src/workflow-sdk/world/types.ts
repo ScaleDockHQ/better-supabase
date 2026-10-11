@@ -2,15 +2,12 @@ import type { Pool } from "pg";
 
 import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk-world.ts";
 
-import { WORLD_POSTGRES_VERSION } from "../../sql/modules/workflow-sdk-world-ddl.generated.ts";
-
 /**
  * The `@workflow/world` protocol this World speaks: the package version its
  * types and queue format come from. Its tables come from
  * `@workflow/world-postgres` at `WORLD_POSTGRES_VERSION`.
  */
 export const WORKFLOW_WORLD_PROTOCOL = "5.0.2";
-export { WORLD_POSTGRES_VERSION };
 
 export type { WorkflowDeliveryMode };
 

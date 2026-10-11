@@ -600,6 +600,7 @@
       "withBetterSupabase",
       "withBlock",
       "withDbStats",
+      "withFlush",
       "withGuard",
       "withServerTiming",
       "withSession",

@@ -1001,7 +1001,7 @@ function runSpec(
   return method(...args);
 }
 
-export function rpc(
+function rpc(
   meta: SchemaMeta,
   executor: Executor,
   errorMappers: readonly ErrorMapper[],

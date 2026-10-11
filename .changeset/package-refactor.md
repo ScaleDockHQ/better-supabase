@@ -12,3 +12,6 @@ A cleanup of shared code inside the package, with a few fixes.
 - Share one cron route guard (`core/cron-route`), one time budget (`budget`), one lease heartbeat, one `blockEmitter` and one `toBlockError` across the jobs, outbox, webhooks, notifications, organizations and billing blocks.
 - Split the jobs, billing, notifications, data-lifecycle and webhooks blocks into type, helper and per-factory files; the public subpaths are unchanged.
 - Split `server/resource`, `server/server`, `core/repository`, `core/define`, `next/create`, `testing/conformance`, `ai-sdk/mcp`, `ai-sdk/messages` and `workflow-sdk/world` into type, helper and per-kit files, and share one `isRecord` from `core/guards`.
+
+- Share the AI SDK HTTP helpers, add `withFlush` to flush events after a response, and run the React hooks on the same bindings as Vue, Solid and Svelte (`ClaimsOf` and `ProfileOf` now live in the bindings).
+- Build the MCP table tool schemas from the same page schemas as the OpenAPI document, so list pages describe their page counts, and share `integer` and `whereClause` between the Postgres and SQLite compilers.

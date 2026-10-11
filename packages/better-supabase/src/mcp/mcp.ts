@@ -44,6 +44,7 @@ import {
   settle,
 } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
+import { pageInputSchema, pageSchema } from "../spec/resource-schemas.ts";
 import {
   schemaTargetFor,
   type ToolSchemaTarget,
@@ -429,19 +430,6 @@ const ANNOTATIONS: { readonly [K in ResourceOperation]: ToolAnnotations } = {
   },
 };
 
-function pageSchema(max: number, cursor: boolean): Json {
-  return {
-    type: "object",
-    properties: {
-      ...(cursor
-        ? { after: { type: "string" } }
-        : { page: { type: "integer", minimum: 1, default: 1 } }),
-      size: { type: "integer", minimum: 1, maximum: max, default: 50 },
-    },
-    additionalProperties: false,
-  };
-}
-
 function tableTools(
   resource: ResourceHandler<unknown>,
   defs: Readonly<Record<string, Json>>,
@@ -461,24 +449,7 @@ function tableTools(
     additionalProperties: false,
   });
   const cursor = resource.pagination === "cursor";
-  const page: Json = cursor
-    ? {
-        type: "object",
-        properties: {
-          items: { type: "array", items: row },
-          nextCursor: { type: ["string", "null"] },
-          hasMore: { type: "boolean" },
-        },
-        required: ["items", "nextCursor", "hasMore"],
-      }
-    : {
-        type: "object",
-        properties: {
-          items: { type: "array", items: row },
-          page: { type: "object" },
-        },
-        required: ["items", "page"],
-      };
+  const page: Json = pageSchema(row, cursor);
   const tools: { info: ToolInfo; operation: ResourceOperation }[] = [];
   const add = (
     operation: ResourceOperation,
@@ -503,7 +474,10 @@ function tableTools(
       case "list": {
         // SAFETY: list schemas are JSON Schema objects.
         const { $schema: _, ...listSchema } = (resource.list?.jsonSchema ??
-          pageSchema(resource.maxPageSize, cursor)) as Record<string, unknown>;
+          pageInputSchema(cursor, resource.maxPageSize)) as Record<
+          string,
+          unknown
+        >;
         add(
           "list",
           `List ${table} rows visible to the caller, one page at a time.`,

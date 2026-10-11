@@ -65,7 +65,7 @@ export interface ConnectedTools {
   close(): Promise<void>;
 }
 
-export const forbidden = (message: string, hint: string): DbError =>
+const forbidden = (message: string, hint: string): DbError =>
   dbError("forbidden", message, { hint });
 
 async function authOf(options: ConnectToolsOptions): Promise<

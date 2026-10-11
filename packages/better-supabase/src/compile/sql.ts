@@ -14,6 +14,7 @@ import { MAX_AFFECTED_MARKER } from "../core/errors.ts";
 import { invalidRequest } from "../ir/build.ts";
 import { simplifyOrFalse } from "../ir/simplify.ts";
 import { lookupOf } from "../schema/lookup.ts";
+import { integer, whereClause } from "./shared.ts";
 
 export interface SqlQuery {
   readonly text: string;
@@ -383,17 +384,6 @@ class SqlCompiler {
     const inner = `select ${row} as r, ${rank} as o ${from}${order ? ` order by ${order}` : ""}${limit}`;
     return `(select coalesce(json_agg(s.r order by s.o), '[]'::json) from (${inner}) as s)`;
   }
-}
-
-function integer(value: number): number {
-  if (!Number.isInteger(value) || value < 0)
-    invalidRequest(`Expected a non-negative integer, got ${value}`);
-  return value;
-}
-
-function whereClause(parts: readonly (string | undefined)[]): string {
-  const present = parts.filter((part): part is string => part !== undefined);
-  return present.length > 0 ? ` where ${present.join(" and ")}` : "";
 }
 
 function insertColumns(op: InsertOp): string[] {
