@@ -6,6 +6,7 @@ import {
   guardedLocals,
   routeRefusal,
 } from "../../src/server/refusal.ts";
+import { staticAuthorizer } from "../../src/testing/authorizer.ts";
 import { authAs } from "../fixtures/test-server.ts";
 
 const request = new Request("https://app.test/admin");
@@ -41,6 +42,28 @@ describe("routeRefusal", () => {
       requireTenant: true,
     });
     expect(forbidden?.status).toBe(403);
+  });
+
+  it("checks permission through the guard's authorizer, and refuses without one", async () => {
+    const auth = await authAs({ role: "admin" });
+    const authorizer = staticAuthorizer({
+      roles: { authenticated: ["reports:read"] },
+    });
+    expect(
+      await routeRefusal({ bs: { auth } }, request, {
+        permission: "reports:read",
+        authorizer,
+      }),
+    ).toBeUndefined();
+    const denied = await routeRefusal({ bs: { auth } }, request, {
+      permission: "reports:write",
+      authorizer,
+    });
+    expect(denied?.status).toBe(403);
+    const missing = await routeRefusal({ bs: { auth } }, request, {
+      permission: "reports:read",
+    });
+    expect(missing?.status).toBe(403);
   });
 });
 
