@@ -577,6 +577,26 @@
       "types": "./dist/openapi/index.d.ts",
       "default": "./dist/openapi/index.js"
     },
+    "./spec": {
+      "@better-supabase/source": "./src/spec/index.ts",
+      "types": "./dist/spec/index.d.ts",
+      "default": "./dist/spec/index.js"
+    },
+    "./overlay": {
+      "@better-supabase/source": "./src/overlay/index.ts",
+      "types": "./dist/overlay/index.d.ts",
+      "default": "./dist/overlay/index.js"
+    },
+    "./asyncapi": {
+      "@better-supabase/source": "./src/asyncapi/index.ts",
+      "types": "./dist/asyncapi/index.d.ts",
+      "default": "./dist/asyncapi/index.js"
+    },
+    "./arazzo": {
+      "@better-supabase/source": "./src/arazzo/index.ts",
+      "types": "./dist/arazzo/index.d.ts",
+      "default": "./dist/arazzo/index.js"
+    },
     "./otel": {
       "@better-supabase/source": "./src/otel/index.ts",
       "types": "./dist/otel/index.d.ts",
@@ -1083,6 +1103,22 @@
         "types": "./dist/openapi/index.d.ts",
         "default": "./dist/openapi/index.js"
       },
+      "./spec": {
+        "types": "./dist/spec/index.d.ts",
+        "default": "./dist/spec/index.js"
+      },
+      "./overlay": {
+        "types": "./dist/overlay/index.d.ts",
+        "default": "./dist/overlay/index.js"
+      },
+      "./asyncapi": {
+        "types": "./dist/asyncapi/index.d.ts",
+        "default": "./dist/asyncapi/index.js"
+      },
+      "./arazzo": {
+        "types": "./dist/arazzo/index.d.ts",
+        "default": "./dist/arazzo/index.js"
+      },
       "./otel": {
         "types": "./dist/otel/index.d.ts",
         "default": "./dist/otel/index.js"
@@ -1146,7 +1182,7 @@
     "provenance": true
   },
   "scripts": {
-    "bench": "node tests/next/next.bench.ts && node tests/core/plugins.bench.ts && node tests/core/compile.bench.ts && node tests/server/context.bench.ts",
+    "bench": "node tests/next/next.bench.ts && node tests/core/plugins.bench.ts && node tests/core/compile.bench.ts && node tests/server/context.bench.ts && node tests/cli/spec/spec.bench.ts",
     "build": "tsdown",
     "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
@@ -1214,6 +1250,7 @@
     "expo-server": "catalog:",
     "fastest-levenshtein": "catalog:",
     "hono": "catalog:",
+    "jsonpath-rfc9535": "catalog:",
     "next": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
@@ -1236,6 +1273,7 @@
     "vitest": "catalog:",
     "vue": "catalog:",
     "workflow": "catalog:",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "peerDependencies": {
@@ -1262,6 +1300,7 @@
     "eve": "catalog:peers",
     "expo-server": "catalog:peers",
     "hono": "catalog:peers",
+    "jsonpath-rfc9535": "catalog:peers",
     "next": "catalog:peers",
     "oxfmt": "catalog:peers",
     "pg": "catalog:peers",
@@ -1339,6 +1378,9 @@
       "optional": true
     },
     "hono": {
+      "optional": true
+    },
+    "jsonpath-rfc9535": {
       "optional": true
     },
     "next": {

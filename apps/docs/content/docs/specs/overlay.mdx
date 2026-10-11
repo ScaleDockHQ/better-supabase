@@ -1,0 +1,180 @@
+---
+title: Overlays
+description: Apply OpenAPI Overlay 1.0, 1.1 and 1.2 documents to a rendered spec with better-supabase/overlay, write overlays in TypeScript, and export your changes as one.
+---
+
+An [Overlay](https://spec.openapis.org/overlay/latest.html) is a list of
+actions, each a JSONPath `target` plus an `update`, a `remove` or (from 1.1)
+a `copy`. Use one for changes another team or tool owns, such as a public
+variant of an internal API. Changes that belong to every version of your own
+API fit better in [`extend` or `enrich`](/docs/specs/customize).
+
+`better-supabase/overlay` reads Overlay 1.0, 1.1 and 1.2. Targets are RFC
+9535 JSONPath queries, run by the optional peer `jsonpath-rfc9535`:
+
+```bash
+pnpm add jsonpath-rfc9535
+```
+
+## Apply an overlay
+
+```ts
+import { applyOverlay, loadJsonPath } from "better-supabase/overlay";
+
+const jsonpath = await loadJsonPath();
+const { document, diagnostics } = applyOverlay(openapi, overlay, { jsonpath });
+```
+
+`applyOverlay(document, overlay, { jsonpath, allowEmpty })` returns
+`{ document, diagnostics }`. It copies the document once and never changes
+the input. Actions run in order, each on the result of the one before:
+
+- `update` merges into objects, appends to arrays (an array value is
+  concatenated), and replaces other values.
+- `remove: true` deletes every selected node, and wins over `update` and
+  `copy`. Removing the document root is invalid.
+- `copy` (1.1 and later) is a JSONPath that must select exactly one node,
+  whose value is used like `update`.
+
+Problems never throw. They come back as diagnostics, with a JSON Pointer to
+the action (`/actions/2`), and you decide what fails a build.
+`applyOverlays(document, overlays, options)` applies several in order and
+prefixes each pointer with the overlay's index (`/1/actions/2`).
+
+`loadJsonPath()` imports `jsonpath-rfc9535` on first use and caches it.
+Without the package it rejects with the install command. Any RFC 9535
+engine fits instead: pass `{ paths(document, expression) }` that returns
+the normalized paths of the selected nodes and throws for an invalid query.
+
+## With defineApi
+
+`api.openapi({ overlays })` applies overlays after `transform` and before
+the final checks, so a broken reference an overlay leaves is reported. It
+needs the engine as `applyOverlays`, on the `defineApi` options or on the
+call; without one, passing `overlays` throws.
+
+```ts title="src/api/spec.ts"
+import { applyOverlays, loadJsonPath } from "better-supabase/overlay";
+import { defineApi } from "better-supabase/spec";
+
+const jsonpath = await loadJsonPath();
+
+export const api = defineApi(betterSupabase, {
+  info: { title: "CRM API", version: "1.0.0" },
+  resources: { customers: true },
+  applyOverlays: (document, overlays) =>
+    applyOverlays(document, overlays, { jsonpath }),
+});
+
+const { document } = api.openapi({ overlays: [publicOverlay] });
+```
+
+## Write an overlay in TypeScript
+
+`defineOverlay(input)` checks an overlay when you write it and types each
+action:
+
+```ts title="src/api/public.overlay.ts"
+import { defineOverlay } from "better-supabase/overlay";
+
+export const publicOverlay = defineOverlay({
+  info: { title: "Public API", version: "1.0.0" },
+  actions: [
+    {
+      target: "$.paths['/customers'].get",
+      update: { summary: "List customers" },
+    },
+    { target: "$.paths[?@['x-internal'] == true]", remove: true },
+  ],
+});
+```
+
+`overlay` defaults to `1.1.0`, or to `1.2.0` when the input uses
+`components`, `$self` or a `$ref` action. It throws for an overlay without
+actions, a 1.2 feature in an older version, `copy` in 1.0, a `$ref` to a
+reusable action that doesn't exist, and a `#` in `extends` or `$self`.
+
+## Reusable actions (1.2)
+
+Overlay 1.2 puts shared actions under `components.actions`, and an action
+refers to one with `$ref: "#/components/actions/<name>"`. The fields the
+reference sets override the shared ones.
+
+```ts
+defineOverlay({
+  info: { title: "Deprecations", version: "1.0.0" },
+  components: {
+    actions: {
+      deprecate: { fields: { update: { deprecated: true } } },
+    },
+  },
+  actions: [
+    {
+      target: "$.paths['/legacy'].get",
+      $ref: "#/components/actions/deprecate",
+    },
+  ],
+});
+```
+
+`expandReusableActions(overlay)` returns `{ overlay, diagnostics }`: an
+Overlay 1.1 document with every reference replaced by its fields, for tools
+that only read 1.1. It leaves out `$self` and `components`.
+
+## Targets that select nothing
+
+A target that selects nothing is usually a typo or a path that moved, so it
+is an `overlay-no-match` error. For an action that may legitimately select
+nothing, set the `x-better-supabase-allow-empty` extension on it, or pass
+`allowEmpty: true` to accept it for every action:
+
+```ts
+{
+  target: "$.paths['/beta'].get",
+  remove: true,
+  "x-better-supabase-allow-empty": true,
+}
+```
+
+## Export your changes as an overlay
+
+`overlayFromDiff(base, changed, options)` writes the difference between two
+documents as an Overlay, so a tool that doesn't run your code can reproduce
+what your hooks changed:
+
+```ts
+import { overlayFromDiff } from "better-supabase/overlay";
+
+const plain = createOpenApi(betterSupabase, { info, resources });
+const enriched = createOpenApi(betterSupabase, { info, resources, enrich });
+const overlay = overlayFromDiff(plain, enriched, {
+  info: { title: "CRM enrichments", version: "1.0.0" },
+});
+```
+
+Targets are normalized paths of object keys, such as
+`$['paths']['/customers']['get']`. A removed key becomes a `remove`, new keys become one
+`update` on their parent, and a changed value an `update` (in 1.0, a
+`remove` followed by an `update`). An array that only grew gets its new
+items appended; any other array change replaces the array. `version`
+defaults to `1.1.0`, `info` to `better-supabase changes` version `1.0.0`,
+and `extends` sets the target document's URI. It throws when either
+document isn't an object, or when they are equal.
+
+## Diagnostics
+
+| Code                          | Severity | When                                                                                                                                                                         |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `overlay-no-match`            | error    | A target selects nothing, without `x-better-supabase-allow-empty` or `allowEmpty`                                                                                            |
+| `overlay-invalid-target`      | error    | A target is not a valid JSONPath query                                                                                                                                       |
+| `overlay-invalid-action`      | error    | The overlay has no `actions` list, or an action is not an object, has no `target`, or removes the root; a warning for a reusable action that sets `target`, which is ignored |
+| `overlay-mixed-targets`       | error    | An update's target selects nodes of different kinds (objects and arrays, say)                                                                                                |
+| `overlay-merge-conflict`      | error    | The value doesn't fit a selected node: an array or primitive merged into an object, or an object or array in place of a primitive                                            |
+| `overlay-copy-source`         | error    | A `copy` source doesn't select exactly one node                                                                                                                              |
+| `overlay-ref-unresolved`      | error    | A `$ref` doesn't point under `#/components/actions/`, or names no reusable action                                                                                            |
+| `overlay-version-feature`     | error    | `copy` in a 1.0 overlay (the action is skipped); a warning for a 1.2 reusable action in a 1.0 or 1.1 overlay, which is still expanded                                        |
+| `overlay-version-unsupported` | error    | The `overlay` field is not a 1.0.x, 1.1.x or 1.2.x version                                                                                                                   |
+| `overlay-empty-action`        | warning  | An action has neither `update`, `remove` nor `copy`                                                                                                                          |
+
+The versions and the conformance tests are on the
+[standards page](/docs/standards).

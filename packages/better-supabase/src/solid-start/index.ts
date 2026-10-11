@@ -173,6 +173,7 @@ export function createSolidStart<
         scope.bs.auth,
         requireOptions,
         scope.tenant,
+        options.authorizer,
       );
       if ("kind" in caller) {
         // oxlint-disable-next-line typescript/only-throw-error -- SolidStart sends a thrown Response from a server function as the answer.
@@ -194,6 +195,7 @@ export function createSolidStart<
           // action has no schema; requireTenant refused a missing tenant.
           (parsed, caller) =>
             fn(parsed as never, { ...scope, ...caller } as never),
+          options.authorizer,
         );
         // SAFETY: the settled data is what fn returned, unwrapped.
         return result as never;

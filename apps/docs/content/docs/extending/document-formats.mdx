@@ -1,0 +1,209 @@
+---
+title: Document formats
+description: Render the API model to a standard better-supabase does not ship, such as a Postman collection or a GraphQL schema, with defineDocumentFormat and testDocumentFormat.
+---
+
+OpenAPI, AsyncAPI and Arazzo are document formats: each one lowers the
+version-neutral API model that `defineApi` builds to the documents of a
+standard. The same contract is public, so a package or an app can add a
+format of its own and render it next to the built-in ones, with the same
+`transform`, overlays, diagnostics and CLI.
+
+## The contract
+
+```ts
+interface DocumentFormat<Id extends string, V extends string, Doc> {
+  apiVersion: 1;
+  id: Id;
+  // Each version with the exact version or commit it follows.
+  versions: Record<V, { pin: string; status: "stable" | "legacy" | "preview" }>;
+  defaultVersion: V;
+  // Pure: reads the model and returns a new document.
+  lower(model: ApiModel, version: V, ctx: LowerContext): Doc;
+  // Checks a schema cannot express (unique ids, resolvable references).
+  lint?(doc: Doc, version: V): readonly SpecDiagnostic[];
+  fileName(version: V): string;
+}
+```
+
+- `lower` never changes the model. One model renders every format and
+  version, and better-supabase caches each lowered document.
+- Report what a version cannot hold with `ctx.report` and keep going. A
+  diagnostic has a stable kebab-case `code`, a `severity` (`error`,
+  `warning` or `info`), a `message` and, when there is one, a JSON Pointer.
+- A `preview` version follows a draft. It can never be the default, and
+  every render of it reports a `preview-version` warning.
+
+`defineDocumentFormat` fixes `apiVersion`, infers the versions and checks that
+the default version exists and is not a preview.
+
+## Example: a Postman collection
+
+A JSON format with one version. Each operation becomes a request; the base
+URL is a collection variable, so the same collection works against every
+environment.
+
+```ts title="src/lib/formats/postman.ts"
+import type { ApiModel } from "better-supabase/spec";
+import { defineDocumentFormat } from "better-supabase/spec";
+
+const SCHEMA =
+  "https://schema.getpostman.com/json/collection/v2.1.0/collection.json";
+
+export const postmanFormat = defineDocumentFormat({
+  id: "postman",
+  versions: { "2.1": { pin: "2.1.0", status: "stable" } },
+  defaultVersion: "2.1",
+  lower(model: ApiModel, _version, ctx) {
+    if (model.servers.length === 0)
+      ctx.report({
+        code: "postman-server-missing",
+        severity: "info",
+        message: "The API lists no server; set the baseUrl variable by hand",
+        pointer: "/variable/0",
+      });
+    return {
+      info: { name: model.info.title, schema: SCHEMA },
+      variable: [{ key: "baseUrl", value: model.servers[0]?.url ?? "" }],
+      item: model.operations.map((operation) => ({
+        name: operation.summary ?? operation.id,
+        request: {
+          method: operation.method.toUpperCase(),
+          url: {
+            raw: `{{baseUrl}}${operation.path.replaceAll(/\{(\w+)\}/g, ":$1")}`,
+            host: ["{{baseUrl}}"],
+            path: operation.path
+              .split("/")
+              .filter(Boolean)
+              .map((part) => part.replace(/^\{(\w+)\}$/, ":$1")),
+          },
+        },
+      })),
+    };
+  },
+  fileName: () => "postman.json",
+});
+```
+
+## Example: a GraphQL schema
+
+A text format. `lower` returns a string, and `lint` checks the output. Object
+schemas become types; a property type the mapping does not know is reported
+and left out instead of guessed.
+
+```ts title="src/lib/formats/graphql.ts"
+import type { ApiModel } from "better-supabase/spec";
+import { defineDocumentFormat } from "better-supabase/spec";
+
+const SCALARS: Record<string, string> = {
+  string: "String",
+  integer: "Int",
+  number: "Float",
+  boolean: "Boolean",
+};
+
+export const graphqlFormat = defineDocumentFormat({
+  id: "graphql-sdl",
+  versions: { "2021": { pin: "October 2021", status: "stable" } },
+  defaultVersion: "2021",
+  lower(model: ApiModel, _version, ctx) {
+    const types: string[] = [];
+    for (const [name, schema] of Object.entries(model.schemas)) {
+      if (!name.endsWith("Row") || typeof schema.properties !== "object")
+        continue;
+      const fields: string[] = [];
+      for (const [field, property] of Object.entries(schema.properties)) {
+        const kinds: string[] = [property.type].flat();
+        const kind = kinds.find((type) => type !== "null");
+        const scalar = kind === undefined ? undefined : SCALARS[kind];
+        if (!scalar) {
+          ctx.report({
+            code: "graphql-type-unsupported",
+            severity: "warning",
+            message: `${name}.${field} has no GraphQL scalar; it is left out`,
+            pointer: `/components/schemas/${name}/properties/${field}`,
+          });
+          continue;
+        }
+        fields.push(
+          `  ${field}: ${scalar}${kinds.includes("null") ? "" : "!"}`,
+        );
+      }
+      types.push(`type ${name.slice(0, -3)} {\n${fields.join("\n")}\n}`);
+    }
+    return `${types.join("\n\n")}\n`;
+  },
+  lint(document) {
+    return document.includes("type ")
+      ? []
+      : [
+          {
+            code: "graphql-schema-empty",
+            severity: "warning",
+            message: "The schema defines no type",
+          },
+        ];
+  },
+  fileName: () => "schema.graphql",
+});
+```
+
+## Rendering a format
+
+Render it from the API like a built-in format. `transform` and overlays work
+the same way; overlays need a JSON document.
+
+```ts title="src/lib/api.ts"
+const { document, diagnostics, fileName } = api.render(postmanFormat);
+```
+
+The `better-supabase spec` command picks formats up from the entry file:
+export them as `formats` next to `api`, then select one with
+`--format postman`.
+
+```ts title="src/lib/spec.ts"
+export { api } from "./api";
+export const formats = [postmanFormat, graphqlFormat];
+```
+
+## Testing a format
+
+`testDocumentFormat` from `better-supabase/testing` checks the contract like
+the other [conformance kits](/docs/extending/conformance): it resolves to a
+report when every check passes and rejects with a `ConformanceError` that
+lists every failed check otherwise. It lowers every version (or the ones you
+pass) of a sample model that has routes, a stream, a webhook, a Realtime
+channel, a workflow and bearer security, or of the model you pass.
+
+```ts title="src/lib/formats/postman.test.ts"
+import { testDocumentFormat } from "better-supabase/testing";
+import { it } from "vitest";
+import { api } from "../api";
+import { postmanFormat } from "./postman";
+
+it("implements DocumentFormat v1", async () => {
+  await testDocumentFormat(postmanFormat);
+});
+
+it("renders the app's own model", async () => {
+  await testDocumentFormat(postmanFormat, {
+    model: api.model,
+    versions: ["2.1"],
+  });
+});
+```
+
+The kit checks that the format:
+
+- targets API v1 with an id;
+- lists versions with a pin and a known status, and defaults to a listed
+  version that is not a preview;
+- lowers every version without changing the model, also when the model is
+  frozen;
+- renders the same document and diagnostics twice;
+- renders plain JSON or a string;
+- reports diagnostics with a kebab-case code, a known severity, a message
+  and a JSON Pointer;
+- finds no error with its own `lint` in a document whose lowering reported
+  none;
+- names a bare file for each version, the same on every call.

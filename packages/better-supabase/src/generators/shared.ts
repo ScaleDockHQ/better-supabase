@@ -187,16 +187,22 @@ export interface TableDocs {
 }
 
 const EXAMPLE = /^\s*@example\s+(.+?)\s*$/gm;
+const DEPRECATED = /^\s*@deprecated\b.*$/gm;
+const IS_DEPRECATED = /^\s*@deprecated\b/m;
 
 /**
  * Splits a comment into its description and `@example` lines. An example is
  * JSON (`@example 42`, `@example "KVK-1"`) or, when it doesn't parse, text.
+ * A `@deprecated` line (with or without text) sets `deprecated` and is left
+ * out of the description.
  */
 export function parseComment(comment: string | null): {
   readonly description?: string;
   readonly examples: readonly unknown[];
+  readonly deprecated?: true;
 } {
   if (!comment) return { examples: [] };
+  const deprecated = IS_DEPRECATED.test(comment);
   const examples = [...comment.matchAll(EXAMPLE)].map((match) => {
     const raw = match[1] ?? "";
     try {
@@ -206,8 +212,15 @@ export function parseComment(comment: string | null): {
       return raw;
     }
   });
-  const description = comment.replace(EXAMPLE, "").trim();
-  return description ? { description, examples } : { examples };
+  const description = comment
+    .replace(EXAMPLE, "")
+    .replace(DEPRECATED, "")
+    .trim();
+  return {
+    ...(description ? { description } : {}),
+    examples,
+    ...(deprecated ? { deprecated: true } : {}),
+  };
 }
 
 const COMPARISON =

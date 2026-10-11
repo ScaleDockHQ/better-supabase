@@ -13,9 +13,16 @@ export interface DbErrorKinds {
   /**
    * `required`: the assurance level the route needs, when a second factor is
    * missing. `scopes`: the OAuth scopes the route needs, when a delegated
-   * token lacks one (`INSUFFICIENT_SCOPE`).
+   * token lacks one (`INSUFFICIENT_SCOPE`). `permission`: the key an
+   * `Authorizer` denied. `approval`: the pending approval when the answer is
+   * `APPROVAL_REQUIRED`.
    */
-  forbidden: { required?: "aal1" | "aal2"; scopes?: readonly string[] };
+  forbidden: {
+    required?: "aal1" | "aal2";
+    scopes?: readonly string[];
+    permission?: string;
+    approval?: { readonly id: string };
+  };
   conflict: { constraint?: string; columns?: readonly string[] };
   foreign_key: { constraint?: string; columns?: readonly string[] };
   check: { constraint?: string };

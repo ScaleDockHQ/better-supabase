@@ -2,8 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import * as v from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
+import { authContext } from "../../src/auth/context.ts";
 import {
-  authContext,
   clientIp,
   resolveAuth,
   type ResolveAuthOptions,

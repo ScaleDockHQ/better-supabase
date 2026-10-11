@@ -5,7 +5,24 @@
 export const SPEC_PINS: {
   readonly otelSemconv: "1.37.0";
   readonly mcp: "2026-07-28";
-  readonly openapi: "3.1.1";
+  /** The default OpenAPI version `createOpenApi` emits. */
+  readonly openapi: "3.1.2";
+  readonly openapi30: "3.0.4";
+  readonly openapi31: "3.1.2";
+  readonly openapi32: "3.2.1";
+  /** `src/oas.md` on the `v3.3-dev` branch of OAI/OpenAPI-Specification. */
+  readonly openapi33Preview: "aa2f6c0";
+  /** OAI sig-security discussion #50, as of this date. */
+  readonly securityProfiles: "sig-security#50@2026-05-05";
+  readonly overlay10: "1.0.0";
+  readonly overlay11: "1.1.0";
+  readonly overlay12: "1.2.0";
+  readonly arazzo10: "1.0.1";
+  readonly arazzo11: "1.1.0";
+  readonly asyncapi30: "3.0.0";
+  readonly asyncapi31: "3.1.0";
+  /** OpenID AuthZEN Authorization API, the vocabulary of `Authorizer`. */
+  readonly authzen: "1.0";
   readonly cloudevents: "1.0.2";
   readonly standardWebhooks: "1.0.0";
   readonly sarif: "2.1.0";
@@ -24,7 +41,20 @@ export const SPEC_PINS: {
 } = {
   otelSemconv: "1.37.0",
   mcp: "2026-07-28",
-  openapi: "3.1.1",
+  openapi: "3.1.2",
+  openapi30: "3.0.4",
+  openapi31: "3.1.2",
+  openapi32: "3.2.1",
+  openapi33Preview: "aa2f6c0",
+  securityProfiles: "sig-security#50@2026-05-05",
+  overlay10: "1.0.0",
+  overlay11: "1.1.0",
+  overlay12: "1.2.0",
+  arazzo10: "1.0.1",
+  arazzo11: "1.1.0",
+  asyncapi30: "3.0.0",
+  asyncapi31: "3.1.0",
+  authzen: "1.0",
   cloudevents: "1.0.2",
   standardWebhooks: "1.0.0",
   sarif: "2.1.0",

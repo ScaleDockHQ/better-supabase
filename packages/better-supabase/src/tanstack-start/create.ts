@@ -137,6 +137,7 @@ export function createTanStackStart<
         scope.bs.auth,
         requireOptions,
         scope.tenant,
+        options.authorizer,
       );
       if ("kind" in caller) {
         const request = requests.get(scope) ?? new Request("http://localhost/");
@@ -159,6 +160,7 @@ export function createTanStackStart<
           // action has no schema; requireTenant refused a missing tenant.
           (parsed, caller) =>
             fn(parsed as never, { ...scope, ...caller } as never),
+          options.authorizer,
         );
         // SAFETY: the settled data is what fn returned, unwrapped.
         return result as never;

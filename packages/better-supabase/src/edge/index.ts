@@ -1,8 +1,9 @@
 import { withCors, type WithCorsConfig } from "@supabase/middleware/cors";
 
 import type { AuthSession } from "../auth/view.ts";
+import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
-import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
+import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type {
   BetterServer,
   ServerContext,
@@ -18,11 +19,7 @@ import { withBetterSupabase } from "../server/composite.ts";
 import { withExtra } from "../server/extra.ts";
 import { EVERY_CALLER } from "../server/framework.ts";
 import { type BlockRequireOptions, requireCaller } from "../server/kit.ts";
-import {
-  defineResource,
-  type ResourceHandler,
-  type ResourceRouteOptions,
-} from "../server/resource.ts";
+import { type ResourceMap, resourceRouter } from "../server/resources.ts";
 import {
   defaultExpose,
   type MiddlewareOptions,
@@ -34,7 +31,15 @@ import { compileRoutes, matchRoute, type RouteMatch } from "./routes.ts";
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export { toEdge } from "../bridges/edge.ts";
 export type { EdgeExecutionContext, EdgeHandler } from "../bridges/edge.ts";
-export type { ResourceRouteOptions } from "../server/resource.ts";
+export type {
+  ActionArgs,
+  ResourceAction,
+  ResourceContext,
+  ResourceHooks,
+  ResourceRouteOptions,
+} from "../server/resource.ts";
+export { defineAction } from "../server/resource.ts";
+export type { ResourceMap } from "../server/resources.ts";
 export type { BlockRequireOptions } from "../server/kit.ts";
 export { defineFunction } from "./function.ts";
 export type {
@@ -65,10 +70,6 @@ export interface EdgeOptions extends ServerOptions {
    */
   readonly waitUntil?: (promise: Promise<unknown>) => void;
 }
-
-export type ResourceMap<M extends AnyModels> = {
-  readonly [T in TableKey<M>]?: ResourceRouteOptions<M, T> | true;
-};
 
 export interface ResourcesOptions extends MiddlewareOptions {
   /** Path before the resources, e.g. `/api` (Supabase: `/<function-name>`). */
@@ -142,6 +143,7 @@ export interface BetterEdge<
   E,
   C = unknown,
   P = unknown,
+  Ref = string,
 > extends BetterServer<M, F, E, C, P> {
   /**
    * A fetch handler (`Deno.serve`, Workers `fetch`) running as the caller.
@@ -173,8 +175,15 @@ export interface BetterEdge<
     },
     options?: ResourcesOptions,
   ): EdgeHandler;
-  /** REST resources matching `createOpenApi`, e.g. `Deno.serve(bs.resources({ customers: true }))`. */
-  resources(map: ResourceMap<M>, options?: ResourcesOptions): EdgeHandler;
+  /**
+   * REST resources matching the API model, e.g.
+   * `Deno.serve(bs.resources({ customers: true }))`: collection, item and
+   * action paths. An unknown path answers 404 before auth resolves.
+   */
+  resources(
+    map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P>["db"]>,
+    options?: ResourcesOptions,
+  ): EdgeHandler;
 }
 
 export const SUPABASE_CORS_HEADERS: readonly string[] = [
@@ -207,10 +216,11 @@ export function createEdge<
   E,
   C = unknown,
   P = unknown,
+  A extends AnyAuthorizer | undefined = undefined,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P>,
-  options: EdgeOptions = {},
-): BetterEdge<M, F, E, C, P> {
+  options: EdgeOptions & { readonly authorizer?: A } = {},
+): BetterEdge<M, F, E, C, P, PermissionRef<A>> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const cors: CorsOptions | undefined =
@@ -266,7 +276,7 @@ export function createEdge<
     };
   };
 
-  return extendServer<BetterEdge<M, F, E, C, P>>(server, {
+  return extendServer<BetterEdge<M, F, E, C, P, PermissionRef<A>>>(server, {
     handler(fn, handlerOptions = {}) {
       return serve(fn, handlerOptions);
     },
@@ -329,6 +339,7 @@ export function createEdge<
             ctx.auth,
             { ...shared, ...route.options },
             tenant,
+            options.authorizer,
           );
           if ("kind" in caller) return err(caller);
           return route.handler(
@@ -351,71 +362,28 @@ export function createEdge<
     },
 
     resources(map, resourcesOptions = {}) {
-      const base = (resourcesOptions.basePath ?? "").replace(/\/$/, "");
-      const handlers = new Map<string, ResourceHandler>();
-      for (const [table, resource] of Object.entries(map)) {
-        if (!resource) continue;
-        // SAFETY: the resources option is keyed by table names of M, and a
-        // value that is not true is its options object.
-        handlers.set(
-          table,
-          defineResource(
-            betterSupabase,
-            table as TableKey<M>,
-            resource === true
-              ? {}
-              : (resource as ResourceRouteOptions<M, TableKey<M>>),
-          ),
-        );
-      }
-      interface Route {
-        readonly handler: ResourceHandler;
-        readonly id: string | undefined;
-        readonly instance: string;
-      }
-      // Matched from the URL on each call: the bridge buffers a request with a
-      // body into a new Request, so the early check and the handler see
-      // different objects.
-      const match = (request: Request): Route | Response => {
-        const { pathname } = new URL(request.url);
-        const rest = pathname.startsWith(`${base}/`)
-          ? pathname.slice(base.length + 1)
-          : undefined;
-        const [table, id, extra] = rest?.split("/") ?? [];
-        const handler = table ? handlers.get(table) : undefined;
-        if (
-          !handler ||
-          extra !== undefined ||
-          (id !== undefined && !handler.keyParam)
-        ) {
-          return problemResponse(
-            dbError("not_found", `No route for ${pathname}`),
-            { instance: pathname },
-          );
-        }
-        try {
-          const key =
-            id === undefined || id === "" ? undefined : decodeURIComponent(id);
-          return { handler, id: key, instance: pathname };
-        } catch {
-          return problemResponse(
-            dbError("invalid_input", `Malformed id in ${pathname}`),
-            { instance: pathname },
-          );
-        }
-      };
+      const { basePath, ...middlewareOptions } = resourcesOptions;
+      const router = resourceRouter(betterSupabase, map, {
+        ...(basePath === undefined ? {} : { basePath }),
+        ...(options.authorizer === undefined
+          ? {}
+          : { authorizer: options.authorizer }),
+      });
       return serve(
         (request, ctx) => {
-          const route = match(request);
+          // Matched again here: the bridge buffers a request with a body into
+          // a new Request, so the early check and the handler see different
+          // objects.
+          const route = router.match(request);
           if (route instanceof Response) return route;
-          return route.handler.handle(request, ctx.db, route.id, {
+          return route.handler.serve(request, ctx.db, route.segments, {
             instance: route.instance,
             expose,
           });
         },
-        resourcesOptions,
+        middlewareOptions,
         (request) => {
-          const route = match(request);
+          const route = router.match(request);
           return route instanceof Response ? route : undefined;
         },
       );

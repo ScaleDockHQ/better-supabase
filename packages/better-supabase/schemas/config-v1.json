@@ -1132,6 +1132,8 @@
     },
     "openapi": {
       "type": "object",
+      "deprecated": true,
+      "description": "Deprecated: use specs. openapi.entry and openapi.output map onto it.",
       "additionalProperties": false,
       "properties": {
         "entry": {
@@ -1141,6 +1143,59 @@
         "output": {
           "type": "string",
           "default": "openapi.json"
+        }
+      }
+    },
+    "specs": {
+      "type": "object",
+      "description": "The documents better-supabase spec emit writes (OpenAPI, AsyncAPI, Arazzo).",
+      "additionalProperties": false,
+      "properties": {
+        "entry": {
+          "type": "string",
+          "description": "Module exporting a defineApi() result (or a function returning one) as api or default. Defaults to openapi.entry.",
+          "default": "src/lib/openapi.ts"
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["format"],
+            "properties": {
+              "format": {
+                "type": "string",
+                "minLength": 1,
+                "description": "A format id: openapi, asyncapi or arazzo."
+              },
+              "version": {
+                "type": "string",
+                "description": "Defaults to the format's default version."
+              },
+              "output": {
+                "type": "string",
+                "description": "File to write, relative to the root. Defaults to the format's file name."
+              },
+              "overlays": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Overlay files (JSON or YAML), applied in order."
+              },
+              "serialize": {
+                "enum": ["json", "yaml"],
+                "description": "Defaults to yaml when output ends in .yaml or .yml, otherwise json."
+              },
+              "ui": {
+                "enum": ["scalar", "swagger", "redoc", "elements", "rapidoc"],
+                "description": "Also writes a reference page (openapi.html for openapi.json) next to OpenAPI outputs."
+              }
+            }
+          }
+        },
+        "failOn": {
+          "enum": ["error", "warning", "never"],
+          "default": "error",
+          "description": "The lowest severity that fails spec emit, check and validate."
         }
       }
     },

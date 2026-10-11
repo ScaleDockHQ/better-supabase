@@ -137,7 +137,9 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     notice), `stripe` through a variable specifier in
     `src/blocks/stripe.ts` (an install message, or pass a client),
     `redis` through a variable specifier in `src/streams/redis/redis.ts`
-    (an install message, or pass a client), `@vercel/connect` through a
+    (an install message, or pass a client), `jsonpath-rfc9535` through a
+    variable specifier in `src/overlay/load.ts` (an install message, or pass
+    an engine), `@vercel/connect` through a
     variable specifier in `src/vercel-connect/vercel-connect.ts` (an
     install message), `@supabase/mcp-server-supabase` through variable
     specifiers in `src/core/supabase-mcp.ts` (an install message),
@@ -152,8 +154,11 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     also loads on demand, each with a comment: the commands, config loading
     and env validation in `src/cli/run.ts`, `fastest-levenshtein` for the
     unknown-command suggestion in the same file, the prompts in
-    `src/cli/bin.ts`, and the arktype-backed typegen entries in
-    `src/cli/introspect/typegen.ts`.
+    `src/cli/bin.ts`, the arktype-backed typegen entries in
+    `src/cli/introspect/typegen.ts`, Ajv and the vendored official schemas
+    that only `spec validate` needs (`src/cli/spec/render.ts` and
+    `src/cli/spec/schemas.ts`), and `jsonpath-rfc9535` for spec overlay
+    files in `src/cli/spec/render.ts`.
 13. Supabase's splinter lints are never bundled or vendored. Doctor fetches
     them at the commit in `SPLINTER_COMMIT` and rejects them unless they
     match `SPLINTER_SHA256` (`src/cli/doctor/advisors.ts`).
@@ -306,6 +311,7 @@ standard or sets how the repo works.
 - 0014: `better-supabase/nestjs` loads `@nestjs/common` with a synchronous `createRequire`.
 - 0015: blocks extend through `fields` (extra columns typed by a Standard Schema), `hooks`, transport middleware and `extendBlock`.
 - 0016: `@supabase/postgrest-typegen` is a peer range; the default catalog and `TYPEGEN_VERSION` stay exact.
+- 0017: one `ApiModel` renders every OpenAPI, Overlay, Arazzo and AsyncAPI version and serves the routes; `3.3-preview` is opt-in.
 
 ## Pre-release pins
 

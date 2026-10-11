@@ -126,6 +126,15 @@
         "$TURBO_ROOT$/supabase/better-supabase-data/**"
       ]
     },
+    "spec:check": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/supabase/snapshot.json",
+        "$TURBO_ROOT$/supabase/schemas/**"
+      ],
+      "outputs": []
+    },
     "doctor": {
       "dependsOn": ["^build"],
       "inputs": [

@@ -277,7 +277,9 @@ The package has one entry per feature, so an app only loads what it imports. Eve
 | `better-supabase/lint`                                                                                                                     | Editor rules for unbounded reads and unscoped deletes                                |
 | `better-supabase/cli`                                                                                                                      | `run`, `registerCommand` and codegen for scripts that drive the CLI                  |
 | `better-supabase/testing`                                                                                                                  | `asUser`, `localAuth`, typed seeds and conformance kits                              |
-| `better-supabase/events`, `/openapi`, `/otel`                                                                                              | CloudEvents, OpenAPI 3.1 and OpenTelemetry                                           |
+| `better-supabase/events`, `/otel`                                                                                                          | CloudEvents and OpenTelemetry                                                        |
+| `better-supabase/spec`, `/openapi`, `/asyncapi`, `/arazzo`                                                                                 | One API model rendered as OpenAPI 3.0 to 3.2, AsyncAPI 3 and Arazzo 1 documents      |
+| `better-supabase/overlay`                                                                                                                  | Apply, define and diff OpenAPI Overlay 1.0 to 1.2 documents                          |
 
 ### Frontend and local data
 

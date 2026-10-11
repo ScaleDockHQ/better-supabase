@@ -24,6 +24,14 @@ describe("parseComment", () => {
     });
   });
 
+  it("maps a @deprecated line and leaves it out of the description", () => {
+    expect(parseComment("Old code.\n@deprecated use kvk\n@example 1")).toEqual({
+      description: "Old code.",
+      examples: [1],
+      deprecated: true,
+    });
+  });
+
   it("reads nothing from a missing comment", () => {
     expect(parseComment(null)).toEqual({ examples: [] });
   });

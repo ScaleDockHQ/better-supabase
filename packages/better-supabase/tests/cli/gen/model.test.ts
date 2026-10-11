@@ -426,3 +426,41 @@ describe('bucket policies with sql: "provider"', () => {
     );
   });
 });
+
+describe("buildModel comments", () => {
+  it("puts table and column comments in the meta, mapping @deprecated", async () => {
+    const built = await model((generator) => {
+      const tags = tableNamed(generator, "tags");
+      return {
+        tables: generator.tables.map((table) =>
+          table.id === tags.id
+            ? { ...table, comment: "Labels.\n@deprecated use labels" }
+            : table,
+        ),
+        columns: generator.columns.map((column) =>
+          column.table_id === tags.id && column.name === "name"
+            ? { ...column, comment: 'Shown name.\n@example "VIP"' }
+            : column,
+        ),
+      };
+    });
+    const tags = built.tables.find((table) => table.key === "tags")!.meta;
+    expect(tags.description).toBe("Labels.");
+    expect(tags.deprecated).toBe(true);
+    expect(tags.columns["name"]?.description).toBe("Shown name.");
+    expect(tags.columns["name"]?.deprecated).toBeUndefined();
+    expect(Object.keys(tags.columns["id"]!)).not.toContain("description");
+  });
+
+  it("adds no keys to the meta of tables without comments", async () => {
+    const built = await model(() => ({}));
+    const tags = built.tables.find((table) => table.key === "tags")!.meta;
+    expect(tags).not.toHaveProperty("description");
+    expect(tags).not.toHaveProperty("deprecated");
+    const customers = built.tables.find(
+      (table) => table.key === "customers",
+    )!.meta;
+    expect(customers.description).toBe("Companies the organization sells to.");
+    expect(customers.columns["name"]?.description).toBe("Trading name.");
+  });
+});

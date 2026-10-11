@@ -26,6 +26,35 @@ describe("configIssues", () => {
     ).toEqual([]);
   });
 
+  it("accepts specs outputs and rejects unknown levels and UIs", () => {
+    expect(
+      configIssues({
+        specs: {
+          entry: "src/lib/api.ts",
+          outputs: [
+            {
+              format: "openapi",
+              version: "3.0",
+              output: "legacy.yaml",
+              serialize: "yaml",
+            },
+            { format: "openapi", ui: "redoc", overlays: ["docs.yaml"] },
+          ],
+          failOn: "never",
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      configIssues({
+        specs: { outputs: [{ format: "", ui: "nope" }], failOn: "loud" },
+      }),
+    ).toEqual([
+      expect.stringMatching(/^specs\.outputs\.0\.format: /),
+      expect.stringMatching(/^specs\.outputs\.0\.ui: /),
+      expect.stringMatching(/^specs\.failOn: /),
+    ]);
+  });
+
   it("accepts the entitlements claim shape and vector search ordering", () => {
     expect(
       configIssues({

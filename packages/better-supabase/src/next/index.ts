@@ -11,6 +11,20 @@ export {
 } from "./create.ts";
 export { tagFor, type TagOptions } from "../core/tags.ts";
 export type {
+  NextResourceHandler,
+  NextResourceRoutes,
+  NextResourcesOptions,
+} from "./resources.ts";
+export type {
+  ActionArgs,
+  ResourceAction,
+  ResourceContext,
+  ResourceHooks,
+  ResourceRouteOptions,
+} from "../server/resource.ts";
+export { defineAction } from "../server/resource.ts";
+export type { ResourceMap } from "../server/resources.ts";
+export type {
   ActionOptions,
   ActionResult,
   AuthorizedContext,

@@ -1,0 +1,87 @@
+---
+title: AsyncAPI
+description: An AsyncAPI 3.0 or 3.1 document for Realtime table changes, broadcast topics, CloudEvents and webhooks, rendered from the same API model as OpenAPI.
+---
+
+`better-supabase/asyncapi` describes the events your app sends and receives:
+Realtime table change signals and broadcast topics on the Supabase Realtime
+websocket, CloudEvents for row and block events, outgoing webhooks, and the
+events HTTP operations emit. It reads the same API model as the
+[OpenAPI document](/docs/standards/openapi), so a topic's permission and a
+table's row schema are the same in both.
+
+```ts title="lib/asyncapi.ts"
+import { createAsyncApi } from "better-supabase/asyncapi";
+import { betterSupabase } from "./supabase";
+
+export const asyncapi = createAsyncApi(betterSupabase, {
+  info: { title: "CRM events", version: "1.0.0" },
+  realtimeUrl: "wss://example.supabase.co/realtime/v1/websocket",
+  events: {
+    tables: ["customers"],
+    topics: {
+      room: { template: "room:{id}", presence: true, events: { typing: true } },
+    },
+    cloudEvents: { source: "/crm", rows: ["customers"] },
+  },
+});
+```
+
+`createAsyncApi` throws when rendering finds an error. To read every finding
+instead, render the format from an API: `defineApi(...).render(asyncapiFormat)`.
+
+## Versions
+
+| Version | Pin                    | Status  |
+| ------- | ---------------------- | ------- |
+| `3.0`   | `SPEC_PINS.asyncapi30` | default |
+| `3.1`   | `SPEC_PINS.asyncapi31` | stable  |
+
+3.0 is the default because more tools read it. 3.1 only adds `ros2`
+bindings, which better-supabase does not use, so the two documents differ in
+the `asyncapi` field.
+
+## What's in the document
+
+- **Servers:** the Realtime websocket from `realtimeUrl`, with a `ws` binding
+  for the `apikey` query parameter Realtime reads on the upgrade, and the
+  `servers` option for the HTTP channels.
+- **Channels:** one per table change signal (`bs:t:<schema>.<table>`, with a
+  `tenant` or `userId` parameter when the table is scoped) and per broadcast
+  topic, with the topic template's parameters. Private topics, presence and
+  client broadcasts (`send: true`) show up as channel fields and
+  operations. CloudEvents and outgoing webhooks get one HTTP channel each.
+- **Messages:** a table change signal (`schema`, `table` and `operation`;
+  clients refetch the row through row-level security), one message per
+  broadcast event, CloudEvents for row and block events with their headers
+  as a shared `cloudEvent` message trait (see
+  [CloudEvents](/docs/standards/events)), and webhooks with the
+  [Standard Webhooks](/docs/standards/webhooks) headers.
+- **Operations:** `receive` for what clients hear and `send` for what they
+  may broadcast. Outgoing webhooks and events that HTTP operations emit are
+  operations too.
+
+[AsyncAPI](/docs/specs/asyncapi) in the API documents section has every
+option.
+
+## Schemas
+
+The AsyncAPI Schema Object is based on JSON Schema draft-07. A payload that
+uses a 2020-12 keyword (`$defs`, `prefixItems`, `unevaluatedProperties` and
+others) reports an `asyncapi-schema-dialect` warning, because tools may not
+read it.
+
+## Extensions
+
+Channels, messages and operations carry `x-better-supabase-table`,
+`x-better-supabase-event`, `x-better-supabase-private`,
+`x-better-supabase-permission`, `x-better-supabase-cloudevent-type`,
+`x-better-supabase-dataschema` and `x-better-supabase-operation`. Like the
+OpenAPI extensions, they document the model and follow `extensionPrefix`;
+nothing in better-supabase reads them back.
+
+## Conformance
+
+`asyncapi.test.ts` renders a document with table changes, a private topic
+with presence and client broadcasts, and CloudEvents, and validates it
+against the official AsyncAPI 3.0.0 and 3.1.0 schemas.

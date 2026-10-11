@@ -1,0 +1,247 @@
+---
+title: AsyncAPI
+description: Render an AsyncAPI 3.0 or 3.1 document for Realtime table changes, broadcast topics, CloudEvents, outgoing webhooks and the events actions emit, from the same model as OpenAPI.
+---
+
+`better-supabase/asyncapi` renders the events side of the model
+[`defineApi`](/docs/specs) builds: Realtime table change signals and
+broadcast topics on the Supabase Realtime websocket, CloudEvents for row and
+block events, outgoing webhooks, and the events HTTP actions emit. The
+document goes through the same pipeline as OpenAPI (`transform`,
+[overlays](/docs/specs/overlay) and the final checks), so a topic's
+permission and a table's row schema are the same in both documents.
+
+```ts title="src/api/asyncapi.ts"
+import { asyncapiFormat } from "better-supabase/asyncapi";
+import { defineApi } from "better-supabase/spec";
+import { betterSupabase } from "../lib/supabase";
+
+export const api = defineApi(betterSupabase, {
+  info: { title: "CRM events", version: "1.0.0" },
+  servers: [{ url: "https://crm.example.com/api", name: "production" }],
+  realtimeUrl: "wss://example.supabase.co/realtime/v1/websocket",
+  resources: {
+    customers: {
+      actions: {
+        send: { method: "POST", path: "/{id}/send", emits: ["sent"] },
+      },
+    },
+  },
+  events: {
+    tables: ["customers"],
+    topics: {
+      room: {
+        template: "room:{roomId}",
+        presence: true,
+        events: { typing: true, sent: true },
+      },
+    },
+    cloudEvents: {
+      source: "/crm",
+      rows: ["customers"],
+      blocks: { "support.started": true },
+    },
+  },
+  webhooks: [
+    {
+      id: "invoice.paid",
+      summary: "An invoice was paid",
+      payload: { type: "object", properties: { id: { type: "string" } } },
+      standardWebhooks: true,
+    },
+  ],
+});
+
+const { document, diagnostics } = api.render(asyncapiFormat);
+```
+
+`render(asyncapiFormat)` returns `document`, `version`, `fileName`
+(`asyncapi.json`) and every finding in `diagnostics`. Without `events`,
+`webhooks`, `channels` or `messages` the document has no channels and no
+operations.
+
+## createAsyncApi
+
+`createAsyncApi(betterSupabase, options)` is the one-call form for scripts.
+It takes the `defineApi` options plus `version`, `transform`, `overlays` and
+`onDiagnostic`, and returns the document. It throws a `TypeError` that lists
+every diagnostic with severity `error`; the warnings and info findings go to
+`onDiagnostic`.
+
+```ts title="scripts/asyncapi.ts"
+import { createAsyncApi } from "better-supabase/asyncapi";
+import { betterSupabase } from "../src/lib/supabase";
+
+const document = createAsyncApi(betterSupabase, {
+  info: { title: "CRM events", version: "1.0.0" },
+  realtimeUrl: "wss://example.supabase.co/realtime/v1/websocket",
+  events: { tables: ["customers"] },
+  version: "3.1",
+  onDiagnostic: (diagnostic) =>
+    console.warn(diagnostic.code, diagnostic.message),
+});
+```
+
+`transform` receives `{ format: "asyncapi", version, document }`, typed for
+the version, and runs before overlays. Overlays need the `applyOverlays`
+engine on the `defineApi` options, as for
+[OpenAPI](/docs/specs/overlay).
+
+## Versions
+
+| `version` | `asyncapi` field       | Status      |
+| --------- | ---------------------- | ----------- |
+| `"3.0"`   | `SPEC_PINS.asyncapi30` | the default |
+| `"3.1"`   | `SPEC_PINS.asyncapi31` | stable      |
+
+3.0 is the default because more tools read it. 3.1 only adds `ros2`
+bindings, which better-supabase doesn't use, so the two documents differ
+only in the `asyncapi` field. `AsyncApi30Document`, `AsyncApi31Document` and
+`AsyncApiDocument<V>` type them.
+
+## Servers
+
+`realtimeUrl` adds the `realtime` server for the websocket channels. Its
+host and path come from the URL; an `http` or `ws` URL gives the protocol
+`ws`, any other scheme `wss`. The server lists the model's security schemes
+and carries a `ws` binding for the `apikey` (the publishable key) and `vsn`
+query parameters Realtime reads on the upgrade. Without `realtimeUrl`, a
+document with websocket channels gets an `asyncapi-server-missing` warning,
+and a URL that isn't absolute is an `asyncapi-realtime-url-invalid` error.
+
+HTTP channels (CloudEvents and webhooks) use the `servers` option. Each
+server keeps its `name`, or is called `api`, `api2` and so on.
+
+## Table change signals
+
+`events.tables` describes the change signals of the tables in
+`realtime.tables` (see [live queries](/docs/frontend/live-queries)): `true`,
+the default, for all of them, or a list of app keys. A key that isn't in
+`realtime.tables` is an `asyncapi-table-unknown` error; `false` leaves the
+tables out.
+
+Each table gets the channel `table<Key>` with the address
+`bs:t:<schema>.<table>`:
+
+| Table setting in `realtime` | Address                          | Parameter                               |
+| --------------------------- | -------------------------------- | --------------------------------------- |
+| none                        | `bs:t:public.tags`               | none                                    |
+| `tenant`                    | `bs:t:public.customers:{tenant}` | `tenant`, the row's tenant column value |
+| `user`                      | `bs:t:public.notes:u:{userId}`   | `userId`, the signed-in user's id       |
+
+The channel has one `change` message whose payload is `schema`, `table` and
+`operation` (`INSERT`, `UPDATE` or `DELETE`). It carries no row: clients
+refetch through row-level security. The `receive<Key>Changes` operation
+receives it, and the channel carries `x-better-supabase-table`.
+
+## Broadcast topics
+
+`events.topics` takes Realtime broadcast topics by key. A `defineTopic()`
+result from `better-supabase/realtime` fits.
+
+| Field                    | What it does                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| `template`               | The address, such as `room:{roomId}`; each `{name}` becomes a channel parameter   |
+| `events`                 | A payload schema per broadcast event: a Standard Schema, or `true` for any object |
+| `presence`               | Adds a `presence` message and a `send` operation                                  |
+| `send`                   | Clients may broadcast too, so the topic gets a `send` operation                   |
+| `private`                | Defaults to `true`; written as `x-better-supabase-private`                        |
+| `permission`             | The permission to join, as `x-better-supabase-permission` on the operations       |
+| `name`                   | The channel title; defaults to the key                                            |
+| `summary`, `description` | Copied to the channel                                                             |
+
+The channel is `topic<Key>`, with one message per event (`topic<Key><Event>`)
+and the operation `receive<Key>`. A topic without `events` is documented with
+one open message and an `asyncapi-topic-open` info finding. A schema without
+Standard JSON Schema leaves its payload open with an `asyncapi-schema-opaque`
+warning.
+
+## CloudEvents
+
+`events.cloudEvents` describes the CloudEvents `forwardMutations` and
+`forwardBlockEvents` send (see [CloudEvents](/docs/standards/events)). They
+share the `cloudEvents` channel, at `address` (`events` by default), with
+the `sendCloudEvents` operation.
+
+| Field        | What it does                                                             |
+| ------------ | ------------------------------------------------------------------------ |
+| `source`     | The CloudEvents `source`, required                                       |
+| `rows`       | Row events for these tables, or `true` for every table; defaults to none |
+| `intents`    | Which row events; defaults to `insert`, `update` and `delete`            |
+| `blocks`     | Block events and their data schemas                                      |
+| `typePrefix` | Replaces the `dev.better-supabase` prefix of every type                  |
+| `dataschema` | A URI, or a function of `{ type, table }` that returns one per event     |
+
+A row event's message is `row<Table><Event>`, such as `rowCustomersCreated`
+for `dev.better-supabase.row.created`. Its payload holds `table`, the `row`
+(a reference to the table's Row schema when the resource is served, the
+table's JSON Schema otherwise) and `actorId`.
+
+`blocks` maps a block event type to `true` (an open payload) or a Standard
+Schema for its data. The keys and the schemas are typed by `BlockEventMap`:
+`BlockEventSchemas` only takes known block event types, and a schema must be
+a `BlockEventSchema<T>` whose output is that event's data. A block can
+export its own `BlockEventSchemas` map. The message is `block<Event>`, its
+type is the prefix plus the event (`dev.better-supabase.support.started`),
+and its payload gains `actorId` when the schema doesn't have it.
+
+Every CloudEvents message lists the shared `cloudEvent` message trait
+(`CLOUD_EVENT_TRAIT`): the `ce-specversion`, `ce-id`, `ce-source`,
+`ce-type`, `ce-subject`, `ce-time`, `ce-dataschema` and `ce-partitionkey`
+headers of the HTTP binary mode. Each message's own headers require the
+four required attributes and pin `ce-type`, and `ce-dataschema` when
+`dataschema` gives one. The message also carries
+`x-better-supabase-cloudevent-type` and, with a data schema URI,
+`x-better-supabase-dataschema`.
+
+## Webhooks
+
+Each entry of `webhooks` has an `id` (the event name), a `payload` schema,
+`standardWebhooks`, and an optional `summary` and `description`. It is the
+same list OpenAPI renders as its `webhooks` section. AsyncAPI puts them on the `webhooks` channel, whose address is
+`null` because each receiver has its own URL. Each one is a
+`webhook<Event>` message with a `send<Event>Webhook` operation. With
+`standardWebhooks: true`, the message requires the `webhook-id`,
+`webhook-timestamp` and `webhook-signature` headers of
+[Standard Webhooks](/docs/standards/webhooks).
+
+## Events actions emit
+
+A resource action's `emits` lists the events it sends. Each name matches a
+message by its id, by its name, or by a name that ends in `.<event>`, so
+`sent` finds the `sent` broadcast event and `row.created` finds the
+`dev.better-supabase.row.created` row event. The
+action gets a `send` operation, `<operationId>Emits` (one per channel,
+`<operationId>Emits<Channel>`, when the events are on several channels),
+with `x-better-supabase-operation` naming the HTTP operation. An event no
+message describes is an `asyncapi-emits-unknown` warning.
+
+## Your own channels and messages
+
+`channels` and `messages` on the `defineApi` options add channels the
+`events` option doesn't build. Each channel has an `id`, an `address` with
+`{param}` placeholders, a `protocol` (`ws` or `http`), the ids of its
+`messages` and its `operations`. Yours come after the built ones, and a
+message of yours replaces a built one with the same id. The `enrich`
+hooks `channel` and `message` change any of them for every version.
+
+## Keys, schemas and security
+
+- AsyncAPI keys allow letters, digits, `_` and `-`. Another character in a
+  channel, message or operation id becomes `_`, with an
+  `asyncapi-key-invalid` info finding.
+- `components.schemas` holds only the schemas the messages reference. The
+  AsyncAPI Schema Object is based on JSON Schema draft-07, so a payload
+  with a 2020-12 keyword (`$defs`, `prefixItems`, `unevaluatedProperties`
+  and others) gets an `asyncapi-schema-dialect` warning.
+- `apiKey` schemes become `httpApiKey`, and OAuth 2 flows list
+  `availableScopes`. Security Profiles schemes are left out
+  (`asyncapi-security-unsupported`), and a requirement that needs two
+  schemes together is listed as alternatives
+  (`asyncapi-security-combined`), because AsyncAPI security lists have no
+  AND.
+
+Every code, with its fix, is on the
+[diagnostics page](/docs/specs/diagnostics#asyncapi). The pinned versions and
+the conformance test are on the
+[AsyncAPI standards page](/docs/standards/asyncapi).

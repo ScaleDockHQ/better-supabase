@@ -159,6 +159,37 @@ export const role = authed.handler(({ context }) =>
 );
 ```
 
+## Permissions
+
+`createOrpc` takes the server's `authorizer` option. `bs.middleware()` and
+`bs.authed()` take the guard options `allow`, `aal` and `scopes`, and the
+checks `requireTenant`, `roles`, `permission` and `authorize`. A
+`permission` is decided by that authorizer, with a resource of
+`{ type: "route" }`:
+
+```ts title="src/router.ts"
+import { createOrpc } from "better-supabase/orpc";
+import * as v from "valibot";
+import { authorizer } from "./lib/authorizer";
+import { betterSupabase } from "./lib/supabase";
+
+export const bs = createOrpc(betterSupabase, { authorizer });
+
+export const remove = bs
+  .authed({ requireTenant: true, permission: "customers.delete" })
+  .input(v.object({ id: v.string() }))
+  .handler(({ input, context }) =>
+    bs.unwrap(context.db.customers.delete(input.id)),
+  );
+```
+
+A refused caller gets an `ORPCError` with code `FORBIDDEN` and the Problem
+Details in `data`: `NO_TENANT`, `MISSING_ROLE`, `PERMISSION_DENIED`,
+`APPROVAL_REQUIRED` or `NOT_AUTHORIZED`. Without an authorizer, a procedure
+with a `permission` refuses every caller. See
+[Authorizers](/docs/extending/authorizers) for the contract and
+`defineAuthorizer`.
+
 ## Errors
 
 `bs.unwrap(result)` returns the data, or throws an `ORPCError` when the

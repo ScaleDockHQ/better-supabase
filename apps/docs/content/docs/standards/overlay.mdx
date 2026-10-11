@@ -1,0 +1,94 @@
+---
+title: Overlay
+description: Keep changes to a generated OpenAPI or AsyncAPI document in Overlay 1.0, 1.1 or 1.2 files and apply them on every render.
+---
+
+An [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) is a list
+of actions that change a document: each action selects nodes with an RFC 9535
+JSONPath `target` and updates, copies or removes them. `better-supabase/overlay`
+writes and applies overlays, so descriptions, examples and vendor fields you
+add by hand survive the next generation.
+
+```ts title="lib/overlays.ts"
+import { defineOverlay } from "better-supabase/overlay";
+
+export const docs = defineOverlay({
+  info: { title: "CRM docs", version: "1.0.0" },
+  actions: [
+    {
+      target: "$.paths['/api/customers'].get",
+      update: { description: "Lists customers, newest first." },
+    },
+    {
+      target: "$.paths.*[?(@['x-better-supabase-action'])]",
+      update: { tags: ["actions"] },
+    },
+  ],
+});
+```
+
+Pass overlays to a render. The engine needs an RFC 9535 JSONPath
+implementation: `loadJsonPath()` loads the optional `jsonpath-rfc9535` peer,
+or you pass your own `{ paths(document, expression) }`.
+
+```ts title="lib/api.ts"
+import { applyOverlays, loadJsonPath } from "better-supabase/overlay";
+import { defineApi } from "better-supabase/spec";
+import { docs } from "./overlays";
+import { betterSupabase } from "./supabase";
+
+const jsonpath = await loadJsonPath();
+
+export const api = defineApi(betterSupabase, {
+  info: { title: "CRM API", version: "1.0.0" },
+  resources: { customers: {} },
+  applyOverlays: (document, overlays) =>
+    applyOverlays(document, overlays, { jsonpath }),
+});
+
+const { document } = api.openapi({ overlays: [docs] });
+```
+
+Overlays run after `transform` and before the format's lint, so a broken
+change shows up in the render's diagnostics.
+
+## Versions
+
+| Version | Pin                   | What it adds                                           |
+| ------- | --------------------- | ------------------------------------------------------ |
+| 1.0     | `SPEC_PINS.overlay10` | `update` and `remove` actions                          |
+| 1.1     | `SPEC_PINS.overlay11` | `copy`, and the default version `defineOverlay` writes |
+| 1.2     | `SPEC_PINS.overlay12` | reusable actions in `components.actions`, and `$self`  |
+
+`defineOverlay` sets `overlay` to `1.1.0`, or to `1.2.0` when the input uses a
+1.2 feature, and its return type follows. It throws when the actions list is
+empty, when a feature needs a newer version than the one you set, or when a
+reference names a missing reusable action. `expandReusableActions` turns a 1.2
+overlay into a 1.1 one for tools that read only 1.1.
+
+## Writing an overlay from a diff
+
+`overlayFromDiff(base, enriched)` compares a generated document with a copy
+you edited and writes the overlay that turns one into the other. Applying the
+result to `base` gives a document equal to `enriched`. Pass `{ version: "1.0.0" }`
+for tools that only read 1.0.
+
+## Findings
+
+Applying an overlay never throws for a bad action. It reports a diagnostic
+and skips the action:
+
+- `overlay-no-match` (an error) when a target selects nothing. Set
+  `x-better-supabase-allow-empty: true` on the action, or `allowEmpty` in the
+  options, to accept it.
+- `overlay-invalid-target`, `overlay-invalid-action`, `overlay-mixed-targets`,
+  `overlay-merge-conflict`, `overlay-copy-source`, `overlay-ref-unresolved`,
+  `overlay-version-feature`, `overlay-version-unsupported` and
+  `overlay-empty-action` for the other problems.
+
+## Conformance
+
+`overlay.test.ts` validates the output of `defineOverlay`,
+`overlayFromDiff` and `expandReusableActions` against the official Overlay
+1.0, 1.1 and 1.2 schemas, and applies an overlay to a rendered OpenAPI
+document without changing the input.

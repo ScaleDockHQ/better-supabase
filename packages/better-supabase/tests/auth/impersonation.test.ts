@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
 
+import { authContext } from "../../src/auth/context.ts";
 import { actClaim, impersonatorOf } from "../../src/auth/impersonation.ts";
-import { authContext } from "../../src/auth/resolve.ts";
 import { toSession } from "../../src/auth/view.ts";
 
 const act = actClaim({ actor: "admin-1", reason: "support ticket 42" });

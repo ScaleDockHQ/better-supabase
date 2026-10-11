@@ -43,6 +43,26 @@ away an anonymous user because `allow` lacks `'anonymous'`, `retryAfter` for `ra
 also sets the `Retry-After` header, `meter`, `limit` and `retryAfter` for
 `quota_exceeded`, and `maxAffected` for `max_affected`.
 
+When an [authorizer](/docs/extending/authorizers) refuses a declared
+permission, the `forbidden` error carries `permission` (the permission key)
+and one of two codes. `PERMISSION_DENIED` means the authorizer denied it,
+failed, or isn't set; `detail` holds its reason. `APPROVAL_REQUIRED` means
+the action needs an approval first, and `approval` (`{ "id": "..." }`) names
+the pending approval when the authorizer gives one:
+
+```json
+{
+  "type": "https://bettersupabase.com/problems/forbidden",
+  "title": "Forbidden",
+  "status": 403,
+  "kind": "forbidden",
+  "detail": "invoices.update needs an approval",
+  "code": "APPROVAL_REQUIRED",
+  "permission": "invoices.update",
+  "approval": { "id": "apr_9" }
+}
+```
+
 ## Safe by default
 
 Messages of `unexpected`, `network` and `invalid_request` errors can contain

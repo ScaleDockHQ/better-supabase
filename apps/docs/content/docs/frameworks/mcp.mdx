@@ -65,6 +65,13 @@ Clients on `2025-11-25`, `2025-06-18` or `2025-03-26` open with `initialize`
 as before, and `ping` still answers them. An unsupported version gets
 `UnsupportedProtocolVersionError` with the list of supported versions.
 
+Tool schemas follow the client's protocol version. From `2025-11-25` on,
+`tools/list` sends JSON Schema 2020-12. Earlier revisions have no default
+dialect and their clients validate draft-07, so they get draft-07 schemas:
+the tool's Standard Schema library converts to draft-07 when it can, and
+otherwise the 2020-12 schema is lowered (`$defs` become `definitions`).
+Each tool is converted once per dialect.
+
 ## Running as the caller
 
 MCP clients send a Supabase access token as a Bearer header. It is verified
@@ -210,8 +217,14 @@ Each table in `resources` gets one tool per operation:
 With `pagination: 'cursor'` on the resource (or its list query), the list
 tool takes `after` instead of `page` and returns `nextCursor`, which suits
 agents that read a table one page at a time. The schemas are generated from
-your database metadata, the same ones `createOpenApi` publishes. Rows come back as `structuredContent` with a
-matching `outputSchema`.
+your database metadata, the same ones [`defineApi`](/docs/specs) publishes.
+Rows come back as `structuredContent` with a matching `outputSchema`.
+
+Table tools run through the same code as [REST resources](/docs/specs/resources),
+so a resource's `permissions` and `hooks` apply to them too. Their
+permissions are checked on each call, with the table and the row as the
+resource; unlike a tool's `permission`, they don't hide the tool from
+`tools/list`.
 
 ## Custom tools
 
@@ -223,6 +236,11 @@ arguments are validated before `run`.
 `run` gets the same context as the other adapters (`db`, `auth`, `supabase`,
 `sql`) plus the `request` and an abort `signal`. `defineTool` builds a tool
 outside the server, so it can go in `createMcp({ tools: [...] })`.
+
+`jsonSchemaTarget` sets the dialect the tool's Standard Schema is converted
+to: `draft-2020-12` (the default) or `draft-07`. Clients on protocol
+versions before `2025-11-25` get draft-07 either way (see
+[Protocol versions](#protocol-versions)).
 
 ## Authorizing tools
 
@@ -282,10 +300,40 @@ gets `undefined`.
   effect at once for calls.
 
 Both hooks can be async. An exception in either one fails the call, and the
-error message is hidden unless `exposeErrors`. To check a permission per tool,
-put it in the tool's `meta` (`unknown` to better-supabase), narrow it in the
-hooks, and treat a tool without one as hidden and refused, so a tool someone
-forgot to annotate is never open to everyone.
+error message is hidden unless `exposeErrors`.
+
+### Permissions
+
+To check a permission per tool, give the tool a `permission` and pass an
+[authorizer](/docs/extending/authorizers) to `createMcp`:
+
+```ts title="supabase/functions/mcp/index.ts"
+const bs = createMcp(betterSupabase, {
+  name: "crm",
+  version: "1.0.0",
+  authorizer,
+}).tool({
+  name: "archive_customer",
+  description: "Archive a customer.",
+  input: ArchiveInput,
+  permission: "customers.archive",
+  run: ({ id }, { db }) => db.customers.update(id, { status: "archived" }),
+});
+```
+
+- `tools/call` checks the permission after the arguments are validated and
+  before `run`, with `{ type: "mcp_tool", id: <tool name>, properties: <arguments> }`
+  as the resource. A denial is a tool error with `kind: "forbidden"`,
+  `code: "PERMISSION_DENIED"` (or `APPROVAL_REQUIRED`) and the permission
+  key.
+- `tools/list` hides the tools the caller is denied. Tools that share a
+  permission are checked in one batch.
+- Without an authorizer, a tool with a `permission` is hidden and refused,
+  so a forgotten setup never opens it.
+
+`permission` is typed from the authorizer you pass. `authorize` and
+`visible` still run, after the permission check, for anything an
+authorizer doesn't decide.
 
 With [`.claims(schema)`](/docs/auth#typed-claims) on the definition,
 `ctx.auth` in `authorize`, `visible` and `run` is typed by the schema's

@@ -111,6 +111,7 @@ catalog:
   fumadocs-ui: npm:@fumadocs/base-ui@16.15.18
   hono: 4.13.13
   input-otp: 1.5.0
+  jsonpath-rfc9535: 1.3.0
   knip: 6.39.0
   lefthook: 2.1.16
   lucide-react: 1.52.0
@@ -163,6 +164,7 @@ catalog:
   vitest: 5.0.3
   vue: 3.5.43
   workflow: 5.1.0
+  yaml: 2.9.1
   # Only the core package's zod generator fixture imports Zod, and `ai` needs it
   # as a peer (docs/decisions/0002). Lint rejects `zod` imports everywhere else.
   zod: 4.6.5
@@ -220,6 +222,8 @@ catalogs:
     # 0.71 is the memory provider, hook and connection contract better-supabase/eve is typed against.
     eve: ">=0.71 <1"
     hono: ">=4 <5"
+    # 1.3.0 passes the full JSONPath Compliance Test Suite (RFC 9535) that better-supabase/overlay requires.
+    jsonpath-rfc9535: ">=1.3.0 <2"
     # 16.3.0 added `io()`, which `better-supabase/next` awaits before reading the session.
     next: ">=16.3 <17"
     # 0.66.0 is the version @supabase/postgrest-typegen pins; the CLI tests run

@@ -1,0 +1,59 @@
+---
+title: AuthZEN
+description: How the Authorizer interface follows the AuthZEN Authorization API 1.0 information model, and what the conformance test checks.
+---
+
+The runtime [`Authorizer`](/docs/extending/authorizers) follows the
+[AuthZEN Authorization API 1.0](https://openid.net/specs/authorization-api-1_0.html)
+information model, pinned in `SPEC_PINS.authzen`. better-supabase is the
+policy enforcement point: it builds each access request, asks the authorizer
+(the decision point) and enforces the answer. It does not speak the AuthZEN
+HTTP API itself; an adapter that calls a remote decision point over that API
+maps the request one to one.
+
+## The request
+
+| AuthZEN field | Authorizer field                        | Where it comes from                                                                                      |
+| ------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Subject       | `subject` (`type`, `id`, `properties`)  | The verified request context only: `user`, `service`, `anon`, or `agent` for a token with an `act` chain |
+| Action        | `action`                                | The declared permission reference; `key()` gives its string form                                         |
+| Resource      | `resource` (`type`, `id`, `properties`) | The table, topic or action target; `get`, `update` and `delete` pass the row as `properties`             |
+| Context       | `context`                               | The tenant, the assurance level (`aal`) and the token's scopes                                           |
+
+The subject is never read from the request body, a header or a parameter, so
+a caller cannot claim to be someone else.
+
+## Decisions
+
+AuthZEN returns a boolean `decision`. The `Authorizer` returns one of three
+outcomes, each with an optional `context`:
+
+- `granted`: the request goes ahead.
+- `denied`: a `forbidden` error with the code `PERMISSION_DENIED` and the
+  optional `reason`.
+- `approval-required`: a `forbidden` error with the code `APPROVAL_REQUIRED`
+  and the approval id, so a client can wait for a person to approve.
+
+An adapter for a decision point that only returns a boolean maps `true` to
+`granted` and `false` to `denied`.
+
+## Failing closed
+
+A missing authorizer when a permission is declared, a `key()` or
+`evaluate()` that throws, and an answer that is not one of the three
+outcomes all deny. The checks return a `Result` and never throw.
+
+## Batches
+
+`evaluations` is the batch form (AuthZEN Access Evaluations). Results keep
+the order of the requests. Without it, each request is evaluated on its own.
+A failed batch denies every request in it.
+
+## Conformance
+
+`authzen.test.ts` checks that the request carries subject, action, resource
+and context built from the verified context, that batch results are read in
+the request order, and that a failing decision point or a missing decision
+denies. `testAuthorizer` in `better-supabase/testing` runs the contract
+checks against your adapter, including that the subject is never read from
+input.

@@ -1005,3 +1005,177 @@ describe("createMcp CORS", () => {
     expect(response.headers.get("access-control-allow-origin")).toBeNull();
   });
 });
+
+describe("tool schemas per protocol version", () => {
+  const betterSupabase = defineSupabase(schema);
+  const calls: string[] = [];
+  const throwsForDraft07 = {
+    "~standard": {
+      version: 1,
+      vendor: "test",
+      validate: (value: unknown) => ({ value }),
+      jsonSchema: {
+        input: ({ target }: { target: string }) => {
+          calls.push(target);
+          if (target !== "draft-2020-12") throw new Error("unsupported");
+          return {
+            type: "object",
+            properties: { pair: { prefixItems: [{ type: "string" }] } },
+          };
+        },
+        output: () => ({}),
+      },
+    },
+  } as never;
+  const mcp = createMcp(betterSupabase, {
+    env,
+    auth: { jwks: signer.jwks as never },
+    name: "crm",
+    version: "1.0.0",
+    resources: { tags: { operations: ["get"] } },
+    tools: [
+      defineTool({
+        name: "pair",
+        description: "Takes a tuple.",
+        input: toStandardJsonSchema(
+          v.object({ pair: v.tuple([v.string(), v.number()]) }),
+        ),
+        run: () => ({}),
+      }),
+      defineTool({
+        name: "raw",
+        description: "A hand-written 2020-12 schema.",
+        inputSchema: {
+          type: "object",
+          properties: { tag: { $ref: "#/$defs/tag" } },
+          $defs: { tag: { type: "string" } },
+        },
+        outputSchema: {
+          type: "object",
+          properties: { pair: { prefixItems: [{ type: "string" }] } },
+        },
+        run: () => ({}),
+      }),
+      defineTool({
+        name: "fallback",
+        description: "A library without draft-07.",
+        input: throwsForDraft07,
+        run: () => ({}),
+      }),
+    ],
+  });
+
+  const list = async (headers: Record<string, string>, meta?: unknown) => {
+    const response = await mcp.fetch(
+      new Request(ENDPOINT, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+          ...headers,
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          ...(meta ? { params: { _meta: meta } } : {}),
+        }),
+      }),
+    );
+    const { result } = (await response.json()) as {
+      result: {
+        tools: {
+          name: string;
+          inputSchema: Record<string, unknown>;
+          outputSchema?: Record<string, unknown>;
+        }[];
+      };
+    };
+    return new Map(result.tools.map((tool) => [tool.name, tool]));
+  };
+
+  it("sends draft-07 schemas to 2025-06-18 and 2025-03-26 clients", async () => {
+    for (const headers of [{ "mcp-protocol-version": "2025-06-18" }, {}]) {
+      const tools = await list(headers);
+      expect(tools.get("pair")?.inputSchema).toMatchObject({
+        properties: {
+          pair: { items: [{ type: "string" }, { type: "number" }] },
+        },
+      });
+      expect(tools.get("pair")?.inputSchema).not.toHaveProperty("$schema");
+      expect(tools.get("raw")?.inputSchema).toEqual({
+        type: "object",
+        properties: { tag: { $ref: "#/definitions/tag" } },
+        definitions: { tag: { type: "string" } },
+      });
+      expect(tools.get("raw")?.outputSchema).toEqual({
+        type: "object",
+        properties: { pair: { items: [{ type: "string" }] } },
+      });
+      expect(tools.get("fallback")?.inputSchema).toEqual({
+        type: "object",
+        properties: { pair: { items: [{ type: "string" }] } },
+      });
+      expect(tools.get("tags_get")?.inputSchema).toMatchObject({
+        type: "object",
+        required: ["id"],
+      });
+    }
+  });
+
+  it("sends 2020-12 schemas to 2025-11-25 and 2026-07-28 clients", async () => {
+    const legacy = await list({ "mcp-protocol-version": "2025-11-25" });
+    const modern = await list(
+      {
+        "mcp-protocol-version": MCP_PROTOCOL_VERSION,
+        "mcp-method": "tools/list",
+      },
+      {
+        "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL_VERSION,
+        "io.modelcontextprotocol/clientCapabilities": {},
+      },
+    );
+    for (const tools of [legacy, modern]) {
+      expect(tools.get("pair")?.inputSchema).toMatchObject({
+        properties: { pair: { prefixItems: expect.any(Array) } },
+      });
+      expect(tools.get("raw")?.inputSchema).toHaveProperty("$defs");
+      expect(tools.get("fallback")?.inputSchema).toMatchObject({
+        properties: { pair: { prefixItems: [{ type: "string" }] } },
+      });
+    }
+  });
+
+  it("builds each dialect once", async () => {
+    const before = calls.length;
+    for (const version of ["2025-06-18", "2025-03-26", "2025-11-25"]) {
+      await list({ "mcp-protocol-version": version });
+      await list({ "mcp-protocol-version": version });
+    }
+    const after = calls.length;
+    for (const version of ["2025-06-18", "2025-11-25"])
+      await list({ "mcp-protocol-version": version });
+    expect(calls.length).toBe(after);
+    expect(after - before).toBeLessThanOrEqual(2);
+    expect(
+      mcp.tools.find((tool) => tool.name === "raw")?.inputSchema,
+    ).toHaveProperty("$defs");
+  });
+
+  it("converts a tool's own schema to jsonSchemaTarget", () => {
+    const tool = defineTool({
+      name: "pair07",
+      description: "Takes a tuple.",
+      input: toStandardJsonSchema(v.object({ pair: v.tuple([v.string()]) })),
+      jsonSchemaTarget: "draft-07",
+      run: () => ({}),
+    });
+    expect(tool.info.inputSchema).toMatchObject({
+      properties: { pair: { items: [{ type: "string" }] } },
+    });
+    expect(tool.inputSchemaFor?.("draft-2020-12")).toMatchObject({
+      properties: { pair: { prefixItems: [{ type: "string" }] } },
+    });
+  });
+});

@@ -429,10 +429,31 @@ const ConfigSchema = v.strictObject({
       output: v.optional(v.string()),
     }),
   ),
+  // oxlint-disable-next-line typescript/no-deprecated -- the schema still accepts the deprecated key (1 finding)
   openapi: v.optional(
     v.strictObject({
       entry: v.optional(v.string()),
       output: v.optional(v.string()),
+    }),
+  ),
+  specs: v.optional(
+    v.strictObject({
+      entry: v.optional(v.string()),
+      outputs: v.optional(
+        v.array(
+          v.strictObject({
+            format: v.pipe(v.string(), v.minLength(1)),
+            version: v.optional(v.string()),
+            output: v.optional(v.string()),
+            overlays: v.optional(strings),
+            serialize: v.optional(v.picklist(["json", "yaml"])),
+            ui: v.optional(
+              v.picklist(["scalar", "swagger", "redoc", "elements", "rapidoc"]),
+            ),
+          }),
+        ),
+      ),
+      failOn: v.optional(v.picklist(["error", "warning", "never"])),
     }),
   ),
   doctor: v.optional(

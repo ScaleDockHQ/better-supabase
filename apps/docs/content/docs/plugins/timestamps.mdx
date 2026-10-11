@@ -25,6 +25,10 @@ await db.customers.create(
 ```
 
 Generated JSON Schema and OpenAPI documents mark these columns `readOnly`.
+In a [`defineApi`](/docs/specs) document they are also left out of the
+required fields of request bodies, and a column without a comment gets a
+description: "Set by the server when the row is created." for `createdAt`
+and "Set by the server on every write." for `updatedAt`.
 
 The time comes from `defineSupabase(schema, { now })`, a function that returns
 a `Temporal.Instant`, which makes tests deterministic. See

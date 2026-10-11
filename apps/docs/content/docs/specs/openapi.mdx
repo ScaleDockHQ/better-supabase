@@ -1,0 +1,131 @@
+---
+title: OpenAPI versions
+description: What OpenAPI 3.0, 3.1, 3.2 and the 3.3 preview render from the same model, and which fields fall back to x- extensions in older versions.
+---
+
+`api.openapi({ version })` renders one OpenAPI version from the model
+[`defineApi`](/docs/specs) builds. The versions describe the same operations,
+schemas and errors; they differ only where an older version has no field for
+something.
+
+| `version`       | `openapi` field | Status                     |
+| --------------- | --------------- | -------------------------- |
+| `"3.0"`         | `3.0.4`         | legacy, for older tools    |
+| `"3.1"`         | `3.1.2`         | the default                |
+| `"3.2"`         | `3.2.1`         | stable                     |
+| `"3.3-preview"` | `3.3.0`         | preview, never the default |
+
+```ts
+const legacy = api.openapi({ version: "3.0" }).document;
+const current = api.openapi().document; // 3.1
+const latest = api.openapi({ version: "3.2" }).document;
+```
+
+The pinned spec versions and the conformance tests are on the
+[OpenAPI standards page](/docs/standards/openapi).
+
+## Every version
+
+- Path parameters that every operation on a path shares move to the Path
+  Item, so they are declared once.
+- Webhooks from the `webhooks` option become the root `webhooks` section
+  (3.1 and later). Each one is a `post` with the operation id `on<Event>`, a
+  JSON request body, and a `2XX` response. With `standardWebhooks: true` it
+  also lists the `webhook-id`, `webhook-timestamp` and `webhook-signature`
+  headers.
+- Fragments are merged after the document is rendered, then each
+  operation's `extend` (see [customize the model](/docs/specs/customize)).
+- The finished document is checked: duplicate operation ids, security
+  requirements that name no scheme, path parameters without a declaration
+  and the reverse, and local `$ref`s that point nowhere. See
+  [diagnostics](/docs/specs/diagnostics#checks-on-the-finished-document).
+
+## 3.1
+
+3.1 is the default and what `createOpenApi` renders without a `version`. It
+sets `jsonSchemaDialect` to JSON Schema 2020-12, which is the dialect of
+every generated schema.
+
+The fields that only 3.2 defines are kept as extensions, so tools that know
+them can still read them:
+
+| Model field                         | In 3.2              | In 3.0 and 3.1                                  |
+| ----------------------------------- | ------------------- | ----------------------------------------------- |
+| The document's URL (`self`)         | `$self`             | `x-oai-$self`                                   |
+| A server's `name`                   | `name`              | `x-oai-name`                                    |
+| A response's `summary`              | `summary`           | `x-oai-summary`                                 |
+| A streamed item schema              | `itemSchema`        | `x-oai-itemSchema`                              |
+| The OAuth 2 metadata URL            | `oauth2MetadataUrl` | `x-better-supabase-oauth2MetadataUrl`           |
+| A tag's `summary`, `parent`, `kind` | native              | `x-better-supabase-summary`, `-parent`, `-kind` |
+
+The `x-better-supabase-` fields follow `extensionPrefix`.
+
+## 3.2
+
+3.2 renders those fields natively:
+
+- `$self` on the document and `name` on each server.
+- Nested tags: `parent`, `kind` and `summary` on each tag.
+- `itemSchema` for a [route](/docs/specs/customize#routes) with `stream`, so
+  each event of a `text/event-stream` response has a schema.
+- `oauth2MetadataUrl` on the `oauth2` preset, pointing at the Supabase Auth
+  server metadata.
+- The `query` method. A route with `method: "query"` is a `query` operation
+  in 3.2 and later, and is left out of 3.0 and 3.1 with a
+  `method-unsupported` warning.
+
+## 3.0
+
+3.0 is for tools that don't read 3.1 yet. The document has no
+`jsonSchemaDialect` and no `webhooks` (a model with webhooks gets a
+`webhooks-unsupported` warning), and `info.summary` and
+`license.identifier` are left out. Every schema is rewritten into the
+OpenAPI 3.0 schema object, after the fragments are merged:
+
+| 2020-12                                        | 3.0                                     |
+| ---------------------------------------------- | --------------------------------------- |
+| `type: ["string", "null"]`                     | `type: "string"`, `nullable: true`      |
+| A `null` branch in `anyOf` or `oneOf`          | `nullable: true` on the schema          |
+| A type list with several types                 | `anyOf` of each type                    |
+| `const`                                        | a one-value `enum`                      |
+| `examples`                                     | `example` (the first one)               |
+| numeric `exclusiveMinimum`, `exclusiveMaximum` | the bound plus `exclusiveMinimum: true` |
+| `contentEncoding: base64`                      | `format: byte`                          |
+| `$ref` with sibling keywords                   | `allOf` with the `$ref`                 |
+| keywords 3.0 doesn't have                      | left out                                |
+
+`toOpenApi30Schema(schema)` from `better-supabase/openapi` is that
+rewrite, for schemas you serve yourself.
+
+## 3.3 preview
+
+`"3.3-preview"` follows the OpenAPI `v3.3-dev` branch and the Security
+Profiles proposal at the commits pinned in `SPEC_PINS`. It is never the
+default: every render adds a `preview-version` warning, and the document
+carries `x-better-supabase-preview` with the pinned commit. Fields can
+change before 3.3 is released, so use it to try the proposal, not to
+publish.
+
+Besides everything 3.2 renders, the preview:
+
+- moves a `security` that every operation on a path shares to the Path
+  Item;
+- renders security schemes of the Security Profiles type (`type:
+"profile"`) and the `securityProfileRequirements` option as
+  `components.securityProfileRequirements`.
+
+```ts
+const preview = api.openapi({ version: "3.3-preview" });
+// preview.diagnostics has { code: "preview-version", severity: "warning" }
+```
+
+Other versions leave profile schemes out, with every requirement that names
+one, and report `preview-only` (severity `info`).
+
+## Types
+
+`OpenApi30Document`, `OpenApi31Document`, `OpenApi32Document` and
+`OpenApi33PreviewDocument` from `better-supabase/openapi` type each version,
+and `OpenApiDocument<V>` picks one by version. `transform` and the result of
+`api.openapi({ version })` use them, so a field another version doesn't
+have is a type error.

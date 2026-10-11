@@ -25,6 +25,10 @@ export interface ProblemDetails {
   readonly required?: "aal1" | "aal2";
   /** The OAuth scopes a `forbidden` answer needs. */
   readonly scopes?: readonly string[];
+  /** The permission key an authorizer denied. */
+  readonly permission?: string;
+  /** The pending approval of an `APPROVAL_REQUIRED` answer. */
+  readonly approval?: { readonly id: string };
   /** Seconds until a `rate_limited` or `quota_exceeded` caller may retry. */
   readonly retryAfter?: number;
   /** The meter a `quota_exceeded` answer ran out of, and its limit. */
@@ -125,6 +129,8 @@ export function toProblem(
   if ("issues" in error) problem["issues"] = error.issues;
   if ("required" in error) problem["required"] = error.required;
   if ("scopes" in error) problem["scopes"] = error.scopes;
+  if ("permission" in error) problem["permission"] = error.permission;
+  if ("approval" in error) problem["approval"] = error.approval;
   if ("retryAfter" in error) problem["retryAfter"] = error.retryAfter;
   if ("meter" in error) problem["meter"] = error.meter;
   if ("limit" in error) problem["limit"] = error.limit;
@@ -198,6 +204,8 @@ export function fromProblem(problem: ProblemDetails): DbError {
     "column",
     "required",
     "scopes",
+    "permission",
+    "approval",
     "retryAfter",
     "meter",
     "limit",

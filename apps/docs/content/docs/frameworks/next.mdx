@@ -198,6 +198,49 @@ export const GET = bs.route<{ id: string }>((request, { db, params }) =>
   internal details (unless `exposeErrors`), while `redirect()` and
   `notFound()` still reach Next.js.
 
+## REST resources
+
+`bs.resources(map, options)` serves the same REST routes as
+[Hono resources](/docs/frameworks/hono#resources) from one catch-all route.
+It returns a handler for each method:
+
+```ts title="src/app/api/v1/[...path]/route.ts"
+import { defineAction } from "better-supabase/next";
+import { bs } from "@/lib/supabase/server";
+
+export const { GET, POST, PATCH, PUT, DELETE } = bs.resources(
+  {
+    customers: {
+      operations: ["list", "get", "update", "delete"],
+      select: ["id", "name", "status", "organizationId"],
+      actions: {
+        archive: defineAction({
+          method: "POST",
+          path: "/{id}/archive",
+          summary: "Archive a customer",
+          handler: (ctx, { id }) =>
+            ctx.db.customers.update(
+              String(id),
+              { status: "archived" },
+              { select: ["id", "status"] },
+            ),
+        }),
+      },
+    },
+  },
+  { basePath: "/api/v1" },
+);
+```
+
+`basePath` is the path of the catch-all route. An unknown path answers 404
+before auth resolves. The options also take the guards of `bs.route`
+(`allow`, `aal`, `scopes`), and `refresh: true` refreshes an expired session
+cookie (off by default, because the proxy refreshes the routes it matches).
+`permissions` on a resource and `permission` on an action are decided by the
+`authorizer` passed to `createNext`. See [Resources](/docs/specs/resources)
+for hooks, actions and permissions, and [API documents](/docs/specs) to
+serve the matching OpenAPI document.
+
 ## Bearer callers
 
 Route handlers serve OAuth clients, agents and other apps that send
@@ -289,6 +332,13 @@ provider exports.
   `forbidden` error (`code: "NO_TENANT"`) and types `ctx.tenant` as a
   `string`. The tenant is the action's `tenant`, then the server's `tenant`
   resolver, then the tenant claim.
+- `permission` names a permission the `authorizer` passed to `createNext`
+  must grant, checked after `roles` and before `authorize`. The resource the
+  authorizer sees is `{ type: "action", properties: input }` for an action
+  and `{ type: "route" }` for `bs.route()`. A denial is `forbidden` with
+  `code: "PERMISSION_DENIED"` (or `APPROVAL_REQUIRED`) and the permission
+  key; without an authorizer, every caller is refused (see
+  [Authorizers](/docs/extending/authorizers)).
 - `authorize(session, input)` gets the `AuthSession` and the validated input
   (the request, in `bs.route()`). Returning `false` refuses the caller with
   `forbidden` (`code: "NOT_AUTHORIZED"`).

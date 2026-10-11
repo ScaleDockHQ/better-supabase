@@ -63,7 +63,39 @@ Deno.serve(
 ```
 
 On Supabase, the function name is the first path segment, so `basePath` is
-`/<function-name>`.
+`/<function-name>`. The longest matching table path wins; an unknown path
+answers 404.
+
+Each entry takes the same options as a Hono resource, including `hooks`,
+`actions` (typed with `defineAction` from `better-supabase/edge`) and
+`permissions`. Pass `authorizer` to `createEdge` to decide them:
+
+```ts
+import { createEdge, defineAction } from "better-supabase/edge";
+
+const bs = createEdge(betterSupabase, { cors: true, authorizer });
+
+Deno.serve(
+  bs.resources(
+    {
+      customers: {
+        permissions: { delete: "customers.delete" },
+        actions: {
+          archive: defineAction({
+            method: "POST",
+            path: "/{id}/archive",
+            handler: (ctx, { id }) =>
+              ctx.db.customers.update(String(id), { status: "archived" }),
+          }),
+        },
+      },
+    },
+    { basePath: "/api" },
+  ),
+);
+```
+
+See [Resources](/docs/specs/resources) for hooks, actions and permissions.
 
 ## Routes
 
@@ -92,7 +124,9 @@ Deno.serve(
 ```
 
 An unknown path returns 404, and a known path with another method returns 405
-with an `Allow` header.
+with an `Allow` header. A route object can also name a `permission`, which
+the `authorizer` passed to `createEdge` decides with `{ type: "route" }` as
+the resource; without an authorizer, the route refuses every caller.
 
 ## Background work
 

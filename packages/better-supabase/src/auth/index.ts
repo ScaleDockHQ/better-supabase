@@ -1,6 +1,7 @@
 export { refreshSession } from "./refresh.ts";
 export type { RefreshOptions, RefreshOutcome } from "./refresh.ts";
-export { authContext, clientIp, resolveAuth } from "./resolve.ts";
+export { authContext } from "./context.ts";
+export { clientIp, resolveAuth } from "./resolve.ts";
 export type {
   AuthResolution,
   AuthResolver,

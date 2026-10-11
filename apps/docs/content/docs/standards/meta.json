@@ -1,4 +1,14 @@
 {
   "title": "Standards",
-  "pages": ["index", "openapi", "otel", "events", "webhooks"]
+  "pages": [
+    "index",
+    "openapi",
+    "overlay",
+    "arazzo",
+    "asyncapi",
+    "authzen",
+    "otel",
+    "events",
+    "webhooks"
+  ]
 }

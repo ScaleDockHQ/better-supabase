@@ -141,6 +141,21 @@ records them on the active span. These events are in-process: when one must
 not be lost, install the `outbox` module, and the SQL modules write the same
 event in the transaction that caused it.
 
+`dataschema` sets the CloudEvents `dataschema` attribute, the URI (or `$id`)
+of the JSON Schema the event's `data` conforms to. It is accepted by
+`forwardBlockEvents`, `blockCloudEvent`, `forwardMutations` and
+`toCloudEvents`. A string applies to every event; a function receives
+`{ type, table }` (`type` with the configured prefix, `table` set for row
+events) and returns a URI, or `undefined` to leave the attribute out.
+Without the option, events carry no `dataschema`:
+
+```ts
+forwardBlockEvents(betterSupabase, sink, {
+  source: "/crm",
+  dataschema: ({ type }) => `https://crm.example.com/schemas/${type}.json`,
+});
+```
+
 ## Policy callbacks
 
 Where a block has a decision the app may want to make (who may start a support

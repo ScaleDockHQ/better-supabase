@@ -1,0 +1,286 @@
+---
+title: Customize the model
+description: Security and error presets, operation and component names, extend, custom routes, fragments, enrich hooks, plugin descriptions and schema comments in defineApi.
+---
+
+Everything on this page is an option of `defineApi` (and of
+`createOpenApi`, `buildApiModel` and the CLI that call it). Each change goes
+into the version-neutral model, so every OpenAPI version gets it.
+
+## Document fields
+
+| Option     | What it sets                                                                                  |
+| ---------- | --------------------------------------------------------------------------------------------- |
+| `info`     | `title`, `version` and the rest of the `info` object                                          |
+| `self`     | The document's own URL (`$self` in 3.2, `x-oai-$self` before it)                              |
+| `servers`  | `{ url, name?, description? }` entries                                                        |
+| `basePath` | A prefix for every path, such as `/api`                                                       |
+| `tags`     | Tags listed before the resource tags: `{ name, summary?, description?, parent?, kind? }`      |
+| `examples` | Example rows per table (app-cased), set as the `examples` of its Row schema                   |
+| `json`     | The JSON column types from `better-supabase.config.ts`, so typed `jsonb` columns get a schema |
+
+## Resources
+
+`resources` maps a table's app key to `true` (every operation, `list` and
+`get` for views), to a description, or to a resource an adapter serves
+(anything with a `plan`, such as the handler `defineResource` returns). A
+key the schema doesn't have throws.
+
+```ts
+defineApi(betterSupabase, {
+  info: { title: "CRM API", version: "1.0.0" },
+  resources: {
+    customers: {
+      list: customerList,
+      pagination: "cursor",
+      operations: ["list", "get", "update"],
+      tag: "CRM",
+      input: { update: CustomerPatch },
+      output: { get: CustomerView },
+    },
+  },
+});
+```
+
+| Field                     | Default                              | What it does                                                  |
+| ------------------------- | ------------------------------------ | ------------------------------------------------------------- |
+| `operations`              | all five, `list` and `get` for views | Which of `list`, `get`, `create`, `update` and `delete` exist |
+| `list`                    | `page` and `size`                    | A `defineListQuery`, whose filters become query parameters    |
+| `pagination`              | `offset`                             | `offset` (`page`, `size`) or `cursor` (`after`, `size`)       |
+| `maxPageSize`             | 200                                  | The `maximum` of `size`; its `default` is 50                  |
+| `path`, `tag`             | `/<table>`, the table key            | The collection path under `basePath`, and the operations' tag |
+| `input.create`, `.update` | the `Insert` and `Update` schemas    | Replace the request body schema (any Standard Schema)         |
+| `output`                  | the `Row` schema                     | Replace a response schema per operation; for `list`, the item |
+| `actions`, `permissions`  | none                                 | See [resources](/docs/specs/resources)                        |
+| `security`, `errors`      | the API's                            | Override them for this resource                               |
+| `extend`                  | none                                 | See [extend](#extend)                                         |
+
+`list` is `GET /<table>`, `create` is `POST /<table>` (201), `get`, `update`
+(`PATCH`) and `delete` (204) are on `/<table>/{key}`. The components are
+`<Table>Row`, `<Table>Insert`, `<Table>Update` and `<Table>Page`.
+
+Every resource operation carries `x-better-supabase-table` (the
+schema-qualified table) and `x-better-supabase-operation`. `extensionPrefix`
+replaces the `x-better-supabase-` prefix of every generated field.
+
+## Security presets
+
+`security` takes a list of presets, and defaults to `["bearer"]`:
+
+| Preset                      | Scheme           | What it is                                                                                                                 |
+| --------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `"bearer"`                  | `supabaseJwt`    | HTTP bearer, `bearerFormat: JWT`: the Supabase access token                                                                |
+| `"oauth2"`                  | `supabaseOAuth`  | Authorization code flow on the Supabase OAuth server; needs `supabaseUrl`, and names its authorization server metadata URL |
+| `"apiKey"`                  | `supabaseApiKey` | The `apikey` header                                                                                                        |
+| `{ name, scheme, scopes? }` | `name`           | Any security scheme object                                                                                                 |
+
+The `oauth2` preset's endpoints are `<supabaseUrl>/auth/v1/oauth/authorize`
+and `<supabaseUrl>/auth/v1/oauth/token`, and its metadata URL is
+`<origin>/.well-known/oauth-authorization-server/auth/v1`. A route or
+resource with `security: []` is public.
+
+## Error presets
+
+`errors` lists the shared error responses, each `{ name, status,
+description }`. The default, `DEFAULT_ERRORS`, has `BadRequest` (400),
+`Unauthorized` (401), `Forbidden` (403), `NotFound` (404), `Conflict` (409)
+and `Unprocessable` (422), all with the Problem Details body
+(`PROBLEM_SCHEMA`, the `Problem` component).
+
+Each operation lists only the statuses it can answer:
+
+| Operation | Errors                       |
+| --------- | ---------------------------- |
+| `list`    | 400, 401, 403                |
+| `create`  | 400, 401, 403, 409, 422      |
+| `get`     | 401, 403, 404                |
+| `update`  | 400, 401, 403, 404, 409, 422 |
+| `delete`  | 401, 403, 404, 409           |
+
+An operation with a permission answers its 403 with the shared
+`PermissionDenied` response, which has examples for `PERMISSION_DENIED`,
+`INSUFFICIENT_SCOPE` and `APPROVAL_REQUIRED` (see
+[permissions](/docs/specs/resources#permissions)).
+
+## Names
+
+`operationId({ source, method, path, defaultId })` names every operation.
+Resource operations default to `<operation><Table>` (`listCustomers`),
+actions to `<action><Table>`, and routes to their method and path segments
+(`postReportsReportIdRun`).
+
+`componentName(context)` names the components. For tables `context` is
+`{ kind: "table", table, variant, defaultName }`, with `variant` one of
+`Row`, `Insert`, `Update` and `Page`; returning `undefined` keeps
+`defaultName`. For a Standard Schema used as input or output it is
+`{ kind: "schema", id, schema, role, operationId }`, where `id` is the
+name taken from the schema's `$id` (or `id`) and `role` is `input`,
+`output` or `item`; returning `undefined` inlines the schema. Without
+`componentName`, a schema with an `$id` becomes a component named after the
+last segment of the `$id` (`https://schemas.example.com/NewCustomer.json`
+becomes `NewCustomer`), and one without is inlined.
+
+```ts
+defineApi(betterSupabase, {
+  info,
+  resources: { notes: true },
+  operationId: ({ defaultId, source }) =>
+    source.kind === "resource" ? `crm_${defaultId}` : defaultId,
+  componentName: (context) =>
+    context.kind === "table" ? `Note${context.variant}` : undefined,
+});
+```
+
+Two different schemas with one name are reported as `component-conflict`,
+and the first one is kept.
+
+## extend
+
+`extend` on a resource is keyed by operation or action name, and `*` applies
+to every operation of the resource. The fields are deep-merged into the
+rendered operation, after fragments, so they win. A key that names no
+operation is reported as `extend-unknown`.
+
+```ts
+resources: {
+  customers: {
+    extend: {
+      "*": { "x-team": "crm" },
+      delete: { "x-audit": "required" },
+    },
+  },
+},
+```
+
+A route takes `extend` directly.
+
+## Routes
+
+`routes` documents handlers that aren't resources, such as `bs.routes` or
+your own Hono routes:
+
+```ts
+defineApi(betterSupabase, {
+  info,
+  basePath: "/api",
+  routes: [
+    {
+      method: "POST",
+      path: "/reports/{reportId}/run",
+      summary: "Run a report",
+      params: ReportParams,
+      query: RunQuery,
+      input: RunInput,
+      output: ReportRun,
+      permission: "reports.run",
+    },
+    {
+      method: "GET",
+      path: "/events",
+      operationId: "streamEvents",
+      stream: { item: ReportEvent },
+      security: [],
+    },
+  ],
+});
+```
+
+`path` is relative to `basePath` and names parameters as `{name}`. `params`,
+`query`, `input` and `output` are Standard Schemas; a path parameter
+`params` doesn't describe is a string. `stream` describes a stream of
+`item` values (`text/event-stream` unless `contentType` says otherwise),
+rendered with `itemSchema` in 3.2 and later. `status` defaults to 200 with
+an output or a stream, and 204 without. The method can also be `query`,
+which only 3.2 and later render. A method outside the HTTP methods throws.
+
+## Fragments
+
+`fragments` are parsed OpenAPI objects (from YAML or JSON) deep-merged over
+the rendered document, in order. Objects merge, arrays and other values
+replace. A field a fragment changes is reported as `fragment-conflict`
+with its JSON Pointer, so you see what it overrode. A fragment that removes
+a required field throws.
+
+```ts
+import { parse } from "yaml";
+import { readFileSync } from "node:fs";
+
+defineApi(betterSupabase, {
+  info,
+  resources: { customers: true },
+  fragments: [parse(readFileSync("openapi.extra.yaml", "utf8"))],
+});
+```
+
+`mergeJson(base, patch, onConflict?)` is the merge the fragments use, and
+`pointerToken(key)` escapes a key for a JSON Pointer.
+
+## Enrich hooks
+
+`enrich` changes the model itself, before any version renders it. Each hook
+gets one item and returns a replacement, or `undefined` to keep it:
+
+| Hook                       | Gets                    |
+| -------------------------- | ----------------------- |
+| `operation(operation)`     | each operation          |
+| `schema(schema, { name })` | each component schema   |
+| `message(message, { id })` | each message (AsyncAPI) |
+| `channel(channel)`         | each channel (AsyncAPI) |
+| `workflow(workflow)`       | each workflow (Arazzo)  |
+
+```ts
+defineApi(betterSupabase, {
+  info,
+  resources: { customers: true },
+  enrich: {
+    operation: (operation) =>
+      operation.method === "delete"
+        ? { ...operation, description: "Deletes need an admin." }
+        : undefined,
+  },
+});
+```
+
+The hooks run last while the model is built, so they see the plugin
+descriptions and the resource defaults.
+
+## Plugin descriptions
+
+A plugin with a [`describe` hook](/docs/extending/plugins#api-descriptions) adds
+what it does to the served tables: the first-party plugins mark the columns
+they set `readOnly` and drop them from the required fields of the request
+bodies.
+
+| Plugin       | Adds                                                                                    |
+| ------------ | --------------------------------------------------------------------------------------- |
+| `timestamps` | the created and updated columns are `readOnly`, with a description of when they are set |
+| `softDelete` | the soft-delete column is `readOnly`                                                    |
+| `tenant`     | the tenant column is `readOnly`; with `header`, a header parameter on tenant tables     |
+
+A `describe` hook that throws is reported as `plugin-describe-failed`, and
+the rest of the model is built.
+
+## Comments become descriptions
+
+`comment on table` and `comment on column` become the `description` of the
+table's schemas and fields, unless a schema already has one. A comment line
+that starts with `@deprecated` marks the table or column `deprecated`, and
+the operations of a deprecated table are deprecated too. `@example` lines
+are left out of the description (the [validator generators](/docs/cli/gen#documentation-in-the-validators)
+read them).
+
+```sql title="supabase/schemas/customers.sql"
+comment on column public.customers.kvk is 'Chamber of Commerce number.
+@deprecated Use registration_number.';
+```
+
+## Permissions in the document
+
+With an `authorizer`, each permission reference becomes its `key()`, written
+as `x-better-supabase-permission` on the operation. Without one, a
+permission must be a string, and anything else is reported as
+`permission-unresolved`. `requirePermissions: true` reports every write
+(any operation other than `list` and `get`, and routes and actions whose
+method isn't `GET`, `HEAD`, `OPTIONS` or `QUERY`) that declares no permission
+as `permission-missing`. `permissionScopes: "keys"` adds each permission key
+as a scope of the `oauth2` preset and of the operation's requirement.

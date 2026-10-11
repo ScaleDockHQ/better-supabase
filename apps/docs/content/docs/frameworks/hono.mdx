@@ -151,8 +151,8 @@ const bs = createHono(betterSupabase, {
 ## Resources
 
 `bs.resource(table)` mounts REST routes that match what
-[`createOpenApi`](/docs/standards/openapi) documents: the same paths, status
-codes and bodies.
+[`defineApi`](/docs/specs) documents: the same paths, status codes and
+bodies.
 
 ```ts
 import { defineListQuery } from "better-supabase/list";
@@ -193,8 +193,41 @@ gets a 403 with `code: "CROSS_SITE_REQUEST"`. JSON requests from other
 origins need a CORS preflight, so your CORS settings decide those. Malformed
 keys and bodies answer 400 `invalid_input` with the reason in `detail`.
 
-Pass the same `list` to `createOpenApi({ resources: { customers: { list: customerList } } })`
+Pass the same options to `defineApi(betterSupabase, { resources: { customers: options } })`
 and the document describes exactly these routes.
+
+Resources also take `hooks` for business logic around each operation,
+`actions` for custom routes (typed with `defineAction` from
+`better-supabase/hono`), `output` when a hook changes the response shape,
+and `permissions` that the server's authorizer checks:
+
+```ts
+import { createHono, defineAction } from "better-supabase/hono";
+
+const bs = createHono(betterSupabase, { authorizer });
+
+app.route(
+  "/api/customers",
+  bs.resource("customers", {
+    permissions: { delete: "customers.delete" },
+    actions: {
+      archive: defineAction({
+        method: "POST",
+        path: "/{id}/archive",
+        permission: "customers.archive",
+        handler: (ctx, { id }) =>
+          ctx.db.customers.update(String(id), { status: "archived" }),
+      }),
+    },
+  }),
+);
+```
+
+A denied permission answers 403 with `code: "PERMISSION_DENIED"`, or
+`APPROVAL_REQUIRED` when the authorizer asks for an approval. See
+[Resources](/docs/specs/resources) for hooks, actions and how `list`
+filters rows, and [Authorizers](/docs/extending/authorizers) for the
+contract.
 
 ## Testing against the local stack
 

@@ -25,6 +25,41 @@ const fixed = {
 };
 
 describe("CloudEvents", () => {
+  it("sets dataschema from a URI or per table", () => {
+    const notice = {
+      table: "customers",
+      kind: "insert",
+      rows: [{ id: "c1" }],
+      context: {},
+    } as const;
+    expect(
+      toCloudEvents(notice, {
+        ...fixed,
+        dataschema: "https://crm.test/schemas/row.json",
+      })[0],
+    ).toMatchObject({ dataschema: "https://crm.test/schemas/row.json" });
+    const seen: unknown[] = [];
+    const [event] = toCloudEvents(notice, {
+      ...fixed,
+      dataschema: (context) => {
+        seen.push(context);
+        return context.table === "customers"
+          ? `https://crm.test/schemas/${context.table}.json`
+          : undefined;
+      },
+    });
+    expect(event?.dataschema).toBe("https://crm.test/schemas/customers.json");
+    expect(seen).toEqual([
+      { type: "dev.better-supabase.row.created", table: "customers" },
+    ]);
+    const [none] = toCloudEvents(
+      { ...notice, table: "notes" },
+      { ...fixed, dataschema: () => undefined },
+    );
+    expect(none).not.toHaveProperty("dataschema");
+    expect(toCloudEvents(notice, fixed)[0]).not.toHaveProperty("dataschema");
+  });
+
   it("builds one event per row", () => {
     const events = toCloudEvents(
       {

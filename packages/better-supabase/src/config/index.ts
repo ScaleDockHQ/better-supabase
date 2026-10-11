@@ -75,6 +75,7 @@ export {
   buildJsonSchema,
   jsonSchema,
   type JsonSchemaGeneratorOptions,
+  type JsonSchemaTarget,
 } from "../generators/json-schema.ts";
 export {
   standardSchema,
@@ -84,4 +85,8 @@ export {
   valibot,
   type ValibotGeneratorOptions,
 } from "../generators/valibot.ts";
-export { zod, type ZodGeneratorOptions } from "../generators/zod.ts";
+export {
+  zod,
+  type ZodFlavor,
+  type ZodGeneratorOptions,
+} from "../generators/zod.ts";

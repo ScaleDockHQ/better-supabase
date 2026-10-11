@@ -27,6 +27,25 @@ JSON, `undefined` as 204), so the entries can add refreshed cookies and
 `bs-primary-until` to it. A guard refusal answers 401 or 403 Problem Details
 before the handler runs.
 
+`guard(options)` from `better-supabase/h3` refuses callers per route, with
+the options every adapter takes (`allow`, `aal`, `scopes`, `roles`,
+`requireTenant`, `permission`, `authorize`, `signIn`, `mfa`). A `permission`
+is decided by the guard's `authorizer` (see
+[Authorizers](/docs/extending/authorizers)); without one, the route refuses
+every caller. `problemOnError()` answers errors thrown by `.orThrow()` with
+Problem Details:
+
+```ts
+import { H3 } from "h3";
+import { guard, problemOnError } from "better-supabase/h3";
+
+const app = new H3({ onError: problemOnError() }).get(
+  "/reports",
+  (event) => event.context.db.reports.findMany().orThrow(),
+  { middleware: [guard({ permission: "reports:read", authorizer })] },
+);
+```
+
 In Nitro 3, register the same middleware in `server/middleware`. Nuxt 3 and 4
 serve through Nitro 2 on H3 1; use [`better-supabase/nuxt`](/docs/frameworks/nuxt)
 there.

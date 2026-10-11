@@ -16,6 +16,7 @@ import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
 import * as standardSchemas from "../fixtures/generated-camel.standard.ts";
 import * as valibotSchemas from "../fixtures/generated-camel.valibot.ts";
+import * as zodMiniSchemas from "../fixtures/generated-camel.zod-mini.ts";
 import * as zodSchemas from "../fixtures/generated-camel.zod.ts";
 import fixture from "../fixtures/snapshot.json" with { type: "json" };
 
@@ -66,6 +67,30 @@ describe("zod generator", () => {
 
   it("exposes Standard Schema validators for the validation plugin", () => {
     expect(zodSchemas.validators.customers.insert["~standard"].vendor).toBe(
+      "zod",
+    );
+  });
+});
+
+describe("zod generator, mini flavor", () => {
+  it("validates the same shapes with zod/mini", () => {
+    expect(zodMiniSchemas.customersInsert.parse(customer)).toEqual(customer);
+    const result = zodMiniSchemas.customersInsert.safeParse({
+      ...customer,
+      status: "deleted",
+      organizationId: "x",
+    });
+    expect(
+      result.error?.issues.map((issue) => issue.path.join(".")).sort(),
+    ).toEqual(["organizationId", "status"]);
+    expect(
+      zodMiniSchemas.customersInsert.safeParse({ ...customer, name: "" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("exposes Standard Schema validators for the validation plugin", () => {
+    expect(zodMiniSchemas.validators.customers.insert["~standard"].vendor).toBe(
       "zod",
     );
   });
@@ -333,6 +358,24 @@ describe("zod()", () => {
     const [file] = await zod({ output: "src/schemas/zod.ts" }).generate(input);
     expect(file!.path).toBe("src/schemas/zod.ts");
     expect(file!.contents).toContain('from "../generated.ts";');
+  });
+
+  it("writes the functional zod/mini API with flavor mini", async () => {
+    const [file] = await zod({ json, flavor: "mini" }).generate(input);
+    const text = lines(file!.contents);
+    expect(text).toContain('import { z } from "zod/mini";');
+    expect(text).toEqual(
+      expect.arrayContaining([
+        "export const eventsRow: z.ZodMiniType<RowOf<'events'>> = z.object({",
+        "  amount: z.nullable(z.number()),",
+        "  amount: z.exactOptional(z.nullable(z.number())),",
+        "  labels: z.array(z.string()),",
+        "  paths: z.array((z.string() as unknown as z.ZodMiniType<NonNullable<RowOf<'files'>['paths']>[number]>)),",
+      ]),
+    );
+    expect(file!.contents).not.toContain(".nullable()");
+    expect(file!.contents).not.toMatch(/\)\.meta\(/);
+    expect(file!.contents).toContain(".check(z.meta({ title: ");
   });
 });
 

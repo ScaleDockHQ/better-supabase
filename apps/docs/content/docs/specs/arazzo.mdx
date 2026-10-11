@@ -1,0 +1,236 @@
+---
+title: Arazzo
+description: Render Arazzo 1.0 or 1.1 workflows over your OpenAPI and AsyncAPI documents with defineWorkflow and the built-in workflows, checked against the operations the API has.
+---
+
+`better-supabase/arazzo` renders the `workflows` of the model
+[`defineApi`](/docs/specs) builds as an Arazzo document: sequences of calls
+such as create a row and read it back, walk a paginated list, or sign in and
+call an operation. The document goes through the same pipeline as OpenAPI
+(`transform`, [overlays](/docs/specs/overlay) and the final checks), and a
+step that names an operation the API doesn't have is a finding, not a
+broken document.
+
+```ts title="src/api/arazzo.ts"
+import {
+  arazzoFormat,
+  authWorkflow,
+  createThenGetWorkflows,
+  defineWorkflow,
+  paginationWorkflows,
+  type ResourceOperationIds,
+} from "better-supabase/arazzo";
+import { defineApi } from "better-supabase/spec";
+import { betterSupabase } from "../lib/supabase";
+
+const onboarding = defineWorkflow<ResourceOperationIds<"customers">>({
+  id: "onboardCustomer",
+  inputs: { type: "object", properties: { row: { type: "object" } } },
+  steps: [
+    {
+      id: "create",
+      operationId: "createCustomers",
+      requestBody: "$inputs.row",
+      outputs: { id: "$response.body#/id" },
+    },
+    {
+      id: "get",
+      operationId: "getCustomers",
+      parameters: { id: "$steps.create.outputs.id" },
+      outputs: { row: "$response.body" },
+    },
+  ],
+  outputs: { row: "$steps.get.outputs.row" },
+});
+
+export const api = defineApi(betterSupabase, {
+  info: { title: "CRM workflows", version: "1.0.0" },
+  resources: { customers: { pagination: "cursor" } },
+  workflows: [
+    onboarding,
+    paginationWorkflows(),
+    createThenGetWorkflows(),
+    authWorkflow({ call: "getCustomers" }),
+  ],
+});
+
+const { document, diagnostics } = api.render(arazzoFormat);
+```
+
+`authWorkflow` calls the `signIn` operation by default, so the API needs a
+[route](/docs/specs/customize#routes) with that `operationId`; otherwise its
+first step is an `arazzo-operation-unknown` error. `render(arazzoFormat)`
+returns `document`, `version`, `fileName` (`arazzo.json`) and every finding
+in `diagnostics`. A model without workflows is an `arazzo-workflows-empty`
+error, because an Arazzo document needs at least one.
+
+## createArazzo
+
+`createArazzo(betterSupabase, options)` is the one-call form for scripts.
+It takes the `defineApi` options plus `version`, `transform`, `overlays`,
+`onDiagnostic` and the `openapi` and `asyncapi` source options, and returns
+the document. It throws a `TypeError` that lists every diagnostic with
+severity `error`; the warnings and info findings go to `onDiagnostic`.
+
+```ts title="scripts/arazzo.ts"
+import { createArazzo, createThenGetWorkflows } from "better-supabase/arazzo";
+import { betterSupabase } from "../src/lib/supabase";
+
+const document = createArazzo(betterSupabase, {
+  info: { title: "CRM workflows", version: "1.0.0" },
+  resources: { customers: true },
+  workflows: [createThenGetWorkflows({ tables: ["customers"] })],
+  openapi: { url: "https://crm.example.com/openapi.json" },
+});
+```
+
+`transform` receives `{ format: "arazzo", version, document }`, typed for
+the version, and runs before overlays.
+
+## Versions
+
+| `version` | `arazzo` field       | Status      |
+| --------- | -------------------- | ----------- |
+| `"1.0"`   | `SPEC_PINS.arazzo10` | the default |
+| `"1.1"`   | `SPEC_PINS.arazzo11` | stable      |
+
+1.1 adds two things better-supabase renders:
+
+- Channel steps, which send or receive on an AsyncAPI channel. In 1.0 a
+  channel step is left out of its workflow with an
+  `arazzo-channel-step-unsupported` error.
+- `parameters` on success and failure actions. In 1.0 they are removed
+  with an `arazzo-action-parameters-unsupported` warning.
+
+`Arazzo10Document`, `Arazzo11Document` and `ArazzoDocument<V>` type them.
+
+## Source descriptions
+
+The document lists the documents its steps call:
+
+| Source   | Name     | URL                                     | Listed when                                          |
+| -------- | -------- | --------------------------------------- | ---------------------------------------------------- |
+| OpenAPI  | `api`    | the model's `self`, then `openapi.json` | a step calls an operation, or no step uses a channel |
+| AsyncAPI | `events` | `asyncapi.json`                         | a 1.1 workflow has a channel step                    |
+
+When both are listed, each `operationId` is qualified as
+`$sourceDescriptions.api.<operationId>`.
+`createArazzoFormat({ openapi, asyncapi })` returns a format whose sources
+use your `name` and `url`;
+`arazzoFormat` is `createArazzoFormat()` with the defaults, and
+`createArazzo` takes the same two options.
+
+```ts
+import { createArazzoFormat } from "better-supabase/arazzo";
+
+const published = createArazzoFormat({
+  openapi: { url: "https://crm.example.com/openapi.json" },
+  asyncapi: { name: "realtime", url: "https://crm.example.com/asyncapi.json" },
+});
+
+const { document } = api.render(published, { version: "1.1" });
+```
+
+## defineWorkflow
+
+`defineWorkflow(workflow)` returns a workflow for the `workflows` option.
+
+| Field                    | What it is                                                                 |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `id`                     | The `workflowId`; letters, digits, `_` and `-`                             |
+| `summary`, `description` | Copied to the workflow                                                     |
+| `inputs`                 | A JSON Schema, or a Standard Schema converted through Standard JSON Schema |
+| `steps`                  | The steps, in order                                                        |
+| `outputs`                | Output name to a runtime expression, such as `$steps.get.outputs.row`      |
+
+A Standard Schema without Standard JSON Schema makes `defineWorkflow` throw;
+pass a JSON Schema instead.
+
+The type parameter lists the operation ids the steps may call.
+`ResourceOperationIds<"customers">` is the ids `defineApi` gives a
+resource by default (`listCustomers`, `getCustomers`, `createCustomers`,
+`updateCustomers` and `deleteCustomers`), so a step that names another id is
+a type error. A second parameter narrows the operations, and a table name
+with `_` or `-` is written in PascalCase:
+`ResourceOperationIds<"customer_tags", "list">` is `"listCustomerTags"`.
+Without the type parameter any string is allowed, and rendering still
+reports an unknown id.
+
+### Steps
+
+Each step has an `id` and exactly one target:
+
+- `operationId`: an operation of the API.
+- `workflowId`: another workflow of the document.
+- `channel: { id, action, correlationId }`: a channel of the model, with
+  `action` `send` or `receive` (Arazzo 1.1). It renders as a `channelPath`
+  into the AsyncAPI source, such as
+  `{$sourceDescriptions.events.url}#/channels/tableCustomers`.
+
+The other fields:
+
+| Field                    | What it does                                                            |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `parameters`             | A list of `{ name, in, value }`, or a record of name to value           |
+| `requestBody`            | The body; rendered with the operation's first request content type      |
+| `successCriteria`        | Condition strings or Criterion Objects (`condition`, `context`, `type`) |
+| `outputs`                | Output name to a runtime expression, such as `$response.body#/id`       |
+| `onSuccess`, `onFailure` | Arazzo success and failure actions (`end`, `goto`, `retry`)             |
+
+A parameter without `in` takes the location of the operation's parameter
+with that name, so `parameters: { id: "$steps.create.outputs.id" }` becomes
+a `path` parameter. When the operation has no parameter by that name, the
+step gets an `arazzo-parameter-in-missing` error; set `in` yourself.
+
+Without `successCriteria`, an operation step succeeds on the operation's
+first 2xx status (`$statusCode == 201` for a create, `$statusCode == 200`
+for a get).
+
+## Built-in workflows
+
+The built-ins are functions of the model's operations, so they only build
+workflows the API can run. Pass them in `workflows` next to your own.
+`paginationWorkflows` and `createThenGetWorkflows` take `{ tables }` to
+limit them to some resources.
+
+- `paginationWorkflows()`: for each resource whose list takes the `after`
+  cursor (`pagination: "cursor"`), the workflow `paginate<Table>`. It reads
+  the first page with the `size` input, ends when `hasMore` is false, and
+  otherwise reads the next page with the `nextCursor` the first page
+  returned. Repeat the `nextPage` step with its own `nextCursor` to walk the
+  rest.
+- `createThenGetWorkflows()`: for each resource with `create` and `get`, the
+  workflow `createThenGet<Table>`. It creates the `row` input, expects
+  `201`, and reads the row back by its key.
+- `authWorkflow({ call })`: the workflow `signInThen<Call>`. It signs in with
+  the `email` and `password` inputs and calls `call` with the access token in
+  an `Authorization: Bearer` header; the call's path parameters become
+  inputs too. A 403 Problem Details answer whose `code` is
+  `APPROVAL_REQUIRED` ends the workflow through the `approvalRequired`
+  failure action, so a client can wait for the approval instead of
+  retrying.
+
+`authWorkflow` options:
+
+| Option         | Default            | What it is                                               |
+| -------------- | ------------------ | -------------------------------------------------------- |
+| `call`         | required           | The operationId to call once signed in                   |
+| `signIn`       | `signIn`           | The sign-in operationId; it takes `email` and `password` |
+| `tokenPointer` | `/access_token`    | JSON Pointer to the access token in the sign-in response |
+| `id`           | `signInThen<Call>` | The workflow id                                          |
+
+## Checks
+
+Rendering checks each step against the model: unknown operations and
+channels, parameters without a location, and channel steps or action
+parameters in 1.0. The finished document is checked last, after
+`transform` and overlays: duplicate and invalid ids, steps with no target
+or two, calls to workflows the document doesn't have, `$steps` outputs that
+no step declares or that a step reads before the step runs, `$inputs` that
+aren't input properties, `$sourceDescriptions` names that aren't listed, and
+`goto` or `retry` targets that don't exist.
+
+Every code, with its fix, is on the
+[diagnostics page](/docs/specs/diagnostics#arazzo). The pinned versions and
+the conformance test are on the
+[Arazzo standards page](/docs/standards/arazzo).

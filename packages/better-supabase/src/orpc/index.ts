@@ -233,15 +233,14 @@ export function createOrpc<
           middlewareOptions.scopes,
         );
         if (denied) throw toOrpcError(denied);
-        if (middlewareOptions.requireTenant || middlewareOptions.authorize) {
-          const caller = await authorizeCaller(
-            ctx.auth,
-            middlewareOptions,
-            undefined,
-            tenantOf(toSession(ctx.auth), tenantClaim),
-          );
-          if ("kind" in caller) throw toOrpcError(caller);
-        }
+        const caller = await authorizeCaller(
+          ctx.auth,
+          middlewareOptions,
+          undefined,
+          tenantOf(toSession(ctx.auth), tenantClaim),
+          options.authorizer,
+        );
+        if ("kind" in caller) throw toOrpcError(caller);
         try {
           return await next({
             context: { bs: ctx, db: ctx.db, auth: ctx.auth },

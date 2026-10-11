@@ -1,0 +1,173 @@
+---
+title: API documents
+description: Describe your API once with defineApi, then render OpenAPI 3.0, 3.1, 3.2 or the 3.3 preview from the same model and serve it with an ETag.
+---
+
+`better-supabase/spec` builds one version-neutral model of your API from the
+schema metadata, the plugins and the resources you serve. Each document
+format renders that model: OpenAPI 3.0, 3.1, 3.2 and `3.3-preview` today. You
+describe the API once, and every version describes the same paths, schemas
+and errors as the routes your adapter serves.
+
+```ts title="src/api/spec.ts"
+import { defineApi } from "better-supabase/spec";
+import { defineListQuery } from "better-supabase/list";
+import { betterSupabase } from "../lib/supabase";
+
+const customerList = defineListQuery(betterSupabase, "customers", {
+  search: ["name"],
+  facets: { status: "status" },
+});
+
+export const api = defineApi(betterSupabase, {
+  info: { title: "CRM API", version: "1.0.0" },
+  basePath: "/api",
+  resources: { customers: { list: customerList }, tags: true },
+});
+
+const { document, diagnostics } = api.openapi({ version: "3.2" });
+```
+
+`defineApi(betterSupabase, options)` returns:
+
+| Field         | What it is                                                                                |
+| ------------- | ----------------------------------------------------------------------------------------- |
+| `model`       | The `ApiModel`: operations, schemas, security, tags, webhooks and fragments, in no format |
+| `diagnostics` | What building the model found (see [diagnostics](/docs/specs/diagnostics))                |
+| `openapi()`   | Renders OpenAPI; `version` defaults to `"3.1"`                                            |
+| `render()`    | Renders any [document format](/docs/extending/document-formats) for one of its versions   |
+
+The model is built once per options object: two `defineApi` calls with the
+same `betterSupabase`, plugins and options share it. Each format and version
+is rendered once too, and every call returns a fresh copy, so changing a
+returned document never changes the next one. The same options give the
+same bytes on every run.
+
+`buildApiModel(betterSupabase, options)` returns `{ model, diagnostics }`
+without the renderers, for tools that read the model directly. It throws a
+`TypeError` for a table key the schema doesn't have.
+
+## Render a version
+
+```ts
+const { document, version, fileName, diagnostics } = api.openapi({
+  version: "3.0",
+});
+```
+
+`version` is `"3.0"`, `"3.1"`, `"3.2"` or `"3.3-preview"`. The result's
+`document` is typed for that version, `fileName` is `openapi.json`, and
+`diagnostics` holds the model's findings plus the ones from rendering and
+from the checks that run on the finished document. A version the format
+doesn't have throws. [OpenAPI versions](/docs/specs/openapi) lists what each
+version renders differently.
+
+`createOpenApi(betterSupabase, options)` from `better-supabase/openapi` is
+the one-call form for scripts and the CLI. It takes the same options plus
+`version`, `transform`, `overlays` and `onDiagnostic`, returns the document,
+and throws a `TypeError` that lists every diagnostic with severity `error`.
+The other diagnostics go to `onDiagnostic`.
+
+```ts title="scripts/openapi.ts"
+import { createOpenApi } from "better-supabase/openapi";
+
+const document = createOpenApi(betterSupabase, {
+  info: { title: "CRM API", version: "1.0.0" },
+  resources: { customers: true },
+  version: "3.1",
+  onDiagnostic: (diagnostic) =>
+    console.warn(diagnostic.code, diagnostic.message),
+});
+```
+
+## Where to customize
+
+The stages, from the earliest to the latest. Use the earliest one that can
+express the change, so every version gets it:
+
+1. Options and presets: `info`, `servers`, `tags`, `security`, `errors`,
+   naming (see [customize the model](/docs/specs/customize)).
+2. `extend`: fields merged into one operation or into every operation of a
+   resource.
+3. Schema metadata: `comment on table` and `comment on column` become
+   descriptions, and `@deprecated` marks a table or column deprecated.
+4. `enrich` hooks: functions that replace an operation, schema, channel,
+   message or workflow in the model, for every version at once.
+5. `transform`: a function that gets the rendered document of one version,
+   typed for it.
+6. [Overlays](/docs/specs/overlay): OpenAPI Overlay documents applied to the
+   rendered document, for changes another team or tool owns.
+
+## Transform one version
+
+`transform` receives `{ format, version, document }`, with `document` typed
+for the version. Return a replacement, or change `document` in place and
+return nothing. It runs before overlays and the final checks, so a field it
+breaks is still reported.
+
+```ts
+const { document } = api.openapi({
+  version: "3.2",
+  transform: ({ version, document }) => {
+    if (version !== "3.2") return;
+    return { ...document, info: { ...document.info, title: "CRM API (beta)" } };
+  },
+});
+```
+
+`render(format, options)` takes the same `version`, `transform`, `overlays`
+and `applyOverlays` for any format.
+
+## Serve the document
+
+`serializeDocument(document, { indent, sortKeys })` turns a document into
+stable JSON: two-space indent by default, keys in insertion order unless
+`sortKeys`, a trailing newline, and `undefined` values left out. It throws
+on `NaN`, `Infinity` and other values that have no JSON form.
+
+`specResponse(document, request, options)` answers a request for the
+document. It sends an `ETag` (the base64url SHA-256 of the body) and
+`Cache-Control: public, no-cache`, answers `304 Not Modified` when
+`If-None-Match` matches (weak comparison), sends headers only for `HEAD`, and
+answers `405` with `Allow: GET, HEAD` for any other method. The body is
+built once per document object.
+
+```ts title="src/app/openapi.json/route.ts"
+import { specResponse } from "better-supabase/spec";
+import { api } from "../../api/spec";
+
+const { document } = api.openapi({ version: "3.1" });
+
+export const GET = (request: Request) => specResponse(document, request);
+export const HEAD = GET;
+```
+
+`cacheControl`, `contentType` (default `application/json`) and `indent`
+change the response.
+
+`specReference` serves an interactive reference page for the document next
+to that route: Scalar by default, or Swagger UI, Redoc, Stoplight Elements
+or RapiDoc (see [Reference UIs](/docs/specs/reference-ui)). To write the
+documents to files and check them in CI, use
+[`better-supabase spec`](/docs/cli/spec).
+
+## Pages in this section
+
+- [Customize the model](/docs/specs/customize): security and error
+  presets, naming, `extend`, custom routes, fragments, `enrich` and plugins.
+- [OpenAPI versions](/docs/specs/openapi): what 3.0, 3.1, 3.2 and the 3.3
+  preview render.
+- [AsyncAPI](/docs/specs/asyncapi): `better-supabase/asyncapi`, for Realtime
+  channels, CloudEvents and webhooks.
+- [Arazzo](/docs/specs/arazzo): `better-supabase/arazzo`, for workflows over
+  the OpenAPI and AsyncAPI documents.
+- [Overlays](/docs/specs/overlay): `better-supabase/overlay`.
+- [Reference UIs](/docs/specs/reference-ui): `specReference` and
+  `scalarPreset`, for an interactive reference page.
+- [Diagnostics](/docs/specs/diagnostics): every code, its severity and its
+  fix.
+- [Resources](/docs/specs/resources): the REST routes the adapters serve
+  from the same descriptions, with hooks, actions and permissions.
+
+The versions and their pins are on the
+[OpenAPI standards page](/docs/standards/openapi).

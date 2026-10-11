@@ -149,6 +149,16 @@ export type {
   RespondOptions,
   Settled,
 } from "./respond.ts";
+export { defineAuthorizer } from "../core/authorizer.ts";
+export type {
+  AnyAuthorizer,
+  AuthorizationOutcome,
+  AuthorizationRequest,
+  AuthorizationResource,
+  AuthorizationSubject,
+  Authorizer,
+  PermissionRef,
+} from "../core/authorizer.ts";
 export { defineResource } from "./resource.ts";
 export type {
   ResourceHandler,

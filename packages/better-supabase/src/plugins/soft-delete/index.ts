@@ -83,6 +83,17 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
     // Runs first so other plugins see the delete as the update it becomes.
     enforce: "pre",
     scopes: ["softDelete"],
+    describe(api): void {
+      for (const { table } of api.resources) {
+        const flag = table.flags.softDelete;
+        if (!flag) continue;
+        api.markReadOnly(
+          table.key,
+          flag,
+          "Set when the row is deleted. Deleted rows are not returned, and delete sets this column instead of removing the row.",
+        );
+      }
+    },
     transformQuery(op, { options }): Operation {
       const hardDelete = op.kind === "delete" && options["hard"] === true;
       const withDeleted = options["withDeleted"] === true || hardDelete;

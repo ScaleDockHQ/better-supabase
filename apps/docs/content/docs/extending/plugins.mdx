@@ -29,6 +29,7 @@ another version, and installing two plugins with the same name.
 | `wrapExecutor(executor)`   | Execution  | Tracing, retries, caching                                                   |
 | `mapError(raw, fallback)`  | Errors     | Map `RAISE` hint codes or custom SQLSTATEs to `DbError`s                    |
 | `repository(api)`          | Repository | Add methods to matching tables                                              |
+| `describe(api)`            | API model  | Document the parameters the plugin reads and the columns it manages         |
 
 Hooks receive `args` with the table metadata, the request context, the
 per-call options (any argument the repository does not know, like
@@ -69,6 +70,49 @@ run as SQL functions without plugins, so `defineReadSet` warns when a set
 reads a table a plugin filters. Declare `scopes: []` for a plugin that only
 inspects queries; a plugin with `transformQuery` and no `scopes` is assumed
 to filter every table.
+
+## API descriptions
+
+`describe(api)` tells [`defineApi`](/docs/specs) what the plugin does to the
+tables the API serves, so the OpenAPI document matches the behavior. It
+runs once, while the model is built. `api.resources` lists the served
+tables (their metadata and operation names), and every method ignores
+tables and columns the API doesn't serve:
+
+| Method                                        | What it changes                                                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `addParameter(table, parameter, operations?)` | Adds a `query`, `header` or `cookie` parameter (with a JSON Schema 2020-12 `schema`) to the table's operations, or to the named ones |
+| `markReadOnly(table, column, description?)`   | Marks the column `readOnly` and drops it from the required fields of request bodies; `description` is used when the column has none  |
+| `describeColumn(table, column, patch)`        | Deep-merges JSON Schema fields into the column's schemas                                                                             |
+
+`api.extensionPrefix` is the prefix of generated `x-` fields, and
+`api.schema` the whole schema metadata.
+
+```ts title="src/plugins/region.ts"
+import { definePlugin } from "better-supabase";
+
+export const region = definePlugin({
+  name: "region",
+  describe(api) {
+    for (const { table } of api.resources) {
+      if (!("region" in table.columns)) continue;
+      api.markReadOnly(table.key, "region", "Set from the caller's region.");
+      api.addParameter(table.key, {
+        name: "X-Region",
+        in: "header",
+        description: "Overrides the caller's region.",
+        schema: { type: "string" },
+      });
+    }
+  },
+});
+```
+
+A `describe` that throws doesn't stop the build: `defineApi` reports a
+`plugin-describe-failed` warning (see [Diagnostics](/docs/specs/diagnostics))
+and builds the rest of the model. The built-in plugins describe themselves:
+[`timestamps()`](/docs/plugins/timestamps), [`softDelete()`](/docs/plugins/soft-delete)
+and [`tenant()`](/docs/plugins/tenant).
 
 ## Scoping helpers
 

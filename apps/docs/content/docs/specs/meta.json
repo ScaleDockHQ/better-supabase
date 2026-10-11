@@ -1,0 +1,14 @@
+{
+  "title": "API documents",
+  "pages": [
+    "index",
+    "customize",
+    "openapi",
+    "asyncapi",
+    "arazzo",
+    "overlay",
+    "reference-ui",
+    "resources",
+    "diagnostics"
+  ]
+}

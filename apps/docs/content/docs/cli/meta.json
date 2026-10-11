@@ -6,6 +6,8 @@
     "gen",
     "introspect",
     "local",
+    "spec",
+    "scaffold",
     "doctor",
     "config",
     "codemod",

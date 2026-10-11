@@ -1,4 +1,5 @@
 import type { AuthState } from "../auth/resolve.ts";
+import type { AnyAuthorizer } from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
 
 import { dbErrorOf } from "../core/errors.ts";
@@ -72,6 +73,8 @@ export interface RouteGuardOptions<C = unknown, P = unknown>
   extends BlockRequireOptions<C, P>, RefusalRedirects {
   /** Include internal error messages in Problem Details. Defaults to development only. */
   readonly expose?: boolean;
+  /** Decides `permission`; without one, a route with a `permission` refuses every caller. */
+  readonly authorizer?: AnyAuthorizer;
 }
 
 /** The refusal for a caller `options` refuses, or `undefined` to let it through. */
@@ -80,7 +83,12 @@ export async function routeRefusal(
   request: Request,
   options: RouteGuardOptions,
 ): Promise<Response | undefined> {
-  const caller = await requireCaller(locals.bs.auth, options, locals.tenant);
+  const caller = await requireCaller(
+    locals.bs.auth,
+    options,
+    locals.tenant,
+    options.authorizer,
+  );
   if (!("kind" in caller)) return undefined;
   return refusalResponse(
     caller,

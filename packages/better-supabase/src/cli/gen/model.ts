@@ -28,6 +28,7 @@ import {
   restrictSchemas,
   tsTypeOf,
 } from "../introspect/typegen.ts";
+import { commentMeta } from "./comment.ts";
 import {
   arrayOf,
   configFor,
@@ -599,6 +600,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           )
         )
           meta.sensitive = true;
+        Object.assign(meta, commentMeta(column.snapshot.comment));
         columnMeta[column.app] = meta;
       }
       const app = (db: string): string => byDb.get(db)?.app ?? db;
@@ -624,6 +626,7 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
           uniqueKeys,
           relations: relationMeta,
           flags: flags,
+          ...commentMeta(table.comment),
         },
       };
     },

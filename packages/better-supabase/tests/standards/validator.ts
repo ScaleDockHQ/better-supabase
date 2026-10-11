@@ -54,6 +54,41 @@ function staticDynamicRefs(schema: Json): void {
   rewrite(schema);
 }
 
+/**
+ * Draft-04 writes an exclusive bound as `minimum: n, exclusiveMinimum: true`;
+ * draft-07 writes `exclusiveMinimum: n`. Same meaning, so rewrite it.
+ */
+function draft07Bounds(node: unknown): void {
+  if (!node || typeof node !== "object") return;
+  const record = node as Json;
+  for (const [bound, exclusive] of [
+    ["minimum", "exclusiveMinimum"],
+    ["maximum", "exclusiveMaximum"],
+  ] as const) {
+    if (typeof record[exclusive] !== "boolean") continue;
+    if (record[exclusive] && typeof record[bound] === "number") {
+      record[exclusive] = record[bound];
+      delete record[bound];
+    } else if (!record[exclusive]) delete record[exclusive];
+  }
+  for (const value of Object.values(record)) draft07Bounds(value);
+}
+
+/**
+ * The AsyncAPI bundles embed the draft-07 meta-schema under its own `$id`,
+ * which Ajv already registers, so drop the copy and let `$ref`s resolve to Ajv's.
+ */
+function builtInDraft07(schema: Json): void {
+  const definitions = schema["definitions"] as Json | undefined;
+  for (const [key, definition] of Object.entries(definitions ?? {}))
+    if (
+      String((definition as Json)["$id"]).startsWith(
+        "http://json-schema.org/draft-07/schema",
+      )
+    )
+      delete definitions![key];
+}
+
 function load(file: string): { engine: Ajv | Ajv2020; key: string } {
   const schema = vendored(file);
   const engine = engineFor(schema);
@@ -62,8 +97,10 @@ function load(file: string): { engine: Ajv | Ajv2020; key: string } {
       delete schema["$schema"];
       schema["$id"] = schema["id"];
       delete schema["id"];
+      draft07Bounds(schema);
     }
     if (file.startsWith("openapi-")) staticDynamicRefs(schema);
+    if (file.startsWith("asyncapi-")) builtInDraft07(schema);
     engine.addSchema(schema, file);
   }
   return { engine, key: file };

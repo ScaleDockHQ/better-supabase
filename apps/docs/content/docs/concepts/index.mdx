@@ -93,3 +93,23 @@ zod({ json: { "customers.metadata": "./src/schemas.ts#customerMetadata" } });
 
 All generated validators implement [Standard Schema](/docs/standards), so the
 validation plugin, forms and MCP inputs accept them as they are.
+
+`zod({ flavor: "mini" })` writes the same validators against `zod/mini`
+(`z.nullable(...)`, `.check(z.gte(...))`, `.check(z.meta(...))`), typed as
+`z.ZodMiniType`, for bundles where size matters. Both flavors need zod 4;
+Zod 3 is not supported.
+
+`jsonSchema({ target })` picks the JSON Schema dialect of the document it
+writes:
+
+| `target`                  | Output                                                                 |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `draft-2020-12` (default) | `$schema` and `$defs`                                                  |
+| `draft-07`                | `definitions`, for validators and tools that stop at draft-07          |
+| `openapi-3.0`             | `definitions` with `nullable` and `example`, for OpenAPI 3.0 documents |
+
+Table and column comments become descriptions in every generator (see
+[documentation in the validators](/docs/cli/gen#documentation-in-the-validators)).
+A comment line that starts with `@deprecated` marks the table or column
+deprecated, so the generated JSON Schema and `defineApi` documents carry
+`deprecated: true`.

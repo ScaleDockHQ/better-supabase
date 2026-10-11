@@ -9,6 +9,7 @@
     "repository",
     "auth",
     "frameworks",
+    "specs",
     "frontend",
     "platform",
     "blocks",

@@ -2,10 +2,15 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { describe, expect, it, vi } from "vitest";
 
+import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
-import { type HonoEnv, createHono } from "../../src/hono/index.ts";
+import {
+  type HonoEnv,
+  createHono,
+  defineAction,
+} from "../../src/hono/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import {
   type Functions,
@@ -176,5 +181,86 @@ describe("bs.require()", () => {
     const scoped = await call("/scoped", "admin");
     expect(scoped.status).toBe(403);
     expect(await scoped.json()).toMatchObject({ code: "NO_TENANT" });
+  });
+});
+
+describe("authorizer", () => {
+  const authorizer = defineAuthorizer<"invite" | "export">({
+    name: "test",
+    key: (ref) => ref,
+    evaluate: (request) =>
+      request.subject.properties?.["role"] === "authenticated" &&
+      request.action === "export"
+        ? { outcome: "granted" }
+        : request.action === "invite"
+          ? { outcome: "approval-required", approval: { id: "apr_9" } }
+          : { outcome: "denied" },
+  });
+  const bs = createHono(defineSupabase(schema), {
+    env,
+    auth: { jwks: signer.jwks as never },
+    authorizer,
+  });
+  const app = bs
+    .app()
+    .use("*", bs.middleware())
+    .post("/invites", bs.require({ permission: "invite" }), (c) => c.json("ok"))
+    .route(
+      "/customers",
+      bs.resource("customers", {
+        actions: {
+          export: defineAction({
+            method: "GET",
+            path: "/export",
+            permission: "export",
+            handler: (ctx) => ({ table: ctx.table }),
+          }),
+          send: {
+            method: "POST",
+            path: "/{id}/send",
+            handler: (ctx, { id }) => ({ id, user: ctx.context.actor?.id }),
+          },
+        },
+      }),
+    );
+  const call = async (path: string, method = "GET") =>
+    app.request(path, {
+      method,
+      headers: { authorization: `Bearer ${await signer.sign({ sub: USER })}` },
+    });
+
+  it("routes resource actions before item paths", async () => {
+    const exported = await call("/customers/export");
+    expect(exported.status).toBe(200);
+    expect(await exported.json()).toEqual({ table: "customers" });
+    const sent = await call("/customers/c1/send", "POST");
+    expect(await sent.json()).toEqual({ id: "c1", user: USER });
+    expect((await call("/customers/c1/send")).status).toBe(405);
+    expect(
+      bs
+        .resource("customers", {
+          actions: {
+            ping: { method: "POST", path: "/ping", handler: () => undefined },
+          },
+        })
+        .routes.map((route) => route.path),
+    ).toEqual(["/", "/ping", "/:id"]);
+  });
+
+  it("refuses a route whose permission needs an approval", async () => {
+    const response = await call("/invites", "POST");
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      code: "APPROVAL_REQUIRED",
+      permission: "invite",
+      approval: { id: "apr_9" },
+    });
+  });
+
+  it("types permissions from the authorizer", () => {
+    // @ts-expect-error "delete" is not a permission of this authorizer
+    bs.require({ permission: "delete" });
+    // @ts-expect-error "delete" is not a permission of this authorizer
+    bs.resource("customers", { permissions: { list: "delete" } });
   });
 });

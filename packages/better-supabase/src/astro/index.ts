@@ -152,6 +152,7 @@ export function createAstro<
       scope.bs.auth,
       requireOptions,
       scope.tenant,
+      options.authorizer,
     );
     return { scope, caller };
   };
@@ -202,6 +203,7 @@ export function createAstro<
           // action has no schema; requireTenant refused a missing tenant.
           (parsed, caller) =>
             fn(parsed as never, { ...scope, ...caller } as never),
+          options.authorizer,
         );
         // SAFETY: the settled data is what fn returned, unwrapped.
         return result as never;
