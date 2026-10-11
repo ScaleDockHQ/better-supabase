@@ -415,12 +415,59 @@ refuses a tool before the repositories are built:
 const server = withBetterSupabaseMcp(protect(new McpServer(info)), auth);
 ```
 
+### Supabase's MCP server
+
+`supabaseMcpHandler` serves Supabase's own MCP server
+(`@supabase/mcp-server-supabase`) from your app, behind `createMcpAuth`. The
+caller signs in with your Supabase Auth, and the server reaches the
+Management API with a token your app holds, never the caller's JWT:
+
+```bash
+pnpm add @modelcontextprotocol/server @supabase/mcp-server-supabase
+```
+
+```ts title="src/ops-mcp.ts"
+import { createMcpAuth, supabaseMcpHandler } from "better-supabase/mcp/sdk";
+import { credentials } from "./lib/credentials";
+import { betterSupabase } from "./lib/supabase/schema";
+
+const auth = createMcpAuth(betterSupabase, {
+  resource: "https://ops.example.com/mcp",
+});
+
+export default {
+  fetch: supabaseMcpHandler(auth, {
+    credentials,
+    credentialRef: { provider: "vault", secret: "supabase-management" },
+    projectRef: "abcdefghijklmnopqrst",
+    features: ["database", "debugging", "docs"],
+    authorize: (caller) => caller.claims.app_metadata?.role === "admin",
+  }),
+};
+```
+
+The handler answers the metadata and the bearer check of `auth.serve`, then
+calls `authorize` with the verified caller; anyone it turns down gets a 403
+before the token is read. It resolves `credentialRef` through the
+[credential provider](/docs/extending/credentials) as the app, builds a
+Supabase MCP server for the request and closes it when the response ends.
+The server is read-only unless you pass `readOnly: false`.
+
+Its tools administer the project, so keep `authorize` to the people who run
+it. Supabase's handler speaks MCP 2026-07-28 only, so clients need a version
+of the protocol that negotiates it (the official SDK client with
+`versionNegotiation: { mode: "auto" }`, for example).
+`@supabase/mcp-server-supabase` loads on the first request and imports Node
+modules, so the handler runs on Node, Bun and Deno but not on Cloudflare
+Workers.
+
 ### Which one to use
 
-| You need                                                      | Use                                         |
-| ------------------------------------------------------------- | ------------------------------------------- |
-| Tools generated from tables and list definitions              | `createMcp`                                 |
-| No MCP dependency, or the smallest bundle on an edge function | `createMcp`                                 |
-| The `authorize` and `visible` hooks                           | `createMcp`                                 |
-| An existing `McpServer`, prompts, resources or SDK features   | `createMcpAuth` and `withBetterSupabaseMcp` |
-| A permission library that wraps `McpServer`                   | `createMcpAuth` and `withBetterSupabaseMcp` |
+| You need                                                        | Use                                         |
+| --------------------------------------------------------------- | ------------------------------------------- |
+| Tools generated from tables and list definitions                | `createMcp`                                 |
+| No MCP dependency, or the smallest bundle on an edge function   | `createMcp`                                 |
+| The `authorize` and `visible` hooks                             | `createMcp`                                 |
+| An existing `McpServer`, prompts, resources or SDK features     | `createMcpAuth` and `withBetterSupabaseMcp` |
+| A permission library that wraps `McpServer`                     | `createMcpAuth` and `withBetterSupabaseMcp` |
+| Project tools (SQL, migrations, logs) for the people who run it | `createMcpAuth` and `supabaseMcpHandler`    |

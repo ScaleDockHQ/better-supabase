@@ -177,8 +177,18 @@ function fakeClient(sessionId: string | null = "sess-1") {
         ],
       }),
     ),
-    toolsFromDefinitions: (definitions: { tools: { name: string }[] }) =>
-      Object.fromEntries(definitions.tools.map(({ name }) => [name, echo])),
+    toolsFromDefinitions: (
+      definitions: { tools: { name: string }[] },
+      options?: { schemas?: Record<string, unknown> },
+    ) =>
+      Object.fromEntries(
+        definitions.tools
+          .filter(
+            ({ name }) =>
+              options?.schemas === undefined || name in options.schemas,
+          )
+          .map(({ name }) => [name, echo]),
+      ),
     close,
   };
   mcp.createMCPClient.mockImplementation(
@@ -446,6 +456,25 @@ describe("connectTools", () => {
     const options = mcp.createMCPClient.mock.calls[0]?.[0];
     expect(options.capabilities.elicitation).toEqual({});
     expect(options.transport.headers).toEqual({});
+  });
+
+  it("keeps the tools schemas names and fingerprints every tool", async () => {
+    fakeClient();
+    const fake = fakeConnectors();
+    const all = await connectTools({
+      connectors: fake.connectors,
+      server: server(),
+      userId: "u1",
+    }).orThrow();
+    const typed = await connectTools({
+      connectors: fake.connectors,
+      server: server(),
+      userId: "u1",
+      schemas: { search: { inputSchema: jsonSchema({ type: "object" }) } },
+    }).orThrow();
+    expect(Object.keys(all.tools)).toEqual(["search", "render"]);
+    expect(Object.keys(typed.tools)).toEqual(["search"]);
+    expect(typed.fingerprint).toBe(all.fingerprint);
   });
 
   it("resumes a stored session and declines elicitation by default", async () => {

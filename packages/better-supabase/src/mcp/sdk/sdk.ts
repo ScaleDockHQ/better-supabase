@@ -38,7 +38,8 @@ import {
   withCors,
 } from "../http.ts";
 
-const STATE_KEY = "betterSupabase";
+/** Where `serve` keeps the verified `AuthState` in `AuthInfo.extra`. */
+export const MCP_AUTH_STATE_KEY = "betterSupabase";
 
 type UserAuth<C, P> = Extract<AuthState<C, P>, { kind: "user" }>;
 
@@ -280,7 +281,7 @@ export function createMcpAuth<
             ? { expiresAt: exp }
             : {}
           : { expiresAt: auth.expiresAt }),
-        extra: { [STATE_KEY]: auth },
+        extra: { [MCP_AUTH_STATE_KEY]: auth },
       };
     },
   };
@@ -291,7 +292,7 @@ export function createMcpAuth<
     ctx: McpContext,
   ): Promise<ServerContext<M, F, E, C, P>> => {
     const info = ctx.http?.authInfo;
-    const state = info?.extra?.[STATE_KEY];
+    const state = info?.extra?.[MCP_AUTH_STATE_KEY];
     if (isUserState<C, P>(state, verified)) return server.contextFor(state);
     if (info?.token) {
       const auth = await resolveToken(server, info.token);

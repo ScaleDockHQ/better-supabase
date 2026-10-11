@@ -1184,6 +1184,7 @@
     "@supabase-labs/middleware-openfeature": "catalog:",
     "@supabase-labs/tanstack-db": "catalog:",
     "@supabase/config": "catalog:",
+    "@supabase/mcp-server-supabase": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@t3-oss/env-core": "catalog:",
@@ -1247,6 +1248,7 @@
     "@orpc/server": "catalog:peers",
     "@supabase-labs/tanstack-db": "catalog:peers",
     "@supabase/config": "catalog:peers",
+    "@supabase/mcp-server-supabase": "catalog:peers",
     "@supabase/postgrest-typegen": "catalog:peers",
     "@supabase/supabase-js": "catalog:peers",
     "@tanstack/query-core": "catalog:peers",
@@ -1299,6 +1301,9 @@
       "optional": true
     },
     "@supabase/config": {
+      "optional": true
+    },
+    "@supabase/mcp-server-supabase": {
       "optional": true
     },
     "@supabase/postgrest-typegen": {

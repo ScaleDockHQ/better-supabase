@@ -23,6 +23,11 @@ records what shipped.
   `better-supabase/client`): `defineFunction()` checks the input and output
   with Standard Schemas, and `functions()` calls it through `functions-js`
   with a `Result`. Upstream: `@supabase/functions-js`.
+- **Supabase MCP server interop** (`better-supabase/ai-sdk/mcp` and
+  `better-supabase/mcp/sdk`): `supabaseMcp()` types the server's tools with
+  `createToolSchemas()`, and `supabaseMcpHandler()` serves
+  `createSupabaseMcpHandler` behind better-supabase auth. Upstream:
+  `@supabase/mcp-server-supabase`.
 
 ## Next
 
@@ -32,11 +37,6 @@ Parity gaps with what Supabase ships today.
   the CLI): the server, repositories, `gen`, `doctor` and `init` against a
   `@supabase/lite` project, and in-process lite stacks for tests. Upstream:
   `@supabase/lite`.
-- **Supabase MCP server interop** (`better-supabase/ai-sdk/mcp` and
-  `better-supabase/mcp/sdk`): typed tools from `createToolSchemas()` and a
-  self-hosted `createSupabaseMcpHandler` behind better-supabase auth.
-  Upstream: `@supabase/mcp-server-supabase`.
-
 - **Compiled JSON Schemas** (the `jsonb-schemas` SQL module). CHECK
   constraints use `pg_jsonschema`'s compiled `jsonschema` type once the
   platform ships a version that has it; Supabase runs 0.3.3, which has

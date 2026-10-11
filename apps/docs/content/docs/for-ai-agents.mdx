@@ -42,6 +42,14 @@ To give your users' agents a way into your app, add an
 [Supabase library MCP blocks guide](/docs/guides/supabase-blocks) covers the
 Supabase library's MCP server and headless app blocks.
 
+Supabase's own [MCP server](https://supabase.com/docs/guides/getting-started/mcp)
+is a different tool: it administers a project (SQL, migrations, logs, docs
+search) for the people who run it. Connect an agent to it with
+[`supabaseMcp`](/docs/ai-sdk/mcp#supabases-mcp-server), or serve it from your
+app behind your own auth with
+[`supabaseMcpHandler`](/docs/frameworks/mcp#supabases-mcp-server). Tools for
+your app's users belong in your own MCP server, where they run with RLS.
+
 In Claude Code, the repository is also a plugin marketplace. The plugin
 installs the same skills and connects the [docs MCP server](#docs-mcp-server):
 

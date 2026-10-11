@@ -26,6 +26,7 @@ import type {
   CredentialRef,
 } from "../../credentials/provider.ts";
 import type { VaultCredentials } from "../../credentials/vault.ts";
+import type { McpToolSchemas } from "./supabase.ts";
 
 import { errorText, isRecord, sha256Hex } from "../../core/block-helpers.ts";
 import { DbException, dbError } from "../../core/errors.ts";
@@ -303,6 +304,12 @@ export interface ConnectToolsOptions {
   readonly elicit?: (request: ElicitationRequest) => Promise<ElicitResult>;
   /** Prefixes tool names, such as `github_`, so servers don't collide. */
   readonly prefix?: string;
+  /**
+   * Types the tools and keeps only the ones it names, such as
+   * `supabaseMcp().schemas`. The fingerprint still covers every tool the
+   * server lists.
+   */
+  readonly schemas?: McpToolSchemas;
 }
 
 export interface ConnectedTools {
@@ -528,7 +535,14 @@ export function connectTools(
         );
       }
       return ok({
-        tools: prefixed(tools, options.prefix),
+        tools: prefixed(
+          options.schemas === undefined
+            ? tools
+            : client.toolsFromDefinitions(split.modelVisible, {
+                schemas: options.schemas,
+              }),
+          options.prefix,
+        ),
         appTools: prefixed(
           client.toolsFromDefinitions(split.appVisible),
           options.prefix,
