@@ -8,8 +8,13 @@ import { createExpo } from "../../src/expo/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const bs = createExpo(defineSupabase(schema), {
-  url: "https://abcdefghijklmnopqrst.supabase.co",
-  publishableKey: "sb_publishable_test",
+  env: {
+    url: "https://abcdefghijklmnopqrst.supabase.co",
+    publishableKey: "sb_publishable_test",
+    jwksUrl: new URL(
+      "https://abcdefghijklmnopqrst.supabase.co/auth/v1/.well-known/jwks.json",
+    ),
+  },
 });
 
 describe("bs.loader", () => {
