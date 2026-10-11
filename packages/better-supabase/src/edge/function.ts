@@ -9,8 +9,8 @@ import type { BetterEdge } from "./index.ts";
 import { dbError } from "../core/errors.ts";
 import { err, ok, type Result } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
+import { withExtra } from "../server/extra.ts";
 import { settle } from "../server/respond.ts";
-import { withExtra } from "../server/server.ts";
 
 export type { FunctionContract };
 

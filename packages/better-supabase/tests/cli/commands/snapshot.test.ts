@@ -122,6 +122,30 @@ describe("openSource", () => {
   });
 });
 
+describe("openSource on a Supabase Lite project", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "bs-lite-source-"));
+    await writeFile(join(root, ".git"), "");
+    await mkdir(join(root, "supabase"));
+    await writeFile(
+      join(root, "supabase/config.toml"),
+      '[db]\ndriver = "postgres"\nurl = "postgresql://lite/db"\n',
+    );
+  });
+
+  afterEach(() => rm(root, { recursive: true, force: true }));
+
+  it("reads [db] url before DATABASE_URL, unless source.lite is false", async () => {
+    const open = fakeConnect(fakeSql().pg);
+    const env = { DATABASE_URL: "postgresql://env/db" };
+    await openSource(config({}, root), env, {}, open.connect);
+    await openSource(config({ lite: false }, root), env, {}, open.connect);
+    expect(open.urls).toEqual(["postgresql://lite/db", "postgresql://env/db"]);
+  });
+});
+
 describe("snapshotFile", () => {
   it("uses the flag, then source.snapshot unless a database is asked for", () => {
     const saved = config({ snapshot: "supabase/snapshot.json" });

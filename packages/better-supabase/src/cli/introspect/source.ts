@@ -8,6 +8,11 @@ export type { Queryable };
 export interface IntrospectionSource {
   readonly queryable: Queryable;
   readonly describe: string;
+  /**
+   * Set when the schema was replayed into a throwaway database rather than
+   * read from the one the app runs on, saying why live checks are skipped.
+   */
+  readonly replay?: string;
   close(): Promise<void>;
 }
 

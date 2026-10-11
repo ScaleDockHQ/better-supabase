@@ -41,6 +41,8 @@ export interface LocalStack {
   readonly secretKey?: string;
   /** Enables `sql`: the same user over direct Postgres. */
   readonly postgres?: BetterPostgres;
+  /** `fetch` for the user's supabase-js client, e.g. `liteStack().fetch`. */
+  readonly fetch?: typeof fetch;
 }
 
 export interface TestUser<M extends AnyModels, F extends AnyFunctions, E> {
@@ -138,6 +140,7 @@ export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
   };
   const supabase = createClient(url, publishableKey, {
     accessToken: () => Promise.resolve(token),
+    ...(stack.fetch ? { global: { fetch: stack.fetch } } : {}),
   });
   return {
     token,

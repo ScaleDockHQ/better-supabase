@@ -8,6 +8,10 @@ key, the same kind of key a hosted project uses. The same user then works
 through PostgREST, direct Postgres and your API, so tests exercise the real
 RLS policies instead of mocks.
 
+Without Docker, `liteStack()` runs [Supabase Lite](/docs/platform/lite#testing)
+inside the test process on in-memory SQLite or PGlite, with the same
+`asUser` and RLS, as long as the schema stays within what Lite supports.
+
 ## Signing key
 
 Create the key once with `better-supabase keys`. It writes

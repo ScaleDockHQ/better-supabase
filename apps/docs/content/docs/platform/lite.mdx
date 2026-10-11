@@ -1,0 +1,170 @@
+---
+title: Supabase Lite
+description: Run better-supabase on Supabase Lite, generate types from a Lite project and test against it in memory.
+---
+
+[Supabase Lite](https://github.com/supabase/lite) (`@supabase/lite`) serves
+the Supabase API (PostgREST, Auth and Storage) from one process, on SQLite,
+PGlite or Postgres. better-supabase talks to it through supabase-js like any
+other project, so the repository, auth and blocks work unchanged. Three things
+differ: Lite signs tokens with a shared HS256 secret, some features are
+missing on some drivers, and `gen` reads the schema without a running
+database.
+
+```bash
+pnpm better-supabase init --lite
+```
+
+[`init --lite`](/docs/cli/init#supabase-lite) prints the steps below for
+your package manager.
+
+## Server
+
+Lite signs its access tokens with `[auth] jwt_secret` and no key id, and it
+publishes no JWKS. Pass `backend: 'lite'` and give the server the same secret
+in `SUPABASE_JWT_SECRET`, so it verifies tokens locally like it does with
+asymmetric keys on hosted projects:
+
+```toml title="supabase/config.toml"
+[auth]
+enabled = true
+jwt_secret = "env(SUPABASE_JWT_SECRET)"
+publishable_key = "env(SUPABASE_PUBLISHABLE_KEY)"
+secret_key = "env(SUPABASE_SECRET_KEY)"
+```
+
+```bash title=".env"
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SECRET_KEY=sb_secret_...
+SUPABASE_JWT_SECRET=a-secret-of-at-least-32-characters
+```
+
+```ts title="src/lib/supabase/server.ts"
+import { createServer } from "better-supabase/server";
+
+import { betterSupabase } from "./index";
+
+export const bs = createServer(betterSupabase, {
+  backend: "lite",
+  liteDriver: "sqlite-postgres",
+});
+```
+
+`createNext`, `createHono`, `createEdge` and `createOrpc` take the same
+options. With `backend: 'lite'`:
+
+- the server verifies HS256 tokens without a `kid` against
+  `SUPABASE_JWT_SECRET`, and still verifies tokens that carry a `kid` through
+  the JWKS. It throws at startup when the secret is missing;
+- `env` rejects a `SUPABASE_JWT_SECRET` shorter than 32 characters. Lite's
+  scaffolded `dev-secret-change-me` is too short, and `lite upgrade` also
+  refuses it without `--allow-weak-jwt-secret`;
+- it skips the JWKS prefetch, since Lite has no JWKS endpoint;
+- `liteDriver` (default `sqlite-postgres`) tells the server which calls Lite
+  can't serve. On `sqlite-postgres` and `sqlite`, `$rpc` returns an
+  `unsupported` error (code `RPC_UNAVAILABLE`, status 501) without sending a
+  request;
+- `postgres` (`ctx.postgres`) needs the `postgres` driver, since the other
+  drivers have no Postgres connection; `createServer` throws otherwise.
+
+## What works on each driver
+
+| Feature                        | `sqlite-postgres`, `sqlite` | `pglite`, `postgres` |
+| ------------------------------ | --------------------------- | -------------------- |
+| Repository and `$from` queries | yes                         | yes                  |
+| RLS with `auth.uid()`          | yes                         | yes                  |
+| `$rpc` and function hooks      | no                          | yes                  |
+| `DEFAULT auth.uid()`           | no                          | yes                  |
+| Storage                        | yes (experimental)          | yes (experimental)   |
+| Realtime, Edge Functions       | no                          | no                   |
+
+Lite's own [LIMITATIONS.md](https://github.com/supabase/lite/blob/HEAD/LIMITATIONS.md)
+lists the SQL its SQLite translation rejects, such as a subquery in an
+insert's `with check`. [Doctor](/docs/cli/doctor#bs328) reports `$rpc` calls
+on a SQLite driver (BS328) and Realtime or Edge Functions use on any driver
+(BS329).
+
+## Generating types
+
+`gen` and `doctor` find the `[db] driver` that `lite init` writes to
+`supabase/config.toml`:
+
+| Driver                      | Where `gen` reads the schema                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `postgres`                  | the `[db] url`                                                                                    |
+| `pglite`, `sqlite-postgres` | `supabase/migrations`, then the declarative schema files, replayed into an in-memory PGlite       |
+| `sqlite`                    | nothing: native SQLite DDL has no Postgres types. Switch to `sqlite-postgres`, or save a snapshot |
+
+The replay needs `@supabase/lite` installed and no running server. Doctor
+skips the Supabase advisors and the statistics checks on a replay, because
+an in-memory PGlite has no Supabase roles and no workload. Set
+`source.lite: false` to read the database the usual way instead. See
+[Where the schema comes from](/docs/cli/gen#where-the-schema-comes-from).
+
+## Testing
+
+`liteStack()` from `better-supabase/testing` starts Lite inside the test
+process, on in-memory SQLite (the `sqlite-postgres` driver) or PGlite. It
+applies your migrations and schema, runs the seed, and answers requests
+through `app.fetch`, so no port is opened and no Docker is needed:
+
+```ts title="tests/notes.test.ts"
+import { readFile } from "node:fs/promises";
+import { createServer } from "better-supabase/server";
+import { liteStack, signTestJwt } from "better-supabase/testing";
+import { afterAll, expect, it } from "vitest";
+
+import { betterSupabase } from "../src/lib/supabase";
+
+const stack = await liteStack({
+  driver: "pglite",
+  schemas: [await readFile("supabase/schemas/notes.sql", "utf8")],
+  seed: "insert into public.notes (body) values ('hello');",
+});
+afterAll(() => stack.close());
+
+it("reads notes as a user", async () => {
+  const bs = await stack.asUser(betterSupabase, { sub: crypto.randomUUID() });
+  const notes = await bs.notes.findMany();
+  expect(notes.ok).toBe(true);
+});
+
+it("verifies Lite tokens on the server", async () => {
+  const bs = createServer(betterSupabase, {
+    backend: "lite",
+    liteDriver: "pglite",
+    env: stack.env,
+    fetch: stack.fetch,
+  });
+  const token = await signTestJwt(stack.jwtSecret, {
+    sub: crypto.randomUUID(),
+  });
+  const ctx = await bs.context(
+    new Request("https://app.test/", {
+      headers: { authorization: `Bearer ${token}` },
+    }),
+  );
+  expect(ctx.auth.kind).toBe("user");
+});
+```
+
+| Option       | Default           | What it does                                                   |
+| ------------ | ----------------- | -------------------------------------------------------------- |
+| `driver`     | `sqlite-postgres` | `sqlite-postgres` (SQLite in memory) or `pglite`               |
+| `migrations` | none              | SQL applied first, in order, through Lite's migrator           |
+| `schemas`    | none              | declarative schema SQL applied after the migrations            |
+| `seed`       | none              | SQL run after the schema, translated to SQLite when needed     |
+| `jwtSecret`  | random            | the secret Lite signs with and `asUser` signs test tokens with |
+
+The stack exposes `url`, `publishableKey`, `secretKey`, `jwtSecret`, `env`
+(ready for `createServer`), `fetch`, the `supabase` and `admin` clients,
+`asUser()` and `close()`. It also works with `await using`. See
+[Testing](/docs/testing) for the Docker-based `localStack`.
+
+## Moving to Supabase
+
+`lite upgrade` replays a Lite project's migrations into a hosted or local
+Supabase project and moves user data and sessions. Afterwards, remove
+`backend: 'lite'` and `SUPABASE_JWT_SECRET`: Supabase signs with asymmetric
+keys that the server verifies through the JWKS.

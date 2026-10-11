@@ -38,6 +38,7 @@ import { type DbStats, EMPTY_STATS } from "../core/stats.ts";
 import { cacheTagsOf, tagFor, type TagOptions } from "../core/tags.ts";
 import { bearerRequest, flushEvents, handle } from "../server/adapter.ts";
 import { serverCore } from "../server/entries/core.ts";
+import { withExtra } from "../server/extra.ts";
 import {
   type ActionInput,
   type ActionParsed,
@@ -62,7 +63,6 @@ import {
   extendServer,
   type ServerContext,
   type ServerOptions,
-  withExtra,
 } from "../server/server.ts";
 import {
   type DbBudget,

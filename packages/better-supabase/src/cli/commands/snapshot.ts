@@ -11,6 +11,7 @@ import { connect } from "../db.ts";
 import { CliError } from "../errors.ts";
 import { cachedIntrospect } from "../introspect/cache.ts";
 import { introspect } from "../introspect/index.ts";
+import { liteDriverOf, liteSource } from "../introspect/lite.ts";
 import {
   type IntrospectionSource,
   managementSource,
@@ -76,8 +77,9 @@ export function managementTarget(
 
 /**
  * Where to read the schema from: `--db-url-stdin`, `--project-ref`, then the
- * config's `source.dbUrl` / `source.projectRef`, `$DATABASE_URL`,
- * `$SUPABASE_DB_URL`, and finally the local stack.
+ * config's `source.dbUrl` / `source.projectRef`, a Supabase Lite project's
+ * `[db] driver`, `$DATABASE_URL`, `$SUPABASE_DB_URL`, and finally the local
+ * stack.
  */
 export async function openSource(
   config: ResolvedConfig,
@@ -92,6 +94,13 @@ export async function openSource(
       ...target,
       ...(source.signal ? { signal: source.signal } : {}),
     });
+  if (!config.source.dbUrl && config.source.lite !== false) {
+    const toml = await readSupabaseToml(config.root);
+    const driver =
+      liteDriverOf(toml) ??
+      (config.source.lite === true ? "sqlite-postgres" : undefined);
+    if (driver) return liteSource(config.root, toml, driver, open);
+  }
   return pgSource(await databaseUrl(config, env), open, source.signal);
 }
 

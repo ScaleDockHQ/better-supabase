@@ -33,6 +33,12 @@ export interface SourceConfig {
   readonly accessToken?: string;
   /** Read a saved `better-supabase introspect` snapshot instead of connecting. */
   readonly snapshot?: string;
+  /**
+   * Read a Supabase Lite project's schema the way Lite runs it, from
+   * `[db] driver` in `supabase/config.toml`. On by default when that key is
+   * present; `false` reads the database like any other project.
+   */
+  readonly lite?: boolean;
 }
 
 /**

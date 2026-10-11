@@ -52,11 +52,12 @@ const config: KnipConfig = {
         "tests/fixtures/database.types.ts",
       ],
       // Peers of @supabase/config, which src/cli/supabase-toml.ts loads lazily,
-      // and @next/playwright and @supabase/mcp-server-supabase, which
-      // src/testing/instant.ts and src/core/supabase-mcp.ts load by a variable
-      // specifier.
+      // and @next/playwright, @supabase/lite and @supabase/mcp-server-supabase,
+      // which src/testing/instant.ts, src/lite/runtime.ts, src/cli/lite.ts and
+      // src/core/supabase-mcp.ts load by a variable specifier.
       ignoreDependencies: [
         "@next/playwright",
+        "@supabase/lite",
         "@supabase/mcp-server-supabase",
         "@supabase/config",
         "effect",

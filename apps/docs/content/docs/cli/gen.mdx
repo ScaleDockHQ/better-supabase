@@ -105,11 +105,20 @@ In order:
 1. `--snapshot`, `--db-url-stdin` or `--project-ref`;
 2. `source.snapshot` in the config, when none of those flags is passed;
 3. `source.dbUrl` or `source.projectRef` in the config;
-4. `$DATABASE_URL`;
-5. `$SUPABASE_DB_URL`, the name the Supabase CLI and `better-supabase env`
+4. a [Supabase Lite](/docs/platform/lite) project's `[db] driver` in
+   `supabase/config.toml` (turn this off with `source.lite: false`);
+5. `$DATABASE_URL`;
+6. `$SUPABASE_DB_URL`, the name the Supabase CLI and `better-supabase env`
    use;
-6. the local stack, on the `[db] port` from `supabase/config.toml` (54322 by
+7. the local stack, on the `[db] port` from `supabase/config.toml` (54322 by
    default).
+
+On a Lite project, the `postgres` driver reads its `[db] url`. The `pglite`
+and `sqlite-postgres` drivers replay `supabase/migrations` and then the
+declarative schema files into an in-memory PGlite with Lite's auth schema,
+and introspect that, so `gen` needs no running server. The bare `sqlite`
+driver takes native SQLite DDL, which `gen` can't read: switch to
+`sqlite-postgres`, or save a snapshot.
 
 ### Hosted projects without a database password
 

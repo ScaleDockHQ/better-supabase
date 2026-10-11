@@ -144,7 +144,9 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     `@next/playwright` through a variable specifier in
     `src/testing/instant.ts` (an install message), `eve/tools` through a
     variable specifier in `src/eve/eve.ts` (the memory provider builds no
-    tools without it), and `@nestjs/common` through a synchronous
+    tools without it), `@supabase/lite` through variable specifiers in
+    `src/lite/runtime.ts` for `liteStack()` and in `src/cli/lite.ts` for
+    `gen` and `doctor` on a Lite project (an install message), and `@nestjs/common` through a synchronous
     `createRequire` in `src/nestjs/index.ts`, because `@Ctx()` runs while
     the class is defined (an install message; ADR 0014). CLI startup work
     also loads on demand, each with a comment: the commands, config loading

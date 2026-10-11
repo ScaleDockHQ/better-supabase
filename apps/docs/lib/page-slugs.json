@@ -150,6 +150,7 @@
   "migration/supabase-js",
   "platform/edge-functions",
   "platform/list",
+  "platform/lite",
   "platform/realtime",
   "platform/storage",
   "plugins",

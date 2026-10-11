@@ -1,4 +1,4 @@
 {
   "title": "Platform",
-  "pages": ["list", "storage", "realtime", "edge-functions"]
+  "pages": ["list", "storage", "realtime", "edge-functions", "lite"]
 }

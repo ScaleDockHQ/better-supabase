@@ -18,6 +18,7 @@ import { type DbError, dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf } from "./actor.ts";
 import { sessionStatus } from "./ended.ts";
+import { isSharedSecretToken, verifyHs256 } from "./hs256.ts";
 import { userContext } from "./impersonation.ts";
 import { refreshSession } from "./refresh.ts";
 import {
@@ -158,6 +159,13 @@ export interface ResolveAuthOptions {
   /** Inline JWKS instead of fetching `env.jwksUrl` (tests, air-gapped). */
   readonly jwks?: SupabaseEnv["jwks"];
   /**
+   * Verify HS256 tokens without a `kid` locally with this shared secret, the
+   * tokens Supabase Lite issues (`auth.jwt_secret`). Tokens with a `kid`
+   * still verify against the JWKS. `createServer` sets it from
+   * `SUPABASE_JWT_SECRET` with `backend: "lite"`.
+   */
+  readonly jwtSecret?: string;
+  /**
    * Validates the verified claims (`betterSupabase.claims(schema)` sets it). A failure
    * resolves to `{ kind: 'invalid', reason: 'claims' }`.
    */
@@ -226,6 +234,15 @@ type VerifiedUser = Omit<
 const MEMO_SIZE = 256;
 const memoByUrl = new Map<string, Map<string, VerifiedUser>>();
 let memoByJwks = new WeakMap<object, Map<string, Map<string, VerifiedUser>>>();
+/** A number per JWT secret, so memo keys tell secrets apart without holding them. */
+const secretIds = new Map<string, number>();
+
+function secretId(secret: string | undefined): number | null {
+  if (secret === undefined) return null;
+  let id = secretIds.get(secret);
+  if (id === undefined) secretIds.set(secret, (id = secretIds.size + 1));
+  return id;
+}
 
 /**
  * Tokens that already verified, until they expire. Every private-cache scope
@@ -240,6 +257,7 @@ function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
     options.env.url,
     options.audience ?? null,
     options.issuer ?? null,
+    secretId(options.jwtSecret),
   ]);
   if (inline) {
     let byKey = memoByJwks.get(jwks);
@@ -495,6 +513,38 @@ async function verifyOnce(
   options: ResolveAuthOptions,
   source: "bearer" | "cookie",
 ): Promise<AuthState> {
+  const token = credentials.token;
+  if (
+    options.jwtSecret !== undefined &&
+    token &&
+    modes.length === 1 &&
+    modes[0] === "user" &&
+    isSharedSecretToken(token)
+  ) {
+    const verified = await verifyHs256(token, options.jwtSecret, {
+      now: Math.floor((options.now ?? Date.now)() / 1000),
+      ...(options.audience === undefined ? {} : { audience: options.audience }),
+      ...(options.issuer === undefined ? {} : { issuer: options.issuer }),
+    });
+    if (!verified.ok) {
+      return {
+        kind: "invalid",
+        reason: "token",
+        error: dbError("unauthorized", verified.message, {
+          code: verified.code,
+        }),
+      };
+    }
+    return {
+      kind: "user",
+      token,
+      claims: verified.claims,
+      user: verified.user,
+      source,
+      expiresAt:
+        typeof verified.claims.exp === "number" ? verified.claims.exp : null,
+    };
+  }
   const { data, error } = await verifyCredentials(credentials, {
     auth: modes,
     env: serverEnv(options),

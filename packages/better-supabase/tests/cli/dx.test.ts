@@ -105,6 +105,19 @@ describe("init and add", () => {
     expect(await readFile(join(dir, "src/proxy.ts"), "utf8")).toBe("// mine\n");
   });
 
+  it("points --lite at Supabase Lite's CLI and the lite backend", async () => {
+    await project({});
+    const init = await run(["init", "--lite", "--cwd", dir]);
+    expect(init.code).toBe(0);
+    expect(init.stdout).toContain("pnpm add -D @supabase/lite@0.11");
+    expect(init.stdout).not.toContain("pnpm add -D pg");
+    expect(init.stdout).toContain("npx lite init");
+    expect(init.stdout).toContain("npx lite dev");
+    expect(init.stdout).toContain("SUPABASE_JWT_SECRET");
+    expect(init.stdout).toContain("Pass backend: 'lite'");
+    expect(init.stdout).not.toContain("supabase start");
+  });
+
   it("writes into the workspace package passed with --package", async () => {
     await project(
       {},
