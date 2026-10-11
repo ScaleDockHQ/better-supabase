@@ -334,7 +334,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "error",
     title: "Table not granted to the Data API",
     description:
-      "Supabase no longer grants new tables to anon and authenticated. Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated, except tables with no permissive policy under `sql.modules.grants.options.fromPolicies`, which are service-only. Tables marked `serviceRole` in `tables` must have no grants for either role.",
+      "Supabase no longer grants new tables to anon and authenticated. Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated, except tables with RLS on and no permissive policy under `sql.modules.grants.options.fromPolicies`, which are service-only. Tables marked `serviceRole` in `tables` must have no grants for either role.",
     check: (context) => {
       const auto = context.configToml
         ? tomlGet(context.configToml.document, [

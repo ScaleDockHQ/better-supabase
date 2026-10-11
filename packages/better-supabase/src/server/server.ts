@@ -326,6 +326,11 @@ export interface BetterServer<
     options?: DeleteAccountOptions,
   ): AsyncResult<DeleteAccountResult>;
   endSessions(userId: string): AsyncResult<EndSessionsResult>;
+  /**
+   * Bans the user in Auth and keeps their sessions, so Auth answers with
+   * `user_banned` (`endSessions: true` deletes them too). Lifting the ban
+   * ends the sessions first, so the user signs in again.
+   */
   suspendAccount(
     userId: string,
     options: SuspendAccountOptions,

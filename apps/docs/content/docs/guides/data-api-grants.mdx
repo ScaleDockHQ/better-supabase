@@ -116,7 +116,8 @@ Tables with a `serial` column also need `usage` on the sequence for inserts
 `better-supabase doctor` reports [BS106](/docs/cli/doctor#bs106) for every
 table the Data API roles can't reach. Tables in `expose` need the privileges
 listed there. Other tables in the generated schemas need at least `select`
-for `authenticated`, except tables that `fromPolicies` makes service-only.
+for `authenticated`, except the tables with RLS on that `fromPolicies` makes
+service-only.
 
 Some tables are for the server only: an audit log or a job queue that only
 `service_role` reads and writes. Revoke the Data API roles and set

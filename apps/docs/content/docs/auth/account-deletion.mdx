@@ -135,8 +135,9 @@ Doctor reports every RLS table in `schemas` without a restrictive
 Banning a user in Supabase Auth refuses sign-in and refresh, but the user's
 `auth.sessions` rows and refresh tokens stay, so lifting the ban revives
 every refresh token that wasn't used during it. `suspendAccount` bans the
-user and ends every session in one call, and `endSessions` ends them without
-a ban, for a forced sign-out everywhere:
+user, and lifting the ban with it ends every session first, so the user signs
+in again. `endSessions` ends the sessions without a ban, for a forced sign-out
+everywhere:
 
 ```ts title="src/features/admin/user-actions.ts"
 "use server";
@@ -153,21 +154,38 @@ export async function signOutEverywhere(userId: string) {
 ```
 
 ```ts
-// { ok: true, data: { userId, suspended: true, ended: 3 } }
+// { ok: true, data: { userId, suspended: true, ended: 0 } }
 ```
 
 `suspendAccount` sets the Auth ban (`duration` takes a Go duration such as
-`"24h"`, and defaults to 100 years), then deletes the user's rows from
-`auth.sessions` and `auth.refresh_tokens`. Resuming deletes any sessions left
-from before the ban first, then lifts it. `ended` counts the sessions it
-deleted. Both need `SUPABASE_SECRET_KEY` and the server's `postgres`, since
-the Data API roles can't write `auth.sessions`; without `postgres` they
-return an `invalid_request` error. `bs` from `createNext` also drops the
-user's cached sessions.
+`"24h"`, and defaults to 100 years) and keeps the user's sessions. While a
+session exists, Auth answers a refresh or `GET /auth/v1/user` with
+`user_banned`, so [`sessionStatus`](/docs/auth/sessions) returns `"banned"`
+and `bs.proxy({ endedSession })` redirects with `reason=account_banned`. Once
+the sessions are deleted, Auth answers `session_not_found` instead and the app
+can only report `"ended"`.
 
-Access tokens already issued stay valid until they expire. Add the
-`session_active()` policy from [Ended sessions](#ended-sessions) to refuse
-them at once. Apps without a better-supabase server import both from
+Lifting the ban (`suspended: false`) deletes the user's rows from
+`auth.sessions` and `auth.refresh_tokens` first, then lifts it. `ended` counts
+the sessions deleted: `0` on a suspension, and the sessions kept during the
+ban when it is lifted. Both need `SUPABASE_SECRET_KEY` and the server's
+`postgres`, since the Data API roles can't write `auth.sessions`; without
+`postgres` they return an `invalid_request` error. `bs` from `createNext` also
+drops the user's cached sessions.
+
+Access tokens already issued stay valid until they expire. The
+`session_active()` policy from [Ended sessions](#ended-sessions) refuses them
+at once, because it treats a banned user's session as inactive. Without that
+policy, pass `endSessions: true` to delete the sessions on suspension too; an
+access token still works against the Data API until it expires, but it can no
+longer be refreshed, and the app sees `"ended"` instead of `"banned"`:
+
+```ts
+await bs.suspendAccount(userId, { suspended: true, endSessions: true });
+// { ok: true, data: { userId, suspended: true, ended: 3 } }
+```
+
+Apps without a better-supabase server import both from
 `better-supabase/server`:
 
 ```ts

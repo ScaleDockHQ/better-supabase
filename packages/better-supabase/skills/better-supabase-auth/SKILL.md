@@ -115,10 +115,14 @@ A proxy or middleware with its own Supabase client calls
 Done when the irreversible action returns `SESSION_REVOKED` for a signed-out
 session in a test.
 
-To lock a user out, call `bs.suspendAccount(userId, { suspended: true })`
-(it bans the user in Auth and ends every session and refresh token), or
-`bs.endSessions(userId)` to sign them out everywhere without a ban. A ban
-alone leaves the refresh tokens, which work again once the ban is lifted. To
+To lock a user out, call `bs.suspendAccount(userId, { suspended: true })`.
+It bans the user in Auth and keeps the sessions, so Auth answers with
+`user_banned`, `sessionStatus` returns `"banned"` and the `session_active()`
+policy refuses the user's tokens. `{ suspended: false }` ends every session
+and refresh token, then lifts the ban. Without the `sessions` SQL module, pass
+`endSessions: true` to delete the sessions on suspension too (the app then
+sees `"ended"`). `bs.endSessions(userId)` signs a user out everywhere without
+a ban. To
 switch a member off in one organization only, use the organizations block's
 `suspendMember`.
 

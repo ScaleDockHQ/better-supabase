@@ -140,7 +140,10 @@ the bearer token, then the session cookie (`cookieName` overrides
 | `"unknown"` | No token, an expired token (refresh it first), a network failure, a timeout or another status |
 
 Send `"banned"` to a page that explains the suspension instead of the sign-in
-page, and clear the cookies the same way as for `"ended"`. When a refresh
+page, and clear the cookies the same way as for `"ended"`. Auth reports
+`user_banned` only while the session still exists: `suspendAccount` keeps the
+sessions for that reason, and a ban whose sessions were deleted reads as
+`"ended"` ([Suspending an account](/docs/auth/account-deletion#suspending-an-account)). When a refresh
 fails because the user is banned, `refreshSession` returns
 `{ ok: false, reason: "rejected", code: "user_banned" }`, and `code` carries
 the Auth `error_code` of any rejected refresh. Treat `"unknown"` as active, so an Auth outage never signs anyone out. Each
