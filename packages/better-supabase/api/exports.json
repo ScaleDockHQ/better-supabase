@@ -682,6 +682,7 @@
     ],
     "types": [
       "AuthSourceLike",
+      "CheckSqliteOptions",
       "CrudEntryLike",
       "CrudQueueLike",
       "PowerSyncDatabaseLike",
