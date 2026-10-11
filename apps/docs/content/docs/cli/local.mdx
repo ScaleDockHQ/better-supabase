@@ -103,5 +103,13 @@ pnpm better-supabase openapi emit --check
 This imports `openapi.entry` (default `src/lib/openapi.ts`), which exports
 the [`createOpenApi`](/docs/standards/openapi) document as `openapi` or
 default (or a function that returns it), and writes `openapi.json`.
-`--check` fails when the file is out of date. `--entry <file>` and
-`--out <file>` override `openapi.entry` and `openapi.output`.
+`--check` writes nothing and fails when the file is out of date; like
+[`spec check`](/docs/cli/spec), it compares the text and ignores line
+endings. `--entry <file>` and `--out <file>` override `openapi.entry` and
+`openapi.output`.
+
+`openapi emit` is kept for existing projects. [`spec`](/docs/cli/spec)
+writes the same document from a `defineApi` module, plus any other OpenAPI
+version, AsyncAPI and Arazzo, with overlays, a cache and validation. The
+`openapi` config key is a deprecated alias of `specs`: when `specs` is
+unset, `spec` reads `openapi.entry` and `openapi.output` too.

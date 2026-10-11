@@ -277,9 +277,19 @@ export const customersInsert = z
 Valibot gets the same through `v.title`, `v.description`, `v.examples`,
 `v.minLength` and `v.minValue` in a pipe, and the JSON Schema through
 `title`, `description`, `examples`, `minLength` and `minimum`. The
-`standardSchema()` output carries them in each field spec. The runtime
-OpenAPI document (`createOpenApi`) reads only the generated metadata, so it
-has none of this; serve the generated JSON Schema when you need it there.
+`standardSchema()` output carries them in each field spec.
+
+The generated metadata carries the comments too, so the API documents that
+[`defineApi`](/docs/specs) and `createOpenApi` render describe each table
+and column without a validator. A table or column comment becomes
+`description` in the metadata (without its `@example` lines), and a comment
+line that starts with `@deprecated` sets `deprecated: true`. In the
+document, the table's description goes on its schemas and its tag, each
+column's on its property, and a deprecated table marks its schemas and
+operations deprecated. A tag description set on the resource wins over the
+table comment.
+Examples stay in the validators; pass `examples` to `defineApi` to put rows
+in the document.
 
 ### Coming from supabase-to-zod
 
