@@ -59,6 +59,6 @@ instead of a new mechanism:
   with `ctx.hook(name, args)`; `ctx.emit(...)` writes the outbox event and
   renders nothing without the outbox.
 - **Swappable parts.** An interface the app can replace carries
-  `apiVersion: 1`, a conformance kit in `src/testing/conformance.ts`, an
+  `apiVersion: 1`, a conformance kit in `src/testing/kits`, an
   entry in `tests/core/extensibility.test-d.ts` and a row on the interfaces
   page.

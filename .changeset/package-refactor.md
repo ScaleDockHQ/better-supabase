@@ -15,3 +15,5 @@ A cleanup of shared code inside the package, with a few fixes.
 
 - Share the AI SDK HTTP helpers, add `withFlush` to flush events after a response, and run the React hooks on the same bindings as Vue, Solid and Svelte (`ClaimsOf` and `ProfileOf` now live in the bindings).
 - Build the MCP table tool schemas from the same page schemas as the OpenAPI document, so list pages describe their page counts, and share `integer` and `whereClause` between the Postgres and SQLite compilers.
+
+- Split server client construction into `server/clients.ts` (with an injectable `createClient`), `db.$search` into `core/db-search.ts`, the topic SQL into `realtime/topic-sql.ts` and the page helpers into `core/paginate.ts`. The incoming webhook endpoint now shares `hitRateLimit` and `receiveWebhook` with the rate limiter and the inbox, and `gen` builds the spec step with `specOptionsFromConfig`.

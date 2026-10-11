@@ -13,7 +13,7 @@ import type { BetterSupabaseEnv } from "../env/index.ts";
 import type { LiteBackend } from "./lite.ts";
 import type { ServerOptions } from "./server-types.ts";
 
-export const STATELESS = {
+const STATELESS = {
   persistSession: false,
   autoRefreshToken: false,
   detectSessionInUrl: false,
