@@ -604,6 +604,7 @@ describe("config JSON Schema", () => {
       sql: true,
       seed: true,
       openapi: true,
+      specs: true,
       doctor: true,
     };
     expect(Object.keys(schema.properties).sort()).toEqual(

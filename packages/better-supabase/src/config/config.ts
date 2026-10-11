@@ -213,6 +213,39 @@ export interface OpenApiConfig {
   readonly output?: string;
 }
 
+/** A docs UI `spec emit --ui` writes next to an OpenAPI document. */
+export type SpecUiName =
+  | "scalar"
+  | "swagger"
+  | "redoc"
+  | "elements"
+  | "rapidoc";
+
+/** One document `better-supabase spec emit` writes. */
+export interface SpecOutputConfig {
+  /** A format id: `openapi`, `asyncapi` or `arazzo`. */
+  readonly format: string;
+  /** Defaults to the format's default version, e.g. `3.1` for OpenAPI. */
+  readonly version?: string;
+  /** File to write, relative to the root. Defaults to the format's file name. */
+  readonly output?: string;
+  /** Overlay files (JSON or YAML), applied in order. */
+  readonly overlays?: readonly string[];
+  /** Defaults to `yaml` when `output` ends in `.yaml` or `.yml`, otherwise `json`. */
+  readonly serialize?: "json" | "yaml";
+  /** Also writes a reference page (`openapi.html` for `openapi.json`) next to OpenAPI outputs. */
+  readonly ui?: SpecUiName;
+}
+
+export interface SpecsConfig {
+  /** Module exporting a `defineApi()` result (or a function returning one) as `api` or default. */
+  readonly entry?: string;
+  /** The documents to write. Defaults to one OpenAPI document. */
+  readonly outputs?: readonly SpecOutputConfig[];
+  /** The lowest severity that fails `spec emit`, `check` and `validate`. Defaults to `error`. */
+  readonly failOn?: "error" | "warning" | "never";
+}
+
 export interface DoctorConfig {
   /** Finding codes to skip, e.g. `['BS204']`. */
   readonly ignore?: readonly string[];
@@ -610,7 +643,10 @@ export interface BetterSupabaseConfig {
   readonly vectorSearch?: Readonly<Record<string, VectorSearchConfig>>;
   readonly sql?: SqlConfig;
   readonly seed?: SeedConfig;
+  /** @deprecated Use `specs`; `openapi.entry` and `openapi.output` map onto it. */
   readonly openapi?: OpenApiConfig;
+  /** The documents `better-supabase spec emit` writes (OpenAPI, AsyncAPI, Arazzo). */
+  readonly specs?: SpecsConfig;
   readonly doctor?: DoctorConfig;
 }
 
@@ -732,6 +768,11 @@ export interface ResolvedConfig {
   readonly sql: ResolvedSqlConfig;
   readonly seed: Required<SeedConfig>;
   readonly openapi: Required<OpenApiConfig>;
+  readonly specs: {
+    readonly entry: string;
+    readonly outputs: readonly SpecOutputConfig[];
+    readonly failOn: NonNullable<SpecsConfig["failOn"]>;
+  };
   readonly doctor: Required<Omit<DoctorConfig, "claimsLimit">> &
     Pick<DoctorConfig, "claimsLimit">;
 }
@@ -849,6 +890,8 @@ export function resolveConfig(
   root: string,
 ): ResolvedConfig {
   const output = config.output ?? "src/lib/supabase/generated.ts";
+  // oxlint-disable-next-line typescript/no-deprecated -- the deprecated key still resolves, and maps onto specs
+  const legacyOpenApi = config.openapi;
   return {
     root,
     source: config.source ?? {},
@@ -925,8 +968,16 @@ export function resolveConfig(
       output: config.seed?.output ?? "supabase/seeds/000_better_supabase.sql",
     },
     openapi: {
-      entry: config.openapi?.entry ?? "src/lib/openapi.ts",
-      output: config.openapi?.output ?? "openapi.json",
+      entry: legacyOpenApi?.entry ?? "src/lib/openapi.ts",
+      output: legacyOpenApi?.output ?? "openapi.json",
+    },
+    specs: {
+      entry:
+        config.specs?.entry ?? legacyOpenApi?.entry ?? "src/lib/openapi.ts",
+      outputs: config.specs?.outputs ?? [
+        { format: "openapi", output: legacyOpenApi?.output ?? "openapi.json" },
+      ],
+      failOn: config.specs?.failOn ?? "error",
     },
     doctor: {
       ignore: config.doctor?.ignore ?? [],
