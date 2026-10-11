@@ -837,6 +837,25 @@ log as the signed-in user.
 `enroll_enabled` and `verify_enabled` to true, so no user can satisfy the
 check.
 
+### BS328
+
+**Warning: `rpc()` on a Supabase Lite SQLite driver.** `[db] driver` in
+`config.toml` is `sqlite-postgres` or `sqlite`, and a file in
+`doctor.sources` calls `$rpc`, `.rpc()` or `rpcTransport`. Lite has no
+`rpc()` on SQLite, so the server returns an `unsupported` error without
+sending the request. Switch `[db] driver` to `pglite` or `postgres`, or
+replace the function with table queries. See
+[Supabase Lite](/docs/platform/lite).
+
+### BS329
+
+**Warning: feature Supabase Lite does not implement.** `config.toml` sets
+`[db] driver`, so the project runs on Supabase Lite, and a file in
+`doctor.sources` uses Realtime (`better-supabase/realtime` or `.channel()`)
+or Edge Functions (`functions.invoke()`). Lite implements neither on any
+driver. Run the full Supabase stack for that feature, or move the project
+with `supabase lite upgrade`.
+
 ## Auth config
 
 ### BS401

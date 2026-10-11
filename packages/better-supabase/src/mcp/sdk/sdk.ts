@@ -28,8 +28,9 @@ import type {
 
 import { delegationOf } from "../../auth/actor.ts";
 import { flushEvents, resolveToken } from "../../server/adapter.ts";
+import { withExtra } from "../../server/extra.ts";
 import { guard, type GuardOptions } from "../../server/respond.ts";
-import { createServer, extendServer, withExtra } from "../../server/server.ts";
+import { createServer, extendServer } from "../../server/server.ts";
 import {
   discovery,
   endpointPreflight,

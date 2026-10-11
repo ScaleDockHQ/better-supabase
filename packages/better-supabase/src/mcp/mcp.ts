@@ -26,6 +26,7 @@ import { SPEC_PINS } from "../core/spec-pins.ts";
 import { validate } from "../core/standard.ts";
 import { buildJsonSchema } from "../generators/json-schema.ts";
 import { flushEvents } from "../server/adapter.ts";
+import { withExtra } from "../server/extra.ts";
 import { hasRole } from "../server/kit.ts";
 import {
   defineResource,
@@ -38,7 +39,7 @@ import {
   type GuardOptions,
   settle,
 } from "../server/respond.ts";
-import { createServer, extendServer, withExtra } from "../server/server.ts";
+import { createServer, extendServer } from "../server/server.ts";
 import {
   discovery,
   endpointPreflight,

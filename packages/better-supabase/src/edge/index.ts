@@ -15,6 +15,7 @@ import { problemResponse } from "../core/problem.ts";
 import { err } from "../core/result.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
+import { withExtra } from "../server/extra.ts";
 import { EVERY_CALLER } from "../server/framework.ts";
 import { type BlockRequireOptions, requireCaller } from "../server/kit.ts";
 import {
@@ -27,7 +28,7 @@ import {
   type MiddlewareOptions,
   respond,
 } from "../server/respond.ts";
-import { createServer, extendServer, withExtra } from "../server/server.ts";
+import { createServer, extendServer } from "../server/server.ts";
 import { compileRoutes, matchRoute, type RouteMatch } from "./routes.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";

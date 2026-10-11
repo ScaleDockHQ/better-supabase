@@ -44,6 +44,7 @@ catalog:
   "@supabase-labs/middleware-openfeature": 0.2.0
   "@supabase-labs/tanstack-db": 0.1.0
   "@supabase/config": 0.11.1
+  "@supabase/lite": 0.11.0
   "@supabase/mcp-server-supabase": 0.13.0
   "@supabase/middleware": 1.0.0
   "@supabase/postgrest-typegen": 0.4.0
@@ -198,6 +199,8 @@ catalogs:
     "@opentelemetry/api": ">=1.9 <2"
     "@orpc/server": ">=2.0.0-beta.40 <3"
     "@supabase/config": ">=0.9.0 <0.12"
+    # 0.11.0 is the first release with App.getClient() and the PGlite migrator liteStack() and gen use.
+    "@supabase/lite": ">=0.11.0 <0.12"
     "@supabase/mcp-server-supabase": ">=0.13.0 <0.14"
     # A range, so a newer patch an app installs doesn't fail strict peer
     # checks. The default catalog stays exact (AGENTS.md invariant 11), and
@@ -313,6 +316,9 @@ peerDependencyRules:
     # The World conformance suite peers on Vitest 4; it runs on the repo's
     # Vitest 5 through the same describe and test API.
     "@workflow/world-testing>vitest": "5.0.3"
+    # @supabase/lite depends on jsonv-ts, which peers on TypeScript 5 for its
+    # type helpers; the runtime validators liteStack() and gen load use none.
+    "jsonv-ts>typescript": "7.0.2"
     # The Expo example overrides React to 19.2.3 (see overrides); the global
     # React override rewrites every React peer range to the catalog version.
     react: 19.2.3
@@ -333,6 +339,11 @@ auditConfig:
     # 0.5, is ESM-only and query-string 7 requires it as a function. Remove it
     # once expo-router moves to query-string 8 or later (ADR 0002).
     - GHSA-vcc3-ghjq-m6fr
+    # nodemailer <=10.0.5 reaches the tree only through @supabase/lite 0.11,
+    # which requires nodemailer 9; the liteStack() tests send no mail. Remove
+    # them once @supabase/lite moves to nodemailer 10.0.6 or later (ADR 0002).
+    - GHSA-v53p-9fqp-m79j
+    - GHSA-prgh-xp8r-p3m5
 
 allowBuilds:
   # tsdown and vite bundle through esbuild's platform binary.

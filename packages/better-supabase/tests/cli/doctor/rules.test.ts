@@ -1538,6 +1538,12 @@ describe("config.toml auth settings (BS401, BS402, BS403)", () => {
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).not.toHaveProperty("location");
+    expect(
+      await run(
+        "BS403",
+        context(base, { configToml: toml('[db]\ndriver = "pglite"\n') }),
+      ),
+    ).toEqual([]);
     const nested = toml("[auth]\njwt_expiry = 7200\n");
     expect(
       (await run("BS402", context(base, { configToml: nested })))[0]!.location,
@@ -1591,6 +1597,65 @@ describe("peer versions (BS601)", () => {
       }),
     ]);
     expect(await run("BS601", context(base))).toEqual([]);
+  });
+});
+
+describe("Supabase Lite gaps (BS328, BS329)", () => {
+  const lite = (driver: string) => toml(`[db]\ndriver = "${driver}"\n`);
+  const rpc = {
+    path: "src/actions.ts",
+    text: 'import { bs } from "./bs";\n\nawait bs.$rpc("note_count");',
+  };
+  const realtime = {
+    path: "src/live.ts",
+    text: 'const channel = supabase.channel("notes");',
+  };
+  const invoke = {
+    path: "src/send.ts",
+    text: 'await supabase.functions.invoke("send");',
+  };
+
+  it("reports rpc() only on the SQLite drivers", async () => {
+    expect(
+      await run(
+        "BS328",
+        context(base, { configToml: lite("sqlite-postgres"), sources: [rpc] }),
+      ),
+    ).toMatchObject([
+      {
+        code: "BS328",
+        target: "src/actions.ts:rpc",
+        location: { file: "src/actions.ts", line: 3 },
+      },
+    ]);
+    for (const configToml of [lite("pglite"), toml("[db]\nport = 1\n")]) {
+      expect(
+        await run("BS328", context(base, { configToml, sources: [rpc] })),
+      ).toEqual([]);
+    }
+  });
+
+  it("reports Realtime and Edge Functions on any Lite driver", async () => {
+    const findings = await run(
+      "BS329",
+      context(base, {
+        configToml: lite("pglite"),
+        sources: [realtime, invoke, rpc],
+      }),
+    );
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "src/live.ts:Realtime",
+      "src/send.ts:Edge Functions",
+    ]);
+    expect(
+      await run(
+        "BS329",
+        context(base, { configToml: lite("mysql"), sources: [realtime] }),
+      ),
+    ).toEqual([]);
+    expect(await run("BS329", context(base, { sources: [realtime] }))).toEqual(
+      [],
+    );
   });
 });
 

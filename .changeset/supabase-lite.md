@@ -1,0 +1,5 @@
+---
+"better-supabase": minor
+---
+
+Supabase Lite support. `createServer(betterSupabase, { backend: "lite" })` verifies Lite's HS256 tokens locally against `SUPABASE_JWT_SECRET` (a new `env` setting, at least 32 characters), skips the JWKS prefetch, and with `liteDriver` set to `sqlite-postgres` or `sqlite` returns an `unsupported` error for `$rpc` without sending a request. `liteStack()` in `better-supabase/testing` runs Lite in the test process on in-memory SQLite or PGlite, applies migrations, schemas and seed SQL, and signs `asUser` tokens with the Lite secret. `gen` and `doctor` read a Lite project's `[db] driver`: the `postgres` driver's `[db] url`, or the migrations and declarative schemas replayed into an in-memory PGlite (`source.lite: false` turns this off). Doctor adds BS328 (`$rpc` on a Lite SQLite driver) and BS329 (Realtime or Edge Functions on Lite), and skips BS403 on Lite projects. `init --lite` prints Lite's install and CLI steps. `@supabase/lite` is an optional peer (`>=0.11.0 <0.12`).

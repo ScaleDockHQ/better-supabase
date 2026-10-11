@@ -8,6 +8,8 @@ export type { SigningJwk, TestJwtClaims, TestSigner } from "./jwt.ts";
 export { localSigningKey, signLocalJwt } from "./local-key.ts";
 export { asUser, LOCAL_JWT_SECRET } from "./as-user.ts";
 export type { LocalStack, TestUser } from "./as-user.ts";
+export { liteStack } from "./lite.ts";
+export type { LiteStack, LiteStackOptions } from "./lite.ts";
 export { expectDbBudget } from "./budget.ts";
 export { expectInstant } from "./instant.ts";
 export type {

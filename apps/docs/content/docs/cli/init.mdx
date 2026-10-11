@@ -45,6 +45,20 @@ Add more with `--with edge,mcp`. A project with only `edge` and `mcp` gets no
 `src/lib/supabase/index.ts`: Edge Functions import `betterSupabase` from
 `supabase/functions/_shared/supabase.ts`.
 
+## Supabase Lite
+
+```bash
+pnpm better-supabase init --lite
+```
+
+`--lite` sets the project up for [Supabase Lite](/docs/platform/lite). The
+next steps install `@supabase/lite` as a dev dependency instead of `pg`, run
+`npx lite init` and `npx lite dev` instead of `supabase init` and
+`supabase start`, and ask you to set `jwt_secret = "env(SUPABASE_JWT_SECRET)"`
+in `supabase/config.toml` with a secret of 32 or more characters in `.env`.
+Pass `backend: 'lite'` to `createServer` (or the framework adapter) so the
+server verifies Lite's HS256 tokens.
+
 ## Workspaces
 
 At the root of a pnpm, npm, yarn or bun workspace (a `pnpm-workspace.yaml`,

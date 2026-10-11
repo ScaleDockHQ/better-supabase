@@ -313,6 +313,12 @@ export interface PostgrestExecutorOptions extends PostgrestCompileOptions {
    * client's setting, which is on.
    */
   readonly retry?: boolean;
+  /**
+   * When set, `rpc()` fails with an `unsupported` error carrying this
+   * message and sends no request: the backend has no database functions
+   * (Supabase Lite on SQLite).
+   */
+  readonly rpcUnavailable?: string;
 }
 
 const DEFAULT_URL_LENGTH_LIMIT = 6000;
@@ -465,6 +471,14 @@ export function postgrestExecutor(
     functionSources: true,
     execute,
     async rpc(name, args, context): Promise<Result<unknown>> {
+      if (options.rpcUnavailable !== undefined) {
+        return err(
+          dbError("unsupported", options.rpcUnavailable, {
+            code: "RPC_UNAVAILABLE",
+            details: `rpc("${name}")`,
+          }),
+        );
+      }
       const scoped = scope(client, context.schema);
       if (!scoped.rpc) {
         return err(toDbError(new Error("The client does not support rpc()")));

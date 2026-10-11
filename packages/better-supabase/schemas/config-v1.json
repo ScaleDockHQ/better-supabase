@@ -29,6 +29,10 @@
         "snapshot": {
           "type": "string",
           "description": "Read a saved introspection snapshot instead of connecting."
+        },
+        "lite": {
+          "type": "boolean",
+          "description": "Read a Supabase Lite project's schema from [db] driver in supabase/config.toml. On when that key is present; false reads the database like any other project."
         }
       }
     },

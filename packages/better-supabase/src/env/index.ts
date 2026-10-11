@@ -18,6 +18,11 @@ export interface BetterSupabaseEnv {
   readonly projectRef?: string;
   /** `SUPABASE_READ_URL`: a read replica or the `<ref>-all` load balancer, for reads. */
   readonly readUrl?: string;
+  /**
+   * `SUPABASE_JWT_SECRET`: the shared HS256 secret Supabase Lite signs user
+   * tokens with (`auth.jwt_secret`). Server-only; read with `backend: "lite"`.
+   */
+  readonly jwtSecret?: string;
 }
 
 /** A JSON Web Key Set, as `@supabase/server` verifies with it. */
@@ -70,6 +75,7 @@ export const ENV_VARIABLES: {
   readonly jwksUrl: readonly string[];
   readonly jwks: readonly string[];
   readonly readUrl: readonly string[];
+  readonly jwtSecret: readonly string[];
 } = {
   url: PREFIXES.map((prefix) => `${prefix}SUPABASE_URL`),
   publishableKey: PREFIXES.flatMap((prefix) => [
@@ -81,6 +87,7 @@ export const ENV_VARIABLES: {
   jwksUrl: ["SUPABASE_JWKS_URL"],
   jwks: ["SUPABASE_JWKS"],
   readUrl: ["SUPABASE_READ_URL"],
+  jwtSecret: ["SUPABASE_JWT_SECRET"],
 };
 
 const LOOPBACK = /^(localhost|127(?:\.\d{1,3}){3}|\[::1\])$/;
@@ -315,6 +322,14 @@ export function parseEnv(
     ? checkUrl(rawRead, ENV_VARIABLES.readUrl, issues)
     : undefined;
 
+  const jwtSecret = first(source, ENV_VARIABLES.jwtSecret);
+  if (jwtSecret !== undefined && jwtSecret.length < 32) {
+    issues.push({
+      variables: ENV_VARIABLES.jwtSecret,
+      message: "must be at least 32 characters",
+    });
+  }
+
   if (issues.length > 0 || !url || !publishableKey)
     return { ok: false, issues };
 
@@ -336,6 +351,7 @@ export function parseEnv(
       ...(dbUrl ? { dbUrl } : {}),
       ...(projectRef ? { projectRef } : {}),
       ...(readUrl ? { readUrl: readUrl.href.replace(/\/+$/, "") } : {}),
+      ...(jwtSecret ? { jwtSecret } : {}),
     },
   };
 }

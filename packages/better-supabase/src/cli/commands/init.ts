@@ -62,6 +62,11 @@ const INIT_ARGS = {
     description: "Workspace package to write to, relative to --cwd",
     valueHint: "dir",
   },
+  lite: {
+    type: "boolean",
+    description:
+      "Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps",
+  },
   force: { type: "boolean", description: "Overwrite files that exist" },
   "dry-run": { type: "boolean", description: "Show what would be written" },
 } as const;
@@ -198,10 +203,19 @@ function packagesFor(
   return [...new Set(wanted)].filter((name) => !(name in project.dependencies));
 }
 
-/** pg and the pinned postgrest-typegen as dev dependencies, the ones the project lacks. */
-function devPackages(project: Project): string[][] {
+/** The minor of `@supabase/lite` the `backend: 'lite'` option targets. */
+const LITE_VERSION = "0.11";
+
+/**
+ * pg (or `@supabase/lite`, with `lite`) and the pinned postgrest-typegen as
+ * dev dependencies, the ones the project lacks.
+ */
+function devPackages(project: Project, lite: boolean): string[][] {
+  const database = lite ? "@supabase/lite" : "pg";
   const missing = [
-    ...("pg" in project.dependencies ? [] : ["pg"]),
+    ...(database in project.dependencies
+      ? []
+      : [lite ? `${database}@${LITE_VERSION}` : database]),
     ...("@supabase/postgrest-typegen" in project.dependencies
       ? []
       : [`@supabase/postgrest-typegen@${TYPEGEN_VERSION}`]),
@@ -307,6 +321,7 @@ export async function runInit(
         packageManager: workspaceProject.packageManager,
       }
     : workspaceProject;
+  const lite = args.lite === true;
   const installTarget: InstallTarget | undefined = inPackage
     ? { dir: target.dir, name: project.name }
     : undefined;
@@ -351,14 +366,18 @@ export async function runInit(
     ...(packages.length > 0
       ? [installCommand(project.packageManager, packages, false, installTarget)]
       : []),
-    ...devPackages(project).map((names) =>
+    ...devPackages(project, lite).map((names) =>
       installCommand(project.packageManager, names, true, installTarget),
     ),
     ...(project.hasSupabase || workspaceProject.hasSupabase
       ? []
-      : ["supabase init"]),
-    "supabase start",
-    `better-supabase env${cwdFlag}`,
+      : [lite ? "npx lite init" : "supabase init"]),
+    ...(lite
+      ? [
+          'Set jwt_secret = "env(SUPABASE_JWT_SECRET)" under [auth] in supabase/config.toml, and add SUPABASE_URL=http://127.0.0.1:54321 and a SUPABASE_JWT_SECRET of 32 or more characters to .env',
+          "npx lite dev",
+        ]
+      : ["supabase start", `better-supabase env${cwdFlag}`]),
     `better-supabase gen${cwdFlag}`,
   ];
   lines.push(
@@ -366,6 +385,10 @@ export async function runInit(
     "Next:",
     ...steps.map((step, index) => `  ${index + 1}. ${step}`),
   );
+  if (lite)
+    lines.push(
+      "  - Pass backend: 'lite' to createServer (or createNext, createHono, createEdge, createOrpc): https://bettersupabase.com/docs/platform/lite",
+    );
   for (const name of integrations) {
     for (const hint of TEMPLATES[name].next ?? []) lines.push(`  - ${hint}`);
   }

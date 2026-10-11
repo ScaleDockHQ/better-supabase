@@ -159,6 +159,15 @@ export const bs = createServer(betterSupabase, {
 
 `issuer` works the same way for the `iss` claim.
 
+## Shared-secret tokens
+
+[Supabase Lite](/docs/platform/lite) signs tokens with HS256 and no key id.
+`createServer(betterSupabase, { backend: "lite" })` verifies those against
+`SUPABASE_JWT_SECRET`, checking the signature, `exp`, `nbf`, `aud` and `iss`
+locally, and keeps verifying tokens that carry a `kid` through the JWKS.
+`liteDriver` names the Lite driver, so `$rpc` on SQLite returns an
+`unsupported` error instead of a request.
+
 ## Request headers
 
 `headers` adds headers to every Supabase request made for a caller, for

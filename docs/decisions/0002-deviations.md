@@ -114,6 +114,13 @@ backlogs too large to clear in the upgrade.
   `expo-router` through `query-string` 7 in `apps/examples/expo-powersync`,
   which requires it as a function, so an override would break the example.
   It ends when `expo-router` moves to `query-string` 8 or later.
+- `pnpm audit` also ignores GHSA-v53p-9fqp-m79j and GHSA-prgh-xp8r-p3m5.
+  The fixed `nodemailer` is 10.0.6, and the only path to it is
+  `@supabase/lite` 0.11, which requires `nodemailer` 9 for Auth mail.
+  `@supabase/lite` is an optional peer and a devDependency for the
+  `liteStack()` tests, which send no mail, and a major override could break
+  Lite's mailer. It ends when `@supabase/lite` moves to `nodemailer` 10.0.6
+  or later.
 
 ### Agent files
 

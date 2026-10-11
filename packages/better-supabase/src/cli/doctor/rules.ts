@@ -32,6 +32,7 @@ import {
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
 import { HOOK_RULES } from "./hooks.ts";
+import { LITE_RULES } from "./lite.ts";
 import { LIVE_RULES } from "./live.ts";
 import { skippedForMetadata } from "./metadata.ts";
 import { MODULE_RULES } from "./modules.ts";
@@ -875,7 +876,12 @@ const OWN_RULES: readonly Rule[] = [
     description:
       "Hosted projects sign with asymmetric keys. Using the same locally means local tokens verify through JWKS just like production.",
     check: (context) => {
-      if (!context.configToml || authSetting(context, "signing_keys_path"))
+      if (
+        !context.configToml ||
+        authSetting(context, "signing_keys_path") ||
+        // Supabase Lite signs with its jwt_secret and has no asymmetric keys.
+        tomlGet(context.configToml.document, ["db", "driver"]) !== undefined
+      )
         return [];
       const location = tomlLocation(context, "signing_keys_path");
       return [
@@ -987,6 +993,7 @@ export const RULES: readonly Rule[] = [
   ...LIVE_RULES,
   ...MODULE_RULES,
   ...PGDELTA_RULES,
+  ...LITE_RULES,
   ...DEPENDENCY_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 

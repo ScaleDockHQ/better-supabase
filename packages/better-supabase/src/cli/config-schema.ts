@@ -249,6 +249,7 @@ const ConfigSchema = v.strictObject({
       projectRef: v.optional(v.string()),
       accessToken: v.optional(v.string()),
       snapshot: v.optional(v.string()),
+      lite: v.optional(v.boolean()),
     }),
   ),
   schemas: v.optional(strings),

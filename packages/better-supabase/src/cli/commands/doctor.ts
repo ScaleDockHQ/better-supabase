@@ -481,6 +481,13 @@ export async function runDoctor(
     await opened.close();
     throw cause;
   });
+  const replay = opened.open ? (await opened.open()).replay : undefined;
+  const live = replay
+    ? {
+        advisors: options.advisors ?? { skipped: replay },
+        database: options.database ?? { skipped: replay },
+      }
+    : opened;
   const context: DoctorContext = {
     config,
     snapshot,
@@ -491,8 +498,8 @@ export async function runDoctor(
     sources,
     readSets,
     peers,
-    ...(opened.advisors ? { advisors: opened.advisors } : {}),
-    ...(opened.database ? { database: opened.database } : {}),
+    ...(live.advisors ? { advisors: live.advisors } : {}),
+    ...(live.database ? { database: live.database } : {}),
     ...(stats ? { stats } : {}),
     ...(hookUser ? { hookUser } : {}),
     ...(explainTables.length > 0

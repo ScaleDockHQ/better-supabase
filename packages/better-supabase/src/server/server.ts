@@ -66,6 +66,7 @@ import {
 import { withSession } from "./entries/session.ts";
 import { withSupport } from "./entries/support.ts";
 import { withTenant } from "./entries/tenant.ts";
+import { type LiteDriver, liteBackend } from "./lite.ts";
 import {
   DEFAULT_PIN_MS,
   pinnedUntil,
@@ -119,6 +120,13 @@ export interface ServerOptions {
   /** Enables `ctx.sql` and `actingAs()`. */
   readonly postgres?: BetterPostgres;
   readonly auth?: Omit<ResolveAuthOptions, "env">;
+  /**
+   * `"lite"` for Supabase Lite: tokens verify with `SUPABASE_JWT_SECRET`, no
+   * JWKS prefetch, and `rpc()` is `unsupported` on its SQLite drivers.
+   */
+  readonly backend?: "supabase" | "lite";
+  /** Lite's `[db] driver`, default `sqlite-postgres`; `postgres` needs `postgres`. */
+  readonly liteDriver?: LiteDriver;
   /**
    * Fetch the JWKS when the server is created, so the first request verifies
    * its token without waiting for it. Applies when neither `auth.jwks` nor
@@ -402,21 +410,6 @@ export function extendServer<R extends object>(
   return extended as R;
 }
 
-/** `{ ...base, ...extra }` that keeps lazy getters lazy. */
-export function withExtra<T extends object, X extends object>(
-  base: T,
-  extra: X,
-): T & X {
-  // SAFETY: the descriptors copy every property of base and extra, getters included.
-  return Object.defineProperties(
-    {},
-    {
-      ...Object.getOwnPropertyDescriptors(base),
-      ...Object.getOwnPropertyDescriptors(extra),
-    },
-  ) as T & X;
-}
-
 /**
  * Server-side entry point for APIs, jobs, MCP servers and framework
  * adapters. Holds the secrets; `betterSupabase` stays isomorphic.
@@ -441,8 +434,10 @@ export function createServer<
     (loaded ??= options.env ?? loadEnv(RUNTIME_ENV));
   let adminClient: SupabaseClient | undefined;
   let anonClient: SupabaseClient | undefined;
+  const lite = liteBackend(options, env);
 
   if (
+    lite === undefined &&
     (options.prefetchJwks ?? defaultPrefetchJwks()) &&
     options.auth?.jwks === undefined
   ) {
@@ -481,14 +476,17 @@ export function createServer<
     ...(db.retry === undefined ? {} : { retry: db.retry }),
     ...(urlLengthLimit === undefined ? {} : { urlLengthLimit }),
   };
+  const rpcUnavailable = lite?.rpcUnavailable;
   const executorOptions = {
     ...definitionExecutor,
     ...(urlLengthLimit === undefined ? {} : { urlLengthLimit }),
     ...(db.timeout === undefined ? {} : { timeout: db.timeout }),
     ...(db.retry === undefined ? {} : { retry: db.retry }),
+    ...(rpcUnavailable === undefined ? {} : { rpcUnavailable }),
   };
-  /** Set when `db` options need an executor built with them. */
-  const tunedExecutor = options.db !== undefined;
+  /** Set when `db` options or the backend need an executor built with them. */
+  const tunedExecutor =
+    options.db !== undefined || rpcUnavailable !== undefined;
   const serviceClient = (): SupabaseClient => {
     adminClient ??= createClient(env().url, secretKey(), {
       auth: STATELESS,
@@ -950,7 +948,7 @@ export function createServer<
     const userMetadata = betterSupabase.userMetadataSchema;
     const resolved = await resolveAuth(request, {
       logger: betterSupabase.events.logger,
-      ...options.auth,
+      ...(lite ? lite.auth() : options.auth),
       ...(claims ? { claims } : {}),
       ...(userMetadata ? { userMetadata } : {}),
       env: env(),

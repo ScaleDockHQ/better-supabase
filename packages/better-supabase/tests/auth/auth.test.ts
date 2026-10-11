@@ -24,7 +24,7 @@ import {
   toProblem,
 } from "../../src/core/problem.ts";
 import { envSchema, parseEnv, toServerEnv } from "../../src/env/index.ts";
-import { createTestSigner } from "../../src/testing/jwt.ts";
+import { createTestSigner, signTestJwt } from "../../src/testing/jwt.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const env = {
@@ -157,6 +157,33 @@ describe("resolveAuth", async () => {
     expect(authContext(auth)).toMatchObject({
       actor: { id: USER, kind: "user", email: "a@b.c" },
     });
+  });
+
+  it("verifies shared-secret tokens with jwtSecret and keeps the JWKS for tokens with a kid", async () => {
+    const secret = "lite-secret-0123456789abcdef0123456789";
+    const shared = await signTestJwt(secret, { sub: USER });
+    const bearer = (token: string) =>
+      new Request("https://api.test/", {
+        headers: { authorization: `Bearer ${token}` },
+      });
+    const lite = { ...options, jwtSecret: secret };
+    expect((await resolveAuth(bearer(shared), lite)).auth).toMatchObject({
+      kind: "user",
+      user: { id: USER },
+    });
+    expect(
+      (
+        await resolveAuth(bearer(shared), {
+          ...options,
+          jwtSecret: `${secret}x`,
+        })
+      ).auth,
+    ).toMatchObject({ kind: "invalid", error: { code: "INVALID_JWT" } });
+    expect((await resolveAuth(bearer(shared), options)).auth.kind).toBe(
+      "invalid",
+    );
+    const signed = await signer.sign({ sub: USER });
+    expect((await resolveAuth(bearer(signed), lite)).auth.kind).toBe("user");
   });
 
   it("rejects an invalid Bearer token instead of downgrading to anon", async () => {
@@ -770,6 +797,23 @@ describe("env", () => {
       {
         variables: ["SUPABASE_SECRET_KEYS"],
         message: "holds a publishable key, not a secret key",
+      },
+    ]);
+  });
+
+  it("reads SUPABASE_JWT_SECRET and rejects a short one", () => {
+    const base = {
+      SUPABASE_URL: "http://127.0.0.1:54321",
+      SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
+    };
+    const secret = "lite-secret-0123456789abcdef0123456789";
+    expect(
+      parseEnv({ ...base, SUPABASE_JWT_SECRET: secret }).env,
+    ).toMatchObject({ jwtSecret: secret });
+    expect(parseEnv({ ...base, SUPABASE_JWT_SECRET: "short" }).issues).toEqual([
+      {
+        variables: ["SUPABASE_JWT_SECRET"],
+        message: "must be at least 32 characters",
       },
     ]);
   });
