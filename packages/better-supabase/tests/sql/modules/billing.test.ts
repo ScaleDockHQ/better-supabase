@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody, renderModules } from "../../../src/sql/registry.ts";
+import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 
 const billing = (options?: Record<string, unknown>) =>
   moduleBody("billing", {

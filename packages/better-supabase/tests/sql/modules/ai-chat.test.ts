@@ -6,8 +6,8 @@ import {
   moduleBody,
   moduleTopics,
   renderModules,
-  upgradePlan,
-} from "../../../src/sql/registry.ts";
+} from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const body = (modules: ModulesConfig = {}) =>
   moduleBody("ai-chat", { modules })!;

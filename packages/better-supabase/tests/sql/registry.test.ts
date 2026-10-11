@@ -6,16 +6,14 @@ import type { ModulesConfig } from "../../src/config/modules.ts";
 
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
 import { eventTriggersOf } from "../../src/sql/event-triggers.ts";
-import { moduleLayout } from "../../src/sql/layout.ts";
 import {
   moduleEventTriggers,
   modulePermissionKeys,
-  moduleTopics,
-  renderModules,
-  resolveModules,
-  sameModuleFile,
-  SQL_MODULES,
-} from "../../src/sql/registry.ts";
+} from "../../src/sql/introspect.ts";
+import { moduleLayout } from "../../src/sql/layout.ts";
+import { sameModuleFile } from "../../src/sql/markers.ts";
+import { resolveModules, SQL_MODULES } from "../../src/sql/registry.ts";
+import { moduleTopics, renderModules } from "../../src/sql/render.ts";
 import { stubProvider } from "../fixtures/authorization-provider.ts";
 
 describe("resolveModules", () => {

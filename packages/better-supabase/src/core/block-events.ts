@@ -549,6 +549,37 @@ export function emitBlockEvent<K extends BlockEventType>(
   events.emit("block", event);
 }
 
+/** The options that decide who a block's events are attributed to. */
+export interface BlockEmitterOptions {
+  /** `betterSupabase.events`. Without it, nothing is emitted. */
+  readonly events?: EventHub | undefined;
+  readonly actorId?: string | undefined;
+  readonly context?: RequestContext | undefined;
+}
+
+/**
+ * The `emit` a block creator calls: skips the work without an event hub and
+ * adds the actor and request context from the block's options.
+ */
+export function blockEmitter(
+  options: BlockEmitterOptions,
+): <K extends BlockEventType>(
+  type: K,
+  data: BlockEventMap[K],
+  subject: string,
+  tenant?: string | null,
+) => void {
+  return (type, data, subject, tenant) => {
+    if (!options.events) return;
+    emitBlockEvent(options.events, type, data, {
+      subject,
+      ...(tenant ? { tenant } : {}),
+      ...(options.actorId ? { actorId: options.actorId } : {}),
+      ...(options.context ? { context: options.context } : {}),
+    });
+  };
+}
+
 const matches = (pattern: string, type: string): boolean =>
   pattern.endsWith(".*")
     ? type.startsWith(pattern.slice(0, -1))

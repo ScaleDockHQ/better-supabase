@@ -14,7 +14,6 @@ import type {
   Snapshot,
 } from "../../../src/cli/introspect/types.ts";
 
-import { locate } from "../../../src/cli/commands/doctor.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { formatReport } from "../../../src/cli/doctor/format.ts";
 import {
@@ -22,6 +21,7 @@ import {
   hookGrantProblems,
 } from "../../../src/cli/doctor/hooks.ts";
 import { summarizePlan } from "../../../src/cli/doctor/live.ts";
+import { locate } from "../../../src/cli/doctor/locate.ts";
 import {
   type DoctorContext,
   RULE_CODES,

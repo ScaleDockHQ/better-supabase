@@ -1,7 +1,7 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { JobHandler } from "../jobs/queue.ts";
+import type { JobHandler } from "../jobs/types.ts";
 
 import {
   applyTemporal,

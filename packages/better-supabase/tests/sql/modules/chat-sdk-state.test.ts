@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody } from "../../../src/sql/registry.ts";
+import { moduleBody } from "../../../src/sql/render.ts";
 
 const body = () => moduleBody("chat-sdk-state", { modules: {} })!;
 

@@ -5,7 +5,6 @@ export {
   type BillingStatus,
   type CheckoutItem,
   type CheckoutOptions,
-  createBilling,
   type CustomerDetails,
   type PlanChange,
   type PlatformListOptions,
@@ -16,7 +15,8 @@ export {
   type SubscriptionItem,
   type TenantStripeRow,
   type BillingCustomer,
-} from "./billing.ts";
+} from "./types.ts";
+export { createBilling } from "./billing.ts";
 export type { BillingEventData } from "../../core/block-events.ts";
 export type { StripeClient, StripeSource, StripeTaxId } from "../stripe.ts";
 export {

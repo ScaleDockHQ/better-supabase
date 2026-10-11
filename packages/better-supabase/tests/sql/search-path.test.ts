@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules, SQL_MODULES } from "../../src/sql/registry.ts";
+import { SQL_MODULES } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
 
 /** Every function a rendered file creates that has no `set search_path`. */
 function mutable(contents: string): string[] {

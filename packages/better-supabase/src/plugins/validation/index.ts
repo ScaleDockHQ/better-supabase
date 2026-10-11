@@ -9,7 +9,7 @@ import {
 import { definePlugin, type Plugin } from "../../core/plugin.ts";
 import { type StandardSchemaV1, validate } from "../../core/standard.ts";
 import { decodeValue, encodeValue } from "../../ir/wire.ts";
-import { toApp, toDb } from "../shared.ts";
+import { toApp, toDb } from "../../schema/casing.ts";
 
 export interface TableValidators {
   /** Validates inserts and upserts, with app-cased keys. */

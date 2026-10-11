@@ -17,7 +17,7 @@ import { type DbError, dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf } from "./actor.ts";
 import { sessionStatus } from "./ended.ts";
-import { isSharedSecretToken, verifyHs256 } from "./hs256.ts";
+import { clearHs256Keys, isSharedSecretToken, verifyHs256 } from "./hs256.ts";
 import { refreshSession } from "./refresh.ts";
 import {
   applyCookieWrites,
@@ -232,13 +232,23 @@ type VerifiedUser = Omit<
 const MEMO_SIZE = 256;
 const memoByUrl = new Map<string, Map<string, VerifiedUser>>();
 let memoByJwks = new WeakMap<object, Map<string, Map<string, VerifiedUser>>>();
-/** A number per JWT secret, so memo keys tell secrets apart without holding them. */
+/** The most JWT secrets remembered at once; the oldest goes first. */
+const SECRET_IDS_SIZE = 64;
+/** A number per JWT secret, so memo keys tell secrets apart. Bounded, and never reuses a number. */
 const secretIds = new Map<string, number>();
+let nextSecretId = 1;
 
 function secretId(secret: string | undefined): number | null {
   if (secret === undefined) return null;
   let id = secretIds.get(secret);
-  if (id === undefined) secretIds.set(secret, (id = secretIds.size + 1));
+  if (id === undefined) {
+    id = nextSecretId++;
+    secretIds.set(secret, id);
+    if (secretIds.size > SECRET_IDS_SIZE) {
+      const oldest = secretIds.keys().next();
+      if (!oldest.done) secretIds.delete(oldest.value);
+    }
+  }
   return id;
 }
 
@@ -277,6 +287,8 @@ function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
 export function clearVerifiedTokens(): void {
   memoByUrl.clear();
   memoByJwks = new WeakMap();
+  secretIds.clear();
+  clearHs256Keys();
 }
 
 function remembered(

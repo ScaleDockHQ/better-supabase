@@ -4,12 +4,12 @@ import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
+import { actionFits } from "./resource-http.ts";
 import {
-  actionFits,
-  defineResource,
   type ResourceHandler,
   type ResourceRouteOptions,
-} from "./resource.ts";
+} from "./resource-types.ts";
+import { defineResource } from "./resource.ts";
 
 /** Resources by table name; `true` serves a table with the defaults. */
 export type ResourceMap<M extends AnyModels, Ref = string, DbT = unknown> = {

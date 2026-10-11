@@ -11,7 +11,8 @@ import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
 import { byCodePoint } from "../compare.ts";
-import { display, sameText, writeIfChanged } from "../io.ts";
+import { writeLine } from "../files.ts";
+import { display, readIfExists, sameText } from "../io.ts";
 
 const ARGS = {
   action: {
@@ -175,15 +176,11 @@ export async function runSkills(
       ? `~/${relativePath}`
       : display(config.root, relativePath);
     if (check) {
-      const current = existsSync(path)
-        ? await readFile(path, "utf8")
-        : undefined;
+      const current = await readIfExists(path);
       if (!sameText(current, file.contents)) stale.push(shown);
       continue;
     }
-    lines.push(
-      `${(await writeIfChanged(path, file.contents)) ? "Wrote" : "Unchanged"} ${shown}`,
-    );
+    lines.push((await writeLine(path, file.contents, shown)).line);
   }
   if (check) {
     return stale.length === 0

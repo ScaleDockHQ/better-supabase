@@ -25,7 +25,9 @@ vi.mock("@clack/prompts", () => {
   };
 });
 
-const { clackPrompter, withSpinner } = await import("../../src/cli/prompts.ts");
+const { createClackPrompter, withSpinner } =
+  await import("../../src/cli/prompts.ts");
+const clackPrompter = createClackPrompter(process.stderr);
 
 interface Asked {
   readonly kind: string;

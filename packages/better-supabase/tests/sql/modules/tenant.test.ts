@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
-import { moduleBody } from "../../../src/sql/registry.ts";
+import { moduleBody } from "../../../src/sql/render.ts";
 
 const body = (
   sameTenant: unknown,

@@ -2,6 +2,7 @@ import type { StreamPage, StreamStatus, StreamStore } from "../store.ts";
 
 import { isRecord } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
+import { importOptionalPeer } from "../../core/optional-peer.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { pollingRead } from "../store.ts";
 
@@ -78,14 +79,7 @@ const isNodeRedis = (
  * Loads `redis` on first use. The specifier is a variable so bundlers leave
  * the optional peer out of apps that pass their own client.
  */
-async function loadRedis(): Promise<unknown> {
-  const specifier = "redis";
-  try {
-    return await import(specifier);
-  } catch {
-    return undefined;
-  }
-}
+const loadRedis = (): Promise<unknown> => importOptionalPeer("redis");
 
 async function connectUrl(
   url: string,

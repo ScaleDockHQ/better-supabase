@@ -1,3 +1,4 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
 
@@ -118,6 +119,20 @@ export interface PresenceTopic<P extends string, I, O> {
 }
 
 /** Who a subscription runs as. */
+/** The claims type of a client's `betterSupabase.claims(schema)`, `unknown` without one. */
+export type ClaimsOf<B extends ClientLike> = B["betterSupabase"] extends {
+  readonly claimsSchema: StandardSchemaV1<unknown, infer C> | undefined;
+}
+  ? C
+  : unknown;
+
+/** The profile type of a client's `betterSupabase.userMetadata(schema)`, `unknown` without one. */
+export type ProfileOf<B extends ClientLike> = B["betterSupabase"] extends {
+  readonly userMetadataSchema: StandardSchemaV1<unknown, infer P> | undefined;
+}
+  ? P
+  : unknown;
+
 export interface Caller {
   readonly status: AuthSnapshot["status"];
   readonly userId: string | null;

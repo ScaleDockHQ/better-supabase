@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
-import type { ModuleAccessProvider } from "../../../src/sql/registry.ts";
+import type { ModuleAccessProvider } from "../../../src/sql/module-types.ts";
 
-import {
-  moduleBody,
-  renderModules,
-  upgradePlan,
-} from "../../../src/sql/registry.ts";
+import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import {
   callerOnlyProvider,
   moduleProvider,

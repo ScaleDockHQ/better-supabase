@@ -7,248 +7,39 @@ import type {
   TableMeta,
 } from "../../schema/types.ts";
 
-import { fromBase64, toBase64 } from "../../core/base64.ts";
-import { type DbError, dbError } from "../../core/errors.ts";
+import { dbError } from "../../core/errors.ts";
 import { err, ok, type Result } from "../../core/result.ts";
+import {
+  header,
+  hmacHex,
+  unauthorized,
+  type VerifiedWebhook,
+  type VerifyOptions,
+  type WebhookInput,
+  timingSafeEqual,
+  verifyWebhook,
+} from "../../core/signatures.ts";
 import { temporalMissing } from "../../core/temporal-required.ts";
 import { nowInstant, optionalTemporal } from "../../core/temporal.ts";
-import { toApp } from "../../plugins/shared.ts";
+import { toApp } from "../../schema/casing.ts";
 
-// ---------------------------------------------------------------------------
-// Standard Webhooks
-
-export interface VerifiedWebhook<T = unknown> {
-  readonly id: string;
-  readonly timestamp: Temporal.Instant;
-  readonly payload: T;
-  readonly body: string;
-}
-
-export interface VerifyOptions {
-  /** Allowed clock skew in seconds. Defaults to 300. */
-  readonly tolerance?: number;
-  readonly now?: () => Temporal.Instant;
-}
-
-export type WebhookInput =
-  | Request
-  | {
-      readonly headers: Headers | Readonly<Record<string, string>>;
-      readonly body: string;
-    };
-
-const encoder = /* @__PURE__ */ new TextEncoder();
-
-/** Accepts `whsec_…`, `v1,whsec_…` (Supabase Auth hooks) or raw base64. */
-function secretBytes(secret: string): Uint8Array<ArrayBuffer> {
-  const raw = secret.replace(/^v1,/, "").replace(/^whsec_/, "");
-  try {
-    return fromBase64(raw);
-  } catch {
-    throw new TypeError("Webhook secret is not valid base64");
-  }
-}
-
-/** Secrets come from configuration, so a handful of keys suffice. */
-const keys = new Map<string, Promise<CryptoKey>>();
-
-function keyFor(secret: string): Promise<CryptoKey> {
-  let key = keys.get(secret);
-  if (!key) {
-    key = crypto.subtle.importKey(
-      "raw",
-      secretBytes(secret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign", "verify"],
-    );
-    if (keys.size < 16) {
-      keys.set(secret, key);
-      key.catch(() => keys.delete(secret));
-    }
-  }
-  return key;
-}
-
-async function signature(secret: string, content: string): Promise<string> {
-  return toBase64(
-    new Uint8Array(
-      await crypto.subtle.sign(
-        "HMAC",
-        await keyFor(secret),
-        encoder.encode(content),
-      ),
-    ),
-  );
-}
-
-function decodeSignature(value: string): Uint8Array<ArrayBuffer> | undefined {
-  try {
-    return fromBase64(value);
-  } catch {
-    return undefined;
-  }
-}
-
-/** Constant-time string comparison. */
-export function timingSafeEqual(a: string, b: string): boolean {
-  const left = encoder.encode(a);
-  const right = encoder.encode(b);
-  let diff = left.length ^ right.length;
-  for (let index = 0; index < Math.max(left.length, right.length); index++) {
-    diff |= (left[index] ?? 0) ^ (right[index] ?? 0);
-  }
-  return diff === 0;
-}
-
-function header(
-  headers: Headers | Readonly<Record<string, string>>,
-  name: string,
-): string | null {
-  if (headers instanceof Headers) return headers.get(name);
-  const found = Object.entries(headers).find(
-    ([key]) => key.toLowerCase() === name,
-  );
-  return found?.[1] ?? null;
-}
-
-const unauthorized = (code: string, message: string): DbError =>
-  dbError("unauthorized", message, { code });
-
-/** Headers for a signed Standard Webhooks request. */
-export async function signWebhook(
-  secret: string,
-  message: {
-    readonly id: string;
-    readonly body: string;
-    readonly timestamp?: Temporal.Instant;
-  },
-): Promise<Record<string, string>> {
-  // Standard Webhooks carry the timestamp as epoch seconds.
-  const timestamp = String(
-    Math.floor((message.timestamp ?? nowInstant()).epochMilliseconds / 1000),
-  );
-  return {
-    "webhook-id": message.id,
-    "webhook-timestamp": timestamp,
-    "webhook-signature": `v1,${await signature(secret, `${message.id}.${timestamp}.${message.body}`)}`,
-  };
-}
-
-/**
- * Verifies a Standard Webhooks signature (`webhook-id`, `webhook-timestamp`,
- * `webhook-signature`, or the `svix-` names Svix-based senders use) and
- * parses the JSON body. Pass several secrets while rotating.
- */
-export async function verifyWebhook<T = unknown>(
-  input: WebhookInput,
-  secrets: string | readonly string[],
-  options: VerifyOptions = {},
-): Promise<Result<VerifiedWebhook<T>>> {
-  const headers = input.headers;
-  const prefix = header(headers, "webhook-id") === null ? "svix" : "webhook";
-  const id = header(headers, `${prefix}-id`);
-  const timestamp = header(headers, `${prefix}-timestamp`);
-  const signatures = header(headers, `${prefix}-signature`);
-  if (!id || !timestamp || !signatures)
-    return err(
-      unauthorized(
-        "WEBHOOK_MISSING_HEADERS",
-        "Missing webhook signature headers",
-      ),
-    );
-  const seconds = Number(timestamp);
-  if (!/^\d+$/.test(timestamp))
-    return err(
-      unauthorized("WEBHOOK_INVALID_TIMESTAMP", "Invalid webhook timestamp"),
-    );
-  const namespace = optionalTemporal();
-  if (namespace === undefined) return err(temporalMissing());
-  const now =
-    (options.now?.() ?? namespace.Now.instant()).epochMilliseconds / 1000;
-  const tolerance = options.tolerance ?? 300;
-  if (seconds < now - tolerance)
-    return err(
-      unauthorized("WEBHOOK_TIMESTAMP_TOO_OLD", "Webhook timestamp is too old"),
-    );
-  if (seconds > now + tolerance)
-    return err(
-      unauthorized(
-        "WEBHOOK_TIMESTAMP_TOO_NEW",
-        "Webhook timestamp is in the future",
-      ),
-    );
-
-  const body = input instanceof Request ? await input.text() : input.body;
-  const content = encoder.encode(`${id}.${timestamp}.${body}`);
-  const offered = signatures
-    .split(" ")
-    .map((entry) => entry.split(","))
-    .filter(([version, value]) => version === "v1" && value)
-    .flatMap(([, value]) => decodeSignature(value!) ?? []);
-  let valid = false;
-  for (const secret of typeof secrets === "string" ? [secrets] : secrets) {
-    const key = await keyFor(secret);
-    for (const candidate of offered) {
-      // crypto.subtle.verify compares HMACs in constant time.
-      if (await crypto.subtle.verify("HMAC", key, candidate, content))
-        valid = true;
-    }
-  }
-  if (!valid)
-    return err(
-      unauthorized("WEBHOOK_INVALID_SIGNATURE", "Invalid webhook signature"),
-    );
-
-  try {
-    // SAFETY: the caller names the payload type T; the signature check above
-    // proves the sender, not the shape.
-    return ok({
-      id,
-      timestamp: namespace.Instant.fromEpochMilliseconds(seconds * 1000),
-      payload: JSON.parse(body) as T,
-      body,
-    });
-  } catch {
-    return err(dbError("invalid_request", "Webhook body is not JSON"));
-  }
-}
-
-/** Checks a shared-secret header (database webhooks), in constant time. */
-export function verifySharedSecret(
-  request: Request,
-  secret: string,
-  headerName = "authorization",
-): boolean {
-  const value = request.headers.get(headerName) ?? "";
-  const token = value.replace(/^Bearer\s+/i, "");
-  return timingSafeEqual(token, secret);
-}
+export {
+  signWebhook,
+  timingSafeEqual,
+  verifySharedSecret,
+  verifyWebhook,
+} from "../../core/signatures.ts";
+export type {
+  VerifiedWebhook,
+  VerifyOptions,
+  WebhookInput,
+} from "../../core/signatures.ts";
 
 // ---------------------------------------------------------------------------
 // Stripe
 
-const toHex = (bytes: Uint8Array): string =>
-  Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-
 /** Stripe signs with the endpoint secret's UTF-8 bytes, not its base64 decoding. */
-async function stripeSignature(
-  secret: string,
-  content: string,
-): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  return toHex(
-    new Uint8Array(
-      await crypto.subtle.sign("HMAC", key, encoder.encode(content)),
-    ),
-  );
-}
+const stripeSignature = hmacHex;
 
 /** The `Stripe-Signature` header for `body`, for tests and local replays. */
 export async function signStripeWebhook(

@@ -35,7 +35,7 @@ export type {
   IncomingVerify,
   IncomingWebhooks,
   IncomingWebhooksOptions,
-} from "./incoming.ts";
+} from "./incoming-types.ts";
 export { createWebhooks } from "./outgoing.ts";
 export type {
   DeliverWebhooksOptions,
@@ -48,7 +48,7 @@ export type {
   WebhooksOptions,
   WebhookSinkOptions,
   WebhooksRouteOptions,
-} from "./outgoing.ts";
+} from "./outgoing-types.ts";
 export { hmacSigner, standardWebhooks } from "./signers.ts";
 export type {
   HmacSignerOptions,

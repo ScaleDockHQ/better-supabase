@@ -7,7 +7,7 @@ import {
   moduleBody,
   moduleTopics,
   renderModules,
-} from "../../../src/sql/registry.ts";
+} from "../../../src/sql/render.ts";
 
 const files = (names: readonly string[], modules: ModulesConfig = {}) =>
   renderModules(names, { modules });

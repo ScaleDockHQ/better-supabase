@@ -1,0 +1,138 @@
+import type { AnyCommand } from "./command.ts";
+
+export type Loader = () => Promise<AnyCommand>;
+
+export type CliEntry =
+  | {
+      readonly load: Loader;
+      /** Shown in the root usage without loading the command. */
+      readonly description: string;
+    }
+  | { readonly load: Loader; readonly command: AnyCommand };
+
+const BUILTIN: readonly (readonly [string, CliEntry])[] = [
+  [
+    "init",
+    {
+      load: () => import("./commands/init.ts").then((m) => m.initCommand),
+      description:
+        "Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json",
+    },
+  ],
+  [
+    "add",
+    {
+      load: () => import("./commands/add.ts").then((m) => m.addCommand),
+      description: "Adds glue for an integration to an existing project",
+    },
+  ],
+  [
+    "env",
+    {
+      load: () => import("./commands/env.ts").then((m) => m.envCommand),
+      description:
+        "Writes the local stack's URL and keys from `supabase status` to an env file, keeping its other lines",
+    },
+  ],
+  [
+    "keys",
+    {
+      load: () => import("./commands/keys.ts").then((m) => m.keysCommand),
+      description:
+        "Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones",
+    },
+  ],
+  [
+    "skills",
+    {
+      load: () => import("./commands/skills.ts").then((m) => m.skillsCommand),
+      description:
+        "Installs the Agent Skills that ship with this version of better-supabase",
+    },
+  ],
+  [
+    "gen",
+    {
+      load: () => import("./commands/gen.ts").then((m) => m.genCommand),
+      description:
+        "Writes the typed client from the database, then every other generated file the config sets up",
+    },
+  ],
+  [
+    "introspect",
+    {
+      load: () =>
+        import("./commands/introspect.ts").then((m) => m.introspectCommand),
+      description: "Saves the database schema as a snapshot for offline gen",
+    },
+  ],
+  [
+    "openapi",
+    {
+      load: () => import("./commands/openapi.ts").then((m) => m.openapiCommand),
+      description:
+        "Writes the document your createOpenApi() module exports, so CI can check it for drift",
+    },
+  ],
+  [
+    "spec",
+    {
+      load: () => import("./commands/spec.ts").then((m) => m.specCommand),
+      description:
+        "Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders",
+    },
+  ],
+  [
+    "scaffold",
+    {
+      load: () =>
+        import("./commands/scaffold.ts").then((m) => m.scaffoldCommand),
+      description:
+        "Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js",
+    },
+  ],
+  [
+    "seed",
+    {
+      load: () => import("./commands/seed.ts").then((m) => m.seedCommand),
+      description:
+        "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL",
+    },
+  ],
+  [
+    "doctor",
+    {
+      load: () => import("./commands/doctor.ts").then((m) => m.doctorCommand),
+      description:
+        "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict",
+    },
+  ],
+  [
+    "sql",
+    {
+      load: () => import("./commands/sql.ts").then((m) => m.sqlCommand),
+      description: "Lists, adds, syncs, upgrades and prints SQL modules",
+    },
+  ],
+  [
+    "config",
+    {
+      load: () => import("./commands/config.ts").then((m) => m.configCommand),
+      description:
+        "Prints the resolved config: the file it came from, the active environment and every option with its default",
+    },
+  ],
+  [
+    "codemod",
+    {
+      load: () => import("./commands/codemod.ts").then((m) => m.codemodCommand),
+      description:
+        "Rewrites imports and calls for renamed better-supabase APIs",
+    },
+  ],
+];
+
+/** A fresh registry of the built-in commands, for `createCli`. */
+export function builtinCommands(): Map<string, CliEntry> {
+  return new Map(BUILTIN);
+}

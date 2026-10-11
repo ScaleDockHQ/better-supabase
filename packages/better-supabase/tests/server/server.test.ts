@@ -12,7 +12,8 @@ import type {
 import { writeSession } from "../../src/auth/session.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
-import { createServer, TENANT_HEADER } from "../../src/server/server.ts";
+import { TENANT_HEADER } from "../../src/server/server-types.ts";
+import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";

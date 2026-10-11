@@ -4,9 +4,9 @@ import type {
   ModuleEvents,
   ModuleNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
-import { AI_MESSAGE_PART_TYPES } from "../../blocks/ai-chat/message.ts";
+import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { sqlString } from "../../core/template.ts";
 import { replaceColumnCheck, schemaPreamble, tenantIn } from "../shared.ts";
 import { MODULE_PERMISSIONS } from "./access-model.ts";

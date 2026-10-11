@@ -3,11 +3,7 @@ import {
   type ModelCallStreamPart,
   normalizeUIMessageStreamParts,
 } from "@ai-sdk/workflow";
-import {
-  JsonToSseTransformStream,
-  UI_MESSAGE_STREAM_HEADERS,
-  type UIMessageChunk,
-} from "ai";
+import { JsonToSseTransformStream, type UIMessageChunk } from "ai";
 import { getRun, resumeHook, start } from "workflow/api";
 
 import type {
@@ -24,6 +20,7 @@ import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { resumeFromStore, teeToStore } from "../../streams/tee.ts";
 import { WORKFLOW_ATTRIBUTES } from "../../workflow-sdk/attributes.ts";
+import { badRequest, readJson, sse } from "../http.ts";
 import { durableStopToken, durableTurnToken } from "./turn.ts";
 
 /** Who asks, for one request. */
@@ -86,12 +83,6 @@ export const WORKFLOW_RUN_ID_HEADER = "x-workflow-run-id";
 
 const WORKFLOW_ENGINE = "workflow";
 
-function badRequest(message: string): Response {
-  return problemResponse(
-    dbError("invalid_request", message, { code: "AI_CHAT_BAD_REQUEST" }),
-  );
-}
-
 function busy(): Response {
   return problemResponse(
     dbError("conflict", "An answer is already being written.", {
@@ -106,14 +97,6 @@ function notDurable(): Response {
       code: "AI_CHAT_NOT_DURABLE",
     }),
   );
-}
-
-async function readJson(request: Request): Promise<unknown> {
-  try {
-    return await request.json();
-  } catch {
-    return undefined;
-  }
 }
 
 /** The `approvals` of a body, `undefined` when it has none, or a message for a malformed one. */
@@ -230,15 +213,16 @@ async function opened<T>(
   });
 }
 
-function sse(stream: ReadableStream<string>, workflowRunId?: string): Response {
-  return new Response(stream.pipeThrough(new TextEncoderStream()), {
-    headers: {
-      ...UI_MESSAGE_STREAM_HEADERS,
-      ...(workflowRunId === undefined
-        ? {}
-        : { [WORKFLOW_RUN_ID_HEADER]: workflowRunId }),
-    },
-  });
+function runSse(
+  stream: ReadableStream<string>,
+  workflowRunId?: string,
+): Response {
+  return sse(
+    stream,
+    workflowRunId === undefined
+      ? {}
+      : { [WORKFLOW_RUN_ID_HEADER]: workflowRunId },
+  );
 }
 
 /**
@@ -275,7 +259,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         await teed.persisted;
       })(),
     );
-    return sse(teed.stream, workflowRunId);
+    return runSse(teed.stream, workflowRunId);
   }
 
   async function startTurn(
@@ -512,7 +496,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         live = undefined;
       }
       // Without the World's stream, the stream store has the copy the client read.
-      if (live !== undefined) return sse(live, run.externalRunId);
+      if (live !== undefined) return runSse(live, run.externalRunId);
     }
     const stored = await resumeFromStore(options.streams, streamId, {
       fromIdx: startIndex,
@@ -523,7 +507,7 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     if (!stored.ok) return problemResponse(stored.error);
     return stored.data === undefined
       ? new Response(null, { status: 204 })
-      : sse(stored.data, run.externalRunId);
+      : runSse(stored.data, run.externalRunId);
   }
 
   async function stop(

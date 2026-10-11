@@ -3,7 +3,7 @@ export type {
   ConnectOptions,
   SupabaseOptions,
   RpcDefinition,
-} from "./core/define.ts";
+} from "./core/define-types.ts";
 export { EMPTY_STATS, recordStats, StatsRecorder } from "./core/stats.ts";
 export type { DbStats } from "./core/stats.ts";
 export {

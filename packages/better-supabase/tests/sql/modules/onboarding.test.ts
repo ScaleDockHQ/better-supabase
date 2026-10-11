@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { defineChecklist } from "../../../src/blocks/onboarding/index.ts";
-import { renderModules } from "../../../src/sql/registry.ts";
+import { renderModules } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   names: readonly string[],

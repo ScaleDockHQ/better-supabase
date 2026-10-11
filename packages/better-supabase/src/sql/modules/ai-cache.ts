@@ -1,5 +1,5 @@
 import type { ModuleContext, ModuleNames } from "../context.ts";
-import type { ModuleDefinition } from "../registry.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { raise, schemaPreamble, serviceGrant } from "../shared.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";

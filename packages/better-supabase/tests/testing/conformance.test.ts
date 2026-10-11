@@ -35,15 +35,15 @@ import {
   ConformanceError,
   conform,
   expect as conformExpect,
-  testAuthResolver,
-  testCacheAdapter,
-  testEventSink,
-  testExecutor,
-  testPlugin,
-  testQueueBackend,
-  testSupportSessionStore,
 } from "../../src/testing/conformance.ts";
 import { testGenerator } from "../../src/testing/generator.ts";
+import { testAuthResolver } from "../../src/testing/kits/auth-resolver.ts";
+import { testCacheAdapter } from "../../src/testing/kits/cache-adapter.ts";
+import { testEventSink } from "../../src/testing/kits/event-sink.ts";
+import { testExecutor } from "../../src/testing/kits/executor.ts";
+import { testPlugin } from "../../src/testing/kits/plugin.ts";
+import { testQueueBackend } from "../../src/testing/kits/queue-backend.ts";
+import { testSupportSessionStore } from "../../src/testing/kits/support-session-store.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { validators } from "../fixtures/generated-camel.zod.ts";
 import { memorySupportStore } from "../fixtures/support-store.ts";

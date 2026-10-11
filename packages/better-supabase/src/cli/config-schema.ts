@@ -6,6 +6,7 @@ import type {
 } from "../config/index.ts";
 
 import { providerApiProblem } from "../config/index.ts";
+import { SKILLS_AGENTS } from "../config/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
 
@@ -501,7 +502,7 @@ const ENTRIES = {
   integrations: v.optional(v.array(v.picklist(INTEGRATIONS))),
   skills: v.optional(
     v.strictObject({
-      agents: v.optional(v.array(v.picklist(["cursor", "claude", "agents"]))),
+      agents: v.optional(v.array(v.picklist(SKILLS_AGENTS))),
     }),
   ),
   keys: v.optional(v.strictObject({ output: v.optional(v.string()) })),

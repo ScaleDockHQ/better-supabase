@@ -615,6 +615,13 @@ export const raise = (
 ): string =>
   `raise exception ${sqlString(message)}${args.map((arg) => `, ${arg}`).join("")} using errcode = '${errcode}', hint = '${hint}';`;
 
+/** `raise` for a module function: the hint first, the errcode defaulting to insufficient privilege. */
+export const fail = (
+  code: string,
+  message: string,
+  errcode = "42501",
+): string => raise(message, errcode, code);
+
 /** `coalesce(can('tenant', tenant, permission), false)`. */
 export const canIn = (tenant: string, permission: string): string =>
   `coalesce(better_supabase.can('tenant', ${tenant}, ${permission}), false)`;

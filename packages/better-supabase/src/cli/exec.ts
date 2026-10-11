@@ -2,6 +2,8 @@ import { x } from "tinyexec";
 
 import type { CliEnv } from "./env.ts";
 
+import { errorText } from "./errors.ts";
+
 export interface ExecResult {
   readonly code: number;
   readonly stdout: string;
@@ -27,7 +29,7 @@ async function exec(
     return {
       code: 127,
       stdout: "",
-      stderr: error instanceof Error ? error.message : String(error),
+      stderr: errorText(error),
     };
   }
 }

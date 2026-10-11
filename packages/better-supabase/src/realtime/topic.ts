@@ -25,14 +25,20 @@ import {
   parseTemplate,
   slug,
   sqlIdent,
+  claimSql,
   sqlString,
   type Template,
   type TemplateParams,
   type TemplateValues,
 } from "../core/template.ts";
-import { toApp } from "../plugins/shared.ts";
+import { toApp } from "../schema/casing.ts";
 import { refreshRealtimeAuth } from "./auth.ts";
 import { joinTopic, type Subscriber } from "./channels.ts";
+import {
+  eventSql,
+  triggerValueSql,
+  type AnyTriggerValue,
+} from "./topic-sql.ts";
 
 export type EventSchemas = Readonly<Record<string, StandardSchemaV1>>;
 
@@ -315,18 +321,6 @@ function validateValue(_name: string, value: string): string | undefined {
     : "contains characters topics do not allow";
 }
 
-function claimSql(claim: string | readonly string[]): string {
-  const paths = typeof claim === "string" ? [claim] : claim;
-  const expressions = paths.map((path) => {
-    const keys = path.split(".");
-    const last = keys.pop()!;
-    return `(select auth.jwt())${keys.map((key) => ` -> ${sqlString(key)}`).join("")} ->> ${sqlString(last)}`;
-  });
-  return expressions.length === 1
-    ? expressions[0]!
-    : `coalesce(${expressions.join(", ")})`;
-}
-
 async function validate(
   schema: StandardSchemaV1 | undefined,
   value: unknown,
@@ -360,67 +354,6 @@ function sendError(status: number, message: string): DbError {
   if (status === 429 || status >= 500 || status === 0)
     return dbError("network", message, status ? { status } : {});
   return dbError("invalid_request", message, { status });
-}
-
-type AnyTriggerValue =
-  | string
-  | {
-      readonly from: string;
-      readonly via: AnyTriggerValue;
-      readonly select: string;
-      readonly key?: string;
-    };
-
-function columnSql(meta: TableMeta, column: string, where: string): string {
-  const db = meta.columns[column]?.db;
-  if (!db)
-    throw new TypeError(
-      `defineTopic: no column for ${where} on "${meta.key}" ("${column}")`,
-    );
-  return sqlIdent(db);
-}
-
-/** A trigger value as SQL on `rec`, with one subquery per lookup. */
-function triggerValueSql(
-  tables: Readonly<Record<string, TableMeta | undefined>>,
-  meta: TableMeta,
-  value: AnyTriggerValue,
-  where: string,
-  depth = 0,
-): string {
-  if (typeof value === "string") return `rec.${columnSql(meta, value, where)}`;
-  const joined = tables[value.from];
-  if (!joined)
-    throw new TypeError(
-      `defineTopic: unknown table "${value.from}" for ${where}`,
-    );
-  const key =
-    value.key ??
-    (joined.primaryKey.length === 1 ? joined.primaryKey[0] : undefined);
-  if (key === undefined)
-    throw new TypeError(
-      `defineTopic: "${value.from}" has no single-column primary key; name its key for ${where}`,
-    );
-  const alias = `j${String(depth)}`;
-  const via = triggerValueSql(tables, meta, value.via, where, depth + 1);
-  return `(select ${alias}.${columnSql(joined, value.select, where)} from ${sqlIdent(joined.schema)}.${sqlIdent(joined.name)} ${alias} where ${alias}.${columnSql(joined, key, where)} = ${via} limit 1)`;
-}
-
-/** The event name: one for every operation, one per operation, or the operation. */
-function eventSql(
-  event: string | Readonly<Record<string, string | undefined>> | undefined,
-): string {
-  if (event === undefined) return "tg_op";
-  if (typeof event === "string") return sqlString(event);
-  const cases = Object.entries(event)
-    .filter((entry): entry is [string, string] => entry[1] !== undefined)
-    .map(
-      ([operation, name]) =>
-        ` when ${sqlString(operation.toUpperCase())} then ${sqlString(name)}`,
-    );
-  return cases.length === 0
-    ? "tg_op"
-    : `case tg_op${cases.join("")} else tg_op end`;
 }
 
 /**

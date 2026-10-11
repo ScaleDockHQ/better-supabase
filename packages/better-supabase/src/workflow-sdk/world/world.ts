@@ -1,111 +1,41 @@
-import type {
-  MessageId,
-  QueueOptions,
-  QueueBatchResult,
-  QueuePayload,
-  QueuePrefix,
-  ValidQueueName,
-  World,
+import {
+  reenqueueActiveRuns,
+  type MessageId,
+  type QueueBatchResult,
+  type QueueOptions,
+  type QueuePayload,
+  type QueuePrefix,
+  type ValidQueueName,
+  type World,
 } from "@workflow/world";
-
-import { reenqueueActiveRuns } from "@workflow/world";
 import { createWorld as createPostgresWorld } from "@workflow/world-postgres";
 import { Pool } from "pg";
 
 import { dbError } from "../../core/errors.ts";
+import { memoized } from "../../core/optional-peer.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { sqlIdent } from "../../core/template.ts";
-import { WORLD_POSTGRES_VERSION } from "../../sql/modules/workflow-sdk-world-ddl.generated.ts";
 import {
   WORKFLOW_DELIVERY_QUEUE,
   WORKFLOW_VAULT_SECRETS,
-  type WorkflowDeliveryMode,
 } from "../../sql/modules/workflow-sdk-world.ts";
 import { createAnalytics } from "./analytics.ts";
-
-/**
- * The `@workflow/world` protocol this World speaks: the package version its
- * types and queue format come from. Its tables come from
- * `@workflow/world-postgres` at `WORLD_POSTGRES_VERSION`.
- */
-export const WORKFLOW_WORLD_PROTOCOL = "5.0.2";
-export { WORLD_POSTGRES_VERSION };
-
-export type { WorkflowDeliveryMode };
-
-export interface SupabaseWorldOptions {
-  /** A Postgres connection string with access to the `workflow` schema and the jobs functions. */
-  readonly connectionString?: string;
-  /** An existing pool instead of `connectionString`; `close()` leaves it open. */
-  readonly pool?: Pool;
-  /**
-   * How messages reach the flow route. `poll` (default) claims them in this
-   * process and posts to the route; `pg_net` leaves delivery to
-   * `dispatch_workflow_deliveries()` on a pg_cron schedule, for serverless
-   * hosts with no long-running process.
-   */
-  readonly delivery?: WorkflowDeliveryMode;
-  /** The flow route the poller posts to. Defaults to `WORKFLOW_FLOW_URL`, then `WORKFLOW_LOCAL_BASE_URL` or `http://localhost:$PORT` plus `/.well-known/workflow/v1/flow`. */
-  readonly flowUrl?: string;
-  /**
-   * The secret deliveries are signed with. Required to accept `pg_net`
-   * deliveries; read from the Vault secret `workflow_delivery_secret` when
-   * unset. A poller with a secret signs too, and the route then refuses
-   * unsigned requests.
-   */
-  readonly deliverySecret?: string;
-  /**
-   * A 32-byte master key (base64 or hex) that each run's AES-256 key is
-   * derived from (HKDF-SHA256). Read from the Vault secret
-   * `workflow_encryption_key` when unset; without one, run data is stored
-   * unencrypted.
-   */
-  readonly encryptionKey?: string;
-  /** The jobs queue the messages wait in (`sql.modules.workflow-sdk-world.options.queue`). */
-  readonly queue?: string;
-  /** The schema of the jobs functions, default `better_supabase`. */
-  readonly schema?: string;
-  /** Deliveries in flight at once in poll mode (default 50). */
-  readonly concurrency?: number;
-  /** Milliseconds between polls of an empty queue (default 250). */
-  readonly pollInterval?: number;
-  /** Seconds a claimed message stays leased; the delivery extends it while it runs (default 60). */
-  readonly lease?: number;
-  /**
-   * Seconds a poll delivery may wait for the flow route before it is
-   * aborted, failed and retried; the lease stops being extended then
-   * (default 300, at least `lease`).
-   */
-  readonly deliveryTimeout?: number;
-  /** The queue namespace, as `WORKFLOW_QUEUE_NAMESPACE`. */
-  readonly namespace?: string;
-}
-
-/** The deliveries one message may take; matches world-postgres (49 plus 24 retries of the terminal write). */
-const MAX_DELIVERIES = 73;
-const SIGNATURE_TOLERANCE_SECONDS = 300;
-const JOB_HEADER = "x-bs-job";
-const SIGNATURE_HEADER = "x-bs-signature";
-const FLOW_PATH = "/.well-known/workflow/v1/flow";
-const HKDF_SALT = "better-supabase/workflow";
-
-interface StoredMessage {
-  readonly queueName: string;
-  readonly messageId: string;
-  readonly attempt: number;
-  /** The serialized message, base64: jsonb can't hold the NUL bytes payloads may contain. */
-  readonly body: string;
-  readonly headers?: Readonly<Record<string, string>>;
-  readonly idempotencyKey?: string;
-}
-
-interface ClaimedJob {
-  readonly id: string;
-  readonly attempts: number;
-  readonly message: { readonly payload?: unknown };
-}
-
-const encoder = new TextEncoder();
+import {
+  deriveRunKey,
+  parseMasterKey,
+  signDelivery,
+  unsignedAllowed,
+  verifyDelivery,
+} from "./crypto.ts";
+import { env, resolveFlowUrl, worldOptionsFromEnv } from "./env.ts";
+import {
+  JOB_HEADER,
+  MAX_DELIVERIES,
+  SIGNATURE_HEADER,
+  type ClaimedJob,
+  type StoredMessage,
+  type SupabaseWorldOptions,
+} from "./types.ts";
 
 /** JSON with Uint8Array values as `{ __type: "Uint8Array", data: <base64> }`, as world-postgres sends them. */
 function serialize(value: unknown): Buffer {
@@ -127,145 +57,6 @@ function isStoredMessage(value: unknown): value is StoredMessage {
     typeof record["attempt"] === "number" &&
     typeof record["body"] === "string"
   );
-}
-
-function env(name: string): string | undefined {
-  const value = process.env[name];
-  return value === undefined || value === "" ? undefined : value;
-}
-
-function positiveInt(value: string | undefined): number | undefined {
-  const parsed = Math.trunc(Number(value ?? ""));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-}
-
-/** The flow route: `flowUrl`, `WORKFLOW_FLOW_URL`, or the local server. */
-export function resolveFlowUrl(flowUrl?: string): string {
-  const explicit = flowUrl ?? env("WORKFLOW_FLOW_URL");
-  if (explicit !== undefined) return explicit;
-  const base =
-    env("WORKFLOW_LOCAL_BASE_URL") ??
-    `http://localhost:${env("PORT") ?? "3000"}`;
-  const url = new URL(base);
-  url.pathname = `${url.pathname.replace(/\/+$/, "")}${FLOW_PATH}`;
-  url.search = "";
-  url.hash = "";
-  return url.toString();
-}
-
-/** A 32-byte key from base64 or hex. */
-export function parseMasterKey(value: string): Uint8Array {
-  const text = value.trim();
-  const bytes = /^[0-9a-f]{64,}$/i.test(text)
-    ? Buffer.from(text, "hex")
-    : Buffer.from(text, "base64");
-  if (bytes.byteLength < 32) {
-    throw new TypeError(
-      "better-supabase: the workflow encryption key must be at least 32 bytes, base64 or hex",
-    );
-  }
-  return new Uint8Array(bytes);
-}
-
-/** The run's AES-256 key: HKDF-SHA256 of the master key with info `run:<runId>`. */
-export async function deriveRunKey(
-  master: Uint8Array,
-  runId: string,
-): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    Uint8Array.from(master),
-    "HKDF",
-    false,
-    ["deriveBits"],
-  );
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "HKDF",
-      hash: "SHA-256",
-      salt: encoder.encode(HKDF_SALT),
-      info: encoder.encode(`run:${runId}`),
-    },
-    key,
-    256,
-  );
-  return new Uint8Array(bits);
-}
-
-async function hmacHex(secret: string, message: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(message),
-  );
-  return Buffer.from(signature).toString("hex");
-}
-
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let index = 0; index < a.length; index += 1) {
-    diff |= (a.codePointAt(index) ?? 0) ^ (b.codePointAt(index) ?? 0);
-  }
-  return diff === 0;
-}
-
-/** `t=<unix>,v1=<hex>` over `<t>.<job>.<body>`. */
-export async function signDelivery(
-  secret: string,
-  job: string,
-  body: string,
-  now: number = Date.now(),
-): Promise<string> {
-  const t = String(Math.floor(now / 1000));
-  return `t=${t},v1=${await hmacHex(secret, `${t}.${job}.${body}`)}`;
-}
-
-/** Whether `header` signs `job` and `body` with `secret` within five minutes of `now`. */
-export async function verifyDelivery(
-  secret: string,
-  header: string | null,
-  job: string,
-  body: string,
-  now: number = Date.now(),
-): Promise<boolean> {
-  if (header === null) return false;
-  const parts = new Map(
-    header.split(",").map((part) => {
-      const index = part.indexOf("=");
-      return [part.slice(0, index).trim(), part.slice(index + 1).trim()];
-    }),
-  );
-  const t = parts.get("t");
-  const v1 = parts.get("v1");
-  if (t === undefined || v1 === undefined || !/^\d+$/.test(t)) return false;
-  if (Math.abs(now / 1000 - Number(t)) > SIGNATURE_TOLERANCE_SECONDS) {
-    return false;
-  }
-  return constantTimeEqual(await hmacHex(secret, `${t}.${job}.${body}`), v1);
-}
-
-/** `load` once; a rejection is not kept, so the next call reads again. */
-function memoized<T>(load: () => Promise<T>): () => Promise<T> {
-  let promise: Promise<T> | undefined;
-  return () =>
-    (promise ??= load().catch((cause: unknown) => {
-      promise = undefined;
-      throw cause;
-    }));
-}
-
-/** Unsigned poll deliveries are accepted only when `NODE_ENV` is `development` or `test`. */
-function unsignedAllowed(): boolean {
-  const mode = env("NODE_ENV");
-  return mode === "development" || mode === "test";
 }
 
 function deliveryProblem(
@@ -759,44 +550,6 @@ export function createSupabaseWorld(
       await base.close?.();
       if (options.pool === undefined) await pool.end();
     },
-  };
-}
-
-/** The options `createWorld()` reads from the environment. */
-export function worldOptionsFromEnv(
-  source: Readonly<Record<string, string | undefined>> = process.env,
-): SupabaseWorldOptions {
-  const read = (name: string): string | undefined => {
-    const value = source[name];
-    return value === undefined || value === "" ? undefined : value;
-  };
-  const delivery = read("WORKFLOW_DELIVERY");
-  if (delivery !== undefined && delivery !== "poll" && delivery !== "pg_net") {
-    throw new TypeError(
-      `better-supabase: WORKFLOW_DELIVERY must be "poll" or "pg_net", got "${delivery}"`,
-    );
-  }
-  const connectionString =
-    read("WORKFLOW_POSTGRES_URL") ??
-    read("SUPABASE_DB_URL") ??
-    read("DATABASE_URL");
-  const flowUrl = read("WORKFLOW_FLOW_URL");
-  const deliverySecret = read("WORKFLOW_DELIVERY_SECRET");
-  const encryptionKey = read("WORKFLOW_ENCRYPTION_KEY");
-  const queue = read("WORKFLOW_DELIVERY_QUEUE");
-  const namespace = read("WORKFLOW_QUEUE_NAMESPACE");
-  const concurrency = positiveInt(read("WORKFLOW_POSTGRES_WORKER_CONCURRENCY"));
-  const pollInterval = positiveInt(read("WORKFLOW_POSTGRES_POLL_INTERVAL_MS"));
-  return {
-    ...(connectionString === undefined ? {} : { connectionString }),
-    ...(delivery === undefined ? {} : { delivery }),
-    ...(flowUrl === undefined ? {} : { flowUrl }),
-    ...(deliverySecret === undefined ? {} : { deliverySecret }),
-    ...(encryptionKey === undefined ? {} : { encryptionKey }),
-    ...(queue === undefined ? {} : { queue }),
-    ...(namespace === undefined ? {} : { namespace }),
-    ...(concurrency === undefined ? {} : { concurrency }),
-    ...(pollInterval === undefined ? {} : { pollInterval }),
   };
 }
 

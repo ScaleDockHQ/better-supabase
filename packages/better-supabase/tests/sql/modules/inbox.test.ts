@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
+import { modulePermissionKeys } from "../../../src/sql/introspect.ts";
+import { moduleContext } from "../../../src/sql/module-context.ts";
 import { INBOX } from "../../../src/sql/modules/inbox.ts";
 import {
   moduleBody,
-  moduleContext,
-  modulePermissionKeys,
   moduleTopics,
   renderModules,
-} from "../../../src/sql/registry.ts";
+} from "../../../src/sql/render.ts";
 
 const body = (modules: ModulesConfig = {}) => moduleBody("inbox", { modules })!;
 const withJobs = (modules: ModulesConfig = {}) =>

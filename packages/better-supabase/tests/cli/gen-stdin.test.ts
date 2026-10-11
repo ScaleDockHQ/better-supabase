@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { CliIo } from "../../src/cli/io.ts";
 
-import { render } from "../../src/cli/commands/gen.ts";
 import { parseSnapshot } from "../../src/cli/commands/snapshot.ts";
 import { buildModel } from "../../src/cli/gen/model.ts";
+import { render } from "../../src/cli/gen/render.ts";
 import { fromMetadata } from "../../src/cli/introspect/from-metadata.ts";
 import { serializeGenerator } from "../../src/cli/introspect/typegen.ts";
 import { run } from "../../src/cli/run.ts";

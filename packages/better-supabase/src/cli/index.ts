@@ -14,7 +14,8 @@ export type {
   ExitCode,
 } from "./errors.ts";
 export type { CliEnv } from "./env.ts";
-export { renderFiles, runGen } from "./commands/gen.ts";
+export { renderFiles } from "./gen/render.ts";
+export { runGen } from "./gen/run.ts";
 export {
   loadSnapshot,
   parseSnapshot,

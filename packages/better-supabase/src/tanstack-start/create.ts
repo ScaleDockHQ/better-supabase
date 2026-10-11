@@ -2,14 +2,14 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
-import type { BetterServer } from "../server/server.ts";
+import type { BetterServer } from "../server/server-types.ts";
 
 import { around } from "../bridges/shared.ts";
 import {
   type TanStackStartServerArgs,
   tanStackStartServer,
 } from "../bridges/tanstack-start.ts";
-import { flushEvents } from "../server/adapter.ts";
+import { withFlush } from "../server/adapter.ts";
 import {
   type FrameworkLocals,
   type FrameworkOptions,
@@ -124,11 +124,7 @@ export function createTanStackStart<
 
   return extendServer<BetterTanStackStart<M, F, E, C, P>>(server, {
     async middleware(args) {
-      try {
-        return await served(args);
-      } finally {
-        flushEvents(server, options.waitUntil);
-      }
+      return withFlush(server, options.waitUntil, () => served(args));
     },
 
     require: async (context, requireOptions = {}) => {

@@ -1,4 +1,3 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
 
@@ -38,6 +37,7 @@ import type {
   PresenceTopic,
   UseActionOptions,
 } from "../bindings/client.ts";
+import type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
 import type { AuthSnapshot } from "../client/index.ts";
 import type { DbError } from "../core/errors.ts";
 import type { QuerySpec } from "../core/spec.ts";
@@ -69,6 +69,8 @@ import {
 } from "../bindings/client.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
 
+export type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
+
 export type {
   ActionInputOf,
   ActionResultOf,
@@ -85,7 +87,7 @@ export type {
 export type { AuthSnapshot } from "../client/index.ts";
 export type { AuthSession } from "../auth/view.ts";
 export type { SupportView } from "../auth/support-view.ts";
-export { fieldErrorsOf } from "../react/field-errors.ts";
+export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
 interface Context {
   readonly client: ClientLike;
@@ -197,20 +199,6 @@ export function useSupportSession(): ComputedRef<SupportView | undefined> {
   const session = useSession();
   return computed(() => supportOf(session.value));
 }
-
-/** The claims type of a client's `betterSupabase.claims(schema)`, `unknown` without one. */
-export type ClaimsOf<B extends ClientLike> = B["betterSupabase"] extends {
-  readonly claimsSchema: StandardSchemaV1<unknown, infer C> | undefined;
-}
-  ? C
-  : unknown;
-
-/** The profile type of a client's `betterSupabase.userMetadata(schema)`, `unknown` without one. */
-export type ProfileOf<B extends ClientLike> = B["betterSupabase"] extends {
-  readonly userMetadataSchema: StandardSchemaV1<unknown, infer P> | undefined;
-}
-  ? P
-  : unknown;
 
 export interface BetterComposables<B extends ClientLike> {
   /** Repositories bound to the current session. */

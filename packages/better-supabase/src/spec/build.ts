@@ -36,6 +36,7 @@ import {
   PROBLEM_SCHEMA,
   resolveSecurity,
 } from "./presets.ts";
+import { pageQuery, pageSchema } from "./resource-schemas.ts";
 import { planResource } from "./resource.ts";
 import {
   convertStandard,
@@ -116,68 +117,13 @@ function pageParameters(
   cursor: boolean,
   maxPageSize: number,
 ): ModelParameter[] {
-  return [
-    cursor
-      ? {
-          name: "after",
-          in: "query",
-          required: false,
-          description:
-            "`nextCursor` of the previous page. Leave it out for the first page.",
-          schema: { type: "string" },
-        }
-      : {
-          name: "page",
-          in: "query",
-          required: false,
-          description: "1-based page number.",
-          schema: { type: "integer", minimum: 1, default: 1 },
-        },
-    {
-      name: "size",
-      in: "query",
-      required: false,
-      description: "Page size.",
-      schema: {
-        type: "integer",
-        minimum: 1,
-        maximum: maxPageSize,
-        default: 50,
-      },
-    },
-  ];
-}
-
-function pageSchema(row: JsonSchema, cursor: boolean): Json {
-  const items = { type: "array", items: row };
-  return cursor
-    ? {
-        type: "object",
-        required: ["items", "nextCursor", "hasMore"],
-        properties: {
-          items,
-          nextCursor: { type: ["string", "null"] },
-          hasMore: { type: "boolean" },
-        },
-      }
-    : {
-        type: "object",
-        required: ["items", "page"],
-        properties: {
-          items,
-          page: {
-            type: "object",
-            required: ["number", "size", "total", "pages", "hasMore"],
-            properties: {
-              number: { type: "integer" },
-              size: { type: "integer" },
-              total: { type: ["integer", "null"] },
-              pages: { type: ["integer", "null"] },
-              hasMore: { type: "boolean" },
-            },
-          },
-        },
-      };
+  return pageQuery(cursor, maxPageSize).map((p) => ({
+    name: p.name,
+    in: "query",
+    required: false,
+    description: p.description,
+    schema: p.schema,
+  }));
 }
 
 function isParameter(value: unknown): value is ModelParameter {

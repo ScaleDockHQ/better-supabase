@@ -1,5 +1,5 @@
 import type { ModuleContext, ModuleNames } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../registry.ts";
+import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {

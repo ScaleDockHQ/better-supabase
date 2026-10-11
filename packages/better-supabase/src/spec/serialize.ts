@@ -1,4 +1,5 @@
 import { isPlainObject } from "../core/clone.ts";
+import { methodNotAllowed } from "../core/problem.ts";
 
 export interface SerializeOptions {
   /** Spaces per level. Defaults to 2; 0 writes one line. */
@@ -115,7 +116,7 @@ export async function specResponse(
   } = options;
   const method = request?.method.toUpperCase() ?? "GET";
   if (method !== "GET" && method !== "HEAD")
-    return new Response(null, { status: 405, headers: { allow: "GET, HEAD" } });
+    return methodNotAllowed(["GET", "HEAD"]);
   const { body, etag } = encode(document, indent);
   const tag = await etag;
   const headers = {

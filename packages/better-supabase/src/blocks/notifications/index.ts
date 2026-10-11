@@ -37,7 +37,7 @@ export type {
   SentNotification,
   SinkNotification,
   SubscriptionLevel,
-} from "./notifications.ts";
+} from "./api-types.ts";
 export type {
   NotificationItem,
   NotificationSubject,

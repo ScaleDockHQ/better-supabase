@@ -2,7 +2,7 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { Db } from "../../src/core/repository-types.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
-import type { BetterServer } from "../../src/server/server.ts";
+import type { BetterServer } from "../../src/server/server-types.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { createServer } from "../../src/server/server.ts";

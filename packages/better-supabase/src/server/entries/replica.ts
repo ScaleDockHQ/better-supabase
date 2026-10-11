@@ -1,7 +1,7 @@
 import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
 
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
-import type { ServerContext } from "../server.ts";
+import type { ServerContext } from "../server-types.ts";
 import type { ServerCore } from "./core.ts";
 
 import { type ReplicaState, withPrimaryPin } from "../replicas.ts";

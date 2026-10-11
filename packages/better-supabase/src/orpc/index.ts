@@ -14,7 +14,7 @@ import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from "../server/server.ts";
+} from "../server/server-types.ts";
 
 import { tenantOf, toSession } from "../auth/view.ts";
 import { claimsOf } from "../core/claims.ts";
@@ -264,22 +264,25 @@ export function createOrpc<
 
     fetchHandler(handler, fetchOptions = {}) {
       return async (request, _env, executionContext) => {
-        const { response } = await handler.handle(request, {
-          ...(fetchOptions.prefix ? { prefix: fetchOptions.prefix } : {}),
-          context: { request },
-        });
-        const ctx = contexts.get(request)?.ctx;
-        const answer = response ?? new Response("Not found", { status: 404 });
-        flushEvents(
-          server,
-          options.waitUntil ??
-            (executionContext
-              ? (promise) => {
-                  executionContext.waitUntil(promise);
-                }
-              : undefined),
-        );
-        return ctx ? ctx.apply(answer) : answer;
+        try {
+          const { response } = await handler.handle(request, {
+            ...(fetchOptions.prefix ? { prefix: fetchOptions.prefix } : {}),
+            context: { request },
+          });
+          const ctx = contexts.get(request)?.ctx;
+          const answer = response ?? new Response("Not found", { status: 404 });
+          return ctx ? ctx.apply(answer) : answer;
+        } finally {
+          flushEvents(
+            server,
+            options.waitUntil ??
+              (executionContext
+                ? (promise) => {
+                    executionContext.waitUntil(promise);
+                  }
+                : undefined),
+          );
+        }
       };
     },
 

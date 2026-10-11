@@ -1,4 +1,5 @@
 import { isPlainObject } from "../core/clone.ts";
+import { methodNotAllowed } from "../core/problem.ts";
 
 /** A plain object this module may change: callers pass a fresh copy. */
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -331,7 +332,7 @@ export function specReference(
 ): Response {
   const method = request?.method.toUpperCase() ?? "GET";
   if (method !== "GET" && method !== "HEAD")
-    return new Response(null, { status: 405, headers: { allow: "GET, HEAD" } });
+    return methodNotAllowed(["GET", "HEAD"]);
   const nonce =
     options.nonce ??
     (options.csp === true

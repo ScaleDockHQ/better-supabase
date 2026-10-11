@@ -2,14 +2,14 @@ import { Pool, type PoolClient } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { InvitationSent } from "../../src/blocks/organizations/index.ts";
-import type { ModuleLayout } from "../../src/sql/registry.ts";
+import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import {
   createOrganizations,
   sqlTransport,
 } from "../../src/blocks/organizations/index.ts";
 import { EventHub } from "../../src/core/events.ts";
-import { renderModules } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??

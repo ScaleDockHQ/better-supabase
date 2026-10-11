@@ -18,7 +18,14 @@ export interface Hs256Options {
 }
 
 const encoder = /* @__PURE__ */ new TextEncoder();
+/** The most HMAC keys kept at once; the oldest goes first. */
+const KEYS_SIZE = 64;
 const keys = new Map<string, Promise<CryptoKey>>();
+
+/** Forgets every imported key. For tests and benchmarks. */
+export function clearHs256Keys(): void {
+  keys.clear();
+}
 
 function keyFor(secret: string): Promise<CryptoKey> {
   let key = keys.get(secret);
@@ -31,6 +38,10 @@ function keyFor(secret: string): Promise<CryptoKey> {
       ["verify"],
     );
     keys.set(secret, key);
+    if (keys.size > KEYS_SIZE) {
+      const oldest = keys.keys().next();
+      if (!oldest.done) keys.delete(oldest.value);
+    }
   }
   return key;
 }

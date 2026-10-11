@@ -9,14 +9,15 @@ import type {
   SetCredentialOptions,
 } from "./provider.ts";
 
-import {
-  timingSafeEqual,
-  verifySharedSecret,
-  verifyWebhook,
-} from "../blocks/webhooks/verify.ts";
 import { blockCall, DEFAULT_BLOCK_SCHEMA } from "../core/block-helpers.ts";
 import { dbError } from "../core/errors.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
+import {
+  hmacHex,
+  timingSafeEqual,
+  verifySharedSecret,
+  verifyWebhook,
+} from "../core/signatures.ts";
 
 /** How a request the third party sends is signed with the stored secret. */
 export type VaultInboundScheme =
@@ -153,24 +154,6 @@ function headersFor(
     [(ref.header ?? "authorization").toLowerCase()]:
       scheme === null ? token : `${scheme} ${token}`,
   };
-}
-
-const encoder = /* @__PURE__ */ new TextEncoder();
-
-async function hmacHex(secret: string, body: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = new Uint8Array(
-    await crypto.subtle.sign("HMAC", key, encoder.encode(body)),
-  );
-  return Array.from(signature, (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
 }
 
 async function verifyWith(

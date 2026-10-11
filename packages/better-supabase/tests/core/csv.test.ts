@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { csvColumns, toCsv } from "../../src/blocks/csv.ts";
+import { csvColumns, toCsv } from "../../src/core/csv.ts";
 
 describe("toCsv", () => {
   it("quotes, joins nested values as JSON and keeps the column order", () => {

@@ -1,13 +1,16 @@
 import type { SqlClient } from "../../postgres/executor.ts";
-import type { DrainResult } from "./queue.ts";
+import type { DrainResult } from "./types.ts";
 
+import { budget, leaseHeartbeat } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import {
-  type BlockProblemOptions,
   problemResponse,
+  type BlockProblemOptions,
 } from "../../core/problem.ts";
-import { type AsyncResult, ok, type Result } from "../../core/result.ts";
+import { ok, type AsyncResult, type Result } from "../../core/result.ts";
+import { verifyWebhook } from "../../core/signatures.ts";
 import {
+  applyTemporal,
   errorText,
   readBodyCapped,
   run,
@@ -15,329 +18,7 @@ import {
   toInstant,
   workerId,
   type BlockTemporalOptions,
-  applyTemporal,
 } from "../shared.ts";
-import { verifyWebhook } from "../webhooks/verify.ts";
-
-// ---------------------------------------------------------------------------
-// Idempotency keys (SQL module `idempotency`)
-
-export interface IdempotencyOptions
-  extends BlockProblemOptions, BlockTemporalOptions {
-  /**
-   * Separates keys of different callers, endpoints or tenants. Defaults to a
-   * hash of the caller's credentials (the `Authorization` header or the
-   * Supabase auth cookies), so one caller never replays another's response.
-   * Pass the verified user id to keep keys across token refreshes.
-   */
-  readonly scope?: string | ((request: Request) => string);
-  /** How long a completed response is replayed. Defaults to `24 hours`. */
-  readonly ttl?: number | string;
-  /** How long a running request holds the key. Defaults to `1 minute`. */
-  readonly lock?: number | string;
-  /** Answer 400 when the header is missing. Defaults to false (run without a key). */
-  readonly required?: boolean;
-  /** Defaults to `Idempotency-Key`. */
-  readonly header?: string;
-}
-
-export type IdempotencyState = "started" | "replay" | "running" | "mismatch";
-
-export interface Idempotency {
-  /**
-   * Runs `handler` at most once per key: retries with the same key and body
-   * get the stored response (with `Idempotency-Replayed: true`).
-   */
-  handle(
-    request: Request,
-    handler: (request: Request) => Promise<Response> | Response,
-  ): Promise<Response>;
-  /** The lower-level protocol, for non-HTTP callers. */
-  begin(
-    key: string,
-    fingerprint: string,
-    scope?: string,
-  ): AsyncResult<{
-    state: IdempotencyState;
-    status: number | null;
-    body: unknown;
-    /** The token `complete` and `release` need, when `state` is `started`. */
-    holder: string | undefined;
-  }>;
-  /**
-   * Stores the response for `holder`. `false` when the lock ran out and
-   * another caller took the key over, so the response was not stored.
-   */
-  complete(
-    key: string,
-    holder: string,
-    status: number,
-    body: unknown,
-    scope?: string,
-  ): AsyncResult<boolean>;
-  /** Forgets the key so it can be retried; `false` when `holder` lost it. */
-  release(key: string, holder: string, scope?: string): AsyncResult<boolean>;
-}
-
-async function sha256(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text),
-  );
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-}
-
-const AUTH_COOKIE = /^sb-.+-auth-token(?:\.\d+)?$/;
-
-/** A hash of the credentials the request carries, or `''` without any. */
-async function callerScope(request: Request): Promise<string> {
-  const authorization = request.headers.get("authorization");
-  const cookies = (request.headers.get("cookie") ?? "")
-    .split(";")
-    .map((pair) => pair.trim())
-    .filter((pair) => AUTH_COOKIE.test(pair.split("=", 1)[0] ?? ""))
-    .sort();
-  const credential = authorization ?? cookies.join(";");
-  return credential === "" ? "" : `caller:${await sha256(credential)}`;
-}
-
-interface StoredResponse {
-  readonly body: string;
-  readonly contentType: string | null;
-}
-
-/** HTTP idempotency keys (IETF `Idempotency-Key` header) over the `idempotency` SQL module. */
-export function createIdempotency(
-  sql: SqlClient,
-  options: IdempotencyOptions = {},
-): Idempotency {
-  applyTemporal(options);
-  const headerName = options.header ?? "idempotency-key";
-  const format = options.problem;
-  const ttl = seconds(options.ttl ?? "24 hours");
-  const lock = seconds(options.lock ?? "1 minute");
-
-  const begin: Idempotency["begin"] = (key, fingerprint, scope = "") =>
-    run(async () => {
-      const [row] = await sql.queryRaw<{
-        state: IdempotencyState;
-        status_code: number | null;
-        response: unknown;
-        holder: string | null;
-      }>(
-        "select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)",
-        [scope, key, fingerprint, ttl, lock],
-      );
-      return {
-        state: row!.state,
-        status: row!.status_code,
-        body: row!.response,
-        holder: row!.holder ?? undefined,
-      };
-    });
-  const complete: Idempotency["complete"] = (
-    key,
-    holder,
-    status,
-    body,
-    scope = "",
-  ) =>
-    run(async () => {
-      const [row] = await sql.queryRaw<{ done: boolean }>(
-        "select better_supabase.complete_idempotent($1, $2, $3, $4, $5) as done",
-        [scope, key, holder, status, JSON.stringify(body)],
-      );
-      return row?.done === true;
-    });
-  const release: Idempotency["release"] = (key, holder, scope = "") =>
-    run(async () => {
-      const [row] = await sql.queryRaw<{ done: boolean }>(
-        "select better_supabase.release_idempotent($1, $2, $3) as done",
-        [scope, key, holder],
-      );
-      return row?.done === true;
-    });
-
-  return {
-    begin,
-    complete,
-    release,
-    async handle(request, handler) {
-      const key = request.headers.get(headerName);
-      const instance = new URL(request.url).pathname;
-      if (!key) {
-        return options.required
-          ? problemResponse(
-              dbError(
-                "invalid_request",
-                `The ${headerName} header is required`,
-                {
-                  code: "IDEMPOTENCY_KEY_MISSING",
-                },
-              ),
-              { instance, format },
-            )
-          : handler(request);
-      }
-      if (key.length > 255) {
-        return problemResponse(
-          dbError("invalid_request", `The ${headerName} header is too long`, {
-            code: "IDEMPOTENCY_KEY_INVALID",
-          }),
-          { instance, format },
-        );
-      }
-      const scope =
-        typeof options.scope === "function"
-          ? options.scope(request)
-          : (options.scope ?? (await callerScope(request)));
-      const body = await request.clone().text();
-      const fingerprint = await sha256(
-        `${request.method} ${instance}\n${body}`,
-      );
-      const started = await begin(key, fingerprint, scope);
-      if (!started.ok)
-        return problemResponse(started.error, { instance, format });
-      const { state, holder = "" } = started.data;
-      switch (state) {
-        case "replay": {
-          // SAFETY: the replay state is only written with the stored response
-          // of the first request.
-          const stored = started.data.body as StoredResponse;
-          return new Response(stored.body, {
-            status: started.data.status ?? 200,
-            headers: {
-              ...(stored.contentType
-                ? { "content-type": stored.contentType }
-                : {}),
-              "idempotency-replayed": "true",
-            },
-          });
-        }
-        case "running":
-          return problemResponse(
-            dbError(
-              "conflict",
-              "A request with this idempotency key is still running",
-              {
-                code: "IDEMPOTENCY_KEY_IN_USE",
-              },
-            ),
-            { instance, format, headers: { "retry-after": "1" } },
-          );
-        case "mismatch":
-          return problemResponse(
-            dbError(
-              "validation",
-              "This idempotency key was used for a different request",
-              {
-                code: "IDEMPOTENCY_KEY_REUSED",
-                issues: [
-                  {
-                    message: "Use a new key for a new request",
-                    path: [headerName],
-                  },
-                ],
-              },
-            ),
-            { instance, format },
-          );
-        case "started":
-          break;
-        default: {
-          const unknown: never = state;
-          throw new TypeError(`Unknown idempotency state ${String(unknown)}`);
-        }
-      }
-      let response: Response;
-      try {
-        response = await handler(request);
-      } catch (cause) {
-        await release(key, holder, scope);
-        throw cause;
-      }
-      if (response.status >= 500) {
-        await release(key, holder, scope);
-        return response;
-      }
-      const stored: StoredResponse = {
-        body: await response.clone().text(),
-        contentType: response.headers.get("content-type"),
-      };
-      await complete(key, holder, response.status, stored, scope);
-      return response;
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Leases (SQL module `idempotency`)
-
-export interface LeaseOptions {
-  /** How long the lease holds without an `extend`. Defaults to 60 seconds. */
-  readonly seconds?: number;
-  readonly scope?: string;
-}
-
-/** The held lease, passed to the `withLease` callback. */
-export interface Lease {
-  readonly holder: string;
-  /** Moves the expiry; `false` once the lease was lost to another holder. */
-  extend(seconds?: number): AsyncResult<boolean>;
-}
-
-export type LeaseOutcome<T> =
-  | { readonly acquired: true; readonly value: T }
-  | { readonly acquired: false };
-
-/**
- * Runs `fn` while holding the lease on `key`, one holder at a time, and
- * releases it afterwards, also when `fn` throws. `{ acquired: false }` while
- * another holder has it. A lease that expires mid-run is taken by the next
- * caller; call `lease.extend()` for long work.
- */
-export function withLease<T>(
-  sql: SqlClient,
-  key: string,
-  fn: (lease: Lease) => Promise<T> | T,
-  options: LeaseOptions = {},
-): AsyncResult<LeaseOutcome<T>> {
-  const scope = options.scope ?? "";
-  const ttl = options.seconds ?? 60;
-  return run(async (): Promise<LeaseOutcome<T>> => {
-    const [row] = await sql.queryRaw<{ holder: string | null }>(
-      "select better_supabase.acquire_lease($1, $2, $3) as holder",
-      [key, ttl, scope],
-    );
-    const holder = row?.holder;
-    if (!holder) return { acquired: false };
-    const lease: Lease = {
-      holder,
-      extend: (next = ttl) =>
-        run(async () => {
-          const [extended] = await sql.queryRaw<{ done: boolean }>(
-            "select better_supabase.extend_lease($1, $2, $3, $4) as done",
-            [key, holder, next, scope],
-          );
-          return extended?.done === true;
-        }),
-    };
-    try {
-      return { acquired: true, value: await fn(lease) };
-    } finally {
-      await sql.queryRaw("select better_supabase.release_lease($1, $2, $3)", [
-        key,
-        holder,
-        scope,
-      ]);
-    }
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Webhook inbox (SQL module `webhook-inbox`)
 
 export interface WebhookInboxMessage<T = unknown> {
   readonly id: number;
@@ -520,6 +201,40 @@ function defaultType(payload: unknown): string | null {
   return typeof type === "string" ? type : null;
 }
 
+/** The arguments of one `receive_webhook` call. */
+export interface ReceiveWebhookInput {
+  readonly source: string;
+  readonly id: string;
+  readonly type: string | null | undefined;
+  readonly payload: unknown;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly tenant: string | null;
+  readonly maxAttempts?: number | undefined;
+}
+
+/** Stores one webhook through `receive_webhook`; `duplicate` when the id was stored before. */
+export async function receiveWebhook(
+  sql: SqlClient,
+  input: ReceiveWebhookInput,
+): Promise<{ id: number; duplicate: boolean }> {
+  const [row] = await sql.queryRaw<{
+    id: string | number;
+    duplicate: boolean;
+  }>(
+    "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6, $7)",
+    [
+      input.source,
+      input.id,
+      input.type ?? null,
+      JSON.stringify(input.payload),
+      JSON.stringify(input.headers),
+      input.tenant,
+      input.maxAttempts ?? null,
+    ],
+  );
+  return { id: Number(row!.id), duplicate: row!.duplicate };
+}
+
 /** Store-then-process webhooks: acknowledge fast, process with retries, never twice. */
 export function createWebhookInbox(
   sql: SqlClient,
@@ -558,28 +273,23 @@ export function createWebhookInbox(
   };
 
   const save = (event: WebhookInboxEvent) =>
-    run(async () => {
-      const [row] = await sql.queryRaw<{
-        id: string | number;
-        duplicate: boolean;
-      }>(
-        "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6, $7)",
-        [
-          options.source,
-          event.id,
+    run(() =>
+      receiveWebhook(sql, {
+        source: options.source,
+        id: event.id,
+        type:
           event.type === undefined
             ? (options.typeOf ?? defaultType)(event.payload)
             : event.type,
-          JSON.stringify(event.payload),
-          JSON.stringify(event.headers ?? {}),
+        payload: event.payload,
+        headers: event.headers ?? {},
+        tenant:
           (event.tenant === undefined
             ? options.tenantOf?.(event.payload)
             : event.tenant) ?? null,
-          maxAttempts,
-        ],
-      );
-      return { id: Number(row!.id), duplicate: row!.duplicate };
-    });
+        maxAttempts,
+      }),
+    );
 
   return {
     store: save,
@@ -673,13 +383,9 @@ export function createWebhookInbox(
       let succeeded = 0;
       let failed = 0;
       const lease = seconds(processOptions.lease ?? 300);
-      const deadline =
-        processOptions.budgetMs === undefined
-          ? undefined
-          : Date.now() + processOptions.budgetMs;
+      const spent = budget(processOptions.budgetMs);
       for (;;) {
-        if (deadline !== undefined && Date.now() >= deadline)
-          return { succeeded, failed };
+        if (spent.expired()) return { succeeded, failed };
         const rows = await sql.queryRaw<WebhookInboxRow>(
           "select * from better_supabase.claim_webhooks($1, $2, $3, $4::interval)",
           [options.source, worker, processOptions.batch ?? 10, lease],
@@ -721,9 +427,9 @@ export function createWebhookInbox(
               return saved?.saved ?? false;
             },
           };
-          const heartbeat = setInterval(
+          const stopHeartbeat = leaseHeartbeat(
+            leaseSeconds,
             () => void extend().catch(() => undefined),
-            Math.max(1000, leaseSeconds * 500),
           );
           try {
             const outcome: unknown = await handler(message);
@@ -754,7 +460,7 @@ export function createWebhookInbox(
             );
             failed += 1;
           } finally {
-            clearInterval(heartbeat);
+            stopHeartbeat();
           }
         }
       }

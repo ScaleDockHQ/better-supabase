@@ -1,5 +1,5 @@
 import type { ModuleContext } from "../context.ts";
-import type { ModuleDefinition } from "../registry.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { SCHEMA, serviceOnly } from "../shared.ts";
 

@@ -10,7 +10,7 @@ import type {
   ContextOptions,
   ServerContext,
   ServerOptions,
-} from "../server/server.ts";
+} from "../server/server-types.ts";
 
 import { serializeCookie } from "../auth/session.ts";
 import { type ExpoParams, toExpo } from "../bridges/expo.ts";

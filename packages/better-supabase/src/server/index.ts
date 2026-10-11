@@ -1,5 +1,5 @@
-export { csvColumns, toCsv } from "../blocks/csv.ts";
-export type { CsvOptions } from "../blocks/csv.ts";
+export { csvColumns, toCsv } from "../core/csv.ts";
+export type { CsvOptions } from "../core/csv.ts";
 export { csvResponse } from "./csv.ts";
 export type { CsvResponseOptions } from "./csv.ts";
 export { deleteAccount } from "./delete-account.ts";
@@ -20,9 +20,11 @@ export type { RequestIdOptions } from "./request-ids.ts";
 export type { LiteDriver } from "./lite.ts";
 export { PRIMARY_COOKIE } from "./replicas.ts";
 export type { ReplicaState } from "./replicas.ts";
-export { createServer, extendServer, TENANT_HEADER } from "./server.ts";
+export { createServer, extendServer } from "./server.ts";
+export { TENANT_HEADER } from "./server-types.ts";
 export {
   flushEvents,
+  withFlush,
   handle,
   resolveToken,
   unexpectedResponse,
@@ -64,7 +66,7 @@ export type {
   ServerContext,
   ServerDbOptions,
   ServerOptions,
-} from "./server.ts";
+} from "./server-types.ts";
 export {
   contextFromSupabase,
   withBetterDb,
@@ -82,7 +84,7 @@ export { withSession } from "./entries/session.ts";
 export type { SessionEntryConfig } from "./entries/session.ts";
 export { withGuard } from "./entries/guard.ts";
 export type { GuardEntryConfig } from "./entries/guard.ts";
-export { authModeOf, jwtClaimsOf, userClaimsOf } from "./entries/claims.ts";
+export { authModeOf, jwtClaimsOf, userClaimsOf } from "../auth/claims.ts";
 export { serverCore } from "./entries/core.ts";
 export type { ServerCore } from "./entries/core.ts";
 export {
@@ -164,9 +166,9 @@ export type {
   ResourceHandler,
   ResourceInput,
   ResourceList,
-  ResourcePagination,
   ResourceRouteOptions,
-} from "./resource.ts";
+} from "./resource-types.ts";
+export type { ResourcePagination } from "../spec/resource.ts";
 export {
   isPrefetch,
   refreshFor,

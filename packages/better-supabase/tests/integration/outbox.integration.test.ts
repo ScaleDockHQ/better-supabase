@@ -5,7 +5,7 @@ import type { CloudEvent } from "../../src/events/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
 import { createOutbox } from "../../src/blocks/outbox/index.ts";
-import { renderModules } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??

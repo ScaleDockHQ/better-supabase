@@ -18,9 +18,10 @@ import {
   SQL_MODULES,
 } from "../../sql/index.ts";
 import { defineBucket, parseSize } from "../../storage/index.ts";
-import { renderFiles } from "../commands/gen.ts";
 import { byCodePoint } from "../compare.ts";
+import { renderFiles } from "../gen/render.ts";
 import { configFor } from "../gen/shared.ts";
+import { sameText } from "../io.ts";
 import { moduleLayoutFor } from "../sql-layout.ts";
 import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { advisorRule } from "./advisor-rules.ts";
@@ -689,7 +690,7 @@ const OWN_RULES: readonly Rule[] = [
           resolve(context.config.root, file.path),
           "utf8",
         ).catch(() => undefined);
-        if (current !== file.contents) {
+        if (!sameText(current, file.contents)) {
           stale.push({
             message: `${file.path} is ${current === undefined ? "missing" : "out of date"}. Run \`better-supabase gen\`.`,
             target: file.path,

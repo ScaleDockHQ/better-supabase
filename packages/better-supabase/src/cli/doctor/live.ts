@@ -1,6 +1,7 @@
 import type { CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
+import { errorText } from "../errors.ts";
 import { catalogOf, exposed, qualified, tableObject } from "./shared.ts";
 
 /** The database doctor checks, for statistics and plans. */
@@ -32,9 +33,6 @@ export const ident = (name: string): string =>
   `"${name.replaceAll('"', '""')}"`;
 export const literal = (text: string): string =>
   `'${text.replaceAll("'", "''")}'`;
-
-export const errorText = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause);
 
 const oneLine = (query: string, max = 160): string => {
   const flat = query.replaceAll(/\s+/g, " ").trim();

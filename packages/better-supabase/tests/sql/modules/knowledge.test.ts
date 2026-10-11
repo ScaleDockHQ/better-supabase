@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
-import { moduleBody, renderModules } from "../../../src/sql/registry.ts";
+import { moduleBody, renderModules } from "../../../src/sql/render.ts";
 
 const body = (modules: ModulesConfig = {}) =>
   moduleBody("knowledge", { modules })!;

@@ -3,14 +3,15 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig, ScaffoldApiConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 import type { ScaffoldFramework } from "../scaffold/api.ts";
 
-import { defineCliCommand, list, parseCliArgs } from "../command.ts";
+import { defineCliCommand, list } from "../command.ts";
+import { writeLine } from "../files.ts";
 import { importFresh } from "../fresh-import.ts";
 import { metaPaths } from "../gen/emit.ts";
-import { display, sameText, writeIfChanged } from "../io.ts";
+import { display, sameText } from "../io.ts";
 import { detectProject } from "../project.ts";
 import {
   GENERATED_HEADER,
@@ -51,6 +52,8 @@ const ARGS = {
 
 export type ScaffoldArgs = CliArgs<typeof ARGS>;
 
+export type ScaffoldFlags = CliOptions<typeof ARGS>;
+
 const isFramework = (value: unknown): value is ScaffoldFramework =>
   SCAFFOLD_FRAMEWORKS.some((framework) => framework === value);
 
@@ -85,10 +88,10 @@ export interface ScaffoldOptions {
 
 export async function runScaffold(
   config: ResolvedConfig,
-  args: ScaffoldArgs,
+  args: ScaffoldFlags,
   options: ScaffoldOptions = {},
 ): Promise<CommandResult> {
-  const [kind] = args._;
+  const [kind] = args._ ?? [];
   if (kind !== "api")
     return {
       code: 2,
@@ -170,8 +173,7 @@ export async function runScaffold(
       else stale.push(file.path);
       continue;
     }
-    const wrote = await writeIfChanged(path, file.contents);
-    lines.push(`${wrote ? "Wrote" : "Unchanged"} ${file.path}`);
+    lines.push((await writeLine(path, file.contents, file.path)).line);
   }
   if (stale.length > 0)
     return {
@@ -215,17 +217,6 @@ const scaffoldSnippet = (api: ScaffoldApiConfig): string =>
         `${key}: ${typeof value === "string" ? quote(value) : `[${value.map(quote).join(", ")}]`}`,
     )
     .join(", ")} }`;
-
-/** `scaffold api` from `scaffold.api`, its generated file only: the `scaffold` step of `gen`. */
-export function scaffoldStep(
-  config: ResolvedConfig,
-  check: boolean,
-): Promise<CommandResult> {
-  return runScaffold(config, parseCliArgs(ARGS, ["api"]), {
-    generatedOnly: true,
-    check,
-  });
-}
 
 export const scaffoldCommand: AnyCommand = defineCliCommand({
   meta: {

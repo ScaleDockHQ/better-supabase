@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import type { GeneratorMetadata } from "../../config/index.ts";
 
 import { byCodePoint } from "../compare.ts";
+import { errorText } from "../errors.ts";
 import { versionAt } from "../peers.ts";
 import { TYPEGEN_VERSION } from "./typegen-version.ts";
 
@@ -286,7 +287,7 @@ export async function parseMetadataDocument(
     throw new MetadataRejectedError(
       text.trim() === ""
         ? "The GeneratorMetadata document is empty."
-        : `The GeneratorMetadata document is not JSON: ${cause instanceof Error ? cause.message : String(cause)}`,
+        : `The GeneratorMetadata document is not JSON: ${errorText(cause)}`,
     );
   }
   const version =
@@ -304,10 +305,7 @@ export async function parseMetadataDocument(
   try {
     return parseGeneratorMetadata(data);
   } catch (cause) {
-    throw new MetadataRejectedError(
-      cause instanceof Error ? cause.message : String(cause),
-      version,
-    );
+    throw new MetadataRejectedError(errorText(cause), version);
   }
 }
 

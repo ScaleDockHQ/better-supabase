@@ -8,7 +8,7 @@ import type { Snapshot } from "../introspect/types.ts";
 
 import { databaseUrl } from "../config.ts";
 import { connect } from "../db.ts";
-import { CliError } from "../errors.ts";
+import { CliError, errorText } from "../errors.ts";
 import { cachedIntrospect } from "../introspect/cache.ts";
 import { introspect } from "../introspect/index.ts";
 import { liteDriverOf, liteSource } from "../introspect/lite.ts";
@@ -189,7 +189,7 @@ export async function parseSnapshot(
   } catch (cause) {
     if (cause instanceof TypegenMissingError) throw cause;
     throw new Error(
-      `${label} has invalid "generator" metadata: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `${label} has invalid "generator" metadata: ${errorText(cause)}`,
       { cause },
     );
   }

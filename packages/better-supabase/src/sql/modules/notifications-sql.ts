@@ -1,7 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, pageSize } from "../shared.ts";
+import { SERVICE_CALLER, pageSize, fail } from "../shared.ts";
 import { accessModel, MODULE_PERMISSIONS } from "./access-model.ts";
 import {
   changedJson,
@@ -43,9 +43,6 @@ export function notifyNames(
 }
 
 const NAME = /^[a-z][a-z0-9_]*$/;
-
-const fail = (code: string, message: string, errcode = "42501"): string =>
-  `raise exception '${message}' using errcode = '${errcode}', hint = '${code}';`;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

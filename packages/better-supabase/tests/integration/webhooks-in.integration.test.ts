@@ -9,7 +9,8 @@ import {
   INCOMING_ENDPOINT_HEADER,
   signWebhook,
 } from "../../src/blocks/webhooks/index.ts";
-import { renderModules, upgradePlan } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
+import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { BlockSession } from "./block-session.ts";
 
 const dbUrl =

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { createModuleContext } from "../../src/sql/context.ts";
+import { type SqlModule } from "../../src/sql/module-types.ts";
+import { SQL_MODULES } from "../../src/sql/registry.ts";
 import {
   deprecationWrappers,
   moduleDeprecations,
-  SQL_MODULES,
-  type SqlModule,
   upgradePlan,
-} from "../../src/sql/registry.ts";
+} from "../../src/sql/upgrade.ts";
 
 const widget: SqlModule = {
   name: "widget",

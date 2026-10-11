@@ -14,4 +14,4 @@ export type {
   ToolResult,
 } from "./mcp.ts";
 export type { GuardOptions } from "../server/respond.ts";
-export type { ResourceRouteOptions } from "../server/resource.ts";
+export type { ResourceRouteOptions } from "../server/resource-types.ts";

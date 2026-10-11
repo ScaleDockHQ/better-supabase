@@ -16,22 +16,27 @@ import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from "../server/server.ts";
+} from "../server/server-types.ts";
 
 import { base64ToText } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { jsonReplacer, jsonResponse } from "../core/json.ts";
-import { problemResponse, toProblem } from "../core/problem.ts";
+import {
+  methodNotAllowed,
+  problemResponse,
+  toProblem,
+} from "../core/problem.ts";
 import { SPEC_PINS } from "../core/spec-pins.ts";
 import { validate } from "../core/standard.ts";
+import { boundedTtlCache } from "../core/ttl-cache.ts";
 import { buildJsonSchema } from "../generators/json-schema.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { withExtra } from "../server/extra.ts";
 import {
-  defineResource,
   type ResourceHandler,
   type ResourceRouteOptions,
-} from "../server/resource.ts";
+} from "../server/resource-types.ts";
+import { defineResource } from "../server/resource.ts";
 import {
   defaultExpose,
   guard,
@@ -39,6 +44,7 @@ import {
   settle,
 } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
+import { pageInputSchema, pageSchema } from "../spec/resource-schemas.ts";
 import {
   schemaTargetFor,
   type ToolSchemaTarget,
@@ -424,19 +430,6 @@ const ANNOTATIONS: { readonly [K in ResourceOperation]: ToolAnnotations } = {
   },
 };
 
-function pageSchema(max: number, cursor: boolean): Json {
-  return {
-    type: "object",
-    properties: {
-      ...(cursor
-        ? { after: { type: "string" } }
-        : { page: { type: "integer", minimum: 1, default: 1 } }),
-      size: { type: "integer", minimum: 1, maximum: max, default: 50 },
-    },
-    additionalProperties: false,
-  };
-}
-
 function tableTools(
   resource: ResourceHandler<unknown>,
   defs: Readonly<Record<string, Json>>,
@@ -456,24 +449,7 @@ function tableTools(
     additionalProperties: false,
   });
   const cursor = resource.pagination === "cursor";
-  const page: Json = cursor
-    ? {
-        type: "object",
-        properties: {
-          items: { type: "array", items: row },
-          nextCursor: { type: ["string", "null"] },
-          hasMore: { type: "boolean" },
-        },
-        required: ["items", "nextCursor", "hasMore"],
-      }
-    : {
-        type: "object",
-        properties: {
-          items: { type: "array", items: row },
-          page: { type: "object" },
-        },
-        required: ["items", "page"],
-      };
+  const page: Json = pageSchema(row, cursor);
   const tools: { info: ToolInfo; operation: ResourceOperation }[] = [];
   const add = (
     operation: ResourceOperation,
@@ -498,7 +474,10 @@ function tableTools(
       case "list": {
         // SAFETY: list schemas are JSON Schema objects.
         const { $schema: _, ...listSchema } = (resource.list?.jsonSchema ??
-          pageSchema(resource.maxPageSize, cursor)) as Record<string, unknown>;
+          pageInputSchema(cursor, resource.maxPageSize)) as Record<
+          string,
+          unknown
+        >;
         add(
           "list",
           `List ${table} rows visible to the caller, one page at a time.`,
@@ -787,14 +766,10 @@ export function createMcp<
    * A user's visible list per token, for as long as clients may cache it
    * (`ttlMs`). `tools/call` still checks `visible` on every call.
    */
-  const visibleLists = new Map<
+  const visibleLists = boundedTtlCache<
     string,
-    {
-      readonly entries: Entry[];
-      readonly until: number;
-      readonly generation: number;
-    }
-  >();
+    { readonly entries: Entry[]; readonly generation: number }
+  >({ max: VISIBLE_LISTS_MAX });
   /** Without a `visible` hook or permissions every caller sees the same list, built once. */
   const visibleTools = async (
     context: () => ToolContext<M, F, E, C, P>,
@@ -805,9 +780,8 @@ export function createMcp<
     if (!options.visible && !gated) return listFor(target);
     const ctx = context();
     const token = ctx.auth.kind === "user" ? ctx.auth.token : undefined;
-    const now = Date.now();
     const cached = token === undefined ? undefined : visibleLists.get(token);
-    if (cached && cached.until > now && cached.generation === generation)
+    if (cached?.generation === generation)
       return cached.entries.map((entry) => entry.infoFor(target));
     const [shown, permitted] = await Promise.all([
       Promise.all(all.map((entry) => isVisible(entry, ctx))),
@@ -818,18 +792,12 @@ export function createMcp<
       ),
     ]);
     const entries = all.filter((_, index) => shown[index] && permitted[index]);
-    if (token !== undefined) {
-      visibleLists.delete(token);
-      if (visibleLists.size >= VISIBLE_LISTS_MAX) {
-        const oldest = visibleLists.keys().next();
-        if (!oldest.done) visibleLists.delete(oldest.value);
-      }
-      visibleLists.set(token, {
-        entries,
-        until: now + LIST_TTL_MS,
-        generation,
-      });
-    }
+    if (token !== undefined)
+      visibleLists.set(
+        token,
+        { entries, generation },
+        Date.now() + LIST_TTL_MS,
+      );
     return entries.map((entry) => entry.infoFor(target));
   };
   const urls = discovery(options, () => server.env.url);
@@ -991,10 +959,7 @@ export function createMcp<
       return endpointPreflight(request, options.allowedOrigins);
     }
     if (request.method !== "POST") {
-      return new Response(null, {
-        status: 405,
-        headers: { allow: cors ? "POST, OPTIONS" : "POST" },
-      });
+      return methodNotAllowed(cors ? ["POST", "OPTIONS"] : ["POST"]);
     }
     const header = request.headers.get("mcp-protocol-version");
     if (header && !SUPPORTED_VERSIONS.includes(header)) {

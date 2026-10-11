@@ -1,0 +1,131 @@
+import type { GEN_TASKS, INTEGRATION_NAMES, SKILLS_AGENTS } from "../names.ts";
+export interface OpenApiConfig {
+  /** Module exporting the document (or a function returning it) as `openapi` or default. */
+  readonly entry?: string;
+  /** JSON file `better-supabase openapi emit` writes. */
+  readonly output?: string;
+}
+
+/** A docs UI `spec emit --ui` writes next to an OpenAPI document. */
+export type SpecUiName =
+  | "scalar"
+  | "swagger"
+  | "redoc"
+  | "elements"
+  | "rapidoc";
+
+/** One document `better-supabase spec emit` writes. */
+export interface SpecOutputConfig {
+  /** A format id: `openapi`, `asyncapi` or `arazzo`. */
+  readonly format: string;
+  /** Defaults to the format's default version, e.g. `3.1` for OpenAPI. */
+  readonly version?: string;
+  /** File to write, relative to the root. Defaults to the format's file name. */
+  readonly output?: string;
+  /** Overlay files (JSON or YAML), applied in order. */
+  readonly overlays?: readonly string[];
+  /** Defaults to `yaml` when `output` ends in `.yaml` or `.yml`, otherwise `json`. */
+  readonly serialize?: "json" | "yaml";
+  /** Also writes a reference page (`openapi.html` for `openapi.json`) next to OpenAPI outputs. */
+  readonly ui?: SpecUiName;
+}
+
+export interface SpecsConfig {
+  /** Module exporting a `defineApi()` result (or a function returning one) as `api` or default. */
+  readonly entry?: string;
+  /** The documents to write. Defaults to one OpenAPI document. */
+  readonly outputs?: readonly SpecOutputConfig[];
+  /** The lowest severity that fails `spec emit`, `check` and `validate`. Defaults to `error`. */
+  readonly failOn?: "error" | "warning" | "never";
+  /** Also write the diagnostics manifest (JSON) to this file, like `spec --manifest`. */
+  readonly manifest?: string;
+}
+
+/** A step `better-supabase gen` runs. */
+export type GenTask = (typeof GEN_TASKS)[number];
+
+export interface GenConfig {
+  /**
+   * The steps `better-supabase gen` runs, in this order: `types` (the
+   * generated modules and `generators`), `sql` (`sql sync`), `spec` (`spec
+   * emit`), `seed`, `scaffold` (`scaffold api`, its generated file only) and
+   * `env`. Without a list, `types` runs, plus `sql` when `sql.modules` or
+   * `realtime.policies` is set, `spec` and `seed` when their entry file
+   * exists, and `scaffold` when `scaffold.api` is set. `env` runs only when
+   * listed, because it needs the local stack. A listed step always runs.
+   */
+  readonly tasks?: readonly GenTask[];
+  /** Milliseconds between checks in `gen --watch` and `spec emit --watch`. */
+  readonly watchInterval?: number;
+}
+
+/** Glue `better-supabase init` and `add` write for a framework or runtime. */
+export type IntegrationName = (typeof INTEGRATION_NAMES)[number];
+
+export interface EnvFileConfig {
+  /** Env file `better-supabase env` writes. Defaults to `.env.local`. */
+  readonly output?: string;
+  /**
+   * Prefix for the browser variables, such as `NEXT_PUBLIC_`; `'none'` for
+   * no prefix. Detected from the framework by default.
+   */
+  readonly prefix?: string;
+}
+
+export interface ScaffoldApiConfig {
+  /** Detected from `package.json` when the project has exactly one of them. */
+  readonly framework?: "hono" | "next";
+  /** Tables to serve. Defaults to every table and view in the public schema. */
+  readonly tables?: readonly string[];
+  /** The API module's name: `lib/<name>.ts` and `lib/<name>.generated.ts`. Defaults to `api`. */
+  readonly name?: string;
+  /** Where the resources are served. Defaults to `/api`. */
+  readonly basePath?: string;
+}
+
+export interface ScaffoldConfig {
+  /** What `better-supabase scaffold api` writes; the `scaffold` gen step keeps its generated file current. */
+  readonly api?: ScaffoldApiConfig;
+}
+
+/** An agent folder `better-supabase skills install` writes to. */
+export type SkillsAgent = (typeof SKILLS_AGENTS)[number];
+
+export interface SkillsConfig {
+  /** Defaults to the agent folders the project has, else `agents`. */
+  readonly agents?: readonly SkillsAgent[];
+}
+
+export interface KeysConfig {
+  /** Signing key file `better-supabase keys` writes. Defaults to `supabase/signing_keys.json`. */
+  readonly output?: string;
+}
+
+export interface DoctorConfig {
+  /** Finding codes to skip, e.g. `['BS204']`. */
+  readonly ignore?: readonly string[];
+  /** Run only these checks, e.g. `['BS100', 'BS304']`. */
+  readonly only?: readonly string[];
+  /** Treat warnings as errors. */
+  readonly strict?: boolean;
+  /** Report format: `text` (default), `sarif` (code scanning) or `github` (workflow annotations). `--json` still wins. */
+  readonly format?: "text" | "sarif" | "github";
+  /** Write the report to this file. */
+  readonly output?: string;
+  /**
+   * App source files doctor scans for API use (BS210). Globs relative to the
+   * root. Defaults to `['src/**\/*.{ts,tsx}']`.
+   */
+  readonly sources?: readonly string[];
+  /**
+   * How many policies a security definer helper may appear in before BS206
+   * asks for an inlinable `language sql stable` function. Defaults to 5.
+   */
+  readonly policyHelperLimit?: number;
+  /**
+   * The BS405 limit in bytes. When the authorization provider's token hook
+   * has a budget, it replaces that budget and the whole token keeps 2048.
+   * Otherwise it limits the whole token's claims (default 2048).
+   */
+  readonly claimsLimit?: number;
+}

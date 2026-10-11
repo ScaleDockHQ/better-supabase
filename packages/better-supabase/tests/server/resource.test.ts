@@ -12,7 +12,8 @@ import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { defineListQuery } from "../../src/list/index.ts";
-import { defineAction, defineResource } from "../../src/server/resource.ts";
+import { defineAction } from "../../src/server/resource-execute.ts";
+import { defineResource } from "../../src/server/resource.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);

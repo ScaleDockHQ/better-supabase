@@ -1,5 +1,5 @@
 import type { SqlClient } from "../../postgres/executor.ts";
-import type { Job, ScheduleFilter, ScheduleInfo } from "./queue.ts";
+import type { Job, ScheduleFilter, ScheduleInfo } from "./types.ts";
 
 import { dbError, DbException } from "../../core/errors.ts";
 import { temporal } from "../../core/temporal-required.ts";

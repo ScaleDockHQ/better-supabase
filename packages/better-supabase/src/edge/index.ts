@@ -8,13 +8,13 @@ import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from "../server/server.ts";
+} from "../server/server-types.ts";
 
 import { type EdgeHandler, toEdge } from "../bridges/edge.ts";
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { err } from "../core/result.ts";
-import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
+import { withFlush, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
 import { withExtra } from "../server/extra.ts";
 import { EVERY_CALLER } from "../server/framework.ts";
@@ -37,8 +37,8 @@ export type {
   ResourceContext,
   ResourceHooks,
   ResourceRouteOptions,
-} from "../server/resource.ts";
-export { defineAction } from "../server/resource.ts";
+} from "../server/resource-types.ts";
+export { defineAction } from "../server/resource-execute.ts";
 export type { ResourceMap } from "../server/resources.ts";
 export type { BlockRequireOptions } from "../server/kit.ts";
 export { defineFunction } from "./function.ts";
@@ -267,12 +267,11 @@ export function createEdge<
         )
       : routed;
     return async (request, env, executionContext) => {
-      const response = await answer(request, env, executionContext);
-      flushEvents(
+      return withFlush(
         server,
         options.waitUntil ?? executionContext?.waitUntil.bind(executionContext),
+        () => answer(request, env, executionContext),
       );
-      return response;
     };
   };
 

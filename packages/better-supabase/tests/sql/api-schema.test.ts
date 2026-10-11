@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { ModuleConfig } from "../../src/config/modules.ts";
 
 import { apiWrappers } from "../../src/sql/api-schema.ts";
-import { renderModules, SQL_MODULES } from "../../src/sql/registry.ts";
+import { SQL_MODULES } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
 
 const schemaFile = (name: string, api: NonNullable<ModuleConfig["api"]>) =>
   renderModules([name], { modules: { [name]: { api } } }).find(

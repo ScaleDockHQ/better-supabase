@@ -59,6 +59,11 @@ export const GLOBAL_ARGS = {
 
 export type CliArgs<T extends ArgsDef> = ParsedArgs<T & typeof GLOBAL_ARGS>;
 
+/** What a runner reads from a command's flags: any subset of them, so another command's runner can call it without parsing argv. */
+export type CliOptions<T extends ArgsDef> = {
+  readonly [K in keyof T | keyof typeof GLOBAL_ARGS]?: CliArgs<T>[K];
+} & { readonly _?: readonly string[] };
+
 export interface CliCommandDef<T extends ArgsDef> {
   readonly meta: CommandMeta & { readonly name: string };
   readonly args: T;
@@ -143,17 +148,6 @@ export function joinRepeated(
     ...[...values].map(([name, parts]) => `--${name}=${parts.join(",")}`),
     ...rest,
   ];
-}
-
-/** Parses `argv` against a command's own arguments, so one command can run another's runner. */
-export function parseCliArgs<const T extends ArgsDef>(
-  args: T,
-  argv: readonly string[],
-): CliArgs<T> {
-  return parseArgs<T & typeof GLOBAL_ARGS>([...argv], {
-    ...args,
-    ...GLOBAL_ARGS,
-  });
 }
 
 /** Parses `argv` the way `run()` does, for tests and programmatic callers. */

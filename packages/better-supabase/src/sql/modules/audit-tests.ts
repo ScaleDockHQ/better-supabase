@@ -1,6 +1,6 @@
 import type { AuditedTable } from "../audit-registrations.ts";
 import type { ModuleContext } from "../context.ts";
-import type { ModuleTestFile } from "../registry.ts";
+import type { ModuleTestFile } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 

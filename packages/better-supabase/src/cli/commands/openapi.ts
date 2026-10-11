@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -8,7 +6,8 @@ import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand } from "../command.ts";
 import { importExport } from "../config.ts";
-import { display, sameText, writeIfChanged } from "../io.ts";
+import { fileState, staleResult, writeLine } from "../files.ts";
+import { display } from "../io.ts";
 
 const ARGS = {
   action: {
@@ -65,21 +64,11 @@ export async function runOpenApi(
     };
   }
   const contents = `${JSON.stringify(document, null, 2)}\n`;
-  const path = resolve(config.root, out);
-  if (args.check === true) {
-    const current = existsSync(path) ? await readFile(path, "utf8") : undefined;
-    return sameText(current, contents)
-      ? { code: 0, output: `${display(config.root, out)} is up to date.` }
-      : {
-          code: 1,
-          error: `${display(config.root, out)} is out of date. Run \`better-supabase openapi emit\`.`,
-        };
-  }
-  const wrote = await writeIfChanged(path, contents);
-  return {
-    code: 0,
-    output: `${wrote ? "Wrote" : "Unchanged"} ${display(config.root, out)}`,
-  };
+  const state = await fileState(config.root, out, contents);
+  if (args.check === true)
+    return staleResult(state, "better-supabase openapi emit");
+  const { line } = await writeLine(state.path, contents, state.file);
+  return { code: 0, output: line };
 }
 
 export const openapiCommand: AnyCommand = defineCliCommand({

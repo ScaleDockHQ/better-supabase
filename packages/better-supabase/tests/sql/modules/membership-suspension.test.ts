@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
 import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
-import { renderModules } from "../../../src/sql/registry.ts";
+import { renderModules } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const render = (modules: ModulesConfig, names = Object.keys(modules)) => {

@@ -1,5 +1,5 @@
 import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../registry.ts";
+import type { ModuleLayout } from "../module-types.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import { FINAL_RUN_STATES as FINAL } from "../../core/run-state.ts";

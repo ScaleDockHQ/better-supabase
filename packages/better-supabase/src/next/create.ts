@@ -1,687 +1,77 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
-
-import {
-  cacheLife,
-  cacheTag,
-  io,
-  revalidateTag,
-  updateTag,
-} from "next/cache.js";
-import { forbidden } from "next/dist/client/components/forbidden.js";
-import { notFound } from "next/dist/client/components/not-found.js";
-import { unauthorized } from "next/dist/client/components/unauthorized.js";
+import { cacheLife, cacheTag, io } from "next/cache.js";
 import { cookies, headers } from "next/headers.js";
-import { after, type NextRequest, NextResponse } from "next/server.js";
+import { NextResponse, after } from "next/server.js";
 import { cache } from "react";
 
-import type { AuthResolution, AuthState } from "../auth/resolve.ts";
-import type { AuthSession } from "../auth/view.ts";
+import type { AuthResolution } from "../auth/resolve.ts";
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
-import type { CacheAdapter } from "../core/cache.ts";
 import type { BetterSupabase } from "../core/define.ts";
-import type { DbError } from "../core/errors.ts";
-import type { QuerySpec } from "../core/spec.ts";
-import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
-import type { SupportStartRequest } from "../server/support.ts";
+import type {
+  BetterServer,
+  ContextOptions,
+  ServerContext,
+} from "../server/server-types.ts";
+import type { BetterNext, NextOptions, ScopeOptions } from "./types.ts";
 
-import { type Aal, checkAal } from "../auth/mfa.ts";
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
-import { tenantOf, toSession } from "../auth/view.ts";
+import { tenantOf, toSession, type AuthSession } from "../auth/view.ts";
 import { claimsOf } from "../core/claims.ts";
-import { dbError, DbException } from "../core/errors.ts";
+import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
-import { problemResponse } from "../core/problem.ts";
-import { isReadSet, type ReadSet } from "../core/read-set.ts";
+import { isReadSet } from "../core/read-set.ts";
 import { err } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
-import { type DbStats, EMPTY_STATS } from "../core/stats.ts";
-import { cacheTagsOf, tagFor, type TagOptions } from "../core/tags.ts";
+import { EMPTY_STATS, type DbStats } from "../core/stats.ts";
+import { tagFor } from "../core/tags.ts";
 import { bearerRequest, flushEvents, handle } from "../server/adapter.ts";
 import { serverCore } from "../server/entries/core.ts";
 import { withExtra } from "../server/extra.ts";
 import {
-  type ActionInput,
-  type ActionParsed,
-  type ActionResult,
-  type AuthorizedContext,
-  type AuthorizeOptions,
   authorizeCaller as authorizeAuth,
+  requireCaller,
   formDataObject,
+  type ActionResult,
+  type AuthorizeOptions,
   type Unwrapped,
 } from "../server/kit.ts";
 import { isPrefetch } from "../server/refresh.ts";
-import { type ResourceMap, resourceRouter } from "../server/resources.ts";
+import { resourceRouter } from "../server/resources.ts";
 import {
   defaultExpose,
   guard,
-  type GuardOptions,
   settle,
   type Settled,
 } from "../server/respond.ts";
+import { createServer, extendServer } from "../server/server.ts";
 import {
-  type BetterServer,
-  type ContextOptions,
-  createServer,
-  extendServer,
-  type ServerContext,
-  type ServerOptions,
-} from "../server/server.ts";
+  invalidateAll,
+  nextCache,
+  nextCacheAttached,
+  sessionStale,
+  sessionTag,
+  supportTag,
+  tableTags,
+} from "./cache.ts";
 import {
-  type DbBudget,
-  formatStats,
   REQUEST_ID_HEADER,
+  formatStats,
   sharedCollector,
 } from "./collector.ts";
+import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
 import {
   isRedirect,
   mutableResponse,
   overrideRequestHeaders,
   serverTimingValue,
 } from "./proxy.ts";
+import { resourceRoutes } from "./resources.ts";
 import {
-  type NextResourceRoutes,
-  type NextResourcesOptions,
-  resourceRoutes,
-} from "./resources.ts";
-
-export type {
-  ActionResult,
-  AuthorizedContext,
-  AuthorizeOptions,
-} from "../server/kit.ts";
-
-export interface NextOptions extends ServerOptions {
-  /** Invalidate `tagFor(table)` cache tags after mutations. Defaults to true. */
-  readonly cacheTags?: boolean;
-  /** Include internal error messages in Problem Details. Defaults to development only. */
-  readonly exposeErrors?: boolean;
-  /** Per-request database call counts. See the Budget docs. */
-  readonly debug?: NextDebugOptions;
-}
-
-export interface NextDebugOptions {
-  /** Collect outside development too, e.g. for e2e runs against `next start`. */
-  readonly enabled?: boolean;
-  /** Header with `calls;waves;ms` on route handler responses. Defaults to `x-bs-db-calls`. */
-  readonly header?: string;
-  /** Warns in development when one render goes over it. */
-  readonly budget?: DbBudget;
-  /** Where `bs.debugRoute()` is mounted. Defaults to `/api/bs-stats`. */
-  readonly route?: string;
-}
-
-/** Response header with the URL of the request's totals on `bs.debugRoute()`. */
-export const STATS_URL_HEADER = "x-bs-stats";
-
-export interface ProxyOptions<C = unknown, P = unknown> {
-  /**
-   * Another middleware to compose with, such as next-intl's. It runs on the
-   * original request, alongside auth; its rewrite, redirect or request
-   * headers are kept, and refreshed cookies are merged into its response.
-   */
-  readonly before?: (
-    request: NextRequest,
-  ) => Response | undefined | Promise<Response | undefined>;
-  /** Answer before rendering, e.g. redirect signed-out users. Refreshed cookies are kept. */
-  readonly protect?: (
-    auth: AuthState<C, P>,
-    request: NextRequest,
-  ) => Response | undefined | Promise<Response | undefined>;
-  /**
-   * A prefetch never refreshes, so a session cookie whose token expired
-   * resolves to `{ kind: 'anon', reason: 'expired' }` there. `'protect'`
-   * (the default) passes that to `protect` like any other caller.
-   * `'render'` skips `protect` for it, so the prefetch renders signed out
-   * instead of caching a redirect to sign-in; `sessionStale` keeps that view
-   * out of the App Shell, and the navigation itself refreshes the session.
-   */
-  readonly expiredPrefetch?: "protect" | "render";
-  /**
-   * Methods that run `protect`. Defaults to `GET` and `HEAD`, so a Server
-   * Action POST is not redirected before the action runs. Set `true` to
-   * include mutations, or pass the methods yourself.
-   */
-  readonly protectMethods?: true | readonly string[];
-  /** Post-processes the final response; return a new one to replace it. */
-  readonly after?: (
-    response: Response,
-    auth: AuthState<C, P>,
-  ) => Response | undefined | void | Promise<Response | undefined | void>;
-  /**
-   * Adds `Server-Timing: bs-proxy;dur=..., bs-verify;dur=...` (ms): the whole
-   * proxy, and resolving the session (a local verify, or a refresh).
-   */
-  readonly serverTiming?: boolean;
-  readonly endedSession?: true | EndedSessionOptions;
-}
-
-export interface EndedSessionOptions {
-  readonly paths?: readonly string[];
-  readonly redirect?: string;
-  /** The `reason` query value on the redirect. Defaults to `session_ended` and `account_banned`. */
-  readonly reasons?: {
-    readonly ended?: string;
-    readonly banned?: string;
-  };
-}
-
-export interface ActionOptions<
-  S extends StandardSchemaV1 | undefined,
-  C = unknown,
-  P = unknown,
-  R extends boolean = boolean,
-  Ref = unknown,
->
-  extends GuardOptions, AuthorizeOptions<ActionParsed<S>, C, P, R, Ref> {
-  /** Validates the input (plain object or `FormData`) with any Standard Schema. */
-  readonly input?: S;
-  /**
-   * The active tenant for the action's context, from the validated input,
-   * instead of `NextOptions.tenant`. It is checked the same way: the
-   * `tenant()` plugin and `current_tenant_id()` only honor a tenant the
-   * caller belongs to.
-   */
-  readonly tenant?: (input: ActionParsed<S>) => string | undefined;
-}
-
-export interface RouteOptions<
-  C = unknown,
-  P = unknown,
-  R extends boolean = boolean,
-  Ref = unknown,
->
-  extends GuardOptions, AuthorizeOptions<NextRequest, C, P, R, Ref> {
-  /**
-   * Refresh an expired session cookie in the route and send the new cookies
-   * with its response. For routes the proxy's matcher skips; off by default
-   * because the proxy refreshes everything it matches.
-   */
-  readonly refresh?: boolean;
-}
-
-export interface RequireOptions<
-  C = unknown,
-  P = unknown,
-  R extends boolean = boolean,
-  Ref = unknown,
->
-  extends GuardOptions, AuthorizeOptions<undefined, C, P, R, Ref> {
-  /** The active tenant, as for `bs.context({ tenant })`. */
-  readonly tenant?: string;
-}
-
-export interface ScopeOptions {
-  /**
-   * The active tenant, e.g. from route params, instead of `NextOptions.tenant`
-   * (whose request has the incoming headers but no URL here). It goes where
-   * the resolver's result goes, so it gets the same checks: the `tenant()`
-   * plugin and `current_tenant_id()` only honor a tenant the caller belongs to.
-   */
-  readonly tenant?: string;
-}
-
-export interface BetterNext<
-  M extends AnyModels,
-  F extends AnyFunctions,
-  E,
-  C = unknown,
-  P = unknown,
-  Ref = string,
-> extends BetterServer<M, F, E, C, P> {
-  /** `proxy.ts`: refreshes sessions for page loads and server actions. */
-  proxy(request: NextRequest, options?: ProxyOptions<C, P>): Promise<Response>;
-  /**
-   * The caller's context. Without a request (Server Components, actions) it
-   * reads the incoming headers and is memoized per request and tenant.
-   *
-   * ```ts
-   * const { db } = await bs.context({ tenant: organizationId });
-   * ```
-   */
-  context(options?: ScopeOptions): Promise<ServerContext<M, F, E, C, P>>;
-  context(
-    request: Request | undefined,
-    options?: ContextOptions,
-  ): Promise<ServerContext<M, F, E, C, P>>;
-  /**
-   * The verified caller as serializable data (no token, no clients), memoized
-   * per request. Wrap it in a `'use cache: private'` function with Cache
-   * Components and pass the promise to `<SessionProvider>`.
-   */
-  session(): Promise<AuthSession<C, P>>;
-  /**
-   * The context for a session and its token, without reading the request.
-   * The token is verified again (memoized, no network call); a token for
-   * another user than `session` gives an `invalid` context.
-   */
-  contextForSession(
-    session: AuthSession<C, P>,
-    options: { readonly token: string | null },
-  ): Promise<ServerContext<M, F, E, C, P>>;
-  /**
-   * First statement of an app-authored `'use cache: private'` function: sets
-   * `cacheLife` from the session's expiry (`sessionStale`, capped by
-   * `life.stale`), tags the entry `bs:session:<user id>` plus `tags`, and
-   * returns the caller's context plus `session`.
-   *
-   * ```ts
-   * async function getCustomers() {
-   *   'use cache: private';
-   *   const { db } = await bs.cached();
-   *   return db.customers.findMany().orThrow();
-   * }
-   * ```
-   */
-  cached(
-    options?: CachedOptions<Extract<keyof M, string>>,
-  ): Promise<CachedContext<M, F, E, C, P>>;
-  /**
-   * Drops every `bs.cached()` entry of a user, e.g. after a role change,
-   * and the entries tagged with `tags` (such as a permission snapshot's tag).
-   * In a Server Action it also re-renders the caller's page, so no
-   * `refresh()` is needed. It reaches server caches and the caller's router
-   * only: another user's browser keeps its `'use cache: private'` entries
-   * until they go stale or that user's token changes.
-   */
-  invalidateSession(
-    userId: string,
-    options?: { readonly tags?: readonly string[] },
-  ): void;
-  /**
-   * Counts on the server and returns a serializable seed for
-   * `useLiveCount(seed)`, so the badge renders with a number and the client
-   * only refetches on changes. Pass `db` inside `'use cache: private'`
-   * (from `bs.cached()`); otherwise it uses `bs.context()`. A failed
-   * count gives `count: null` instead of throwing.
-   */
-  liveCount<T extends Extract<keyof M, string>>(
-    spec: QuerySpec<T, "count", number>,
-    db?: CountRunner,
-  ): Promise<LiveCountSeed<T>>;
-  /** Route handler with auth, Result unwrapping and Problem Details errors. */
-  route<Params = Record<string, string | string[]>, R extends boolean = false>(
-    handler: (
-      request: NextRequest,
-      ctx: ServerContext<M, F, E, C, P> &
-        AuthorizedContext<C, P, R> & { readonly params: Params },
-    ) => unknown,
-    options?: RouteOptions<C, P, R, Ref>,
-  ): (
-    request: NextRequest,
-    segment: { readonly params: Promise<Params> },
-  ) => Promise<Response>;
-  /**
-   * Server action returning a serializable `ActionResult`.
-   *
-   * ```ts
-   * export const invite = bs.action(
-   *   { input: Invite, requireTenant: true, roles: ['admin'] },
-   *   async (input, { db, tenant }) => db.invitations.create({ ...input, organizationId: tenant }),
-   * );
-   * ```
-   */
-  action<S extends StandardSchemaV1 | undefined, T, R extends boolean = false>(
-    options: ActionOptions<S, C, P, R, Ref>,
-    fn: (
-      input: ActionParsed<S>,
-      ctx: ServerContext<M, F, E, C, P> & AuthorizedContext<C, P, R>,
-    ) => Promise<T> | T,
-  ): (input: ActionInput<S>) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
-  /**
-   * For Server Components: the caller's context, or the Next.js interrupt
-   * for a refused caller. `unauthorized` calls `unauthorized()`, `forbidden`
-   * calls `forbidden()` (both need `experimental.authInterrupts`, else
-   * `notFound()`), and `not_found` calls `notFound()`.
-   *
-   * ```ts
-   * const { db, tenant } = await bs.require({ requireTenant: true, roles: ['admin'] });
-   * ```
-   */
-  require<R extends boolean = false>(
-    options?: RequireOptions<C, P, R, Ref>,
-  ): Promise<ServerContext<M, F, E, C, P> & AuthorizedContext<C, P, R>>;
-  /**
-   * REST resources for a catch-all route, matching the API model:
-   * collections, items and actions, as the caller (RLS), behind the guard in
-   * `options`, with Problem Details errors. An unknown path answers 404
-   * before auth resolves.
-   *
-   * ```ts title="app/api/[...path]/route.ts"
-   * export const { GET, POST, PATCH, PUT, DELETE } = bs.resources(
-   *   { customers: true },
-   *   { basePath: "/api" },
-   * );
-   * ```
-   */
-  resources(
-    map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P>["db"]>,
-    options?: NextResourcesOptions,
-  ): NextResourceRoutes;
-  /**
-   * Tags the current `"use cache"` scope with a table (and row) tag. With a
-   * `tenant`, mutations in other tenants leave the entry cached.
-   */
-  cacheTag(
-    table: Extract<keyof M, string>,
-    id?: string | number,
-    options?: TagOptions,
-  ): void;
-  /**
-   * Tags the current `"use cache"` scope with every table the specs (or a
-   * read set) read, plus the row of each `findById`, so any mutation that
-   * changes one revalidates it.
-   */
-  cacheTags(
-    target:
-      | QuerySpec<Extract<keyof M, string>>
-      | readonly QuerySpec<Extract<keyof M, string>>[]
-      | ReadSet,
-    options?: TagOptions,
-  ): void;
-  /**
-   * GET handler serving a request's database totals (`?id=<request id>`) for
-   * `expectDbBudget`. Answers 404 unless `debug` is on.
-   */
-  debugRoute(): (request: Request) => Promise<Response>;
-  /**
-   * Starts a support session for the signed-in admin and sets its cookie,
-   * so the admin's next requests render as the target. Call it from a
-   * server action.
-   */
-  startSupport(
-    request: SupportStartRequest,
-  ): Promise<ActionResult<SupportStarted>>;
-  /** Ends the admin's support session and clears its cookie. Call it from a server action. */
-  stopSupport(): Promise<ActionResult<{ readonly ended: boolean }>>;
-}
-
-/** What `startSupport` returns: plain data, safe across the action boundary. */
-export interface SupportStarted {
-  readonly sessionId: string;
-  readonly targetUserId: string;
-  readonly readOnly: boolean;
-  /** ISO 8601. */
-  readonly expiresAt: string;
-}
-
-/** The tag `bs.cached()` adds to entries rendered in a support session. */
-export function supportTag(sessionId: string): string {
-  return `bs:support:${sessionId}`;
-}
-
-/** The shortest time the Next.js client router keeps a prefetched entry. */
-const MIN_CLIENT_STALE = 30;
-
-export interface SessionStaleOptions {
-  /**
-   * With fewer seconds left on the token, the view is not reused at all (0):
-   * Next.js would not prefetch it anyway. Defaults to 30, and values below
-   * 30 count as 30: the client router keeps any entry for at least 30
-   * seconds, so a shorter stale time would outlive the token.
-   */
-  readonly min?: number;
-  /** 300 (5 minutes) joins the route's App Shell. Defaults to 300. */
-  readonly max?: number;
-}
-
-/**
- * `cacheLife` `stale` seconds for a view of `session`: `max`, but never past
- * the token's expiry, and 0 once fewer than `min` seconds are left. A
- * signed-out view that a refresh would change (an `expired` or
- * `refresh_failed` cookie, or an `invalid` token) is 0 as well, so it never
- * joins the App Shell.
- */
-export function sessionStale(
-  session: AuthSession,
-  options: SessionStaleOptions = {},
-  now: number = Date.now(),
-): number {
-  const min = Math.max(MIN_CLIENT_STALE, options.min ?? MIN_CLIENT_STALE);
-  const max = options.max ?? 300;
-  switch (session.kind) {
-    case "invalid":
-      return 0;
-    case "anon":
-      return session.reason === "expired" || session.reason === "refresh_failed"
-        ? 0
-        : max;
-    case "service":
-    case "apiKey":
-      return max;
-    case "user": {
-      if (session.expiresAt === null) return max;
-      const remaining = session.expiresAt - Math.floor(now / 1000);
-      return remaining < min ? 0 : Math.min(max, remaining);
-    }
-    default: {
-      const exhaustive: never = session;
-      return exhaustive;
-    }
-  }
-}
-
-export interface CachedOptions<T extends string = string> extends ScopeOptions {
-  /**
-   * The active tenant, as for `bs.context({ tenant })`. Next.js keys the
-   * private cache on your function's arguments, so take the tenant as an
-   * argument and pass it through; never read it from anywhere else.
-   */
-  readonly tenant?: string;
-  /**
-   * `cacheLife` for the entry. `stale` is `sessionStale`, and never more than
-   * `stale` when it is set: pass a permission snapshot's lifetime so the
-   * entry goes stale with the snapshot too.
-   */
-  readonly life?: SessionStaleOptions & {
-    readonly stale?: number;
-    readonly revalidate?: number;
-    readonly expire?: number;
-  };
-  /** More `cacheTag`s for the entry, e.g. `snapshotTag(sub)` or `organization:<id>`. */
-  readonly tags?: readonly string[];
-  /**
-   * Tables the entry reads, so the `updateTag` after a mutation drops it:
-   * `bs:<table>`, or with an active tenant `bs:<table>@<tenant>` and
-   * `bs:<table>@*`, so other tenants' writes leave it cached.
-   */
-  readonly tables?: readonly T[];
-  /** With `tables`, also tags the row `bs:<first table>:<id>`. */
-  readonly id?: string | number;
-}
-
-export type CachedContext<
-  M extends AnyModels,
-  F extends AnyFunctions,
-  E,
-  C = unknown,
-  P = unknown,
-> = ServerContext<M, F, E, C, P> & { readonly session: AuthSession<C, P> };
-
-/** The tag `bs.cached()` puts on a user's entries. */
-export function sessionTag(userId: string): string {
-  return `bs:session:${userId}`;
-}
-
-/**
- * The table tags of a read: the tenant's and every tenant's, or the table's.
- * A read across tenants (`"*"`) also carries the table's, which every
- * mutation invalidates, including one scoped to a single tenant.
- */
-function tableTags(table: string, options: TagOptions): string[] {
-  if (options.tenant === "*")
-    return [tagFor(table), tagFor(table, undefined, options)];
-  return options.tenant === undefined
-    ? [tagFor(table)]
-    : [
-        tagFor(table, undefined, options),
-        tagFor(table, undefined, { tenant: "*" }),
-      ];
-}
-
-/** The second argument of `revalidateTag`: a `cacheLife` profile name or `{ expire }`. */
-type RevalidateProfile = string | { readonly expire?: number };
-
-/** The next read waits for fresh data instead of serving the stale entry. */
-const EXPIRE_NOW = { expire: 0 } as const;
-
-/**
- * Invalidates tags with `updateTag` (Server Actions), else `revalidateTag`
- * (Route Handlers), else not at all (jobs, scripts). The first tag decides
- * for the rest, so a mutation outside an action throws once, not per tag.
- */
-function invalidateAll(
-  tags: readonly string[],
-  profile: RevalidateProfile = EXPIRE_NOW,
-): void {
-  let index = 0;
-  try {
-    for (; index < tags.length; index++) updateTag(tags[index]!);
-    return;
-  } catch {
-    // Not in a Server Action: revalidate from the tag that failed.
-  }
-  try {
-    for (; index < tags.length; index++) revalidateTag(tags[index]!, profile);
-  } catch {
-    // Outside a Next.js request (jobs, scripts): nothing to invalidate.
-  }
-}
-
-export interface NextCacheOptions {
-  /**
-   * How a mutation outside a Server Action (a route handler, a webhook)
-   * expires its tags with `revalidateTag`. Defaults to `{ expire: 0 }`, so
-   * the next read waits for fresh data; `'max'` serves the stale entry
-   * while it revalidates.
-   */
-  readonly revalidate?: string | { readonly expire?: number };
-}
-
-/**
- * Invalidates `bs:<table>` for every table in the target, the tenant's
- * `bs:<table>@<tenant>` (every tenant's `bs:<table>@*` when the mutation has
- * no tenant) and `bs:<table>:<id>` for the changed rows. Reads another tenant
- * tagged stay cached. `createNext` attaches it unless `cacheTags: false`.
- */
-export function nextCache(options: NextCacheOptions = {}): CacheAdapter {
-  return {
-    name: "next",
-    invalidate: (target) => {
-      invalidateAll(cacheTagsOf(target), options.revalidate);
-    },
-  };
-}
-
-/** Whether `cause` is one of Next's own control-flow errors (they carry a `digest`). */
-function isNextInterrupt(cause: unknown): boolean {
-  return (
-    cause instanceof Error &&
-    "digest" in cause &&
-    typeof cause.digest === "string"
-  );
-}
-
-/**
- * `unauthorized()` and `forbidden()` throw a plain error without
- * `experimental.authInterrupts`; `notFound()` is the fallback then.
- */
-function authInterrupt(fn: () => never): never {
-  try {
-    fn();
-  } catch (cause) {
-    if (isNextInterrupt(cause)) throw cause;
-  }
-  notFound();
-}
-
-/** The Next.js interrupt for a refused Server Component render. */
-function interrupt(error: DbError): never {
-  if (error.kind === "unauthorized") authInterrupt(unauthorized);
-  if (error.kind === "forbidden") authInterrupt(forbidden);
-  if (error.kind === "not_found") notFound();
-  throw new DbException(error);
-}
-
-export interface RequireAalOptions {
-  /**
-   * Page that enrolls or challenges a second factor. Signed-in users below
-   * the level are redirected there with `?next=<path>`; without it they get
-   * a 403 Problem Details response.
-   */
-  readonly redirect?: string;
-  /** Paths that need the level. Defaults to every path but `redirect`. */
-  readonly match?: (pathname: string) => boolean;
-}
-
-/**
- * A `proxy` `protect` that keeps signed-in users below `level` out of the
- * matched paths. The JWT carries no factor list, so this also sends users
- * without a factor to `redirect` to enroll one. Anonymous callers pass;
- * combine it with your sign-in redirect.
- *
- * ```ts
- * bs.proxy(request, {
- *   protect: requireAal('aal2', { redirect: '/mfa', match: (path) => path.startsWith('/settings') }),
- * });
- * ```
- */
-export function requireAal(
-  level: Aal,
-  options: RequireAalOptions = {},
-): (auth: AuthState, request: NextRequest) => Response | undefined {
-  return (auth, request) => {
-    const { pathname, search } = request.nextUrl;
-    if (options.redirect !== undefined && pathname === options.redirect) return;
-    if (options.match && !options.match(pathname)) return;
-    const denied = checkAal(auth, level);
-    if (!denied) return;
-    if (options.redirect === undefined) return problemResponse(denied);
-    const target = new URL(options.redirect, request.url);
-    target.searchParams.set("next", `${pathname}${search}`);
-    return NextResponse.redirect(target);
-  };
-}
-
-function endedRedirect(
-  request: NextRequest,
-  path: string,
-  reason: string,
-): Response {
-  const target = new URL(path, request.url);
-  target.searchParams.set("reason", reason);
-  return NextResponse.redirect(target);
-}
-
-export function shouldCheckSession(
-  request: NextRequest,
-  options: EndedSessionOptions = {},
-): boolean {
-  if (request.method !== "GET" && request.method !== "HEAD") return false;
-  if (isPrefetch(request)) return false;
-  if (request.headers.get("sec-fetch-dest") === "document") return true;
-  return options.paths?.includes(request.nextUrl.pathname) ?? false;
-}
-
-/** Page loads, client navigations and server actions; never prefetches or assets. */
-export function shouldRefresh(request: Request): boolean {
-  const h = request.headers;
-  if (request.method !== "GET" && request.method !== "HEAD")
-    return h.has("next-action");
-  if (isPrefetch(request)) return false;
-  if (h.get("rsc") === "1") return true;
-  const dest = h.get("sec-fetch-dest");
-  if (dest) return dest === "document";
-  return h.get("accept")?.includes("text/html") ?? false;
-}
-
-/**
- * Event hubs that already invalidate Next.js cache tags. Every instance a
- * definition derives shares its hub, and `createNext` can run again for one
- * definition (hot reload, a definition in another package), so tags are
- * invalidated once per mutation.
- */
-const nextCacheAttached = new WeakSet<object>();
+  STATS_URL_HEADER,
+  endedRedirect,
+  shouldCheckSession,
+  shouldRefresh,
+} from "./support.ts";
 
 /**
  * The Next.js adapter: proxy, Server Components, route handlers, server
@@ -1216,14 +606,12 @@ export function createNext<
 
       require: async (requireOptions = {}) => {
         const ctx = await current(requireOptions.tenant);
-        const denied = guard(
+        const caller = await requireCaller(
           ctx.auth,
-          requireOptions.allow,
-          requireOptions.aal,
-          requireOptions.scopes,
+          requireOptions,
+          tenantFor(ctx, toSession(ctx.auth)),
+          options.authorizer,
         );
-        const caller =
-          denied ?? (await authorizeCaller(ctx, requireOptions, undefined));
         if ("kind" in caller) interrupt(caller);
         // SAFETY: requireTenant refused a missing tenant.
         return withExtra(ctx, caller) as never;
@@ -1305,35 +693,4 @@ export function createNext<
       },
     },
   );
-}
-
-const NEXT_DIGESTS: ReadonlySet<string> = new Set([
-  "NEXT_REDIRECT",
-  "NEXT_HTTP_ERROR_FALLBACK",
-  "DYNAMIC_SERVER_USAGE",
-  "BAILOUT_TO_CLIENT_SIDE_RENDERING",
-  "HANGING_PROMISE_REJECTION",
-  "NEXT_PRERENDER_INTERRUPTED",
-]);
-const REACT_POSTPONE = Symbol.for("react.postpone");
-
-/**
- * `unstable_rethrow` without `next/navigation`: that entry loads the client
- * router context, which Turbopack can't resolve inside route handlers. The
- * digests are the ones Next 16 checks.
- */
-function rethrowNextControlFlow(error: unknown): void {
-  if (typeof error !== "object" || error === null) return;
-  const digest = "digest" in error ? error.digest : undefined;
-  if (
-    (typeof digest === "string" &&
-      NEXT_DIGESTS.has(digest.split(";", 1)[0] ?? "")) ||
-    ("$$typeof" in error && error.$$typeof === REACT_POSTPONE) ||
-    (error instanceof Error &&
-      error.message.includes("needs to bail out of prerendering"))
-  ) {
-    // oxlint-disable-next-line typescript/only-throw-error -- React's postpone signal is not an Error, and Next needs the original value.
-    throw error;
-  }
-  if ("cause" in error) rethrowNextControlFlow(error.cause);
 }

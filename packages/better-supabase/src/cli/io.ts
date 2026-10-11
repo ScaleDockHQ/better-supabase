@@ -46,6 +46,11 @@ export function sameText(
   return current !== undefined && withLf(current) === withLf(expected);
 }
 
+/** The file's text, or `undefined` when it does not exist. */
+export async function readIfExists(path: string): Promise<string | undefined> {
+  return existsSync(path) ? readFile(path, "utf8") : undefined;
+}
+
 /** Writes a file when its contents changed, ignoring line endings. Returns whether it wrote. */
 export async function writeIfChanged(
   path: string,

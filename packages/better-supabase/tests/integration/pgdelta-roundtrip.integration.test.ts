@@ -16,11 +16,7 @@ import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { parseCommandArgs } from "../../src/cli/command.ts";
-import {
-  runSql,
-  sqlCommand,
-  type SqlArgs,
-} from "../../src/cli/commands/sql.ts";
+import { runSql, sqlCommand } from "../../src/cli/commands/sql.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
@@ -93,8 +89,7 @@ describe.skipIf(!available)(
     const sql = (argv: string[]) =>
       runSql(
         resolveConfig({ sql: { modules: NAMES } }, root),
-        // SAFETY: parseCommandArgs returns the declared args of sqlCommand.
-        parseCommandArgs(sqlCommand, argv) as SqlArgs,
+        parseCommandArgs(sqlCommand, argv),
       );
 
     beforeAll(async () => {

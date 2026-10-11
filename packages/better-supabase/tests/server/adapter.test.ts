@@ -14,6 +14,7 @@ import {
   createServer,
   flushEvents,
   handle,
+  withFlush,
   PRIMARY_COOKIE,
   resolveToken,
 } from "../../src/server/index.ts";
@@ -195,6 +196,26 @@ describe("flushEvents", () => {
     flushEvents(betterSupabase, waitUntil);
     flushEvents(betterSupabase, undefined);
     expect(waitUntil).toHaveBeenCalledOnce();
+    await betterSupabase.events.settled();
+  });
+});
+
+describe("withFlush", () => {
+  it("flushes after the run, also when it throws", async () => {
+    const betterSupabase = defineSupabase(schema);
+    const waitUntil = vi.fn();
+    betterSupabase.events.track(Promise.resolve());
+    await expect(withFlush(betterSupabase, waitUntil, () => 7)).resolves.toBe(
+      7,
+    );
+    expect(waitUntil).toHaveBeenCalledOnce();
+    betterSupabase.events.track(Promise.resolve());
+    await expect(
+      withFlush(betterSupabase, waitUntil, () =>
+        Promise.reject(new Error("x")),
+      ),
+    ).rejects.toThrow("x");
+    expect(waitUntil).toHaveBeenCalledTimes(2);
     await betterSupabase.events.settled();
   });
 });

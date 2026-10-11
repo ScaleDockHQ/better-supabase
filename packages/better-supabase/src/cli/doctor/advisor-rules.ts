@@ -7,6 +7,8 @@ import type {
   SqlObject,
 } from "./rules.ts";
 
+import { errorText } from "../errors.ts";
+
 /** One request per advisor category, shared by the advisor rules and the rules that defer to them. */
 const fetched = new WeakMap<
   AdvisorSource,
@@ -86,7 +88,7 @@ export function advisorRule(
       } catch (cause) {
         return [
           {
-            message: `The ${category} advisor could not run (${advisors.describe}): ${cause instanceof Error ? cause.message : String(cause)}`,
+            message: `The ${category} advisor could not run (${advisors.describe}): ${errorText(cause)}`,
           },
         ];
       }

@@ -1,6 +1,6 @@
 import type { ActiveTenantSource } from "../../config/modules.ts";
 import type { ModuleContext } from "../context.ts";
-import type { ModuleDefinition } from "../registry.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { DEFAULT_ACTIVE_TENANT } from "../../config/modules.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";

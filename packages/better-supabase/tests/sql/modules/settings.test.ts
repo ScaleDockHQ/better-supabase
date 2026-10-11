@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
 import { defineSettings } from "../../../src/blocks/settings/index.ts";
-import { renderModules } from "../../../src/sql/registry.ts";
+import { renderModules } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   names: readonly string[],

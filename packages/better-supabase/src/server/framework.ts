@@ -7,7 +7,7 @@ import type {
 import type { SessionEntryConfig } from "./entries/session.ts";
 import type { RefusalRedirects } from "./refusal.ts";
 import type { AllowedCaller } from "./respond.ts";
-import type { BetterServer, ServerOptions } from "./server.ts";
+import type { BetterServer, ServerOptions } from "./server-types.ts";
 
 import { toSession } from "../auth/view.ts";
 import { withBetterSupabase } from "./composite.ts";

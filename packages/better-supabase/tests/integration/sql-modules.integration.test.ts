@@ -33,13 +33,10 @@ import { defineSchema } from "../../src/schema/define.ts";
 import { withBlock } from "../../src/server/entries/block.ts";
 import { auditRegistrations } from "../../src/sql/audit-registrations.ts";
 import { compileReadSet } from "../../src/sql/read-sets.ts";
-import {
-  moduleBody,
-  renderModules,
-  SQL_MODULES,
-} from "../../src/sql/registry.ts";
+import { SQL_MODULES } from "../../src/sql/registry.ts";
+import { moduleBody, renderModules } from "../../src/sql/render.ts";
 import { asUser } from "../../src/testing/as-user.ts";
-import { testQueueBackend } from "../../src/testing/conformance.ts";
+import { testQueueBackend } from "../../src/testing/kits/queue-backend.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { deleteAudit } from "./audit-cleanup.ts";

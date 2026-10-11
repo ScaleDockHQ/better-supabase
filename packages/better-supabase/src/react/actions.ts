@@ -11,7 +11,7 @@ import type {
 } from "../bindings/client.ts";
 import type { DbError } from "../core/errors.ts";
 
-import { fieldErrorsOf } from "./field-errors.ts";
+import { fieldErrorsOf } from "../bindings/field-errors.ts";
 
 export type {
   ActionInputOf,

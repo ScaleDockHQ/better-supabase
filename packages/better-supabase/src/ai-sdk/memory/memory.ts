@@ -8,7 +8,7 @@ import {
   tool,
 } from "ai";
 
-import type { JobHandler } from "../../blocks/jobs/queue.ts";
+import type { JobHandler } from "../../blocks/jobs/types.ts";
 import type {
   Memory,
   MemoryCommand,

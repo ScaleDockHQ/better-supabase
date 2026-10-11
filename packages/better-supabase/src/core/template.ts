@@ -232,3 +232,16 @@ export function slug(value: string): string {
     .replaceAll(/^_|_$/g, "")
     .toLowerCase();
 }
+
+/** SQL for the JWT claim at a dotted path, or the first set one of several (`coalesce`). */
+export function claimSql(claim: string | readonly string[]): string {
+  const paths = typeof claim === "string" ? [claim] : claim;
+  const expressions = paths.map((path) => {
+    const keys = path.split(".");
+    const last = keys.pop()!;
+    return `(select auth.jwt())${keys.map((key) => ` -> ${sqlString(key)}`).join("")} ->> ${sqlString(last)}`;
+  });
+  return expressions.length === 1
+    ? expressions[0]!
+    : `coalesce(${expressions.join(", ")})`;
+}

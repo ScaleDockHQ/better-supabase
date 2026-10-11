@@ -15,7 +15,11 @@ import type { ServerContextIn } from "./entries/context.ts";
 import type { SqlIn } from "./entries/sql.ts";
 import type { ReplicaState } from "./replicas.ts";
 import type { GuardOptions } from "./respond.ts";
-import type { BetterServer, ServerContext, ServerOptions } from "./server.ts";
+import type {
+  BetterServer,
+  ServerContext,
+  ServerOptions,
+} from "./server-types.ts";
 import type { ActiveSupport } from "./support.ts";
 
 import {
@@ -23,7 +27,7 @@ import {
   withAuthMode,
   withJwtClaims,
   withUserClaims,
-} from "./entries/claims.ts";
+} from "../auth/claims.ts";
 import { withServerContext } from "./entries/context.ts";
 import { type ServerCore, serverCore } from "./entries/core.ts";
 import { withDb } from "./entries/db.ts";

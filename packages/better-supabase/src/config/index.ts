@@ -1,59 +1,67 @@
-export {
-  CONFIG_SCHEMA_URL,
-  defineConfig,
-  resolveConfig,
-  resolveJsonSchema,
-} from "./config.ts";
+export { CONFIG_DEFAULTS } from "./defaults.ts";
+export { GEN_TASKS, INTEGRATION_NAMES, SKILLS_AGENTS } from "./names.ts";
+export { resolveJsonSchema } from "./json.ts";
+export { CONFIG_SCHEMA_URL, defineConfig, resolveConfig } from "./resolve.ts";
 export type {
   ActorConfig,
-  BetterSupabaseConfig,
-  BucketConfig,
   Casing,
   ClaimsConfig,
   CodecsConfig,
-  DoctorConfig,
-  EntitlementPlansSource,
-  EntitlementsConfig,
-  EnvFileConfig,
-  EnvironmentConfig,
-  ExposeConfig,
-  ExposeRole,
-  GenConfig,
-  GenTask,
   GeneratedFile,
   Generator,
   GeneratorColumn,
   GeneratorInput,
   GeneratorModel,
   GeneratorTable,
-  IntegrationName,
   JsonSchemaSource,
   JsonTypeConfig,
-  KeysConfig,
-  OpenApiConfig,
   PluginFlagsConfig,
-  ColumnPrivilege,
-  ExposePrivilege,
-  Privilege,
-  RealtimeConfig,
   RelationsConfig,
-  ResolvedConfig,
-  ResolvedExpose,
-  ScaffoldApiConfig,
-  ScaffoldConfig,
-  SeedConfig,
-  SkillsAgent,
-  SkillsConfig,
   SoftDeleteConfig,
   SourceConfig,
-  ResolvedSqlConfig,
-  SqlConfig,
   TableConfig,
   TenantConfig,
   TimestampsConfig,
+} from "./types/codegen.ts";
+export type {
+  BucketConfig,
+  RealtimeConfig,
+  ResolvedSqlConfig,
+  SeedConfig,
+  SqlConfig,
   VectorDistance,
   VectorSearchConfig,
-} from "./config.ts";
+} from "./types/database.ts";
+export type {
+  EntitlementPlansSource,
+  EntitlementsConfig,
+} from "./types/entitlements.ts";
+export type {
+  DoctorConfig,
+  EnvFileConfig,
+  GenConfig,
+  GenTask,
+  IntegrationName,
+  KeysConfig,
+  OpenApiConfig,
+  ScaffoldApiConfig,
+  ScaffoldConfig,
+  SkillsAgent,
+  SkillsConfig,
+} from "./types/tooling.ts";
+export type {
+  BetterSupabaseConfig,
+  EnvironmentConfig,
+  ResolvedConfig,
+} from "./types/config.ts";
+export type {
+  ColumnPrivilege,
+  ExposeConfig,
+  ExposePrivilege,
+  ExposeRole,
+  Privilege,
+  ResolvedExpose,
+} from "./expose.ts";
 export type {
   AuthorizationFunctions,
   AuthorizationMembership,

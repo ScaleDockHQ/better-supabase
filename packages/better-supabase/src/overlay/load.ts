@@ -1,5 +1,7 @@
 import type { JsonPathEngine } from "./types.ts";
 
+import { importOptionalPeer, memoized } from "../core/optional-peer.ts";
+
 const isEngine = (value: unknown): value is JsonPathEngine =>
   typeof value === "object" &&
   value !== null &&
@@ -10,16 +12,8 @@ const isEngine = (value: unknown): value is JsonPathEngine =>
  * Imports `jsonpath-rfc9535` on first use. The specifier is a variable so
  * bundlers leave the optional peer out of apps that pass their own engine.
  */
-async function importEngine(): Promise<unknown> {
-  const specifier = "jsonpath-rfc9535";
-  try {
-    return await import(specifier);
-  } catch {
-    return undefined;
-  }
-}
-
-let cached: Promise<JsonPathEngine> | undefined;
+const importEngine = (): Promise<unknown> =>
+  importOptionalPeer("jsonpath-rfc9535");
 
 async function load(importer: () => Promise<unknown>): Promise<JsonPathEngine> {
   const module = await importer();
@@ -29,6 +23,8 @@ async function load(importer: () => Promise<unknown>): Promise<JsonPathEngine> {
     );
   return module;
 }
+
+const cachedEngine = memoized(() => load(importEngine));
 
 /**
  * Loads the optional `jsonpath-rfc9535` peer, an RFC 9535 implementation
@@ -40,9 +36,5 @@ export function loadJsonPath(
   importer?: () => Promise<unknown>,
 ): Promise<JsonPathEngine> {
   if (importer) return load(importer);
-  cached ??= load(importEngine).catch((error: unknown) => {
-    cached = undefined;
-    throw error;
-  });
-  return cached;
+  return cachedEngine();
 }

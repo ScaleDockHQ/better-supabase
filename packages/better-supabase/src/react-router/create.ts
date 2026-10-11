@@ -2,11 +2,11 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
-import type { BetterServer } from "../server/server.ts";
+import type { BetterServer } from "../server/server-types.ts";
 
 import { around, bufferInPlace } from "../bridges/shared.ts";
 import { problemResponse } from "../core/problem.ts";
-import { flushEvents } from "../server/adapter.ts";
+import { withFlush } from "../server/adapter.ts";
 import {
   actionInput,
   type FrameworkLocals,
@@ -145,9 +145,7 @@ export function createReactRouter<
         async (contributions) => {
           // SAFETY: the key is the one this factory created, for Locals.
           args.context.set(key as never, localsOf(contributions) as never);
-          const response = await next();
-          flushEvents(server, options.waitUntil);
-          return response;
+          return withFlush(server, options.waitUntil, next);
         },
       );
     },

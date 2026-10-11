@@ -19,6 +19,7 @@ import { emitBlockEvent, type SupportEventData } from "../core/block-events.ts";
 import { type DbError, dbError, mapDbError } from "../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
+import { boundedTtlCache } from "../core/ttl-cache.ts";
 import { fromPgError } from "../postgres/executor.ts";
 
 type UserAuth = Extract<AuthState, { kind: "user" }>;
@@ -194,29 +195,21 @@ function createSupport(
   };
 
   /** Target claims per support session; the session itself is loaded every time, so revoking stays immediate. */
-  const claimsCache = new Map<
+  const claimsCache = boundedTtlCache<
     string,
-    {
-      readonly claims: Readonly<Record<string, unknown>>;
-      readonly until: number;
-    }
-  >();
+    Readonly<Record<string, unknown>>
+  >({ max: CLAIMS_CACHE_SIZE });
   const cachedTargetClaims = async (
     session: SupportSession,
   ): Promise<Readonly<Record<string, unknown>>> => {
-    const now = Date.now();
     const cached = claimsCache.get(session.id);
-    if (cached && cached.until > now) return cached.claims;
+    if (cached) return cached;
     const claims = await targetClaims(options.store, session.targetUserId);
-    claimsCache.delete(session.id);
-    if (claimsCache.size >= CLAIMS_CACHE_SIZE) {
-      const oldest = claimsCache.keys().next();
-      if (!oldest.done) claimsCache.delete(oldest.value);
-    }
-    claimsCache.set(session.id, {
+    claimsCache.set(
+      session.id,
       claims,
-      until: Math.min(session.expiresAt.epochMilliseconds, now + CLAIMS_TTL_MS),
-    });
+      Math.min(session.expiresAt.epochMilliseconds, Date.now() + CLAIMS_TTL_MS),
+    );
     return claims;
   };
 

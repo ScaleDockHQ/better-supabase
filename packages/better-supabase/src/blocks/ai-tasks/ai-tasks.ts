@@ -2,7 +2,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { RunState } from "../../core/run-state.ts";
-import type { JobHandler } from "../jobs/queue.ts";
+import type { JobHandler } from "../jobs/types.ts";
 
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";

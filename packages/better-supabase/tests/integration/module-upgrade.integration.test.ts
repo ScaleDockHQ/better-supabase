@@ -2,7 +2,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { renderModules, upgradePlan } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
+import { upgradePlan } from "../../src/sql/upgrade.ts";
 
 const dbUrl =
   process.env["SUPABASE_DB_URL"] ??

@@ -2,7 +2,7 @@ import type { AuthResolution, AuthState } from "../../auth/resolve.ts";
 import type { SessionEncoding } from "../../auth/session.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
-import type { ContextOptions, ServerContext } from "../server.ts";
+import type { ContextOptions, ServerContext } from "../server-types.ts";
 import type { ActiveSupport } from "../support.ts";
 
 /**

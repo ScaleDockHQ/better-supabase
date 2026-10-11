@@ -1,5 +1,5 @@
 import type { ModuleContext, ModuleEvents } from "../context.ts";
-import type { ModuleDefinition } from "../registry.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -7,6 +7,7 @@ import {
   SERVICE_CALLER,
   sha256Hex,
   updatedAt,
+  fail,
 } from "../shared.ts";
 import {
   qualifiedTable,
@@ -30,9 +31,6 @@ const headerFor = (mode: string, given: string, kept: string): string =>
       when 'hmac-sha256' then coalesce(${given}, ${kept}, 'x-signature')
       when 'shared-secret' then coalesce(${given}, ${kept}, 'x-webhook-secret')
     end`;
-
-const fail = (code: string, message: string, errcode = "42501"): string =>
-  `raise exception '${message}' using errcode = '${errcode}', hint = '${code}';`;
 
 function secretStorage(ctx: ModuleContext): boolean {
   const storage = ctx.text("secretStorage", "vault");

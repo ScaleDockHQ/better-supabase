@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 
-import { renderModules } from "../../src/sql/registry.ts";
+import { renderModules } from "../../src/sql/render.ts";
 import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 
 /**

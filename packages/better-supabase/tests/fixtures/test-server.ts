@@ -1,6 +1,6 @@
 import type { AuthState } from "../../src/auth/resolve.ts";
 import type { BetterSupabase } from "../../src/core/define.ts";
-import type { BetterServer } from "../../src/server/server.ts";
+import type { BetterServer } from "../../src/server/server-types.ts";
 import type { TestSigner } from "../../src/testing/jwt.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";

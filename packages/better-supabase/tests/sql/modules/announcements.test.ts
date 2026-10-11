@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ModulesConfig } from "../../../src/config/modules.ts";
 
-import { renderModules } from "../../../src/sql/registry.ts";
+import { renderModules } from "../../../src/sql/render.ts";
 
 const sqlOf = (names: readonly string[], modules: ModulesConfig = {}): string =>
   renderModules(names, { modules })

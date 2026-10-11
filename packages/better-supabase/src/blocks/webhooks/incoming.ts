@@ -1,169 +1,33 @@
-import type { DbError } from "../../core/errors.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
+import type {
+  EndpointRow,
+  IncomingVerify,
+  IncomingWebhook,
+  IncomingWebhooks,
+  IncomingWebhooksOptions,
+} from "./incoming-types.ts";
 
-import { dbError, mapDbError } from "../../core/errors.ts";
+import { asDbError } from "../../core/block-helpers.ts";
+import { dbError, type DbError } from "../../core/errors.ts";
+import { methodNotAllowed, problemResponse } from "../../core/problem.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
-  type BlockProblemOptions,
-  problemResponse,
-} from "../../core/problem.ts";
-import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
-import { fromPgError } from "../../postgres/executor.ts";
+  hmacHex,
+  timingSafeEqual,
+  verifyWebhook,
+} from "../../core/signatures.ts";
+import { hitRateLimit } from "../jobs/rate-limit.ts";
+import { receiveWebhook } from "../jobs/webhook-inbox.ts";
 import {
+  applyTemporal,
   isRecord,
   optionalText,
-  toInstant,
   readBodyCapped,
-  type BlockTemporalOptions,
-  applyTemporal,
+  toInstant,
 } from "../shared.ts";
-import { timingSafeEqual, verifyWebhook } from "./verify.ts";
-
-// ---------------------------------------------------------------------------
-// Incoming webhook endpoints (SQL module `webhooks-in`)
-
-/** How a delivery proves it came from the sender. */
-export type IncomingVerify =
-  | "none"
-  | "standard-webhooks"
-  | "hmac-sha256"
-  | "shared-secret";
-
-export interface IncomingWebhooksOptions
-  extends BlockProblemOptions, BlockTemporalOptions {
-  /** The schema of the `webhooks-in` module. Defaults to `better_supabase`. */
-  readonly schema?: string;
-  /** The webhook inbox source deliveries are stored under. Defaults to `webhook-in`. */
-  readonly source?: string;
-  /**
-   * Deliveries per endpoint and period, counted with the `rate-limit`
-   * module's `hit_rate_limit`. Unset: no limit.
-   */
-  readonly rateLimit?: {
-    readonly max: number;
-    /** Seconds, or a Postgres interval such as `1 minute`. */
-    readonly period: number | string;
-  };
-  /** Request headers stored with each delivery. Defaults to none. */
-  readonly keepHeaders?: readonly string[];
-}
-
-export interface CreateIncomingWebhookInput {
-  readonly tenant: string;
-  readonly name: string;
-  /** Defaults to `none`: the token in the URL is the only credential. */
-  readonly verify?: IncomingVerify;
-  readonly metadata?: Readonly<Record<string, unknown>>;
-  /** The header that carries the HMAC for `hmac-sha256`. Defaults to `x-signature`. */
-  readonly signatureHeader?: string;
-  /** The record the endpoint belongs to, a type from `options.subjects`. */
-  readonly subject?: { readonly type: string; readonly id: string };
-}
-
-/** An endpoint as members see it: everything but the token and secret. */
-export interface IncomingWebhook {
-  readonly id: string;
-  readonly tenant: string;
-  readonly name: string;
-  readonly verify: IncomingVerify;
-  readonly signatureHeader: string | null;
-  readonly enabled: boolean;
-  readonly maxBodyBytes: number;
-  readonly receiveCount: number;
-  readonly lastReceivedAt: string | null;
-  readonly lastStatus: number | null;
-  readonly metadata: Readonly<Record<string, unknown>>;
-  readonly subject: { readonly type: string; readonly id: string } | null;
-  readonly createdBy: string | null;
-  readonly createdAt: string;
-}
-
-/** A new endpoint: its token (for the URL) and secret are shown once. */
-export interface CreatedIncomingWebhook {
-  readonly id: string;
-  readonly tenant: string;
-  readonly name: string;
-  readonly verify: IncomingVerify;
-  readonly token: string;
-  readonly secret: string | null;
-  readonly signatureHeader: string | null;
-  readonly subject: { readonly type: string; readonly id: string } | null;
-}
-
-export interface UpdateIncomingWebhookInput {
-  readonly name?: string;
-  readonly metadata?: Readonly<Record<string, unknown>>;
-  readonly verify?: IncomingVerify;
-  readonly signatureHeader?: string;
-}
-
-export interface UpdatedIncomingWebhook {
-  readonly id: string;
-  readonly tenant: string;
-  readonly name: string;
-  readonly verify: IncomingVerify;
-  readonly secret: string | null;
-  readonly signatureHeader: string | null;
-  readonly metadata: Readonly<Record<string, unknown>>;
-}
-
-export interface RotatedIncomingSecret {
-  readonly secret: string;
-  readonly previousSecretExpiresAt: Temporal.Instant | null;
-}
-
-export interface IncomingWebhooks {
-  /**
-   * The route for `/hooks/<token>`: finds the endpoint, checks the body
-   * size, the rate limit and the signature, stores the delivery in the
-   * webhook inbox with the endpoint's tenant and answers 202 (200 for a
-   * repeated delivery). A delivery repeats when its signed `webhook-id`
-   * does (`standard-webhooks`), when its body does (`hmac-sha256`, whose
-   * signature covers only the body), or when its `webhook-id` header does
-   * (`none`). Needs a service connection.
-   */
-  receive(request: Request, token: string): Promise<Response>;
-  /** Creates an endpoint for a tenant; the caller needs `webhooks.manage`. */
-  create(
-    input: CreateIncomingWebhookInput,
-  ): AsyncResult<CreatedIncomingWebhook>;
-  /** A new token, and with `rotateSecret` a new secret. */
-  rotate(
-    id: string,
-    options?: { readonly rotateSecret?: boolean },
-  ): AsyncResult<{ readonly token: string; readonly secret: string | null }>;
-  rotateSecret(
-    id: string,
-    options?: { readonly grace?: Temporal.Duration | string },
-  ): AsyncResult<RotatedIncomingSecret>;
-  update(
-    id: string,
-    input: UpdateIncomingWebhookInput,
-  ): AsyncResult<UpdatedIncomingWebhook>;
-  setEnabled(id: string, enabled: boolean): AsyncResult<boolean>;
-  remove(id: string): AsyncResult<boolean>;
-  /**
-   * A tenant's endpoints, or one subject's, as the caller sees them (the
-   * read policy hides endpoints whose subject they can't read).
-   */
-  list(
-    tenant: string,
-    subject?: { readonly type: string; readonly id?: string },
-  ): AsyncResult<readonly IncomingWebhook[]>;
-}
 
 /** The header that carries an endpoint's id on stored deliveries. */
 export const INCOMING_ENDPOINT_HEADER = "x-bs-endpoint-id";
-
-interface EndpointRow {
-  readonly id: string;
-  readonly tenant: string;
-  readonly enabled: boolean;
-  readonly verify: IncomingVerify;
-  readonly secret: string | null;
-  readonly signature_header: string | null;
-  readonly max_body_bytes: number;
-  readonly previous_secret?: string | null;
-}
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
 
@@ -180,27 +44,6 @@ function verifyOf(value: unknown): IncomingVerify {
     throw new TypeError(`Unknown verification mode ${String(value)}`);
   }
   return mode;
-}
-
-const encoder = /* @__PURE__ */ new TextEncoder();
-
-async function hmacHex(secret: string, body: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const mac = new Uint8Array(
-    await crypto.subtle.sign("HMAC", key, encoder.encode(body)),
-  );
-  return Array.from(mac, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function asDbError(cause: unknown): DbError {
-  const raw = fromPgError(cause);
-  return raw ? mapDbError(raw) : toDbError(cause);
 }
 
 const attempt = <T>(fn: () => Promise<T>): AsyncResult<T> =>
@@ -240,7 +83,7 @@ export function createIncomingWebhooks(
     async receive(request, token) {
       const instance = new URL(request.url).pathname;
       if (request.method !== "POST") {
-        return new Response(null, { status: 405, headers: { allow: "POST" } });
+        return methodNotAllowed(["POST"]);
       }
       const problem = (error: DbError, endpoint?: string) =>
         (endpoint === undefined
@@ -277,24 +120,19 @@ export function createIncomingWebhooks(
           );
         }
         if (options.rateLimit) {
-          const [hit] = await sql.queryRaw<{
-            allowed: boolean;
-            retry_after: number;
-          }>(
-            "select * from better_supabase.hit_rate_limit($1, $2, $3, $4::interval)",
-            [
-              `${source}:endpoint`,
-              endpoint.id,
-              options.rateLimit.max,
-              typeof options.rateLimit.period === "number"
-                ? `${String(options.rateLimit.period)} seconds`
-                : options.rateLimit.period,
-            ],
+          const hit = await hitRateLimit(
+            sql,
+            `${source}:endpoint`,
+            endpoint.id,
+            options.rateLimit.max,
+            typeof options.rateLimit.period === "number"
+              ? `${String(options.rateLimit.period)} seconds`
+              : options.rateLimit.period,
           );
-          if (hit && !hit.allowed) {
+          if (!hit.allowed) {
             return await problem(
               dbError("rate_limited", "Too many deliveries", {
-                retryAfter: Math.max(1, hit.retry_after),
+                retryAfter: Math.max(1, hit.retryAfter),
               }),
               endpoint.id,
             );
@@ -385,32 +223,27 @@ export function createIncomingWebhooks(
           ...kept,
           [INCOMING_ENDPOINT_HEADER, endpoint.id],
         ]);
-        const [stored] = await sql.queryRaw<{
-          id: string | number;
-          duplicate: boolean;
-        }>(
-          "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6)",
-          [
-            source,
-            `${endpoint.id}:${messageId}`,
+        const stored = await receiveWebhook(sql, {
+          source,
+          id: `${endpoint.id}:${messageId}`,
+          type:
             typeof payload === "object" &&
             payload !== null &&
             "type" in payload &&
             typeof payload.type === "string"
               ? payload.type
               : null,
-            JSON.stringify(payload),
-            JSON.stringify(headers),
-            endpoint.tenant,
-          ],
-        );
-        const status = stored?.duplicate ? 200 : 202;
+          payload,
+          headers,
+          tenant: endpoint.tenant,
+        });
+        const status = stored.duplicate ? 200 : 202;
         await sql.queryRaw(`select ${fn("record_incoming_webhook")}($1, $2)`, [
           endpoint.id,
           status,
         ]);
         return Response.json(
-          { id: Number(stored?.id), duplicate: stored?.duplicate ?? false },
+          { id: stored.id, duplicate: stored.duplicate },
           { status },
         );
       } catch (cause) {
