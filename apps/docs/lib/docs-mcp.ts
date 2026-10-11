@@ -2,6 +2,8 @@ import { McpServer, type ToolAnnotations } from "@modelcontextprotocol/server";
 import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 
+import { docsUrl } from "./shared";
+
 export const DOCS_MCP_NAME = "better-supabase-docs";
 export const DEFAULT_SEARCH_LIMIT = 8;
 const MAX_SEARCH_LIMIT = 25;
@@ -76,19 +78,6 @@ const PageInput = v.object({
 export const searchInputSchema = toStandardJsonSchema(SearchInput);
 const searchOutputSchema = toStandardJsonSchema(SearchOutput);
 export const pageInputSchema = toStandardJsonSchema(PageInput);
-
-/** `/docs/cli/gen`, `cli/gen`, a full URL or a `.md` route, as the page url. */
-export function docsUrl(input: string): string {
-  const path = input
-    .trim()
-    .replace(/^https?:\/\/[^/]+/u, "")
-    .split(/[?#]/u)[0]!
-    .replace(/\.mdx?$/u, "")
-    .replace(/\/+$/u, "");
-  const parts = path.split("/").filter((part) => part.length > 0);
-  const slugs = parts[0] === "docs" ? parts.slice(1) : parts;
-  return `/docs${slugs.length > 0 ? `/${slugs.join("/")}` : ""}`;
-}
 
 /** A fresh server per request; `createMcpHandler` calls this. */
 export function createDocsMcpServer(docs: DocsMcpSource): McpServer {

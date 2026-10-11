@@ -14,12 +14,12 @@ import * as v from "valibot";
 import { env } from "@/env";
 import {
   DEFAULT_SEARCH_LIMIT,
-  docsUrl,
   pageInputSchema,
   searchInputSchema,
 } from "@/lib/docs-mcp";
 import { searchDocs } from "@/lib/page-search";
 import { searchHits } from "@/lib/search";
+import { docsUrl } from "@/lib/shared";
 import { siteUrl } from "@/lib/site-url";
 import { docsLlms, getPageSummaries, source } from "@/lib/source";
 

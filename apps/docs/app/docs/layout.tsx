@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 
 import { AskAI } from "@/components/ask-ai";
+import { WebMcp } from "@/components/webmcp";
 import { baseOptions } from "@/lib/layout.shared";
 import { source } from "@/lib/source";
 
@@ -16,6 +17,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     >
       {children}
       <AskAI />
+      <WebMcp />
     </DocsLayout>
   );
 }
