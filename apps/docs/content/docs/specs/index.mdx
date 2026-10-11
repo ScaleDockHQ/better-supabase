@@ -145,6 +145,12 @@ export const HEAD = GET;
 `cacheControl`, `contentType` (default `application/json`) and `indent`
 change the response.
 
+`specReference` serves an interactive reference page for the document next
+to that route: Scalar by default, or Swagger UI, Redoc, Stoplight Elements
+or RapiDoc (see [Reference UIs](/docs/specs/reference-ui)). To write the
+documents to files and check them in CI, use
+[`better-supabase spec`](/docs/cli/spec).
+
 ## Pages in this section
 
 - [Customize the model](/docs/specs/customize): security and error
@@ -156,6 +162,8 @@ change the response.
 - [Arazzo](/docs/specs/arazzo): `better-supabase/arazzo`, for workflows over
   the OpenAPI and AsyncAPI documents.
 - [Overlays](/docs/specs/overlay): `better-supabase/overlay`.
+- [Reference UIs](/docs/specs/reference-ui): `specReference` and
+  `scalarPreset`, for an interactive reference page.
 - [Diagnostics](/docs/specs/diagnostics): every code, its severity and its
   fix.
 - [Resources](/docs/specs/resources): the REST routes the adapters serve

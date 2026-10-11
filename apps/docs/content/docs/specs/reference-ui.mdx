@@ -1,0 +1,180 @@
+---
+title: Reference UIs
+description: Serve an interactive API reference for your OpenAPI document with Scalar, Swagger UI, Redoc, Stoplight Elements or RapiDoc, loaded from pinned jsDelivr versions with SRI or from your own assets.
+---
+
+`specReference` from `better-supabase/spec` answers a request with an HTML
+page that renders your OpenAPI document in a reference UI. Serve it next to
+the [`specResponse`](/docs/specs#serve-the-document) route that serves the
+document:
+
+```ts title="src/app/api/openapi.json/route.ts"
+import { specResponse } from "better-supabase/spec";
+import { api } from "../../../lib/api";
+
+const { document } = api.openapi();
+
+export const GET = (request: Request) => specResponse(document, request);
+export const HEAD = GET;
+```
+
+```ts title="src/app/api/docs/route.ts"
+import { specReference } from "better-supabase/spec";
+
+export const GET = (request: Request) =>
+  specReference({ specUrl: "/api/openapi.json", csp: true }, request);
+export const HEAD = GET;
+```
+
+The page loads the document from `specUrl` in the browser, so the two
+routes stay independent: the document keeps its `ETag`, and the page holds
+no copy of it. In Hono, mount both on the app:
+
+```ts title="src/server.ts"
+import { createHono } from "better-supabase/hono";
+import { specReference, specResponse } from "better-supabase/spec";
+import { api } from "./lib/api";
+import { betterSupabase } from "./lib/supabase";
+
+const bs = createHono(betterSupabase);
+const { document } = api.openapi();
+
+export const app = bs
+  .app()
+  .get("/api/openapi.json", (c) => specResponse(document, c.req.raw))
+  .get("/api/docs", (c) =>
+    specReference({ specUrl: "/api/openapi.json", ui: "redoc" }, c.req.raw),
+  );
+```
+
+`specReference(options, request)` answers `GET` and `HEAD` (headers only),
+and `405` with `Allow: GET, HEAD` for any other method. The response is
+`text/html; charset=utf-8` with `Cache-Control: no-cache` unless you pass
+`cacheControl`.
+
+## The five UIs
+
+`ui` picks the UI. Scalar is the default.
+
+| `ui`       | Package                 | Pinned version |
+| ---------- | ----------------------- | -------------- |
+| `scalar`   | `@scalar/api-reference` | 1.73.1         |
+| `swagger`  | `swagger-ui-dist`       | 5.33.1         |
+| `redoc`    | `redoc`                 | 2.5.4          |
+| `elements` | `@stoplight/elements`   | 9.0.28         |
+| `rapidoc`  | `rapidoc`               | 10.1.0         |
+
+`SPEC_UIS` lists the names and `SPEC_UI_PACKAGES` the package and version
+of each. An unknown name throws a `TypeError`.
+
+`config` passes options to the UI: Scalar's configuration, the options of
+Swagger UI and Redoc, or attributes of the Elements and RapiDoc components.
+`title` sets the page title (default `API reference`).
+
+```ts
+specReference(
+  {
+    specUrl: "/api/openapi.json",
+    ui: "swagger",
+    title: "CRM API",
+    config: { deepLinking: true, tryItOutEnabled: true },
+  },
+  request,
+);
+```
+
+Elements renders with `router: "hash"` and `layout: "sidebar"` unless
+`config` overrides them.
+
+## Where the assets come from
+
+By default the page loads each UI from jsDelivr
+(`https://cdn.jsdelivr.net/npm`) at the pinned version, and every script and
+stylesheet tag carries a Subresource Integrity hash with
+`crossorigin="anonymous"`, so the browser refuses a file that changed.
+
+`assets` changes that:
+
+| `assets`               | Loads from                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| unset                  | jsDelivr at the pinned versions, with SRI                                    |
+| a string               | Another CDN with the same package paths, at the pinned versions, without SRI |
+| `{ scripts, styles? }` | Files you host yourself, in the order given                                  |
+
+```ts title="src/app/api/docs/route.ts"
+import { specReference } from "better-supabase/spec";
+
+export const GET = (request: Request) =>
+  specReference(
+    {
+      specUrl: "/api/openapi.json",
+      ui: "scalar",
+      assets: { scripts: ["/vendor/scalar/standalone.js"] },
+      csp: true,
+    },
+    request,
+  );
+```
+
+Self-hosted files carry no integrity attribute: you serve them, so you
+control what they contain.
+
+## Content Security Policy
+
+`nonce` sets a nonce on every script and style tag the page writes, for a
+policy your app already sends. `csp: true` sends a policy with the response
+and generates a nonce when you don't pass one:
+
+| Directive                 | Value                                             |
+| ------------------------- | ------------------------------------------------- |
+| `default-src`             | `'none'`                                          |
+| `script-src`              | the nonce and the asset origins                   |
+| `style-src`               | `'self'`, `'unsafe-inline'` and the asset origins |
+| `img-src`                 | `'self' data: https:`                             |
+| `font-src`                | `'self' data: https:`                             |
+| `connect-src`             | `'self' https:`                                   |
+| `worker-src`              | `'self' blob:`                                    |
+| `base-uri`, `form-action` | `'none'`                                          |
+| `frame-ancestors`         | `'self'`                                          |
+
+The asset origins are those of the URLs the page loads (jsDelivr by
+default); self-hosted relative paths add none. `specReferenceCsp({ nonce,
+ui, assets })` returns the same policy string, for an app that sets its
+headers elsewhere.
+
+## The HTML alone
+
+`specReferenceHtml(options)` returns the page as a string, with the same
+options minus `csp` and `cacheControl`. Use it to write a static file or to
+build your own response. [`spec emit --ui`](/docs/cli/spec#reference-pages)
+uses it to write `openapi.html` next to `openapi.json`.
+
+## Sign in from Scalar
+
+`scalarPreset(document, options)` adds Scalar's `x-scalar-*` extensions to
+an OpenAPI document, so the "try it" panel can sign in through the OAuth
+flows the document declares. It returns a copy. Use it in a
+[`transform`](/docs/specs#transform-one-version):
+
+```ts title="src/lib/api.ts"
+import { scalarPreset } from "better-supabase/spec";
+
+const { document } = api.openapi({
+  transform: ({ document }) =>
+    scalarPreset(document, {
+      clientId: "docs",
+      redirectUri: "https://example.com/api/docs",
+    }),
+});
+```
+
+| Option          | Effect                                                                                |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `clientId`      | `x-scalar-client-id` on every flow of each `oauth2` security scheme                   |
+| `redirectUri`   | `x-scalar-redirect-uri` on the same flows                                             |
+| `pkce`          | `x-usePkce` on the `authorizationCode` flow: `SHA-256` (default), `plain` or `no`     |
+| `defaultScopes` | `x-default-scopes`, the scopes Scalar selects by default                              |
+| `environments`  | `x-scalar-environments` at the document root: variables Scalar offers per environment |
+
+Use a public client: the client id ends up in the document every visitor
+can read.
