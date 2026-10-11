@@ -1,0 +1,165 @@
+---
+title: Authorizers
+description: The runtime authorization decision point that resources, actions, route guards and MCP tools ask for their permission, in the AuthZEN request model, failing closed.
+---
+
+An `Authorizer` decides whether the caller holds a permission. Resources,
+actions, route guards and MCP tools declare a `permission`, and
+better-supabase builds an access request from the verified request context
+and asks the authorizer. Anything but a clear grant refuses the request.
+The interface is provider-neutral and versioned (`apiVersion: 1`):
+authorization libraries ship an adapter that implements it, and
+better-supabase names none of them. The schema side of authorization (the
+SQL a library installs) is the separate
+[`AuthorizationProvider`](/docs/extending/authorization-providers).
+
+## The contract
+
+```ts
+interface Authorizer<Ref = string> {
+  apiVersion: 1;
+  name: string;
+  // The stable key of a permission reference, for documents, SQL and messages.
+  key(ref: Ref): string;
+  // The default permission of a table operation; makes `permissions: true` work.
+  forOperation?(table: string, operation: string): Ref | undefined;
+  evaluate(
+    request: AuthorizationRequest<Ref>,
+  ): AuthorizationOutcome | Promise<AuthorizationOutcome>;
+  // The batch form; results keep the request order.
+  evaluations?(
+    requests: readonly AuthorizationRequest<Ref>[],
+  ): Promise<readonly AuthorizationOutcome[]>;
+}
+```
+
+`Ref` is whatever your permissions are: plain strings, or typed objects your
+library defines. The `permission` options of resources, actions and tools
+are typed from the authorizer you pass, so a typo fails to compile when
+`Ref` is narrower than `string`. `key()` turns a reference into the string
+the API document (`x-better-supabase-permission`), error responses and logs
+use.
+
+A minimal authorizer over a table of grants:
+
+```ts title="src/lib/authorizer.ts"
+export const authorizer = {
+  apiVersion: 1,
+  name: "grants",
+  key: (permission: string) => permission,
+  async evaluate({ subject, action, context }) {
+    const granted = await hasGrant(subject.id, action, context.tenant);
+    return granted ? { outcome: "granted" } : { outcome: "denied" };
+  },
+} as const;
+```
+
+## The request
+
+Each request follows the [AuthZEN](/docs/standards/authzen) Authorization
+API 1.0 information model:
+a subject, an action, a resource and a context.
+
+| Field      | What it holds                                                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `subject`  | The caller, from the verified context only (see below)                                                                 |
+| `action`   | The permission reference                                                                                               |
+| `resource` | What is acted on: `type`, an optional `id`, and `properties`                                                           |
+| `context`  | `tenant` (when the request has one), `aal` (from the token), and `scopes` (the token's `scope` claim, split on spaces) |
+
+The subject's `type` is the actor kind (`user` or `service`), or `agent` for
+a user token that carries an `act` claim (a delegated token). Its `id` is the
+actor id, and its `properties` hold `role`, `email` and `impersonator` when
+they are set. A caller without a session is `{ type: "anon", id: "anonymous" }`.
+Nothing the client sends ends up in the subject.
+
+| Where the permission is declared | `resource`                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------- |
+| A resource operation             | `type` is the table; `id` and the row as `properties` (the body for `create`) |
+| A resource action                | the table, plus the key and the row for an item action                        |
+| An MCP tool                      | `{ type: "mcp_tool", id: <tool name>, properties: <arguments> }`              |
+| A route guard                    | `{ type: "route" }`                                                           |
+| A server or block action         | `{ type: "action", properties: <the validated input> }`                       |
+
+## Outcomes
+
+`evaluate` returns one of three outcomes, each with an optional `context`:
+
+| Outcome                                       | Answer                                                        |
+| --------------------------------------------- | ------------------------------------------------------------- |
+| `{ outcome: "granted" }`                      | The request goes on                                           |
+| `{ outcome: "denied", reason? }`              | 403 with `code: "PERMISSION_DENIED"`; `reason` is the message |
+| `{ outcome: "approval-required", approval? }` | 403 with `code: "APPROVAL_REQUIRED"` and `approval: { id }`   |
+
+Both refusals are `forbidden` errors that carry the permission key in
+`permission`, rendered as [Problem Details](/docs/auth/problems).
+
+## Fail closed
+
+Every way an answer can go wrong denies:
+
+| Case                                               | Error message                                        |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| A permission is declared but no authorizer is set  | `A permission is declared, but no authorizer is set` |
+| `key()` throws                                     | `Unknown permission`                                 |
+| `evaluate` throws or rejects                       | `The authorizer failed for <key>`                    |
+| `evaluate` returns anything but the three outcomes | `The authorizer gave no decision for <key>`          |
+
+All of them are `PERMISSION_DENIED`. A permission check never throws: the
+operation returns the error as a `Result`, like every other database error.
+When a resource lists rows, each row is checked (through `evaluations` when
+the authorizer has it), and any failure leaves the row out.
+
+## Set the authorizer
+
+Pass it once, where the server is created. Every resource, action, route
+guard and MCP tool of that server uses it:
+
+```ts title="src/server.ts"
+import { createHono } from "better-supabase/hono";
+import { authorizer } from "./lib/authorizer";
+
+const bs = createHono(betterSupabase, { authorizer });
+```
+
+| Where                                                                   | Option                                     |
+| ----------------------------------------------------------------------- | ------------------------------------------ |
+| `createServer` (`better-supabase/server`)                               | `authorizer`                               |
+| `createHono`, `createEdge`, `createNext`, `createMcp`                   | `authorizer`                               |
+| The standalone route guards (Express, Fastify, Koa, h3, Elysia, NestJS) | `authorizer` on the guard                  |
+| `defineApi`                                                             | `authorizer`, for the keys in the document |
+
+Give `defineApi` the same authorizer so the document shows each operation's
+permission key and its 403 response (see
+[Permissions in the document](/docs/specs/customize#permissions-in-the-document)).
+
+## Test an authorizer
+
+`testAuthorizer` from `better-supabase/testing` runs the conformance kit
+against your adapter. It checks that the authorizer targets API v1 and has a
+name, that `key()` returns a stable, non-empty string, that every answer is
+one of the three outcomes and leaves the request unchanged, that
+`evaluations` agrees with `evaluate` and keeps the order, that the decision
+comes from the subject and never from a forged input, and that an unknown
+permission is never granted:
+
+```ts title="tests/authorizer.test.ts"
+import { test } from "vitest";
+import { testAuthorizer } from "better-supabase/testing";
+import { authorizer } from "../src/lib/authorizer";
+
+test("the authorizer conforms", async () => {
+  await testAuthorizer(authorizer, {
+    permissions: ["customers.read", "customers.delete"],
+    unknown: "nothing.here",
+    granted: { permission: "customers.read", context: adminContext },
+  });
+});
+```
+
+It resolves with the report, and rejects with a `ConformanceError` that
+lists every failed check.
+
+For tests and examples that need an authorizer but not a library,
+`staticAuthorizer` decides from the subject's role and id. See
+[Testing](/docs/testing#authorizers).

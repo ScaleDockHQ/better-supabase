@@ -110,6 +110,36 @@ await app.request("/api/customers", {
 For HS256 tokens, add `localAuth(secret)` to `auth.resolvers`. Use it in
 tests only.
 
+## Authorizers
+
+`staticAuthorizer` is an in-memory [authorizer](/docs/extending/authorizers)
+for tests and examples. Permissions come from the subject's role and id,
+never from the request's resource or context:
+
+```ts
+import { staticAuthorizer } from "better-supabase/testing";
+
+const authorizer = staticAuthorizer({
+  roles: {
+    authenticated: ["customers.read"],
+    service_role: ["customers.delete"],
+  },
+  grants: { [alice.id]: ["customers.delete"] },
+  approvals: ["invoices.void"],
+});
+
+const bs = createHono(betterSupabase, { authorizer });
+```
+
+| Option      | What it grants                                                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `roles`     | Permissions per role: the subject's `role` property (the Postgres role, such as `authenticated`), or its type (`anon`) |
+| `grants`    | Permissions per subject id, on top of the role's                                                                       |
+| `approvals` | Permissions that answer `approval-required`, with the approval id `approval:<permission>`                              |
+
+Anything else is denied. To check an authorizer of your own, run
+`testAuthorizer` (see [Conformance](/docs/extending/conformance)).
+
 ## Tenant isolation
 
 `expectTenantIsolation(betterSupabase, { tenants, tables })` checks that RLS keeps two

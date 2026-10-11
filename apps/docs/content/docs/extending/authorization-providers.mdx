@@ -24,6 +24,13 @@ export default defineConfig({
 [PermDock](https://permdock.com/docs/adapters/better-supabase) builds one
 from its manifest and catalog.
 
+The provider covers the database side. Permission checks in your server
+code (a resource's `permissions`, an action's or MCP tool's `permission`, a
+route guard) go to a runtime [authorizer](/docs/extending/authorizers)
+instead, passed as `authorizer` to the server. An authorization package can
+ship both: the provider for the config, and an authorizer for the server
+that answers with the same permission keys.
+
 ## What reads it
 
 | Feature                                                                                    | What it takes from the provider                                                   |

@@ -67,8 +67,25 @@ app.use(problemErrorHandler());
 ```
 
 Guards take the same options as every adapter: `allow`, `aal`, `scopes`,
-`roles` and `roleClaim`, `requireTenant`, `authorize`, and the `signIn` and
-`mfa` redirects for browser routes.
+`roles` and `roleClaim`, `requireTenant`, `permission`, `authorize`, and the
+`signIn` and `mfa` redirects for browser routes.
+
+A `permission` needs an [authorizer](/docs/extending/authorizers), passed on
+the guard. It is checked after `requireTenant` and `roles` and before
+`authorize`, with `{ type: "route" }` as the resource. A guard with a
+`permission` and no `authorizer` refuses every caller:
+
+```ts
+app.get(
+  "/reports",
+  guard({ permission: "reports:read", authorizer }),
+  async (req, res) => {
+    res.json(await res.locals.db.reports.findMany().orThrow());
+  },
+);
+```
+
+`fastifyGuard` and `koaGuard` take the same two options.
 
 Express types `res.locals` as a record of `any`. Extend its `Locals`
 interface with `BetterSupabaseContributions` once, and `res.locals.db` is

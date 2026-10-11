@@ -42,6 +42,25 @@ A tenant from a URL or request body is only safe after you check it against
 the user's memberships. Do that in `resolve`, or pass `{ tenant }` to
 `betterSupabase.connect` once it is checked.
 
+## In the API document
+
+[`defineApi`](/docs/specs) marks the tenant column of every served tenant
+table `readOnly`, described as "Set from the request's tenant.", and drops
+it from the required fields of request bodies. When `resolve` reads the
+tenant from a header, name it in `header` so the document lists it:
+
+```ts
+tenant({
+  header: "X-Organization",
+  resolve: (context) => checkedOrganization(context),
+});
+```
+
+Each operation on a tenant table then has an `X-Organization` header
+parameter, "The tenant the request acts for.", required unless
+`onMissing: 'skip'`. The plugin doesn't read the header itself; `resolve`
+does.
+
 Pass your [claims type](/docs/auth#typed-claims) to check the paths at
 compile time. Only paths to string claims, up to three levels deep, are
 accepted:
