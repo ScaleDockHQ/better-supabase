@@ -29,6 +29,7 @@ import { serverCore } from "../server/entries/core.ts";
 import { withExtra } from "../server/extra.ts";
 import {
   authorizeCaller as authorizeAuth,
+  requireCaller,
   formDataObject,
   type ActionResult,
   type AuthorizeOptions,
@@ -605,14 +606,12 @@ export function createNext<
 
       require: async (requireOptions = {}) => {
         const ctx = await current(requireOptions.tenant);
-        const denied = guard(
+        const caller = await requireCaller(
           ctx.auth,
-          requireOptions.allow,
-          requireOptions.aal,
-          requireOptions.scopes,
+          requireOptions,
+          tenantFor(ctx, toSession(ctx.auth)),
+          options.authorizer,
         );
-        const caller =
-          denied ?? (await authorizeCaller(ctx, requireOptions, undefined));
         if ("kind" in caller) interrupt(caller);
         // SAFETY: requireTenant refused a missing tenant.
         return withExtra(ctx, caller) as never;
