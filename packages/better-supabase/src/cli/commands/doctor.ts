@@ -1,46 +1,35 @@
-import { existsSync } from "node:fs";
-import { glob, readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliArgs } from "../command.ts";
-import type { LiveDatabase } from "../doctor/live.ts";
 import type { CliEnv } from "../env.ts";
-import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
-import { byCodePoint } from "../compare.ts";
 import { stdinDatabaseUrl } from "../config.ts";
 import { connect } from "../db.ts";
-import {
-  type AdvisorSource,
-  apiSchemas,
-  managementAdvisors,
-  splinterAdvisors,
-} from "../doctor/advisors.ts";
-import {
-  DOCTOR_FORMATS,
-  type DoctorFormat,
-  formatReport,
-  jsonReport,
-} from "../doctor/format.ts";
+import { formatReport, jsonReport } from "../doctor/format.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
+import {
+  ENV_FILES,
+  readText,
+  sqlFiles,
+  sourceFiles,
+} from "../doctor/inputs.ts";
+import { LIVE_CODES, type OpenLive, openLive } from "../doctor/live-source.ts";
+import { locate } from "../doctor/locate.ts";
+import { explainClaims, reportFormat } from "../doctor/options.ts";
 import {
   type DoctorContext,
   type Finding,
-  lineOf,
-  type Location,
   RULE_CODES,
   RULES,
   runRules,
-  type SqlObject,
   type TextFile,
 } from "../doctor/rules.ts";
-import { CliError, errorText } from "../errors.ts";
+import { errorText } from "../errors.ts";
 import { METADATA_REJECTED, readMetadataSnapshot } from "../gen/metadata.ts";
-import { CACHE_DIR } from "../introspect/cache.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { display, writeIfChanged } from "../io.ts";
 import { peerVersions } from "../peers.ts";
@@ -51,17 +40,9 @@ import {
   diffEngine,
   findRepoRoot,
   readSupabaseToml,
-  schemaPaths,
-  type SupabaseToml,
 } from "../supabase-toml.ts";
 import { VERSION } from "../version.ts";
-import {
-  loadSnapshot,
-  managementTarget,
-  openSource,
-  type SnapshotSource,
-  snapshotFile,
-} from "./snapshot.ts";
+import { loadSnapshot, type SnapshotSource } from "./snapshot.ts";
 
 const ARGS = {
   format: {
@@ -141,137 +122,6 @@ const ARGS = {
 
 export type DoctorArgs = CliArgs<typeof ARGS>;
 
-const ENV_FILES = [
-  ".env",
-  ".env.local",
-  ".env.example",
-  ".env.development",
-  ".env.development.local",
-  ".env.production",
-  ".env.production.local",
-];
-
-async function readText(
-  root: string,
-  path: string,
-): Promise<TextFile | undefined> {
-  const absolute = resolve(root, path);
-  return existsSync(absolute)
-    ? { path, text: await readFile(absolute, "utf8") }
-    : undefined;
-}
-
-/** The declarative schemas in the diff engine's order, then the migrations newest first. */
-async function sqlFiles(
-  root: string,
-  toml: SupabaseToml | undefined,
-): Promise<TextFile[]> {
-  const read = async (path: string): Promise<TextFile> => ({
-    path,
-    text: await readFile(resolve(root, path), "utf8"),
-  });
-  const schemas = await Promise.all(
-    (await schemaPaths(root, toml)).files.map(read),
-  );
-  const migrationsPath = `${toml?.dir ?? "supabase"}/migrations`;
-  const migrationsDir = resolve(root, migrationsPath);
-  const migrations = existsSync(migrationsDir)
-    ? (await readdir(migrationsDir))
-        .filter((name) => name.endsWith(".sql"))
-        .sort()
-        .reverse()
-        .map((name) => `${migrationsPath}/${name}`)
-    : [];
-  return [...schemas, ...(await Promise.all(migrations.map(read)))];
-}
-
-/** Files matching `doctor.sources`, skipping dependencies and build output. */
-async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
-  const files: TextFile[] = [];
-  for await (const path of glob([...config.doctor.sources], {
-    cwd: config.root,
-    exclude: (name) => name === "node_modules" || name === ".next",
-  })) {
-    files.push({
-      path,
-      text: await readFile(resolve(config.root, path), "utf8"),
-    });
-  }
-  return files.sort((a, b) => byCodePoint(a.path, b.path));
-}
-
-const escape = (name: string): string =>
-  name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/** Where a table, function or policy is declared: declarative schemas first, then the newest migration. */
-export function locate(
-  files: readonly TextFile[],
-  object: SqlObject,
-): Location | undefined {
-  const name = `"?${escape(object.name)}"?`;
-  const qualifiedName = `(?:"?${escape(object.schema)}"?\\.)?${name}`;
-  if (object.kind === "policy" && object.table !== undefined) {
-    // `create policy <name>` and `on <table>` are often on separate lines.
-    const onTable = new RegExp(
-      `create\\s+policy\\s+${name}\\s+on\\s+(?:only\\s+)?(?:"?${escape(object.schema)}"?\\.)?"?${escape(object.table)}"?(?:\\s|;|$)`,
-      "i",
-    );
-    for (const file of files) {
-      const match = onTable.exec(file.text);
-      if (match)
-        return {
-          file: file.path,
-          line: file.text.slice(0, match.index).split("\n").length,
-        };
-    }
-    return undefined;
-  }
-  const pattern =
-    object.kind === "table"
-      ? new RegExp(
-          `create\\s+(?:unlogged\\s+)?table\\s+(?:if\\s+not\\s+exists\\s+)?${qualifiedName}(?:\\s|\\(|$)`,
-          "i",
-        )
-      : object.kind === "function"
-        ? new RegExp(
-            `create\\s+(?:or\\s+replace\\s+)?function\\s+${qualifiedName}\\s*\\(`,
-            "i",
-          )
-        : new RegExp(`create\\s+policy\\s+${name}`, "i");
-  for (const file of files) {
-    const line = lineOf(file.text, pattern);
-    if (line) return { file: file.path, line };
-  }
-  return undefined;
-}
-
-const FLAG_FORMATS = DOCTOR_FORMATS.filter((format) => format !== "json");
-
-/** `--json` picks the JSON report; `--format`, then `doctor.format`, picks between the others. */
-function reportFormat(
-  args: DoctorArgs,
-  configured: DoctorFormat,
-): DoctorFormat {
-  if (args.format === "json") {
-    throw new CliError("usage", "--format json is now the global --json flag");
-  }
-  if (args.json === true) {
-    if (args.format !== undefined) {
-      throw new CliError("usage", "Pass --json or --format, not both");
-    }
-    return "json";
-  }
-  if (args.format === undefined) return configured;
-  const format = FLAG_FORMATS.find((candidate) => candidate === args.format);
-  if (!format) {
-    throw new CliError(
-      "usage",
-      `--format must be one of ${FLAG_FORMATS.join(", ")}`,
-    );
-  }
-  return format;
-}
-
 export interface DoctorOptions {
   /** Pre-loaded snapshot (tests). */
   readonly snapshot?: Snapshot;
@@ -289,105 +139,6 @@ export interface DoctorOptions {
   readonly dbUrl?: string;
   /** Ends the database connection (Ctrl-C). */
   readonly signal?: AbortSignal;
-}
-
-/** Checks that read the database itself rather than the snapshot. */
-const LIVE_CODES = new Set(["BS100", "BS200", "BS208", "BS209", "BS212"]);
-
-type Env = CliEnv;
-
-interface OpenLive {
-  readonly advisors: DoctorContext["advisors"];
-  readonly database: DoctorContext["database"];
-  /** The connection the live checks use, opened on first use; introspection shares it. */
-  readonly open?: () => Promise<IntrospectionSource>;
-  close(): Promise<void>;
-}
-
-/**
- * The database doctor reads, for advisors and live checks: the Management
- * API for hosted projects, one lazily opened connection otherwise (splinter
- * runs over it). Saved snapshots skip both.
- */
-function openLive(
-  config: ResolvedConfig,
-  env: Env,
-  source: SnapshotSource,
-  pg: typeof connect,
-): OpenLive {
-  const none = { close: () => Promise.resolve() };
-  const file = snapshotFile(config, source);
-  if (file) {
-    const skipped = `reading the saved snapshot ${file}; set $DATABASE_URL or $SUPABASE_DB_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
-    return { ...none, advisors: { skipped }, database: { skipped } };
-  }
-  let opened: Promise<IntrospectionSource> | undefined;
-  const open = (): Promise<IntrospectionSource> =>
-    (opened ??= openSource(config, env, source, pg));
-  const target = managementTarget(config, env, source);
-  const database: LiveDatabase = {
-    describe: target
-      ? `project ${target.projectRef} (Management API)`
-      : "database",
-    session: !target,
-    async query<R>(sql: string) {
-      const result = await (await open()).queryable.query(sql);
-      // SAFETY: R is the row type the caller declares for its query.
-      return result.rows as R[];
-    },
-  };
-  const close = async (): Promise<void> => {
-    if (opened) await (await opened).close();
-  };
-  if (target)
-    return { advisors: managementAdvisors(target), database, open, close };
-  let splinter: Promise<AdvisorSource> | undefined;
-  const cacheDir = resolve(config.root, CACHE_DIR);
-  const advisors: AdvisorSource = {
-    describe: "database (splinter)",
-    async lints(category) {
-      splinter ??= Promise.all([
-        open(),
-        readSupabaseToml(config.root).catch(() => undefined),
-      ]).then(([db, toml]) =>
-        splinterAdvisors(db.queryable, db.describe, {
-          cacheDir,
-          schemas: apiSchemas(toml?.document),
-        }),
-      );
-      return (await splinter).lints(category);
-    },
-  };
-  return { advisors, database, open, close };
-}
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** `--as <uuid>` or `--claims <json>` as `request.jwt.claims`. */
-function explainClaims(
-  args: DoctorArgs,
-): Record<string, unknown> | { error: string } {
-  const as = args.as;
-  const claims = args.claims;
-  if (as && claims) return { error: "Pass --as or --claims, not both" };
-  if (as) {
-    if (!UUID.test(as))
-      return { error: `--as takes a user id (uuid), got "${as}"` };
-    return { sub: as, role: "authenticated" };
-  }
-  if (!claims) return { role: "anon" };
-  try {
-    // SAFETY: JSON.parse returns any, and the object check below narrows it.
-    const parsed = JSON.parse(claims) as unknown;
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
-      return { error: "--claims takes a JSON object" };
-    // SAFETY: the check above narrows parsed to a plain object.
-    return { role: "anon", ...(parsed as Record<string, unknown>) };
-  } catch (cause) {
-    return {
-      error: `--claims is not valid JSON: ${errorText(cause)}`,
-    };
-  }
 }
 
 export async function runDoctor(
