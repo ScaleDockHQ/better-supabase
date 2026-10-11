@@ -4,6 +4,8 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { Executor } from "../../src/core/executor.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
+import { dbError } from "../../src/core/errors.ts";
+import { err, ok } from "../../src/core/result.ts";
 import { provideTemporal } from "../../src/core/temporal.ts";
 import { defineListQuery, UNSET } from "../../src/list/index.ts";
 import {
@@ -454,6 +456,24 @@ describe("lists on SQLite", () => {
 
   it("passes the SQLite check", async () => {
     expect((await checkSqlite(betterSupabase, list)).ok).toBe(true);
+    expect(await checkSqlite(betterSupabase, list, { all: true })).toEqual([]);
+  });
+
+  it("reports every unsupported feature with all: true", async () => {
+    const serverOnly = defineListQuery(betterSupabase, "customers", {
+      search: { fts: "name" },
+      sorts: { organization: { organization: { name: "asc" } } },
+      defaultSort: "organization",
+    });
+    const first = await checkSqlite(betterSupabase, serverOnly);
+    expect(first.error?.kind).toBe("unsupported");
+    const all = await checkSqlite(betterSupabase, serverOnly, { all: true });
+    expect(all.map((error) => error.details)).toEqual(
+      expect.arrayContaining([
+        "full-text search",
+        'a sort by the relation "organization"',
+      ]),
+    );
   });
 });
 
@@ -461,6 +481,124 @@ const tick = (): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, 0);
   });
+
+/** A server stand-in that records what reaches it. */
+function serverStub(rows: readonly Record<string, unknown>[] = []) {
+  const ops: string[] = [];
+  const rpcs: string[] = [];
+  let offline = false;
+  const executor: Executor = {
+    name: "server",
+    functionSources: true,
+    execute: async (op) => {
+      ops.push(`${op.kind} ${op.table.key}`);
+      return offline
+        ? err(dbError("network", "offline"))
+        : ok({ rows, count: rows.length });
+    },
+    rpc: async (name) => {
+      rpcs.push(name);
+      return ok([{ noteCount: 3 }]);
+    },
+  };
+  return {
+    executor,
+    ops,
+    rpcs,
+    goOffline: () => {
+      offline = true;
+    },
+  };
+}
+
+describe("powersyncExecutor with a fallback", () => {
+  function withFallback(rows?: readonly Record<string, unknown>[]) {
+    const sqlite = createSqlite(betterSupabase.meta);
+    const server = serverStub(rows);
+    const client = betterSupabase.connect(
+      powersyncExecutor(sqlite.db, { fallback: server.executor }),
+    );
+    return { ...sqlite, server, client };
+  }
+
+  it("runs reads SQLite can't compile on the fallback", async () => {
+    const { client, server, statements } = withFallback([
+      { id: "c1", name: "Acme", locations: [] },
+    ]);
+    const result = await client.customers.findMany({
+      select: ["id", "name"],
+      include: { locations: true },
+    });
+    expect(result.ok).toBe(true);
+    expect(server.ops).toEqual(["select customers"]);
+    expect(statements).toEqual([]);
+
+    await client.tags.findMany();
+    expect(server.ops).toEqual(["select customers"]);
+  });
+
+  it("never sends writes to the fallback", async () => {
+    const { client, server } = withFallback();
+    const created = await client.customers.create(
+      { organizationId: ORG, name: "Acme" },
+      { include: { locations: true } },
+    );
+    expect(created.error?.kind).toBe("unsupported");
+    expect(server.ops).toEqual([]);
+  });
+
+  it("calls $rpc on the fallback, and returns unsupported without one", async () => {
+    const { client, server } = withFallback();
+    const counts = await client.$rpc("customer_note_counts", {});
+    expect(counts.ok).toBe(true);
+    expect(server.rpcs).toEqual(["customer_note_counts"]);
+
+    const { client: local } = setup();
+    expect((await local.$rpc("customer_note_counts", {})).error?.kind).toBe(
+      "unsupported",
+    );
+    expect(
+      powersyncExecutor(createSqlite(betterSupabase.meta).db),
+    ).not.toHaveProperty("rpc");
+  });
+
+  it("mirrors the fallback's function sources", () => {
+    const { db } = setup();
+    expect(
+      powersyncExecutor(db, { fallback: serverStub().executor })
+        .functionSources,
+    ).toBe(true);
+    expect(powersyncExecutor(db).functionSources).toBeUndefined();
+  });
+
+  it("returns the fallback's error when it fails, for example offline", async () => {
+    const { client, server } = withFallback();
+    server.goOffline();
+    const result = await client.customers.findMany({
+      include: { locations: true },
+    });
+    expect(result.error).toMatchObject({ kind: "network" });
+  });
+
+  it("reruns a fallback read in watch only when a watched local table changes", async () => {
+    const { db, client, server } = withFallback([{ id: "c1", locations: [] }]);
+    const stop = watch(
+      db,
+      () => client.customers.findMany({ include: { locations: true } }),
+      {
+        tables: sqliteTables(betterSupabase, ["customers"]),
+        onResult: () => undefined,
+        structuralSharing: false,
+      },
+    );
+    await tick();
+    expect(server.ops).toHaveLength(1);
+    await client.customers.create({ organizationId: ORG, name: "Local" });
+    await tick();
+    expect(server.ops).toHaveLength(2);
+    stop();
+  });
+});
 
 describe("watch", () => {
   it("reruns the query when a watched table changes", async () => {

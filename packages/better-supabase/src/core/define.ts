@@ -1149,7 +1149,7 @@ function rpc(
     if (!executor.rpc) {
       return err(
         dbError(
-          "invalid_request",
+          "unsupported",
           `Executor "${executor.name}" does not support rpc()`,
         ),
       );

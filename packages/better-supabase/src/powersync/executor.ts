@@ -65,6 +65,13 @@ export interface PowerSyncExecutorOptions extends SqliteCompilerOptions {
    * `crypto.randomUUID()`, else SQLite's `uuid()` (PowerSync registers it).
    */
   readonly newId?: (table: TableMeta) => string | Promise<string>;
+  /**
+   * Runs what SQLite can't, usually `postgrestExecutor(supabase)`: reads
+   * that compile to `unsupported` (includes, full-text search, function
+   * sources) and `db.$rpc`. Writes never fall back, so PowerSync's upload
+   * queue stays the only write path. Offline, the fallback's error comes back.
+   */
+  readonly fallback?: Executor;
 }
 
 const UNIQUE = /(?:UNIQUE|PRIMARY KEY) constraint failed: (.+)$/m;
@@ -343,7 +350,11 @@ async function executeOn(
       op.kind === "insert" ? await withIds(db, op, options.newId) : op;
     plan = compileSqlite(prepared, options);
   } catch (cause) {
-    return err(toDbError(cause));
+    const error = toDbError(cause);
+    const { fallback } = options;
+    if (fallback && op.kind === "select" && error.kind === "unsupported")
+      return fallback.execute(op, context);
+    return err(error);
   }
   if (plan.kind === "never") return ok({ rows: [], count: 0 });
   // Generating ids can wait on SQLite: an abort in between skips the write.
@@ -374,23 +385,30 @@ function mapped(cause: unknown, mappers: readonly ErrorMapper[]): DbError {
  * same repositories and list definitions work offline on native. Reads
  * return rows in the PostgREST shape (booleans, parsed JSON, ISO
  * timestamps); writes go through PowerSync's upload queue. What SQLite
- * can't express (includes, full-text search, function sources) returns a
- * `DbError` of kind `unsupported` without running anything.
+ * can't express (includes, full-text search, function sources) and
+ * `db.$rpc` return a `DbError` of kind `unsupported` without running
+ * anything, or run on `options.fallback` when you pass one.
  * `maxAffected` is checked against the selected keys before any write; a
  * call's `timeout` and `signal` are checked before the statements start,
  * and `retry` does nothing here. A `bigint` beyond `Number.MAX_SAFE_INTEGER`
  * comes back as its decimal string instead of a rounded number.
  *
  * ```ts
- * const db = betterSupabase.connect(powersyncExecutor(powersync));
+ * const db = betterSupabase.connect(
+ *   powersyncExecutor(powersync, { fallback: postgrestExecutor(supabase) }),
+ * );
  * ```
  */
 export function powersyncExecutor(
   db: PowerSyncDatabaseLike,
   options: PowerSyncExecutorOptions = {},
 ): Executor {
+  const { fallback } = options;
+  const rpc = fallback?.rpc?.bind(fallback);
   return {
     name: "powersync",
+    ...(fallback?.functionSources ? { functionSources: true } : {}),
     execute: (op, context) => executeOn(db, op, context, options),
+    ...(rpc ? { rpc } : {}),
   };
 }

@@ -640,7 +640,7 @@ describe("$rpc", () => {
         .connect(fake())
         .$rpc("search_notes" as never, {} as never),
     ).toEqual(
-      err(dbError("invalid_request", 'Executor "fake" does not support rpc()')),
+      err(dbError("unsupported", 'Executor "fake" does not support rpc()')),
     );
   });
 

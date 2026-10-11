@@ -1,4 +1,5 @@
 export { checkSqlite, sqliteCompiler } from "./compiler.ts";
+export type { CheckSqliteOptions } from "./compiler.ts";
 export {
   fromSqliteError,
   postgrestTimestamp,
