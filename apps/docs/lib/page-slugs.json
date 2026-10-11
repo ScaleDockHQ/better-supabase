@@ -148,6 +148,7 @@
   "migration/existing-apps",
   "migration/supabase-cache-helpers",
   "migration/supabase-js",
+  "platform/edge-functions",
   "platform/list",
   "platform/realtime",
   "platform/storage",

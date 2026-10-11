@@ -24,12 +24,12 @@ These run in your app. Only the first four are dependencies of
 supabase-js brings the service clients along. better-supabase never imports
 them directly; it reaches each one through the supabase-js client:
 
-| Package                  | Reached through                                                                   | Docs                                    |
-| ------------------------ | --------------------------------------------------------------------------------- | --------------------------------------- |
-| `@supabase/auth-js`      | `client.auth` (sign-in helpers, `auth.admin` for account deletion and suspension) | [Auth](/docs/auth)                      |
-| `@supabase/storage-js`   | `client.storage` (typed buckets, analytics and vector buckets)                    | [Storage](/docs/platform/storage)       |
-| `@supabase/realtime-js`  | `client.channel` (typed topics, presence and live queries)                        | [Realtime](/docs/platform/realtime)     |
-| `@supabase/functions-js` | `client.functions`                                                                | [Edge Functions](/docs/frameworks/edge) |
+| Package                  | Reached through                                                                         | Docs                                            |
+| ------------------------ | --------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `@supabase/auth-js`      | `client.auth` (sign-in helpers, `auth.admin` for account deletion and suspension)       | [Auth](/docs/auth)                              |
+| `@supabase/storage-js`   | `client.storage` (typed buckets, analytics and vector buckets)                          | [Storage](/docs/platform/storage)               |
+| `@supabase/realtime-js`  | `client.channel` (typed topics, presence and live queries)                              | [Realtime](/docs/platform/realtime)             |
+| `@supabase/functions-js` | `functions()` in `better-supabase/client`, the typed calls to `defineFunction` handlers | [Edge Functions](/docs/platform/edge-functions) |
 
 `@supabase/gotrue-js` is the old name of `@supabase/auth-js` and is
 deprecated; don't install it next to supabase-js. `@supabase/shared-types` is

@@ -29,6 +29,11 @@ same way as in the other adapters:
 Anyone not in `allow` (default `['user']`) gets a 401 or 403 before your code
 runs.
 
+For a function the app calls with a typed input and output, use
+[`defineFunction`](/docs/platform/edge-functions): it checks the body with a
+Standard Schema and exports a contract for `functions()` in
+`better-supabase/client`.
+
 With [`.claims(schema)`](/docs/auth#typed-claims) on the definition, `auth`
 in the handler is typed by the schema's output:
 

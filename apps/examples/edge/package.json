@@ -5,7 +5,9 @@
   "description": "A Supabase Edge Function with CORS, auth and Problem Details.",
   "type": "module",
   "exports": {
-    "./handler": "./supabase/functions/api/handler.ts"
+    "./handler": "./supabase/functions/api/handler.ts",
+    "./create-customer": "./supabase/functions/create-customer/handler.ts",
+    "./functions": "./lib/functions.ts"
   },
   "scripts": {
     "gen": "better-supabase gen",
@@ -17,7 +19,8 @@
   "dependencies": {
     "@supabase/server": "catalog:",
     "@supabase/supabase-js": "catalog:",
-    "better-supabase": "workspace:*"
+    "better-supabase": "workspace:*",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@better-supabase/ox-config": "workspace:*",

@@ -14,6 +14,14 @@ import { EnvValidationError, parseEnv, type PublicEnv } from "../env/index.ts";
 import { bindClient } from "./bind.ts";
 
 export { bindClient } from "./bind.ts";
+export { functions } from "./functions.ts";
+export type {
+  FunctionContract,
+  FunctionContracts,
+  FunctionsHost,
+  InvokeOptions,
+  TypedFunctions,
+} from "./functions.ts";
 export type {
   AuthSnapshot,
   AuthUser,

@@ -326,7 +326,8 @@
   "./client": {
     "values": [
       "bindClient",
-      "createClient"
+      "createClient",
+      "functions"
     ],
     "types": [
       "AuthSnapshot",
@@ -334,7 +335,12 @@
       "BetterClient",
       "BindClientOptions",
       "ClientAuth",
-      "ClientOptions"
+      "ClientOptions",
+      "FunctionContract",
+      "FunctionContracts",
+      "FunctionsHost",
+      "InvokeOptions",
+      "TypedFunctions"
     ]
   },
   "./client/native": {
@@ -1244,12 +1250,14 @@
     "values": [
       "corsConfig",
       "createEdge",
+      "defineFunction",
       "SUPABASE_CORS_HEADERS",
       "toEdge"
     ],
     "types": [
       "BetterEdge",
       "BlockRequireOptions",
+      "ContractOf",
       "CorsOptions",
       "EdgeExecutionContext",
       "EdgeHandler",
@@ -1257,12 +1265,15 @@
       "EdgeRoute",
       "EdgeRouteHandler",
       "EdgeRoutes",
+      "FunctionContract",
+      "FunctionDefinition",
       "GuardOptions",
       "MiddlewareOptions",
       "ResourceMap",
       "ResourceRouteOptions",
       "ResourcesOptions",
-      "RouteParams"
+      "RouteParams",
+      "TypedFunction"
     ]
   },
   "./mcp": {
