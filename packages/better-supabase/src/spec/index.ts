@@ -39,3 +39,18 @@ export { DEFAULT_ERRORS, PROBLEM_SCHEMA } from "./presets.ts";
 export type { ResourceDescription, ResourcePlan } from "./resource.ts";
 export type { SerializeOptions, SpecResponseOptions } from "./serialize.ts";
 export { serializeDocument, specResponse } from "./serialize.ts";
+export type {
+  ScalarPresetOptions,
+  SpecReferenceOptions,
+  SpecReferenceResponseOptions,
+  SpecUi,
+  SpecUiAssets,
+} from "./reference.ts";
+export {
+  SPEC_UI_PACKAGES,
+  SPEC_UIS,
+  scalarPreset,
+  specReference,
+  specReferenceCsp,
+  specReferenceHtml,
+} from "./reference.ts";
