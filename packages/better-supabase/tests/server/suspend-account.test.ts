@@ -88,10 +88,22 @@ describe("endSessions", () => {
 });
 
 describe("suspendAccount", () => {
-  it("bans the user, then ends every session", async () => {
-    const { sql, client, order } = setup({ ended: 1 });
+  it("bans the user and keeps the sessions", async () => {
+    const { sql, client, order, queryRaw } = setup({ ended: 1 });
     expect(
       await suspendAccount(client, sql, USER, { suspended: true }).orThrow(),
+    ).toEqual({ userId: USER, suspended: true, ended: 0 });
+    expect(order).toEqual(["ban:876000h"]);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("bans the user, then ends every session with endSessions", async () => {
+    const { sql, client, order } = setup({ ended: 1 });
+    expect(
+      await suspendAccount(client, sql, USER, {
+        suspended: true,
+        endSessions: true,
+      }).orThrow(),
     ).toEqual({ userId: USER, suspended: true, ended: 1 });
     expect(order).toEqual(["ban:876000h", "sessions"]);
   });
@@ -102,14 +114,14 @@ describe("suspendAccount", () => {
       suspended: true,
       duration: "24h",
     }).orThrow();
-    expect(order).toEqual(["ban:24h", "sessions"]);
+    expect(order).toEqual(["ban:24h"]);
   });
 
-  it("ends sessions left from before the ban, then lifts it", async () => {
-    const { sql, client, order } = setup({ ended: 0 });
+  it("ends the sessions kept during the ban, then lifts it", async () => {
+    const { sql, client, order } = setup({ ended: 2 });
     expect(
       await suspendAccount(client, sql, USER, { suspended: false }).orThrow(),
-    ).toEqual({ userId: USER, suspended: false, ended: 0 });
+    ).toEqual({ userId: USER, suspended: false, ended: 2 });
     expect(order).toEqual(["sessions", "ban:none"]);
   });
 
@@ -120,7 +132,10 @@ describe("suspendAccount", () => {
       }),
     });
     expect(
-      await suspendAccount(client, sql, USER, { suspended: true }),
+      await suspendAccount(client, sql, USER, {
+        suspended: true,
+        endSessions: true,
+      }),
     ).toMatchObject({ ok: false, error: { kind: "not_found" } });
     expect(queryRaw).not.toHaveBeenCalled();
   });

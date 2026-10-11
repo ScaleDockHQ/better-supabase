@@ -20,12 +20,25 @@ export interface EndSessionsResult {
 
 export interface SuspendAccountOptions {
   readonly suspended: boolean;
+  /** A Go duration for the ban, such as `"24h"`. Defaults to 100 years. */
   readonly duration?: string;
+  /**
+   * Also end the sessions when suspending. Defaults to `false`: the sessions
+   * stay, so Auth answers refresh and `/user` with `user_banned` and the app
+   * can show why. Without the `sessions` SQL module, an access token keeps
+   * working against the Data API until it expires; set this to end the
+   * sessions at once instead.
+   */
+  readonly endSessions?: boolean;
 }
 
 export interface SuspendAccountResult {
   readonly userId: string;
   readonly suspended: boolean;
+  /**
+   * The sessions deleted: `0` on a suspension (unless `endSessions` is set),
+   * and the user's remaining sessions when the ban is lifted.
+   */
   readonly ended: number;
 }
 
@@ -155,6 +168,8 @@ export function suspendAccount(
     if (suspended) {
       const refused = await ban(client, userId, options.duration ?? FOREVER);
       if (refused) return err(refused);
+      if (options.endSessions !== true)
+        return ok({ userId, suspended, ended: 0 });
     }
     let ended: number;
     try {

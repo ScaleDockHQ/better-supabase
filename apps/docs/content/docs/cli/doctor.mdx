@@ -144,7 +144,8 @@ tables to `anon` and `authenticated` (new projects from May 30, 2026, existing
 projects from October 30, 2026). Without a grant, every request fails with
 `42501` before RLS runs. Tables listed in [`expose`](/docs/guides/data-api-grants)
 need exactly the privileges listed; other tables in the generated schemas need
-`select` for `authenticated`, except tables with no permissive policy when
+`select` for `authenticated`, except tables with RLS on and no permissive
+policy when
 `sql.modules.grants.options.fromPolicies` is on: those are service-only, so
 BS106 expects no grants for them ([BS115](#bs115)). Add the table to `expose`
 and run `better-supabase sql add grants`. When `config.toml` sets
@@ -244,8 +245,8 @@ covers the functions policies call, and the functions those call.
 with RLS on and no permissive policy for `anon` or `authenticated` answers
 every request with no rows or a denied write, yet a grant lists it in the API
 schema. With `sql.modules.grants.options.fromPolicies`, `better-supabase sql sync`
-revokes `anon`, `authenticated` and `public` on every table in `schemas` that
-no `expose` entry and no permissive policy reaches, and keeps the privileges
+revokes `anon`, `authenticated` and `public` on every table in `schemas` with
+RLS on that no `expose` entry and no permissive policy reaches, and keeps the privileges
 of `service_role`. Until the migration is applied, doctor reports the grants
 that are still on the database. Tables in `expose`, `tables.<name>.exclude`
 and `tables.<name>.serviceRole` are skipped.

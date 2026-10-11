@@ -274,11 +274,11 @@ describe("suspending accounts", () => {
       mocks.updateTag.mockReset();
       expect(await bs.suspendAccount(USER, { suspended: true })).toMatchObject({
         ok: true,
-        data: { userId: USER, suspended: true, ended: 2 },
+        data: { userId: USER, suspended: true, ended: 0 },
       });
       expect(calls).toEqual([`PUT ${PROJECT_URL}/auth/v1/admin/users/${USER}`]);
       expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
-      expect(queryRaw).toHaveBeenCalledTimes(2);
+      expect(queryRaw).toHaveBeenCalledTimes(1);
     } finally {
       fetchMock.mockRestore();
     }
