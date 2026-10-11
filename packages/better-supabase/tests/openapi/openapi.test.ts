@@ -37,7 +37,7 @@ function refs(value: unknown, out: string[] = []): string[] {
 
 describe("createOpenApi", () => {
   it("describes resources as OpenAPI 3.1", () => {
-    expect(doc.openapi).toBe("3.1.1");
+    expect(doc.openapi).toBe("3.1.2");
     expect(Object.keys(doc.paths)).toEqual([
       "/api/customers",
       "/api/customers/{id}",

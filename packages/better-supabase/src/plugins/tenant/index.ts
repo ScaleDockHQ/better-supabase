@@ -50,6 +50,11 @@ export interface TenantOptions<C = unknown> {
    * `error` (default) fails with `forbidden`; `skip` leaves it to RLS.
    */
   readonly onMissing?: "error" | "skip";
+  /**
+   * The request header `resolve` reads the tenant from. The plugin does not
+   * read it; `defineApi` documents it as a parameter of tenant tables.
+   */
+  readonly header?: string;
 }
 
 export interface TenantFindArgs {
@@ -146,6 +151,21 @@ export function tenant<C = unknown>(
   return definePlugin<"tenant", TenantExtension>({
     name: "tenant",
     scopes: ["tenant"],
+    describe(api): void {
+      for (const { table } of api.resources) {
+        const flag = table.flags.tenant;
+        if (!flag) continue;
+        api.markReadOnly(table.key, flag, "Set from the request's tenant.");
+        if (options.header)
+          api.addParameter(table.key, {
+            name: options.header,
+            in: "header",
+            required: onMissing === "error",
+            description: "The tenant the request acts for.",
+            schema: { type: "string" },
+          });
+      }
+    },
     context(context, { schema }): RequestContext {
       if (spansAllTenants(context)) return context;
       const id = resolvedFor(context, schema);

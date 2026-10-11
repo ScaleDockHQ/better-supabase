@@ -13,6 +13,23 @@ import { dbName, guardManaged, insertsOnly, withDefault } from "../shared.ts";
 export function timestamps(): Plugin<"timestamps"> {
   return definePlugin({
     name: "timestamps",
+    describe(api): void {
+      for (const { table } of api.resources) {
+        const flags = table.flags.timestamps;
+        if (flags?.createdAt)
+          api.markReadOnly(
+            table.key,
+            flags.createdAt,
+            "Set by the server when the row is created.",
+          );
+        if (flags?.updatedAt)
+          api.markReadOnly(
+            table.key,
+            flags.updatedAt,
+            "Set by the server on every write.",
+          );
+      }
+    },
     beforeMutation(op, { table, now, options }): MutationOp {
       const flags = table.flags.timestamps;
       if (!flags) return op;
