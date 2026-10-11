@@ -1214,6 +1214,7 @@
     "expo-server": "catalog:",
     "fastest-levenshtein": "catalog:",
     "hono": "catalog:",
+    "jsonpath-rfc9535": "catalog:",
     "next": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
@@ -1262,6 +1263,7 @@
     "eve": "catalog:peers",
     "expo-server": "catalog:peers",
     "hono": "catalog:peers",
+    "jsonpath-rfc9535": "catalog:peers",
     "next": "catalog:peers",
     "oxfmt": "catalog:peers",
     "pg": "catalog:peers",
@@ -1339,6 +1341,9 @@
       "optional": true
     },
     "hono": {
+      "optional": true
+    },
+    "jsonpath-rfc9535": {
       "optional": true
     },
     "next": {

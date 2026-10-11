@@ -1,0 +1,48 @@
+import type { JsonPathEngine } from "./types.ts";
+
+const isEngine = (value: unknown): value is JsonPathEngine =>
+  typeof value === "object" &&
+  value !== null &&
+  "paths" in value &&
+  typeof value.paths === "function";
+
+/**
+ * Imports `jsonpath-rfc9535` on first use. The specifier is a variable so
+ * bundlers leave the optional peer out of apps that pass their own engine.
+ */
+async function importEngine(): Promise<unknown> {
+  const specifier = "jsonpath-rfc9535";
+  try {
+    return await import(specifier);
+  } catch {
+    return undefined;
+  }
+}
+
+let cached: Promise<JsonPathEngine> | undefined;
+
+async function load(importer: () => Promise<unknown>): Promise<JsonPathEngine> {
+  const module = await importer();
+  if (!isEngine(module))
+    throw new TypeError(
+      "better-supabase/overlay needs an RFC 9535 JSONPath engine: pnpm add jsonpath-rfc9535, or pass your own { paths(document, expression) }",
+    );
+  return module;
+}
+
+/**
+ * Loads the optional `jsonpath-rfc9535` peer, an RFC 9535 implementation
+ * that passes the JSONPath Compliance Test Suite, for `applyOverlay`.
+ * Rejects with an install message when the package is missing. The engine
+ * is loaded once per module; `importer` replaces the import in tests.
+ */
+export function loadJsonPath(
+  importer?: () => Promise<unknown>,
+): Promise<JsonPathEngine> {
+  if (importer) return load(importer);
+  cached ??= load(importEngine).catch((error: unknown) => {
+    cached = undefined;
+    throw error;
+  });
+  return cached;
+}
