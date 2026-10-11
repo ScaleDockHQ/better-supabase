@@ -1,5 +1,5 @@
 import type { Actor, RequestContext } from "../../core/plugin.ts";
-import type { JobContext } from "./queue.ts";
+import type { JobContext } from "./types.ts";
 
 import { impersonatorClaim, impersonatorOf } from "../../auth/impersonation.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";

@@ -21,7 +21,8 @@ import type {
 import {
   isRecord,
   oneOf,
-  optionalInstant,
+  nullableInstant,
+  nullableText,
   optionalText,
   recordOf,
   recordOrEmpty,
@@ -51,10 +52,6 @@ const channelOf = (value: unknown): InboxChannel =>
   oneOf(value, INBOX_CHANNELS, "other");
 const botModeOf = (value: unknown): BotMode =>
   oneOf<BotMode>(value, ["bot", "human", "paused"], "human");
-const nullableText = (value: unknown): string | null =>
-  optionalText(value) ?? null;
-const nullableInstant = (value: unknown): Temporal.Instant | null =>
-  optionalInstant(value) ?? null;
 
 export function inboxOf(value: unknown): InboxRow {
   const row = recordOf(value, "inbox");

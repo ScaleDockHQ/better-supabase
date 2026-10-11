@@ -196,6 +196,14 @@ export const optionalInstant = (
       ? toInstant(value)
       : undefined;
 
+/** Text from jsonb, or `null` when it is missing or not text. */
+export const nullableText = (value: unknown): string | null =>
+  optionalText(value) ?? null;
+
+/** A `timestamptz` from jsonb or `pg`, or `null` when it is missing. */
+export const nullableInstant = (value: unknown): Temporal.Instant | null =>
+  optionalInstant(value) ?? null;
+
 /** A `timestamptz` that must be there; throws when it is null or missing. */
 export function requiredInstant(
   value: unknown,

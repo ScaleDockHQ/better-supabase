@@ -1,433 +1,46 @@
-import type { BlockTransport } from "../../core/block-transport.ts";
-import type { ErrorMapper } from "../../core/errors.ts";
-import type { EventHub } from "../../core/events.ts";
-import type { EventSink } from "../../events/index.ts";
-import type { SqlClient } from "../../postgres/executor.ts";
+import type {
+  Billing,
+  BillingOptions,
+  CustomerDetails,
+  PlatformListOptions,
+  SeatSync,
+  StripeEvent,
+  StripeEventOutcome,
+  StripeRow,
+  SubscriptionItem,
+  TenantStripeRow,
+} from "./types.ts";
 
 import {
+  blockEmitter,
   type BillingEventData,
   type BlockEventType,
-  blockEmitter,
 } from "../../core/block-events.ts";
 import { dbError } from "../../core/errors.ts";
-import {
-  AsyncResult,
-  err,
-  ok,
-  type Result,
-  toDbError,
-} from "../../core/result.ts";
+import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { entitlementMembers } from "../entitlements/entitlements.ts";
 import {
+  applyTemporal,
   blockCall,
   isRecord,
   optionalInstant,
   optionalText,
+  pageOf,
   recordOf,
   textOf,
-  type BlockTemporalOptions,
-  applyTemporal,
-  type CursorPageOptions,
-  pageOf,
 } from "../shared.ts";
+import { lazyStripe, type StripeClient } from "../stripe.ts";
 import {
-  lazyStripe,
-  type StripeClient,
-  type StripeSource,
-  type StripeTaxId,
-} from "../stripe.ts";
-
-export interface BillingOptions extends BlockTemporalOptions {
-  readonly stripe: StripeSource;
-  /** A service-role transport: linking customers and reading seats are granted to `service_role` only. */
-  readonly transport: BlockTransport;
-  /** The module schema (`sql.modules.billing.schema`), default `better_supabase`. */
-  readonly schema?: string;
-  readonly mappers?: readonly ErrorMapper[];
-  /** `betterSupabase.events`, for `billing.*` block events. */
-  readonly events?: EventHub;
-  /** The per-seat price `syncSeats` updates; default the subscription's first item. */
-  readonly seatPrice?: string;
-  /** Stripe `proration_behavior` for seat changes, default `create_prorations`. */
-  readonly prorationBehavior?: "create_prorations" | "none" | "always_invoice";
-  /**
-   * Invalidates the cached sessions of a customer's members after a plan
-   * change (`entitlementMembers`), so their next request reads the new
-   * entitlements. Needs the `entitlements` module.
-   */
-  readonly sessions?: {
-    readonly sql: SqlClient;
-    readonly invalidate: (userId: string) => void;
-  };
-}
-
-export interface CustomerDetails {
-  readonly email?: string;
-  readonly name?: string;
-}
-
-export interface CheckoutOptions extends CustomerDetails {
-  /** A Stripe price id. Pass this or `plan`. */
-  readonly price?: string;
-  /**
-   * A plan key from `sql.modules.billing.options.plans`, resolved to its
-   * Stripe price in the app's plan catalog (with `interval` when plans have
-   * monthly and yearly prices).
-   */
-  readonly plan?: string;
-  readonly interval?: string;
-  /** One of the plan's prices, from the catalog's `variant` column. */
-  readonly variant?: string;
-  /**
-   * More line items, such as add-on packages next to the plan: each a
-   * price, or a plan key with `interval` and `variant`. Quantity defaults to 1.
-   */
-  readonly items?: readonly CheckoutItem[];
-  readonly successUrl: string;
-  readonly cancelUrl?: string;
-  /** A number, or `seats` for the tenant's seat count. Default 1. */
-  readonly quantity?: number | "seats";
-  /** Default `subscription`. */
-  readonly mode?: "subscription" | "payment";
-  /**
-   * More Checkout Session parameters, merged deeply over the block's (nested
-   * objects such as `metadata` merge, arrays replace). The customer,
-   * `client_reference_id` and the tenant's `metadata.organization_id` always
-   * stay.
-   */
-  readonly params?: Readonly<Record<string, unknown>>;
-  readonly idempotencyKey?: string;
-}
-
-/** An extra Checkout line item. */
-export interface CheckoutItem {
-  readonly price?: string;
-  readonly plan?: string;
-  readonly interval?: string;
-  readonly variant?: string;
-  readonly quantity?: number;
-}
-
-export interface SubscriptionItem {
-  readonly subscriptionId: string;
-  readonly itemId: string;
-  readonly price: string | undefined;
-  readonly quantity: number;
-  readonly status: string;
-}
-
-export interface BillingStatus {
-  readonly customerId: string | undefined;
-  readonly seats: number;
-  readonly subscription: SubscriptionItem | undefined;
-}
-
-export interface SeatSync {
-  readonly quantity: number;
-  readonly previousQuantity: number | undefined;
-  /** False when there is no subscription item or the quantity already matches. */
-  readonly changed: boolean;
-}
-
-/** The parts of a Stripe event the block reads. */
-export interface StripeEvent {
-  readonly id: string;
-  readonly type: string;
-  readonly data: { readonly object: unknown };
-}
-
-export interface StripeEventOutcome {
-  /** The `billing.*` block event it emitted, if any. */
-  readonly event: BlockEventType | undefined;
-  readonly organizationId: string | undefined;
-  readonly customerId: string | undefined;
-  /** Members whose sessions were invalidated. */
-  readonly invalidated: readonly string[];
-}
-
-/** A plan change: a price id, or a plan key from the catalog. */
-export interface PlanChange {
-  readonly price?: string;
-  readonly plan?: string;
-  readonly interval?: string;
-  readonly variant?: string;
-  /** Stripe `proration_behavior`, default `create_prorations`. */
-  readonly prorationBehavior?: "create_prorations" | "none" | "always_invoice";
-  /** Also clears a scheduled cancellation. Default true. */
-  readonly resume?: boolean;
-  readonly idempotencyKey?: string;
-}
-
-/**
- * A row of the Stripe Sync Engine's `stripe` schema as stored, such as an
- * invoice (`id`, `status`, `total`, `currency`, `hosted_invoice_url`) or a
- * payment method (`id`, `type`, `card`).
- */
-export type StripeRow = Readonly<Record<string, unknown>>;
-
-/** A Sync Engine row with the tenant and customer it belongs to, from a platform read. */
-export interface TenantStripeRow {
-  readonly organizationId: string;
-  readonly customerId: string;
-  readonly row: StripeRow;
-}
-
-/** A linked Stripe customer, from `billing_all_customers`. */
-export interface BillingCustomer {
-  readonly organizationId: string;
-  readonly customerId: string;
-  /** From the Sync Engine's `stripe.customers`; `undefined` before it syncs. */
-  readonly email: string | undefined;
-  readonly name: string | undefined;
-  readonly created: Temporal.Instant | undefined;
-}
-
-export interface PlatformListOptions extends CursorPageOptions<number> {
-  /** Only rows with this Stripe status, such as `active` or `open`. */
-  readonly status?: string;
-  /** Defaults to 100, at most 500. */
-  readonly limit?: number;
-  /** Only rows Stripe created before this (epoch seconds), for the next page. */
-  readonly cursor?: number;
-}
-
-export interface BillingCustomerUpdate {
-  readonly email?: string;
-  readonly name?: string;
-  readonly phone?: string;
-  readonly address?: Readonly<Record<string, string>>;
-  /** Stripe customer parameters merged over these, such as `invoice_settings`. */
-  readonly params?: Readonly<Record<string, unknown>>;
-}
-
-export interface Billing {
-  /** The tenant's Stripe customer, or `undefined` before the first checkout. */
-  customer(organizationId: string): AsyncResult<string | undefined>;
-  /** The tenant's customer, created in Stripe (with the tenant in `metadata`) when there is none. */
-  ensureCustomer(
-    organizationId: string,
-    details?: CustomerDetails,
-  ): AsyncResult<string>;
-  checkout(
-    organizationId: string,
-    options: CheckoutOptions,
-  ): AsyncResult<{ readonly id: string; readonly url: string | undefined }>;
-  /** A customer portal session; `not_found` before the tenant has a customer. */
-  portal(
-    organizationId: string,
-    options: { readonly returnUrl: string },
-  ): AsyncResult<{ readonly url: string }>;
-  status(organizationId: string): AsyncResult<BillingStatus>;
-  /**
-   * The tenant's newest subscription as the Sync Engine stores it (every
-   * column, with `items`), preferring an active one; `undefined` without
-   * one. For `billing.read` in the tenant, or platform staff.
-   */
-  subscription(organizationId: string): AsyncResult<StripeRow | undefined>;
-  /**
-   * Every tenant's newest subscription, newest first, for platform staff
-   * (`billing.read` in the platform scope) or a service transport.
-   */
-  allSubscriptions(
-    options?: PlatformListOptions,
-  ): AsyncResult<readonly TenantStripeRow[]>;
-  /**
-   * Every linked customer, with or without a subscription, by tenant, for
-   * platform staff (`billing.read` in the platform scope) or a service
-   * transport.
-   */
-  allCustomers(): AsyncResult<readonly BillingCustomer[]>;
-  /**
-   * Cancels the tenant's active subscription in Stripe now; `undefined`
-   * when it has none. The `customer.subscription.deleted` webhook then
-   * emits `billing.subscription_deleted`.
-   */
-  cancelSubscription(organizationId: string): AsyncResult<string | undefined>;
-  /** Sets the seat item's quantity to the tenant's seat count. */
-  syncSeats(
-    organizationId: string,
-    options?: { readonly key?: string },
-  ): AsyncResult<SeatSync>;
-  /**
-   * An outbox sink that syncs seats after `organization.member_*` and
-   * `organization.role_changed` events: `outbox.relay('billing-seats', billing.seatSink())`.
-   */
-  seatSink(): EventSink;
-  /**
-   * Moves the tenant's subscription item to another price (an upgrade or
-   * downgrade). Needs a subscription; `not_found` otherwise. Admin consoles
-   * call it with a service transport after their own permission check.
-   */
-  changePlan(
-    organizationId: string,
-    change: PlanChange,
-  ): AsyncResult<SubscriptionItem>;
-  /** Schedules (true) or clears (false) the cancellation at the end of the period. */
-  cancelAtPeriodEnd(
-    organizationId: string,
-    cancel: boolean,
-  ): AsyncResult<string>;
-  /**
-   * Every tenant's invoices, newest first, for platform staff (`billing.read`
-   * in the platform scope) or a service transport.
-   */
-  allInvoices(
-    options?: PlatformListOptions,
-  ): AsyncResult<readonly TenantStripeRow[]>;
-  /** The tenant's invoices from the Sync Engine, newest first (`billing.read`, or platform staff). */
-  invoices(
-    organizationId: string,
-    options?: { readonly limit?: number },
-  ): AsyncResult<readonly StripeRow[]>;
-  /** The tenant's payment methods from the Sync Engine (`billing.read`). */
-  paymentMethods(organizationId: string): AsyncResult<readonly StripeRow[]>;
-  /** Voids an open invoice of the tenant's customer. */
-  voidInvoice(organizationId: string, invoiceId: string): AsyncResult<string>;
-  /** Marks an open invoice of the tenant's customer uncollectible. */
-  markInvoiceUncollectible(
-    organizationId: string,
-    invoiceId: string,
-  ): AsyncResult<string>;
-  /** The billing contact as Stripe holds it, from the Sync Engine's customers table. */
-  customerDetails(organizationId: string): AsyncResult<StripeRow | undefined>;
-  /**
-   * The tenant customer's tax ids, `[]` before the tenant has a customer.
-   * From Stripe by default, which needs `customers.listTaxIds` on the
-   * client; `{ from: "sync" }` reads the Sync Engine's `stripe.tax_ids`
-   * through `billing_tax_ids` instead (`billing.read`, or platform staff).
-   */
-  taxIds(
-    organizationId: string,
-    options?: { readonly from?: "stripe" | "sync" },
-  ): AsyncResult<readonly StripeTaxId[]>;
-  /**
-   * Adds a tax id (`{ type: 'eu_vat', value: 'DE123456789' }`) to the
-   * tenant's customer, creating the customer first when there is none.
-   */
-  addTaxId(
-    organizationId: string,
-    taxId: { readonly type: string; readonly value: string },
-  ): AsyncResult<StripeTaxId>;
-  /** Removes a tax id from the tenant's customer; `not_found` before the tenant has a customer. */
-  removeTaxId(organizationId: string, taxId: string): AsyncResult<string>;
-  /** Updates the billing contact on the Stripe customer, the record for it. */
-  updateCustomer(
-    organizationId: string,
-    update: BillingCustomerUpdate,
-  ): AsyncResult<string>;
-  /**
-   * Handles `checkout.session.completed` and `customer.subscription.*`:
-   * links the customer, emits `billing.*` events and invalidates sessions.
-   * Other events are ignored. Call it from `inbox.process`.
-   */
-  handleStripeEvent(event: unknown): AsyncResult<StripeEventOutcome>;
-}
-
-const ORGANIZATION_KEY = "organization_id";
-
-const SEAT_EVENT =
-  /(?:^|\.)organization\.(?:member_added|member_removed|member_left|role_changed)$/;
-
-function subscriptionItemOf(value: unknown): SubscriptionItem | undefined {
-  if (!isRecord(value)) return undefined;
-  return {
-    subscriptionId: textOf(value["subscription"]),
-    itemId: textOf(value["item"]),
-    price: optionalText(value["price"]),
-    quantity: Number(value["quantity"] ?? 0),
-    status: textOf(value["status"]),
-  };
-}
-
-/** A row of `billing_tax_ids` as Stripe's tax id object. */
-function syncedTaxId(row: Readonly<Record<string, unknown>>): StripeTaxId {
-  const verification = row["verification"];
-  const raw = row["created"];
-  const created =
-    typeof raw === "number" || (typeof raw === "string" && /^\d+$/.test(raw))
-      ? Number(raw)
-      : Number.NaN;
-  return {
-    id: textOf(row["id"]),
-    type: textOf(row["type"]),
-    value: textOf(row["value"]),
-    country: optionalText(row["country"]) ?? null,
-    verification: isRecord(verification)
-      ? { status: optionalText(verification["status"]) ?? null }
-      : null,
-    created: Number.isSafeInteger(created) ? created : null,
-  };
-}
-
-const customerIdOf = (value: unknown): string | undefined => {
-  if (typeof value === "string") return value;
-  return isRecord(value) ? optionalText(value["id"]) : undefined;
-};
-
-const metadataTenant = (
-  object: Readonly<Record<string, unknown>>,
-): string | undefined => {
-  const metadata = object["metadata"];
-  return isRecord(metadata)
-    ? optionalText(metadata[ORGANIZATION_KEY])
-    : undefined;
-};
-
-function isStripeEvent(value: unknown): value is StripeEvent {
-  return (
-    isRecord(value) &&
-    typeof value["id"] === "string" &&
-    typeof value["type"] === "string" &&
-    isRecord(value["data"])
-  );
-}
-
-/** `extra` merged into `base`: nested objects merge, arrays and other values replace. */
-function deepMerge(
-  base: Readonly<Record<string, unknown>>,
-  extra: Readonly<Record<string, unknown>>,
-): Record<string, unknown> {
-  const merged: Record<string, unknown> = { ...base };
-  for (const [key, value] of Object.entries(extra)) {
-    const current = merged[key];
-    merged[key] =
-      isRecord(current) && isRecord(value) ? deepMerge(current, value) : value;
-  }
-  return merged;
-}
-
-/**
- * The block's Checkout Session parameters with the app's `params` merged in
- * deeply, then the customer, `client_reference_id` and the tenant metadata
- * (on the session and, for a subscription, on `subscription_data`) set
- * again, so `params` adds metadata without dropping the link the webhook needs.
- */
-function checkoutParams(
-  base: Readonly<Record<string, unknown>>,
-  extra: Readonly<Record<string, unknown>> | undefined,
-  organizationId: string,
-  customerId: string,
-): Record<string, unknown> {
-  const merged = extra === undefined ? { ...base } : deepMerge(base, extra);
-  const tenant = { metadata: { [ORGANIZATION_KEY]: organizationId } };
-  return deepMerge(merged, {
-    customer: customerId,
-    client_reference_id: organizationId,
-    ...tenant,
-    ...(merged["mode"] === "subscription" ? { subscription_data: tenant } : {}),
-  });
-}
-
-/** Stripe calls as results: a thrown Stripe error becomes a `DbError`. */
-function stripeCall<T>(work: () => Promise<T>): AsyncResult<T> {
-  return AsyncResult.from(async () => {
-    try {
-      return ok(await work());
-    } catch (cause) {
-      return err(toDbError(cause));
-    }
-  });
-}
+  ORGANIZATION_KEY,
+  SEAT_EVENT,
+  checkoutParams,
+  customerIdOf,
+  isStripeEvent,
+  metadataTenant,
+  stripeCall,
+  subscriptionItemOf,
+  syncedTaxId,
+} from "./stripe-helpers.ts";
 
 /** Stripe customers, checkout, the portal and seat sync over the `billing` module. */
 export function createBilling(options: BillingOptions): Billing {

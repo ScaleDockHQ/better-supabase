@@ -21,7 +21,7 @@ import type {
   AiBatchItemInput,
   AiProviders,
 } from "../../blocks/ai-providers/ai-providers.ts";
-import type { JobHandler } from "../../blocks/jobs/queue.ts";
+import type { JobHandler } from "../../blocks/jobs/types.ts";
 import type { CursorPageOptions } from "../../core/block-helpers.ts";
 
 import { errorText } from "../../core/block-helpers.ts";

@@ -11,6 +11,8 @@ import {
   instantArg,
   leaseHeartbeat,
   notFoundError,
+  nullableInstant,
+  nullableText,
   pageOf,
   optionalInstant,
   optionalText,
@@ -221,5 +223,16 @@ describe("toBlockError", () => {
       [() => dbError("conflict", "mapped")],
     );
     expect(mapped.message).toBe("mapped");
+  });
+});
+
+describe("nullable readers", () => {
+  it("return null instead of undefined", () => {
+    expect(nullableText("a")).toBe("a");
+    expect(nullableText(undefined)).toBeNull();
+    expect(nullableInstant(null)).toBeNull();
+    expect(nullableInstant("2026-01-01T00:00:00Z")).toBeInstanceOf(
+      Temporal.Instant,
+    );
   });
 });

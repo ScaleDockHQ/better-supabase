@@ -2,7 +2,7 @@ import { type Tool, tool, jsonSchema } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Job } from "../../../src/blocks/jobs/queue.ts";
+import type { Job } from "../../../src/blocks/jobs/types.ts";
 import type {
   Memory,
   MemoryCommand,

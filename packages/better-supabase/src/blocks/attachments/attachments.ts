@@ -1,7 +1,7 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { EventSink } from "../../events/index.ts";
-import type { JobHandler } from "../jobs/queue.ts";
+import type { JobHandler } from "../jobs/types.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";

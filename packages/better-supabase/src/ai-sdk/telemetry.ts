@@ -1,6 +1,6 @@
 import type { Telemetry } from "ai";
 
-import type { JobHandler } from "../blocks/jobs/queue.ts";
+import type { JobHandler } from "../blocks/jobs/types.ts";
 import type { Usage, UsageEntry } from "../blocks/usage/usage.ts";
 import type { DbError } from "../core/errors.ts";
 

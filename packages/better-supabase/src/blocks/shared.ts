@@ -11,6 +11,8 @@ export {
   instantArg,
   isRecord,
   notFoundError,
+  nullableInstant,
+  nullableText,
   oneOf,
   optionalInstant,
   optionalText,
