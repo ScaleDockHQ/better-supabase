@@ -119,7 +119,9 @@ describe("createExpo", () => {
     );
     expect(refused).toBeInstanceOf(StatusError);
     expect(refused).toMatchObject({ status: 401 });
-    await expect(loader(undefined, {})).rejects.toThrow(/static rendering/);
+    await expect(loader(undefined, {})).rejects.toThrow(
+      /static rendering has none.*createStaticLoader from "expo-server"/,
+    );
   });
 
   it("answers a DbException from a loader with its status", async () => {
