@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/better-supabase/schemas/spec-manifest-v1.json",
+  "title": "better-supabase spec diagnostics manifest",
+  "description": "Output of `better-supabase spec emit|check|validate --json`, and the file `--manifest` writes. It has no timestamps, so the same inputs give the same bytes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "version",
+    "generator",
+    "failOn",
+    "ok",
+    "outputs",
+    "summary"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "generator": {
+      "type": "string",
+      "description": "`better-supabase` and its version."
+    },
+    "failOn": { "enum": ["error", "warning", "never"] },
+    "ok": {
+      "type": "boolean",
+      "description": "False when a finding fails `failOn` or `check` found a stale file."
+    },
+    "outputs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/output" }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error", "warning", "info"],
+      "properties": {
+        "error": { "type": "integer" },
+        "warning": { "type": "integer" },
+        "info": { "type": "integer" }
+      }
+    }
+  },
+  "$defs": {
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "version",
+        "pin",
+        "path",
+        "sha256",
+        "status",
+        "cached",
+        "diagnostics"
+      ],
+      "properties": {
+        "format": { "type": "string" },
+        "version": { "type": "string" },
+        "pin": {
+          "type": "string",
+          "description": "The exact version or commit the output follows."
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative to the project root."
+        },
+        "sha256": {
+          "type": "string",
+          "description": "SHA-256 of the rendered text."
+        },
+        "status": {
+          "enum": ["written", "unchanged", "up-to-date", "stale", "validated"]
+        },
+        "cached": { "type": "boolean" },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/diagnostic" }
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "severity": { "enum": ["error", "warning", "info"] },
+        "message": { "type": "string" },
+        "pointer": { "type": "string" }
+      }
+    }
+  }
+}

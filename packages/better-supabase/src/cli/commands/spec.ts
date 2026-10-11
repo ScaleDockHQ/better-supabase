@@ -1,0 +1,463 @@
+import { existsSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+
+import type { ResolvedConfig } from "../../config/index.ts";
+import type { SpecDiagnostic, SpecUi } from "../../spec/index.ts";
+import type { AnyCommand, CliArgs, CliContext } from "../command.ts";
+import type { CommandResult } from "../io.ts";
+import type {
+  FailOn,
+  ManifestOutput,
+  OutputStatus,
+} from "../spec/diagnostics.ts";
+import type { RenderedTarget } from "../spec/render.ts";
+import type { SpecTarget, TargetFilter } from "../spec/targets.ts";
+
+import { SPEC_UIS, specReferenceHtml } from "../../spec/index.ts";
+import { defineCliCommand } from "../command.ts";
+import { writeAtomic } from "../introspect/cache.ts";
+import { display, sameText, writeIfChanged } from "../io.ts";
+import { SPEC_CACHE_DIR, sha256 } from "../spec/cache.ts";
+import {
+  FAIL_ON,
+  buildManifest,
+  fails,
+  formatDiagnostics,
+  isFailOn,
+} from "../spec/diagnostics.ts";
+import { loadSpecEntry } from "../spec/entry.ts";
+import { formatRegistry } from "../spec/formats.ts";
+import { renderTarget } from "../spec/render.ts";
+import { TargetError, resolveTargets } from "../spec/targets.ts";
+import { fieldOf, parseAs } from "../spec/text.ts";
+
+const ACTIONS = ["emit", "check", "validate"] as const;
+type SpecAction = (typeof ACTIONS)[number];
+
+const isAction = (value: unknown): value is SpecAction =>
+  ACTIONS.some((action) => action === value);
+
+const isUi = (value: unknown): value is SpecUi =>
+  SPEC_UIS.some((ui) => ui === value);
+
+const ARGS = {
+  action: {
+    type: "positional",
+    required: false,
+    description: "emit, check or validate",
+  },
+  format: {
+    type: "positional",
+    required: false,
+    description:
+      "Only this format (openapi, asyncapi, arazzo, or one the entry adds)",
+  },
+  "spec-version": {
+    type: "string",
+    description:
+      "Render this version of the format instead of the configured one",
+    valueHint: "version",
+  },
+  out: {
+    type: "string",
+    description: "Write the one selected output to this file",
+    valueHint: "file",
+  },
+  entry: {
+    type: "string",
+    description:
+      "Defaults to specs.entry. Exports `api` (defineApi) or a document",
+    valueHint: "file",
+  },
+  yaml: {
+    type: "boolean",
+    description: "Write YAML instead of JSON",
+  },
+  ui: {
+    type: "string",
+    description:
+      "Also write a reference page next to OpenAPI outputs: scalar, swagger, redoc, elements or rapidoc",
+    valueHint: "name",
+  },
+  "fail-on": {
+    type: "string",
+    description:
+      "Exit 1 on findings at this level: error (default), warning or never",
+    valueHint: "level",
+  },
+  manifest: {
+    type: "string",
+    description: "Also write the diagnostics manifest (JSON) to this file",
+    valueHint: "file",
+  },
+  cache: {
+    type: "boolean",
+    default: true,
+    description: "Reuse renders whose inputs did not change",
+    negativeDescription: "Render every output again",
+  },
+  watch: {
+    type: "boolean",
+    description:
+      "With emit, render again whenever the entry, the config or an overlay changes",
+  },
+  interval: {
+    type: "string",
+    description: "Milliseconds between checks in --watch. Defaults to 1000",
+    valueHint: "ms",
+  },
+} as const;
+
+export type SpecArgs = CliArgs<typeof ARGS>;
+
+export interface SpecRunOptions {
+  readonly config: ResolvedConfig;
+  readonly action: SpecAction;
+  readonly filter: TargetFilter;
+  readonly entry?: string;
+  readonly failOn: FailOn;
+  readonly cache: boolean;
+  readonly manifest?: string;
+}
+
+/** The reference page for an OpenAPI output: `openapi.html` next to `openapi.json`. */
+export function uiPath(output: string): string {
+  return join(
+    dirname(output),
+    `${basename(output).replace(/\.[^.]+$/, "")}.html`,
+  );
+}
+
+function uiHtml(rendered: RenderedTarget, ui: SpecUi): string {
+  const document = parseAs(rendered.target.serialization, rendered.text);
+  const title = fieldOf(fieldOf(document, "info"), "title");
+  return `${specReferenceHtml({
+    specUrl: `./${basename(rendered.target.output)}`,
+    ui,
+    ...(typeof title === "string" ? { title } : {}),
+  })}\n`;
+}
+
+interface Settled {
+  readonly status: OutputStatus;
+  readonly lines: readonly string[];
+  readonly diagnostics: readonly SpecDiagnostic[];
+  readonly stale: boolean;
+}
+
+async function compare(path: string, expected: string): Promise<boolean> {
+  const current = existsSync(path) ? await readFile(path, "utf8") : undefined;
+  return sameText(current, expected);
+}
+
+async function settle(
+  action: SpecAction,
+  root: string,
+  rendered: RenderedTarget,
+): Promise<Settled> {
+  const { target } = rendered;
+  const shown = display(root, target.output);
+  const files: { path: string; text: string }[] = [
+    { path: target.output, text: rendered.text },
+  ];
+  const diagnostics: SpecDiagnostic[] = [...rendered.diagnostics];
+  if (target.ui) {
+    if (target.format.id === "openapi")
+      files.push({
+        path: uiPath(target.output),
+        text: uiHtml(rendered, target.ui),
+      });
+    else
+      diagnostics.push({
+        code: "ui-unsupported",
+        severity: "info",
+        message: `--ui renders OpenAPI documents only; ${target.format.id} has no reference page.`,
+      });
+  }
+  const label = `(${target.format.id} ${target.version}${rendered.cached ? ", cached" : ""})`;
+  switch (action) {
+    case "emit": {
+      const lines: string[] = [];
+      let wrote = false;
+      for (const file of files) {
+        const changed = await writeIfChanged(
+          resolve(root, file.path),
+          file.text,
+        );
+        wrote ||= changed;
+        lines.push(
+          `${changed ? "Wrote" : "Unchanged"} ${display(root, file.path)}${file.path === target.output ? ` ${label}` : ""}`,
+        );
+      }
+      return {
+        status: wrote ? "written" : "unchanged",
+        lines,
+        diagnostics,
+        stale: false,
+      };
+    }
+    case "check": {
+      const lines: string[] = [];
+      let stale = false;
+      for (const file of files) {
+        const path = resolve(root, file.path);
+        if (await compare(path, file.text)) {
+          lines.push(`${display(root, file.path)} is up to date.`);
+          continue;
+        }
+        stale = true;
+        const missing = !existsSync(path);
+        diagnostics.push({
+          code: missing ? "output-missing" : "output-stale",
+          severity: "error",
+          message: `${display(root, file.path)} ${missing ? "does not exist" : "is out of date"}. Run \`better-supabase spec emit\`.`,
+        });
+      }
+      return {
+        status: stale ? "stale" : "up-to-date",
+        lines,
+        diagnostics,
+        stale,
+      };
+    }
+    case "validate":
+      return {
+        status: "validated",
+        lines: [`Checked ${shown} ${label}`],
+        diagnostics,
+        stale: false,
+      };
+    default: {
+      const unknown: never = action;
+      throw new Error(`Unknown spec action: ${String(unknown)}`);
+    }
+  }
+}
+
+/** Renders every selected output, then writes, compares or validates it. */
+export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
+  const { config } = options;
+  const root = config.root;
+  const entryPath = options.entry ?? config.specs.entry;
+  let entry;
+  try {
+    entry = await loadSpecEntry(resolve(root, entryPath));
+  } catch (cause) {
+    return {
+      code: 1,
+      error: `Could not load ${display(root, entryPath)}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    };
+  }
+  const registry = formatRegistry(entry.formats);
+  let targets: SpecTarget[];
+  try {
+    targets = resolveTargets(config.specs.outputs, registry, options.filter);
+  } catch (cause) {
+    if (cause instanceof TargetError)
+      return { code: cause.code === "usage" ? 2 : 1, error: cause.message };
+    throw cause;
+  }
+  const missing = targets.find(
+    (target) => !entry.api && !entry.documents.has(target.format.id),
+  );
+  if (missing)
+    return {
+      code: 1,
+      error: `${display(root, entryPath)} must export \`api\` (defineApi(...)) or a ${missing.format.id} document as \`${missing.format.id}\` or default.`,
+    };
+
+  const context = {
+    root,
+    entry,
+    cache: options.cache,
+    validate: options.action === "validate",
+  };
+  const rendered = await Promise.all(
+    targets.map((target) => renderTarget(target, context)),
+  );
+  const outputs: ManifestOutput[] = [];
+  const lines: string[] = [];
+  let stale = false;
+  for (const result of rendered) {
+    const settled = await settle(options.action, root, result);
+    stale ||= settled.stale;
+    lines.push(...settled.lines);
+    outputs.push({
+      format: result.target.format.id,
+      version: result.target.version,
+      pin: result.pin,
+      path: display(root, result.target.output),
+      sha256: sha256(result.text),
+      status: settled.status,
+      cached: result.cached,
+      diagnostics: settled.diagnostics,
+    });
+  }
+  const failing = outputs.flatMap((output) =>
+    output.diagnostics.filter(
+      (diagnostic) =>
+        fails(diagnostic, options.failOn) ||
+        diagnostic.code === "output-stale" ||
+        diagnostic.code === "output-missing",
+    ),
+  );
+  const ok = failing.length === 0 && !stale;
+  const manifest = buildManifest(outputs, options.failOn, ok);
+  const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
+  await writeAtomic(
+    resolve(root, SPEC_CACHE_DIR, "diagnostics.json"),
+    manifestText,
+  ).catch(() => undefined);
+  if (options.manifest)
+    await writeIfChanged(resolve(root, options.manifest), manifestText);
+
+  const findings = formatDiagnostics(outputs);
+  const output = [...lines, ...(findings ? ["", findings] : [])].join("\n");
+  if (ok) return { code: 0, output, data: manifest };
+  const count = failing.length;
+  return {
+    code: 1,
+    output,
+    data: manifest,
+    error: stale
+      ? "The spec files are out of date. Run `better-supabase spec emit`."
+      : `${count} ${count === 1 ? "finding fails" : "findings fail"} --fail-on ${options.failOn}.`,
+  };
+}
+
+const sleep = (ms: number, signal: AbortSignal | undefined): Promise<void> =>
+  delay(ms, undefined, signal ? { signal } : {}).catch(() => undefined);
+
+const modified = (file: string): Promise<number | undefined> =>
+  stat(file).then(
+    (stats) => stats.mtimeMs,
+    () => undefined,
+  );
+
+/** The files a render reads: the config, the entry, its overlays and the generated module. */
+function watchedFiles(
+  options: SpecRunOptions,
+  configFile: string | undefined,
+): string[] {
+  const { config } = options;
+  return [
+    ...(configFile ? [configFile] : []),
+    resolve(config.root, options.entry ?? config.specs.entry),
+    resolve(config.root, config.output),
+    ...config.specs.outputs.flatMap((output) =>
+      (output.overlays ?? []).map((path) => resolve(config.root, path)),
+    ),
+  ];
+}
+
+async function stamp(files: readonly string[]): Promise<string> {
+  const times = await Promise.all(files.map(modified));
+  return JSON.stringify([files, times]);
+}
+
+/**
+ * Emits whenever a watched file changes. A changed config file is loaded
+ * again first. A failed run is retried on the next change, and the same
+ * error is printed once.
+ */
+async function watch(
+  initial: SpecRunOptions,
+  interval: number,
+  { io, signal, configFile, reloadConfig }: CliContext,
+): Promise<CommandResult> {
+  let options = initial;
+  let last = "";
+  let reported = "";
+  const configStamp = (): Promise<number | undefined> =>
+    configFile ? modified(configFile) : Promise.resolve(undefined);
+  let configTime = await configStamp();
+  for (;;) {
+    if (signal?.aborted === true) break;
+    const changedConfig = await configStamp();
+    if (reloadConfig && changedConfig !== configTime) {
+      configTime = changedConfig;
+      try {
+        options = { ...options, config: await reloadConfig() };
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        if (message !== reported) io.stderr(`${message}\n`);
+        reported = message;
+      }
+    }
+    const current = await stamp(watchedFiles(options, configFile));
+    if (current !== last) {
+      last = current;
+      const result = await runSpec(options).catch(
+        (cause: unknown): CommandResult => ({
+          code: 1,
+          error: cause instanceof Error ? cause.message : String(cause),
+        }),
+      );
+      if (result.output) io.stdout(`${result.output}\n`);
+      const message = result.error ?? "";
+      if (message && message !== reported) io.stderr(`${message}\n`);
+      reported = message;
+    }
+    await sleep(interval, signal);
+  }
+  return { code: 0 };
+}
+
+export const specCommand: AnyCommand = defineCliCommand({
+  meta: {
+    name: "spec",
+    description:
+      "Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders",
+  },
+  args: ARGS,
+  run: (args, context) => {
+    const [action, format] = args._;
+    if (!isAction(action))
+      return Promise.resolve({
+        code: 2,
+        error: `${action ? `Unknown spec action "${action}"` : "Name an action"}. Run \`better-supabase spec emit\`, \`check\` or \`validate\`.`,
+      });
+    const failOn = args["fail-on"] ?? context.config.specs.failOn;
+    if (!isFailOn(failOn))
+      return Promise.resolve({
+        code: 2,
+        error: `--fail-on takes ${FAIL_ON.join(", ")}, got "${failOn}".`,
+      });
+    if (args.ui !== undefined && !isUi(args.ui))
+      return Promise.resolve({
+        code: 2,
+        error: `--ui takes ${SPEC_UIS.join(", ")}, got "${args.ui}".`,
+      });
+    const interval = Number(args.interval ?? 1000);
+    if (args.watch === true && (action !== "emit" || !(interval > 0)))
+      return Promise.resolve({
+        code: 2,
+        error:
+          action === "emit"
+            ? `--interval must be a positive number of milliseconds, got "${args.interval}".`
+            : "--watch only applies to `spec emit`.",
+      });
+    const options: SpecRunOptions = {
+      config: context.config,
+      action,
+      failOn,
+      cache: args.cache,
+      filter: {
+        ...(typeof format === "string" ? { format } : {}),
+        ...(args["spec-version"] === undefined
+          ? {}
+          : { version: args["spec-version"] }),
+        ...(args.out === undefined ? {} : { out: args.out }),
+        ...(args.yaml === true ? { yaml: true } : {}),
+        ...(isUi(args.ui) ? { ui: args.ui } : {}),
+      },
+      ...(args.entry === undefined ? {} : { entry: args.entry }),
+      ...(args.manifest === undefined ? {} : { manifest: args.manifest }),
+    };
+    return args.watch === true
+      ? watch(options, interval, context)
+      : runSpec(options);
+  },
+});

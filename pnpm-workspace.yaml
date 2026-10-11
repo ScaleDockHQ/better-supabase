@@ -164,6 +164,7 @@ catalog:
   vitest: 5.0.3
   vue: 3.5.43
   workflow: 5.1.0
+  yaml: 2.9.1
   # Only the core package's zod generator fixture imports Zod, and `ai` needs it
   # as a peer (docs/decisions/0002). Lint rejects `zod` imports everywhere else.
   zod: 4.6.5

@@ -6,6 +6,7 @@ import type { Snapshot } from "../../src/cli/introspect/types.ts";
 import { formatReport } from "../../src/cli/doctor/format.ts";
 import { RULES, runRules } from "../../src/cli/doctor/rules.ts";
 import { generatorJsonSchema } from "../../src/cli/introspect/typegen.ts";
+import { buildManifest } from "../../src/cli/spec/diagnostics.ts";
 import { parseToml } from "../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import { snapshotFixture as fixture } from "./fixtures/library.ts";
@@ -114,6 +115,7 @@ describe("shipped JSON Schemas", () => {
       "config-v1.json",
       "doctor-report-v1.json",
       "snapshot-v2.json",
+      "spec-manifest-v1.json",
     ]);
     for (const file of files) {
       expect((await load(file))["$id"]).toBe(
@@ -208,10 +210,49 @@ describe("shipped JSON Schemas", () => {
       postgrestVersion: "13",
       tables: { audit_logs: { serviceRole: true } },
       doctor: { ignore: ["BS204"], strict: true, sources: ["app/**/*.tsx"] },
+      specs: {
+        entry: "src/lib/api.ts",
+        outputs: [
+          { format: "openapi", version: "3.2", ui: "scalar" },
+          { format: "asyncapi", output: "asyncapi.yaml", overlays: ["o.yaml"] },
+        ],
+        failOn: "warning",
+      },
     };
     expect(await errorsFor("config-v1.json", config)).toEqual([]);
     expect(
       await errorsFor("config-v1.json", { ...config, casing: "kebab" }),
+    ).toHaveLength(1);
+  });
+
+  it("describe the spec diagnostics manifest", async () => {
+    const manifest = buildManifest(
+      [
+        {
+          format: "openapi",
+          version: "3.1",
+          pin: "3.1.2",
+          path: "openapi.json",
+          sha256: "0".repeat(64),
+          status: "written",
+          cached: false,
+          diagnostics: [
+            {
+              code: "preview-version",
+              severity: "warning",
+              message: "m",
+              pointer: "/",
+            },
+          ],
+        },
+      ],
+      "error",
+      true,
+    );
+    expect(manifest.summary).toEqual({ error: 0, warning: 1, info: 0 });
+    expect(await errorsFor("spec-manifest-v1.json", manifest)).toEqual([]);
+    expect(
+      await errorsFor("spec-manifest-v1.json", { ...manifest, failOn: "loud" }),
     ).toHaveLength(1);
   });
 });

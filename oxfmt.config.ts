@@ -13,6 +13,7 @@ export default oxfmt({
     "tests/validation-*/src/**/generated.*",
     "packages/better-supabase/api/**",
     "packages/better-supabase/tests/standards/schemas/**",
+    "packages/better-supabase/src/cli/spec/schemas/**",
     "apps/marketing/components/ui/**",
     "apps/marketing/components/reui/**",
     "CHANGELOG.md",

@@ -154,8 +154,11 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     also loads on demand, each with a comment: the commands, config loading
     and env validation in `src/cli/run.ts`, `fastest-levenshtein` for the
     unknown-command suggestion in the same file, the prompts in
-    `src/cli/bin.ts`, and the arktype-backed typegen entries in
-    `src/cli/introspect/typegen.ts`.
+    `src/cli/bin.ts`, the arktype-backed typegen entries in
+    `src/cli/introspect/typegen.ts`, Ajv and the vendored official schemas
+    that only `spec validate` needs (`src/cli/spec/render.ts` and
+    `src/cli/spec/schemas.ts`), and `jsonpath-rfc9535` for spec overlay
+    files in `src/cli/spec/render.ts`.
 13. Supabase's splinter lints are never bundled or vendored. Doctor fetches
     them at the commit in `SPLINTER_COMMIT` and rejects them unless they
     match `SPLINTER_SHA256` (`src/cli/doctor/advisors.ts`).

@@ -8,7 +8,7 @@ import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand } from "../command.ts";
 import { importExport } from "../config.ts";
-import { display, writeIfChanged } from "../io.ts";
+import { display, sameText, writeIfChanged } from "../io.ts";
 
 const ARGS = {
   action: {
@@ -68,7 +68,7 @@ export async function runOpenApi(
   const path = resolve(config.root, out);
   if (args.check === true) {
     const current = existsSync(path) ? await readFile(path, "utf8") : undefined;
-    return current === contents
+    return sameText(current, contents)
       ? { code: 0, output: `${display(config.root, out)} is up to date.` }
       : {
           code: 1,
