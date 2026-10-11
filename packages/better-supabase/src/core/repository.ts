@@ -21,6 +21,7 @@ import { lookupOf } from "../schema/lookup.ts";
 import { decodeBoundCursor, encodeBoundCursor, sortKey } from "./cursor.ts";
 import { dbError } from "./errors.ts";
 import { keysetCondition } from "./keyset.ts";
+import { offsetEnvelope, pageWindow, strip } from "./paginate.ts";
 import { AsyncResult, ok, toDbError, type Result } from "./result.ts";
 import { byKey } from "./row-keys.ts";
 import {
@@ -28,7 +29,6 @@ import {
   optionsOf,
   signalOf,
   type Args,
-  type Row,
 } from "./runner.ts";
 import { tuningOf } from "./timeout.ts";
 import { countOf, maxAffectedOf } from "./write-args.ts";
@@ -519,41 +519,12 @@ export function createRepository(
     return invalidRequest(`Invalid onConflict on "${table.key}"`, table.key);
   }
 
-  function pageWindow(
-    args: Args,
-  ): { size: number; offset: number } | { invalid: string } {
-    if (args["offset"] !== undefined || args["limit"] !== undefined) {
-      if (args["page"] !== undefined || args["size"] !== undefined) {
-        return { invalid: 'Pass "offset" and "limit" or "page" and "size"' };
-      }
-      const limit = Number(args["limit"]);
-      if (!Number.isInteger(limit) || limit < 1) {
-        return { invalid: '"limit" must be a positive integer' };
-      }
-      const offset = Number(args["offset"]);
-      if (!Number.isInteger(offset) || offset < 0) {
-        return { invalid: '"offset" must be a non-negative integer' };
-      }
-      return { size: limit, offset };
-    }
-    const size = Number(args["size"]);
-    if (!Number.isInteger(size) || size < 1) {
-      return { invalid: '"size" must be a positive integer' };
-    }
-    const number = args["page"] === undefined ? 1 : Number(args["page"]);
-    if (!Number.isInteger(number) || number < 1) {
-      return { invalid: '"page" must be a positive integer' };
-    }
-    return { size, offset: (number - 1) * size };
-  }
-
   async function offsetPage(args: Args): Promise<Result<unknown>> {
     const window = pageWindow(args);
     if ("invalid" in window) {
       return runner.fail(table, dbError("invalid_request", window.invalid));
     }
     const { size, offset } = window;
-    const number = Math.floor(offset / size) + 1;
     const count = args["count"];
     const orderBy = builder.orderBy(table, args["orderBy"]);
     const op = selectOp(args, {
@@ -571,18 +542,9 @@ export function createRepository(
     });
     const result = await run(op, args);
     if (!result.ok) return result;
-    const rows = result.data.rows;
-    const total = result.data.count;
-    return ok({
-      items: rows.slice(0, size),
-      page: {
-        number,
-        size,
-        total,
-        pages: total === null ? null : Math.max(1, Math.ceil(total / size)),
-        hasMore: rows.length > size,
-      },
-    });
+    return ok(
+      offsetEnvelope(result.data.rows, result.data.count, size, offset),
+    );
   }
 
   async function cursorPage(args: Args): Promise<Result<unknown>> {
@@ -702,12 +664,4 @@ export function createRepository(
   }
 
   return base;
-}
-
-function strip(row: Row, keys: readonly string[]): Row {
-  const copy: Row = {};
-  for (const key in row) {
-    if (!keys.includes(key) && Object.hasOwn(row, key)) copy[key] = row[key];
-  }
-  return copy;
 }
