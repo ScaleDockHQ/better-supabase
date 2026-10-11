@@ -3,7 +3,7 @@ import type {
   AuthorizationMembership,
   AuthorizationRoleSource,
 } from "../config/authorization.ts";
-import type { EntitlementPlansSource } from "../config/config.ts";
+import type { EntitlementPlansSource } from "../config/index.ts";
 import type {
   AccessModuleConfig,
   DisabledRow,
@@ -13,6 +13,7 @@ import type {
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
 
+import { CONFIG_DEFAULTS } from "../config/defaults.ts";
 import { fillTemplate } from "../core/access-sql.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
@@ -3222,9 +3223,12 @@ export function moduleBody(
 }
 
 function modulePath(module: SqlModule, layout: ModuleLayout): string {
-  const dir = (layout.dir ?? "supabase/schemas").replace(/\/$/, "");
-  const prefix = layout.prefix ?? "900_better_supabase";
-  const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
+  const dir = (layout.dir ?? CONFIG_DEFAULTS.sql.dir).replace(/\/$/, "");
+  const prefix = layout.prefix ?? CONFIG_DEFAULTS.sql.prefix;
+  const testsDir = (layout.testsDir ?? CONFIG_DEFAULTS.sql.testsDir).replace(
+    /\/$/,
+    "",
+  );
   const slug = module.name.replaceAll("-", "_");
   return module.target === "test"
     ? `${testsDir}/000_better_supabase_${slug}.test.sql`
@@ -3365,7 +3369,7 @@ function moduleDataPath(module: SqlModule, layout: ModuleLayout): string {
   const file = path.slice(path.lastIndexOf("/"));
   const dir = path.slice(0, path.lastIndexOf("/"));
   const bare = (value: string) => value.replace(/^\.\//, "").replace(/\/$/, "");
-  const schemas = bare(layout.schemasDir ?? "supabase/schemas");
+  const schemas = bare(layout.schemasDir ?? CONFIG_DEFAULTS.sql.dir);
   const inside = bare(dir) === schemas || bare(dir).startsWith(`${schemas}/`);
   const base = inside ? `${dir.startsWith("./") ? "./" : ""}${schemas}` : dir;
   const parent = base.lastIndexOf("/");
@@ -3513,7 +3517,10 @@ export function renderModules(
       "-- after the schema migration to put them in a migration.",
       ...managed,
     ].join("\n");
-    const testsDir = (layout.testsDir ?? "supabase/tests").replace(/\/$/, "");
+    const testsDir = (layout.testsDir ?? CONFIG_DEFAULTS.sql.testsDir).replace(
+      /\/$/,
+      "",
+    );
     const slug = module.name.replaceAll("-", "_");
     const testHeader = [
       title,

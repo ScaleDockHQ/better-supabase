@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { SqlFlags } from "./args.ts";
 
+import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import {
   type ModuleFile,
   type ModuleLayout,
@@ -27,7 +28,10 @@ export async function staleModuleTests(
   sqlLayout: ModuleLayout,
   files: readonly ModuleFile[],
 ): Promise<string[]> {
-  const dir = (sqlLayout.testsDir ?? "supabase/tests").replace(/\/$/, "");
+  const dir = (sqlLayout.testsDir ?? CONFIG_DEFAULTS.sql.testsDir).replace(
+    /\/$/,
+    "",
+  );
   const entries: string[] = await readdir(resolve(config.root, dir)).catch(
     () => [],
   );

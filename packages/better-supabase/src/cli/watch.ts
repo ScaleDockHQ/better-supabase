@@ -1,8 +1,7 @@
 import { stat } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 
-/** Milliseconds between checks in `gen --watch` and `spec emit --watch` when `gen.watchInterval` is unset. */
-export const DEFAULT_WATCH_INTERVAL = 2000;
+import { CONFIG_DEFAULTS } from "../config/index.ts";
 
 /** Waits `ms`, and returns early without an error when `signal` aborts. */
 export const sleep = (
@@ -34,7 +33,9 @@ export function parseInterval(
   flag: string | number | undefined,
   configured: number | undefined,
 ): number | string {
-  const interval = Number(flag ?? configured ?? DEFAULT_WATCH_INTERVAL);
+  const interval = Number(
+    flag ?? configured ?? CONFIG_DEFAULTS.gen.watchInterval,
+  );
   return Number.isFinite(interval) && interval > 0
     ? interval
     : `--interval must be a positive number of milliseconds, got "${flag ?? configured}".`;

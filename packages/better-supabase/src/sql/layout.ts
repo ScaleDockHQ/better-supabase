@@ -1,11 +1,11 @@
-import type { ResolvedConfig } from "../config/config.ts";
+import type { ResolvedConfig } from "../config/index.ts";
 import type {
   ModuleAccessProvider,
   ModuleEntitlementsProvider,
   ModuleLayout,
 } from "./registry.ts";
 
-import { resolveJsonSchema } from "../config/config.ts";
+import { resolveJsonSchema } from "../config/json.ts";
 import { VERSION } from "../core/version.ts";
 
 /** Where and how `sql add` writes module files for this config. */

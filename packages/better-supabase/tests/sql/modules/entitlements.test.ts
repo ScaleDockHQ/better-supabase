@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { EntitlementPlansSource } from "../../../src/config/config.ts";
+import type { EntitlementPlansSource } from "../../../src/config/index.ts";
 
 import { renderModules } from "../../../src/sql/registry.ts";
 

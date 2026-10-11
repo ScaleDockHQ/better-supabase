@@ -4,19 +4,21 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  DEFAULT_WATCH_INTERVAL,
   modifiedTime,
   onceReporter,
   parseInterval,
   sleep,
   stampFiles,
 } from "../../src/cli/watch.ts";
+import { CONFIG_DEFAULTS } from "../../src/config/defaults.ts";
 
 describe("parseInterval", () => {
   it("prefers the flag, then the config, then the default", () => {
     expect(parseInterval("50", 100)).toBe(50);
     expect(parseInterval(undefined, 100)).toBe(100);
-    expect(parseInterval(undefined, undefined)).toBe(DEFAULT_WATCH_INTERVAL);
+    expect(parseInterval(undefined, undefined)).toBe(
+      CONFIG_DEFAULTS.gen.watchInterval,
+    );
   });
 
   it("returns a message for a value that is not a positive number", () => {
