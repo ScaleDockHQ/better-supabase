@@ -36,7 +36,7 @@ import { compileReadSet } from "../../src/sql/read-sets.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { moduleBody, renderModules } from "../../src/sql/render.ts";
 import { asUser } from "../../src/testing/as-user.ts";
-import { testQueueBackend } from "../../src/testing/conformance.ts";
+import { testQueueBackend } from "../../src/testing/kits/queue-backend.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { deleteAudit } from "./audit-cleanup.ts";

@@ -2,7 +2,7 @@ import { defineMiddleware, type SingleKeyEntry } from "@supabase/middleware";
 
 import type { AuthResolution } from "../../auth/resolve.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
-import type { ServerContext } from "../server.ts";
+import type { ServerContext } from "../server-types.ts";
 import type { ActiveSupport } from "../support.ts";
 
 import { callOf, type ServerCore } from "./core.ts";

@@ -2,7 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
-import type { BetterServer } from "../server/server.ts";
+import type { BetterServer } from "../server/server-types.ts";
 import type { StorageImageOptions } from "../storage/image-url.ts";
 
 import { around } from "../bridges/shared.ts";

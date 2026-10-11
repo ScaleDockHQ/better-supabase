@@ -7,42 +7,43 @@ import type {
   TableKey,
   TableMeta,
 } from "../schema/types.ts";
+import type { ConnectOptions, SupabaseOptions } from "./define-types.ts";
 import type { Executor } from "./executor.ts";
-import type { Logger } from "./logger.ts";
 import type { Db } from "./repository-types.ts";
 
 import { builderFor } from "../ir/build.ts";
 import { batchingExecutor } from "./batch.ts";
 import {
-  type CacheAdapter,
-  type CacheTarget,
   cacheTargetOf,
   rpcCacheTargets,
+  type CacheAdapter,
+  type CacheTarget,
 } from "./cache.ts";
+import { NO_PLUGINS, isExecutor, keptPlugins } from "./define-plugins.ts";
 import { definitionEvents } from "./diagnostics.ts";
 import {
-  type DbError,
   DbException,
-  type ErrorMapper,
   dbError,
+  type DbError,
+  type ErrorMapper,
 } from "./errors.ts";
 import {
+  EventHub,
   errorEvent,
   type EventHandler,
-  EventHub,
   type EventName,
 } from "./events.ts";
 import {
+  orderPlugins,
   type AnyPlugin,
   type ExtensionOf,
-  type WithExtension,
-  orderPlugins,
   type RequestContext,
+  type WithExtension,
 } from "./plugin.ts";
 import {
+  postgrestExecutor,
   type PostgrestClientLike,
   type PostgrestExecutorOptions,
-  postgrestExecutor,
 } from "./postgrest-executor.ts";
 import {
   bindParams,
@@ -51,156 +52,34 @@ import {
   isReadSet,
   type ReadSet,
 } from "./read-set.ts";
-import { createRepository, OperationRunner } from "./repository.ts";
+import { createRepository } from "./repository.ts";
 import {
   AsyncResult,
   err,
   ok,
+  withErrorMapper,
   type Result,
   type ThrowMapper,
-  withErrorMapper,
 } from "./result.ts";
 import { decodeRpcResult, rpcFunction } from "./rpc-result.ts";
-import { type SearchInput, vectorLiteral } from "./search.ts";
+import { OperationRunner } from "./runner.ts";
+import { vectorLiteral, type SearchInput } from "./search.ts";
 import {
   createSpecs,
   isQuerySpec,
+  specTables,
   type QuerySpec,
   type Specs,
-  specTables,
 } from "./spec.ts";
-import { type StandardSchemaV1, validate } from "./standard.ts";
-import { recordStats, StatsRecorder } from "./stats.ts";
+import { validate, type StandardSchemaV1 } from "./standard.ts";
+import { StatsRecorder, recordStats } from "./stats.ts";
 import {
   nowInstant,
   optionalTemporal,
-  providedTemporal,
   provideTemporal,
+  providedTemporal,
 } from "./temporal.ts";
 import { deadline, invalidTuning, type RequestTuning } from "./timeout.ts";
-
-export interface SupabaseOptions {
-  /**
-   * Clock used by plugins (timestamps, soft delete) and for the `time` of
-   * block events on `betterSupabase.events`. Pass it to `createJobs` too.
-   */
-  readonly now?: () => Temporal.Instant;
-  /**
-   * The `Temporal` namespace, for runtimes without a global one (Hermes,
-   * Node 24) when patching `globalThis` is not an option:
-   * `import { Temporal } from 'temporal-polyfill'`. Defaults to `globalThis.Temporal`.
-   */
-  readonly temporal?: typeof Temporal;
-  /** Extra error mappers, run before plugin mappers. */
-  readonly errors?: readonly ErrorMapper[];
-  /** Receives errors from event handlers, hooks and cache adapters. Defaults to `console`. */
-  readonly logger?: Logger;
-  /**
-   * Debug records on `logger` for every query, database error, session
-   * refresh and auth resolution: table, operation, outcome, timing and row
-   * count, never tokens, row values, filters or error messages. Off by
-   * default; with it off, no handler runs.
-   */
-  readonly diagnostics?: boolean;
-  /** RPCs that change tables, keyed by function name. Prefer `betterSupabase.defineRpc()`. */
-  readonly rpc?: Readonly<Record<string, RpcDefinition>>;
-  /** Builds the error `.orThrow()` throws. Prefer `betterSupabase.mapError()`. */
-  readonly throwAs?: ThrowMapper;
-  /** Validates verified JWT claims on the server. Prefer `betterSupabase.claims()`, which also types them. */
-  readonly claims?: StandardSchemaV1;
-  /** Parses `user_metadata` into `session.profile`. Prefer `betterSupabase.userMetadata()`, which also types it. */
-  readonly userMetadata?: StandardSchemaV1;
-  /**
-   * PostgREST's `db-max-rows`: the most rows one read returns. An unbounded
-   * `findMany` that returns this many sets `truncated` on the `query` event
-   * and logs a warning once per table. Defaults to 1000, the hosted default.
-   */
-  readonly maxRows?: number;
-  /**
-   * The longest query string one PostgREST read sends, like supabase-js
-   * `db.urlLengthLimit`. Longer reads are split along their longest `in`
-   * list. Defaults to 6000 characters, or the client's `db.urlLengthLimit`
-   * when that is lower.
-   */
-  readonly urlLengthLimit?: number;
-  /**
-   * The PostgREST version the app talks to, as in `postgrestVersion` in
-   * the better-supabase config. `maxAffected` needs 13 or later, and fails
-   * with `invalid_request` before any request on an older version.
-   * Defaults to `"13"`.
-   */
-  readonly postgrestVersion?: string;
-}
-
-export interface ConnectOptions {
-  /** Also records this connection's calls into a request-wide recorder. */
-  readonly stats?: StatsRecorder;
-  /**
-   * Runs operations instead of the client's own executor, while `$client`
-   * stays the client (e.g. routing reads to a replica).
-   */
-  readonly executor?: Executor;
-  /**
-   * Fails each repository call and `$rpc` after this many milliseconds with
-   * a `timeout` error. A call's own `timeout` replaces it.
-   */
-  readonly timeout?: number;
-  /**
-   * postgrest-js retries of idempotent requests for this connection; a
-   * call's own `retry` replaces it. Defaults to the client's setting.
-   */
-  readonly retry?: boolean;
-}
-
-export interface RpcDefinition {
-  /** App keys of the tables the function writes; their cached reads are invalidated on success. */
-  readonly invalidates: readonly string[];
-}
-
-function isExecutor(value: unknown): value is Executor {
-  // SAFETY: value is a non-null object here, and each property read is type-checked.
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as Executor).execute === "function" &&
-    typeof (value as Executor).name === "string"
-  );
-}
-
-/** No plugins, one shared array so the caches keyed on a plugin list hit. */
-const NO_PLUGINS: readonly AnyPlugin[] = Object.freeze([]);
-
-/** The kept lists per installed list and `keep` names, so each is one stable array. */
-const keptLists = new WeakMap<
-  readonly AnyPlugin[],
-  Map<string, readonly AnyPlugin[]>
->();
-
-/** The installed plugins named in `keep`; a name that isn't installed throws, so a typo can't drop tracing silently. */
-function keptPlugins(
-  plugins: readonly AnyPlugin[],
-  keep: readonly string[],
-): readonly AnyPlugin[] {
-  if (keep.length === 0) return NO_PLUGINS;
-  let byKeep = keptLists.get(plugins);
-  if (!byKeep) {
-    byKeep = new Map();
-    keptLists.set(plugins, byKeep);
-  }
-  const key = keep.join("\u0000");
-  const cached = byKeep.get(key);
-  if (cached) return cached;
-  for (const name of keep) {
-    if (!plugins.some((plugin) => plugin.name === name)) {
-      throw new TypeError(
-        `better-supabase: $withoutPlugins({ keep }) names "${name}", which is not installed. Installed: ${plugins.map((plugin) => plugin.name).join(", ") || "none"}`,
-      );
-    }
-  }
-  const kept = plugins.filter((plugin) => keep.includes(plugin.name));
-  byKeep.set(key, kept);
-  return kept;
-}
 
 /**
  * The isomorphic definition of your data layer: schema plus plugins. Holds no
@@ -1122,7 +1001,7 @@ function runSpec(
   return method(...args);
 }
 
-function rpc(
+export function rpc(
   meta: SchemaMeta,
   executor: Executor,
   errorMappers: readonly ErrorMapper[],

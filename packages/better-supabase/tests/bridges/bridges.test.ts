@@ -4,7 +4,7 @@ import { defineMiddleware, getEnv } from "@supabase/middleware";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
-import type { ServerOptions } from "../../src/server/server.ts";
+import type { ServerOptions } from "../../src/server/server-types.ts";
 import type { AdapterRun } from "../../src/testing/adapter.ts";
 
 import { bufferInPlace, toResponse } from "../../src/bridges/shared.ts";

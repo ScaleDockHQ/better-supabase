@@ -3,7 +3,7 @@ import type { FunctionContract } from "../core/function-contract.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { MiddlewareOptions } from "../server/respond.ts";
-import type { ServerContext } from "../server/server.ts";
+import type { ServerContext } from "../server/server-types.ts";
 import type { BetterEdge } from "./index.ts";
 
 import { dbError } from "../core/errors.ts";

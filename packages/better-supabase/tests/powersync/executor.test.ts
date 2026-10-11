@@ -19,7 +19,7 @@ import {
   watch,
 } from "../../src/powersync/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
-import { testExecutor } from "../../src/testing/conformance.ts";
+import { testExecutor } from "../../src/testing/kits/executor.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { createSqlite } from "../fixtures/sqlite.ts";
 

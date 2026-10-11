@@ -1,7 +1,7 @@
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { GuardOptions } from "../server/respond.ts";
-import type { ServerContext, ServerOptions } from "../server/server.ts";
+import type { ServerContext, ServerOptions } from "../server/server-types.ts";
 
 import { dbError, DbException } from "../core/errors.ts";
 import { PRIMARY_COOKIE } from "../server/replicas.ts";

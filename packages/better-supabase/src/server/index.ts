@@ -20,7 +20,8 @@ export type { RequestIdOptions } from "./request-ids.ts";
 export type { LiteDriver } from "./lite.ts";
 export { PRIMARY_COOKIE } from "./replicas.ts";
 export type { ReplicaState } from "./replicas.ts";
-export { createServer, extendServer, TENANT_HEADER } from "./server.ts";
+export { createServer, extendServer } from "./server.ts";
+export { TENANT_HEADER } from "./server-types.ts";
 export {
   flushEvents,
   handle,
@@ -64,7 +65,7 @@ export type {
   ServerContext,
   ServerDbOptions,
   ServerOptions,
-} from "./server.ts";
+} from "./server-types.ts";
 export {
   contextFromSupabase,
   withBetterDb,
@@ -164,9 +165,9 @@ export type {
   ResourceHandler,
   ResourceInput,
   ResourceList,
-  ResourcePagination,
   ResourceRouteOptions,
-} from "./resource.ts";
+} from "./resource-types.ts";
+export type { ResourcePagination } from "../spec/resource.ts";
 export {
   isPrefetch,
   refreshFor,

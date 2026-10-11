@@ -24,7 +24,7 @@ import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from "../../server/server.ts";
+} from "../../server/server-types.ts";
 
 import { delegationOf } from "../../auth/actor.ts";
 import { flushEvents, resolveToken } from "../../server/adapter.ts";

@@ -16,7 +16,7 @@ import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from "../server/server.ts";
+} from "../server/server-types.ts";
 
 import { base64ToText } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
@@ -33,10 +33,10 @@ import { buildJsonSchema } from "../generators/json-schema.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { withExtra } from "../server/extra.ts";
 import {
-  defineResource,
   type ResourceHandler,
   type ResourceRouteOptions,
-} from "../server/resource.ts";
+} from "../server/resource-types.ts";
+import { defineResource } from "../server/resource.ts";
 import {
   defaultExpose,
   guard,

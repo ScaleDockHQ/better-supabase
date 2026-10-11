@@ -14,7 +14,7 @@ import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from "../server/server.ts";
+} from "../server/server-types.ts";
 
 import { tenantOf, toSession } from "../auth/view.ts";
 import { claimsOf } from "../core/claims.ts";

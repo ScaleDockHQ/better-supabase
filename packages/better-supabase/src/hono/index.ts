@@ -12,7 +12,7 @@ import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from "../server/server.ts";
+} from "../server/server-types.ts";
 
 import { toSession } from "../auth/view.ts";
 import { honoMiddleware } from "../bridges/hono.ts";
@@ -21,10 +21,8 @@ import { problemResponse } from "../core/problem.ts";
 import { flushEvents, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
 import { type BlockRequireOptions, requireCaller } from "../server/kit.ts";
-import {
-  defineResource,
-  type ResourceRouteOptions,
-} from "../server/resource.ts";
+import { type ResourceRouteOptions } from "../server/resource-types.ts";
+import { defineResource } from "../server/resource.ts";
 import {
   defaultExpose,
   type MiddlewareOptions,
@@ -42,8 +40,8 @@ export type {
   ResourceContext,
   ResourceHooks,
   ResourceRouteOptions,
-} from "../server/resource.ts";
-export { defineAction } from "../server/resource.ts";
+} from "../server/resource-types.ts";
+export { defineAction } from "../server/resource-execute.ts";
 
 /** Hono `Env` with the request's better-supabase context in `c.var`. */
 export interface HonoEnv<

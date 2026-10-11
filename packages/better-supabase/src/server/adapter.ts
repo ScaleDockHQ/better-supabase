@@ -1,6 +1,10 @@
 import type { AuthState } from "../auth/resolve.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
-import type { BetterServer, ContextOptions, ServerContext } from "./server.ts";
+import type {
+  BetterServer,
+  ContextOptions,
+  ServerContext,
+} from "./server-types.ts";
 
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";

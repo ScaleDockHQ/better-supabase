@@ -8,7 +8,7 @@ import type {
   BetterServer,
   ServerContext,
   ServerOptions,
-} from "../server/server.ts";
+} from "../server/server-types.ts";
 
 import { type EdgeHandler, toEdge } from "../bridges/edge.ts";
 import { dbError } from "../core/errors.ts";
@@ -37,8 +37,8 @@ export type {
   ResourceContext,
   ResourceHooks,
   ResourceRouteOptions,
-} from "../server/resource.ts";
-export { defineAction } from "../server/resource.ts";
+} from "../server/resource-types.ts";
+export { defineAction } from "../server/resource-execute.ts";
 export type { ResourceMap } from "../server/resources.ts";
 export type { BlockRequireOptions } from "../server/kit.ts";
 export { defineFunction } from "./function.ts";

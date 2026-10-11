@@ -15,7 +15,11 @@ import type { ServerContextIn } from "./entries/context.ts";
 import type { SqlIn } from "./entries/sql.ts";
 import type { ReplicaState } from "./replicas.ts";
 import type { GuardOptions } from "./respond.ts";
-import type { BetterServer, ServerContext, ServerOptions } from "./server.ts";
+import type {
+  BetterServer,
+  ServerContext,
+  ServerOptions,
+} from "./server-types.ts";
 import type { ActiveSupport } from "./support.ts";
 
 import {

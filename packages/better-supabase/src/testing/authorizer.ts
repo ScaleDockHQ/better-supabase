@@ -13,9 +13,9 @@ import {
   conform,
   expect,
   frozenCopy,
-  hasName,
   same,
 } from "./conformance.ts";
+import { hasName } from "./kits/executor.ts";
 
 export interface TestAuthorizerOptions<Ref> {
   /** Permission references to check; give at least one. */

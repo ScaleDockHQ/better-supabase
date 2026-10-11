@@ -5,7 +5,8 @@ import type {
 import type { ConformanceReport } from "./conformance.ts";
 
 import { rawError } from "../core/block-transport.ts";
-import { conform, expect, frozenCopy, hasName } from "./conformance.ts";
+import { conform, expect, frozenCopy } from "./conformance.ts";
+import { hasName } from "./kits/executor.ts";
 
 const REQUEST: BlockTransportRequest = {
   schema: "better_supabase",

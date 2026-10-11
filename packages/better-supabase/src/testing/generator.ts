@@ -13,9 +13,9 @@ import {
   conform,
   expect,
   frozenCopy,
-  hasName,
   same,
 } from "./conformance.ts";
+import { hasName } from "./kits/executor.ts";
 
 function relativeImport(from: string, to: string): string {
   const fromParts = from.split("/").slice(0, -1);

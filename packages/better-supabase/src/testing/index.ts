@@ -41,16 +41,14 @@ export type {
 } from "./claims-fixtures.ts";
 export { defineSeed, isSeed } from "./seed.ts";
 export type { ExactSeed, Seed, SeedFixtures } from "./seed.ts";
-export {
-  ConformanceError,
-  testAuthResolver,
-  testCacheAdapter,
-  testEventSink,
-  testExecutor,
-  testPlugin,
-  testQueueBackend,
-  testSupportSessionStore,
-} from "./conformance.ts";
+export { ConformanceError } from "./conformance.ts";
+export { testAuthResolver } from "./kits/auth-resolver.ts";
+export { testCacheAdapter } from "./kits/cache-adapter.ts";
+export { testEventSink } from "./kits/event-sink.ts";
+export { testExecutor } from "./kits/executor.ts";
+export { testPlugin } from "./kits/plugin.ts";
+export { testQueueBackend } from "./kits/queue-backend.ts";
+export { testSupportSessionStore } from "./kits/support-session-store.ts";
 export { testAdapter } from "./adapter.ts";
 export { testBlockTransportMiddleware } from "./transport-middleware.ts";
 export { testAuthorizationProvider } from "./authorization-provider.ts";
@@ -64,16 +62,13 @@ export type {
 export { testGenerator } from "./generator.ts";
 export type { TestGeneratorOptions } from "./generator.ts";
 export type { AdapterRun, TestAdapterOptions } from "./adapter.ts";
-export type {
-  ConformanceCheck,
-  ConformanceReport,
-  TestAuthResolverOptions,
-  TestEventSinkOptions,
-  TestExecutorOptions,
-  TestPluginOptions,
-  TestQueueBackendOptions,
-  TestSupportSessionStoreOptions,
-} from "./conformance.ts";
+export type { ConformanceCheck, ConformanceReport } from "./conformance.ts";
+export type { TestAuthResolverOptions } from "./kits/auth-resolver.ts";
+export type { TestEventSinkOptions } from "./kits/event-sink.ts";
+export type { TestExecutorOptions } from "./kits/executor.ts";
+export type { TestPluginOptions } from "./kits/plugin.ts";
+export type { TestQueueBackendOptions } from "./kits/queue-backend.ts";
+export type { TestSupportSessionStoreOptions } from "./kits/support-session-store.ts";
 export {
   testAiTaskRunner,
   testBuilderStarter,

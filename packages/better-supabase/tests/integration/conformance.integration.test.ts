@@ -4,7 +4,7 @@ import { afterAll, describe, it } from "vitest";
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgrestExecutor } from "../../src/core/postgrest-executor.ts";
 import { createPostgres, postgresExecutor } from "../../src/postgres/index.ts";
-import { testExecutor } from "../../src/testing/conformance.ts";
+import { testExecutor } from "../../src/testing/kits/executor.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const url = process.env["SUPABASE_URL"] ?? "http://127.0.0.1:55421";

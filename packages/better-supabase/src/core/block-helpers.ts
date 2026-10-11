@@ -9,6 +9,7 @@ import {
   type ErrorMapper,
   mapDbError,
 } from "./errors.ts";
+import { isRecord } from "./guards.ts";
 import { AsyncResult, err, ok, toDbError } from "./result.ts";
 import { temporal } from "./temporal-required.ts";
 import { provideTemporal } from "./temporal.ts";
@@ -115,8 +116,7 @@ export function leaseHeartbeat(
   };
 }
 
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+export { isRecord };
 
 export const textOf = (value: unknown): string =>
   typeof value === "string" ? value : String(value);

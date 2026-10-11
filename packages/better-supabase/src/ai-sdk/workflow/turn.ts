@@ -13,7 +13,7 @@ import {
   fromModelMessages,
   type ModelApproval,
   type ModelSource,
-} from "../messages.ts";
+} from "../model-messages.ts";
 
 /** What `durableChat` starts the turn's workflow with. Every field is serializable. */
 export interface DurableTurnInput {

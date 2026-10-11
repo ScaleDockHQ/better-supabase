@@ -151,6 +151,7 @@ export default defineConfig({
         "src/cli/bin.ts",
         // The Supabase World reads its options as the Workflow SDK's worlds do.
         "src/workflow-sdk/world/world.ts",
+        "src/workflow-sdk/world/env.ts",
         "scripts/gen-workflow-ddl.ts",
       ],
       rules: { "node/no-process-env": "off" },

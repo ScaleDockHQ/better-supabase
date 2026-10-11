@@ -9,12 +9,8 @@ import {
   templatePlaceholders,
   templateProblems,
 } from "../core/access-sql.ts";
-import {
-  type ConformanceReport,
-  conform,
-  expect,
-  hasName,
-} from "./conformance.ts";
+import { type ConformanceReport, conform, expect } from "./conformance.ts";
+import { hasName } from "./kits/executor.ts";
 
 function isPlainJson(value: unknown): boolean {
   if (value === null || typeof value === "string" || typeof value === "boolean")
