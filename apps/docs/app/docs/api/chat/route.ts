@@ -1,29 +1,63 @@
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
+  isStepCount,
   safeValidateUIMessages,
   streamText,
   toUIMessageStream,
+  tool,
   type UIMessage,
 } from "ai";
 import { checkBotId } from "botid/server";
 import * as v from "valibot";
 
 import { env } from "@/env";
+import {
+  DEFAULT_SEARCH_LIMIT,
+  docsUrl,
+  pageInputSchema,
+  searchInputSchema,
+} from "@/lib/docs-mcp";
 import { searchDocs } from "@/lib/page-search";
+import { searchHits } from "@/lib/search";
 import { siteUrl } from "@/lib/site-url";
 import { docsLlms, getPageSummaries, source } from "@/lib/source";
 
 const MODEL = "anthropic/claude-sonnet-5.5";
-const CONTEXT_PAGES = 4;
+const SEED_PAGES = 6;
 const MAX_MESSAGES = 20;
+const MAX_STEPS = 5;
 
 const ChatBody = v.object({ messages: v.array(v.unknown()) });
 
 const SYSTEM = `You answer questions about better-supabase, a TypeScript
-library for Supabase. Answer only from the documentation pages below. When they
-don't cover the question, say so and point to the closest page. Link pages with
-their absolute URL. Keep answers short and show code in fenced blocks.`;
+library for Supabase. Answer only from the documentation: call read_page for
+the pages below that look relevant, and search_docs when none fit. When the
+docs don't cover the question, say so and point to the closest page. Link
+pages with their absolute URL. Keep answers short and show code in fenced
+blocks.`;
+
+/** Read-only tools over the published pages, the same ones the docs MCP server has. */
+const tools = {
+  search_docs: tool({
+    description:
+      "Full-text search over the better-supabase docs. Returns page and heading urls to pass to read_page.",
+    inputSchema: searchInputSchema,
+    execute: async ({ query, limit }) =>
+      searchHits(query, limit ?? DEFAULT_SEARCH_LIMIT),
+  }),
+  read_page: tool({
+    description: "One docs page as Markdown, by its url.",
+    inputSchema: pageInputSchema,
+    execute: async ({ url }) => {
+      const target = docsUrl(url);
+      const page = source.getPageByUrl(target);
+      return page === undefined
+        ? `No page at ${target}. Use search_docs to find one.`
+        : docsLlms.page(page);
+    },
+  }),
+};
 
 function lastUserText(messages: readonly UIMessage[]): string {
   const last = messages.findLast((message) => message.role === "user");
@@ -35,17 +69,16 @@ function lastUserText(messages: readonly UIMessage[]): string {
     .join(" ");
 }
 
-async function documentation(question: string): Promise<string> {
-  const matches = searchDocs(getPageSummaries(), question, CONTEXT_PAGES);
-  const pages = await Promise.all(
-    matches.map(async (match) => {
-      const page = source.getPage([...match.slugs]);
-      return page === undefined
-        ? ""
-        : `URL: ${siteUrl(page.url)}\n${await docsLlms.page(page)}`;
-    }),
-  );
-  return pages.filter((page) => page !== "").join("\n\n---\n\n");
+/** Candidate pages for the question, so the first step can read instead of search. */
+function candidates(question: string): string {
+  const matches = searchDocs(getPageSummaries(), question, SEED_PAGES);
+  if (matches.length === 0) return "No page title matches the question.";
+  return matches
+    .map(
+      (match) =>
+        `- ${match.title} (${siteUrl(match.url)}): ${match.description}`,
+    )
+    .join("\n");
 }
 
 function problem(status: number, detail: string): Response {
@@ -84,19 +117,24 @@ export async function POST(request: Request): Promise<Response> {
   }
   const parsed = await safeValidateUIMessages({
     messages: body.output.messages,
+    tools,
   });
   if (!parsed.success || parsed.data.length > MAX_MESSAGES) {
     return problem(400, "Send between 1 and 20 chat messages");
   }
 
-  const [context, messages] = await Promise.all([
-    documentation(lastUserText(parsed.data)),
-    convertToModelMessages(parsed.data),
-  ]);
+  const messages = await convertToModelMessages(parsed.data, {
+    tools,
+    ignoreIncompleteToolCalls: true,
+  });
   const result = streamText({
     model: MODEL,
-    instructions: `${SYSTEM}\n\n${context}`,
+    instructions: `${SYSTEM}\n\nPages that may answer it:\n${candidates(
+      lastUserText(parsed.data),
+    )}`,
     messages,
+    tools,
+    stopWhen: isStepCount(MAX_STEPS),
   });
   return createUIMessageStreamResponse({
     stream: toUIMessageStream({ stream: result.stream }),

@@ -3,7 +3,7 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 
 export const DOCS_MCP_NAME = "better-supabase-docs";
-const DEFAULT_SEARCH_LIMIT = 8;
+export const DEFAULT_SEARCH_LIMIT = 8;
 const MAX_SEARCH_LIMIT = 25;
 
 const INSTRUCTIONS = `Read-only access to the better-supabase documentation:
@@ -72,9 +72,10 @@ const PageInput = v.object({
   ),
 });
 
-const searchInputSchema = toStandardJsonSchema(SearchInput);
+/** Shared with the Ask AI route, so both expose the same tool inputs. */
+export const searchInputSchema = toStandardJsonSchema(SearchInput);
 const searchOutputSchema = toStandardJsonSchema(SearchOutput);
-const pageInputSchema = toStandardJsonSchema(PageInput);
+export const pageInputSchema = toStandardJsonSchema(PageInput);
 
 /** `/docs/cli/gen`, `cli/gen`, a full URL or a `.md` route, as the page url. */
 export function docsUrl(input: string): string {
