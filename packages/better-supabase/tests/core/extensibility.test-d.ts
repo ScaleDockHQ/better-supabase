@@ -30,6 +30,12 @@ import type {
   Generator,
 } from "../../src/config/index.ts";
 import type {
+  AuthorizationOutcome,
+  AuthorizationRequest,
+  Authorizer,
+  PermissionRef,
+} from "../../src/core/authorizer.ts";
+import type {
   BlockHooks,
   BlockTransportMiddleware,
 } from "../../src/core/block-hooks.ts";
@@ -96,6 +102,7 @@ import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { postgresExecutor, sqlCompiler } from "../../src/postgres/index.ts";
 import { queryCache } from "../../src/query/index.ts";
 import { sqlSupportStore } from "../../src/server/index.ts";
+import { staticAuthorizer } from "../../src/testing/authorizer.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
@@ -181,6 +188,38 @@ describe("AuthorizationProvider", () => {
     const accepts = (provider: AuthorizationProvider) => provider;
     // @ts-expect-error a provider needs the two caller templates
     accepts({ ...minimal, functions: {} });
+  });
+});
+
+describe("Authorizer", () => {
+  it("is versioned, with an optional batch form", () => {
+    expectTypeOf<Authorizer["apiVersion"]>().toEqualTypeOf<1>();
+    const minimal: Authorizer<"read"> = {
+      apiVersion: 1,
+      name: "minimal",
+      key: (ref) => ref,
+      evaluate: () => ({ outcome: "denied" }),
+    };
+    expectTypeOf(minimal).toExtend<Authorizer<"read">>();
+    expectTypeOf<Authorizer<"read">["evaluations"]>().toEqualTypeOf<
+      | ((
+          requests: readonly AuthorizationRequest<"read">[],
+        ) => Promise<readonly AuthorizationOutcome[]>)
+      | undefined
+    >();
+  });
+
+  it("carries its permission type to adapters", () => {
+    const authorizer = staticAuthorizer<"export" | "invite">({
+      roles: { authenticated: ["export"] },
+    });
+    expectTypeOf(authorizer).toExtend<Authorizer<"export" | "invite">>();
+    expectTypeOf<PermissionRef<typeof authorizer>>().toEqualTypeOf<
+      "export" | "invite"
+    >();
+    expectTypeOf<PermissionRef<undefined>>().toEqualTypeOf<string>();
+    // @ts-expect-error a role lists only known permissions
+    staticAuthorizer<"export">({ roles: { authenticated: ["delete"] } });
   });
 });
 

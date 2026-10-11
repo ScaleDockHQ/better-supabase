@@ -54,6 +54,11 @@ export {
 export { testAdapter } from "./adapter.ts";
 export { testBlockTransportMiddleware } from "./transport-middleware.ts";
 export { testAuthorizationProvider } from "./authorization-provider.ts";
+export { staticAuthorizer, testAuthorizer } from "./authorizer.ts";
+export type {
+  StaticAuthorizerOptions,
+  TestAuthorizerOptions,
+} from "./authorizer.ts";
 export { testGenerator } from "./generator.ts";
 export type { TestGeneratorOptions } from "./generator.ts";
 export type { AdapterRun, TestAdapterOptions } from "./adapter.ts";
