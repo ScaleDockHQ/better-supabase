@@ -289,6 +289,7 @@ The package has one entry per feature, so an app only loads what it imports. Eve
 | `better-supabase/react/native`                  | OAuth, auth deep links, a protected route hook and `AuthGate` for Expo                         |
 | `better-supabase/query`                         | TanStack Query options with table-based invalidation                                           |
 | `better-supabase/tanstack-db`                   | TanStack DB collections that load through a query and write through the repositories           |
+| `better-supabase/tanstack-db/supabase`          | TanStack DB collections on `@supabase-labs/tanstack-db`, with Realtime and repository writes   |
 | `better-supabase/vue`, `/solid`, `/svelte`      | Live queries, presence, actions and the session for Vue, Solid and Svelte 5                    |
 | `better-supabase/powersync`, `/powersync/react` | The repositories over PowerSync's local SQLite, `useWatch`, `useSyncStatus` and `useConflicts` |
 | `better-supabase/expo-sqlite`                   | The same repositories over a local expo-sqlite database, with live queries                     |

@@ -638,6 +638,11 @@
       "types": "./dist/tanstack-db/index.d.ts",
       "default": "./dist/tanstack-db/index.js"
     },
+    "./tanstack-db/supabase": {
+      "@better-supabase/source": "./src/tanstack-db/supabase/index.ts",
+      "types": "./dist/tanstack-db/supabase/index.d.ts",
+      "default": "./dist/tanstack-db/supabase/index.js"
+    },
     "./blocks/push": {
       "@better-supabase/source": "./src/blocks/push/index.ts",
       "types": "./dist/blocks/push/index.d.ts",
@@ -1127,6 +1132,10 @@
         "types": "./dist/tanstack-db/index.d.ts",
         "default": "./dist/tanstack-db/index.js"
       },
+      "./tanstack-db/supabase": {
+        "types": "./dist/tanstack-db/supabase/index.d.ts",
+        "default": "./dist/tanstack-db/supabase/index.js"
+      },
       "./blocks/push": {
         "types": "./dist/blocks/push/index.d.ts",
         "default": "./dist/blocks/push/index.js"
@@ -1173,10 +1182,12 @@
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@supabase-labs/middleware-openfeature": "catalog:",
+    "@supabase-labs/tanstack-db": "catalog:",
     "@supabase/config": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@t3-oss/env-core": "catalog:",
+    "@tanstack/db": "catalog:",
     "@tanstack/query-core": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@types/node": "catalog:",
@@ -1234,6 +1245,7 @@
     "@next/playwright": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
     "@orpc/server": "catalog:peers",
+    "@supabase-labs/tanstack-db": "catalog:peers",
     "@supabase/config": "catalog:peers",
     "@supabase/postgrest-typegen": "catalog:peers",
     "@supabase/supabase-js": "catalog:peers",
@@ -1281,6 +1293,9 @@
       "optional": true
     },
     "@orpc/server": {
+      "optional": true
+    },
+    "@supabase-labs/tanstack-db": {
       "optional": true
     },
     "@supabase/config": {

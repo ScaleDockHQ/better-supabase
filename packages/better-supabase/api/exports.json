@@ -3454,6 +3454,15 @@
       "PendingMutationLike"
     ]
   },
+  "./tanstack-db/supabase": {
+    "values": [
+      "supabaseCollection"
+    ],
+    "types": [
+      "SupabaseCollectionConfig",
+      "SupabaseCollectionOptions"
+    ]
+  },
   "./blocks/push": {
     "values": [
       "createPushDevices",

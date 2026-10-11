@@ -1,7 +1,72 @@
 ---
 title: TanStack DB
-description: TanStack DB collections that load through a query and write through the repositories.
+description: TanStack DB collections that load through a query or through @supabase-labs/tanstack-db, and write through the repositories.
 ---
+
+better-supabase has two ways to build a TanStack DB collection.
+`better-supabase/tanstack-db/supabase` wraps Supabase's
+[`@supabase-labs/tanstack-db`](https://www.npmjs.com/package/@supabase-labs/tanstack-db):
+live queries load on demand through PostgREST and Realtime keeps them
+current. `better-supabase/tanstack-db` loads a collection through one of
+your [query options](/docs/frontend/query) instead, works with camel casing
+and needs no other package.
+
+## With @supabase-labs/tanstack-db
+
+```bash
+pnpm add @supabase-labs/tanstack-db @tanstack/react-db
+```
+
+```ts title="src/lib/collections.ts"
+import { createCollection } from "@tanstack/react-db";
+import { supabaseCollection } from "better-supabase/tanstack-db/supabase";
+import { customersRow } from "./supabase/generated.standard";
+import { betterSupabase } from "./supabase";
+import { db, supabase } from "./client";
+
+export const customers = createCollection(
+  supabaseCollection(betterSupabase, supabase, "customers", {
+    schema: customersRow,
+    db,
+    realtime: true,
+  }),
+);
+```
+
+`supabaseCollection(betterSupabase, supabase, table, options)` calls
+`supabaseCollectionOptions()` with the table's database name and primary
+key, then replaces its write handlers. `schema` is any Standard Schema for
+the row: the `standardSchema()`, `zod()` or `valibot()` generator output
+works. `realtime: true` subscribes to `postgres_changes` on the table, and
+`realtimeUseFilter: true` narrows that subscription to each live query's
+filter. Pass `queryClient` to share one with the rest of the app.
+
+Inserts, updates and deletes run `create`, `update` and `delete` on the
+table's repository, so RLS, hooks, events and plugins apply, and a failed
+write throws a `DbException` that rolls the optimistic change back. The row
+the repository returns goes straight into the collection. Tables with
+[codec](/docs/concepts/temporal) columns refetch instead, because the
+repository decodes values that the synced rows keep raw. Pass
+`writes: "direct"` (and no `db`) to keep the package's own handlers, which
+write through the supabase client.
+
+The package reads and writes database column names and listens to the
+`public` schema, so `supabaseCollection()` throws for a schema with
+`casing: "camel"` and for tables in other schemas. Use
+`collectionOptions()` for those.
+
+For Realtime, add each table to the publication in a migration:
+
+```sql title="supabase/schemas/realtime.sql"
+alter publication supabase_realtime add table public.customers;
+```
+
+Delete events carry the replica identity of the deleted row, so the table
+needs a primary key or `replica identity full`.
+[`doctor`](/docs/cli/doctor#bs306) reports a published table whose delete
+events carry no keys as BS306.
+
+## Through a query option
 
 ```ts title="src/lib/collections.ts"
 import { createCollection } from "@tanstack/react-db";

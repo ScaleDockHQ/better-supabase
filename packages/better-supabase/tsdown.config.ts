@@ -130,6 +130,7 @@ const entries = [
   "sql/index",
   "expo-sqlite/index",
   "tanstack-db/index",
+  "tanstack-db/supabase/index",
   "blocks/push/index",
   "testing/index",
 ];
@@ -204,6 +205,7 @@ const library = defineConfig({
   deps: {
     neverBundle: [
       /^@supabase\//,
+      /^@supabase-labs\//,
       /^@opentelemetry\//,
       /^@orpc\//,
       /^@tanstack\//,
