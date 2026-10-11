@@ -14,9 +14,9 @@ export function painter(color: boolean | undefined): Paint {
   return color === true ? colored : plain;
 }
 
-/** Whether stdout takes colors: a TTY, and neither `NO_COLOR` nor `NODE_DISABLE_COLORS` set (`FORCE_COLOR` overrides). */
-export function colorEnabled(): boolean {
-  return styleText("red", "x", { stream: process.stdout }) !== "x";
+/** Whether `stream` takes colors: a TTY, and neither `NO_COLOR` nor `NODE_DISABLE_COLORS` set (`FORCE_COLOR` overrides). */
+export function colorEnabled(stream: NodeJS.WritableStream): boolean {
+  return styleText("red", "x", { stream }) !== "x";
 }
 
 const VERBS: readonly (readonly [RegExp, Format])[] = [

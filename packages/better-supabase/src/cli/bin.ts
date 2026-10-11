@@ -8,7 +8,9 @@ import { colorEnabled } from "./style.ts";
 
 // @clack/prompts loads only when a command asks something.
 const clack = (): Promise<Prompter> =>
-  import("./prompts.ts").then((module) => module.clackPrompter);
+  import("./prompts.ts").then((module) =>
+    module.createClackPrompter(process.stderr),
+  );
 
 const prompts: Prompter = {
   select: async (message, choices, initial) =>
@@ -49,7 +51,7 @@ const result = await run(process.argv.slice(2), {
       process.stderr.write(chunk);
     },
     stdin: () => text(process.stdin),
-    color: colorEnabled(),
+    color: colorEnabled(process.stdout),
     ...(process.stdin.isTTY && process.stdout.isTTY ? { prompts } : {}),
   },
 });

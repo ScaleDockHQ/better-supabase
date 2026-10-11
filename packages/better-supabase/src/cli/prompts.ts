@@ -41,8 +41,10 @@ const options = (choices: readonly Choice<string>[]): Option<string>[] =>
     ...(choice.hint ? { hint: choice.hint } : {}),
   }));
 
-/** The @clack/prompts implementation; spinners write to stderr so stdout stays pipeable. */
-export const clackPrompter: Prompter = {
+/** The @clack/prompts implementation; spinners write to `output` (stderr in the bin) so stdout stays pipeable. */
+export const createClackPrompter = (
+  output: NodeJS.WriteStream,
+): Prompter => ({
   select: async (message, choices, initial) => {
     const answer = await select<string>({
       message,
@@ -69,13 +71,13 @@ export const clackPrompter: Prompter = {
     return isCancel(answer) ? undefined : answer;
   },
   spinner: (message) => {
-    const spin = spinner({ output: process.stderr });
+    const spin = spinner({ output });
     spin.start(message);
     return () => {
       spin.clear();
     };
   },
-};
+});
 
 /** Runs `task` behind a spinner when `prompts` is set. */
 export async function withSpinner<T>(

@@ -15,7 +15,7 @@ describe("painter", () => {
     expect(painter(undefined)("red", "x")).toBe("x");
     expect(painter(false)).toBe(plain);
     expect(tag("red", "x")).toBe("\u001B[31mx\u001B[39m");
-    expect(typeof colorEnabled()).toBe("boolean");
+    expect(typeof colorEnabled(process.stdout)).toBe("boolean");
   });
 
   it("highlights the verbs that start lines", () => {
