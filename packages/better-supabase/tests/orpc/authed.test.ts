@@ -2,6 +2,7 @@ import { call, ORPCError } from "@orpc/server";
 import { describe, expect, it } from "vitest";
 
 import { createOrpc } from "../../src/orpc/index.ts";
+import { staticAuthorizer } from "../../src/testing/authorizer.ts";
 import {
   betterSupabase,
   env,
@@ -72,5 +73,39 @@ describe("bs.authed()", () => {
       code: "FORBIDDEN",
       data: { code: "NO_TENANT" },
     });
+  });
+
+  it("checks roles and permission on their own", async () => {
+    const guarded = createOrpc(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks as never },
+      prefetchJwks: false,
+      authorizer: staticAuthorizer({
+        roles: { authenticated: ["reports:read"] },
+      }),
+    });
+    const context = async () => ({
+      request: await requestAs({ role: "member" }),
+    });
+    const read = guarded
+      .authed({ permission: "reports:read" })
+      .handler(() => "ok");
+    const write = guarded
+      .authed({ permission: "reports:write" })
+      .handler(() => "ok");
+    const admins = guarded.authed({ roles: ["admin"] }).handler(() => "ok");
+
+    expect(await call(read, undefined, { context: await context() })).toBe(
+      "ok",
+    );
+    expect(
+      await failureOf(call(write, undefined, { context: await context() })),
+    ).toMatchObject({
+      code: "FORBIDDEN",
+      data: { code: "PERMISSION_DENIED" },
+    });
+    expect(
+      await failureOf(call(admins, undefined, { context: await context() })),
+    ).toMatchObject({ code: "FORBIDDEN", data: { code: "MISSING_ROLE" } });
   });
 });
