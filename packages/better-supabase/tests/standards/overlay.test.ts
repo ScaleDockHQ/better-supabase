@@ -50,8 +50,10 @@ describe(`Overlay ${SPEC_PINS.overlay10}`, () => {
   });
 
   it("overlayFromDiff writes a valid 1.0 overlay", () => {
-    const enriched = structuredClone(base);
-    enriched.info = { ...enriched.info, description: "Changed" };
+    const enriched = {
+      ...base,
+      info: { ...base.info, description: "Changed" },
+    };
     const diff = overlayFromDiff(base, enriched, {
       version: SPEC_PINS.overlay10,
     });

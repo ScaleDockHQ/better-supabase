@@ -59,14 +59,28 @@ import type { EveDocumentBackend } from "../../src/eve/index.ts";
 import type { EventSink } from "../../src/events/index.ts";
 import type { Operation } from "../../src/ir/types.ts";
 import type {
+  OpenApiDocuments,
+  OpenApiVersion,
+} from "../../src/openapi/types.ts";
+import type {
   ServerContext,
   SupportSessionStore,
 } from "../../src/server/index.ts";
+import type {
+  AnyDocumentFormat,
+  DocumentFormat,
+  DocumentOf,
+  RenderedOf,
+  SpecDiagnostic,
+  VersionOf,
+} from "../../src/spec/format.ts";
+import type { ApiModel } from "../../src/spec/model.ts";
 import type { StreamStore } from "../../src/streams/index.ts";
 import type {
   RedisStreamClient,
   RedisStreamSubscriber,
 } from "../../src/streams/redis/index.ts";
+import type { TestDocumentFormatOptions } from "../../src/testing/document-format.ts";
 
 import {
   pgmqPublicBackend,
@@ -96,13 +110,16 @@ import { httpSink } from "../../src/events/index.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
 import { nextCache } from "../../src/next/index.ts";
+import { openapiFormat } from "../../src/openapi/format.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { postgresExecutor, sqlCompiler } from "../../src/postgres/index.ts";
 import { queryCache } from "../../src/query/index.ts";
 import { sqlSupportStore } from "../../src/server/index.ts";
+import { defineDocumentFormat } from "../../src/spec/format.ts";
 import { staticAuthorizer } from "../../src/testing/authorizer.ts";
+import { testDocumentFormat } from "../../src/testing/document-format.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
@@ -220,6 +237,54 @@ describe("Authorizer", () => {
     expectTypeOf<PermissionRef<undefined>>().toEqualTypeOf<string>();
     // @ts-expect-error a role lists only known permissions
     staticAuthorizer<"export">({ roles: { authenticated: ["delete"] } });
+  });
+});
+
+describe("DocumentFormat", () => {
+  it("is versioned, and openapiFormat implements it", () => {
+    expectTypeOf<DocumentFormat["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(openapiFormat).toExtend<AnyDocumentFormat>();
+    expectTypeOf<
+      VersionOf<typeof openapiFormat>
+    >().toEqualTypeOf<OpenApiVersion>();
+    expectTypeOf<DocumentFormat["lint"]>().toEqualTypeOf<
+      ((doc: unknown, version: string) => readonly SpecDiagnostic[]) | undefined
+    >();
+  });
+
+  it("types each version's document for transform hooks", () => {
+    expectTypeOf<
+      Extract<RenderedOf<typeof openapiFormat>, { version: "3.0" }>["document"]
+    >().toEqualTypeOf<OpenApiDocuments["3.0"]>();
+    expectTypeOf<
+      RenderedOf<typeof openapiFormat>["format"]
+    >().toEqualTypeOf<"openapi">();
+  });
+
+  it("infers a third-party format and its versions", () => {
+    const text = defineDocumentFormat({
+      id: "operation-list",
+      versions: {
+        "1": { pin: "1.0.0", status: "stable" },
+        "2-draft": { pin: "abc1234", status: "preview" },
+      },
+      defaultVersion: "1",
+      lower: (model: ApiModel) => model.operations.map((op) => op.id).join(),
+      fileName: () => "operations.txt",
+    });
+    expectTypeOf<VersionOf<typeof text>>().toEqualTypeOf<"1" | "2-draft">();
+    expectTypeOf<DocumentOf<typeof text>>().toEqualTypeOf<string>();
+    expectTypeOf(testDocumentFormat<typeof text>)
+      .parameter(1)
+      .toEqualTypeOf<TestDocumentFormatOptions<"1" | "2-draft"> | undefined>();
+    defineDocumentFormat({
+      id: "bad",
+      versions: { "1": { pin: "1.0.0", status: "stable" } },
+      // @ts-expect-error the default version must be one of the versions
+      defaultVersion: "2",
+      lower: () => ({}),
+      fileName: () => "bad.json",
+    });
   });
 });
 
