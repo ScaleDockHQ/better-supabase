@@ -44,17 +44,25 @@ the `asyncapi` field.
 ## What's in the document
 
 - **Servers:** the Realtime websocket from `realtimeUrl`, with a `ws` binding
-  for the `apikey` query parameter Realtime reads on the upgrade.
-- **Channels:** one per table change signal (`bs:t:<schema>.<table>`) and per
-  broadcast topic, with the topic template's parameters. Private topics,
-  presence and client broadcasts (`send: true`) show up as channel fields and
-  operations.
-- **Messages:** table change payloads typed by the row schema, one message
-  per broadcast event, and CloudEvents with their headers as a shared
-  `cloudEvent` message trait (see [CloudEvents](/docs/standards/events)).
+  for the `apikey` query parameter Realtime reads on the upgrade, and the
+  `servers` option for the HTTP channels.
+- **Channels:** one per table change signal (`bs:t:<schema>.<table>`, with a
+  `tenant` or `userId` parameter when the table is scoped) and per broadcast
+  topic, with the topic template's parameters. Private topics, presence and
+  client broadcasts (`send: true`) show up as channel fields and
+  operations. CloudEvents and outgoing webhooks get one HTTP channel each.
+- **Messages:** a table change signal (`schema`, `table` and `operation`;
+  clients refetch the row through row-level security), one message per
+  broadcast event, CloudEvents for row and block events with their headers
+  as a shared `cloudEvent` message trait (see
+  [CloudEvents](/docs/standards/events)), and webhooks with the
+  [Standard Webhooks](/docs/standards/webhooks) headers.
 - **Operations:** `receive` for what clients hear and `send` for what they
   may broadcast. Outgoing webhooks and events that HTTP operations emit are
   operations too.
+
+[AsyncAPI](/docs/specs/asyncapi) in the API documents section has every
+option.
 
 ## Schemas
 
@@ -66,9 +74,11 @@ read it.
 ## Extensions
 
 Channels, messages and operations carry `x-better-supabase-table`,
-`x-better-supabase-event`, `x-better-supabase-private` and
-`x-better-supabase-cloudevent-type`. Like the OpenAPI extensions, they
-document the model; nothing in better-supabase reads them back.
+`x-better-supabase-event`, `x-better-supabase-private`,
+`x-better-supabase-permission`, `x-better-supabase-cloudevent-type`,
+`x-better-supabase-dataschema` and `x-better-supabase-operation`. Like the
+OpenAPI extensions, they document the model and follow `extensionPrefix`;
+nothing in better-supabase reads them back.
 
 ## Conformance
 

@@ -1,6 +1,6 @@
 ---
 title: Diagnostics
-description: Every code defineApi, the OpenAPI renderer and its checks report, with its severity, its cause and how to fix it.
+description: Every code defineApi, the OpenAPI, AsyncAPI and Arazzo renderers and their checks report, with its severity, its cause and how to fix it.
 ---
 
 Building and rendering an API document never fails silently. Each finding
@@ -17,8 +17,8 @@ interface SpecDiagnostic {
 
 `defineApi(...).diagnostics` holds the findings from building the model, and
 every render result's `diagnostics` adds the ones from that render. The
-list has no duplicates. `createOpenApi` throws on any `error` and passes the
-rest to `onDiagnostic`. Match on `code`; the message text can change.
+list has no duplicates. `createOpenApi`, `createAsyncApi` and `createArazzo`
+throw on any `error` and pass the rest to `onDiagnostic`. Match on `code`; the message text can change.
 
 The [overlay codes](/docs/specs/overlay#diagnostics) are on the overlay
 page.
@@ -57,6 +57,68 @@ those broke.
 | `path-param-unknown`     | error    | A path parameter is declared but isn't in the path template     |
 | `path-param-missing`     | error    | A `{name}` in the path template has no parameter                |
 | `ref-unresolved`         | error    | A local `$ref` (one that starts with `#`) points nowhere        |
+
+## AsyncAPI
+
+[`asyncapiFormat`](/docs/specs/asyncapi) reports these while it renders
+the `events`, `channels`, `messages` and `webhooks` of the model.
+
+| Code                                 | Severity | Cause                                                                                                 | Fix                                                                                  |
+| ------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `asyncapi-table-unknown`             | error    | `events.tables` names a table that isn't in `realtime.tables`, or `cloudEvents.rows` an unknown table | Fix the key, or add the table to `realtime.tables`                                   |
+| `asyncapi-realtime-url-invalid`      | error    | `realtimeUrl` isn't an absolute URL                                                                   | Pass the full websocket URL, such as `wss://<ref>.supabase.co/realtime/v1/websocket` |
+| `asyncapi-message-unknown`           | error    | A channel lists a message id that no message has; it is left out                                      | Add the message to `messages`, or fix the id                                         |
+| `asyncapi-operation-message-unknown` | error    | An operation lists a message that isn't one of its channel's                                          | List only messages of the operation's channel                                        |
+| `asyncapi-operation-id-duplicate`    | error    | Two operations have the same id; the first one is kept                                                | Rename one of the channel operations or topics                                       |
+| `asyncapi-channel-id-duplicate`      | error    | Two channels have the same id after invalid characters become `_`; the first one is kept              | Give one of the channels another id                                                  |
+| `asyncapi-server-missing`            | warning  | The document has websocket channels but no `realtimeUrl`                                              | Set `realtimeUrl`                                                                    |
+| `asyncapi-schema-opaque`             | warning  | A topic event or block event schema has no Standard JSON Schema, so its payload is left open          | Use a schema library that implements Standard JSON Schema, or pass `true`            |
+| `asyncapi-schema-dialect`            | warning  | A message payload or headers use JSON Schema 2020-12 keywords the draft-07 Schema Object lacks        | Expected when your tools read 2020-12; otherwise rewrite the schema without them     |
+| `asyncapi-emits-unknown`             | warning  | An action's `emits` names an event no message describes                                               | Fix the name, or describe the event in `events` or `messages`                        |
+| `asyncapi-topic-open`                | info     | A topic lists no `events`, so it has one open message                                                 | Add `events` to document the payloads                                                |
+| `asyncapi-key-invalid`               | info     | A channel, message or operation id has characters AsyncAPI keys don't allow; it is written with `_`   | Expected; use letters, digits, `_` and `-` to keep the id                            |
+| `asyncapi-security-unsupported`      | info     | A Security Profiles scheme is left out, because AsyncAPI can't describe it                            | Expected                                                                             |
+| `asyncapi-security-combined`         | info     | A requirement that needs several schemes together is listed as alternatives                           | Expected; AsyncAPI security lists have no AND                                        |
+
+These checks run on the finished document, after `transform` and overlays:
+
+| Code                                 | Severity | Cause                                                        |
+| ------------------------------------ | -------- | ------------------------------------------------------------ |
+| `asyncapi-ref-unresolved`            | error    | A local `$ref` points nowhere                                |
+| `asyncapi-key-invalid`               | error    | A channel id has characters AsyncAPI keys don't allow        |
+| `asyncapi-parameter-unknown`         | error    | A channel parameter isn't in the channel's address           |
+| `asyncapi-parameter-missing`         | error    | A `{name}` in a channel's address has no parameter           |
+| `asyncapi-operation-channel-unknown` | error    | An operation doesn't reference a channel under `#/channels/` |
+| `asyncapi-operation-message-unknown` | error    | An operation lists a message outside its channel             |
+
+## Arazzo
+
+[`arazzoFormat`](/docs/specs/arazzo) reports these while it renders the
+model's `workflows`.
+
+| Code                                   | Severity | Cause                                                                         | Fix                                                                     |
+| -------------------------------------- | -------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `arazzo-workflows-empty`               | error    | The model has no workflows, and an Arazzo document needs one                  | Pass `workflows`, or a built-in such as `paginationWorkflows()`         |
+| `arazzo-operation-unknown`             | error    | A step calls an operationId the API doesn't have                              | Fix the id, or serve the operation; type it with `ResourceOperationIds` |
+| `arazzo-parameter-in-missing`          | error    | A parameter has no `in`, and the operation has no parameter by that name      | Set `in`, or fix the parameter name                                     |
+| `arazzo-channel-step-unsupported`      | error    | A step uses an AsyncAPI channel in Arazzo 1.0; the step is left out           | Render version `1.1`                                                    |
+| `arazzo-channel-unknown`               | error    | A channel step names a channel the model doesn't have                         | Fix the id, or add the channel through `events` or `channels`           |
+| `arazzo-action-parameters-unsupported` | warning  | A success or failure action has `parameters` in Arazzo 1.0; they are left out | Render version `1.1`                                                    |
+
+These checks run on the finished document, after `transform` and overlays:
+
+| Code                           | Severity | Cause                                                                                                |
+| ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------- |
+| `arazzo-id-invalid`            | error    | A workflow or step id has characters other than letters, digits, `_` and `-`                         |
+| `arazzo-workflow-id-duplicate` | error    | Two workflows have the same id                                                                       |
+| `arazzo-step-id-duplicate`     | error    | A workflow has two steps with the same id                                                            |
+| `arazzo-step-target`           | error    | A step has none, or more than one, of `operationId`, `operationPath`, `channelPath` and `workflowId` |
+| `arazzo-workflow-unknown`      | error    | A step calls a workflow the document doesn't have                                                    |
+| `arazzo-step-output-unknown`   | error    | A `$steps.<step>.outputs.<name>` expression names an output no such step declares                    |
+| `arazzo-step-output-order`     | error    | A step reads the output of itself or of a later step                                                 |
+| `arazzo-source-unknown`        | error    | A `$sourceDescriptions.<name>` expression names a source the document doesn't list                   |
+| `arazzo-goto-unknown`          | error    | A `goto` or `retry` action targets a step or workflow that doesn't exist                             |
+| `arazzo-input-undeclared`      | warning  | An `$inputs.<name>` expression names a property the workflow's `inputs` don't declare                |
 
 ## Fail a build on errors
 

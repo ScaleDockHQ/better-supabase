@@ -72,9 +72,12 @@ findings (`arazzo-channel-step-unsupported`,
 ## Source descriptions
 
 The document points at the OpenAPI document as `api` (the model's `self`, or
-`openapi.json`) and at the AsyncAPI document as `events` (`asyncapi.json`).
-Pass `openapi` and `asyncapi` to `createArazzo`, or use `createArazzoFormat`,
-to point them at your published URLs.
+`openapi.json`) and, in 1.1 when a step uses a channel, at the AsyncAPI
+document as `events` (`asyncapi.json`). A workflow set with only channel
+steps lists only the AsyncAPI source. Pass `openapi` and `asyncapi` to
+`createArazzo`, or use `createArazzoFormat`, to point them at your published
+URLs. [Arazzo](/docs/specs/arazzo) in the API documents section has every
+option.
 
 ## Findings
 

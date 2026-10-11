@@ -4,6 +4,8 @@
     "index",
     "customize",
     "openapi",
+    "asyncapi",
+    "arazzo",
     "overlay",
     "resources",
     "diagnostics"

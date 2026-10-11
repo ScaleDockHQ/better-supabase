@@ -175,6 +175,8 @@
   "repository/writing",
   "roadmap",
   "specs",
+  "specs/arazzo",
+  "specs/asyncapi",
   "specs/customize",
   "specs/diagnostics",
   "specs/openapi",
