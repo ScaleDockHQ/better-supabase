@@ -45,6 +45,12 @@ them. Apps that only run the runtime entries never install them.
 | [`@supabase/postgrest-typegen`](https://www.npmjs.com/package/@supabase/postgrest-typegen) | Reads the database catalog and writes `database.types.ts`, the same file `supabase gen types` writes                | Optional peer (`>=0.4.0 <0.5`, tested against 0.4.0) | [gen](/docs/cli/gen)       |
 | [`@supabase/config`](https://www.npmjs.com/package/@supabase/config)                       | Interpolates `env()` in `supabase/config.toml` the way the Supabase CLI does; without it, smol-toml parses the file | Optional peer                                        | [Config](/docs/cli/config) |
 
+## Supabase's MCP server
+
+| Package                                                                                        | What better-supabase uses it for                                                                           | How it is installed              | Docs                                                                                                      |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [`@supabase/mcp-server-supabase`](https://www.npmjs.com/package/@supabase/mcp-server-supabase) | The tool schemas `supabaseMcp()` types an agent's tools with, and the server `supabaseMcpHandler()` serves | Optional peer (`>=0.13.0 <0.14`) | [MCP connectors](/docs/ai-sdk/mcp#supabases-mcp-server), [MCP](/docs/frameworks/mcp#supabases-mcp-server) |
+
 ## The Supabase CLI
 
 The [`supabase`](https://www.npmjs.com/package/supabase) CLI runs your local

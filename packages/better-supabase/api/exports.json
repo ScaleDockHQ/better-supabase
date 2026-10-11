@@ -1302,6 +1302,7 @@
   "./mcp/sdk": {
     "values": [
       "createMcpAuth",
+      "supabaseMcpHandler",
       "withBetterSupabaseMcp"
     ],
     "types": [
@@ -1315,6 +1316,12 @@
       "GuardOptions",
       "McpAuthOptions",
       "McpFetchHandler",
+      "SupabaseMcpFeature",
+      "SupabaseMcpHandlerOptions",
+      "SupabaseMcpLoaders",
+      "SupabaseMcpModule",
+      "SupabaseMcpPlatformModule",
+      "SupabaseMcpScope",
       "ToolRegistrar"
     ]
   },
@@ -3077,6 +3084,8 @@
       "connectAll",
       "connectTools",
       "mcpOAuthRef",
+      "SUPABASE_MCP_URL",
+      "supabaseMcp",
       "vaultOAuthProvider"
     ],
     "types": [
@@ -3084,6 +3093,11 @@
       "ConnectAllResult",
       "ConnectedTools",
       "ConnectToolsOptions",
+      "McpToolSchemas",
+      "SupabaseMcp",
+      "SupabaseMcpFeature",
+      "SupabaseMcpOptions",
+      "SupabaseMcpScope",
       "VaultOAuthProvider",
       "VaultOAuthProviderOptions"
     ]

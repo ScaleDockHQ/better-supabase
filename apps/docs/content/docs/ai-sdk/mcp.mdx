@@ -88,3 +88,54 @@ changed returns `CONNECTOR_TOOLS_CHANGED` until an admin approves it.
 
 Pass `apps: true` to split out MCP Apps tools into `appTools`, and `elicit`
 to answer a server's elicitation requests; without it they are declined.
+
+## Supabase's MCP server
+
+Supabase's [MCP server](https://supabase.com/docs/guides/getting-started/mcp)
+gives an agent project tools: list tables, run SQL, read the logs and search
+the Supabase docs. `supabaseMcp` returns the URL to register as a connector
+server and the tool schemas from `@supabase/mcp-server-supabase`, so
+`connectTools` types each tool's input and output:
+
+```bash
+pnpm add @supabase/mcp-server-supabase
+```
+
+```ts
+import { connectTools, supabaseMcp } from "better-supabase/ai-sdk/mcp";
+
+const supabase = await supabaseMcp({
+  projectRef: "abcdefghijklmnopqrst",
+  features: ["database", "docs"],
+});
+// supabase.url is
+// https://mcp.supabase.com/mcp?project_ref=abcdefghijklmnopqrst&read_only=true&features=database%2Cdocs
+
+const { tools, close } = await connectTools({
+  connectors,
+  server, // a connector server registered with supabase.url
+  userId,
+  vault,
+  schemas: supabase.schemas,
+}).orThrow();
+```
+
+`supabaseMcp` is read-only unless you pass `readOnly: false`: the URL sets
+`read_only=true`, so SQL runs read-only, and the schemas leave out the tools
+that write, such as `apply_migration`.
+`connectTools` returns only the tools the schemas name, and the fingerprint
+an admin approves still covers every tool the server lists. Pass
+`url: "http://localhost:54321/mcp"` for the server of the local Supabase
+stack.
+
+The hosted server signs the user in with their Supabase account through
+OAuth, so register it with the `oauth` auth type and send the user through
+`authorizeConnector` first. To serve it from your own app with a Management
+API token you hold, see
+[Supabase's MCP server](/docs/frameworks/mcp#supabases-mcp-server) on the MCP
+page.
+
+Supabase's server and better-supabase's MCP tools answer different needs.
+Supabase's tools administer a project (SQL, migrations, logs, branches) for
+the people who run it. [`createMcp`](/docs/frameworks/mcp) tools are typed,
+RLS-scoped tools over your tables for your app's own users.

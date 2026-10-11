@@ -139,7 +139,9 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
     `redis` through a variable specifier in `src/streams/redis/redis.ts`
     (an install message, or pass a client), `@vercel/connect` through a
     variable specifier in `src/vercel-connect/vercel-connect.ts` (an
-    install message), `@next/playwright` through a variable specifier in
+    install message), `@supabase/mcp-server-supabase` through variable
+    specifiers in `src/core/supabase-mcp.ts` (an install message),
+    `@next/playwright` through a variable specifier in
     `src/testing/instant.ts` (an install message), `eve/tools` through a
     variable specifier in `src/eve/eve.ts` (the memory provider builds no
     tools without it), and `@nestjs/common` through a synchronous

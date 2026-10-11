@@ -44,6 +44,7 @@ catalog:
   "@supabase-labs/middleware-openfeature": 0.2.0
   "@supabase-labs/tanstack-db": 0.1.0
   "@supabase/config": 0.11.1
+  "@supabase/mcp-server-supabase": 0.13.0
   "@supabase/middleware": 1.0.0
   "@supabase/postgrest-typegen": 0.4.0
   "@supabase/server": 1.9.1
@@ -197,6 +198,7 @@ catalogs:
     "@opentelemetry/api": ">=1.9 <2"
     "@orpc/server": ">=2.0.0-beta.40 <3"
     "@supabase/config": ">=0.9.0 <0.12"
+    "@supabase/mcp-server-supabase": ">=0.13.0 <0.14"
     # A range, so a newer patch an app installs doesn't fail strict peer
     # checks. The default catalog stays exact (AGENTS.md invariant 11), and
     # `gen` prints a notice for any release but TYPEGEN_VERSION (ADR 0016).
