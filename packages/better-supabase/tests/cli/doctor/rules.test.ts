@@ -13,11 +13,7 @@ import type {
 import { parseCommandArgs } from "../../../src/cli/command.ts";
 import { renderFiles } from "../../../src/cli/commands/gen.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
-import {
-  runSql,
-  sqlCommand,
-  type SqlArgs,
-} from "../../../src/cli/commands/sql.ts";
+import { runSql, sqlCommand } from "../../../src/cli/commands/sql.ts";
 import {
   type DoctorContext,
   RULES,
@@ -549,7 +545,7 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(missing.length).toBeGreaterThanOrEqual(2);
     const synced = await runSql(
       ctx.config,
-      parseCommandArgs(sqlCommand, ["sync"]) as SqlArgs,
+      parseCommandArgs(sqlCommand, ["sync"]),
     );
     expect(synced.code).toBe(0);
     expect(await run("BS304", ctx)).toEqual([]);

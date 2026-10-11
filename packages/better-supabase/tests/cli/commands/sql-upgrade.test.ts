@@ -4,11 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { parseCommandArgs } from "../../../src/cli/command.ts";
-import {
-  runSql,
-  sqlCommand,
-  type SqlArgs,
-} from "../../../src/cli/commands/sql.ts";
+import { runSql, sqlCommand } from "../../../src/cli/commands/sql.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
 vi.mock(import("../../../src/sql/index.ts"), async (original) => ({
@@ -45,8 +41,7 @@ describe("sql upgrade with forward steps", () => {
   const sql = (argv: string[]) =>
     runSql(
       resolveConfig({ sql: { modules: ["tenant"] } }, root),
-      // SAFETY: parseCommandArgs returns the declared args of sqlCommand.
-      parseCommandArgs(sqlCommand, argv) as SqlArgs,
+      parseCommandArgs(sqlCommand, argv),
     );
 
   it("writes the steps with SQL into a migration before the schema diff", async () => {

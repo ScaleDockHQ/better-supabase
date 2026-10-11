@@ -8,11 +8,11 @@ import type { Paint } from "../style.ts";
 
 import { failedResult, parseNames } from "../errors.ts";
 import { GEN_TASKS, isGenTask } from "../names.ts";
-import { envStep } from "./env.ts";
-import { scaffoldStep } from "./scaffold.ts";
-import { seedStep } from "./seed.ts";
+import { runEnv } from "./env.ts";
+import { runScaffold } from "./scaffold.ts";
+import { runSeed } from "./seed.ts";
 import { runSpec } from "./spec.ts";
-import { syncSql } from "./sql.ts";
+import { runSql } from "./sql.ts";
 
 /** One task's result in a `gen` run. */
 export interface TaskResult {
@@ -99,7 +99,8 @@ const STEPS: Readonly<
     (options: StepOptions) => Promise<CommandResult>
   >
 > = {
-  sql: ({ config, check, paint }) => syncSql(config, check, paint),
+  sql: ({ config, check, paint }) =>
+    runSql(config, { _: ["sync"], check }, paint),
   spec: ({ config, check }) =>
     runSpec({
       config,
@@ -111,15 +112,16 @@ const STEPS: Readonly<
         ? {}
         : { manifest: config.specs.manifest }),
     }),
-  seed: ({ config, check, env }) => seedStep(config, check, env),
-  scaffold: ({ config, check }) => scaffoldStep(config, check),
+  seed: ({ config, check, env }) => runSeed(config, { check }, env),
+  scaffold: ({ config, check }) =>
+    runScaffold(config, { _: ["api"] }, { generatedOnly: true, check }),
   env: async ({ config, check, env }) =>
     check
       ? {
           code: 0,
           output: "Skipped: env writes local keys, so --check leaves it out.",
         }
-      : envStep(config, env),
+      : runEnv(config, {}, env),
 };
 
 /**

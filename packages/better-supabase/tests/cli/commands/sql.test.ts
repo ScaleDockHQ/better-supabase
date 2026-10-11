@@ -14,7 +14,6 @@ import { parseCommandArgs } from "../../../src/cli/command.ts";
 import {
   migrationsDir,
   sqlCommand,
-  type SqlArgs,
   runSql,
 } from "../../../src/cli/commands/sql.ts";
 import { VERSION } from "../../../src/cli/version.ts";
@@ -91,10 +90,7 @@ describe("runSql", () => {
   });
 
   const sql = (argv: string[], config: BetterSupabaseConfig = {}) =>
-    runSql(
-      resolveConfig(config, root),
-      parseCommandArgs(sqlCommand, argv) as SqlArgs,
-    );
+    runSql(resolveConfig(config, root), parseCommandArgs(sqlCommand, argv));
 
   it("asks for an action and rejects unknown ones", async () => {
     const usage = "Run `better-supabase sql --help` for the actions.";

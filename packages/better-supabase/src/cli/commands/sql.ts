@@ -3,7 +3,7 @@ import { readdir, readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 
 import {
@@ -34,8 +34,9 @@ import {
   moduleKeyProblems,
   providerLabel,
 } from "../authorization.ts";
-import { defineCliCommand, parseCliArgs } from "../command.ts";
+import { defineCliCommand } from "../command.ts";
 import { fileDiff } from "../diff.ts";
+import { writeLine } from "../files.ts";
 import { display, sameText, writeIfChanged } from "../io.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { migrationsDir, moduleLayoutFor } from "../sql-layout.ts";
@@ -76,6 +77,8 @@ const SQL_ARGS = {
 } as const;
 
 export type SqlArgs = CliArgs<typeof SQL_ARGS>;
+
+export type SqlFlags = CliOptions<typeof SQL_ARGS>;
 
 const USAGE = "Run `better-supabase sql --help` for the actions.";
 
@@ -166,7 +169,7 @@ const permissionKeysFor = (
 
 async function layout(
   config: ResolvedConfig,
-  args: SqlArgs,
+  args: SqlFlags,
   names?: readonly string[],
 ): Promise<ModuleLayout> {
   return {
@@ -188,7 +191,7 @@ async function layout(
  */
 async function layoutFor(
   config: ResolvedConfig,
-  args: SqlArgs,
+  args: SqlFlags,
   names: readonly string[],
 ): Promise<ModuleLayout> {
   const entitlementsProvider = entitlementsProviderFor(config, names);
@@ -274,7 +277,7 @@ function stampAfter(migrations: readonly string[], now: Date): string {
 
 async function write(
   config: ResolvedConfig,
-  args: SqlArgs,
+  args: SqlFlags,
   names: readonly string[],
   sqlLayout: ModuleLayout,
   only?: readonly string[],
@@ -306,9 +309,14 @@ async function write(
       lines.push(`Would write ${shown} (${file.module})`);
       continue;
     }
-    const wrote = await writeIfChanged(path, file.contents);
+    const { wrote, line } = await writeLine(
+      path,
+      file.contents,
+      shown,
+      ` (${file.module})`,
+    );
     if (wrote && file.kind === "data") data = true;
-    lines.push(`${wrote ? "Wrote" : "Unchanged"} ${shown} (${file.module})`);
+    lines.push(line);
   }
   lines.push(...(await writeExtensionsMigration(config, files, dryRun)));
   if (data) lines.push("", DATA_NEXT);
@@ -378,7 +386,7 @@ const DATA_SUFFIX = "_better_supabase_module_data.sql";
  */
 async function dataMigration(
   config: ResolvedConfig,
-  args: SqlArgs,
+  args: SqlFlags,
 ): Promise<CommandResult> {
   if (config.sql.moduleNames.length === 0) {
     return { code: 0, output: "sql.modules is empty; nothing to write." };
@@ -460,7 +468,7 @@ async function unlistedModuleFiles(
  */
 async function upgrade(
   config: ResolvedConfig,
-  args: SqlArgs,
+  args: SqlFlags,
   paint: Paint,
 ): Promise<CommandResult> {
   if (config.sql.moduleNames.length === 0) {
@@ -564,10 +572,10 @@ async function upgrade(
 
 export async function runSql(
   config: ResolvedConfig,
-  args: SqlArgs,
+  args: SqlFlags,
   paint: Paint = plain,
 ): Promise<CommandResult> {
-  const [action, ...names] = args._;
+  const [action, ...names] = args._ ?? [];
   switch (action) {
     case "list": {
       const sqlLayout = await layout(config, args);
@@ -697,11 +705,16 @@ export async function runSql(
           if (args["dry-run"] === true)
             lines.push(`Would write ${shown} (topics)`);
           else {
-            const wrote = await writeIfChanged(
-              resolve(config.root, topics.path),
-              topics.contents,
+            lines.push(
+              (
+                await writeLine(
+                  resolve(config.root, topics.path),
+                  topics.contents,
+                  shown,
+                  " (topics)",
+                )
+              ).line,
             );
-            lines.push(`${wrote ? "Wrote" : "Unchanged"} ${shown} (topics)`);
           }
         }
         return { code: 0, output: lines.join("\n") };
@@ -788,19 +801,6 @@ export async function runSql(
         error: `Unknown sql action "${action}".\n${USAGE}`,
       };
   }
-}
-
-/** `sql sync`, or `sql sync --check`: the `sql` step of `gen`. */
-export function syncSql(
-  config: ResolvedConfig,
-  check: boolean,
-  paint: Paint = plain,
-): Promise<CommandResult> {
-  return runSql(
-    config,
-    parseCliArgs(SQL_ARGS, ["sync", ...(check ? ["--check"] : [])]),
-    paint,
-  );
 }
 
 export const sqlCommand: AnyCommand = defineCliCommand({

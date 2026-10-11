@@ -3,13 +3,14 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliArgs } from "../command.ts";
+import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
 import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 
-import { defineCliCommand, parseCliArgs } from "../command.ts";
+import { defineCliCommand } from "../command.ts";
 import { supabaseCli } from "../exec.ts";
-import { display, writeIfChanged } from "../io.ts";
+import { writeLine } from "../files.ts";
+import { display, readIfExists } from "../io.ts";
 import { detectProject, publicPrefix } from "../project.ts";
 
 const ARGS = {
@@ -37,13 +38,15 @@ const ARGS = {
 
 export type EnvArgs = CliArgs<typeof ARGS>;
 
+export type EnvFlags = CliOptions<typeof ARGS>;
+
 interface Status {
   readonly [key: string]: unknown;
 }
 
 async function readStatus(
   config: ResolvedConfig,
-  args: EnvArgs,
+  args: EnvFlags,
   env: CliEnv,
 ): Promise<Status> {
   const from = args.from;
@@ -108,7 +111,7 @@ export function mergeEnv(
 
 export async function runEnv(
   config: ResolvedConfig,
-  args: EnvArgs,
+  args: EnvFlags,
   env: CliEnv,
 ): Promise<CommandResult> {
   const status = await readStatus(config, args, env);
@@ -152,11 +155,14 @@ export async function runEnv(
 
   const out = args.out ?? config.env.output;
   const path = resolve(config.root, out);
-  const current = existsSync(path) ? await readFile(path, "utf8") : "";
-  const wrote = await writeIfChanged(path, mergeEnv(current, values));
-  const lines = [
-    `${wrote ? "Wrote" : "Unchanged"} ${display(config.root, out)}: ${Object.keys(values).join(", ")}`,
-  ];
+  const current = (await readIfExists(path)) ?? "";
+  const { line } = await writeLine(
+    path,
+    mergeEnv(current, values),
+    display(config.root, out),
+    `: ${Object.keys(values).join(", ")}`,
+  );
+  const lines = [line];
   if (!text(status, "PUBLISHABLE_KEY")) {
     lines.push(
       "Warning: this Supabase CLI prints only legacy JWT keys. Upgrade it to get sb_publishable_/sb_secret_ keys.",
@@ -177,14 +183,6 @@ export async function runEnv(
       `Warning: add ${out} to .gitignore; it contains the secret key.`,
     );
   return { code: 0, output: lines.join("\n") };
-}
-
-/** `env` from the config: the `env` step of `gen`. */
-export function envStep(
-  config: ResolvedConfig,
-  env: CliEnv,
-): Promise<CommandResult> {
-  return runEnv(config, parseCliArgs(ARGS, []), env);
 }
 
 export const envCommand: AnyCommand = defineCliCommand({

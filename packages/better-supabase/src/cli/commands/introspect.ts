@@ -1,12 +1,9 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
-
 import type { AnyCommand } from "../command.ts";
 
 import { defineCliCommand } from "../command.ts";
 import { fileDiff } from "../diff.ts";
+import { fileState, writeLine } from "../files.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
-import { display, sameText, writeIfChanged } from "../io.ts";
 import { withSpinner } from "../prompts.ts";
 import { painter } from "../style.ts";
 import { SOURCE_ARGS, sourceArgs } from "./gen.ts";
@@ -63,12 +60,10 @@ export const introspectCommand: AnyCommand = defineCliCommand({
       format === "snapshot"
         ? serializeSnapshot(snapshot)
         : `${await serializeGenerator(restrictSchemas(snapshot.generator, config.schemas))}\n`;
+    const state = await fileState(config.root, out, contents);
     if (args.check === true) {
-      const current = await readFile(resolve(config.root, out), "utf8").catch(
-        () => undefined,
-      );
-      const file = display(config.root, out);
-      return sameText(current, contents)
+      const { file, current, upToDate } = state;
+      return upToDate
         ? {
             code: 0,
             output: `${file} is up to date.`,
@@ -81,12 +76,17 @@ export const introspectCommand: AnyCommand = defineCliCommand({
             data: { file, upToDate: false },
           };
     }
-    const wrote = await writeIfChanged(resolve(config.root, out), contents);
     const tables = snapshot.extras.tables.length;
+    const { wrote, line } = await writeLine(
+      state.path,
+      contents,
+      state.file,
+      ` (${tables} tables).`,
+    );
     return {
       code: 0,
-      output: `${wrote ? "Wrote" : "Unchanged"} ${display(config.root, out)} (${tables} tables).`,
-      data: { file: display(config.root, out), written: wrote, tables },
+      output: line,
+      data: { file: state.file, written: wrote, tables },
     };
   },
 });
