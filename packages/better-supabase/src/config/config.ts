@@ -15,8 +15,8 @@ import { providerApiProblem } from "./authorization.ts";
 export type { Casing };
 
 /**
- * Where codegen reads the database from. Without any of these, `$DATABASE_URL`
- * and then the local stack (`supabase start`) are used.
+ * Where codegen reads the database from. Without any of these, `$DATABASE_URL`,
+ * `$SUPABASE_DB_URL` and then the local stack (`supabase start`) are used.
  */
 export interface SourceConfig {
   /** Postgres connection string. */

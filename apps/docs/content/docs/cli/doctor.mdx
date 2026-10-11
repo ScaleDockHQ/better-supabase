@@ -105,7 +105,7 @@ Where the findings come from depends on what doctor reads:
 - **Hosted projects** (`--project-ref` or `source.projectRef`): the Management
   API's `GET /v1/projects/{ref}/advisors/security`, the same data the dashboard
   shows.
-- **Local stack, `$DATABASE_URL` or `--db-url-stdin`:** [splinter](https://github.com/supabase/splinter),
+- **Local stack, `$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`:** [splinter](https://github.com/supabase/splinter),
   the SQL behind the advisors. Doctor downloads `splinter.sql` at a pinned
   commit, checks its SHA-256, caches it in
   `node_modules/.cache/better-supabase` and runs it in a read-only transaction
@@ -383,7 +383,7 @@ number of InitPlans and each function's share of the execution time from
 `pg_stat_xact_user_functions`. A SubPlan that runs more than once means a
 policy is evaluated per row, and the finding becomes a warning: wrap the
 policy's function calls in `(select ...)` so they run once as an InitPlan.
-`--explain` needs a direct connection (local stack, `$DATABASE_URL` or `--db-url-stdin`); the
+`--explain` needs a direct connection (local stack, `$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`); the
 Management API's read-only endpoint can't switch roles.
 
 ```text
@@ -932,7 +932,7 @@ the budget passes. When the hook sets `tokenHook.budget.truncatedClaim`,
 doctor also reports that the token lists only some entries, so server checks
 for that user need a database lookup. Keep ids and roles in the token and
 look everything else up. This needs a direct connection (local stack,
-`$DATABASE_URL` or `--db-url-stdin`).
+`$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`).
 
 ### BS406
 

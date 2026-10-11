@@ -23,7 +23,7 @@ const ARGS = {
   apply: {
     type: "boolean",
     description:
-      "Also insert the rows into the database ($DATABASE_URL, --db-url-stdin, or the local stack)",
+      "Also insert the rows into the database ($DATABASE_URL, $SUPABASE_DB_URL, --db-url-stdin, or the local stack)",
   },
   entry: {
     type: "string",
@@ -39,7 +39,7 @@ const ARGS = {
   "db-url-stdin": {
     type: "boolean",
     description:
-      "Read the connection string from stdin instead of $DATABASE_URL or the config",
+      "Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL",
   },
 } as const;
 

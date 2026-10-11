@@ -127,7 +127,10 @@ export async function stdinDatabaseUrl(
   return url;
 }
 
-/** Connection string: stdin, config, `$DATABASE_URL`, then the local stack. */
+/**
+ * Connection string: stdin, config, `$DATABASE_URL`, `$SUPABASE_DB_URL`, then the
+ * local stack.
+ */
 export async function databaseUrl(
   config: ResolvedConfig,
   env: CliEnv,
@@ -136,6 +139,7 @@ export async function databaseUrl(
   if (fromStdin) return fromStdin;
   if (config.source.dbUrl) return config.source.dbUrl;
   if (env.DATABASE_URL) return env.DATABASE_URL;
+  if (env.SUPABASE_DB_URL) return env.SUPABASE_DB_URL;
   const port = (await readSupabasePort(config.root, "db")) ?? 54322;
   return `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`;
 }

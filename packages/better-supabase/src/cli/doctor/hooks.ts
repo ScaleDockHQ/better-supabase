@@ -583,7 +583,7 @@ export const HOOK_RULES: readonly Rule[] = [
           if (!db || "skipped" in db || !db.session) {
             findings.push({
               severity: "info",
-              message: `Measuring the hook's claims needs a direct database connection (local stack, $DATABASE_URL or --db-url-stdin)${db && "skipped" in db ? `: ${db.skipped}` : "."}`,
+              message: `Measuring the hook's claims needs a direct database connection (local stack, $DATABASE_URL, $SUPABASE_DB_URL or --db-url-stdin)${db && "skipped" in db ? `: ${db.skipped}` : "."}`,
               target: `${signatureOf(fn)}:claims`,
             });
             continue;

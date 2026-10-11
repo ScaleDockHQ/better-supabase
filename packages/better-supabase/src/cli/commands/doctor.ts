@@ -103,7 +103,7 @@ const ARGS = {
   "db-url-stdin": {
     type: "boolean",
     description:
-      "Read the connection string from stdin instead of $DATABASE_URL or the config",
+      "Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL",
   },
   "project-ref": {
     type: "string",
@@ -314,7 +314,7 @@ function openLive(
   const none = { close: () => Promise.resolve() };
   const file = snapshotFile(config, source);
   if (file) {
-    const skipped = `reading the saved snapshot ${file}; set $DATABASE_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
+    const skipped = `reading the saved snapshot ${file}; set $DATABASE_URL or $SUPABASE_DB_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
     return { ...none, advisors: { skipped }, database: { skipped } };
   }
   let opened: Promise<IntrospectionSource> | undefined;
@@ -602,7 +602,7 @@ export const doctorCommand: AnyCommand = defineCliCommand({
           return { code: METADATA_REJECTED, error: cause.message };
         throw cause;
       }
-      const skipped = `reading a GeneratorMetadata document; set $DATABASE_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
+      const skipped = `reading a GeneratorMetadata document; set $DATABASE_URL or $SUPABASE_DB_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
       return runDoctor(config, args, env, {
         snapshot,
         advisors: { skipped },

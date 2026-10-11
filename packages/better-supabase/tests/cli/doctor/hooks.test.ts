@@ -244,7 +244,7 @@ describe("BS405 --as", () => {
       {
         severity: "info",
         message:
-          "Measuring the hook's claims needs a direct database connection (local stack, $DATABASE_URL or --db-url-stdin).",
+          "Measuring the hook's claims needs a direct database connection (local stack, $DATABASE_URL, $SUPABASE_DB_URL or --db-url-stdin).",
         target: "rbac.custom_access_token_hook(event jsonb):claims",
       },
     ]);

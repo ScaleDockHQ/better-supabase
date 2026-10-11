@@ -77,7 +77,7 @@ pnpm better-supabase seed --apply  # also inserts into the local database
 ```
 
 `--entry <file>` and `--out <file>` override `seed.entry` and
-`seed.output`. `--apply` connects to `$DATABASE_URL`, or to the local stack;
+`seed.output`. `--apply` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
 to seed another database, pipe its connection string in with
 `--db-url-stdin`.
 

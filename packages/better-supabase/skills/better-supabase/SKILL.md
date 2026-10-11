@@ -148,7 +148,7 @@ const customers = result.data;
 
 ## CLI in scripts and CI
 
-- No command takes a connection string as an argument. Set `$DATABASE_URL` or `source.dbUrl`, or pipe it in with `--db-url-stdin`.
+- No command takes a connection string as an argument. Set `$DATABASE_URL`, `$SUPABASE_DB_URL` or `source.dbUrl`, or pipe it in with `--db-url-stdin`.
 - `--json` prints one JSON document on stdout: the result, or Problem Details with a `code` on failure. `--yes` and `CI` turn prompts off.
 - Exit codes: 0 success, 1 a failure or finding (`--check` drift, doctor errors), 2 a usage, config or environment problem. Each error code is listed at https://bettersupabase.com/docs/cli/errors.
 

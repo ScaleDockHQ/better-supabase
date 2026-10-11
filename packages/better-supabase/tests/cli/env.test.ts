@@ -8,12 +8,14 @@ describe("parseEnv", () => {
     expect(
       parseEnv({
         DATABASE_URL: "postgresql://u@h/db",
+        SUPABASE_DB_URL: "postgresql://u@h/supabase",
         SUPABASE_ACCESS_TOKEN: "sbp_test",
         CI: "",
         UNRELATED: "x",
       }),
     ).toMatchObject({
       DATABASE_URL: "postgresql://u@h/db",
+      SUPABASE_DB_URL: "postgresql://u@h/supabase",
       SUPABASE_ACCESS_TOKEN: "sbp_test",
       CI: undefined,
     });
@@ -22,7 +24,11 @@ describe("parseEnv", () => {
   it("reports a malformed URL as env_invalid with one issue per variable", () => {
     let caught: unknown;
     try {
-      parseEnv({ DATABASE_URL: "not a url", SUPABASE_API_URL: "nope" });
+      parseEnv({
+        DATABASE_URL: "not a url",
+        SUPABASE_DB_URL: "nor this",
+        SUPABASE_API_URL: "nope",
+      });
     } catch (error) {
       caught = error;
     }
@@ -33,6 +39,7 @@ describe("parseEnv", () => {
       problem: {
         issues: [
           expect.stringMatching(/^DATABASE_URL: must be a URL/),
+          expect.stringMatching(/^SUPABASE_DB_URL: must be a URL/),
           expect.stringMatching(/^SUPABASE_API_URL: must be a URL/),
         ],
       },

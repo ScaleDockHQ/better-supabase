@@ -422,7 +422,7 @@ export const SOURCE_ARGS = {
   "db-url-stdin": {
     type: "boolean",
     description:
-      "Read the connection string from stdin instead of $DATABASE_URL or the config",
+      "Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL",
   },
   "project-ref": {
     type: "string",

@@ -51,8 +51,8 @@ Branch on `result.error.kind`, not on the message.
 - The CLI exits with 2: the command line, the config or an environment
   variable needs a change. Rerun with `--json` to get the error `code`, and
   look it up at https://bettersupabase.com/docs/cli/errors.
-- `--db-url` is rejected: set `$DATABASE_URL` or pipe the URL in with
-  `--db-url-stdin`.
+- `--db-url` is rejected: set `$DATABASE_URL` or `$SUPABASE_DB_URL`, or pipe
+  the URL in with `--db-url-stdin`.
 - Two different `Temporal.Instant` values compare equal in `toEqual`: compare
   with `.equals()` or register an equality tester (the
   `better-supabase-testing` skill).
