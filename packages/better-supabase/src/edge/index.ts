@@ -35,6 +35,13 @@ export { toEdge } from "../bridges/edge.ts";
 export type { EdgeExecutionContext, EdgeHandler } from "../bridges/edge.ts";
 export type { ResourceRouteOptions } from "../server/resource.ts";
 export type { BlockRequireOptions } from "../server/kit.ts";
+export { defineFunction } from "./function.ts";
+export type {
+  ContractOf,
+  FunctionContract,
+  FunctionDefinition,
+  TypedFunction,
+} from "./function.ts";
 
 export interface CorsOptions {
   /** Allowed origins, or `*`. Defaults to `*`. */

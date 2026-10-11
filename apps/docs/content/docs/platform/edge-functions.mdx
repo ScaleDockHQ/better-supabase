@@ -1,0 +1,118 @@
+---
+title: Edge Functions
+description: Typed Edge Function calls, with Standard Schema input and output and a Result on the client.
+---
+
+`defineFunction` gives an Edge Function a typed input and output. The function
+checks its body with a Standard Schema (zod, valibot, arktype and the rest)
+before your handler runs as the caller. Its type carries the contract, so the
+app calls it through `functions()` from `better-supabase/client` and gets a
+`Result` back instead of an untyped `{ data, error }`.
+
+## Define the function
+
+```ts title="supabase/functions/create-customer/handler.ts"
+import {
+  type ContractOf,
+  createEdge,
+  defineFunction,
+} from "better-supabase/edge";
+import * as v from "valibot";
+import { betterSupabase } from "../_shared/supabase.ts";
+
+const bs = createEdge(betterSupabase, { cors: true });
+
+export const createCustomer = defineFunction(bs, {
+  input: v.object({
+    name: v.pipe(v.string(), v.trim(), v.minLength(1)),
+    organizationId: v.pipe(v.string(), v.uuid()),
+  }),
+  output: v.object({
+    id: v.string(),
+    name: v.string(),
+    organizationId: v.string(),
+  }),
+  handler: (input, { db }) =>
+    db.customers.create(input, { select: ["id", "name", "organizationId"] }),
+});
+
+export type CreateCustomer = ContractOf<typeof createCustomer>;
+```
+
+```ts title="supabase/functions/create-customer/index.ts"
+import { createCustomer } from "./handler.ts";
+
+Deno.serve(createCustomer);
+```
+
+`defineFunction` returns the same fetch handler as
+[`bs.handler`](/docs/frameworks/edge), with these steps in front of your code:
+
+| Step                                | Answer when it fails                            |
+| ----------------------------------- | ----------------------------------------------- |
+| The guard (`allow`, `aal`, scopes)  | 401 or 403, before the body is read             |
+| The body parses as JSON             | 400 `invalid_input`                             |
+| `input` accepts the body            | 422 `validation`, with the schema's issues      |
+| `output` accepts the handler's data | 500 `unexpected`, so nothing unchecked goes out |
+
+A `GET` or an empty body reaches `input` as `undefined`, so a function that
+takes no input uses an optional schema (`v.optional(v.object({}))`). The
+handler gets the parsed input and the request context (`db`, `auth`,
+`request` and the rest), and returns data, a `Result` or a `Response`, which
+is sent as is. `output` is optional; without it, the contract's output is
+what the handler returns. The options of `bs.handler` (`allow`, `aal`,
+`scopes`) go next to `input`.
+
+## Call it from the app
+
+```ts title="lib/functions.ts"
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { functions } from "better-supabase/client";
+import type { CreateCustomer } from "../supabase/functions/create-customer/handler.ts";
+
+export type Contracts = { "create-customer": CreateCustomer };
+
+export const edgeFunctions = (supabase: SupabaseClient) =>
+  functions<Contracts>(supabase);
+```
+
+```ts
+const fns = edgeFunctions(bs.supabase);
+
+const result = await fns.invoke("create-customer", {
+  name: "Acme",
+  organizationId,
+});
+if (!result.ok) return showError(result.error);
+result.data.id; // string
+```
+
+`invoke(name, input, options?)` sends the input as JSON through
+supabase-js's `functions.invoke`, so it carries the session's token, and
+returns an `AsyncResult` of the output. `.orThrow()` turns an error into a
+`DbException` when you want one. `options` are the `functions.invoke` options
+without `body`: `headers`, `method`, `region`, `signal` and `timeout`.
+
+Errors come back as the same `DbError` the server sent:
+
+| What happened                                  | `DbError`                              |
+| ---------------------------------------------- | -------------------------------------- |
+| The function answered with Problem Details     | its kind, status and fields            |
+| The function answered another error            | `unexpected`, with the response status |
+| The request never reached the function         | `network`                              |
+| The Edge Functions relay failed                | `network`                              |
+| `signal` aborted the call, or `timeout` passed | `aborted` or `timeout`                 |
+
+The contract is a type import: nothing from the function's code reaches the
+app bundle. The app's TypeScript has to be able to read the function's file,
+so keep `Deno` calls in `index.ts` and the definition in a file without
+Deno-only imports, as above. When the function's dependencies are not
+installed in the app, write the contract by hand with
+`FunctionContract<Input, Output>`.
+
+`functions()` takes anything with supabase-js's `functions` client: the
+`bs.supabase` of `createClient`, a server's supabase-js client, or a plain
+`createClient` from supabase-js.
+
+The [edge example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/edge)
+has the function above and its typed caller.

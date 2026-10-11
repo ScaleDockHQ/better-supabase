@@ -19,6 +19,10 @@ records what shipped.
 - **TanStack DB collections with Realtime sync**
   (`better-supabase/tanstack-db`), built on `@supabase-labs/tanstack-db` with
   the generated schemas and primary keys. Upstream: `supabase/tanstack-db`.
+- **Typed Edge Function calls** (`better-supabase/edge` and
+  `better-supabase/client`): `defineFunction()` checks the input and output
+  with Standard Schemas, and `functions()` calls it through `functions-js`
+  with a `Result`. Upstream: `@supabase/functions-js`.
 
 ## Next
 
@@ -32,10 +36,6 @@ Parity gaps with what Supabase ships today.
   `better-supabase/mcp/sdk`): typed tools from `createToolSchemas()` and a
   self-hosted `createSupabaseMcpHandler` behind better-supabase auth.
   Upstream: `@supabase/mcp-server-supabase`.
-- **Typed Edge Function calls** (`better-supabase/edge` and
-  `better-supabase/client`): contracts with Standard Schema input and output,
-  called through `functions-js` with a `Result`. Upstream:
-  `@supabase/functions-js`.
 
 - **Compiled JSON Schemas** (the `jsonb-schemas` SQL module). CHECK
   constraints use `pg_jsonschema`'s compiled `jsonschema` type once the

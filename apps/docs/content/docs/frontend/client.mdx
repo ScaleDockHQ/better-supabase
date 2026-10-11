@@ -56,3 +56,21 @@ imports `@supabase/ssr`, stores the session in the device keychain with
 
 The publishable key and URL are validated like on the server: a secret key
 or a legacy JWT key is rejected before any request is made.
+
+## Edge Functions
+
+`functions<Contracts>(bs.supabase)` calls Edge Functions defined with
+`defineFunction`, typed from their own code, and returns a `Result`:
+
+```ts
+import { functions } from "better-supabase/client";
+import type { CreateCustomer } from "../supabase/functions/create-customer/handler.ts";
+
+const fns = functions<{ "create-customer": CreateCustomer }>(bs.supabase);
+const customer = await fns
+  .invoke("create-customer", { name: "Acme", organizationId })
+  .orThrow();
+```
+
+See [Edge Functions](/docs/platform/edge-functions) for the function side and
+the errors `invoke` returns.

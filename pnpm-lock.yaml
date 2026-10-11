@@ -828,6 +828,9 @@ importers:
       better-supabase:
         specifier: workspace:*
         version: link:../../../packages/better-supabase
+      valibot:
+        specifier: 'catalog:'
+        version: 1.5.0(typescript@7.0.2)
     devDependencies:
       '@better-supabase/ox-config':
         specifier: workspace:*
