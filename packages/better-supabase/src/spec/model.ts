@@ -197,7 +197,17 @@ export interface ModelMessage {
   readonly headers?: JsonSchema;
   /** A runtime expression such as `$message.payload#/id`. */
   readonly correlationId?: string;
+  /** Names of shared traits in `ApiModel.messageTraits`, applied in order. */
+  readonly traits?: readonly string[];
   readonly extensions?: JsonObject;
+}
+
+/** Fields several messages share, such as the CloudEvents headers. */
+export interface ModelMessageTrait {
+  readonly summary?: string;
+  readonly description?: string;
+  readonly contentType?: string;
+  readonly headers?: JsonSchema;
 }
 
 export interface ModelChannelOperation {
@@ -310,6 +320,7 @@ export interface ApiModel {
   >;
   readonly channels: readonly ModelChannel[];
   readonly messages: Readonly<Record<string, ModelMessage>>;
+  readonly messageTraits?: Readonly<Record<string, ModelMessageTrait>>;
   readonly webhooks: readonly ModelWebhook[];
   readonly workflows: readonly ModelWorkflow[];
   /**

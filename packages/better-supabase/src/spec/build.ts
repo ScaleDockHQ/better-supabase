@@ -25,6 +25,7 @@ import type {
 import type { ErrorResponse, ResourcePlan } from "./resource.ts";
 
 import { isPlainObject } from "../core/clone.ts";
+import { eventParts } from "./events.ts";
 import { mergeJson, pointerToken } from "./merge.ts";
 import {
   DEFAULT_ERRORS,
@@ -918,8 +919,11 @@ function build<Ref>(
   const finalOperations = operations.map(
     (operation) => enrich?.operation?.(operation) ?? operation,
   );
+  const json = options.json ?? {};
+  const ctx = { meta, json, prefix, served, keyOf, report };
+  const { messageTraits, ...parts } = eventParts(options, ctx, finalOperations);
   const messages: Record<string, ModelMessage> = {};
-  for (const [id, message] of Object.entries(options.messages ?? {}))
+  for (const [id, message] of Object.entries(parts.messages))
     messages[id] = enrich?.message?.(message, { id }) ?? message;
 
   const model: ApiModel = {
@@ -935,12 +939,13 @@ function build<Ref>(
     ...(options.securityProfileRequirements
       ? { securityProfileRequirements: options.securityProfileRequirements }
       : {}),
-    channels: (options.channels ?? []).map(
+    channels: parts.channels.map(
       (channel) => enrich?.channel?.(channel) ?? channel,
     ),
     messages,
+    ...(messageTraits ? { messageTraits } : {}),
     webhooks: options.webhooks ?? [],
-    workflows: (options.workflows ?? []).map(
+    workflows: parts.workflows.map(
       (workflow) => enrich?.workflow?.(workflow) ?? workflow,
     ),
     fragments: options.fragments ?? [],

@@ -1,6 +1,7 @@
 import type { Authorizer } from "../core/authorizer.ts";
 import type { AnyPlugin } from "../core/plugin.ts";
 import type { SchemaMeta } from "../schema/types.ts";
+import type { EventsOptions } from "./events.ts";
 import type { SpecDiagnostic } from "./format.ts";
 import type {
   ApiModel,
@@ -158,11 +159,19 @@ export interface ApiOptions<Ref = string> {
   readonly realtimeUrl?: string;
   readonly channels?: readonly ModelChannel[];
   readonly messages?: Readonly<Record<string, ModelMessage>>;
+  /** Realtime tables, topics and CloudEvents, as channels and messages. */
+  readonly events?: EventsOptions<Ref>;
   readonly webhooks?: readonly ModelWebhook[];
-  readonly workflows?: readonly ModelWorkflow[];
+  /** Workflows, or functions that build them from the operations (the Arazzo built-ins). */
+  readonly workflows?: readonly (ModelWorkflow | WorkflowSource)[];
   /** Tables with a JSON column typed in `better-supabase.config.ts`. */
   readonly json?: Readonly<Record<string, unknown>>;
 }
+
+/** Builds workflows from the model's operations, after enrich hooks ran on them. */
+export type WorkflowSource = (
+  operations: readonly ModelOperation[],
+) => readonly ModelWorkflow[];
 
 export interface BuiltModel {
   readonly model: ApiModel;
