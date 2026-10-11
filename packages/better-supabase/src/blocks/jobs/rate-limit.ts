@@ -116,24 +116,35 @@ const overTransport =
       },
     );
 
+/** One `hit_rate_limit` call: whether the hit is allowed, what is left and when to retry. */
+export async function hitRateLimit(
+  sql: SqlClient,
+  scope: string,
+  key: string,
+  max: number | null,
+  period: string,
+): Promise<RateLimitDecision> {
+  const [row] = await sql.queryRaw<{
+    allowed: boolean;
+    remaining: number;
+    retry_after: number;
+  }>("select * from better_supabase.hit_rate_limit($1, $2, $3, $4::interval)", [
+    scope,
+    key,
+    max,
+    period,
+  ]);
+  return {
+    allowed: row?.allowed ?? false,
+    remaining: row?.remaining ?? 0,
+    retryAfter: row?.retry_after ?? 0,
+  };
+}
+
 const overSql =
   (sql: SqlClient): Hit =>
   (scope, key, max, period) =>
-    run(async () => {
-      const [row] = await sql.queryRaw<{
-        allowed: boolean;
-        remaining: number;
-        retry_after: number;
-      }>(
-        "select * from better_supabase.hit_rate_limit($1, $2, $3, $4::interval)",
-        [scope, key, max, period],
-      );
-      return {
-        allowed: row?.allowed ?? false,
-        remaining: row?.remaining ?? 0,
-        retryAfter: row?.retry_after ?? 0,
-      };
-    });
+    run(() => hitRateLimit(sql, scope, key, max, period));
 
 /** A `problem+json` 429 with `Retry-After`, for a refused `check`. */
 export function rateLimited(

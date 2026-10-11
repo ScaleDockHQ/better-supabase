@@ -201,6 +201,40 @@ function defaultType(payload: unknown): string | null {
   return typeof type === "string" ? type : null;
 }
 
+/** The arguments of one `receive_webhook` call. */
+export interface ReceiveWebhookInput {
+  readonly source: string;
+  readonly id: string;
+  readonly type: string | null | undefined;
+  readonly payload: unknown;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly tenant: string | null;
+  readonly maxAttempts?: number | undefined;
+}
+
+/** Stores one webhook through `receive_webhook`; `duplicate` when the id was stored before. */
+export async function receiveWebhook(
+  sql: SqlClient,
+  input: ReceiveWebhookInput,
+): Promise<{ id: number; duplicate: boolean }> {
+  const [row] = await sql.queryRaw<{
+    id: string | number;
+    duplicate: boolean;
+  }>(
+    "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6, $7)",
+    [
+      input.source,
+      input.id,
+      input.type ?? null,
+      JSON.stringify(input.payload),
+      JSON.stringify(input.headers),
+      input.tenant,
+      input.maxAttempts ?? null,
+    ],
+  );
+  return { id: Number(row!.id), duplicate: row!.duplicate };
+}
+
 /** Store-then-process webhooks: acknowledge fast, process with retries, never twice. */
 export function createWebhookInbox(
   sql: SqlClient,
@@ -239,28 +273,23 @@ export function createWebhookInbox(
   };
 
   const save = (event: WebhookInboxEvent) =>
-    run(async () => {
-      const [row] = await sql.queryRaw<{
-        id: string | number;
-        duplicate: boolean;
-      }>(
-        "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6, $7)",
-        [
-          options.source,
-          event.id,
+    run(() =>
+      receiveWebhook(sql, {
+        source: options.source,
+        id: event.id,
+        type:
           event.type === undefined
             ? (options.typeOf ?? defaultType)(event.payload)
             : event.type,
-          JSON.stringify(event.payload),
-          JSON.stringify(event.headers ?? {}),
+        payload: event.payload,
+        headers: event.headers ?? {},
+        tenant:
           (event.tenant === undefined
             ? options.tenantOf?.(event.payload)
             : event.tenant) ?? null,
-          maxAttempts,
-        ],
-      );
-      return { id: Number(row!.id), duplicate: row!.duplicate };
-    });
+        maxAttempts,
+      }),
+    );
 
   return {
     store: save,

@@ -16,6 +16,8 @@ import {
   timingSafeEqual,
   verifyWebhook,
 } from "../../core/signatures.ts";
+import { hitRateLimit } from "../jobs/rate-limit.ts";
+import { receiveWebhook } from "../jobs/webhook-inbox.ts";
 import {
   applyTemporal,
   isRecord,
@@ -118,24 +120,19 @@ export function createIncomingWebhooks(
           );
         }
         if (options.rateLimit) {
-          const [hit] = await sql.queryRaw<{
-            allowed: boolean;
-            retry_after: number;
-          }>(
-            "select * from better_supabase.hit_rate_limit($1, $2, $3, $4::interval)",
-            [
-              `${source}:endpoint`,
-              endpoint.id,
-              options.rateLimit.max,
-              typeof options.rateLimit.period === "number"
-                ? `${String(options.rateLimit.period)} seconds`
-                : options.rateLimit.period,
-            ],
+          const hit = await hitRateLimit(
+            sql,
+            `${source}:endpoint`,
+            endpoint.id,
+            options.rateLimit.max,
+            typeof options.rateLimit.period === "number"
+              ? `${String(options.rateLimit.period)} seconds`
+              : options.rateLimit.period,
           );
-          if (hit && !hit.allowed) {
+          if (!hit.allowed) {
             return await problem(
               dbError("rate_limited", "Too many deliveries", {
-                retryAfter: Math.max(1, hit.retry_after),
+                retryAfter: Math.max(1, hit.retryAfter),
               }),
               endpoint.id,
             );
@@ -226,32 +223,27 @@ export function createIncomingWebhooks(
           ...kept,
           [INCOMING_ENDPOINT_HEADER, endpoint.id],
         ]);
-        const [stored] = await sql.queryRaw<{
-          id: string | number;
-          duplicate: boolean;
-        }>(
-          "select * from better_supabase.receive_webhook($1, $2, $3, $4, $5, $6)",
-          [
-            source,
-            `${endpoint.id}:${messageId}`,
+        const stored = await receiveWebhook(sql, {
+          source,
+          id: `${endpoint.id}:${messageId}`,
+          type:
             typeof payload === "object" &&
             payload !== null &&
             "type" in payload &&
             typeof payload.type === "string"
               ? payload.type
               : null,
-            JSON.stringify(payload),
-            JSON.stringify(headers),
-            endpoint.tenant,
-          ],
-        );
-        const status = stored?.duplicate ? 200 : 202;
+          payload,
+          headers,
+          tenant: endpoint.tenant,
+        });
+        const status = stored.duplicate ? 200 : 202;
         await sql.queryRaw(`select ${fn("record_incoming_webhook")}($1, $2)`, [
           endpoint.id,
           status,
         ]);
         return Response.json(
-          { id: Number(stored?.id), duplicate: stored?.duplicate ?? false },
+          { id: stored.id, duplicate: stored.duplicate },
           { status },
         );
       } catch (cause) {
