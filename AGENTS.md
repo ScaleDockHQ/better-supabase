@@ -306,6 +306,7 @@ standard or sets how the repo works.
 - 0014: `better-supabase/nestjs` loads `@nestjs/common` with a synchronous `createRequire`.
 - 0015: blocks extend through `fields` (extra columns typed by a Standard Schema), `hooks`, transport middleware and `extendBlock`.
 - 0016: `@supabase/postgrest-typegen` is a peer range; the default catalog and `TYPEGEN_VERSION` stay exact.
+- 0017: one `ApiModel` renders every OpenAPI, Overlay, Arazzo and AsyncAPI version and serves the routes; `3.3-preview` is opt-in.
 
 ## Pre-release pins
 
