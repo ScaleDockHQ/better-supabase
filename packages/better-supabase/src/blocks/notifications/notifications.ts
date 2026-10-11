@@ -14,10 +14,10 @@ import type {
   RenderedText,
 } from "./types.ts";
 
-import { emitBlockEvent } from "../../core/block-events.ts";
+import { blockEmitter } from "../../core/block-events.ts";
+import { budget, toBlockError } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { rawError } from "../../core/block-transport.ts";
-import { dbError, mapDbError } from "../../core/errors.ts";
+import { dbError } from "../../core/errors.ts";
 import {
   AsyncResult,
   err,
@@ -454,6 +454,8 @@ export function createNotifications<
     args: Readonly<Record<string, unknown>>,
   ): Promise<unknown> => transport.call(schema, fn, args);
 
+  const emitEvent = blockEmitter(options);
+
   function emit(
     type:
       | "notification.created"
@@ -462,13 +464,7 @@ export function createNotifications<
     data: NotificationEventData,
     tenant: string | null,
   ): void {
-    if (!options.events) return;
-    emitBlockEvent(options.events, type, data, {
-      subject: `notifications/${data.notificationId}`,
-      ...(tenant ? { tenant } : {}),
-      ...(options.actorId ? { actorId: options.actorId } : {}),
-      ...(options.context ? { context: options.context } : {}),
-    });
+    emitEvent(type, data, `notifications/${data.notificationId}`, tenant);
   }
 
   const render = (
@@ -582,8 +578,7 @@ export function createNotifications<
       // type's schema, which is what NotificationOf<K> pairs with that type.
       return ok(out as readonly NotificationOf<K>[]);
     } catch (cause) {
-      const raw = rawError(cause);
-      return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
+      return err(toBlockError(cause, mappers));
     }
   };
 
@@ -880,17 +875,14 @@ export function createNotifications<
       const channels = (options.channels ?? []).filter(
         (channel) => !wanted || wanted.includes(channel.name),
       );
-      const deadline =
-        deliverOptions.budgetMs === undefined
-          ? Number.POSITIVE_INFINITY
-          : Date.now() + deliverOptions.budgetMs;
+      const spent = budget(deliverOptions.budgetMs);
       const batch = deliverOptions.batch ?? 50;
       const counts = { sent: 0, skipped: 0, failed: 0 };
       // Channels are independent, so a slow provider doesn't hold up the
       // others; each channel's deliveries go out in order.
       await Promise.all(
         channels.map(async (channel) => {
-          while (Date.now() < deadline) {
+          while (!spent.expired()) {
             const claimed = await call("claim_notification_deliveries", {
               channel: channel.name,
               max_items: batch,

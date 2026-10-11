@@ -1,13 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 
 import {
   blockCall,
+  budget,
   credentialRefOf,
   eachLimit,
   enumOrThrow,
   instantArg,
+  leaseHeartbeat,
   notFoundError,
   pageOf,
   optionalInstant,
@@ -20,7 +22,9 @@ import {
   sha256Hex,
   stringsOf,
   textOf,
+  toBlockError,
 } from "../../src/core/block-helpers.ts";
+import { dbError } from "../../src/core/errors.ts";
 
 const transport = (
   answer: () => unknown,
@@ -170,5 +174,52 @@ describe("pageOf", () => {
       cursor: "c",
     });
     expect(pageOf()).toEqual({ limit: undefined, cursor: undefined });
+  });
+});
+
+describe("budget", () => {
+  it("is spent after its milliseconds, on the injected clock", () => {
+    let time = 1000;
+    const spent = budget(500, () => time);
+    expect(spent.deadline).toBe(1500);
+    expect(spent.expired()).toBe(false);
+    expect(spent.remaining()).toBe(500);
+    time = 1500;
+    expect(spent.expired()).toBe(true);
+  });
+
+  it("never ends without a budget", () => {
+    const spent = budget(undefined, () => Number.MAX_SAFE_INTEGER);
+    expect(spent.expired()).toBe(false);
+    expect(spent.remaining()).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
+describe("leaseHeartbeat", () => {
+  it("extends at half the lease until stopped", () => {
+    vi.useFakeTimers();
+    try {
+      const extend = vi.fn();
+      const stop = leaseHeartbeat(10, extend);
+      vi.advanceTimersByTime(5000);
+      expect(extend).toHaveBeenCalledTimes(1);
+      stop();
+      vi.advanceTimersByTime(20_000);
+      expect(extend).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("toBlockError", () => {
+  it("maps a database error through the mappers and wraps anything else", () => {
+    const wrapped = toBlockError(new Error("boom"));
+    expect(wrapped.kind).toBe("unexpected");
+    const mapped = toBlockError(
+      { code: "23505", message: "dup", details: "", hint: "" },
+      [() => dbError("conflict", "mapped")],
+    );
+    expect(mapped.message).toBe("mapped");
   });
 });

@@ -1,6 +1,7 @@
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { DrainResult } from "./queue.ts";
 
+import { budget, leaseHeartbeat } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import {
   type BlockProblemOptions,
@@ -673,13 +674,9 @@ export function createWebhookInbox(
       let succeeded = 0;
       let failed = 0;
       const lease = seconds(processOptions.lease ?? 300);
-      const deadline =
-        processOptions.budgetMs === undefined
-          ? undefined
-          : Date.now() + processOptions.budgetMs;
+      const spent = budget(processOptions.budgetMs);
       for (;;) {
-        if (deadline !== undefined && Date.now() >= deadline)
-          return { succeeded, failed };
+        if (spent.expired()) return { succeeded, failed };
         const rows = await sql.queryRaw<WebhookInboxRow>(
           "select * from better_supabase.claim_webhooks($1, $2, $3, $4::interval)",
           [options.source, worker, processOptions.batch ?? 10, lease],
@@ -721,9 +718,9 @@ export function createWebhookInbox(
               return saved?.saved ?? false;
             },
           };
-          const heartbeat = setInterval(
+          const stopHeartbeat = leaseHeartbeat(
+            leaseSeconds,
             () => void extend().catch(() => undefined),
-            Math.max(1000, leaseSeconds * 500),
           );
           try {
             const outcome: unknown = await handler(message);
@@ -754,7 +751,7 @@ export function createWebhookInbox(
             );
             failed += 1;
           } finally {
-            clearInterval(heartbeat);
+            stopHeartbeat();
           }
         }
       }

@@ -8,12 +8,12 @@ import type { RotateSecretOptions, WebhookSecretStore } from "./secrets.ts";
 import type { WebhookSigner } from "./signers.ts";
 import type { AllowUrl } from "./url-policy.ts";
 
-import { emitBlockEvent } from "../../core/block-events.ts";
-import { rawError } from "../../core/block-transport.ts";
-import { dbError, mapDbError } from "../../core/errors.ts";
+import { blockEmitter } from "../../core/block-events.ts";
+import { budget, toBlockError } from "../../core/block-helpers.ts";
+import { cronRoute } from "../../core/cron-route.ts";
+import { dbError } from "../../core/errors.ts";
 import {
   type BlockProblemOptions,
-  methodNotAllowed,
   problemResponse,
 } from "../../core/problem.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
@@ -30,7 +30,6 @@ import { fetchTransport, WebhookPolicyError } from "./http.ts";
 import { sqlSecretStore } from "./secrets.ts";
 import { standardWebhooks } from "./signers.ts";
 import { publicUrl } from "./url-policy.ts";
-import { verifySharedSecret } from "./verify.ts";
 
 /** One claimed delivery, as `shouldDeliver`, `transform` and `headers` see it. */
 export interface WebhookDelivery {
@@ -236,20 +235,19 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       try {
         return ok(then(await fn()));
       } catch (cause) {
-        const raw = rawError(cause);
-        return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
+        return err(toBlockError(cause, mappers));
       }
     });
   }
+
+  const emitEvent = blockEmitter(options);
 
   function emit(
     type: "webhook.delivered" | "webhook.failed" | "webhook.disabled",
     delivery: WebhookDelivery,
     extra: { readonly status?: number; readonly error?: string } = {},
   ): void {
-    if (!options.events) return;
-    emitBlockEvent(
-      options.events,
+    emitEvent(
       type,
       {
         endpointId: delivery.endpointId,
@@ -258,11 +256,8 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         attempt: delivery.attempt,
         ...extra,
       },
-      {
-        subject: `webhooks/${delivery.endpointId}`,
-        ...(delivery.tenant ? { tenant: delivery.tenant } : {}),
-        ...(options.context ? { context: options.context } : {}),
-      },
+      `webhooks/${delivery.endpointId}`,
+      delivery.tenant,
     );
   }
 
@@ -397,10 +392,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       canceled: 0,
       disabled: 0,
     };
-    const deadline =
-      deliverOptions.budgetMs === undefined
-        ? Number.POSITIVE_INFINITY
-        : Date.now() + deliverOptions.budgetMs;
+    const spent = budget(deliverOptions.budgetMs);
     const batch = deliverOptions.batch ?? 25;
     const concurrency = Math.max(1, deliverOptions.concurrency ?? 10);
 
@@ -438,7 +430,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       }
     }
 
-    while (Date.now() < deadline) {
+    while (!spent.expired()) {
       const claimed = await call("claim_webhook_deliveries", {
         max_items: batch,
         lease: deliverOptions.lease ?? "2 minutes",
@@ -496,35 +488,26 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     },
     deliver,
     deliverRoute(routeOptions) {
-      const secret = routeOptions.secret;
-      if (!secret)
-        throw new TypeError(
-          "deliverRoute needs a secret, such as process.env.CRON_SECRET",
-        );
-      return async (request) => {
-        const instance = new URL(request.url).pathname;
-        if (request.method !== "GET" && request.method !== "POST")
-          return methodNotAllowed(["GET", "POST"]);
-        if (!verifySharedSecret(request, secret))
-          return problemResponse(
-            dbError(
-              "unauthorized",
-              "The deliver route needs its bearer secret",
-            ),
-            { instance, format: routeOptions.problem },
-          );
-        try {
-          return Response.json(
-            await deliver({ budgetMs: 50_000, ...routeOptions }),
-          );
-        } catch (cause) {
-          routeOptions.onError?.(cause);
-          return problemResponse(toDbError(cause), {
-            instance,
-            format: routeOptions.problem,
-          });
-        }
-      };
+      return cronRoute(
+        {
+          name: "deliver",
+          secret: routeOptions.secret,
+          problem: routeOptions.problem,
+        },
+        async (_request, instance) => {
+          try {
+            return Response.json(
+              await deliver({ budgetMs: 50_000, ...routeOptions }),
+            );
+          } catch (cause) {
+            routeOptions.onError?.(cause);
+            return problemResponse(toDbError(cause), {
+              instance,
+              format: routeOptions.problem,
+            });
+          }
+        },
+      );
     },
     sink: (sinkOptions = {}) => {
       return {

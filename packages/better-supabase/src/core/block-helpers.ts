@@ -51,6 +51,15 @@ export type BlockCall = <T>(
   then: (value: unknown) => T | Promise<T>,
 ) => AsyncResult<T>;
 
+/** A thrown error as a `DbError`: a database error goes through the app's mappers first. */
+export function toBlockError(
+  cause: unknown,
+  mappers: readonly ErrorMapper[] = [],
+): DbError {
+  const raw = rawError(cause);
+  return raw ? mapDbError(raw, mappers) : toDbError(cause);
+}
+
 /** A `BlockCall` over `transport`, in `schema`, with the app's error mappers first. */
 export function blockCall(
   transport: BlockTransport,
@@ -63,11 +72,47 @@ export function blockCall(
       try {
         value = await transport.call(schema, fn, args);
       } catch (cause) {
-        const raw = rawError(cause);
-        return err(raw ? mapDbError(raw, mappers) : toDbError(cause));
+        return err(toBlockError(cause, mappers));
       }
       return ok(await then(value));
     });
+}
+
+/** A time budget for a drain loop, which stops claiming work once it is spent. */
+export interface Budget {
+  /** Epoch milliseconds; `Infinity` for no budget. */
+  readonly deadline: number;
+  /** Whether the budget is spent. */
+  expired(): boolean;
+  /** Milliseconds left; `Infinity` for no budget. */
+  remaining(): number;
+}
+
+/** A budget of `ms` milliseconds from now, or none for `undefined`. `now` is injectable for tests. */
+export function budget(
+  ms: number | undefined,
+  now: () => number = Date.now,
+): Budget {
+  const deadline = ms === undefined ? Number.POSITIVE_INFINITY : now() + ms;
+  return {
+    deadline,
+    expired: () => now() >= deadline,
+    remaining: () => deadline - now(),
+  };
+}
+
+/**
+ * Calls `extend` at half the lease (at least every second) until the returned
+ * function is called, so work that outlasts its lease keeps it.
+ */
+export function leaseHeartbeat(
+  leaseSeconds: number,
+  extend: () => void,
+): () => void {
+  const timer = setInterval(extend, Math.max(1000, (leaseSeconds * 1000) / 2));
+  return () => {
+    clearInterval(timer);
+  };
 }
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>

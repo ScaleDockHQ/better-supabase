@@ -2,14 +2,11 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { CloudEvent, EventSink } from "../../events/index.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 
-import { type DbError, dbError } from "../../core/errors.ts";
-import {
-  type BlockProblemOptions,
-  methodNotAllowed,
-  problemResponse,
-} from "../../core/problem.ts";
+import { type Budget, budget } from "../../core/block-helpers.ts";
+import { cronRoute } from "../../core/cron-route.ts";
+import { type DbError } from "../../core/errors.ts";
+import { type BlockProblemOptions } from "../../core/problem.ts";
 import { type AsyncResult, toDbError } from "../../core/result.ts";
-import { verifySharedSecret } from "../../core/signatures.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { DEFAULT_TYPE_PREFIX } from "../../events/cloud-event.ts";
 import {
@@ -353,18 +350,13 @@ export function createOutbox(
     consumer: string,
     handler: OutboxHandler,
     relayOptions: RelayOptions = {},
-    deadline?: number,
+    spent: Budget = budget(relayOptions.budgetMs),
   ): Promise<RelayResult> {
     const owner = relayOptions.owner ?? workerId();
     const batch = relayOptions.batch ?? 100;
     const lease = relayOptions.lease ?? "1 minute";
-    const until =
-      deadline ??
-      (relayOptions.budgetMs === undefined
-        ? Number.POSITIVE_INFINITY
-        : Date.now() + relayOptions.budgetMs);
     let delivered = 0;
-    while (Date.now() < until) {
+    while (!spent.expired()) {
       let events: readonly OutboxEvent[];
       try {
         events = toEvents(
@@ -436,49 +428,40 @@ export function createOutbox(
     consume: (consumer, handler, relayOptions) =>
       relay(consumer, handler, relayOptions),
     relayRoute(routeOptions) {
-      const secret = routeOptions.secret;
-      if (!secret) {
-        throw new TypeError(
-          "relayRoute needs a secret, such as process.env.CRON_SECRET",
-        );
-      }
-      return async (request) => {
-        const instance = new URL(request.url).pathname;
-        if (request.method !== "GET" && request.method !== "POST") {
-          return methodNotAllowed(["GET", "POST"]);
-        }
-        if (!verifySharedSecret(request, secret)) {
-          return problemResponse(
-            dbError("unauthorized", "The relay route needs its bearer secret"),
-            { instance, format: routeOptions.problem },
+      return cronRoute(
+        {
+          name: "relay",
+          secret: routeOptions.secret,
+          problem: routeOptions.problem,
+        },
+        async () => {
+          const spent = budget(routeOptions.budgetMs ?? 50_000);
+          // Each consumer has its own cursor and lease, so they relay side by
+          // side within the one budget.
+          const entries = Object.entries(routeOptions.consumers);
+          const relayed = await Promise.all(
+            entries.map(async ([consumer, sink]) => {
+              const result = await relay(
+                consumer,
+                typeof sink === "function" ? sink : toSink(sink),
+                routeOptions,
+                spent,
+              );
+              if (result.error) routeOptions.onError?.(result.error, consumer);
+              return result;
+            }),
           );
-        }
-        const deadline = Date.now() + (routeOptions.budgetMs ?? 50_000);
-        // Each consumer has its own cursor and lease, so they relay side by
-        // side within the one budget.
-        const entries = Object.entries(routeOptions.consumers);
-        const relayed = await Promise.all(
-          entries.map(async ([consumer, sink]) => {
-            const result = await relay(
-              consumer,
-              typeof sink === "function" ? sink : toSink(sink),
-              routeOptions,
-              deadline,
-            );
-            if (result.error) routeOptions.onError?.(result.error, consumer);
-            return result;
-          }),
-        );
-        const results: Record<string, RelayResult> = {};
-        entries.forEach(([consumer], index) => {
-          results[consumer] = relayed[index]!;
-        });
-        const result: OutboxRouteResult = {
-          consumers: results,
-          budgetExhausted: Date.now() >= deadline,
-        };
-        return Response.json(result);
-      };
+          const results: Record<string, RelayResult> = {};
+          entries.forEach(([consumer], index) => {
+            results[consumer] = relayed[index]!;
+          });
+          const result: OutboxRouteResult = {
+            consumers: results,
+            budgetExhausted: spent.expired(),
+          };
+          return Response.json(result);
+        },
+      );
     },
     history: (filter = {}) =>
       run(async () =>

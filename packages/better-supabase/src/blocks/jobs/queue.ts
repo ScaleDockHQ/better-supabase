@@ -2,17 +2,20 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { SqlClient } from "../../postgres/executor.ts";
 
+import {
+  type Budget,
+  budget,
+  leaseHeartbeat,
+} from "../../core/block-helpers.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
+import { cronRoute } from "../../core/cron-route.ts";
 import { type DbError, dbError } from "../../core/errors.ts";
 import {
   type Actor,
   allTenantsContext,
   type RequestContext,
 } from "../../core/plugin.ts";
-import {
-  type BlockProblemOptions,
-  problemResponse,
-} from "../../core/problem.ts";
+import { type BlockProblemOptions } from "../../core/problem.ts";
 import {
   AsyncResult,
   err,
@@ -20,7 +23,6 @@ import {
   type Result,
   toDbError,
 } from "../../core/result.ts";
-import { verifySharedSecret } from "../../core/signatures.ts";
 import { validate } from "../../core/standard.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { nowInstant } from "../../core/temporal.ts";
@@ -561,15 +563,11 @@ export function createJobs<const Q extends QueueSchemas>(
   const heartbeat = (
     held: ReadonlySet<Job>,
     lease: number,
-  ): ReturnType<typeof setInterval> | undefined =>
+  ): (() => void) | undefined =>
     transport.leases
-      ? setInterval(
-          () => {
-            for (const job of held)
-              void run(() => transport.extend(job, lease));
-          },
-          Math.max(1000, (lease * 1000) / 2),
-        )
+      ? leaseHeartbeat(lease, () => {
+          for (const job of held) void run(() => transport.extend(job, lease));
+        })
       : undefined;
 
   const handle = async (
@@ -629,7 +627,7 @@ export function createJobs<const Q extends QueueSchemas>(
     handler: JobHandler<unknown>,
     workOptions: WorkOptions,
     forever: boolean,
-    deadline?: number,
+    spent: Budget = budget(undefined),
   ): Promise<DrainResult> => {
     const concurrency = Math.max(1, workOptions.concurrency ?? 1);
     const lease = workOptions.lease ?? 300;
@@ -646,7 +644,7 @@ export function createJobs<const Q extends QueueSchemas>(
       let wait = firstWait;
       let misses = 0;
       while (!signal.aborted) {
-        if (deadline !== undefined && Date.now() >= deadline) return;
+        if (spent.expired()) return;
         const claimed = await claim(queue, {
           ...workOptions,
           batch: workOptions.batch ?? 1,
@@ -659,9 +657,10 @@ export function createJobs<const Q extends QueueSchemas>(
               cause: claimed.error,
             });
           }
-          const left =
-            deadline === undefined ? Infinity : deadline - Date.now();
-          await sleep(Math.min(firstWait * 2 ** (misses - 1), left), signal);
+          await sleep(
+            Math.min(firstWait * 2 ** (misses - 1), spent.remaining()),
+            signal,
+          );
           continue;
         }
         misses = 0;
@@ -673,7 +672,7 @@ export function createJobs<const Q extends QueueSchemas>(
         }
         wait = firstWait;
         const held = new Set(claimed.data);
-        const timer = heartbeat(held, lease);
+        const stopHeartbeat = heartbeat(held, lease);
         try {
           for (const job of claimed.data) {
             if (await handle(job, handler, workOptions)) succeeded += 1;
@@ -681,7 +680,7 @@ export function createJobs<const Q extends QueueSchemas>(
             held.delete(job);
           }
         } finally {
-          clearInterval(timer);
+          stopHeartbeat?.();
         }
       }
     });
@@ -953,96 +952,78 @@ export function createJobs<const Q extends QueueSchemas>(
     runSchedules: (scheduleOptions = {}) =>
       run(() => runSchedules(scheduleOptions)),
     drain: (queue, handler, drainOptions = {}) =>
-      loop(
-        queue,
-        handler,
-        drainOptions,
-        false,
-        drainOptions.budgetMs === undefined
-          ? undefined
-          : Date.now() + drainOptions.budgetMs,
-      ),
+      loop(queue, handler, drainOptions, false, budget(drainOptions.budgetMs)),
     work: (queue, handler, workOptions = {}) =>
       loop(queue, handler, workOptions, true),
     drainRoute(routeOptions) {
-      const secret = routeOptions.secret;
-      if (!secret) {
-        throw new TypeError(
-          "drainRoute needs a secret, such as process.env.CRON_SECRET",
-        );
-      }
       for (const queue of Object.keys(routeOptions.handlers)) schemaOf(queue);
-      return async (request) => {
-        const instance = new URL(request.url).pathname;
-        if (request.method !== "GET" && request.method !== "POST") {
-          return new Response(null, {
-            status: 405,
-            headers: { allow: "GET, POST" },
-          });
-        }
-        if (!verifySharedSecret(request, secret)) {
-          return problemResponse(
-            dbError("unauthorized", "The drain route needs its bearer secret"),
-            { instance, format: routeOptions.problem },
-          );
-        }
-        const deadline = Date.now() + (routeOptions.budgetMs ?? 50_000);
-        const monitor = routeOptions.monitor;
-        let errors = 0;
-        const report = (cause: unknown): void => {
-          errors += 1;
-          routeOptions.onError?.(toDbError(cause));
-        };
-        const watch = async (fn: () => unknown): Promise<unknown> => {
-          try {
-            return await fn();
-          } catch (cause) {
-            routeOptions.onError?.(toDbError(cause));
-            return undefined;
-          }
-        };
-        const started = monitor?.onStart
-          ? await watch(() => monitor.onStart?.(request))
-          : undefined;
-        let scheduled = 0;
-        if (routeOptions.schedules ?? true) {
-          const ran = await run(() => runSchedules({}));
-          if (ran.ok) scheduled = ran.data;
-          else {
+      return cronRoute(
+        {
+          name: "drain",
+          secret: routeOptions.secret,
+          problem: routeOptions.problem,
+        },
+        async (request) => {
+          const spent = budget(routeOptions.budgetMs ?? 50_000);
+          const monitor = routeOptions.monitor;
+          let errors = 0;
+          const report = (cause: unknown): void => {
             errors += 1;
-            routeOptions.onError?.(ran.error);
+            routeOptions.onError?.(toDbError(cause));
+          };
+          const watch = async (fn: () => unknown): Promise<unknown> => {
+            try {
+              return await fn();
+            } catch (cause) {
+              routeOptions.onError?.(toDbError(cause));
+              return undefined;
+            }
+          };
+          const started = monitor?.onStart
+            ? await watch(() => monitor.onStart?.(request))
+            : undefined;
+          let scheduled = 0;
+          if (routeOptions.schedules ?? true) {
+            const ran = await run(() => runSchedules({}));
+            if (ran.ok) scheduled = ran.data;
+            else {
+              errors += 1;
+              routeOptions.onError?.(ran.error);
+            }
           }
-        }
-        const results: Record<string, DrainResult> = {};
-        for (const [queue, handler] of Object.entries(routeOptions.handlers)) {
-          if (handler === undefined) continue;
-          if (Date.now() >= deadline) break;
-          try {
-            results[queue] = await loop(
-              queue,
-              // SAFETY: handlers maps each queue name to the handler for its
-              // payload; loop validates the payload with that queue's schema.
-              handler as JobHandler<unknown>,
-              routeOptions,
-              false,
-              deadline,
-            );
-          } catch (cause) {
-            report(cause);
-            results[queue] = { succeeded: 0, failed: 0 };
+          const results: Record<string, DrainResult> = {};
+          for (const [queue, handler] of Object.entries(
+            routeOptions.handlers,
+          )) {
+            if (handler === undefined) continue;
+            if (spent.expired()) break;
+            try {
+              results[queue] = await loop(
+                queue,
+                // SAFETY: handlers maps each queue name to the handler for its
+                // payload; loop validates the payload with that queue's schema.
+                handler as JobHandler<unknown>,
+                routeOptions,
+                false,
+                spent,
+              );
+            } catch (cause) {
+              report(cause);
+              results[queue] = { succeeded: 0, failed: 0 };
+            }
           }
-        }
-        const result: DrainRouteResult = {
-          schedules: scheduled,
-          queues: results,
-          budgetExhausted: Date.now() >= deadline,
-          errors,
-        };
-        if (monitor?.onFinish) {
-          await watch(() => monitor.onFinish?.(result, started));
-        }
-        return Response.json(result);
-      };
+          const result: DrainRouteResult = {
+            schedules: scheduled,
+            queues: results,
+            budgetExhausted: spent.expired(),
+            errors,
+          };
+          if (monitor?.onFinish) {
+            await watch(() => monitor.onFinish?.(result, started));
+          }
+          return Response.json(result);
+        },
+      );
     },
   };
 }

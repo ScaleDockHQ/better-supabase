@@ -1,6 +1,5 @@
 import type {
   InvitationEventData,
-  BlockEventMap,
   BlockEventType,
   OrganizationEventData,
 } from "../../core/block-events.ts";
@@ -12,7 +11,7 @@ import type { RequestContext } from "../../core/plugin.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { InvitationError } from "../../sql/modules/invitations-tables.ts";
 
-import { emitBlockEvent } from "../../core/block-events.ts";
+import { blockEmitter } from "../../core/block-events.ts";
 import { blockFields, type FieldsOf } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
@@ -451,20 +450,7 @@ function organizationsClient<F extends object>(
     return calls[module](fn, args, then);
   }
 
-  function emit<K extends BlockEventType>(
-    type: K,
-    data: BlockEventMap[K],
-    subject: string,
-    tenant?: string | null,
-  ): void {
-    if (!options.events) return;
-    emitBlockEvent(options.events, type, data, {
-      subject,
-      ...(tenant ? { tenant } : {}),
-      ...(options.actorId ? { actorId: options.actorId } : {}),
-      ...(options.context ? { context: options.context } : {}),
-    });
-  }
+  const emit = blockEmitter(options);
 
   const organizationEvent = (
     type: Extract<BlockEventType, `organization.${string}`>,

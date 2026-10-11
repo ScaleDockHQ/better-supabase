@@ -7,7 +7,7 @@ import type { SqlClient } from "../../postgres/executor.ts";
 import {
   type BillingEventData,
   type BlockEventType,
-  emitBlockEvent,
+  blockEmitter,
 } from "../../core/block-events.ts";
 import { dbError } from "../../core/errors.ts";
 import {
@@ -438,15 +438,17 @@ export function createBilling(options: BillingOptions): Billing {
     work: (client: StripeClient) => Promise<T>,
   ): AsyncResult<T> => stripeCall(async () => work(await stripe()));
 
+  const emitEvent = blockEmitter(options);
   const emit = (
     type: BlockEventType & `billing.${string}`,
     data: BillingEventData,
   ): void => {
-    if (!options.events) return;
-    emitBlockEvent(options.events, type, data, {
-      tenant: data.organizationId,
-      subject: `organizations/${data.organizationId}`,
-    });
+    emitEvent(
+      type,
+      data,
+      `organizations/${data.organizationId}`,
+      data.organizationId,
+    );
   };
 
   const customer = (organizationId: string): AsyncResult<string | undefined> =>
