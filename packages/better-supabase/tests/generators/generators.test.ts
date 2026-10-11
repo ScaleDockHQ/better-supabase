@@ -7,9 +7,14 @@ import type { GeneratorInput } from "../../src/config/index.ts";
 import type { ColumnMeta, TableMeta } from "../../src/schema/types.ts";
 
 import { resolveConfig } from "../../src/config/index.ts";
-import { jsonSchema } from "../../src/generators/json-schema.ts";
+import {
+  buildJsonSchema,
+  jsonSchema,
+} from "../../src/generators/json-schema.ts";
+import { standardSchema } from "../../src/generators/standard-schema.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
+import * as standardSchemas from "../fixtures/generated-camel.standard.ts";
 import * as valibotSchemas from "../fixtures/generated-camel.valibot.ts";
 import * as zodSchemas from "../fixtures/generated-camel.zod.ts";
 import fixture from "../fixtures/snapshot.json" with { type: "json" };
@@ -83,6 +88,60 @@ describe("valibot generator", () => {
         attachments: { files: [{ name: "a.pdf", size: 1 }] },
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("standard schema generator", () => {
+  it("validates the same shapes without a validation library", () => {
+    const props = standardSchemas.customersInsert["~standard"];
+    expect(props.vendor).toBe("better-supabase");
+    expect(props.validate({ ...customer, extra: 1 })).toEqual({
+      value: customer,
+    });
+    const bad = props.validate({
+      ...customer,
+      status: "deleted",
+      organizationId: "x",
+    });
+    expect(
+      !(bad instanceof Promise) &&
+        bad.issues?.map((issue) => issue.path?.join(".")).sort(),
+    ).toEqual(["organizationId", "status"]);
+  });
+
+  it("leaves generated identity columns out of writes", () => {
+    const note = {
+      organizationId: customer.organizationId,
+      customerId: customer.organizationId,
+      body: "hi",
+    };
+    expect(
+      standardSchemas.notesInsert["~standard"].validate({ ...note, id: 5 }),
+    ).toEqual({ value: note });
+  });
+
+  it("converts to the same JSON Schema the json-schema generator writes", async () => {
+    const doc = JSON.parse(
+      await readFile(
+        new URL("../fixtures/generated-camel.schema.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { $defs: Record<string, Record<string, unknown>> };
+    const { validators: _, ...schemas } = standardSchemas;
+    for (const [name, schema] of Object.entries(schemas)) {
+      expect(
+        schema["~standard"].jsonSchema.input({ target: "draft-2020-12" }),
+      ).toEqual({
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        ...doc.$defs[name],
+      });
+    }
+  });
+
+  it("exposes validators for the validation plugin", () => {
+    expect(standardSchemas.validators.customers.insert).toBe(
+      standardSchemas.customersInsert,
+    );
   });
 });
 
@@ -338,5 +397,52 @@ describe("jsonSchema()", () => {
       payload: {},
       rec: {},
     });
+  });
+});
+
+describe("standardSchema()", () => {
+  it("writes a field spec per column with every scalar kind", async () => {
+    const [file] = await standardSchema({ json }).generate(input);
+    expect(file!.path).toBe("src/generated.standard.ts");
+    const text = lines(file!.contents);
+    expect(text).toContain(
+      'import { type TableSchema, tableSchema } from "better-supabase";',
+    );
+    expect(text).toContain(
+      'import { payloadSchema, rawSchema } from "./schemas.ts";',
+    );
+    expect(text).toContain('import { dataSchema } from "@acme/schemas";');
+    expect(text).toEqual(
+      expect.arrayContaining([
+        "export const eventsRow: TableSchema<RowOf<'events'>> = tableSchema({",
+        '    id: { kind: "integer" },',
+        '    amount: { kind: "number", nullable: true },',
+        '    big: { kind: "bigint" },',
+        '    at: { kind: "instant" },',
+        '    local: { kind: "plainDateTime" },',
+        '    labels: { kind: "string", array: true },',
+        '    payload: { kind: "json", schema: payloadSchema },',
+        '    meta: { kind: "custom" },',
+        '    rec: { kind: "unknown" },',
+        '    "odd-name": { kind: "string" },',
+        '    paths: { kind: "string", array: true },',
+        "  events: { insert: eventsInsert, update: eventsUpdate },",
+      ]),
+    );
+    expect(file!.contents).not.toContain("eventViewInsert");
+  });
+
+  it("matches buildJsonSchema for every variant", async () => {
+    const [file] = await standardSchema().generate(input);
+    const defs = buildJsonSchema(input)["$defs"] as Record<string, unknown>;
+    for (const name of Object.keys(defs)) {
+      expect(file!.contents).toContain(`export const ${name}: TableSchema<`);
+    }
+  });
+
+  it("honours a custom output path", async () => {
+    const [file] = await standardSchema({ output: "lib/s.ts" }).generate(input);
+    expect(file!.path).toBe("lib/s.ts");
+    expect(file!.contents).toContain('from "../src/generated.ts";');
   });
 });

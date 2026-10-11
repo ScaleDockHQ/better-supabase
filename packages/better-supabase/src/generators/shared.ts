@@ -1,28 +1,16 @@
+import type { FieldSpec, ScalarKind } from "../core/table-json-schema.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
+
+export type { ScalarKind };
 
 /** What field planning reads: the metadata and the typed-jsonb config. */
 export interface SchemaSource {
   readonly meta: SchemaMeta;
   readonly config: { readonly json: Readonly<Record<string, unknown>> };
+  readonly runtimeImport?: string;
 }
 
 export type Variant = "Row" | "Insert" | "Update";
-
-/** Validator for one scalar, independent of the target library. */
-export type ScalarKind =
-  | { readonly kind: "uuid" }
-  | { readonly kind: "string" }
-  | { readonly kind: "integer" }
-  | { readonly kind: "number" }
-  | { readonly kind: "boolean" }
-  | { readonly kind: "datetime" }
-  | { readonly kind: "date" }
-  | { readonly kind: "instant" }
-  | { readonly kind: "plainDateTime" }
-  | { readonly kind: "bigint" }
-  | { readonly kind: "json" }
-  | { readonly kind: "enum"; readonly values: readonly string[] }
-  | { readonly kind: "unknown" };
 
 const INTEGER = new Set(["int2", "int4", "int8"]);
 const NUMBER = new Set(["float4", "float8", "numeric", "oid", "money"]);
@@ -141,7 +129,7 @@ export function temporalGuardImport(input: SchemaSource): string | undefined {
   }
   return names.size === 0
     ? undefined
-    : `import { ${[...names].sort().join(", ")} } from "better-supabase";`;
+    : `import { ${[...names].sort().join(", ")} } from ${JSON.stringify(input.runtimeImport ?? "better-supabase")};`;
 }
 
 interface CommentEntry {
@@ -518,6 +506,22 @@ export function fieldDocs(
         ])
       : {}),
     ...(text ? pick(found, ["minLength", "maxLength"]) : {}),
+  };
+}
+
+/**
+ * A field as `tableSchema()` and `tableJsonSchema()` read it. A jsonb column
+ * with a configured TypeScript type becomes `custom`; set `schema` on the
+ * result for one with a validator.
+ */
+export function fieldSpec(plan: FieldPlan, docs: FieldDocs): FieldSpec {
+  return {
+    ...(plan.customJson ? { kind: "custom" } : plan.scalar),
+    ...(plan.nullable ? { nullable: true } : {}),
+    ...(plan.optional ? { optional: true } : {}),
+    ...(plan.column.array ? { array: true } : {}),
+    ...(plan.managed ? { readOnly: true } : {}),
+    ...docs,
   };
 }
 

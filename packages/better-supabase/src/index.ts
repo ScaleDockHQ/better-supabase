@@ -177,6 +177,13 @@ export type {
 } from "./core/problem.ts";
 export { validate } from "./core/standard.ts";
 export type { StandardSchemaV1 } from "./core/standard.ts";
+export { tableSchema } from "./core/table-schema.ts";
+export type {
+  FieldSpec,
+  StandardJSONSchemaV1,
+  TableSchema,
+  TableSchemaSpec,
+} from "./core/table-schema.ts";
 export { SPEC_PINS } from "./core/spec-pins.ts";
 
 export { defineSchema, tableMeta } from "./schema/define.ts";

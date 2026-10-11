@@ -1,7 +1,7 @@
 {
-  ".": 60817,
-  "./config": 12580,
-  "./cli": 243127,
+  ".": 64333,
+  "./config": 13755,
+  "./cli": 243150,
   "./client": 21929,
   "./client/native": 21864,
   "./react": 23136,
@@ -33,7 +33,7 @@
   "./orpc": 74206,
   "./expo": 74467,
   "./edge": 81204,
-  "./mcp": 89715,
+  "./mcp": 90547,
   "./mcp/sdk": 73003,
   "./blocks/jobs": 54099,
   "./blocks": 34932,
@@ -103,7 +103,7 @@
   "./ai-sdk/workflow/react": 1971,
   "./blocks/announcements": 30475,
   "./blocks/announcements/react": 44543,
-  "./openapi": 14674,
+  "./openapi": 15507,
   "./otel": 6938,
   "./plugins/timestamps": 6378,
   "./lint": 2092,
@@ -118,5 +118,5 @@
   "./tanstack-db": 1437,
   "./tanstack-db/supabase": 1693,
   "./blocks/push": 32184,
-  "better-supabase CLI (startup)": 12911
+  "better-supabase CLI (startup)": 12912
 }

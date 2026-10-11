@@ -263,6 +263,11 @@ export interface GeneratorInput {
   /** Import path from `from` (a generated file) to `to`, with extension. */
   readonly importPath: (from: string, to: string) => string;
   /**
+   * Where generated files import `better-supabase` runtime helpers from.
+   * Defaults to `better-supabase`.
+   */
+  readonly runtimeImport?: string;
+  /**
    * The tables and enums `gen` emits, with the TypeScript type it wrote for
    * each column (after `json` overrides, codecs and enum unions). Frozen.
    */
@@ -306,7 +311,7 @@ export interface GeneratorModel {
 
 /**
  * Codegen extension point. First-party generators: `zod()`, `valibot()`,
- * `jsonSchema()`. Prove custom ones with `testGenerator`.
+ * `jsonSchema()`, `standardSchema()`. Prove custom ones with `testGenerator`.
  */
 export interface Generator {
   /** The generator contract it targets. `gen` refuses versions it doesn't know. */

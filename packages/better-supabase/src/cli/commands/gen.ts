@@ -14,7 +14,12 @@ import type { CliEnv } from "../env.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
-import { jsonSchema, valibot, zod } from "../../config/index.ts";
+import {
+  jsonSchema,
+  standardSchema,
+  valibot,
+  zod,
+} from "../../config/index.ts";
 import {
   type ModuleFile,
   moduleLayout,
@@ -162,6 +167,7 @@ export async function render(
         importPath: (from, to) =>
           importPath(resolve(config.root, from), resolve(config.root, to)),
         model: (view ??= generatorModel(model)),
+        ...runtime,
       });
     } catch (cause) {
       throw new Error(
@@ -446,7 +452,14 @@ export async function sourceArgs(
 }
 
 /** The files `gen --metadata` can write to stdout. */
-const EMITS = ["schema", "types", "zod", "valibot", "json-schema"] as const;
+const EMITS = [
+  "schema",
+  "types",
+  "zod",
+  "valibot",
+  "json-schema",
+  "standard-schema",
+] as const;
 
 type Emit = (typeof EMITS)[number];
 
@@ -471,6 +484,8 @@ function emitGenerator(
       return configured ?? valibot();
     case "json-schema":
       return configured ?? jsonSchema();
+    case "standard-schema":
+      return configured ?? standardSchema();
     default: {
       const unhandled: never = emit;
       throw new Error(`unknown --emit ${String(unhandled)}`);
