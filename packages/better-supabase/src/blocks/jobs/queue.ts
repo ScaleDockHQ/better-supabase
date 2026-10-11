@@ -475,13 +475,23 @@ function isSqlClient(source: SqlClient | QueueRpcClient): source is SqlClient {
 
 function backendOf(
   source: SqlClient | QueueRpcClient | QueueBackend,
+  now: () => Temporal.Instant,
 ): QueueBackend {
   if (isBackend(source)) {
     return source;
   }
   return isSqlClient(source)
-    ? sqlQueueBackend(source)
+    ? sqlQueueBackend(source, now)
     : pgmqPublicBackend(source);
+}
+
+/** The options `createJobs` takes. */
+export interface JobsOptions extends BlockTemporalOptions {
+  /**
+   * The clock for `runAt` delays and schedule runs; pass the definition's
+   * `now` option to share one clock. Defaults to `Temporal.Now.instant()`.
+   */
+  readonly now?: () => Temporal.Instant;
 }
 
 const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
@@ -499,9 +509,10 @@ const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
 export function createJobs<const Q extends QueueSchemas>(
   source: SqlClient | QueueRpcClient | QueueBackend,
   queues: Q,
-  options: BlockTemporalOptions = {},
+  options: JobsOptions = {},
 ): Jobs<Q> {
   applyTemporal(options);
+  const now = options.now ?? nowInstant;
   for (const name of Object.keys(queues)) {
     if (!QUEUE_NAME.test(name)) {
       throw new TypeError(
@@ -509,7 +520,7 @@ export function createJobs<const Q extends QueueSchemas>(
       );
     }
   }
-  const transport = backendOf(source);
+  const transport = backendOf(source, now);
 
   const schemaOf = (queue: string): StandardSchemaV1 => {
     const schema = queues[queue];
@@ -702,7 +713,7 @@ export function createJobs<const Q extends QueueSchemas>(
         nextCronRun(
           schedule.cron,
           schedule.timeZone,
-          later(nowInstant(), schedule.nextRun),
+          later(now(), schedule.nextRun),
         ),
       );
       if (
@@ -734,7 +745,7 @@ export function createJobs<const Q extends QueueSchemas>(
     if (!valid.ok) return valid;
     const timeZone = scheduleOptions.timeZone ?? "UTC";
     try {
-      nextCronRun(cron, timeZone, nowInstant());
+      nextCronRun(cron, timeZone, now());
     } catch (cause) {
       return err(
         dbError("validation", errorText(cause), {
@@ -764,7 +775,7 @@ export function createJobs<const Q extends QueueSchemas>(
       prepared.queue,
       prepared.payload,
       prepared.timeZone,
-      millis(nextCronRun(prepared.cron, prepared.timeZone, nowInstant())),
+      millis(nextCronRun(prepared.cron, prepared.timeZone, now())),
       prepared.tenant,
     );
 
@@ -780,7 +791,7 @@ export function createJobs<const Q extends QueueSchemas>(
                 0,
                 Math.ceil(
                   (enqueueOptions.runAt.epochMilliseconds -
-                    nowInstant().epochMilliseconds) /
+                    now().epochMilliseconds) /
                     1000,
                 ),
               )

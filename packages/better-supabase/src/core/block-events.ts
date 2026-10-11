@@ -544,7 +544,7 @@ export function emitBlockEvent<K extends BlockEventType>(
     ...meta,
     type,
     data: cloneValue(data),
-    time: nowInstant(),
+    time: (events.now ?? nowInstant)(),
   } as BlockEvent;
   events.emit("block", event);
 }

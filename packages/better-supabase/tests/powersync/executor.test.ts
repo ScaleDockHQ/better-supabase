@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { Temporal as Polyfill } from "temporal-polyfill";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
+import { provideTemporal } from "../../src/core/temporal.ts";
 import { defineListQuery, UNSET } from "../../src/list/index.ts";
 import {
   type PowerSyncDatabaseLike,
@@ -14,6 +16,7 @@ import {
   sqliteTables,
   watch,
 } from "../../src/powersync/index.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { testExecutor } from "../../src/testing/conformance.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { createSqlite } from "../fixtures/sqlite.ts";
@@ -29,6 +32,39 @@ function setup() {
 }
 
 describe("powersyncExecutor", () => {
+  it("decodes timestamps with the injected namespace and no global", async () => {
+    const customers = schema.meta.tables["customers"]!;
+    const coded = defineSchema({
+      ...schema.meta,
+      tables: {
+        ...schema.meta.tables,
+        customers: {
+          ...customers,
+          columns: {
+            ...customers.columns,
+            createdAt: { ...customers.columns["createdAt"]!, codec: "instant" },
+          },
+        },
+      },
+    }) as unknown as typeof schema;
+    vi.stubGlobal("Temporal", undefined);
+    onTestFinished(() => {
+      provideTemporal(undefined);
+      vi.unstubAllGlobals();
+    });
+    const definition = defineSupabase(coded, { temporal: Polyfill });
+    const sqlite = createSqlite(definition.meta);
+    const client = definition.connect(powersyncExecutor(sqlite.db));
+    const created = await client.customers
+      .create({ organizationId: ORG, name: "Acme" })
+      .orThrow();
+    const [found] = await client.customers
+      .findMany({ where: { id: created.id } })
+      .orThrow();
+    expect(created.createdAt).toBeInstanceOf(Polyfill.Instant);
+    expect(found?.createdAt).toBeInstanceOf(Polyfill.Instant);
+  });
+
   it("conforms to the executor contract", () => {
     const { db } = setup();
     return testExecutor(powersyncExecutor(db), {

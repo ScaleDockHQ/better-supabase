@@ -52,6 +52,7 @@ export type {
   JobContext,
   JobHandler,
   Jobs,
+  JobsOptions,
   ListDeadOptions,
   QueueSchemas,
   RetryDeadOptions,

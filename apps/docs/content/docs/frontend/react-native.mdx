@@ -230,8 +230,10 @@ import { schema } from "./generated";
 export const betterSupabase = defineSupabase(schema, { temporal: Temporal });
 ```
 
-Rows then decode timestamps and dates into that namespace's types, and every
-helper that reads the time uses it. The generated Valibot and Zod schemas
+With `codecs: { timestamptz: "instant" }`, rows then decode `timestamptz`
+columns to that namespace's `Temporal.Instant` and `timestamp` columns to its
+`Temporal.PlainDateTime`; `date` columns stay strings. Every helper that reads
+the time uses the namespace too. The generated Valibot and Zod schemas
 check Temporal values by their tag, so they load without a global. See
 [Temporal](/docs/concepts/temporal) for the types each column gets.
 

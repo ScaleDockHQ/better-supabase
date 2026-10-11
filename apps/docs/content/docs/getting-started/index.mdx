@@ -24,8 +24,10 @@ optional too; [Peers](/docs/getting-started/peers) lists which subpath needs
 which one. TypeScript 6 and 7 are
 supported, with `nodenext` or
 `bundler` module resolution. On runtimes without a native `Temporal` (Node 24,
-Safari), install `temporal-polyfill` and import `temporal-polyfill/global`
-once at startup; see [Temporal](/docs/concepts/temporal).
+Safari, Hermes), install `temporal-polyfill` and pass its namespace to
+`defineSupabase(schema, { temporal: Temporal })`, or import
+`temporal-polyfill/global` once at startup; see
+[Temporal](/docs/concepts/temporal).
 
 </Step>
 

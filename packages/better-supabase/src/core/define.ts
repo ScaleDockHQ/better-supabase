@@ -80,7 +80,10 @@ import {
 import { deadline, invalidTuning, type RequestTuning } from "./timeout.ts";
 
 export interface SupabaseOptions {
-  /** Clock used by plugins (timestamps, soft delete). */
+  /**
+   * Clock used by plugins (timestamps, soft delete) and for the `time` of
+   * block events on `betterSupabase.events`. Pass it to `createJobs` too.
+   */
   readonly now?: () => Temporal.Instant;
   /**
    * The `Temporal` namespace, for runtimes without a global one (Hermes,
@@ -951,7 +954,10 @@ export class BetterSupabase<
       NO_PLUGINS,
       new StatsRecorder(),
       {},
-      (this.#decodeEvents ??= new EventHub(this.events.logger)),
+      (this.#decodeEvents ??= new EventHub(
+        this.events.logger,
+        this.events.now,
+      )),
     ) as Record<string, unknown>;
     const out: Record<string, unknown> = {};
     for (const [key, spec] of Object.entries(specs)) {

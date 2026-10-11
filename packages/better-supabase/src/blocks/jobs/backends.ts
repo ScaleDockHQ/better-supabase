@@ -182,13 +182,16 @@ export const millis = (instant: Temporal.Instant): Temporal.Instant =>
   instant.round({ smallestUnit: "millisecond", roundingMode: "floor" });
 
 /** The first run of a schedule written without one, or undefined for a cron the drain can't read. */
-function firstRun(row: ScheduleRow): Temporal.Instant | undefined {
+function firstRun(
+  row: ScheduleRow,
+  now: () => Temporal.Instant,
+): Temporal.Instant | undefined {
   try {
     return millis(
       nextCronRun(
         row.schedule,
         row.timezone,
-        row.first_after ? toInstant(row.first_after) : nowInstant(),
+        row.first_after ? toInstant(row.first_after) : now(),
       ),
     );
   } catch {
@@ -199,9 +202,12 @@ function firstRun(row: ScheduleRow): Temporal.Instant | undefined {
 /**
  * The `jobs` SQL module over a service SQL connection. The same
  * functions back both `sql.modules.jobs.options.backend` values (pgmq and table)
- * and both schedulers.
+ * and both schedulers. `now` dates a schedule's first run.
  */
-export function sqlQueueBackend(sql: SqlClient): QueueBackend {
+export function sqlQueueBackend(
+  sql: SqlClient,
+  now: () => Temporal.Instant = nowInstant,
+): QueueBackend {
   return {
     apiVersion: 1,
     name: "sql",
@@ -348,9 +354,9 @@ export function sqlQueueBackend(sql: SqlClient): QueueBackend {
           due.push({ ...schedule, nextRun: toInstant(row.next_run) });
           continue;
         }
-        const first = firstRun(row);
+        const first = firstRun(row, now);
         if (first === undefined) continue;
-        if (temporal().Instant.compare(first, nowInstant()) <= 0) {
+        if (temporal().Instant.compare(first, now()) <= 0) {
           due.push({ ...schedule, nextRun: first });
         } else {
           await sql.queryRaw(

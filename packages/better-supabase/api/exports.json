@@ -1344,6 +1344,7 @@
       "JobContext",
       "JobHandler",
       "Jobs",
+      "JobsOptions",
       "Lease",
       "LeaseOptions",
       "LeaseOutcome",

@@ -1,9 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
+import { Temporal as Polyfill } from "temporal-polyfill";
 import { describe, expect, expectTypeOf, it, onTestFinished, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError, DbException } from "../../src/core/errors.ts";
 import { err, ok, type Result } from "../../src/core/result.ts";
+import { provideTemporal } from "../../src/core/temporal.ts";
 import { tenant } from "../../src/plugins/tenant/index.ts";
 import {
   defineBucket,
@@ -1357,6 +1359,31 @@ describe("BucketClient sweep", () => {
     });
     const result = await bucket.sweep({ olderThan, referenced: () => [] });
     expect(result.error).toMatchObject({ kind: "unexpected" });
+  });
+
+  it("sweeps with an injected namespace and an Instant from another copy", async () => {
+    const storage = files();
+    const bucket = docs.connect(storage.client);
+    const olderThan = Temporal.Instant.from("2026-01-02T00:00:00Z");
+    const namespace = {
+      Now: Polyfill.Now,
+      Instant: class OtherInstant {
+        readonly copy = "other";
+      },
+    };
+    vi.stubGlobal("Temporal", undefined);
+    // SAFETY: sweep reads only Now and Instant from the namespace.
+    provideTemporal(namespace as unknown as typeof Temporal);
+    onTestFinished(() => {
+      provideTemporal(undefined);
+      vi.unstubAllGlobals();
+    });
+    const result = await bucket.sweep({
+      olderThan,
+      referenced: async () => new Set(["o1/u1/a.txt", "o1/u1/b.txt"]),
+    });
+    expect(result.error).toBeNull();
+    expect(result.ok && result.data.removed).toEqual(["o1/u2/c.txt"]);
   });
 
   it("uses the real clock by default", async () => {
