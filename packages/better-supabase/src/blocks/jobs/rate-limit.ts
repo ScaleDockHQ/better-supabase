@@ -92,7 +92,7 @@ type Hit = (
   scope: string,
   key: string,
   max: number | null,
-  period: string | null | null,
+  period: string | null,
 ) => AsyncResult<RateLimitDecision>;
 
 const overTransport =
@@ -122,7 +122,7 @@ export async function hitRateLimit(
   scope: string,
   key: string,
   max: number | null,
-  period: string,
+  period: string | null,
 ): Promise<RateLimitDecision> {
   const [row] = await sql.queryRaw<{
     allowed: boolean;
