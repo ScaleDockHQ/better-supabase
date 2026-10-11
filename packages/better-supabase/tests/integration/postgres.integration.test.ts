@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type { Operation } from "../../src/ir/types.ts";
+import type { TableMeta } from "../../src/schema/types.ts";
+
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineListQuery, UNSET } from "../../src/list/index.ts";
 import { softDelete } from "../../src/plugins/soft-delete/index.ts";
@@ -609,5 +612,117 @@ describe.skipIf(!live)("Postgres executor", async () => {
     expect(await sql.tags.exists({ where: { name: "tx-tag" } }).orThrow()).toBe(
       false,
     );
+  });
+
+  it("writes arrays, objects, scalars and null to json columns and keeps text[] arrays", async () => {
+    const column = (db: string, type: string, flags = {}) => ({
+      db,
+      type,
+      nullable: true,
+      hasDefault: false,
+      ...flags,
+    });
+    const table: TableMeta = {
+      key: "jsonWrites",
+      name: "json_writes",
+      schema: "pg_temp",
+      kind: "table",
+      columns: {
+        id: column("id", "int4"),
+        doc: column("doc", "jsonb", { json: true }),
+        raw: column("raw", "json", { json: true }),
+        tags: column("tags", "text", { array: true }),
+        docs: column("docs", "jsonb", { array: true, json: true }),
+      },
+      primaryKey: ["id"],
+      uniqueKeys: {},
+      relations: {},
+      flags: {},
+    };
+    const returning = {
+      columns: ["id", "doc", "raw", "tags", "docs"].map((name) => ({
+        alias: name,
+        column: name,
+      })),
+      includes: [],
+    };
+    const parts = [{ type: "text", text: "hi" }];
+    const values: [unknown, unknown][] = [
+      [["a", 1], parts],
+      [parts, [parts]],
+      [{ a: { b: [1, null] } }, { nested: { list: parts } }],
+      ["hi", "there"],
+      [null, null],
+    ];
+    const written = await postgres.transaction(async (tx) => {
+      await tx.queryRaw(
+        "create temp table json_writes (id int primary key, doc jsonb, raw json, tags text[], docs jsonb[]) on commit drop",
+      );
+      const executor = postgresExecutor(tx);
+      const run = async (op: Operation) => {
+        const result = await executor.execute(op, { errorMappers: [] });
+        if (!result.ok) throw new Error(result.error.message);
+        return result.data.rows;
+      };
+      const inserted = await run({
+        kind: "insert",
+        table,
+        rows: values.map(([doc, raw], id) => ({
+          id,
+          doc,
+          raw,
+          tags: ["x", "y"],
+          docs: [doc, parts],
+        })),
+        returning,
+        onConflict: undefined,
+        defaultToNull: false,
+      });
+      const updated = await run({
+        kind: "update",
+        table,
+        set: { doc: [parts], raw: "s", tags: ["z"] },
+        where: { kind: "column", column: "id", op: "eq", value: 0 },
+        returning,
+      });
+      const upserted = await run({
+        kind: "insert",
+        table,
+        rows: [{ id: 1, doc: [3, "four"], docs: null }],
+        returning,
+        onConflict: { columns: ["id"], action: "update" },
+        defaultToNull: false,
+      });
+      const matched = await run({
+        kind: "select",
+        table,
+        selection: returning,
+        where: { kind: "column", column: "doc", op: "eq", value: [3, "four"] },
+        orderBy: [],
+        limit: undefined,
+        offset: undefined,
+        count: undefined,
+        head: false,
+        single: undefined,
+      });
+      return { inserted, updated, upserted, matched };
+    });
+
+    expect(written.inserted).toEqual(
+      values.map(([doc, raw], id) => ({
+        id,
+        doc,
+        raw,
+        tags: ["x", "y"],
+        docs: [doc, parts],
+      })),
+    );
+    expect(written.updated).toEqual([
+      { id: 0, doc: [parts], raw: "s", tags: ["z"], docs: [["a", 1], parts] },
+    ]);
+    expect(written.upserted).toEqual([
+      { id: 1, doc: [3, "four"], raw: [parts], tags: ["x", "y"], docs: null },
+    ]);
+    expect(written.matched).toEqual(written.upserted);
   });
 });
