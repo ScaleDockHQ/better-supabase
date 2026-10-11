@@ -161,6 +161,7 @@ export function createReactRouter<
           scope.bs.auth,
           loaderOptions,
           scope.tenant,
+          options.authorizer,
         );
         if ("kind" in caller) {
           // oxlint-disable-next-line typescript/only-throw-error -- React Router sends a thrown Response as the answer.
@@ -193,6 +194,7 @@ export function createReactRouter<
           // action has no schema; requireTenant refused a missing tenant.
           (parsed, caller) =>
             fn(parsed as never, { ...scope, ...caller } as never, args),
+          options.authorizer,
         );
         // SAFETY: the settled data is what fn returned, unwrapped.
         return result as never;

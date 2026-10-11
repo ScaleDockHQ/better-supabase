@@ -5,6 +5,7 @@ import { PostgrestClient } from "@supabase/postgrest-js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import type { CookieWrite, SessionEncoding } from "../auth/session.ts";
+import type { AnyAuthorizer } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { EventHub } from "../core/events.ts";
 import type { RequestContext } from "../core/plugin.ts";
@@ -201,6 +202,12 @@ export interface ServerOptions {
    * fails the action.
    */
   readonly audit?: EventSink;
+  /**
+   * The authorization decision point (`Authorizer` v1) that resources,
+   * actions, routes and MCP tools ask for their `permission`. Without one, a
+   * declared permission denies.
+   */
+  readonly authorizer?: AnyAuthorizer;
 }
 
 export interface ForContextOptions {
@@ -365,6 +372,8 @@ export interface BetterServer<
   ): AsyncResult<Db<M, F, E, undefined>>;
   /** Support sessions; every method fails without `ServerOptions.support`. */
   readonly support: SupportApi;
+  /** `options.authorizer`, when the server has one. */
+  readonly authorizer: AnyAuthorizer | undefined;
 }
 
 /** The environment as `getEnv` resolves it, one variable at a time. */
@@ -1007,6 +1016,7 @@ export function createServer<
       return env();
     },
     events: betterSupabase.events,
+    authorizer: options.authorizer,
     resolve,
     supabaseFor,
     dbFor,

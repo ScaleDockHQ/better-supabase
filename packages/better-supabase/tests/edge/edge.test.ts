@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { ok } from "../../src/core/result.ts";
@@ -188,5 +189,74 @@ describe("createEdge", () => {
     );
     expect(response.headers.get("access-control-allow-origin")).toBe("*");
     expect(response.headers.get("vary")).toBeNull();
+  });
+});
+
+describe("bs.resources() actions", () => {
+  const authorizer = defineAuthorizer({
+    name: "test",
+    key: (ref: string) => ref,
+    evaluate: (request) =>
+      request.resource.properties?.["format"] === "csv"
+        ? { outcome: "granted" }
+        : { outcome: "denied", reason: "CSV only" },
+  });
+  const bs = createEdge(defineSupabase(schema), {
+    env,
+    auth: { jwks: signer.jwks as never },
+    authorizer,
+  });
+  const serve = bs.resources(
+    {
+      customers: {
+        path: "/crm/customers",
+        actions: {
+          export: {
+            method: "POST",
+            path: "/export",
+            permission: "customers.export",
+            handler: (_ctx, { data }) => ({ data }),
+          },
+        },
+      },
+      tags: true,
+    },
+    { basePath: "/api" },
+  );
+  const post = async (path: string, body: unknown, token?: string) =>
+    serve(
+      new Request(`https://project.functions.test${path}`, {
+        method: "POST",
+        headers: {
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+
+  it("routes actions under the resource path and checks their permission", async () => {
+    const token = await signer.sign({ sub: USER });
+    const granted = await post(
+      "/api/crm/customers/export",
+      { format: "csv" },
+      token,
+    );
+    expect(granted.status).toBe(200);
+    expect(await granted.json()).toEqual({ data: { format: "csv" } });
+    const denied = await post(
+      "/api/crm/customers/export",
+      { format: "pdf" },
+      token,
+    );
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toMatchObject({
+      code: "PERMISSION_DENIED",
+      permission: "customers.export",
+    });
+    // Unknown and old paths answer 404 before auth.
+    expect((await post("/api/customers/export", {})).status).toBe(404);
+    expect((await post("/api/crm/customers/a/b", {})).status).toBe(404);
+    expect((await post("/api/crm/customers/export", {})).status).toBe(401);
   });
 });

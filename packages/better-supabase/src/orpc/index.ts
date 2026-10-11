@@ -239,6 +239,7 @@ export function createOrpc<
             middlewareOptions,
             undefined,
             tenantOf(toSession(ctx.auth), tenantClaim),
+            options.authorizer,
           );
           if ("kind" in caller) throw toOrpcError(caller);
         }

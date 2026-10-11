@@ -2,6 +2,10 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  defineAuthorizer,
+  type AuthorizationRequest,
+} from "../../src/core/authorizer.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import {
@@ -160,5 +164,78 @@ describe("runAction", () => {
         throw new Error("redirect");
       }),
     ).rejects.toThrow("redirect");
+  });
+});
+
+describe("permission", () => {
+  it("asks the authorizer after roles and before authorize", async () => {
+    const requests: AuthorizationRequest[] = [];
+    const authorizer = defineAuthorizer({
+      name: "test",
+      key: (ref: string) => ref,
+      evaluate: (request) => {
+        requests.push(request);
+        return request.action === "posts.create"
+          ? { outcome: "granted" }
+          : { outcome: "denied" };
+      },
+    });
+    const user = await authAs({ role: "member" });
+    let authorized = 0;
+    const granted = await runAction(
+      user,
+      {
+        input: Title,
+        permission: "posts.create",
+        authorize: () => {
+          authorized += 1;
+          return true;
+        },
+      },
+      { title: "Hi" },
+      "o1",
+      () => ok("done"),
+      authorizer,
+    );
+    expect(granted).toMatchObject({ ok: true, data: "done" });
+    expect(authorized).toBe(1);
+    expect(requests[0]).toMatchObject({
+      subject: { type: "user", id: USER },
+      action: "posts.create",
+      resource: { type: "action", properties: { title: "Hi" } },
+      context: { tenant: "o1" },
+    });
+
+    const denied = await requireCaller(
+      user,
+      { permission: "posts.delete", authorize: () => true },
+      undefined,
+      authorizer,
+    );
+    expect(denied).toMatchObject({
+      kind: "forbidden",
+      code: "PERMISSION_DENIED",
+    });
+    expect(requests[1]?.resource).toEqual({ type: "route" });
+    const roles = await requireCaller(
+      user,
+      { roles: ["admin"], permission: "posts.create" },
+      undefined,
+      authorizer,
+    );
+    expect(roles).toMatchObject({ code: "MISSING_ROLE" });
+    expect(requests).toHaveLength(2);
+  });
+
+  it("refuses a declared permission without an authorizer", async () => {
+    const caller = await requireCaller(
+      await authAs({ role: "member" }),
+      { permission: "posts.create" },
+      undefined,
+    );
+    expect(caller).toMatchObject({
+      kind: "forbidden",
+      code: "PERMISSION_DENIED",
+    });
   });
 });

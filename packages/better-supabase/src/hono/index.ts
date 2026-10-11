@@ -5,6 +5,7 @@ import { HTTPException } from "hono/http-exception";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
+import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type {
@@ -35,7 +36,14 @@ export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export type { BlockRequireOptions } from "../server/kit.ts";
 export { toHono } from "../bridges/hono.ts";
 export type { HonoBridge } from "../bridges/hono.ts";
-export type { ResourceRouteOptions } from "../server/resource.ts";
+export type {
+  ActionArgs,
+  ResourceAction,
+  ResourceContext,
+  ResourceHooks,
+  ResourceRouteOptions,
+} from "../server/resource.ts";
+export { defineAction } from "../server/resource.ts";
 
 /** Hono `Env` with the request's better-supabase context in `c.var`. */
 export interface HonoEnv<
@@ -72,6 +80,7 @@ export interface BetterHono<
   E,
   C = unknown,
   P = unknown,
+  Ref = string,
 > extends BetterServer<M, F, E, C, P> {
   /**
    * The app's Hono `Env`, for `new Hono<typeof bs.Env>()` and
@@ -93,7 +102,7 @@ export interface BetterHono<
    * ```
    */
   require: (
-    options?: BlockRequireOptions<C, P>,
+    options?: BlockRequireOptions<C, P, boolean, Ref>,
   ) => MiddlewareHandler<HonoEnv<M, F, E, C, P>>;
   /**
    * Wraps a handler: `Result`s and `AsyncResult`s become JSON or Problem
@@ -113,12 +122,18 @@ export interface BetterHono<
    */
   readonly onError: ErrorHandler<HonoEnv<M, F, E, C, P>>;
   /**
-   * REST routes for a table matching `createOpenApi`. Mount with
+   * REST routes for a table matching the API model: the collection, the
+   * item and each action's path. Mount with
    * `app.route('/customers', bs.resource('customers'))` behind `middleware()`.
    */
   resource<T extends TableKey<M>>(
     table: T,
-    options?: ResourceRouteOptions<M, T>,
+    options?: ResourceRouteOptions<
+      M,
+      T,
+      Ref,
+      ServerContext<M, F, E, C, P>["db"]
+    >,
   ): Hono<HonoEnv<M, F, E, C, P>>;
 }
 
@@ -143,10 +158,11 @@ export function createHono<
   E,
   C = unknown,
   P = unknown,
+  A extends AnyAuthorizer | undefined = undefined,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P>,
-  options: HonoOptions = {},
-): BetterHono<M, F, E, C, P> {
+  options: HonoOptions & { readonly authorizer?: A } = {},
+): BetterHono<M, F, E, C, P, PermissionRef<A>> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
@@ -173,7 +189,7 @@ export function createHono<
     }
   };
 
-  return extendServer<BetterHono<M, F, E, C, P>>(server, {
+  return extendServer<BetterHono<M, F, E, C, P, PermissionRef<A>>>(server, {
     // SAFETY: `Env` only carries a type, like Drizzle's `$inferSelect`; reading
     // it at runtime is documented as `undefined`.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- a type-only marker has no runtime value to narrow.
@@ -212,6 +228,7 @@ export function createHono<
           ctx.auth,
           requireOptions,
           c.get("tenant"),
+          options.authorizer,
         );
         if ("kind" in caller) {
           return problemResponse(caller, {
@@ -235,19 +252,36 @@ export function createHono<
     },
 
     resource(table, resourceOptions) {
-      const resource = defineResource(betterSupabase, table, resourceOptions);
+      const resource = defineResource(
+        betterSupabase,
+        table,
+        resourceOptions,
+        options.authorizer,
+      );
+      const { keyParam } = resource;
       const app = new Hono<HonoEnv<M, F, E, C, P>>();
       const serve =
-        (item: boolean) =>
+        (template: readonly string[]) =>
         (c: Context<HonoEnv<M, F, E, C, P>>): Promise<Response> =>
-          resource.handle(
+          resource.serve(
             c.req.raw,
             contextOf(c).db,
-            item ? c.req.param("id") : undefined,
+            template.map((segment) =>
+              segment.startsWith("{") && keyParam
+                ? (c.req.param(keyParam) ?? "")
+                : segment,
+            ),
             { instance: new URL(c.req.url).pathname, expose },
           );
-      app.all("/", serve(false));
-      if (resource.keyParam) app.all("/:id", serve(true));
+      app.all("/", serve([]));
+      // Before `/:id`, so `/export` is the action and not an id.
+      for (const action of resource.plan.actions) {
+        app.all(
+          `/${action.segments.map((segment) => (segment.startsWith("{") ? `:${keyParam}` : segment)).join("/")}`,
+          serve(action.segments),
+        );
+      }
+      if (keyParam) app.all(`/:${keyParam}`, serve([`{${keyParam}}`]));
       return app;
     },
   });

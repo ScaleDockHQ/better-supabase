@@ -198,6 +198,7 @@ export function createSvelteKit<
         locals.bs.auth,
         requireOptions,
         locals.tenant,
+        options.authorizer,
       );
       if ("kind" in caller) return refuse(caller, event.request);
       // SAFETY: requireTenant refused a missing tenant.
@@ -217,6 +218,7 @@ export function createSvelteKit<
           // action has no schema; requireTenant refused a missing tenant.
           (parsed, caller) =>
             fn(parsed as never, { ...locals, ...caller } as never, event),
+          options.authorizer,
         );
         if (!result.ok && options.kit) {
           // SAFETY: fail() wraps the failed ActionResult, the declared failure branch.

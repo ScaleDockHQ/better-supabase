@@ -1,10 +1,15 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { DbError } from "../core/errors.ts";
 
+import { authContext, type AuthState } from "../auth/resolve.ts";
 import { toSession } from "../auth/view.ts";
+import {
+  checkPermission,
+  type AnyAuthorizer,
+  type AuthorizationResource,
+} from "../core/authorizer.ts";
 import { claimAt } from "../core/claims.ts";
 import { dbError } from "../core/errors.ts";
 import { validate } from "../core/standard.ts";
@@ -19,13 +24,19 @@ export type ActionResult<T> =
  * Checks after `allow`, `aal` and `scopes`. A caller who fails one gets
  * `forbidden`: an `ActionResult` error, a 403, or the framework's refusal.
  */
-export interface AuthorizeOptions<I, C, P, R extends boolean> {
+export interface AuthorizeOptions<I, C, P, R extends boolean, Ref = unknown> {
   /** Refuse callers without an active tenant, so `ctx.tenant` is a string. */
   readonly requireTenant?: R;
   /** Admit only users holding one of these roles at `roleClaim`. */
   readonly roles?: readonly string[];
   /** The dotted claim path `roles` reads: one string or an array. Defaults to `app_metadata.role`. */
   readonly roleClaim?: string;
+  /**
+   * The permission the server's `authorizer` must grant. Without an
+   * authorizer, or on any outcome but `granted`, the caller is refused;
+   * `approval-required` refuses with `code: "APPROVAL_REQUIRED"`.
+   */
+  readonly permission?: Ref;
   /** Return `false` to refuse the caller, e.g. `(session, input) => input.ownerId === session.user.id`. */
   readonly authorize?: (
     session: AuthSession<C, P>,
@@ -67,8 +78,9 @@ export interface BlockActionOptions<
   C = unknown,
   P = unknown,
   R extends boolean = boolean,
+  Ref = unknown,
 >
-  extends GuardOptions, AuthorizeOptions<ActionParsed<S>, C, P, R> {
+  extends GuardOptions, AuthorizeOptions<ActionParsed<S>, C, P, R, Ref> {
   /** Validates the input (plain object or `FormData`) with any Standard Schema. */
   readonly input?: S;
 }
@@ -78,8 +90,9 @@ export interface BlockRequireOptions<
   C = unknown,
   P = unknown,
   R extends boolean = boolean,
+  Ref = unknown,
 >
-  extends GuardOptions, AuthorizeOptions<undefined, C, P, R> {}
+  extends GuardOptions, AuthorizeOptions<undefined, C, P, R, Ref> {}
 
 /** `FormData` as a plain object; repeated keys become arrays. */
 export function formDataObject(form: FormData): Record<string, unknown> {
@@ -96,12 +109,34 @@ function actionError(error: DbError): ActionResult<never> {
   return { ok: false, data: null, error };
 }
 
-/** `requireTenant` and `authorize`: the session and tenant, or why the caller is refused. */
+/** What a `permission` on an action or route is checked against. */
+function callerResource(input: unknown): AuthorizationResource {
+  if (input === undefined) return { type: "route" };
+  if (
+    typeof input !== "object" ||
+    input === null ||
+    Array.isArray(input) ||
+    input instanceof FormData
+  ) {
+    return { type: "action" };
+  }
+  // SAFETY: a plain object input is JSON-like data, which properties hold.
+  return {
+    type: "action",
+    properties: input as Readonly<Record<string, unknown>>,
+  };
+}
+
+/**
+ * `requireTenant`, `roles`, `permission` and `authorize`, in that order: the
+ * session and tenant, or why the caller is refused.
+ */
 export async function authorizeCaller<I, C, P>(
   auth: AuthState<C, P>,
   checks: AuthorizeOptions<I, C, P, boolean>,
   input: I,
   tenant: string | undefined,
+  authorizer?: AnyAuthorizer,
 ): Promise<
   | {
       readonly session: AuthSession<C, P>;
@@ -120,6 +155,18 @@ export async function authorizeCaller<I, C, P>(
       code: "MISSING_ROLE",
     });
   }
+  if (checks.permission !== undefined) {
+    const permitted = await checkPermission({
+      authorizer,
+      permission: checks.permission,
+      resource: callerResource(input),
+      context: {
+        ...authContext(auth),
+        ...(tenant === undefined ? {} : { tenant }),
+      },
+    });
+    if (!permitted.ok) return permitted.error;
+  }
   if (checks.authorize && !(await checks.authorize(session, input))) {
     return dbError("forbidden", "You are not allowed to do this", {
       code: "NOT_AUTHORIZED",
@@ -133,12 +180,15 @@ export async function requireCaller<C, P>(
   auth: AuthState<C, P>,
   options: BlockRequireOptions<C, P>,
   tenant: string | undefined,
+  authorizer?: AnyAuthorizer,
 ): Promise<
   | { readonly session: AuthSession<C, P>; readonly tenant: string | undefined }
   | DbError
 > {
   const denied = guard(auth, options.allow, options.aal, options.scopes);
-  return denied ?? authorizeCaller(auth, options, undefined, tenant);
+  return (
+    denied ?? authorizeCaller(auth, options, undefined, tenant, authorizer)
+  );
 }
 
 /**
@@ -159,6 +209,7 @@ export async function runAction<C, P>(
       readonly tenant: string | undefined;
     },
   ) => unknown,
+  authorizer?: AnyAuthorizer,
 ): Promise<ActionResult<unknown>> {
   const denied = guard(auth, options.allow, options.aal, options.scopes);
   if (denied) return actionError(denied);
@@ -169,7 +220,13 @@ export async function runAction<C, P>(
     if (!checked.ok) return actionError(checked.error);
     parsed = checked.data;
   }
-  const caller = await authorizeCaller(auth, options, parsed, tenant);
+  const caller = await authorizeCaller(
+    auth,
+    options,
+    parsed,
+    tenant,
+    authorizer,
+  );
   if ("kind" in caller) return actionError(caller);
   const settled = await settle(() => body(parsed, caller));
   return settled.ok

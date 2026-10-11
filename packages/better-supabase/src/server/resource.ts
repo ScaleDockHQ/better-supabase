@@ -893,9 +893,7 @@ export function defineResource<
         ];
       }
       if (found) {
-        const body = found.action.input
-          ? await readJson(request)
-          : ok(undefined);
+        const body = method === "GET" ? ok(undefined) : await readJson(request);
         if (!body.ok) return [body];
         const id = keyParam ? found.params[keyParam] : undefined;
         const value = await action(db, found.action.name, {
