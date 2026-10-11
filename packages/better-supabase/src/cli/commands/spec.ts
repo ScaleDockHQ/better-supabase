@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { SpecDiagnostic, SpecUi } from "../../spec/index.ts";
@@ -17,6 +16,7 @@ import type { SpecTarget, TargetFilter } from "../spec/targets.ts";
 
 import { SPEC_UIS, specReferenceHtml } from "../../spec/index.ts";
 import { defineCliCommand } from "../command.ts";
+import { errorText, failedResult } from "../errors.ts";
 import { writeAtomic } from "../introspect/cache.ts";
 import { display, sameText, writeIfChanged } from "../io.ts";
 import { SPEC_CACHE_DIR, sha256 } from "../spec/cache.ts";
@@ -32,6 +32,13 @@ import { formatRegistry } from "../spec/formats.ts";
 import { renderTarget } from "../spec/render.ts";
 import { TargetError, resolveTargets } from "../spec/targets.ts";
 import { fieldOf, parseAs } from "../spec/text.ts";
+import {
+  modifiedTime,
+  onceReporter,
+  parseInterval,
+  sleep,
+  stampFiles,
+} from "../watch.ts";
 
 const ACTIONS = ["emit", "check", "validate"] as const;
 type SpecAction = (typeof ACTIONS)[number];
@@ -107,7 +114,7 @@ const ARGS = {
   interval: {
     type: "string",
     description:
-      "Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 1000",
+      "Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000",
     valueHint: "ms",
   },
 } as const;
@@ -249,7 +256,7 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
   } catch (cause) {
     return {
       code: 1,
-      error: `Could not load ${display(root, entryPath)}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      error: `Could not load ${display(root, entryPath)}: ${errorText(cause)}`,
     };
   }
   const registry = formatRegistry(entry.formats);
@@ -329,15 +336,6 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
   };
 }
 
-const sleep = (ms: number, signal: AbortSignal | undefined): Promise<void> =>
-  delay(ms, undefined, signal ? { signal } : {}).catch(() => undefined);
-
-const modified = (file: string): Promise<number | undefined> =>
-  stat(file).then(
-    (stats) => stats.mtimeMs,
-    () => undefined,
-  );
-
 /** The files a render reads: the config, the entry, its overlays and the generated module. */
 function watchedFiles(
   options: SpecRunOptions,
@@ -354,11 +352,6 @@ function watchedFiles(
   ];
 }
 
-async function stamp(files: readonly string[]): Promise<string> {
-  const times = await Promise.all(files.map(modified));
-  return JSON.stringify([files, times]);
-}
-
 /**
  * Emits whenever a watched file changes. A changed config file is loaded
  * again first. A failed run is retried on the next change, and the same
@@ -371,9 +364,9 @@ async function watch(
 ): Promise<CommandResult> {
   let options = initial;
   let last = "";
-  let reported = "";
+  const fresh = onceReporter();
   const configStamp = (): Promise<number | undefined> =>
-    configFile ? modified(configFile) : Promise.resolve(undefined);
+    configFile ? modifiedTime(configFile) : Promise.resolve(undefined);
   let configTime = await configStamp();
   for (;;) {
     if (signal?.aborted === true) break;
@@ -383,24 +376,17 @@ async function watch(
       try {
         options = { ...options, config: await reloadConfig() };
       } catch (cause) {
-        const message = cause instanceof Error ? cause.message : String(cause);
-        if (message !== reported) io.stderr(`${message}\n`);
-        reported = message;
+        const message = errorText(cause);
+        if (fresh(message)) io.stderr(`${message}\n`);
       }
     }
-    const current = await stamp(watchedFiles(options, configFile));
+    const current = await stampFiles(watchedFiles(options, configFile));
     if (current !== last) {
       last = current;
-      const result = await runSpec(options).catch(
-        (cause: unknown): CommandResult => ({
-          code: 1,
-          error: cause instanceof Error ? cause.message : String(cause),
-        }),
-      );
+      const result = await runSpec(options).catch(failedResult);
       if (result.output) io.stdout(`${result.output}\n`);
       const message = result.error ?? "";
-      if (message && message !== reported) io.stderr(`${message}\n`);
-      reported = message;
+      if (fresh(message)) io.stderr(`${message}\n`);
     }
     await sleep(interval, signal);
   }
@@ -432,15 +418,19 @@ export const specCommand: AnyCommand = defineCliCommand({
         code: 2,
         error: `--ui takes ${SPEC_UIS.join(", ")}, got "${args.ui}".`,
       });
-    const interval = Number(
-      args.interval ?? context.config.gen.watchInterval ?? 1000,
+    const interval = parseInterval(
+      args.interval,
+      context.config.gen.watchInterval,
     );
-    if (args.watch === true && (action !== "emit" || !(interval > 0)))
+    if (
+      args.watch === true &&
+      (action !== "emit" || typeof interval === "string")
+    )
       return Promise.resolve({
         code: 2,
         error:
-          action === "emit"
-            ? `--interval must be a positive number of milliseconds, got "${args.interval}".`
+          action === "emit" && typeof interval === "string"
+            ? interval
             : "--watch only applies to `spec emit`.",
       });
     const manifest = args.manifest ?? context.config.specs.manifest;
@@ -461,7 +451,7 @@ export const specCommand: AnyCommand = defineCliCommand({
       ...(args.entry === undefined ? {} : { entry: args.entry }),
       ...(manifest === undefined ? {} : { manifest }),
     };
-    return args.watch === true
+    return args.watch === true && typeof interval === "number"
       ? watch(options, interval, context)
       : runSpec(options);
   },

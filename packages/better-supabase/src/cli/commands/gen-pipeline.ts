@@ -6,6 +6,7 @@ import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 import type { Paint } from "../style.ts";
 
+import { failedResult, parseNames } from "../errors.ts";
 import { GEN_TASKS, isGenTask } from "../names.ts";
 import { envStep } from "./env.ts";
 import { scaffoldStep } from "./scaffold.ts";
@@ -35,10 +36,7 @@ const ORDER: ReadonlyMap<GenTask, number> = new Map(
 export function parseTasks(
   names: readonly string[],
 ): readonly GenTask[] | string {
-  const unknown = names.filter((task) => !isGenTask(task));
-  if (unknown.length > 0)
-    return `Unknown gen task ${unknown.map((task) => `"${task}"`).join(", ")}. Tasks: ${GEN_TASKS.join(", ")}.`;
-  return names.filter(isGenTask);
+  return parseNames(names, isGenTask, "gen task", GEN_TASKS);
 }
 
 /**
@@ -139,12 +137,7 @@ export async function runSteps(
     if (task === "types") continue;
     if (!options.check && results.some(({ result }) => result.code !== 0))
       break;
-    const result = await STEPS[task](options).catch(
-      (cause: unknown): CommandResult => ({
-        code: 1,
-        error: cause instanceof Error ? cause.message : String(cause),
-      }),
-    );
+    const result = await STEPS[task](options).catch(failedResult);
     results.push({ task, result });
   }
   return results;

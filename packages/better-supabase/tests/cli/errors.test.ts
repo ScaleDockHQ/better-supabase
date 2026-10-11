@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { CLI_ERRORS_URL, CliError, toCliError } from "../../src/cli/errors.ts";
+import {
+  CLI_ERRORS_URL,
+  CliError,
+  errorText,
+  failedResult,
+  parseNames,
+  toCliError,
+} from "../../src/cli/errors.ts";
 
 describe("CliError", () => {
   it("carries Problem Details whose type links to the code's docs heading", () => {
@@ -44,5 +51,24 @@ describe("toCliError", () => {
       exitCode: 1,
     });
     expect(toCliError("thrown string").message).toBe("thrown string");
+  });
+});
+
+describe("error helpers", () => {
+  it("prints any thrown value and wraps it as a failed result", () => {
+    expect(errorText(new Error("boom"))).toBe("boom");
+    expect(errorText("plain")).toBe("plain");
+    expect(failedResult(new Error("boom"))).toEqual({ code: 1, error: "boom" });
+  });
+
+  it("parseNames returns the names, or a message naming the unknown ones", () => {
+    const isColor = (value: string): value is "red" | "blue" =>
+      value === "red" || value === "blue";
+    expect(parseNames(["red"], isColor, "color", ["red", "blue"])).toEqual([
+      "red",
+    ]);
+    expect(parseNames(["red", "pink"], isColor, "color", ["red", "blue"])).toBe(
+      'Unknown color "pink". Available: red, blue.',
+    );
   });
 });

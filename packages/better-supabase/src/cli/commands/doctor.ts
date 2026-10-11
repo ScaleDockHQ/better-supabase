@@ -38,7 +38,7 @@ import {
   type SqlObject,
   type TextFile,
 } from "../doctor/rules.ts";
-import { CliError } from "../errors.ts";
+import { CliError, errorText } from "../errors.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { display, writeIfChanged } from "../io.ts";
@@ -385,7 +385,7 @@ function explainClaims(
     return { role: "anon", ...(parsed as Record<string, unknown>) };
   } catch (cause) {
     return {
-      error: `--claims is not valid JSON: ${cause instanceof Error ? cause.message : String(cause)}`,
+      error: `--claims is not valid JSON: ${errorText(cause)}`,
     };
   }
 }
@@ -479,7 +479,7 @@ export async function runDoctor(
     readText(config.root, ".gitignore"),
     sourceFiles(config),
     compiledReadSets(config).catch((cause: unknown) => ({
-      skipped: cause instanceof Error ? cause.message : String(cause),
+      skipped: errorText(cause),
     })),
     options.peers ?? peerVersions(config.root).catch(() => []),
   ]).catch(async (cause: unknown) => {

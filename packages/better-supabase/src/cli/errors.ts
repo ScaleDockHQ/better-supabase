@@ -1,3 +1,5 @@
+import type { CommandResult } from "./io.ts";
+
 /** `1` for a failure, `2` for a usage error the caller can fix by changing the command. */
 export type ExitCode = 1 | 2;
 
@@ -101,9 +103,31 @@ function isCittyUsageError(cause: unknown): cause is Error {
 export function toCliError(cause: unknown): CliError {
   if (cause instanceof CliError) return cause;
   if (isCittyUsageError(cause)) return new CliError("usage", cause.message);
-  return new CliError(
-    "internal",
-    cause instanceof Error ? cause.message : String(cause),
-    { cause },
-  );
+  return new CliError("internal", errorText(cause), { cause });
+}
+
+/** A thrown value as the message to print. */
+export const errorText = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause);
+
+/** A step that threw, as a failed command result. */
+export const failedResult = (cause: unknown): CommandResult => ({
+  code: 1,
+  error: errorText(cause),
+});
+
+/**
+ * The `values` that `isValid` accepts, or a usage message naming the ones
+ * it rejects and the `available` names.
+ */
+export function parseNames<T extends string>(
+  values: readonly string[],
+  isValid: (value: string) => value is T,
+  noun: string,
+  available: readonly string[],
+): readonly T[] | string {
+  const unknown = values.filter((value) => !isValid(value));
+  if (unknown.length > 0)
+    return `Unknown ${noun} ${unknown.map((value) => `"${value}"`).join(", ")}. Available: ${available.join(", ")}.`;
+  return values.filter(isValid);
 }

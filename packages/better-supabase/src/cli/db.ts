@@ -1,3 +1,5 @@
+import { errorText } from "./errors.ts";
+
 /** The subset of `pg.Client` the CLI uses. */
 export interface PgQueryable {
   query<R = Record<string, unknown>>(
@@ -95,7 +97,7 @@ export async function connect(
     else await client.connect();
   } catch (cause) {
     await close().catch(() => undefined);
-    const message = cause instanceof Error ? cause.message : String(cause);
+    const message = errorText(cause);
     throw new Error(
       `Could not connect to ${redact(url)}: ${message}. Is the local stack running (supabase start)?`,
       { cause },

@@ -299,7 +299,7 @@ OPTIONS
                    --cache    Reuse renders whose inputs did not change (Default: true)                                                      
                 --no-cache    Render every output again                                                                                      
                    --watch    With emit, render again whenever the entry, the config or an overlay changes                                   
-           --interval=<ms>    Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 1000                               
+           --interval=<ms>    Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000                               
                --cwd=<dir>    Project directory                                                                                              
            --config=<file>    Config file, relative to --cwd                                                                                 
               --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set

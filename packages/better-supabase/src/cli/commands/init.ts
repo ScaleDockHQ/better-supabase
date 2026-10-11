@@ -8,6 +8,7 @@ import type { Prompter } from "../prompts.ts";
 
 import { defineCliCommand, list } from "../command.ts";
 import { findConfig, loadConfig } from "../config.ts";
+import { parseNames } from "../errors.ts";
 import { TYPEGEN_VERSION } from "../introspect/typegen-version.ts";
 import { display, writeIfChanged } from "../io.ts";
 import {
@@ -239,11 +240,10 @@ function chooseIntegrations(
   );
 }
 
-function parseIntegrations(values: readonly string[]): Integration[] | string {
-  const unknown = values.filter((value) => !isIntegration(value));
-  if (unknown.length > 0)
-    return `Unknown integration ${unknown.join(", ")}. Available: ${INTEGRATIONS.join(", ")}`;
-  return values.filter(isIntegration);
+function parseIntegrations(
+  values: readonly string[],
+): readonly Integration[] | string {
+  return parseNames(values, isIntegration, "integration", INTEGRATIONS);
 }
 
 /** Where `init` writes: `--cwd`, `--package`, or the workspace package the person picks. */

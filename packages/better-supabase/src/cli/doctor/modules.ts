@@ -13,10 +13,11 @@ import {
   migrationOptionUses,
   sharedRolesProblems,
 } from "../../sql/index.ts";
+import { errorText } from "../errors.ts";
 import { tomlGet } from "../supabase-toml.ts";
 import { accessModule, entitlementsModule } from "./authorization.ts";
 import { configuredHooks, hookClaims, isRecord, signatureOf } from "./hooks.ts";
-import { errorText, literal } from "./live.ts";
+import { literal } from "./live.ts";
 import {
   catalogOf,
   exposedSchemas,

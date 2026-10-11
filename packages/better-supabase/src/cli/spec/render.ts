@@ -8,6 +8,7 @@ import type { SpecTarget } from "./targets.ts";
 
 import { applyOverlays, loadJsonPath } from "../../overlay/index.ts";
 import { serializeDocument } from "../../spec/index.ts";
+import { errorText } from "../errors.ts";
 import { VERSION } from "../version.ts";
 import { readCachedRender, sha256, writeCachedRender } from "./cache.ts";
 import { documentFormatId } from "./entry.ts";
@@ -62,7 +63,7 @@ async function loadOverlays(
       diagnostics.push({
         code: "overlay-invalid",
         severity: "error",
-        message: `${path} does not parse: ${error instanceof Error ? error.message : String(error)}`,
+        message: `${path} does not parse: ${errorText(error)}`,
       });
       continue;
     }
@@ -143,7 +144,7 @@ function renderDocument(
     diagnostics.push({
       code: "lint-failed",
       severity: "warning",
-      message: `The ${target.format.id} lint stopped: ${cause instanceof Error ? cause.message : String(cause)}`,
+      message: `The ${target.format.id} lint stopped: ${errorText(cause)}`,
     });
   }
   return { document: overlaid.document, diagnostics };

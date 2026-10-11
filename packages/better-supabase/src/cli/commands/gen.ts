@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
-import { readFile, rm, stat } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 
 import type {
   GeneratedFile,
@@ -32,6 +31,7 @@ import { defineCliCommand, list } from "../command.ts";
 import { stdinDatabaseUrl } from "../config.ts";
 import { fileDiff } from "../diff.ts";
 import { providerBucketKeys } from "../doctor/authorization.ts";
+import { errorText, failedResult } from "../errors.ts";
 import { emitMeta, emitModule, metaPaths } from "../gen/emit.ts";
 import { buildModel, generatorModel } from "../gen/model.ts";
 import {
@@ -64,6 +64,13 @@ import { GEN_TASKS } from "../names.ts";
 import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter, plain } from "../style.ts";
+import {
+  modifiedTime,
+  onceReporter,
+  parseInterval,
+  sleep,
+  stampFiles,
+} from "../watch.ts";
 import {
   combineResults,
   runSteps,
@@ -180,7 +187,7 @@ export async function render(
       });
     } catch (cause) {
       throw new Error(
-        `generator "${generator.name}" failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        `generator "${generator.name}" failed: ${errorText(cause)}`,
         { cause },
       );
     }
@@ -558,7 +565,7 @@ export async function readMetadataSnapshot(
     else throw new Error("there is no stdin to read");
   } catch (cause) {
     throw new MetadataRejectedError(
-      `Could not read ${source === "-" ? "stdin" : source}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `Could not read ${source === "-" ? "stdin" : source}: ${errorText(cause)}`,
     );
   }
   return fromMetadata(await parseMetadataDocument(text));
@@ -694,9 +701,6 @@ const ARGS = {
   ...SOURCE_ARGS,
 } as const;
 
-const sleep = (ms: number, signal: AbortSignal | undefined): Promise<void> =>
-  delay(ms, undefined, signal ? { signal } : {}).catch(() => undefined);
-
 /**
  * Reads the schema when it may have changed. Returns the new change marker (the
  * catalog fingerprint, or the snapshot itself when the source has none) and
@@ -735,12 +739,7 @@ async function runTasks(
     ? [
         {
           task: "types" as const,
-          result: await runGen(options).catch(
-            (cause: unknown): CommandResult => ({
-              code: 1,
-              error: cause instanceof Error ? cause.message : String(cause),
-            }),
-          ),
+          result: await runGen(options).catch(failedResult),
         },
       ]
     : [];
@@ -757,17 +756,6 @@ async function runTasks(
     ),
   );
 }
-
-const modified = (file: string | undefined): Promise<number | undefined> =>
-  file
-    ? stat(file).then(
-        (stats) => stats.mtimeMs,
-        () => undefined,
-      )
-    : Promise.resolve(undefined);
-
-const stampFiles = async (files: readonly string[]): Promise<string> =>
-  JSON.stringify([files, await Promise.all(files.map(modified))]);
 
 /**
  * Runs the tasks again whenever the schema, the config file or a task's
@@ -789,13 +777,12 @@ async function watch(
   let options = initial;
   let last = "";
   let inputs = "";
-  let reported = "";
-  let stamp = await modified(configFile);
+  const fresh = onceReporter();
+  let stamp = await modifiedTime(configFile);
   let db: IntrospectionSource | undefined;
   const aborted = (): boolean => signal?.aborted ?? false;
   const report = (message: string): void => {
-    if (message !== reported) io.stderr(`${message}\n`);
-    reported = message;
+    if (fresh(message)) io.stderr(`${message}\n`);
   };
   const closeDb = async (): Promise<void> => {
     await db?.close().catch(() => undefined);
@@ -803,7 +790,7 @@ async function watch(
   };
   try {
     while (!aborted()) {
-      const changed = await modified(configFile);
+      const changed = await modifiedTime(configFile);
       if (reloadConfig && changed !== stamp) {
         try {
           options = { ...options, config: await reloadConfig() };
@@ -812,7 +799,7 @@ async function watch(
           inputs = "";
           await closeDb();
         } catch (cause) {
-          report(cause instanceof Error ? cause.message : String(cause));
+          report(errorText(cause));
           await sleep(interval, signal);
           continue;
         }
@@ -828,7 +815,7 @@ async function watch(
               : undefined;
           polled = await poll(options, db, last);
         } catch (cause) {
-          report(cause instanceof Error ? cause.message : String(cause));
+          report(errorText(cause));
           await closeDb();
           await sleep(interval, signal);
           continue;
@@ -852,7 +839,7 @@ async function watch(
         if (result?.output) io.stdout(`${result.output}\n`);
         if (polled) last = polled.marker;
         inputs = current;
-        reported = "";
+        fresh("");
       }
       await sleep(interval, signal);
     }
@@ -917,15 +904,11 @@ export const genCommand: AnyCommand = defineCliCommand({
       ...(context.signal ? { signal: context.signal } : {}),
       cache: true,
     };
-    const interval = Number(
-      args.interval ?? context.config.gen.watchInterval ?? 2000,
+    const interval = parseInterval(
+      args.interval,
+      context.config.gen.watchInterval,
     );
-    if (!Number.isFinite(interval) || interval <= 0) {
-      return {
-        code: 2,
-        error: `--interval must be a positive number of milliseconds, got "${args.interval}"`,
-      };
-    }
+    if (typeof interval === "string") return { code: 2, error: interval };
     return args.watch === true
       ? watch(options, requested, interval, context)
       : withSpinner(context.io.prompts, "Generating from the schema", () =>

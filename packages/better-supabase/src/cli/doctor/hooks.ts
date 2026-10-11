@@ -9,6 +9,7 @@ import type {
 } from "./rules.ts";
 
 import { providerLabel } from "../authorization.ts";
+import { errorText } from "../errors.ts";
 import {
   type DiffEngine,
   diffEngine,
@@ -16,7 +17,7 @@ import {
   type PgFunctionHook,
   pgFunctionHooks,
 } from "../supabase-toml.ts";
-import { errorText, ident, literal, type LiveDatabase } from "./live.ts";
+import { ident, literal, type LiveDatabase } from "./live.ts";
 import { lineOf } from "./shared.ts";
 
 /** Claims past this size make every request carry a large cookie and header. */
