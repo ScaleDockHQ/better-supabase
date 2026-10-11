@@ -16,6 +16,7 @@ export { blockCloudEvent, forwardBlockEvents } from "./cloud-event.ts";
 export type {
   CloudEvent,
   CloudEventOptions,
+  DataschemaContext,
   EventSink,
   ForwardBlockOptions,
 } from "./cloud-event.ts";
