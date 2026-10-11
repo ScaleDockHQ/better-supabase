@@ -3,7 +3,6 @@ import {
   JsonToSseTransformStream,
   type LanguageModelUsage,
   type ModelMessage,
-  UI_MESSAGE_STREAM_HEADERS,
   type UIMessage,
   type UIMessageChunk,
   type UIMessageStreamOnEndCallback,
@@ -37,6 +36,7 @@ import {
   runRelease,
   usageOf,
 } from "../gateway.ts";
+import { badRequest, readJson, sse } from "../http.ts";
 import {
   AI_SDK_UI_FORMAT,
   fromUIMessage,
@@ -192,12 +192,6 @@ const TRIGGERS: ReadonlySet<unknown> = new Set([
   "regenerate-message",
 ]);
 
-function badRequest(message: string): Response {
-  return problemResponse(
-    dbError("invalid_request", message, { code: "AI_CHAT_BAD_REQUEST" }),
-  );
-}
-
 function parseBody(value: unknown): AssistantRequestBody | string {
   if (!isRecord(value)) return "Expected a JSON object.";
   const { id, trigger, messageId, model } = value;
@@ -218,14 +212,6 @@ function parseBody(value: unknown): AssistantRequestBody | string {
   };
 }
 
-async function readJson(request: Request): Promise<unknown> {
-  try {
-    return await request.json();
-  } catch {
-    return undefined;
-  }
-}
-
 const settle = async <T>(
   value: PromiseLike<T> | undefined,
 ): Promise<T | undefined> => {
@@ -235,12 +221,6 @@ const settle = async <T>(
     return undefined;
   }
 };
-
-function sse(stream: ReadableStream<string>): Response {
-  return new Response(stream.pipeThrough(new TextEncoderStream()), {
-    headers: UI_MESSAGE_STREAM_HEADERS,
-  });
-}
 
 /**
  * A chat route for the AI SDK on the `ai-chat` block: `respond` stores the

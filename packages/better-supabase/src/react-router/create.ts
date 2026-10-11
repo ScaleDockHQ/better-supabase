@@ -6,7 +6,7 @@ import type { BetterServer } from "../server/server-types.ts";
 
 import { around, bufferInPlace } from "../bridges/shared.ts";
 import { problemResponse } from "../core/problem.ts";
-import { flushEvents } from "../server/adapter.ts";
+import { withFlush } from "../server/adapter.ts";
 import {
   actionInput,
   type FrameworkLocals,
@@ -145,11 +145,7 @@ export function createReactRouter<
         async (contributions) => {
           // SAFETY: the key is the one this factory created, for Locals.
           args.context.set(key as never, localsOf(contributions) as never);
-          try {
-            return await next();
-          } finally {
-            flushEvents(server, options.waitUntil);
-          }
+          return withFlush(server, options.waitUntil, next);
         },
       );
     },

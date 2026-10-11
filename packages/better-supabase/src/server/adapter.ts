@@ -45,6 +45,19 @@ export function flushEvents(
   if (waitUntil && server.events.pending) waitUntil(server.events.settled());
 }
 
+/** Runs `run`, then hands pending event sink sends to `waitUntil` even when it throws. */
+export async function withFlush<T>(
+  server: Pick<BetterServer<AnyModels, AnyFunctions, unknown>, "events">,
+  waitUntil: ((promise: Promise<unknown>) => void) | undefined,
+  run: () => Promise<T> | T,
+): Promise<T> {
+  try {
+    return await run();
+  } finally {
+    flushEvents(server, waitUntil);
+  }
+}
+
 /** The 500 for an error a handler threw; the message only when `expose` is set. */
 export function unexpectedResponse(
   cause: unknown,

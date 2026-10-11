@@ -9,7 +9,7 @@ import {
   type TanStackStartServerArgs,
   tanStackStartServer,
 } from "../bridges/tanstack-start.ts";
-import { flushEvents } from "../server/adapter.ts";
+import { withFlush } from "../server/adapter.ts";
 import {
   type FrameworkLocals,
   type FrameworkOptions,
@@ -124,11 +124,7 @@ export function createTanStackStart<
 
   return extendServer<BetterTanStackStart<M, F, E, C, P>>(server, {
     async middleware(args) {
-      try {
-        return await served(args);
-      } finally {
-        flushEvents(server, options.waitUntil);
-      }
+      return withFlush(server, options.waitUntil, () => served(args));
     },
 
     require: async (context, requireOptions = {}) => {

@@ -1,6 +1,5 @@
 "use client";
 
-import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
 
@@ -21,9 +20,11 @@ import type { AuthSession } from "../auth/view.ts";
 import type {
   BroadcastOptions,
   ClientLike,
+  CountState,
   LiveCountHookOptions,
   LiveQueryHookOptions,
 } from "../bindings/client.ts";
+import type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
 import type { AuthSnapshot } from "../client/index.ts";
 import type { DbError } from "../core/errors.ts";
 import type { QuerySpec } from "../core/spec.ts";
@@ -33,15 +34,23 @@ import type {
   TemplateValues,
   Topic,
   TopicHandlers,
-  TopicMessage,
 } from "../realtime/index.ts";
-import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
+import type { LiveCountSeed } from "../realtime/live.ts";
 
-import { claimedTenant, sessionUserId, specKey } from "../bindings/keys.ts";
-import { invalidateTables } from "../query/invalidate.ts";
+import {
+  countSource,
+  liveKey,
+  NO_COUNT,
+  shownCount,
+  startBroadcast,
+  startLiveCount,
+  startLiveQuery,
+} from "../bindings/client.ts";
+import { sessionUserId, specKey } from "../bindings/keys.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
-import { liveCount, liveQuery } from "../realtime/live.ts";
 import { useSession } from "./session.ts";
+
+export type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
 
 export type {
   BroadcastOptions,
@@ -122,20 +131,6 @@ export interface BetterHooks<B extends ClientLike> {
   readonly useSession: () => AuthSession<ClaimsOf<B>, ProfileOf<B>>;
 }
 
-/** The claims type of a client's `betterSupabase.claims(schema)`, `unknown` without one. */
-export type ClaimsOf<B extends ClientLike> = B["betterSupabase"] extends {
-  readonly claimsSchema: StandardSchemaV1<unknown, infer C> | undefined;
-}
-  ? C
-  : unknown;
-
-/** The profile type of a client's `betterSupabase.userMetadata(schema)`, `unknown` without one. */
-export type ProfileOf<B extends ClientLike> = B["betterSupabase"] extends {
-  readonly userMetadataSchema: StandardSchemaV1<unknown, infer P> | undefined;
-}
-  ? P
-  : unknown;
-
 /**
  * Hooks typed for your schema.
  *
@@ -202,45 +197,14 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
 
   useEffect(() => {
     if (!name || auth.status === "loading") return;
-    const matched = topic.match(name);
-    if (!matched) return;
-    const forward = (payload: unknown, message: TopicMessage) => {
-      const current = latest.current;
-      // SAFETY: handlers are keyed by table and event, and the payload comes
-      // from that table's topic.
-      const table = current.handlers as
-        | Readonly<
-            Record<
-              string,
-              ((payload: unknown, message: TopicMessage) => void) | undefined
-            >
-          >
-        | undefined;
-      (table?.[message.event] ?? table?.["*"])?.(payload, message);
-      const invalidate = current.options?.invalidate;
-      if (!invalidate || !queryClient) return;
-      if (typeof invalidate !== "function") {
-        void invalidateTables(queryClient, invalidate);
-        return;
-      }
-      for (const queryKey of invalidate(message))
-        void queryClient.invalidateQueries({ queryKey });
-    };
-    const subscription = topic.subscribe(
+    return startBroadcast({
       supabase,
-      matched,
-      { "*": forward },
-      {
-        ...(self === undefined ? {} : { self }),
-        onStatus: setStatus,
-        onInvalid: (message, issues) =>
-          latest.current.options?.onInvalid?.(message, issues),
-      },
-    );
-    return () => {
-      void subscription.unsubscribe();
-      setStatus("closed");
-    };
+      topic,
+      name,
+      latest: () => latest.current,
+      queryClient,
+      onStatus: setStatus,
+    });
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- userId resubscribes with the new user's token.
   }, [supabase, topic, name, userId, auth.status, queryClient, self]);
 
@@ -323,34 +287,27 @@ export function useLiveQuery(
   }
   const held = useHeldSpec(spec);
   const joined = useRef<string | null>(null);
-  const tenant =
-    options.tenant ?? claimedTenant(auth, client.betterSupabase.meta);
-  const userId = auth.user?.id ?? null;
-  const debounceMs = options.debounceMs;
+  const key = liveKey(client, held.spec, auth, options);
+  const latest = useRef({ auth, options });
+  // oxlint-disable-next-line react/refs -- latest-ref pattern; the key already restarts the effect on a change.
+  latest.current = { auth, options };
 
   useEffect(() => {
-    if (!held.spec || !queryClient || auth.status === "loading") return;
+    if (key === null || !held.spec || !queryClient) return;
     // A rejoin with the same spec (an <Activity> shown again) missed the
     // changes made while it was hidden.
     const resumed = joined.current === held.key;
     joined.current = held.key;
-    const live = liveQuery(client.betterSupabase, client.supabase, held.spec, {
-      onChange: (tables) => void invalidateTables(queryClient, tables),
+    return startLiveQuery({
+      client,
+      queryClient,
+      spec: held.spec,
+      auth: latest.current.auth,
+      options: latest.current.options,
+      resumed,
       onStatus: setStatus,
-      ...(tenant === undefined ? {} : { tenant }),
-      ...(userId === null ? {} : { user: userId }),
-      ...(debounceMs === undefined ? {} : { debounceMs }),
     });
-    if (resumed) {
-      live.ready.then(
-        () => void invalidateTables(queryClient, live.tables),
-        () => undefined,
-      );
-    }
-    return () => {
-      void live.unsubscribe();
-    };
-  }, [client, queryClient, held, tenant, userId, auth.status, debounceMs]);
+  }, [client, queryClient, held, key]);
 
   return status;
 }
@@ -379,88 +336,46 @@ export function useLiveCount(
 ): LiveCount {
   const { client } = useClientContext();
   const auth = useAuth();
-  const seed = source && "spec" in source ? source : undefined;
-  // SAFETY: source is a seed with a spec or a plain spec, and the in check
-  // ruled out the seed.
-  const spec = seed ? seed.spec : (source as QuerySpec | null | undefined);
-  const initial = seed?.count ?? options.initial;
-  const [state, setState] = useState<{
-    readonly key: string | null;
-    readonly count: number | undefined;
-    readonly at: number;
-    readonly error: DbError | undefined;
-  }>({ key: null, count: undefined, at: 0, error: undefined });
+  const parsed = countSource(source, options);
+  const [state, setState] = useState<CountState>(NO_COUNT);
+  const stateRef = useRef<CountState>(NO_COUNT);
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
-  // SAFETY: a seed holds a count spec, and a plain source is one.
-  const held = useHeldSpec(
-    spec as QuerySpec<string, "count", number> | null | undefined,
-  );
+  const held = useHeldSpec(parsed.spec);
   const joined = useRef<{ key: string | null; at: number } | null>(null);
-  const tenant =
-    options.tenant ?? claimedTenant(auth, client.betterSupabase.meta);
-  const userId = auth.user?.id ?? null;
-  const debounceMs = options.debounceMs;
-  const hasInitial = initial !== undefined;
-  const seedAt = seed?.at;
+  const key = liveKey(client, held.spec, auth, options);
+  const latest = useRef({ auth, options });
+  // oxlint-disable-next-line react/refs -- latest-ref pattern; the key already restarts the effect on a change.
+  latest.current = { auth, options };
+  const hasInitial = parsed.initial !== undefined;
+  const { seedAt } = parsed;
 
   useEffect(() => {
-    if (!held.spec || auth.status === "loading") return;
-    const key = held.key;
+    if (key === null || !held.spec || held.key === null) return;
+    const specKey = held.key;
     // A rejoin with the same spec (an <Activity> shown again) counts again
     // once joined: changes made while it was hidden were missed.
-    const previous = joined.current?.key === key ? joined.current : null;
-    joined.current = { key, at: previous?.at ?? seedAt ?? 0 };
-    const since = previous ? previous.at : seedAt;
-    // SAFETY: the client db runs count specs.
-    const live = liveCount(
-      client.betterSupabase,
-      client.supabase,
-      client.db as CountRunner,
-      held.spec,
-      {
-        immediate: !hasInitial && !previous,
-        ...(since === undefined ? {} : { since }),
-        onCount: (count) => {
-          const at = Date.now();
-          if (joined.current?.key === key) joined.current = { key, at };
-          setState({ key, count, at, error: undefined });
-        },
-        onError: (error) => {
-          setState((last) => ({
-            key,
-            count: last.key === key ? last.count : undefined,
-            at: last.key === key ? last.at : 0,
-            error,
-          }));
-        },
-        onStatus: setStatus,
-        ...(tenant === undefined ? {} : { tenant }),
-        ...(userId === null ? {} : { user: userId }),
-        ...(debounceMs === undefined ? {} : { debounceMs }),
+    const previous = joined.current?.key === specKey ? joined.current : null;
+    joined.current = { key: specKey, at: previous?.at ?? seedAt ?? 0 };
+    return startLiveCount({
+      client,
+      spec: held.spec,
+      key: specKey,
+      auth: latest.current.auth,
+      options: latest.current.options,
+      immediate: !hasInitial && !previous,
+      since: previous ? previous.at : seedAt,
+      onState: (update) => {
+        const next = update(stateRef.current);
+        stateRef.current = next;
+        if (next.error === undefined && joined.current?.key === specKey)
+          joined.current = { key: specKey, at: next.at };
+        setState(next);
       },
-    );
-    return () => {
-      void live.unsubscribe();
-    };
-  }, [
-    client,
-    held,
-    tenant,
-    userId,
-    auth.status,
-    debounceMs,
-    hasInitial,
-    seedAt,
-  ]);
+      onStatus: setStatus,
+    });
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `key` holds the spec, tenant, user and debounce.
+  }, [client, held.spec, held.key, key, hasInitial, seedAt]);
 
-  const fresh = state.key === held.key;
-  // A seed rendered after the last client count (a router.refresh()) wins.
-  const seedNewer =
-    seedAt !== undefined && seed?.count !== null && seedAt > state.at;
-  return {
-    count:
-      fresh && state.count !== undefined && !seedNewer ? state.count : initial,
-    status,
-    error: fresh ? state.error : undefined,
-  };
+  const shown = shownCount(state, held.key, parsed);
+  return { count: shown.count, status, error: shown.error };
 }

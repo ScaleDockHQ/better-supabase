@@ -1,4 +1,3 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { QueryClient } from "@tanstack/query-core";
 
@@ -53,6 +52,8 @@ import {
 } from "../bindings/client.ts";
 import { clearOnUserChange } from "../query/user-change.ts";
 
+export type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
+
 export type {
   ActionInputOf,
   ActionResultOf,
@@ -104,20 +105,6 @@ export interface ActionHandle<I, T> extends ActionState<I, T> {
   readonly run: (input: I) => Promise<ActionResultOf<T>>;
   readonly reset: () => void;
 }
-
-/** The claims type of a client's `betterSupabase.claims(schema)`, `unknown` without one. */
-export type ClaimsOf<B extends ClientLike> = B["betterSupabase"] extends {
-  readonly claimsSchema: StandardSchemaV1<unknown, infer C> | undefined;
-}
-  ? C
-  : unknown;
-
-/** The profile type of a client's `betterSupabase.userMetadata(schema)`, `unknown` without one. */
-export type ProfileOf<B extends ClientLike> = B["betterSupabase"] extends {
-  readonly userMetadataSchema: StandardSchemaV1<unknown, infer P> | undefined;
-}
-  ? P
-  : unknown;
 
 /**
  * The client bound to Svelte. Inputs are getters (`() => spec`), so the

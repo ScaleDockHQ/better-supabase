@@ -24,6 +24,7 @@ export { createServer, extendServer } from "./server.ts";
 export { TENANT_HEADER } from "./server-types.ts";
 export {
   flushEvents,
+  withFlush,
   handle,
   resolveToken,
   unexpectedResponse,

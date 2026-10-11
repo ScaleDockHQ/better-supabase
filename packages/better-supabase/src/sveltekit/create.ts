@@ -9,7 +9,7 @@ import { around, bufferInPlace } from "../bridges/shared.ts";
 import { type SvelteKitHandle } from "../bridges/sveltekit.ts";
 import { dbErrorOf, DbException } from "../core/errors.ts";
 import { toProblem } from "../core/problem.ts";
-import { flushEvents } from "../server/adapter.ts";
+import { withFlush } from "../server/adapter.ts";
 import {
   actionInput,
   type FrameworkLocals,
@@ -179,11 +179,11 @@ export function createSvelteKit<
     const env = event.platform?.env;
     return run(event.request, env, async (contributions) => {
       Object.assign(event.locals, localsOf<M, F, E, C, P>(contributions));
-      try {
-        return await resolve(event);
-      } finally {
-        flushEvents(server, options.waitUntil ?? platformWaitUntil(platform));
-      }
+      return withFlush(
+        server,
+        options.waitUntil ?? platformWaitUntil(platform),
+        () => resolve(event),
+      );
     });
   };
 
