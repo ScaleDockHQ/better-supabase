@@ -64,6 +64,25 @@ function columnType(table: TableMeta, db: string): string | undefined {
 
 type ColumnCondition = Extract<Condition, { kind: "column" }>;
 
+function jsonText(value: unknown): unknown {
+  return value === null || value === undefined ? value : JSON.stringify(value);
+}
+
+function columnValue(table: TableMeta, db: string, value: unknown): unknown {
+  const meta = lookupOf(table).byDb.get(db)?.[1];
+  if (!meta?.json) return value;
+  if (meta.array && Array.isArray(value)) return value.map(jsonText);
+  return jsonText(value);
+}
+
+function comparedValue(table: TableMeta, condition: ColumnCondition): unknown {
+  const { value } = condition;
+  if (condition.path || typeof value !== "object" || value === null)
+    return value;
+  const meta = lookupOf(table).byDb.get(condition.column)?.[1];
+  return meta?.json && !meta.array ? JSON.stringify(value) : value;
+}
+
 /**
  * `a > x or (a = x and b > y) or ...` as `(a, b) > (x, y)`, which an index
  * on `(a, b)` serves. Both forms give the same result under SQL's
@@ -183,17 +202,17 @@ class SqlCompiler {
     const { value } = condition;
     switch (condition.op) {
       case "eq":
-        return `${column} = ${this.param(value)}`;
+        return `${column} = ${this.param(comparedValue(table, condition))}`;
       case "neq":
-        return `${column} <> ${this.param(value)}`;
+        return `${column} <> ${this.param(comparedValue(table, condition))}`;
       case "gt":
-        return `${column} > ${this.param(value)}`;
+        return `${column} > ${this.param(comparedValue(table, condition))}`;
       case "gte":
-        return `${column} >= ${this.param(value)}`;
+        return `${column} >= ${this.param(comparedValue(table, condition))}`;
       case "lt":
-        return `${column} < ${this.param(value)}`;
+        return `${column} < ${this.param(comparedValue(table, condition))}`;
       case "lte":
-        return `${column} <= ${this.param(value)}`;
+        return `${column} <= ${this.param(comparedValue(table, condition))}`;
       case "like":
         return `${column} like ${this.param(value)}`;
       case "ilike":
@@ -503,7 +522,7 @@ export function compileSql(op: Operation): SqlPlan {
       const set = entries
         .map(
           ([column, value]) =>
-            `${quoteIdent(column)} = ${compiler.param(value)}`,
+            `${quoteIdent(column)} = ${compiler.param(columnValue(op.table, column, value))}`,
         )
         .join(", ");
       const where = simple.condition
@@ -564,7 +583,7 @@ function insertPlan(
         `(${columns
           .map((column) =>
             column in row
-              ? compiler.param(row[column])
+              ? compiler.param(columnValue(op.table, column, row[column]))
               : op.defaultToNull
                 ? "null"
                 : "default",

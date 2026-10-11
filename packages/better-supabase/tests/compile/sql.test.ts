@@ -1031,3 +1031,106 @@ describe("compileSql relation sorts", () => {
     );
   });
 });
+
+describe("compileSql json columns", () => {
+  const documents: TableMeta = {
+    ...customers,
+    columns: {
+      ...customers.columns,
+      tags: {
+        db: "tags",
+        type: "text",
+        nullable: true,
+        hasDefault: false,
+        array: true,
+      },
+      parts: {
+        db: "parts",
+        type: "jsonb",
+        nullable: true,
+        hasDefault: false,
+        array: true,
+        json: true,
+      },
+    },
+  };
+  const parts = [[{ type: "text", text: "hi" }]];
+
+  it.each<[string, unknown, unknown]>([
+    ["an array", ["a", 1], `["a",1]`],
+    ["an array of objects", parts, JSON.stringify(parts)],
+    ["a nested object", { a: { b: [1, null] } }, `{"a":{"b":[1,null]}}`],
+    ["a string", "hi", `"hi"`],
+    ["a number", 4, "4"],
+    ["a boolean", false, "false"],
+    ["null", null, null],
+  ])("inserts %s into a jsonb column as json text", (_name, value, param) => {
+    expect(
+      compileSql({
+        kind: "insert",
+        table: customers,
+        rows: [{ name: "Acme", metadata: value }],
+        returning: undefined,
+        onConflict: undefined,
+        defaultToNull: false,
+      }).count?.params,
+    ).toEqual(["Acme", param]);
+  });
+
+  it("updates and upserts a jsonb column with json text", () => {
+    expect(
+      compileSql({
+        kind: "update",
+        table: notes,
+        set: { attachments: parts, body: "b" },
+        where: col("id", "eq", 1),
+        returning: undefined,
+      }).count?.params,
+    ).toEqual([JSON.stringify(parts), "b", 1]);
+    expect(
+      compileSql({
+        kind: "insert",
+        table: customers,
+        rows: [{ id: "c1", metadata: ["x"] }],
+        returning: undefined,
+        onConflict: { columns: ["id"], action: "update" },
+        defaultToNull: false,
+      }).count?.params,
+    ).toEqual(["c1", `["x"]`]);
+  });
+
+  it("keeps Postgres array columns as arrays and encodes json array elements", () => {
+    expect(
+      compileSql({
+        kind: "insert",
+        table: documents,
+        rows: [{ tags: ["a", "b"], parts: [{ a: 1 }, "s", null] }],
+        returning: undefined,
+        onConflict: undefined,
+        defaultToNull: false,
+      }).count?.params,
+    ).toEqual([
+      ["a", "b"],
+      [`{"a":1}`, `"s"`, null],
+    ]);
+  });
+
+  it("compares a jsonb column with an array or object as json text", () => {
+    expect(
+      rows(select({ where: col("metadata", "eq", ["vip"]) })).params,
+    ).toEqual([`["vip"]`]);
+    expect(
+      rows(select({ where: col("metadata", "neq", { a: 1 }) })).params,
+    ).toEqual([`{"a":1}`]);
+    expect(
+      rows(select({ where: col("metadata", "eq", "raw") })).params,
+    ).toEqual(["raw"]);
+    expect(rows(select({ where: col("name", "eq", ["a"]) })).params).toEqual([
+      ["a"],
+    ]);
+    expect(
+      rows(select({ where: jsonCol("metadata", "contains", { tags: ["a"] }) }))
+        .params,
+    ).toEqual([`{"tags":["a"]}`]);
+  });
+});
