@@ -2493,6 +2493,22 @@
       "VercelConnectRef"
     ]
   },
+  "./better-result": {
+    "values": [
+      "withBetterResult"
+    ],
+    "types": [
+      "BetterResultConverter",
+      "BetterResultDb",
+      "BetterResultErrorsLike",
+      "BetterResultHelpers",
+      "BetterResultMapping",
+      "BetterResultMethods",
+      "BetterResultRepository",
+      "BetterResultRepositoryOf",
+      "ConvertedError"
+    ]
+  },
   "./blocks/inbox": {
     "values": [
       "createInbox",

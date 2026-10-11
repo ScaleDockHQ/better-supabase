@@ -1,13 +1,14 @@
 "use server";
 
 import { fromBetterResult, ok } from "better-supabase";
+import { withBetterResult } from "better-supabase/better-result";
 import { refresh } from "next/cache";
 import { after } from "next/server";
 import * as v from "valibot";
 
 import { recordAudit } from "@/features/audit/record-audit";
 import { can } from "@/features/user/user-permissions";
-import { toAppResult } from "@/lib/app-error";
+import { appErrors } from "@/lib/app-error";
 import { blocks } from "@/lib/blocks";
 import { logos } from "@/lib/buckets";
 import { bs } from "@/lib/supabase/server";
@@ -71,8 +72,9 @@ export const uploadCustomerLogo = bs.action(
   },
   async ({ customerId, logo }, { tenant: organizationId, db, supabase }) => {
     // A better-result value with an AppError, converted back for the action.
-    const customer = toAppResult(
-      await db.customers.findById(customerId, { select: ["id", "logoPath"] }),
+    const customer = await withBetterResult(db, appErrors).customers.findById(
+      customerId,
+      { select: ["id", "logoPath"] },
     );
     if (customer.isErr()) return fromBetterResult(customer);
     return logos

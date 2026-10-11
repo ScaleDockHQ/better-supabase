@@ -203,6 +203,8 @@ catalogs:
     "@tanstack/query-core": "^5.62.0"
     # 7.0 is the UI message stream protocol and the approval parts the AI SDK adapters convert.
     ai: ">=7 <8"
+    # 3.0 is the TaggedError and Result API withBetterResult types its views with.
+    better-result: ">=3 <4"
     # 55.0.0 added setResponseHeaders, which the Expo adapter writes cookies through.
     expo-server: ">=55 <59"
     # 0.71 is the memory provider, hook and connection contract better-supabase/eve is typed against.

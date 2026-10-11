@@ -1,0 +1,135 @@
+---
+title: better-result
+description: Return better-result values from repositories with withBetterResult, or convert single results at the boundary.
+---
+
+If your services return [better-result](https://github.com/dmmulroy/better-result)
+values, wrap the `db` once with `withBetterResult` from
+`better-supabase/better-result`, or convert single results with
+`toBetterResult`. better-result is an optional peer (`>=3 <4`); the subpath
+imports only its types, and you pass its `Result` namespace in.
+
+## withBetterResult
+
+`withBetterResult(db, toResult)` returns a view of `db` whose repository
+methods, `$rpc`, `$run`, `$many`, `$search` and list queries return
+`Promise<Result<T, E>>` from better-result. `toResult` is a converter from
+`defineBetterResultErrors` (see [Tagged errors](#tagged-errors)) or
+`{ Result, mapError }`:
+
+```ts title="src/lib/db.ts"
+import { withBetterResult } from "better-supabase/better-result";
+
+import { toResult } from "./errors";
+
+export const rdb = withBetterResult(db, toResult);
+```
+
+```ts
+const customer = await rdb.customers.findById(id, { select: ["id", "name"] });
+// Result<{ id: string; name: string }, NotFound | Conflict | DbFailure>
+
+const page = await rdb.$list(customersList, query); // like customersList.run(db, query)
+const counts = await rdb.$rpc("customer_note_counts", { p_customer_ids: ids });
+```
+
+The rows keep the types `select` and `include` give them. `db` itself is
+unchanged, and `rdb.$db` returns it. For a `db` with more context, wrap
+`db.$with(context)`. Plugin methods that return an `AsyncResult` are
+converted too; a generic plugin method loses its type parameters, so call it
+on `rdb.$db` and pass the result to `rdb.$from(result)`, which converts any
+`AsyncResult`.
+
+With `{ Result, mapError }`, the error type is what `mapError` returns:
+
+```ts
+import { Result } from "better-result";
+
+const rdb = withBetterResult(db, { Result, mapError: toAppError });
+```
+
+## Convert single results
+
+`toBetterResult` converts one `Result` or `AsyncResult`, and
+`fromBetterResult` converts back. You pass better-result's `Result`
+namespace, so better-supabase doesn't depend on it:
+
+```ts
+import { Result } from "better-result";
+import { fromBetterResult, toBetterResult } from "better-supabase";
+
+// Result<T> -> better-result, with your error type
+const found: Result<Customer, AppError> = toBetterResult(
+  await db.customers.findById(id),
+  Result,
+  toAppError,
+);
+const name = found.map((customer) => customer.name);
+
+// An AsyncResult works too, and awaits it
+async function listCustomers(): Promise<Result<Customer[], AppError>> {
+  return toBetterResult(db.customers.findMany(), Result, toAppError);
+}
+
+// And back: DbErrors pass through, other errors become `unexpected`
+const result = fromBetterResult(Result.ok(42)); // Result<number>
+```
+
+`toBetterResult` returns the real `Ok` or `Err`. When the call has an
+expected type, such as a variable annotation or the function's return
+type, the value has that better-result type with all its methods, and no
+cast is needed. The expected type is checked: a row type that differs
+from the query's, or an error type that `mapError` does not return, is a
+type error. Pass the type as a type argument when there is no expected
+type: `toBetterResult<Result<Customer, AppError>>(row, Result, toAppError)`.
+Without either, the value is typed by its `status`, `value` and `error`
+fields (`BetterResultValue<T, E>`).
+
+Without the third argument, a result from a `db` of `betterSupabase.mapError(fn)`
+goes through `fn`, and its error is typed `unknown`; pass the mapper to
+type it. `fromBetterResult` reads the `status` field, so it works across
+better-result versions; pass a second argument to map non-`DbError`
+errors yourself.
+
+## Tagged errors
+
+To get better-result `TaggedError` classes instead of `DbError` objects,
+map the kinds once with `defineBetterResultErrors`. It takes the `Result`
+namespace, a class per `DbError` kind you care about, and a fallback class
+for the rest, and returns a converter with the same expected-type checks
+as `toBetterResult`:
+
+```ts title="src/lib/errors.ts"
+import { Result, TaggedError } from "better-result";
+import { type DbError, defineBetterResultErrors } from "better-supabase";
+
+type DbProps = { message: string; error: DbError };
+export class NotFound extends TaggedError("NotFound")<DbProps> {}
+export class Conflict extends TaggedError("Conflict")<DbProps> {}
+export class DbFailure extends TaggedError("DbFailure")<DbProps> {}
+export type AppDbError = NotFound | Conflict | DbFailure;
+
+export const toResult = defineBetterResultErrors(
+  Result,
+  { not_found: NotFound, conflict: Conflict },
+  DbFailure,
+);
+```
+
+```ts
+async function customer(id: string): Promise<Result<Customer, AppDbError>> {
+  return toResult(db.customers.findById(id));
+}
+
+const message = (await customer(id)).match({
+  ok: (row) => row.name,
+  err: (error) => error.message,
+});
+```
+
+Each instance gets the error's `message` and the original `DbError` as
+`error`, so a class can declare either or both. `toResult.map(error)` maps
+one `DbError` and is typed by its kind: a `DbErrorOf<"not_found">` becomes a
+`NotFound`. An expected error type that leaves out one of the classes is a
+type error, so adding a kind to the mapping shows every place that has to
+handle it.

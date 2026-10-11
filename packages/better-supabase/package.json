@@ -421,6 +421,11 @@
       "types": "./dist/vercel-connect/index.d.ts",
       "default": "./dist/vercel-connect/index.js"
     },
+    "./better-result": {
+      "@better-supabase/source": "./src/better-result/index.ts",
+      "types": "./dist/better-result/index.d.ts",
+      "default": "./dist/better-result/index.js"
+    },
     "./blocks/inbox": {
       "@better-supabase/source": "./src/blocks/inbox/index.ts",
       "types": "./dist/blocks/inbox/index.d.ts",
@@ -947,6 +952,10 @@
         "types": "./dist/vercel-connect/index.d.ts",
         "default": "./dist/vercel-connect/index.js"
       },
+      "./better-result": {
+        "types": "./dist/better-result/index.d.ts",
+        "default": "./dist/better-result/index.js"
+      },
       "./blocks/inbox": {
         "types": "./dist/blocks/inbox/index.d.ts",
         "default": "./dist/blocks/inbox/index.js"
@@ -1182,6 +1191,7 @@
     "ai": "catalog:",
     "ajv": "catalog:",
     "ajv-formats": "catalog:",
+    "better-result": "catalog:",
     "c12": "catalog:",
     "chat": "catalog:",
     "citty": "catalog:",
@@ -1231,6 +1241,7 @@
     "@workflow/world": "catalog:peers",
     "@workflow/world-postgres": "catalog:peers",
     "ai": "catalog:peers",
+    "better-result": "catalog:peers",
     "chat": "catalog:peers",
     "eve": "catalog:peers",
     "expo-server": "catalog:peers",
@@ -1288,6 +1299,9 @@
       "optional": true
     },
     "ai": {
+      "optional": true
+    },
+    "better-result": {
       "optional": true
     },
     "chat": {

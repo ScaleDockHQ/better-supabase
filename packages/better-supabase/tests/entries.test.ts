@@ -66,6 +66,7 @@ const PURE_BARRELS = [
   "streams/redis",
   "credentials",
   "vercel-connect",
+  "better-result",
   "blocks/workflows",
   "workflow-sdk",
   "blocks/workflow-builder",

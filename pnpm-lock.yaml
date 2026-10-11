@@ -1642,6 +1642,9 @@ importers:
       ajv-formats:
         specifier: 'catalog:'
         version: 3.0.1(ajv@8.20.0)
+      better-result:
+        specifier: 'catalog:'
+        version: 3.0.1
       c12:
         specifier: 'catalog:'
         version: 4.0.0-rc.2(dotenv@17.4.2)(giget@3.3.1)(jiti@2.7.0)(magicast@0.5.5)

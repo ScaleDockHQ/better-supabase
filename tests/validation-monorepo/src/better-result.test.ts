@@ -1,4 +1,4 @@
-import type { DbError } from "better-supabase";
+import type { DbError, ExecuteResult, Executor } from "better-supabase";
 
 import { Result as BetterResult, matchError, TaggedError } from "better-result";
 import {
@@ -10,7 +10,10 @@ import {
   ok,
   toBetterResult,
 } from "better-supabase";
+import { withBetterResult } from "better-supabase/better-result";
 import { describe, expect, it } from "vitest";
+
+import { betterSupabase } from "./runtime/index.ts";
 
 class AppError extends Error {
   readonly code: string;
@@ -125,5 +128,39 @@ describe("defineBetterResultErrors with TaggedError classes", () => {
     expect(error).toBeInstanceOf(DbFailure);
     expect(DbFailure.is(error)).toBe(true);
     expect(error.message).toBe("Not yours");
+  });
+});
+
+describe("withBetterResult over the runtime package's db", () => {
+  const toResult = defineBetterResultErrors(
+    BetterResult,
+    { not_found: NotFound, conflict: Conflict },
+    DbFailure,
+  );
+  const rowsOf = (rows: ExecuteResult["rows"]): Executor => ({
+    name: "stub",
+    execute: async () => ok({ rows, count: null }),
+    rpc: async () => ok([{ noteCount: 2 }]),
+  });
+
+  it("returns better-result values typed by the select", async () => {
+    const db = withBetterResult(
+      betterSupabase.connect(rowsOf([{ id: "c1", name: "Acme" }])),
+      toResult,
+    );
+    const found: BetterResult<
+      { id: string; name: string },
+      NotFound | Conflict | DbFailure
+    > = await db.customers.findById("c1", { select: ["id", "name"] });
+    expect(found.unwrap()).toEqual({ id: "c1", name: "Acme" });
+
+    const counts = await db.$rpc("customer_note_counts", {});
+    expect(counts.isOk()).toBe(true);
+  });
+
+  it("maps a missing row to the NotFound class", async () => {
+    const db = withBetterResult(betterSupabase.connect(rowsOf([])), toResult);
+    const missing = await db.customers.findById("c1");
+    expect(missing.isErr() && NotFound.is(missing.error)).toBe(true);
   });
 });
