@@ -8,6 +8,9 @@ export type OpenApiVersion = "3.0" | "3.1" | "3.2" | "3.3-preview";
 /** The `openapi` field `3.3-preview` emits, as in the v3.3-dev branch. */
 export const OPENAPI_33_PREVIEW_VERSION = "3.3.0";
 
+/** The file name `openapiFormat` writes for every version. */
+export const OPENAPI_FILE_NAME = "openapi.json";
+
 export interface OpenApiInfo {
   readonly title: string;
   readonly version: string;

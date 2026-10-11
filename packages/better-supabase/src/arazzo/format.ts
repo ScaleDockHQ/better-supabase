@@ -22,7 +22,7 @@ import type {
 import { ASYNCAPI_FILE_NAME } from "../asyncapi/types.ts";
 import { isPlainObject } from "../core/clone.ts";
 import { SPEC_PINS } from "../core/spec-pins.ts";
-import { openapiFormat } from "../openapi/format.ts";
+import { OPENAPI_FILE_NAME } from "../openapi/types.ts";
 import { safeKey } from "../spec/events.ts";
 import { defineDocumentFormat } from "../spec/format.ts";
 
@@ -47,7 +47,7 @@ export interface ArazzoSourceOptions {
 }
 
 export interface ArazzoFormatOptions {
-  /** The OpenAPI document; its URL defaults to `openapiFormat.fileName()`. */
+  /** The OpenAPI document; its URL defaults to `openapi.json`. */
   readonly openapi?: ArazzoSourceOptions;
   /** The AsyncAPI document channel steps use; defaults to `events` at `asyncapi.json`. */
   readonly asyncapi?: ArazzoSourceOptions;
@@ -265,7 +265,7 @@ function lowerArazzo(
   if (usesOperations || !usesChannels)
     sources.push({
       name: apiName,
-      url: options.openapi?.url ?? model.self ?? openapiFormat.fileName("3.1"),
+      url: options.openapi?.url ?? model.self ?? OPENAPI_FILE_NAME,
       type: "openapi",
     });
   if (usesChannels)

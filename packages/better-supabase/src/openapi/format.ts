@@ -27,7 +27,7 @@ import { defineDocumentFormat } from "../spec/format.ts";
 import { mergeJson, pointerToken } from "../spec/merge.ts";
 import { pascal } from "../spec/schemas.ts";
 import { lowerDocumentSchemas30 } from "./schema30.ts";
-import { OPENAPI_33_PREVIEW_VERSION } from "./types.ts";
+import { OPENAPI_33_PREVIEW_VERSION, OPENAPI_FILE_NAME } from "./types.ts";
 
 type Json = Record<string, unknown>;
 
@@ -604,5 +604,5 @@ export const openapiFormat: DocumentFormat<
   defaultVersion: "3.1",
   lower: lowerOpenApi,
   lint: lintOpenApi,
-  fileName: () => "openapi.json",
+  fileName: () => OPENAPI_FILE_NAME,
 });
