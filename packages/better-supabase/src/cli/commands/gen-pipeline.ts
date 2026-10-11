@@ -11,7 +11,7 @@ import { GEN_TASKS, isGenTask } from "../names.ts";
 import { runEnv } from "./env.ts";
 import { runScaffold } from "./scaffold.ts";
 import { runSeed } from "./seed.ts";
-import { runSpec } from "./spec.ts";
+import { runSpec, specOptionsFromConfig } from "./spec.ts";
 import { runSql } from "./sql.ts";
 
 /** One task's result in a `gen` run. */
@@ -102,16 +102,7 @@ const STEPS: Readonly<
   sql: ({ config, check, paint }) =>
     runSql(config, { _: ["sync"], check }, paint),
   spec: ({ config, check }) =>
-    runSpec({
-      config,
-      action: check ? "check" : "emit",
-      filter: {},
-      failOn: config.specs.failOn,
-      cache: true,
-      ...(config.specs.manifest === undefined
-        ? {}
-        : { manifest: config.specs.manifest }),
-    }),
+    runSpec(specOptionsFromConfig(config, check ? "check" : "emit")),
   seed: ({ config, check, env }) => runSeed(config, { check }, env),
   scaffold: ({ config, check }) =>
     runScaffold(config, { _: ["api"] }, { generatedOnly: true, check }),

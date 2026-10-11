@@ -131,6 +131,26 @@ export interface SpecRunOptions {
   readonly manifest?: string;
 }
 
+/** The options for running the spec step from the config alone, as `gen` does (no filter, the config's `failOn`, cache on). */
+export function specOptionsFromConfig(
+  config: ResolvedConfig,
+  action: SpecAction,
+  overrides: Partial<
+    Pick<SpecRunOptions, "filter" | "entry" | "failOn" | "cache" | "manifest">
+  > = {},
+): SpecRunOptions {
+  const manifest = overrides.manifest ?? config.specs.manifest;
+  return {
+    config,
+    action,
+    filter: overrides.filter ?? {},
+    failOn: overrides.failOn ?? config.specs.failOn,
+    cache: overrides.cache ?? true,
+    ...(overrides.entry === undefined ? {} : { entry: overrides.entry }),
+    ...(manifest === undefined ? {} : { manifest }),
+  };
+}
+
 /** The reference page for an OpenAPI output: `openapi.html` next to `openapi.json`. */
 export function uiPath(output: string): string {
   return join(
@@ -433,12 +453,11 @@ export const specCommand: AnyCommand = defineCliCommand({
             ? interval
             : "--watch only applies to `spec emit`.",
       });
-    const manifest = args.manifest ?? context.config.specs.manifest;
-    const options: SpecRunOptions = {
-      config: context.config,
-      action,
+    const options = specOptionsFromConfig(context.config, action, {
       failOn,
       cache: args.cache,
+      ...(args.manifest === undefined ? {} : { manifest: args.manifest }),
+      ...(args.entry === undefined ? {} : { entry: args.entry }),
       filter: {
         ...(typeof format === "string" ? { format } : {}),
         ...(args["spec-version"] === undefined
@@ -448,9 +467,7 @@ export const specCommand: AnyCommand = defineCliCommand({
         ...(args.yaml === true ? { yaml: true } : {}),
         ...(isUi(args.ui) ? { ui: args.ui } : {}),
       },
-      ...(args.entry === undefined ? {} : { entry: args.entry }),
-      ...(manifest === undefined ? {} : { manifest }),
-    };
+    });
     return args.watch === true && typeof interval === "number"
       ? watch(options, interval, context)
       : runSpec(options);
