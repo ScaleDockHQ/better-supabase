@@ -490,10 +490,18 @@ function collectRefs(value: unknown, pointer: string, out: [string, string][]) {
     }
 }
 
+/** The keys of `value[key]` when it is an object; documents read from disk may omit any field. */
+function keysAt(value: unknown, key: string): string[] {
+  if (!isPlainObject(value)) return [];
+  const child = value[key];
+  return isPlainObject(child) ? Object.keys(child) : [];
+}
+
 function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
   const diagnostics: SpecDiagnostic[] = [];
   const ids = new Map<string, string>();
-  const schemes = new Set(Object.keys(document.components.securitySchemes));
+  const components: unknown = document.components;
+  const schemes = new Set(keysAt(components, "securitySchemes"));
   const checkSecurity = (requirements: unknown, pointer: string) => {
     if (!Array.isArray(requirements)) return;
     const list: unknown[] = requirements;
@@ -510,7 +518,11 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
     }
   };
   checkSecurity(document.security, "/security");
-  for (const [path, item] of Object.entries(document.paths)) {
+  const paths: unknown = document.paths;
+  for (const [path, item] of Object.entries(
+    isPlainObject(paths) ? paths : {},
+  )) {
+    if (!isPlainObject(item)) continue;
     const base = `/paths/${pointerToken(path)}`;
     const templated = new Set(
       [...path.matchAll(PATH_PARAM)].map((match) => match[1] ?? ""),

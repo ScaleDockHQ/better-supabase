@@ -382,6 +382,23 @@ describe("openapiFormat lint", () => {
       "security-unresolved",
     ]);
   });
+
+  it("lints a document without components or paths", () => {
+    const codes = lint((document) => {
+      delete document["components"];
+      document["security"] = [{ bearer: [] }];
+    });
+    expect(new Set(codes)).toEqual(
+      new Set(["security-unresolved", "ref-unresolved"]),
+    );
+    expect(
+      lint((document) => {
+        delete document["paths"];
+        document["components"] = {};
+        document["security"] = [];
+      }),
+    ).toEqual([]);
+  });
 });
 
 describe("createOpenApi", () => {
