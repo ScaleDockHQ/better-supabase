@@ -39,6 +39,7 @@ import {
   type TextFile,
 } from "../doctor/rules.ts";
 import { CliError, errorText } from "../errors.ts";
+import { METADATA_REJECTED, readMetadataSnapshot } from "../gen/metadata.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { display, writeIfChanged } from "../io.ts";
@@ -54,7 +55,6 @@ import {
   type SupabaseToml,
 } from "../supabase-toml.ts";
 import { VERSION } from "../version.ts";
-import { METADATA_REJECTED, readMetadataSnapshot } from "./gen.ts";
 import {
   loadSnapshot,
   managementTarget,

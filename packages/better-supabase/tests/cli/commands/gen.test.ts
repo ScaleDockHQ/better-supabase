@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { renderFiles, runGen } from "../../../src/cli/commands/gen.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
+import { renderFiles } from "../../../src/cli/gen/render.ts";
+import { runGen } from "../../../src/cli/gen/run.ts";
 import {
   type BetterSupabaseConfig,
   type Generator,

@@ -6,8 +6,8 @@ import { fileState, writeLine } from "../files.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
 import { withSpinner } from "../prompts.ts";
 import { painter } from "../style.ts";
-import { SOURCE_ARGS, sourceArgs } from "./gen.ts";
 import { loadSnapshot, serializeSnapshot } from "./snapshot.ts";
+import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
 const ARGS = {
   out: {

@@ -11,7 +11,6 @@ import type {
 } from "../../../src/cli/introspect/types.ts";
 
 import { parseCommandArgs } from "../../../src/cli/command.ts";
-import { renderFiles } from "../../../src/cli/commands/gen.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { runSql, sqlCommand } from "../../../src/cli/commands/sql.ts";
 import {
@@ -19,6 +18,7 @@ import {
   RULES,
   runRules,
 } from "../../../src/cli/doctor/rules.ts";
+import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { toCatalog } from "../../../src/cli/introspect/catalog.ts";
 import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";

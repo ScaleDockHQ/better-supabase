@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import type { Snapshot } from "../../../src/cli/introspect/types.ts";
 
-import { renderFiles } from "../../../src/cli/commands/gen.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
+import { renderFiles } from "../../../src/cli/gen/render.ts";
 import {
   type BetterSupabaseConfig,
   jsonSchema,

@@ -18,8 +18,8 @@ import {
   SQL_MODULES,
 } from "../../sql/index.ts";
 import { defineBucket, parseSize } from "../../storage/index.ts";
-import { renderFiles } from "../commands/gen.ts";
 import { byCodePoint } from "../compare.ts";
+import { renderFiles } from "../gen/render.ts";
 import { configFor } from "../gen/shared.ts";
 import { sameText } from "../io.ts";
 import { moduleLayoutFor } from "../sql-layout.ts";
