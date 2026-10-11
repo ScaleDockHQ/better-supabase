@@ -8,7 +8,7 @@ import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 
 import { isSeed } from "../../testing/index.ts";
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand, parseCliArgs } from "../command.ts";
 import { databaseUrl, importExport, stdinDatabaseUrl } from "../config.ts";
 import { connect } from "../db.ts";
 import { display, sameText, writeIfChanged } from "../io.ts";
@@ -118,6 +118,15 @@ export async function runSeed(
     }
   }
   return { code: 0, output: lines.join("\n") };
+}
+
+/** `seed`, or `seed --check`, from the config: the `seed` step of `gen`. */
+export function seedStep(
+  config: ResolvedConfig,
+  check: boolean,
+  env: CliEnv,
+): Promise<CommandResult> {
+  return runSeed(config, parseCliArgs(ARGS, check ? ["--check"] : []), env);
 }
 
 export const seedCommand: AnyCommand = defineCliCommand({

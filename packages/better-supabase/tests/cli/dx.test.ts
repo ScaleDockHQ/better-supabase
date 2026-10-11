@@ -697,3 +697,78 @@ describe("skills", () => {
     ).toBe(2);
   });
 });
+
+describe("flags from the config", () => {
+  const configure = (config: object) =>
+    writeFile(join(dir, "better-supabase.config.json"), JSON.stringify(config));
+
+  it("writes env to env.output with env.prefix, and a flag wins", async () => {
+    await project(
+      { next: "16" },
+      {
+        "status.json": JSON.stringify({
+          API_URL: "http://127.0.0.1:54321",
+          PUBLISHABLE_KEY: "sb_publishable_test",
+        }),
+      },
+    );
+    await configure({
+      env: { output: ".env.development.local", prefix: "VITE_" },
+    });
+    expect(
+      (await run(["env", "--from", "status.json", "--cwd", dir])).code,
+    ).toBe(0);
+    expect(
+      await readFile(join(dir, ".env.development.local"), "utf8"),
+    ).toContain("VITE_SUPABASE_URL=http://127.0.0.1:54321");
+    expect(existsSync(join(dir, ".env.local"))).toBe(false);
+    await run([
+      "env",
+      "--from",
+      "status.json",
+      "--prefix",
+      "none",
+      "--cwd",
+      dir,
+    ]);
+    expect(await readFile(join(dir, ".env.development.local"), "utf8")).toMatch(
+      /^SUPABASE_URL=/m,
+    );
+  });
+
+  it("writes the signing key to keys.output", async () => {
+    await project({}, { "supabase/config.toml": "[auth]\n" });
+    await configure({ keys: { output: "supabase/keys/local.json" } });
+    expect((await run(["keys", "--cwd", dir])).code).toBe(0);
+    expect(existsSync(join(dir, "supabase/keys/local.json"))).toBe(true);
+  });
+
+  it("installs skills for skills.agents", async () => {
+    await project({}, { ".cursor/rules/.keep": "" });
+    await configure({ skills: { agents: ["claude"] } });
+    const install = await run(["skills", "install", "--cwd", dir]);
+    expect(install.stdout).toContain(".claude/skills/better-supabase/SKILL.md");
+    expect(install.stdout).not.toContain(".cursor/skills");
+  });
+
+  it("init lists the integrations; add sets up the configured ones", async () => {
+    await project({ hono: "4" });
+    expect((await run(["init", "--with", "mcp", "--cwd", dir])).code).toBe(0);
+    expect(
+      await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
+    ).toContain("integrations: ['hono', 'mcp'],");
+
+    await rm(join(dir, "better-supabase.config.ts"));
+    await rm(join(dir, "supabase/functions/mcp"), { recursive: true });
+    await configure({ integrations: ["mcp"] });
+    const add = await run(["add", "--cwd", dir]);
+    expect(add.code).toBe(0);
+    expect(add.stdout).toContain("supabase/functions/mcp/index.ts");
+    expect(add.stdout).not.toContain("integrations: [");
+    expect((await run(["add", "--cwd", dir])).stdout).toBe(
+      "Every integration in the config is set up: mcp.\n",
+    );
+    const orpc = await run(["add", "orpc", "--dry-run", "--cwd", dir]);
+    expect(orpc.stdout).toContain("  integrations: ['mcp', 'orpc']");
+  });
+});

@@ -73,9 +73,70 @@ export default defineConfig({
 | `readSets`         | `[]`                                                                                         | Modules exporting [read sets](/docs/repository/read-sets); `gen` compiles them into the `read-sets` SQL module                                                                                                                                                                                                                                                                                     |
 | `sql`              | `supabase/schemas`, `900_better_supabase`, `supabase/tests`                                  | Where generated SQL and pgTAP files go. `modules` lists the [SQL modules](/docs/blocks/sql) to keep in sync: a list of names, or an object keyed by module name whose values set its mode, schema, table and column names, id type and permission keys ([existing tables](/docs/blocks/sql#existing-tables-managed-adopt-and-custom)). `access` also picks the [access model](/docs/blocks/access) |
 | `seed`             | `supabase/seed.ts`, `supabase/seeds/000_better_supabase.sql`                                 | Entry module and output of [`seed`](/docs/cli/local#seed)                                                                                                                                                                                                                                                                                                                                          |
-| `specs`            | `src/lib/openapi.ts`, one OpenAPI 3.1 output at `openapi.json`, `failOn: 'error'`            | Entry module, outputs (`format`, `version`, `output`, `overlays`, `serialize`, `ui`) and failure level of [`spec`](/docs/cli/spec#configure-the-outputs)                                                                                                                                                                                                                                           |
+| `specs`            | `src/lib/openapi.ts`, one OpenAPI 3.1 output at `openapi.json`, `failOn: 'error'`            | Entry module, outputs (`format`, `version`, `output`, `overlays`, `serialize`, `ui`) failure level and `manifest` file of [`spec`](/docs/cli/spec#configure-the-outputs)                                                                                                                                                                                                                           |
 | `openapi`          | `src/lib/openapi.ts`, `openapi.json`                                                         | Deprecated alias of `specs`. Entry module and output of [`openapi emit`](/docs/cli/local#openapi-emit); `spec` reads them when `specs` is unset                                                                                                                                                                                                                                                    |
-| `doctor`           | none                                                                                         | `ignore` finding codes, `strict` mode, `claimsLimit`, `policyHelperLimit`                                                                                                                                                                                                                                                                                                                          |
+| `doctor`           | `format: 'text'`                                                                             | `ignore` finding codes, `strict` mode, `claimsLimit`, `policyHelperLimit`, and the defaults of `--only`, `--format` and `--out` (`only`, `format`, `output`)                                                                                                                                                                                                                                       |
+| `gen`              | every configured task, `watchInterval: 2000`                                                 | `tasks` [`gen`](/docs/cli/gen#tasks) runs (`types`, `sql`, `spec`, `seed`, `scaffold`, `env`) and the `--watch` interval, which `spec --watch` reads too                                                                                                                                                                                                                                           |
+| `env`              | `output: '.env.local'`, prefix from the framework                                            | Defaults of [`env`](/docs/cli/local#env) `--out` and `--prefix` (`output`, `prefix`; `''` for no prefix)                                                                                                                                                                                                                                                                                           |
+| `scaffold`         | none                                                                                         | `api`: the `framework`, `tables`, `name` and `basePath` of [`scaffold api`](/docs/cli/scaffold). Setting it adds the `scaffold` task to `gen`                                                                                                                                                                                                                                                      |
+| `integrations`     | `[]`                                                                                         | The integrations `init` set up. [`add`](/docs/cli/init#add) with no argument sets up the ones that have no files yet                                                                                                                                                                                                                                                                               |
+| `skills`           | detected agent folders                                                                       | `agents`: the folders [`skills install`](/docs/for-ai-agents) writes to (`cursor`, `claude`, `agents`)                                                                                                                                                                                                                                                                                             |
+| `keys`             | `supabase/signing_keys.json`                                                                 | `output`: where [`keys`](/docs/cli/local#keys) writes the signing key                                                                                                                                                                                                                                                                                                                              |
+| `$env`, `$ci`, ... | none                                                                                         | Overrides per [environment](#environments)                                                                                                                                                                                                                                                                                                                                                         |
+
+## Flags and the config
+
+Every option a command takes on each run has a config key, so the command
+line stays short and a fresh checkout behaves the same as yours. A value is
+picked in this order:
+
+1. the flag, for one run;
+2. the active [environment](#environments) block;
+3. the config;
+4. the default.
+
+| Command          | Config key                                      |
+| ---------------- | ----------------------------------------------- |
+| `gen`            | `gen.tasks`, `gen.watchInterval`                |
+| `env`            | `env.output`, `env.prefix`                      |
+| `doctor`         | `doctor.only`, `doctor.format`, `doctor.output` |
+| `spec`           | `specs.manifest`, `gen.watchInterval`           |
+| `scaffold api`   | `scaffold.api`                                  |
+| `add`            | `integrations`                                  |
+| `skills install` | `skills.agents`                                 |
+| `keys`           | `keys.output`                                   |
+
+`doctor.output` applies when the report uses `doctor.format`, so
+`doctor --json` prints to stdout even when the config writes SARIF to a
+file. `scaffold api` and `add` print the config entry for the flags you
+passed, so you can paste it once instead of repeating them.
+
+## Environments
+
+An environment block overrides part of the config for one environment. Name
+blocks under `$env`, or use the `$development`, `$production`, `$test` and
+`$ci` shorthands:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  casing: "camel",
+  doctor: { ignore: ["BS204"] },
+  $ci: {
+    gen: { tasks: ["types", "sql", "spec"] },
+    doctor: { format: "sarif", output: "doctor.sarif", strict: true },
+  },
+  $env: {
+    staging: { source: { projectRef: "abcdefghijklmnopqrst" } },
+  },
+});
+```
+
+The CLI applies the block named by `--env`, then by `$BETTER_SUPABASE_ENV`,
+and in CI (`$CI` is set) the `ci` block. When both `$env.<name>` and a
+shorthand exist for the same name, the shorthand applies last. Objects merge
+key by key, while lists and other values replace the base value: above, `ci`
+keeps `doctor.ignore` and replaces `gen.tasks`. An environment without a
+block uses the config as it is. A block can't hold another block.
 
 ## Claims
 
@@ -139,8 +200,10 @@ config; a JSON config can use plain JSON Schema objects.
 pnpm better-supabase config
 ```
 
-`config` prints the file it loaded, then the config with every default
-filled in, as JSON (`--json` wraps both in one document). Generators show as
+`config` prints the file it loaded and the active environment, then the
+config with every default filled in and that environment's block merged in,
+as JSON (`--json` wraps them in one document, with `environment` set to the
+name or `null`). `better-supabase config --env ci` shows what CI will see. Generators show as
 their name and `apiVersion`, and the password in `source.dbUrl` is redacted.
 Use it to check which file the CLI found and what an option resolved to.
 

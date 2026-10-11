@@ -40,6 +40,12 @@ export const GLOBAL_ARGS = {
     description: "Config file, relative to --cwd",
     valueHint: "file",
   },
+  env: {
+    type: "string",
+    description:
+      "Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set",
+    valueHint: "name",
+  },
   json: {
     type: "boolean",
     description: "Print one JSON document on stdout; errors as Problem Details",
@@ -137,6 +143,17 @@ export function joinRepeated(
     ...[...values].map(([name, parts]) => `--${name}=${parts.join(",")}`),
     ...rest,
   ];
+}
+
+/** Parses `argv` against a command's own arguments, so one command can run another's runner. */
+export function parseCliArgs<const T extends ArgsDef>(
+  args: T,
+  argv: readonly string[],
+): CliArgs<T> {
+  return parseArgs<T & typeof GLOBAL_ARGS>([...argv], {
+    ...args,
+    ...GLOBAL_ARGS,
+  });
 }
 
 /** Parses `argv` the way `run()` does, for tests and programmatic callers. */

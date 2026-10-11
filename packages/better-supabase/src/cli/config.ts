@@ -6,6 +6,7 @@ import type { CliEnv } from "./env.ts";
 
 import {
   type BetterSupabaseConfig,
+  type EnvironmentConfig,
   type ResolvedConfig,
   resolveConfig,
 } from "../config/index.ts";
@@ -63,19 +64,85 @@ function isConfig(value: unknown): value is BetterSupabaseConfig {
   return configIssues(value).length === 0;
 }
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Objects merge key by key; arrays and every other value replace what `base` had. */
+function mergeConfig(
+  base: Readonly<Record<string, unknown>>,
+  override: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    if (value === undefined) continue;
+    const current = merged[key];
+    merged[key] =
+      isPlainObject(current) && isPlainObject(value)
+        ? mergeConfig(current, value)
+        : value;
+  }
+  return merged;
+}
+
+/**
+ * The config with the `environment` blocks merged in: `$env.<name>`, then
+ * the `$development`, `$production`, `$test` or `$ci` shorthand. Every `$`
+ * key is dropped from the result.
+ */
+export function applyEnvironment(
+  config: BetterSupabaseConfig,
+  environment: string | undefined,
+): BetterSupabaseConfig {
+  const {
+    $schema: _schema,
+    $env,
+    $development,
+    $production,
+    $test,
+    $ci,
+    ...base
+  } = config;
+  if (environment === undefined) return base;
+  const shorthand = new Map<string, EnvironmentConfig | undefined>([
+    ["development", $development],
+    ["production", $production],
+    ["test", $test],
+    ["ci", $ci],
+  ]).get(environment);
+  let merged: Record<string, unknown> = { ...base };
+  for (const block of [$env?.[environment], shorthand])
+    if (block) merged = mergeConfig(merged, block);
+  if (!isConfig(merged)) {
+    throw new CliError(
+      "config_invalid",
+      `The ${environment} environment makes the config invalid:\n${configIssues(
+        merged,
+      )
+        .map((issue) => `  ${issue}`)
+        .join("\n")}`,
+    );
+  }
+  return merged;
+}
+
 /**
  * Loads `better-supabase.config.*` with c12 and checks it against the config
  * schema. c12 imports `.ts` natively (Node 24 strips the types), so no
  * loader is needed; rc files, `package.json`, env overrides and `extends`
- * are off so the one file is the whole config. A discovered file sets the
- * project root to its own directory; `--config` keeps `cwd` as the root.
+ * are off so the one file is the whole config. `environment` merges its
+ * blocks in (`applyEnvironment`); c12's own `envName` is off because it
+ * concatenates arrays. A discovered file sets the project root to its own
+ * directory; `--config` keeps `cwd` as the root.
  */
 export async function loadConfig(
   cwd: string,
   explicit?: string,
+  environment?: string,
 ): Promise<ResolvedConfig> {
   const path = discoverConfig(cwd, explicit);
-  if (!path) return resolveConfig({}, cwd);
+  const withEnvironment = (resolved: ResolvedConfig): ResolvedConfig =>
+    environment === undefined ? resolved : { ...resolved, environment };
+  if (!path) return withEnvironment(resolveConfig({}, cwd));
   if (!existsSync(path)) {
     throw new CliError("config_not_found", `Config file not found: ${path}`);
   }
@@ -98,7 +165,12 @@ export async function loadConfig(
       { issues },
     );
   }
-  return resolveConfig(config, explicit ? cwd : dirname(path));
+  return withEnvironment(
+    resolveConfig(
+      applyEnvironment(config, environment),
+      explicit ? cwd : dirname(path),
+    ),
+  );
 }
 
 /** `[db] port` or `[api] port` from `supabase/config.toml`. */

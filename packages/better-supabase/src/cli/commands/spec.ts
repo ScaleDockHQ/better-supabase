@@ -89,7 +89,8 @@ const ARGS = {
   },
   manifest: {
     type: "string",
-    description: "Also write the diagnostics manifest (JSON) to this file",
+    description:
+      "Also write the diagnostics manifest (JSON) to this file. Defaults to specs.manifest",
     valueHint: "file",
   },
   cache: {
@@ -105,7 +106,8 @@ const ARGS = {
   },
   interval: {
     type: "string",
-    description: "Milliseconds between checks in --watch. Defaults to 1000",
+    description:
+      "Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 1000",
     valueHint: "ms",
   },
 } as const;
@@ -430,7 +432,9 @@ export const specCommand: AnyCommand = defineCliCommand({
         code: 2,
         error: `--ui takes ${SPEC_UIS.join(", ")}, got "${args.ui}".`,
       });
-    const interval = Number(args.interval ?? 1000);
+    const interval = Number(
+      args.interval ?? context.config.gen.watchInterval ?? 1000,
+    );
     if (args.watch === true && (action !== "emit" || !(interval > 0)))
       return Promise.resolve({
         code: 2,
@@ -439,6 +443,7 @@ export const specCommand: AnyCommand = defineCliCommand({
             ? `--interval must be a positive number of milliseconds, got "${args.interval}".`
             : "--watch only applies to `spec emit`.",
       });
+    const manifest = args.manifest ?? context.config.specs.manifest;
     const options: SpecRunOptions = {
       config: context.config,
       action,
@@ -454,7 +459,7 @@ export const specCommand: AnyCommand = defineCliCommand({
         ...(isUi(args.ui) ? { ui: args.ui } : {}),
       },
       ...(args.entry === undefined ? {} : { entry: args.entry }),
-      ...(args.manifest === undefined ? {} : { manifest: args.manifest }),
+      ...(manifest === undefined ? {} : { manifest }),
     };
     return args.watch === true
       ? watch(options, interval, context)

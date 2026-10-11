@@ -1,27 +1,13 @@
 import { posix } from "node:path";
 
+import type { IntegrationName } from "../config/index.ts";
 import type { Framework } from "./project.ts";
 
-export type Integration =
-  | "next"
-  | "hono"
-  | "orpc"
-  | "edge"
-  | "expo"
-  | "mcp"
-  | "client"
-  | "react";
+import { INTEGRATIONS } from "./names.ts";
 
-export const INTEGRATIONS: readonly Integration[] = [
-  "next",
-  "hono",
-  "orpc",
-  "edge",
-  "expo",
-  "mcp",
-  "client",
-  "react",
-];
+export type Integration = IntegrationName;
+
+export { INTEGRATIONS };
 
 export interface TemplateContext {
   /** `src` or `.`. */
@@ -147,6 +133,7 @@ export function baseFiles(
   context: TemplateContext,
   casing: "camel" | "snake",
   lib: boolean = true,
+  integrations: readonly Integration[] = [],
 ): TemplateFile[] {
   const config: TemplateFile = {
     path: "better-supabase.config.ts",
@@ -154,7 +141,16 @@ export function baseFiles(
 
 export default defineConfig({
   casing: '${casing}',
-  output: '${context.generated}',
+  output: '${context.generated}',${
+    integrations.length > 0
+      ? `\n  integrations: [${integrations.map((name) => `'${name}'`).join(", ")}],`
+      : ""
+  }
+  // \`better-supabase gen\` runs every task this file sets up: types, then
+  // sql, spec, seed and scaffold when they are configured. Pin the list with:
+  // gen: { tasks: ['types', 'sql', 'spec'] },
+  // env: { output: '.env.local' },
+  // doctor: { format: 'sarif', output: 'doctor.sarif' },
 });
 `,
   };

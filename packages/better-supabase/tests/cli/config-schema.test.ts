@@ -26,6 +26,29 @@ describe("configIssues", () => {
     ).toEqual([]);
   });
 
+  it("accepts environment blocks and rejects nested ones", () => {
+    expect(
+      configIssues({
+        gen: { tasks: ["types", "env"] },
+        integrations: ["next"],
+        $env: { staging: { doctor: { strict: true } } },
+        $production: { env: { output: ".env.production.local" } },
+      }),
+    ).toEqual([]);
+    expect(
+      configIssues({
+        gen: { tasks: ["lint"], watchInterval: 0 },
+        integrations: ["express"],
+        $ci: { $env: {} },
+      }),
+    ).toEqual([
+      expect.stringMatching(/^gen\.tasks\.0: /),
+      expect.stringMatching(/^gen\.watchInterval: /),
+      expect.stringMatching(/^integrations\.0: /),
+      expect.stringMatching(/^\$ci/),
+    ]);
+  });
+
   it("accepts specs outputs and rejects unknown levels and UIs", () => {
     expect(
       configIssues({

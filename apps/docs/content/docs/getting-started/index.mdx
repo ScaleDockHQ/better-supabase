@@ -73,7 +73,9 @@ pnpm better-supabase gen
 
 This writes `database.types.ts` (from `supabase gen types`) and
 `generated.ts` with models, relation metadata and the `schema` object. Run
-`better-supabase gen --check` in CI to fail on drift.
+`better-supabase gen --check` in CI to fail on drift. As you add SQL modules,
+an OpenAPI entry or a seed, `gen` runs those generators too, so it stays the
+one command to run (see [gen tasks](/docs/cli/gen#tasks)).
 
 </Step>
 

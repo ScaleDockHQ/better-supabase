@@ -13,7 +13,7 @@ import { supabaseDir } from "../supabase-toml.ts";
 const ARGS = {
   out: {
     type: "string",
-    description: "Defaults to supabase/signing_keys.json",
+    description: "Defaults to keys.output, then supabase/signing_keys.json",
     valueHint: "file",
   },
   rotate: {
@@ -65,7 +65,7 @@ export async function runKeys(
   args: KeysArgs,
 ): Promise<CommandResult> {
   const dir = supabaseDir(config.root);
-  const out = args.out ?? `${dir}/signing_keys.json`;
+  const out = args.out ?? config.keys.output ?? `${dir}/signing_keys.json`;
   const path = resolve(config.root, out);
   const rotate = args.rotate === true;
   const exists = existsSync(path);

@@ -27,7 +27,7 @@ const typeOf = (value: unknown): string => {
   return typeof value;
 };
 
-/** Enough of JSON Schema 2020-12 for the shipped schemas: type, enum, const, $ref, properties, items, oneOf. */
+/** Enough of JSON Schema 2020-12 for the shipped schemas: type, enum, const, $ref, properties, additionalProperties, items, oneOf. */
 function validate(
   root: Schema,
   schema: Schema,
@@ -79,10 +79,12 @@ function validate(
       if (!(key in object)) errors.push(`${path}: missing ${key}`);
     }
     for (const [key, item] of Object.entries(object)) {
+      const additional = schema["additionalProperties"];
       if (properties[key])
         validate(root, properties[key], item, `${path}.${key}`, errors);
-      else if (schema["additionalProperties"] === false)
-        errors.push(`${path}: unexpected ${key}`);
+      else if (additional === false) errors.push(`${path}: unexpected ${key}`);
+      else if (typeof additional === "object" && additional !== null)
+        validate(root, additional as Schema, item, `${path}.${key}`, errors);
     }
   }
   if (Array.isArray(value) && schema["items"]) {
@@ -222,6 +224,30 @@ describe("shipped JSON Schemas", () => {
     expect(await errorsFor("config-v1.json", config)).toEqual([]);
     expect(
       await errorsFor("config-v1.json", { ...config, casing: "kebab" }),
+    ).toHaveLength(1);
+  });
+
+  it("describe the CLI keys and the environment blocks", async () => {
+    const config = {
+      gen: { tasks: ["types", "sql", "spec"], watchInterval: 1000 },
+      env: { output: ".env.development.local", prefix: "NEXT_PUBLIC_" },
+      doctor: { only: ["BS100"], format: "sarif", output: "doctor.sarif" },
+      scaffold: {
+        api: { framework: "hono", tables: ["notes"], basePath: "/v1" },
+      },
+      integrations: ["next", "client"],
+      skills: { agents: ["cursor"] },
+      keys: { output: "supabase/keys.json" },
+      specs: { manifest: "spec-manifest.json" },
+      $env: { staging: { doctor: { strict: true } } },
+      $ci: { gen: { tasks: ["types"] } },
+    };
+    expect(await errorsFor("config-v1.json", config)).toEqual([]);
+    expect(
+      await errorsFor("config-v1.json", { $ci: { gen: { tasks: ["lint"] } } }),
+    ).toHaveLength(1);
+    expect(
+      await errorsFor("config-v1.json", { $env: { staging: { $ci: {} } } }),
     ).toHaveLength(1);
   });
 

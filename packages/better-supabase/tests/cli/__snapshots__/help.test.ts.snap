@@ -7,16 +7,17 @@ USAGE better-supabase add [OPTIONS] [INTEGRATION]
 
 ARGUMENTS
 
-  INTEGRATION    next, hono, orpc, edge, expo, mcp, client or react
+  INTEGRATION    next, hono, orpc, edge, expo, mcp, client or react. Defaults to the integrations in the config that have no files yet
 
 OPTIONS
 
-          --force    Overwrite files that exist                                  
-        --dry-run    Show what would be written                                  
-      --cwd=<dir>    Project directory                                           
-  --config=<file>    Config file, relative to --cwd                              
-           --json    Print one JSON document on stdout; errors as Problem Details
-        -y, --yes    Ask nothing; use the flags and the defaults                 
+          --force    Overwrite files that exist                                                                                     
+        --dry-run    Show what would be written                                                                                     
+      --cwd=<dir>    Project directory                                                                                              
+  --config=<file>    Config file, relative to --cwd                                                                                 
+     --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+           --json    Print one JSON document on stdout; errors as Problem Details                                                   
+        -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
@@ -31,25 +32,27 @@ ARGUMENTS
 
 OPTIONS
 
-        --dry-run    Show the changes without writing them                       
-      --cwd=<dir>    Project directory                                           
-  --config=<file>    Config file, relative to --cwd                              
-           --json    Print one JSON document on stdout; errors as Problem Details
-        -y, --yes    Ask nothing; use the flags and the defaults                 
+        --dry-run    Show the changes without writing them                                                                          
+      --cwd=<dir>    Project directory                                                                                              
+  --config=<file>    Config file, relative to --cwd                                                                                 
+     --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+           --json    Print one JSON document on stdout; errors as Problem Details                                                   
+        -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
 exports[`help > documents config 1`] = `
-"Prints the resolved config: the file it came from and every option with its default (better-supabase config v<version>)
+"Prints the resolved config: the file it came from, the active environment and every option with its default (better-supabase config v<version>)
 
 USAGE better-supabase config [OPTIONS] 
 
 OPTIONS
 
-      --cwd=<dir>    Project directory                                           
-  --config=<file>    Config file, relative to --cwd                              
-           --json    Print one JSON document on stdout; errors as Problem Details
-        -y, --yes    Ask nothing; use the flags and the defaults                 
+      --cwd=<dir>    Project directory                                                                                              
+  --config=<file>    Config file, relative to --cwd                                                                                 
+     --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+           --json    Print one JSON document on stdout; errors as Problem Details                                                   
+        -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
@@ -60,24 +63,25 @@ USAGE better-supabase doctor [OPTIONS]
 
 OPTIONS
 
-    --format=<format>    text (default), sarif (code scanning) or github (workflow annotations); --json for the JSON report           
-         --out=<file>    Write the report to a file                                                                                   
-       --only=<codes>    Run only these checks, e.g. --only BS100,BS304                                                               
-     --ignore=<codes>    Skip checks; also doctor.ignore in the config                                                                
-             --strict    Fail on warnings; also doctor.strict                                                                         
-    --snapshot=<file>    Check a saved snapshot instead of the database                                                               
-  --metadata=<path|->    Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped                       
-       --db-url-stdin    Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL               
-  --project-ref=<ref>    Read a hosted project through the Management API                                                             
-              --stats    Report slow frequent statements from pg_stat_statements (BS209)                                              
-   --explain=<tables>    EXPLAIN ANALYZE these tables under RLS, rolled back (BS212)                                                  
-          --as=<uuid>    Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
-      --claims=<json>    Plan with these JWT claims ({"role":"authenticated",...})                                                    
-         --fix-grants    Print the grant and revoke SQL BS404 asks for, to add to your schema or migration                            
-          --cwd=<dir>    Project directory                                                                                            
-      --config=<file>    Config file, relative to --cwd                                                                               
-               --json    Print one JSON document on stdout; errors as Problem Details                                                 
-            -y, --yes    Ask nothing; use the flags and the defaults                                                                  
+    --format=<format>    text, sarif (code scanning) or github (workflow annotations); also doctor.format, default text. --json for the JSON report
+         --out=<file>    Write the report to a file; also doctor.output                                                                            
+       --only=<codes>    Run only these checks, e.g. --only BS100,BS304; also doctor.only                                                          
+     --ignore=<codes>    Skip checks; also doctor.ignore in the config                                                                             
+             --strict    Fail on warnings; also doctor.strict                                                                                      
+    --snapshot=<file>    Check a saved snapshot instead of the database                                                                            
+  --metadata=<path|->    Check a GeneratorMetadata document (- for stdin); checks it lacks data for are skipped                                    
+       --db-url-stdin    Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL                            
+  --project-ref=<ref>    Read a hosted project through the Management API                                                                          
+              --stats    Report slow frequent statements from pg_stat_statements (BS209)                                                           
+   --explain=<tables>    EXPLAIN ANALYZE these tables under RLS, rolled back (BS212)                                                               
+          --as=<uuid>    Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)             
+      --claims=<json>    Plan with these JWT claims ({"role":"authenticated",...})                                                                 
+         --fix-grants    Print the grant and revoke SQL BS404 asks for, to add to your schema or migration                                         
+          --cwd=<dir>    Project directory                                                                                                         
+      --config=<file>    Config file, relative to --cwd                                                                                            
+         --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set           
+               --json    Print one JSON document on stdout; errors as Problem Details                                                              
+            -y, --yes    Ask nothing; use the flags and the defaults                                                                               
 "
 `;
 
@@ -88,19 +92,20 @@ USAGE better-supabase env [OPTIONS]
 
 OPTIONS
 
-       --out=<file>    Env file to write. Defaults to .env.local                                       
-  --prefix=<prefix>    Prefix for browser variables, detected from your framework; "none" for no prefix
-      --from=<file>    Read \`supabase status -o json\` output from a file                               
-            --print    Print the variables instead of writing them                                     
-        --cwd=<dir>    Project directory                                                               
-    --config=<file>    Config file, relative to --cwd                                                  
-             --json    Print one JSON document on stdout; errors as Problem Details                    
-          -y, --yes    Ask nothing; use the flags and the defaults                                     
+       --out=<file>    Env file to write. Defaults to env.output, then .env.local                                                       
+  --prefix=<prefix>    Prefix for browser variables. Defaults to env.prefix, then one detected from your framework; "none" for no prefix
+      --from=<file>    Read \`supabase status -o json\` output from a file                                                                
+            --print    Print the variables instead of writing them                                                                      
+        --cwd=<dir>    Project directory                                                                                                
+    --config=<file>    Config file, relative to --cwd                                                                                   
+       --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set  
+             --json    Print one JSON document on stdout; errors as Problem Details                                                     
+          -y, --yes    Ask nothing; use the flags and the defaults                                                                      
 "
 `;
 
 exports[`help > documents gen 1`] = `
-"Writes database.types.ts, generated.ts and its metadata module from the database (better-supabase gen v<version>)
+"Writes the typed client from the database, then every other generated file the config sets up (better-supabase gen v<version>)
 
 USAGE better-supabase gen [OPTIONS] 
 
@@ -109,14 +114,16 @@ OPTIONS
   --metadata=<path|->    Read a GeneratorMetadata document (- for stdin) and print one file on stdout                                     
         --emit=<file>    With --metadata, the file to print: schema, types, zod, valibot, json-schema, standard-schema. Defaults to schema
           --out=<dir>    With --metadata, write every generated file into this directory instead of printing one                          
+       --tasks=<list>    Tasks to run: types, sql, spec, seed, scaffold, env. Defaults to gen.tasks, or every task the config sets up     
               --check    Fail when a generated file is out of date                                                                        
-              --watch    Regenerate whenever the schema or the config file changes                                                        
-      --interval=<ms>    Milliseconds between checks in --watch. Defaults to 2000                                                         
+              --watch    Run again whenever the schema, the config file or a task's input changes                                         
+      --interval=<ms>    Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000                                 
     --snapshot=<file>    Read a saved snapshot instead of the database                                                                    
        --db-url-stdin    Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL                   
   --project-ref=<ref>    Read a hosted project through the Management API                                                                 
           --cwd=<dir>    Project directory                                                                                                
       --config=<file>    Config file, relative to --cwd                                                                                   
+         --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set  
                --json    Print one JSON document on stdout; errors as Problem Details                                                     
             -y, --yes    Ask nothing; use the flags and the defaults                                                                      
 "
@@ -129,16 +136,17 @@ USAGE better-supabase init [OPTIONS]
 
 OPTIONS
 
-    --casing=<camel|snake>    Row keys in camelCase (camel, the default) or the database's snake_case (snake)                
-  --with=<integration,...>    Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react
-           --package=<dir>    Workspace package to write to, relative to --cwd                                               
-                    --lite    Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps                 
-                   --force    Overwrite files that exist                                                                     
-                 --dry-run    Show what would be written                                                                     
-               --cwd=<dir>    Project directory                                                                              
-           --config=<file>    Config file, relative to --cwd                                                                 
-                    --json    Print one JSON document on stdout; errors as Problem Details                                   
-                 -y, --yes    Ask nothing; use the flags and the defaults                                                    
+    --casing=<camel|snake>    Row keys in camelCase (camel, the default) or the database's snake_case (snake)                                
+  --with=<integration,...>    Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react                
+           --package=<dir>    Workspace package to write to, relative to --cwd                                                               
+                    --lite    Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps                                 
+                   --force    Overwrite files that exist                                                                                     
+                 --dry-run    Show what would be written                                                                                     
+               --cwd=<dir>    Project directory                                                                                              
+           --config=<file>    Config file, relative to --cwd                                                                                 
+              --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+                    --json    Print one JSON document on stdout; errors as Problem Details                                                   
+                 -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
@@ -149,16 +157,17 @@ USAGE better-supabase introspect [OPTIONS]
 
 OPTIONS
 
-                            --out=<file>    Defaults to source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json      
-  --format=<snapshot|generator-metadata>    snapshot (the default) or generator-metadata (postgrest-typegen's input)                      
-                                 --check    Fail when the file is out of date                                                             
-                       --snapshot=<file>    Read a saved snapshot instead of the database                                                 
-                          --db-url-stdin    Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-                     --project-ref=<ref>    Read a hosted project through the Management API                                              
-                             --cwd=<dir>    Project directory                                                                             
-                         --config=<file>    Config file, relative to --cwd                                                                
-                                  --json    Print one JSON document on stdout; errors as Problem Details                                  
-                               -y, --yes    Ask nothing; use the flags and the defaults                                                   
+                            --out=<file>    Defaults to source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json                       
+  --format=<snapshot|generator-metadata>    snapshot (the default) or generator-metadata (postgrest-typegen's input)                                       
+                                 --check    Fail when the file is out of date                                                                              
+                       --snapshot=<file>    Read a saved snapshot instead of the database                                                                  
+                          --db-url-stdin    Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL                 
+                     --project-ref=<ref>    Read a hosted project through the Management API                                                               
+                             --cwd=<dir>    Project directory                                                                                              
+                         --config=<file>    Config file, relative to --cwd                                                                                 
+                            --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+                                  --json    Print one JSON document on stdout; errors as Problem Details                                                   
+                               -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
@@ -169,13 +178,14 @@ USAGE better-supabase keys [OPTIONS]
 
 OPTIONS
 
-     --out=<file>    Defaults to supabase/signing_keys.json                                  
-         --rotate    Put a new key first (it signs) and keep the old ones (they still verify)
-          --force    Replace the file                                                        
-      --cwd=<dir>    Project directory                                                       
-  --config=<file>    Config file, relative to --cwd                                          
-           --json    Print one JSON document on stdout; errors as Problem Details            
-        -y, --yes    Ask nothing; use the flags and the defaults                             
+     --out=<file>    Defaults to keys.output, then supabase/signing_keys.json                                                       
+         --rotate    Put a new key first (it signs) and keep the old ones (they still verify)                                       
+          --force    Replace the file                                                                                               
+      --cwd=<dir>    Project directory                                                                                              
+  --config=<file>    Config file, relative to --cwd                                                                                 
+     --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+           --json    Print one JSON document on stdout; errors as Problem Details                                                   
+        -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
@@ -190,13 +200,14 @@ ARGUMENTS
 
 OPTIONS
 
-          --check    Fail when the file differs from the document                                                   
-   --entry=<file>    Defaults to openapi.entry. Exports \`openapi\` or default: a document or a function returning one
-     --out=<file>    Defaults to openapi.output                                                                     
-      --cwd=<dir>    Project directory                                                                              
-  --config=<file>    Config file, relative to --cwd                                                                 
-           --json    Print one JSON document on stdout; errors as Problem Details                                   
-        -y, --yes    Ask nothing; use the flags and the defaults                                                    
+          --check    Fail when the file differs from the document                                                                   
+   --entry=<file>    Defaults to openapi.entry. Exports \`openapi\` or default: a document or a function returning one                
+     --out=<file>    Defaults to openapi.output                                                                                     
+      --cwd=<dir>    Project directory                                                                                              
+  --config=<file>    Config file, relative to --cwd                                                                                 
+     --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+           --json    Print one JSON document on stdout; errors as Problem Details                                                   
+        -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
@@ -211,14 +222,15 @@ ARGUMENTS
 
 OPTIONS
 
-  --framework=<name>    hono or next. Defaults to the one in package.json                                
-     --tables=<list>    Tables to serve. Defaults to every table and view in the public schema           
-       --name=<name>    The API module's name: lib/<name>.ts and lib/<name>.generated.ts. Defaults to api
-  --base-path=<path>    Where the resources are served. Defaults to /api                                 
-         --cwd=<dir>    Project directory                                                                
-     --config=<file>    Config file, relative to --cwd                                                   
-              --json    Print one JSON document on stdout; errors as Problem Details                     
-           -y, --yes    Ask nothing; use the flags and the defaults                                      
+  --framework=<name>    hono or next. Defaults to the one in package.json                                                              
+     --tables=<list>    Tables to serve. Defaults to every table and view in the public schema                                         
+       --name=<name>    The API module's name: lib/<name>.ts and lib/<name>.generated.ts. Defaults to api                              
+  --base-path=<path>    Where the resources are served. Defaults to /api                                                               
+         --cwd=<dir>    Project directory                                                                                              
+     --config=<file>    Config file, relative to --cwd                                                                                 
+        --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+              --json    Print one JSON document on stdout; errors as Problem Details                                                   
+           -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
@@ -229,15 +241,16 @@ USAGE better-supabase seed [OPTIONS]
 
 OPTIONS
 
-          --check    Fail when the SQL file is out of date                                                                       
-          --apply    Also insert the rows into the database ($DATABASE_URL, $SUPABASE_DB_URL, --db-url-stdin, or the local stack)
-   --entry=<file>    Defaults to seed.entry (supabase/seed.ts)                                                                   
-     --out=<file>    Defaults to seed.output (supabase/seeds/000_better_supabase.sql)                                            
-   --db-url-stdin    Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL              
-      --cwd=<dir>    Project directory                                                                                           
-  --config=<file>    Config file, relative to --cwd                                                                              
-           --json    Print one JSON document on stdout; errors as Problem Details                                                
-        -y, --yes    Ask nothing; use the flags and the defaults                                                                 
+          --check    Fail when the SQL file is out of date                                                                          
+          --apply    Also insert the rows into the database ($DATABASE_URL, $SUPABASE_DB_URL, --db-url-stdin, or the local stack)   
+   --entry=<file>    Defaults to seed.entry (supabase/seed.ts)                                                                      
+     --out=<file>    Defaults to seed.output (supabase/seeds/000_better_supabase.sql)                                               
+   --db-url-stdin    Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL                 
+      --cwd=<dir>    Project directory                                                                                              
+  --config=<file>    Config file, relative to --cwd                                                                                 
+     --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+           --json    Print one JSON document on stdout; errors as Problem Details                                                   
+        -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
@@ -252,14 +265,15 @@ ARGUMENTS
 
 OPTIONS
 
-  --agent=<names>    cursor (.cursor/skills), claude (.claude/skills) or agents (.agents/skills). Defaults to the agent folders the project has, else agents
-         --global    Install into your home directory instead of the project                                                                                
-          --check    Fail when installed skills differ from this version                                                                                    
-     --from=<dir>    Read skills from this folder instead of the package                                                                                    
-      --cwd=<dir>    Project directory                                                                                                                      
-  --config=<file>    Config file, relative to --cwd                                                                                                         
-           --json    Print one JSON document on stdout; errors as Problem Details                                                                           
-        -y, --yes    Ask nothing; use the flags and the defaults                                                                                            
+  --agent=<names>    cursor (.cursor/skills), claude (.claude/skills) or agents (.agents/skills). Defaults to skills.agents, then the agent folders the project has, else agents
+         --global    Install into your home directory instead of the project                                                                                                    
+          --check    Fail when installed skills differ from this version                                                                                                        
+     --from=<dir>    Read skills from this folder instead of the package                                                                                                        
+      --cwd=<dir>    Project directory                                                                                                                                          
+  --config=<file>    Config file, relative to --cwd                                                                                                                             
+     --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set                                            
+           --json    Print one JSON document on stdout; errors as Problem Details                                                                                               
+        -y, --yes    Ask nothing; use the flags and the defaults                                                                                                                
 "
 `;
 
@@ -275,21 +289,22 @@ ARGUMENTS
 
 OPTIONS
 
-  --spec-version=<version>    Render this version of the format instead of the configured one                                 
-              --out=<file>    Write the one selected output to this file                                                      
-            --entry=<file>    Defaults to specs.entry. Exports \`api\` (defineApi) or a document                                
-                    --yaml    Write YAML instead of JSON                                                                      
-               --ui=<name>    Also write a reference page next to OpenAPI outputs: scalar, swagger, redoc, elements or rapidoc
-         --fail-on=<level>    Exit 1 on findings at this level: error (default), warning or never                             
-         --manifest=<file>    Also write the diagnostics manifest (JSON) to this file                                         
-                   --cache    Reuse renders whose inputs did not change (Default: true)                                       
-                --no-cache    Render every output again                                                                       
-                   --watch    With emit, render again whenever the entry, the config or an overlay changes                    
-           --interval=<ms>    Milliseconds between checks in --watch. Defaults to 1000                                        
-               --cwd=<dir>    Project directory                                                                               
-           --config=<file>    Config file, relative to --cwd                                                                  
-                    --json    Print one JSON document on stdout; errors as Problem Details                                    
-                 -y, --yes    Ask nothing; use the flags and the defaults                                                     
+  --spec-version=<version>    Render this version of the format instead of the configured one                                                
+              --out=<file>    Write the one selected output to this file                                                                     
+            --entry=<file>    Defaults to specs.entry. Exports \`api\` (defineApi) or a document                                               
+                    --yaml    Write YAML instead of JSON                                                                                     
+               --ui=<name>    Also write a reference page next to OpenAPI outputs: scalar, swagger, redoc, elements or rapidoc               
+         --fail-on=<level>    Exit 1 on findings at this level: error (default), warning or never                                            
+         --manifest=<file>    Also write the diagnostics manifest (JSON) to this file. Defaults to specs.manifest                            
+                   --cache    Reuse renders whose inputs did not change (Default: true)                                                      
+                --no-cache    Render every output again                                                                                      
+                   --watch    With emit, render again whenever the entry, the config or an overlay changes                                   
+           --interval=<ms>    Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 1000                               
+               --cwd=<dir>    Project directory                                                                                              
+           --config=<file>    Config file, relative to --cwd                                                                                 
+              --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+                    --json    Print one JSON document on stdout; errors as Problem Details                                                   
+                 -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
@@ -304,14 +319,15 @@ ARGUMENTS
 
 OPTIONS
 
-            --check    With sync: fail when a file is stale. With upgrade: fail when a module is behind     
-  --tests-dir=<dir>    Where the pgtap module goes. Defaults to sql.testsDir                                
-          --dry-run    Show what would be written                                                           
-            --force    Write tenant even though the authorization provider's hook owns the memberships claim
-        --cwd=<dir>    Project directory                                                                    
-    --config=<file>    Config file, relative to --cwd                                                       
-             --json    Print one JSON document on stdout; errors as Problem Details                         
-          -y, --yes    Ask nothing; use the flags and the defaults                                          
+            --check    With sync: fail when a file is stale. With upgrade: fail when a module is behind                               
+  --tests-dir=<dir>    Where the pgtap module goes. Defaults to sql.testsDir                                                          
+          --dry-run    Show what would be written                                                                                     
+            --force    Write tenant even though the authorization provider's hook owns the memberships claim                          
+        --cwd=<dir>    Project directory                                                                                              
+    --config=<file>    Config file, relative to --cwd                                                                                 
+       --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+             --json    Print one JSON document on stdout; errors as Problem Details                                                   
+          -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 "
 `;
 
@@ -322,28 +338,29 @@ USAGE better-supabase [OPTIONS] init|add|env|keys|skills|gen|introspect|openapi|
 
 OPTIONS
 
-      --cwd=<dir>    Project directory                                           
-  --config=<file>    Config file, relative to --cwd                              
-           --json    Print one JSON document on stdout; errors as Problem Details
-        -y, --yes    Ask nothing; use the flags and the defaults                 
+      --cwd=<dir>    Project directory                                                                                              
+  --config=<file>    Config file, relative to --cwd                                                                                 
+     --env=<name>    Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+           --json    Print one JSON document on stdout; errors as Problem Details                                                   
+        -y, --yes    Ask nothing; use the flags and the defaults                                                                    
 
 COMMANDS
 
-        init    Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json
-         add    Adds glue for an integration to an existing project                                                    
-         env    Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines   
-        keys    Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones 
-      skills    Installs the Agent Skills that ship with this version of better-supabase                               
-         gen    Writes database.types.ts, generated.ts and its metadata module from the database                       
-  introspect    Saves the database schema as a snapshot for offline gen                                                
-     openapi    Writes the document your createOpenApi() module exports, so CI can check it for drift                  
-        spec    Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders       
-    scaffold    Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js                     
-        seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                                
-      doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict 
-         sql    Lists, adds, syncs, upgrades and prints SQL modules                                                    
-      config    Prints the resolved config: the file it came from and every option with its default                    
-     codemod    Rewrites imports and calls for renamed better-supabase APIs                                            
+        init    Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json    
+         add    Adds glue for an integration to an existing project                                                        
+         env    Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines       
+        keys    Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones     
+      skills    Installs the Agent Skills that ship with this version of better-supabase                                   
+         gen    Writes the typed client from the database, then every other generated file the config sets up              
+  introspect    Saves the database schema as a snapshot for offline gen                                                    
+     openapi    Writes the document your createOpenApi() module exports, so CI can check it for drift                      
+        spec    Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders           
+    scaffold    Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js                         
+        seed    Renders the fixtures from defineSeed() (better-supabase/testing) to SQL                                    
+      doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict     
+         sql    Lists, adds, syncs, upgrades and prints SQL modules                                                        
+      config    Prints the resolved config: the file it came from, the active environment and every option with its default
+     codemod    Rewrites imports and calls for renamed better-supabase APIs                                                
 
 Use better-supabase <command> --help for more information about a command."
 `;

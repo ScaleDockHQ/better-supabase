@@ -17,8 +17,22 @@ export interface CliEnv {
   readonly SUPABASE_BIN?: string | undefined;
   /** Home directory for `skills install --global`. */
   readonly HOME?: string | undefined;
-  /** Set in CI; prompts never run there. */
+  /** Set in CI; prompts never run there, and the config's `ci` environment applies. */
   readonly CI?: string | undefined;
+  /** The config environment to apply when `--env` is not passed. */
+  readonly BETTER_SUPABASE_ENV?: string | undefined;
+}
+
+/** `--env`, then `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set to anything but false. */
+export function configEnvironment(
+  flag: string | undefined,
+  env: CliEnv,
+): string | undefined {
+  if (flag !== undefined && flag !== "") return flag;
+  if (env.BETTER_SUPABASE_ENV !== undefined) return env.BETTER_SUPABASE_ENV;
+  return env.CI !== undefined && env.CI !== "false" && env.CI !== "0"
+    ? "ci"
+    : undefined;
 }
 
 const optionalString = v.optional(v.string());
@@ -39,6 +53,7 @@ export function parseEnv(
       SUPABASE_BIN: optionalString,
       HOME: optionalString,
       CI: optionalString,
+      BETTER_SUPABASE_ENV: optionalString,
     },
     runtimeEnv: env,
     isServer: true,

@@ -7,7 +7,7 @@ import type { AnyCommand, CliArgs } from "../command.ts";
 import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 
-import { defineCliCommand } from "../command.ts";
+import { defineCliCommand, parseCliArgs } from "../command.ts";
 import { supabaseCli } from "../exec.ts";
 import { display, writeIfChanged } from "../io.ts";
 import { detectProject, publicPrefix } from "../project.ts";
@@ -15,13 +15,13 @@ import { detectProject, publicPrefix } from "../project.ts";
 const ARGS = {
   out: {
     type: "string",
-    description: "Env file to write. Defaults to .env.local",
+    description: "Env file to write. Defaults to env.output, then .env.local",
     valueHint: "file",
   },
   prefix: {
     type: "string",
     description:
-      'Prefix for browser variables, detected from your framework; "none" for no prefix',
+      'Prefix for browser variables. Defaults to env.prefix, then one detected from your framework; "none" for no prefix',
     valueHint: "prefix",
   },
   from: {
@@ -113,7 +113,7 @@ export async function runEnv(
 ): Promise<CommandResult> {
   const status = await readStatus(config, args, env);
   const project = await detectProject(config.root);
-  const prefixFlag = args.prefix;
+  const prefixFlag = args.prefix ?? config.env.prefix;
   const prefix =
     prefixFlag === undefined
       ? publicPrefix(project)
@@ -150,7 +150,7 @@ export async function runEnv(
     };
   }
 
-  const out = args.out ?? ".env.local";
+  const out = args.out ?? config.env.output;
   const path = resolve(config.root, out);
   const current = existsSync(path) ? await readFile(path, "utf8") : "";
   const wrote = await writeIfChanged(path, mergeEnv(current, values));
@@ -177,6 +177,14 @@ export async function runEnv(
       `Warning: add ${out} to .gitignore; it contains the secret key.`,
     );
   return { code: 0, output: lines.join("\n") };
+}
+
+/** `env` from the config: the `env` step of `gen`. */
+export function envStep(
+  config: ResolvedConfig,
+  env: CliEnv,
+): Promise<CommandResult> {
+  return runEnv(config, parseCliArgs(ARGS, []), env);
 }
 
 export const envCommand: AnyCommand = defineCliCommand({

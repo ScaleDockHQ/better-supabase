@@ -24,7 +24,8 @@ The browser variables get your framework's prefix (`NEXT_PUBLIC_`, `VITE_`,
 
 Values are never printed unless you pass `--print`. `env` warns when the
 file isn't in `.gitignore`, and when your Supabase CLI only prints legacy keys.
-`--out <file>` writes another file than `.env.local`, and `--from <file>`
+`--out <file>` writes another file than `.env.local` (`env.output` in the
+config sets it for every run, and `env.prefix` the prefix), and `--from <file>`
 reads saved `supabase status -o json` output instead of running the
 Supabase CLI.
 
@@ -46,7 +47,8 @@ Point `[auth] signing_keys_path` at it, and local tokens are then signed the way
 your hosted project signs them: asymmetrically, and verifiable through
 JWKS. `--rotate` puts a new signing key first and keeps the old ones so
 existing tokens still verify. `keys` refuses to overwrite an existing file
-unless you pass `--force`, and `--out <file>` writes somewhere else.
+unless you pass `--force`, and `--out <file>` (or `keys.output` in the
+config) writes somewhere else.
 
 ## seed
 

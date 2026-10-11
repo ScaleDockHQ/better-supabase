@@ -22,7 +22,7 @@ const ARGS = {
   agent: {
     type: "string",
     description:
-      "cursor (.cursor/skills), claude (.claude/skills) or agents (.agents/skills). Defaults to the agent folders the project has, else agents",
+      "cursor (.cursor/skills), claude (.claude/skills) or agents (.agents/skills). Defaults to skills.agents, then the agent folders the project has, else agents",
     valueHint: "names",
   },
   global: {
@@ -136,7 +136,10 @@ export async function runSkills(
   }
   const global = args.global === true;
   const base = global ? (env.HOME ?? homedir()) : config.root;
-  const requested = list(args.agent);
+  const requested =
+    args.agent === undefined
+      ? [...(config.skills.agents ?? [])]
+      : list(args.agent);
   const unknown = requested.filter((name) => !isAgent(name));
   if (unknown.length > 0) {
     return {

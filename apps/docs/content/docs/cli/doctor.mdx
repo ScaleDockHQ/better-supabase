@@ -21,9 +21,9 @@ with 1 when there are errors, or with any warning under `--strict`.
 
 | Option                 | Description                                                                                                                                                                                                                                                        |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--format <f>`         | `text` (default), `sarif` or `github`. The global `--json` prints the JSON report                                                                                                                                                                                  |
-| `--out <file>`         | Write the report to a file                                                                                                                                                                                                                                         |
-| `--only <codes>`       | Run only these checks, e.g. `--only BS100,BS304`                                                                                                                                                                                                                   |
+| `--format <f>`         | `text` (default), `sarif` or `github`; also `doctor.format`. The global `--json` prints the JSON report                                                                                                                                                            |
+| `--out <file>`         | Write the report to a file; also `doctor.output`, which applies with `doctor.format`                                                                                                                                                                               |
+| `--only <codes>`       | Run only these checks, e.g. `--only BS100,BS304`; also `doctor.only`                                                                                                                                                                                               |
 | `--ignore <codes>`     | Skip checks. Adds to `doctor.ignore` in the config                                                                                                                                                                                                                 |
 | `--strict`             | Fail on warnings. Same as `doctor.strict`                                                                                                                                                                                                                          |
 | `--snapshot <file>`    | Check a saved snapshot instead of the database                                                                                                                                                                                                                     |
@@ -60,6 +60,16 @@ For GitHub code scanning, upload SARIF:
   if: always()
   with:
     sarif_file: doctor.sarif
+```
+
+To keep the workflow step to `better-supabase doctor`, put the CI settings in
+the config's [`ci` environment](/docs/cli/config#environments), which the CLI
+applies when `$CI` is set:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  $ci: { doctor: { format: "sarif", output: "doctor.sarif", strict: true } },
+});
 ```
 
 `doctor --json` prints one report that follows

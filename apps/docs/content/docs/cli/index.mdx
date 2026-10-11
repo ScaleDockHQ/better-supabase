@@ -11,7 +11,7 @@ pnpm better-supabase <command> [options]
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | [`init`](/docs/cli/init)                               | Writes the config, `lib/supabase/index.ts` and glue for the frameworks it finds                 |
 | [`add`](/docs/cli/init#add)                            | Adds an integration: `next`, `hono`, `orpc`, `edge`, `mcp`, `client`, `react`                   |
-| [`gen`](/docs/cli/gen)                                 | Generates types, metadata and validators from your database                                     |
+| [`gen`](/docs/cli/gen)                                 | Generates types, metadata and validators, then every other generated file the config sets up    |
 | [`introspect`](/docs/cli/introspect)                   | Saves a schema snapshot, for codegen without a database                                         |
 | [`env`](/docs/cli/local#env)                           | Writes the local stack's URL and keys to `.env.local`                                           |
 | [`keys`](/docs/cli/local#keys)                         | Creates or rotates an ES256 signing key for the local stack                                     |
@@ -25,6 +25,11 @@ pnpm better-supabase <command> [options]
 | [`doctor`](/docs/cli/doctor)                           | Checks RLS, indexes, drift, auth config and env files; text, JSON, SARIF or GitHub annotations  |
 | [`skills`](/docs/for-ai-agents)                        | Installs the Agent Skills that ship with the package                                            |
 
+Options you would pass on every run belong in the
+[config](/docs/cli/config#flags-and-the-config): a flag wins for one run, then
+the active environment's block, then the config, then the default. With the
+config filled in, `better-supabase gen` is the whole build step.
+
 Every command takes `--help`. Commands that write files accept `--check`
 (exit 1 on drift, with a unified diff of each stale file) or `--dry-run`.
 In a terminal, output is colored (set `NO_COLOR` to turn it off), `init` and
@@ -37,6 +42,7 @@ A mistyped command gets a suggestion: `Did you mean "gen"?`.
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--cwd <dir>`     | Project directory. Defaults to the current one. `supabase/config.toml` is read from here or the nearest parent that has one ([monorepos](/docs/guides/monorepo#the-cli-in-a-workspace)). |
 | `--config <file>` | Config file, relative to `--cwd`. Defaults to the nearest `better-supabase.config.*` in `--cwd` or a parent directory.                                                                   |
+| `--env <name>`    | Applies the config's [environment block](/docs/cli/config#environments) with that name. Defaults to `$BETTER_SUPABASE_ENV`, then `ci` when `$CI` is set.                                 |
 | `--json`          | Prints one JSON document on stdout, and errors as Problem Details. Never prompts.                                                                                                        |
 | `--yes`, `-y`     | Never prompts; uses the flags and the defaults.                                                                                                                                          |
 | `--help`, `-h`    | Prints the usage of the CLI, or of one command.                                                                                                                                          |
@@ -67,7 +73,8 @@ fails. Progress and diagnostics go to stderr, so
 | `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `source.projectRef`                                    |
 | `SUPABASE_API_URL`      | Another Management API host                                                |
 | `SUPABASE_BIN`          | The Supabase CLI `env` runs, instead of `supabase` on the `PATH`           |
-| `CI`                    | Turns prompts off                                                          |
+| `CI`                    | Turns prompts off, and applies the config's `ci` environment               |
+| `BETTER_SUPABASE_ENV`   | The config environment to apply when `--env` is not passed                 |
 
 The CLI checks these once per run; a malformed URL stops it with
 [`env_invalid`](/docs/cli/errors#env_invalid). Connection strings hold the
