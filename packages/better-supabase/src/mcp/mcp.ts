@@ -8,7 +8,7 @@ import {
   unauthorizedResponse,
 } from "@supabase/server/oauth-protected-resource";
 
-import type { AuthState } from "../auth/resolve.ts";
+import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { ResourceOperation } from "../openapi/index.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
@@ -27,7 +27,6 @@ import { validate } from "../core/standard.ts";
 import { buildJsonSchema } from "../generators/json-schema.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { withExtra } from "../server/extra.ts";
-import { hasRole } from "../server/kit.ts";
 import {
   defineResource,
   type ResourceHandler,
@@ -52,6 +51,13 @@ import {
   metadataPreflight,
   withCors,
 } from "./http.ts";
+import {
+  checkTool,
+  contextOf,
+  missingRole,
+  permittedTools,
+  type RequiredRoles,
+} from "./permissions.ts";
 
 export const MCP_PROTOCOL_VERSION: string = SPEC_PINS.mcp;
 /** Revisions before 2026-07-28 open with an `initialize` handshake. */
@@ -107,24 +113,6 @@ export interface ToolContext<
   readonly signal: AbortSignal;
 }
 
-/** The refusal for a caller without one of `required`'s roles. */
-function missingRole(
-  auth: AuthState,
-  required: McpOptions<AnyModels, AnyFunctions, unknown>["requiredRoles"],
-): DbError | undefined {
-  if (!required || auth.kind === "service") return undefined;
-  const { roles, claim } =
-    "roles" in required ? required : { roles: required, claim: undefined };
-  if (roles.length === 0 || hasRole(auth, roles, claim)) return undefined;
-  return dbError(
-    "forbidden",
-    `This server needs the role ${roles.join(" or ")}`,
-    {
-      code: "MISSING_ROLE",
-    },
-  );
-}
-
 export interface McpTool<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -142,6 +130,8 @@ export interface McpTool<
   readonly input?: StandardSchemaV1;
   /** Opaque data for the `authorize` and `visible` hooks. Never sent to clients. */
   readonly meta?: unknown;
+  /** Checked by the authorizer on every call; callers it denies don't see the tool. */
+  readonly permission?: unknown;
   run(args: never, ctx: ToolContext<M, F, E, C, P>): unknown;
 }
 
@@ -169,6 +159,7 @@ export interface ToolDefinition<
   I,
   C = unknown,
   P = unknown,
+  Ref = unknown,
 > {
   readonly name: string;
   readonly title?: string;
@@ -189,6 +180,12 @@ export interface ToolDefinition<
   readonly annotations?: ToolAnnotations;
   /** Opaque data for the `authorize` and `visible` hooks. Never sent to clients. */
   readonly meta?: unknown;
+  /**
+   * Checked by the authorizer after the arguments are validated, with the
+   * tool as the resource (`mcp_tool`). `tools/list` hides the tool from
+   * callers it denies.
+   */
+  readonly permission?: Ref;
   run(args: I, ctx: ToolContext<M, F, E, C, P>): unknown;
 }
 
@@ -196,7 +193,8 @@ export interface ToolDefinition<
 export type ToolResourceOptions<
   M extends AnyModels,
   T extends TableKey<M>,
-> = ResourceRouteOptions<M, T> & {
+  Ref = string,
+> = ResourceRouteOptions<M, T, Ref> & {
   /**
    * Opaque data per operation, e.g. a permission, passed to
    * `authorize` and `visible` as the table tool's `meta`. Never sent to
@@ -205,8 +203,8 @@ export type ToolResourceOptions<
   readonly meta?: { readonly [K in ResourceOperation]?: unknown };
 };
 
-export type ToolResources<M extends AnyModels> = {
-  readonly [T in TableKey<M>]?: ToolResourceOptions<M, T> | true;
+export type ToolResources<M extends AnyModels, Ref = string> = {
+  readonly [T in TableKey<M>]?: ToolResourceOptions<M, T, Ref> | true;
 };
 
 export interface McpOptions<
@@ -215,6 +213,7 @@ export interface McpOptions<
   E,
   C = unknown,
   P = unknown,
+  Ref = string,
 >
   extends ServerOptions, Omit<GuardOptions, "scopes"> {
   readonly name: string;
@@ -223,7 +222,7 @@ export interface McpOptions<
   /** Sent to clients on `initialize`, e.g. how the tools fit together. */
   readonly instructions?: string;
   /** Tables exposed as tools: `<table>_list`, `_get`, `_create`, `_update`, `_delete`. */
-  readonly resources?: ToolResources<M>;
+  readonly resources?: ToolResources<M, Ref>;
   readonly tools?: readonly McpTool<M, F, E, C, P>[];
   /**
    * Canonical URL of this MCP server (RFC 9728 `resource`). Defaults to the
@@ -256,9 +255,7 @@ export interface McpOptions<
    * requiredRoles: { roles: ['admin', 'support'], claim: 'app_metadata.roles' }
    * ```
    */
-  readonly requiredRoles?:
-    | readonly string[]
-    | { readonly roles: readonly string[]; readonly claim?: string };
+  readonly requiredRoles?: RequiredRoles;
   /** Origins allowed to call the server (DNS rebinding protection). Defaults to any. */
   readonly allowedOrigins?: readonly string[];
   /**
@@ -310,6 +307,7 @@ export interface BetterMcp<
   E,
   C = unknown,
   P = unknown,
+  Ref = string,
 > extends BetterServer<M, F, E, C, P> {
   /** Everything in one handler: the MCP endpoint and `/.well-known/oauth-protected-resource`. */
   readonly fetch: (request: Request) => Promise<Response>;
@@ -320,7 +318,7 @@ export interface BetterMcp<
   readonly tools: readonly ToolInfo[];
   /** Adds a tool typed against this app's repositories. */
   tool<I = Record<string, unknown>>(
-    definition: ToolDefinition<M, F, E, I, C, P>,
+    definition: ToolDefinition<M, F, E, I, C, P, Ref>,
   ): this;
   /** Calls a tool directly, e.g. from tests or another transport. */
   call(
@@ -344,7 +342,8 @@ export function defineTool<
   I = Record<string, unknown>,
   C = unknown,
   P = unknown,
->(definition: ToolDefinition<M, F, E, I, C, P>): McpTool<M, F, E, C, P> {
+  Ref = unknown,
+>(definition: ToolDefinition<M, F, E, I, C, P, Ref>): McpTool<M, F, E, C, P> {
   if (!/^[A-Za-z0-9_.-]{1,64}$/.test(definition.name)) {
     throw new TypeError(
       `Invalid tool name "${definition.name}": use 1-64 letters, digits, "_", "-" or "."`,
@@ -400,6 +399,9 @@ export function defineTool<
     },
     ...(definition.input ? { input: definition.input } : {}),
     ...(definition.meta === undefined ? {} : { meta: definition.meta }),
+    ...(definition.permission === undefined
+      ? {}
+      : { permission: definition.permission }),
     run: (args: never, ctx) => definition.run(args, ctx),
   };
 }
@@ -436,7 +438,7 @@ function pageSchema(max: number, cursor: boolean): Json {
 }
 
 function tableTools(
-  resource: ResourceHandler,
+  resource: ResourceHandler<unknown>,
   defs: Readonly<Record<string, Json>>,
 ): { info: ToolInfo; operation: ResourceOperation }[] {
   const { table, keyParam } = resource;
@@ -639,10 +641,13 @@ export function createMcp<
   E,
   C = unknown,
   P = unknown,
+  A extends AnyAuthorizer | undefined = undefined,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P>,
-  options: McpOptions<M, F, E, C, P>,
-): BetterMcp<M, F, E, C, P> {
+  options: McpOptions<M, F, E, C, P, PermissionRef<A>> & {
+    readonly authorizer?: A;
+  },
+): BetterMcp<M, F, E, C, P, PermissionRef<A>> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   // SAFETY: buildJsonSchema always writes a $defs map of JSON Schemas.
@@ -658,6 +663,7 @@ export function createMcp<
   }
   type Invocation = ToolResult | Refusal;
   interface Entry extends ToolRef {
+    readonly permission?: unknown;
     /** The listed tool with its schemas in `target`'s dialect, built once per target. */
     infoFor(target: ToolSchemaTarget): ToolInfo;
     call(args: unknown, ctx: ToolContext<M, F, E, C, P>): Promise<Invocation>;
@@ -704,7 +710,12 @@ export function createMcp<
     // SAFETY: as above, `raw` is the options entry for `key`.
     const entry = raw as ToolResourceOptions<M, TableKey<M>> | true;
     const { meta, ...route } = entry === true ? {} : entry;
-    const resource = defineResource(betterSupabase, key, route);
+    const resource = defineResource(
+      betterSupabase,
+      key,
+      route,
+      options.authorizer,
+    );
     for (const { info, operation } of tableTools(resource, defs)) {
       const ref: ToolRef = { info, meta: meta?.[operation] };
       register({
@@ -735,6 +746,7 @@ export function createMcp<
     const ref: ToolRef = { info: tool.info, meta: tool.meta };
     register({
       ...ref,
+      ...(tool.permission === undefined ? {} : { permission: tool.permission }),
       infoFor: toolDialects(tool.info, tool.inputSchemaFor),
       async call(args, ctx) {
         let value: unknown = args ?? {};
@@ -743,6 +755,13 @@ export function createMcp<
           if (!parsed.ok) return failure(parsed.error);
           value = parsed.data;
         }
+        const checked = await checkTool(
+          options.authorizer,
+          tool,
+          value,
+          ctx.db,
+        );
+        if (!checked.ok) return failure(checked.error);
         const refusal = await refused(ref, value, ctx);
         if (refusal) return refusal;
         // SAFETY: value passed the tool's input schema above, so it has the
@@ -776,21 +795,29 @@ export function createMcp<
       readonly generation: number;
     }
   >();
-  /** Without a `visible` hook every caller sees the same list, built once. */
+  /** Without a `visible` hook or permissions every caller sees the same list, built once. */
   const visibleTools = async (
     context: () => ToolContext<M, F, E, C, P>,
     target: ToolSchemaTarget,
   ): Promise<ToolInfo[]> => {
-    if (!options.visible) return listFor(target);
+    const all = [...registry.values()];
+    const gated = all.some((entry) => entry.permission !== undefined);
+    if (!options.visible && !gated) return listFor(target);
     const ctx = context();
     const token = ctx.auth.kind === "user" ? ctx.auth.token : undefined;
     const now = Date.now();
     const cached = token === undefined ? undefined : visibleLists.get(token);
     if (cached && cached.until > now && cached.generation === generation)
       return cached.entries.map((entry) => entry.infoFor(target));
-    const all = [...registry.values()];
-    const shown = await Promise.all(all.map((entry) => isVisible(entry, ctx)));
-    const entries = all.filter((_, index) => shown[index]);
+    const [shown, permitted] = await Promise.all([
+      Promise.all(all.map((entry) => isVisible(entry, ctx))),
+      permittedTools(
+        options.authorizer,
+        all.map((entry) => ({ name: entry.info.name, ...entry })),
+        contextOf(ctx.db),
+      ),
+    ]);
+    const entries = all.filter((_, index) => shown[index] && permitted[index]);
     if (token !== undefined) {
       visibleLists.delete(token);
       if (visibleLists.size >= VISIBLE_LISTS_MAX) {
@@ -1130,30 +1157,28 @@ export function createMcp<
     );
   };
 
-  const mcp: BetterMcp<M, F, E, C, P> = extendServer<BetterMcp<M, F, E, C, P>>(
-    server,
-    {
-      get tools() {
-        return [...listTools()];
-      },
-      tool(definition) {
-        addTool(defineTool(definition));
-        return mcp;
-      },
-      call,
-      endpoint,
-      metadata,
-      fetch(request) {
-        if (isMetadataRequest(request)) {
-          return Promise.resolve(
-            request.method === "OPTIONS"
-              ? metadataPreflight()
-              : metadata(request),
-          );
-        }
-        return endpoint(request);
-      },
+  type Mcp = BetterMcp<M, F, E, C, P, PermissionRef<A>>;
+  const mcp: Mcp = extendServer<Mcp>(server, {
+    get tools() {
+      return [...listTools()];
     },
-  );
+    tool(definition) {
+      addTool(defineTool(definition));
+      return mcp;
+    },
+    call,
+    endpoint,
+    metadata,
+    fetch(request) {
+      if (isMetadataRequest(request)) {
+        return Promise.resolve(
+          request.method === "OPTIONS"
+            ? metadataPreflight()
+            : metadata(request),
+        );
+      }
+      return endpoint(request);
+    },
+  });
   return mcp;
 }

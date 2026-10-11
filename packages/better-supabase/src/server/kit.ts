@@ -111,7 +111,7 @@ function actionError(error: DbError): ActionResult<never> {
 
 /** What a `permission` on an action or route is checked against. */
 function callerResource(input: unknown): AuthorizationResource {
-  if (input === undefined) return { type: "route" };
+  if (input === undefined || input instanceof Request) return { type: "route" };
   if (
     typeof input !== "object" ||
     input === null ||
