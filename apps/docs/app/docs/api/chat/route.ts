@@ -12,7 +12,7 @@ import * as v from "valibot";
 import { env } from "@/env";
 import { searchDocs } from "@/lib/page-search";
 import { siteUrl } from "@/lib/site-url";
-import { getLLMText, getPageSummaries, source } from "@/lib/source";
+import { docsLlms, getPageSummaries, source } from "@/lib/source";
 
 const MODEL = "anthropic/claude-sonnet-5.5";
 const CONTEXT_PAGES = 4;
@@ -42,7 +42,7 @@ async function documentation(question: string): Promise<string> {
       const page = source.getPage([...match.slugs]);
       return page === undefined
         ? ""
-        : `URL: ${siteUrl(page.url)}\n${await getLLMText(page)}`;
+        : `URL: ${siteUrl(page.url)}\n${await docsLlms.page(page)}`;
     }),
   );
   return pages.filter((page) => page !== "").join("\n\n---\n\n");

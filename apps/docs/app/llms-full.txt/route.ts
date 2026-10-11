@@ -1,6 +1,5 @@
-import { getLLMText, markdownHeaders, source } from "@/lib/source";
+import { docsLlms, markdownHeaders } from "@/lib/source";
 
 export async function GET() {
-  const pages = await Promise.all(source.getPages().map(getLLMText));
-  return new Response(pages.join("\n\n"), { headers: markdownHeaders });
+  return new Response(await docsLlms.full(), { headers: markdownHeaders });
 }

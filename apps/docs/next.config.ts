@@ -41,6 +41,8 @@ const config = createNextConfig({
     return Promise.resolve({
       beforeFiles: [
         { source: "/docs/_next/:path*", destination: "/_next/:path*" },
+        { source: "/docs/llms.txt", destination: "/llms.txt" },
+        { source: "/docs/llms-full.txt", destination: "/llms-full.txt" },
         { source: "/docs.md", destination: "/llms.mdx/docs/content.md" },
         {
           source: "/docs/:path(.*)\\.md",
