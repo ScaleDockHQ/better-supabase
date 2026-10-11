@@ -1,5 +1,6 @@
+import { Temporal as Polyfill } from "temporal-polyfill";
 import * as v from "valibot";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import type { DbError } from "../../../src/core/errors.ts";
 import type { Executor } from "../../../src/core/executor.ts";
@@ -10,6 +11,7 @@ import {
   createWebhookInbox,
   createJobs,
   type Job,
+  nextCronRun,
   pgmqPublicBackend,
   type QueueBackend,
   type QueueRpcClient,
@@ -19,6 +21,7 @@ import { signWebhook } from "../../../src/blocks/webhooks/index.ts";
 import { defineSupabase } from "../../../src/core/define.ts";
 import { spansAllTenants } from "../../../src/core/plugin.ts";
 import { ok } from "../../../src/core/result.ts";
+import { provideTemporal } from "../../../src/core/temporal.ts";
 import { tenant } from "../../../src/plugins/tenant/index.ts";
 import { capturingClient } from "../../fixtures/client.ts";
 import { fakeSql, pgError, type SqlAnswer } from "../../fixtures/fake-sql.ts";
@@ -564,6 +567,69 @@ describe("createJobs over SQL", () => {
       )
       .orThrow();
     expect(fake.calls.map((call) => call.values[2])).toEqual([61, 0]);
+  });
+
+  it("reads runAt delays and schedule times from the now option", async () => {
+    const now = () => Temporal.Instant.from("2026-10-01T12:00:00Z");
+    const fake = fakeSql([
+      ["enqueue_job", [{ id: 1 }]],
+      [
+        "claim_due_schedules",
+        [
+          {
+            job_name: "first",
+            schedule: "0 * * * *",
+            timezone: "UTC",
+            queue: "reports",
+            payload: { day: "mon" },
+            next_run: null,
+            first_after: null,
+          },
+        ],
+      ],
+    ]);
+    const jobs = createJobs(fake.sql, queues, { now });
+    await jobs
+      .enqueue(
+        "emails",
+        { to: "a@example.com" },
+        { runAt: Temporal.Instant.from("2026-10-01T12:00:30Z") },
+      )
+      .orThrow();
+    await jobs.runSchedules().orThrow();
+    expect(fake.calls[0]!.values[2]).toBe(30);
+    expect(fake.calls.at(-1)!.values).toEqual([
+      "first",
+      "2026-10-01T13:00:00Z",
+    ]);
+  });
+
+  it("runs a job and computes cron runs with an injected namespace and no global", async () => {
+    vi.stubGlobal("Temporal", undefined);
+    onTestFinished(() => {
+      provideTemporal(undefined);
+      vi.unstubAllGlobals();
+    });
+    const fake = fakeSql([
+      ["claim_jobs", sequence([messageRow(1, { day: "mon" })])],
+      ["complete_job", [{ done: true }]],
+    ]);
+    const jobs = createJobs(fake.sql, queues, { temporal: Polyfill });
+    const seen: Job[] = [];
+    expect(
+      await jobs.drain("reports", (_payload, job) => {
+        seen.push(job);
+      }),
+    ).toEqual({ succeeded: 1, failed: 0 });
+    expect(seen[0]!.enqueuedAt).toBeInstanceOf(Polyfill.Instant);
+    expect(seen[0]!.visibleUntil.toString()).toBe("2026-09-24T10:05:00Z");
+    expect(
+      nextCronRun(
+        "0 * * * *",
+        "UTC",
+        Polyfill.Instant.from("2026-10-01T12:30:00Z"),
+      ).toString(),
+    ).toBe("2026-10-01T13:00:00Z");
   });
 
   it("enqueues an empty object when the schema output is undefined", async () => {

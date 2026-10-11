@@ -34,15 +34,15 @@ Filters, search, sorting, offset and cursor pages, counts, aggregates on
 one table, and inserts, updates, upserts and deletes all run.
 Some things have no SQLite form:
 
-| Feature                                          | On SQLite                                 |
-| ------------------------------------------------ | ----------------------------------------- |
-| `include` (embedding) and related counts         | `unsupported` error                       |
-| full-text search (`fts`)                         | `unsupported` error                       |
-| function sources (`db.rpc`, set-returning reads) | `unsupported` error                       |
-| writes to a table without a primary key          | `unsupported` error                       |
-| `ilike`                                          | SQLite `like`: case-insensitive for ASCII |
-| `like`                                           | `glob`: case-sensitive, like Postgres     |
-| timestamps                                       | compared as UTC ISO text                  |
+| Feature                                       | On SQLite                                 |
+| --------------------------------------------- | ----------------------------------------- |
+| `include` (embedding) and related counts      | `unsupported` error                       |
+| full-text search (`fts`)                      | `unsupported` error                       |
+| `db.$rpc` and function sources (`db.$search`) | `unsupported` error                       |
+| writes to a table without a primary key       | `unsupported` error                       |
+| `ilike`                                       | SQLite `like`: case-insensitive for ASCII |
+| `like`                                        | `glob`: case-sensitive, like Postgres     |
+| timestamps                                    | compared as UTC ISO text                  |
 
 The error has kind `unsupported` (HTTP 501), the feature in `details`, and
 nothing runs. To catch it before a screen does, check a list definition in a
@@ -58,7 +58,65 @@ expect(await checkSqlite(betterSupabase, customerList)).toEqual({
 ```
 
 `checkSqlite` compiles every query the list runs (the page, its count and the
-facet counts) without a database.
+facet counts) without a database. It returns the first error; pass
+`{ all: true }` to get every one as an array, empty when the whole list runs
+on SQLite.
+
+## Server fallback
+
+Pass `fallback` to send what SQLite can't run to the server instead of
+failing:
+
+```ts title="src/lib/powersync/database.ts"
+import { postgrestExecutor } from "better-supabase";
+
+export const local = betterSupabase.connect(
+  powersyncExecutor(powersync, {
+    fallback: postgrestExecutor(supabase, betterSupabase.executorOptions()),
+  }),
+);
+```
+
+A read that compiles to `unsupported` (an `include`, full-text search, a
+function source) runs on the fallback, and so does `db.$rpc`. Everything
+else stays on SQLite. Writes never fall back, so PowerSync's upload queue
+stays the only write path, and an unsupported write still returns
+`unsupported`. When the device is offline, the read returns the fallback's
+error, usually kind `network`.
+
+A fallback read inside `watch` or `useWatch` reruns only when one of the
+watched local tables changes. A change on the server that hasn't synced to
+those tables yet doesn't show until the next local change or the next
+mount.
+
+## Porting a list from PostgREST
+
+Most lists run locally as they are: filters, `ilike` search, facets, facet
+counts, sorting, pages and one-table aggregates all compile to SQLite. The
+reads that don't are usually embeddings, full-text search and database
+functions that aggregate. For each, pick one:
+
+- Sync what the screen needs. A summary table or view that a sync rule
+  publishes (note counts per customer, a denormalized name) turns an RPC
+  aggregate or an `include` into a local table you read and `watch`.
+- Search a synced text column with `search: ["name", "kvk"]` (`ilike`)
+  instead of `{ fts: ... }`.
+- Keep it on the server with `fallback`, and accept that it needs a
+  connection and only reruns on local changes.
+
+To find the server-only reads, list them in a test:
+
+```ts title="src/lists.test.ts"
+import { checkSqlite } from "better-supabase/powersync";
+
+it("runs every list on the device", async () => {
+  for (const list of [customerList, noteList])
+    expect(await checkSqlite(betterSupabase, list, { all: true })).toEqual([]);
+});
+```
+
+With a fallback, the errors that test reports are the reads that go to the
+server; each has the feature in `details`.
 
 ## Live results
 

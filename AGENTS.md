@@ -122,9 +122,11 @@ The seed (`supabase/seed.sql`) creates two Acme users with the password
 11. `@supabase/postgrest-typegen` is an optional peer that only the CLI
     loads, through `src/cli/introspect/typegen.ts`. The published types use
     the copy of `GeneratorMetadata` in `src/config/generator-metadata.ts`,
-    never the package. It is pinned to an exact version (both catalogs and
-    `TYPEGEN_VERSION`) so `database.types.ts` matches `supabase gen types`;
-    bumping it needs the parity test, the copy's type test and a changeset.
+    never the package. The default catalog and `TYPEGEN_VERSION` pin one
+    exact version so `database.types.ts` matches `supabase gen types`; the
+    peers catalog declares a range around it, and `gen` prints a notice for
+    any other installed release (ADR 0016). Bumping it needs the parity
+    test, the copy's type test and a changeset.
 12. Imports stay at the top of the module. The exceptions are optional
     peers loaded lazily, each with a comment and a fallback:
     `@supabase/config/io` through a variable specifier in
@@ -299,6 +301,7 @@ standard or sets how the repo works.
 - 0013: SDK adapters whose SDK needs Node (`workflow-sdk/world`, `eve`) are Node-only entries.
 - 0014: `better-supabase/nestjs` loads `@nestjs/common` with a synchronous `createRequire`.
 - 0015: blocks extend through `fields` (extra columns typed by a Standard Schema), `hooks`, transport middleware and `extendBlock`.
+- 0016: `@supabase/postgrest-typegen` is a peer range; the default catalog and `TYPEGEN_VERSION` stay exact.
 
 ## Pre-release pins
 

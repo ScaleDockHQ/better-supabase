@@ -181,7 +181,7 @@ describe("doctor command", () => {
         code: "BS100",
         severity: "info",
         message:
-          "Skipped the security advisor: reading the saved snapshot snapshot.json; set $DATABASE_URL, or pass --db-url-stdin or --project-ref, to check a database.",
+          "Skipped the security advisor: reading the saved snapshot snapshot.json; set $DATABASE_URL or $SUPABASE_DB_URL, or pass --db-url-stdin or --project-ref, to check a database.",
       }),
     ]);
   });

@@ -7,6 +7,8 @@ import { CliError } from "./errors.ts";
 export interface CliEnv {
   /** Postgres connection string for gen, introspect, doctor and seed. */
   readonly DATABASE_URL?: string | undefined;
+  /** The Supabase name for the same connection string, read when `DATABASE_URL` is unset. */
+  readonly SUPABASE_DB_URL?: string | undefined;
   /** Personal access token for reading a hosted project. */
   readonly SUPABASE_ACCESS_TOKEN?: string | undefined;
   /** Management API base URL; defaults to https://api.supabase.com. */
@@ -31,6 +33,7 @@ export function parseEnv(
   return createEnv({
     server: {
       DATABASE_URL: optionalUrl,
+      SUPABASE_DB_URL: optionalUrl,
       SUPABASE_ACCESS_TOKEN: optionalString,
       SUPABASE_API_URL: optionalUrl,
       SUPABASE_BIN: optionalString,

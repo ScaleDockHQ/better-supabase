@@ -1,14 +1,18 @@
 /**
- * The only module that imports `@supabase/postgrest-typegen`. It is alpha and
- * pinned to an exact version, so every use goes through here. It is an
- * optional peer: without it, the functions here throw an install message.
+ * The only module that imports `@supabase/postgrest-typegen`. It is alpha, so
+ * every use goes through here. It is an optional peer that accepts a range of
+ * releases; the CLI is tested against `TYPEGEN_VERSION` and prints a notice
+ * for any other. Without it, the functions here throw an install message.
  */
 import type * as Generation from "@supabase/postgrest-typegen/generation";
 import type * as Oxfmt from "oxfmt";
 
+import { fileURLToPath } from "node:url";
+
 import type { GeneratorMetadata } from "../../config/index.ts";
 
 import { byCodePoint } from "../compare.ts";
+import { versionAt } from "../peers.ts";
 import { TYPEGEN_VERSION } from "./typegen-version.ts";
 
 const TYPEGEN = "@supabase/postgrest-typegen";
@@ -38,6 +42,21 @@ const missing = (): never => {
 const generation: typeof Generation | undefined =
   await import("@supabase/postgrest-typegen/generation").catch(() => undefined);
 const loadGeneration = (): typeof Generation => generation ?? missing();
+
+/** The installed postgrest-typegen release, `undefined` when it is missing. */
+export async function typegenVersion(): Promise<string | undefined> {
+  if (generation === undefined) return undefined;
+  return versionAt(fileURLToPath(import.meta.resolve(`${TYPEGEN}/generation`)));
+}
+
+/** Notice for a postgrest-typegen release other than the one this CLI is tested against. */
+export function typegenVersionNotice(
+  installed: string | undefined,
+): string | undefined {
+  if (installed === undefined || installed === TYPEGEN_VERSION)
+    return undefined;
+  return `Notice: ${TYPEGEN}@${installed} is installed; this better-supabase release is tested against ${TYPEGEN_VERSION}. database.types.ts can differ from \`supabase gen types\` output until both use the same release. Pin it: pnpm add -D ${TYPEGEN}@${TYPEGEN_VERSION}`;
+}
 const metadataModule = () =>
   import("@supabase/postgrest-typegen").catch(missing);
 const introspectionModule = () =>

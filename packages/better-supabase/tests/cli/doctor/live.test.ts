@@ -257,7 +257,7 @@ describe("BS212 --explain", () => {
       {
         severity: "warning",
         message:
-          "--explain needs a direct database connection (local stack, $DATABASE_URL or --db-url-stdin).",
+          "--explain needs a direct database connection (local stack, $DATABASE_URL, $SUPABASE_DB_URL or --db-url-stdin).",
       },
     ]);
     expect(

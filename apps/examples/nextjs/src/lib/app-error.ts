@@ -1,9 +1,7 @@
+import type { BetterResultMapping } from "better-supabase/better-result";
+
 import { Result } from "better-result";
-import {
-  type DbError,
-  type Result as DbResult,
-  toBetterResult,
-} from "better-supabase";
+import { type DbError } from "better-supabase";
 
 /**
  * The app's error type. `cause` keeps the `DbError`, so route handlers and
@@ -21,7 +19,8 @@ export class AppError extends Error {
 
 export const toAppError = (error: DbError): AppError => new AppError(error);
 
-/** A database `Result` as a better-result value with an `AppError`. */
-export function toAppResult<T>(result: DbResult<T>): Result<T, AppError> {
-  return toBetterResult(result, Result, toAppError);
-}
+/** For `withBetterResult(db, appErrors)`: better-result values with an `AppError`. */
+export const appErrors: BetterResultMapping<AppError> = {
+  Result,
+  mapError: toAppError,
+};

@@ -18,12 +18,16 @@ The `better-supabase` command ships in the `better-supabase` package. `pg` and
 `@supabase/postgrest-typegen` are optional peers that only the CLI loads: `pg`
 reads your database schema, and postgrest-typegen writes `database.types.ts`.
 Keep postgrest-typegen at the version above, which the CLI's output is tested
-against; without it, `gen`, `introspect` and `doctor` stop with the install
-command. TypeScript 6 and 7 are
+against; `gen` prints a notice for any other release, and without it, `gen`,
+`introspect` and `doctor` stop with the install command. Every other peer is
+optional too; [Peers](/docs/getting-started/peers) lists which subpath needs
+which one. TypeScript 6 and 7 are
 supported, with `nodenext` or
 `bundler` module resolution. On runtimes without a native `Temporal` (Node 24,
-Safari), install `temporal-polyfill` and import `temporal-polyfill/global`
-once at startup; see [Temporal](/docs/concepts/temporal).
+Safari, Hermes), install `temporal-polyfill` and pass its namespace to
+`defineSupabase(schema, { temporal: Temporal })`, or import
+`temporal-polyfill/global` once at startup; see
+[Temporal](/docs/concepts/temporal).
 
 </Step>
 

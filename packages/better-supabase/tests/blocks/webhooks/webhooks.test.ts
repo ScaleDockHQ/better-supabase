@@ -1,3 +1,4 @@
+import { Temporal as Polyfill } from "temporal-polyfill";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
@@ -10,6 +11,7 @@ import {
   verifyWebhook,
 } from "../../../src/blocks/webhooks/index.ts";
 import { defineSupabase } from "../../../src/core/define.ts";
+import { provideTemporal } from "../../../src/core/temporal.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
 // Reference vector from the Standard Webhooks test suite.
@@ -37,6 +39,22 @@ describe("Standard Webhooks", () => {
       SECRET,
     );
     expect(result.error).toMatchObject({ kind: "unexpected" });
+  });
+
+  it("verifies with an injected namespace and no global Temporal", async () => {
+    vi.stubGlobal("Temporal", undefined);
+    provideTemporal(Polyfill);
+    onTestFinished(() => {
+      provideTemporal(undefined);
+      vi.unstubAllGlobals();
+    });
+    const result = await verifyWebhook(
+      { headers: headers(), body: BODY },
+      SECRET,
+      { now: () => Polyfill.Instant.fromEpochMilliseconds(TIMESTAMP * 1000) },
+    );
+    expect(result.error).toBeNull();
+    expect(result.data?.timestamp).toBeInstanceOf(Polyfill.Instant);
   });
 
   it("matches the reference signature", async () => {

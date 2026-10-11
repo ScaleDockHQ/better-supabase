@@ -80,7 +80,7 @@ and each introspection query after 2 minutes.
 | `--check`              | Writes nothing; exits 1 when a generated file is out of date and prints a diff of each one. Use it in CI.                                                        |
 | `--watch`              | Regenerates when the schema or the config file changes (polls every `--interval` ms, default 2000).                                                              |
 | `--snapshot <file>`    | Reads a saved snapshot instead of connecting.                                                                                                                    |
-| `--db-url-stdin`       | Reads the connection string from stdin; overrides the config and `$DATABASE_URL`.                                                                                |
+| `--db-url-stdin`       | Reads the connection string from stdin; overrides the config, `$DATABASE_URL` and `$SUPABASE_DB_URL`.                                                            |
 | `--project-ref <ref>`  | Reads a hosted project through the Management API.                                                                                                               |
 | `--metadata <path\|->` | Reads a `GeneratorMetadata` document (`-` for stdin) and prints one file on stdout. See [From a GeneratorMetadata document](#from-a-generatormetadata-document). |
 | `--emit <file>`        | With `--metadata`, the file to print: `schema` (default), `types`, `zod`, `valibot` or `json-schema`.                                                            |
@@ -91,7 +91,7 @@ prints `{ "upToDate", "stale" }`.
 
 A connection string holds the database password, so no command takes one as
 an argument, where it would land in shell history and the process list. Set
-`$DATABASE_URL`, or pipe it in:
+`$DATABASE_URL` or `$SUPABASE_DB_URL`, or pipe it in:
 
 ```bash
 printf %s "$PROD_DB_URL" | better-supabase gen --check --db-url-stdin
@@ -101,11 +101,13 @@ printf %s "$PROD_DB_URL" | better-supabase gen --check --db-url-stdin
 
 In order:
 
-1. `--db-url-stdin`, or `--project-ref`;
-2. `source.dbUrl` or `source.projectRef` in the config;
-3. `source.snapshot`, when neither flag is passed;
+1. `--snapshot`, `--db-url-stdin` or `--project-ref`;
+2. `source.snapshot` in the config, when none of those flags is passed;
+3. `source.dbUrl` or `source.projectRef` in the config;
 4. `$DATABASE_URL`;
-5. the local stack, on the `[db] port` from `supabase/config.toml` (54322 by
+5. `$SUPABASE_DB_URL`, the name the Supabase CLI and `better-supabase env`
+   use;
+6. the local stack, on the `[db] port` from `supabase/config.toml` (54322 by
    default).
 
 ### Hosted projects without a database password

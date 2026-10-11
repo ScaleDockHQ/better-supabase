@@ -1565,6 +1565,35 @@ describe("env files (BS501, BS502)", () => {
   });
 });
 
+describe("peer versions (BS601)", () => {
+  it("flags installed peers outside their range and skips the rest", async () => {
+    const peers = [
+      {
+        name: "@supabase/postgrest-typegen",
+        range: ">=0.4.0 <0.5",
+        installed: "0.5.0",
+      },
+      {
+        name: "@modelcontextprotocol/server",
+        range: ">=2.3.0 <3",
+        installed: "2.3.1",
+      },
+      { name: "hono", range: ">=4 <5", installed: undefined },
+      { name: "eve", range: ">=0.71 <1", installed: "canary" },
+    ];
+    const findings = await run("BS601", context(base, { peers }));
+    expect(findings).toEqual([
+      expect.objectContaining({
+        code: "BS601",
+        target: "@supabase/postgrest-typegen",
+        message:
+          "@supabase/postgrest-typegen@0.5.0 is installed, but better-supabase needs >=0.4.0 <0.5. Install a version in that range, or remove @supabase/postgrest-typegen if nothing imports it.",
+      }),
+    ]);
+    expect(await run("BS601", context(base))).toEqual([]);
+  });
+});
+
 describe("session cookie encoding (BS412)", () => {
   const browser = (encode?: string) => ({
     path: "src/lib/client.ts",

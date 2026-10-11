@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
+import type { PeerVersion } from "../peers.ts";
 import type { SupabaseToml, TomlValue } from "../supabase-toml.ts";
 import type { AdvisorSource } from "./advisors.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
@@ -29,6 +30,7 @@ import {
   entitlementsModule,
 } from "./authorization.ts";
 import { COOKIE_RULES } from "./cookies.ts";
+import { DEPENDENCY_RULES } from "./dependencies.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LIVE_RULES } from "./live.ts";
 import { skippedForMetadata } from "./metadata.ts";
@@ -118,6 +120,8 @@ export interface DoctorContext {
   readonly sqlFiles?: readonly TextFile[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
+  /** better-supabase's peers and the versions the project installs (BS601). */
+  readonly peers?: readonly PeerVersion[];
 }
 
 export interface Rule {
@@ -983,6 +987,7 @@ export const RULES: readonly Rule[] = [
   ...LIVE_RULES,
   ...MODULE_RULES,
   ...PGDELTA_RULES,
+  ...DEPENDENCY_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

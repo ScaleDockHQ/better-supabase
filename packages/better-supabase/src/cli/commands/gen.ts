@@ -43,6 +43,8 @@ import {
   MetadataRejectedError,
   oxfmtInstalled,
   parseMetadataDocument,
+  typegenVersion,
+  typegenVersionNotice,
 } from "../introspect/typegen.ts";
 import {
   type CliIo,
@@ -285,13 +287,15 @@ const UNFORMATTED =
 
 const METADATA_ONLY = `Notice: the schema came from a GeneratorMetadata document, which has no ${METADATA_GAPS_TEXT}. Unique keys and checks cover single columns, relations have no onDelete, and columns a before-insert trigger fills stay required on insert. Run \`better-supabase gen\` against the database for the full model.`;
 
-/** The formatter notice, the metadata-only notice and the config warnings, one line each. */
+/** The formatter, typegen version and metadata-only notices and the config warnings, one line each. */
 async function generationNotices(
   snapshot: Snapshot,
   warnings: readonly string[],
 ): Promise<string[]> {
+  const typegen = typegenVersionNotice(await typegenVersion());
   return [
     ...((await oxfmtInstalled()) ? [] : [UNFORMATTED]),
+    ...(typegen ? [typegen] : []),
     ...(snapshot.extras.fromMetadata ? [METADATA_ONLY] : []),
     ...warnings.map((warning) => `Warning: ${warning}`),
   ];
@@ -418,7 +422,7 @@ export const SOURCE_ARGS = {
   "db-url-stdin": {
     type: "boolean",
     description:
-      "Read the connection string from stdin instead of $DATABASE_URL or the config",
+      "Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL",
   },
   "project-ref": {
     type: "string",

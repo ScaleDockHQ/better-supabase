@@ -131,7 +131,7 @@ const customers = result.data;
 ```
 
 - Methods return a `Result`, and database errors never throw. Use `.orThrow()` only where an exception is really wanted.
-- Apps on better-result: `toBetterResult(result, Result, mapError)` converts at the boundary, and `defineBetterResultErrors(Result, { not_found: NotFound }, DbFailure)` maps `DbError` kinds to `TaggedError` classes once. Annotate the expected `Result<T, E>` type instead of casting.
+- Apps on better-result: `withBetterResult(db, toResult)` from `better-supabase/better-result` returns a `db` whose repositories, `$rpc` and `$list(list, query)` return better-result values; `toBetterResult(result, Result, mapError)` converts one result, and `defineBetterResultErrors(Result, { not_found: NotFound }, DbFailure)` maps `DbError` kinds to `TaggedError` classes once. Annotate the expected `Result<T, E>` type instead of casting.
 - Column names use the configured casing (`casing: 'camel'` means `organizationId`). Raw escape hatches (`$client`, and `queryRaw` on the `better-supabase/postgres` clients) use database names.
 - Writes: `create`, `createMany`, `update(id, patch)`, `updateMany`, `upsert`, `delete`.
 - Page lists with a cursor: `paginate({ after: null, size: 25, orderBy })`, then pass `nextCursor` back as `after` with the same `orderBy` and `where`. Use `page` numbers only when users jump to a page and need a total, and `paginate({ offset, limit, count: 'exact' })` when the caller already has an offset; both return the rows and the total in one request.
@@ -143,12 +143,12 @@ const customers = result.data;
 
 - With `codecs: { timestamptz: 'instant' }` in the config, `timestamptz` columns decode to `Temporal.Instant` and `timestamp` columns to `Temporal.PlainDateTime`, with microseconds. Without the codec they stay ISO strings.
 - `now` options, job and webhook timestamps and `bucket.sweep({ olderThan })` take `Temporal` values. Auth's `now` stays in epoch milliseconds.
-- On Node 24, Safari and other runtimes without `Temporal`, add `temporal-polyfill` and `import "temporal-polyfill/global"` once at startup. Without it, calls that need `Temporal` return an `unexpected` `DbError` that names the import.
+- On Node 24, Safari, Hermes and other runtimes without `Temporal`, add `temporal-polyfill` and pass its namespace: `defineSupabase(schema, { temporal: Temporal })` (block creators take the same `temporal` option). `import "temporal-polyfill/global"` once at startup also works. Without either, calls that need `Temporal` return an `unexpected` `DbError` that names both.
 - Use TypeScript 6 or 7; 5.9 has no Temporal lib.
 
 ## CLI in scripts and CI
 
-- No command takes a connection string as an argument. Set `$DATABASE_URL` or `source.dbUrl`, or pipe it in with `--db-url-stdin`.
+- No command takes a connection string as an argument. Set `$DATABASE_URL`, `$SUPABASE_DB_URL` or `source.dbUrl`, or pipe it in with `--db-url-stdin`.
 - `--json` prints one JSON document on stdout: the result, or Problem Details with a `code` on failure. `--yes` and `CI` turn prompts off.
 - Exit codes: 0 success, 1 a failure or finding (`--check` drift, doctor errors), 2 a usage, config or environment problem. Each error code is listed at https://bettersupabase.com/docs/cli/errors.
 

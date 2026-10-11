@@ -21,3 +21,4 @@ add one, and link it from the code or config it explains.
 | [0013](0013-node-only-sdk-adapters.md)          | SDK adapters whose SDK needs Node (`workflow-sdk/world`, `eve`) are Node-only entries        |
 | [0014](0014-nestjs-create-require.md)           | `better-supabase/nestjs` loads `@nestjs/common` with a synchronous `createRequire`           |
 | [0015](0015-block-extension-model.md)           | Blocks extend through `fields`, `hooks`, transport middleware and `extendBlock`              |
+| [0016](0016-typegen-peer-range.md)              | `@supabase/postgrest-typegen` is a peer range; the default catalog stays exact               |

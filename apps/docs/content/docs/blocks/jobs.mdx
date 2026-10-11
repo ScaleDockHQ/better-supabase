@@ -75,7 +75,10 @@ await jobs.enqueue(
 `delay` is in seconds. To run at a fixed time, pass `runAt` as a
 `Temporal.Instant`. Jobs and inbox messages report `enqueuedAt`,
 `visibleUntil` and `receivedAt` as `Temporal.Instant` too (see
-[Temporal](/docs/concepts/temporal)).
+[Temporal](/docs/concepts/temporal)). The third argument takes `temporal`, for
+runtimes without a global `Temporal`, and `now`, the clock for `runAt` delays
+and schedule runs. Pass the same `now` you give `defineSupabase` so jobs and
+repositories share one clock in tests.
 
 Any number of workers can run side by side: pgmq hides a claimed message for
 the length of its lease.

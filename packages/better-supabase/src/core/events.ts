@@ -124,9 +124,12 @@ export class EventHub {
   readonly #warned = new Set<EventName>();
   readonly #pending = new Set<Promise<void>>();
   readonly logger: Logger;
+  /** The definition's `now` option; block events take their `time` from it. */
+  readonly now: (() => Temporal.Instant) | undefined;
 
-  constructor(logger: Logger = consoleLogger) {
+  constructor(logger: Logger = consoleLogger, now?: () => Temporal.Instant) {
     this.logger = logger;
+    this.now = now;
   }
 
   on<K extends EventName>(name: K, handler: EventHandler<K>): () => void {

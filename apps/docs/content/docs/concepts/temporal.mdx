@@ -8,33 +8,15 @@ instead of a `Date`. An instant is a `Temporal.Instant`, a wall-clock
 `timestamp` column is a `Temporal.PlainDateTime`, and a length of time is a
 `Temporal.Duration`.
 
-## Install the polyfill where Temporal is missing
+## Pass Temporal to defineSupabase
 
-Node 26 and current Chrome and Firefox ship `Temporal`. On Node 24, Safari and
-any other runtime without it, install the polyfill and import it once, before
-the first query:
+Node 26 and current Chrome and Firefox ship `Temporal`. On Node 24, Safari,
+Hermes and any other runtime without it, install the polyfill and pass its
+namespace to `defineSupabase`:
 
 ```bash
 pnpm add temporal-polyfill
 ```
-
-```ts title="src/instrumentation.ts"
-import "temporal-polyfill/global";
-```
-
-`temporal-polyfill/global` installs only when the runtime has no native
-`Temporal`, so the import is safe to keep after you upgrade. better-supabase
-never imports the polyfill itself. When a call needs `Temporal` and it is
-missing, the call returns a `DbError` with kind `unexpected` and the message
-names the import.
-
-The types come from TypeScript's `esnext.temporal` lib, which the published
-declarations reference. TypeScript 6 and 7 include it; 5.9 does not.
-
-## Pass Temporal without a global
-
-When your app must not patch `globalThis`, import the polyfill as a module
-and pass the namespace to `defineSupabase`:
 
 ```ts title="src/lib/supabase/runtime.ts"
 import { Temporal } from "temporal-polyfill";
@@ -46,9 +28,29 @@ export const betterSupabase = defineSupabase(schema, { temporal: Temporal });
 ```
 
 Every part of better-supabase then reads `Temporal` from that option: decoded
-rows, the default clock, plugins, jobs, webhooks and storage. The global stays
-the fallback when you leave the option out. `betterSupabase.temporal` returns
-the namespace in use.
+rows, the default clock, plugins, jobs, webhooks and storage. `globalThis`
+stays untouched, and `betterSupabase.temporal` returns the namespace in use.
+better-supabase never imports the polyfill itself. When a call needs
+`Temporal` and none is available, the call returns a `DbError` with kind
+`unexpected` and the message names the option.
+
+The types come from TypeScript's `esnext.temporal` lib, which the published
+declarations reference. TypeScript 6 and 7 include it; 5.9 does not.
+
+## Or install the global polyfill
+
+When you would rather patch `globalThis`, for example because your own code
+uses `Temporal` without importing it, import the global entry once, before the
+first query, and leave the `temporal` option out:
+
+```ts title="src/instrumentation.ts"
+import "temporal-polyfill/global";
+```
+
+`temporal-polyfill/global` installs only when the runtime has no native
+`Temporal`, so the import is safe to keep after you upgrade.
+
+## One namespace per process
 
 The option also sets one process-wide namespace for code that runs without a
 definition. Pass the same namespace to every definition in a process: when a
@@ -94,9 +96,10 @@ native bundle and the server render use the same code path. See
 | API                                            | Temporal type                                                                                 |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `codecs.timestamptz: 'instant'`                | `timestamptz` rows decode to `Temporal.Instant`, `timestamp` rows to `Temporal.PlainDateTime` |
-| `defineSupabase({ now })`, plugin hooks        | `now: () => Temporal.Instant`                                                                 |
+| `defineSupabase({ now })`, plugin hooks        | `now: () => Temporal.Instant`, also the `time` of block events on `betterSupabase.events`     |
 | `defineSupabase({ temporal })`                 | the `Temporal` namespace every other API reads                                                |
 | `Job`, `EnqueueOptions`, `WebhookInboxMessage` | `enqueuedAt`, `visibleUntil`, `runAt`, `receivedAt`                                           |
+| `createJobs(source, queues, { now })`          | `now`, the clock for `runAt` delays and schedule runs                                         |
 | `verifyWebhook`, `signWebhook`                 | `timestamp` and `now`                                                                         |
 | `bucket.sweep`                                 | `olderThan: Temporal.Instant` or `Temporal.Duration`                                          |
 | `toCloudEvents`, `forwardMutations`            | `now`                                                                                         |

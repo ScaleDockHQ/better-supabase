@@ -346,7 +346,7 @@ export interface RpcOptions<R> extends RequestArgs {
   readonly raw?: boolean;
 }
 
-type RpcArgs<F extends AnyFunctions, N extends keyof F> =
+export type RpcArgs<F extends AnyFunctions, N extends keyof F> =
   Record<never, never> extends F[N]["Args"]
     ? [args?: F[N]["Args"]]
     : [args: F[N]["Args"]];
@@ -358,18 +358,18 @@ type IsUnion<T, U = T> = T extends unknown
   : never;
 
 /** Names generated as a union of `{ Args; Returns }`, one per overload. */
-type OverloadedName<F extends AnyFunctions> = {
+export type OverloadedName<F extends AnyFunctions> = {
   [K in keyof F]: true extends IsUnion<F[K]> ? K : never;
 }[keyof F] &
   string;
 
-type PlainName<F extends AnyFunctions> = Exclude<
+export type PlainName<F extends AnyFunctions> = Exclude<
   Extract<keyof F, string>,
   OverloadedName<F>
 >;
 
 /** Overloaded names with an overload that a call without arguments matches. */
-type NoArgName<F extends AnyFunctions> = {
+export type NoArgName<F extends AnyFunctions> = {
   [K in OverloadedName<F>]: Record<never, never> extends F[K]["Args"]
     ? K
     : never;
@@ -407,7 +407,7 @@ type MatchingOverload<O, A> = A extends unknown
     : never
   : never;
 
-type OverloadReturns<O, A> = [MatchingOverload<O, A>] extends [never]
+export type OverloadReturns<O, A> = [MatchingOverload<O, A>] extends [never]
   ? O extends { readonly Returns: infer R }
     ? R
     : never
@@ -419,7 +419,7 @@ type OverloadReturns<O, A> = [MatchingOverload<O, A>] extends [never]
  * `A` when its names pick an overload, with a name that no overload takes
  * typed `never`, and `never` when the names mix overloads.
  */
-type OverloadArgs<O extends { readonly Args: unknown }, A> = A &
+export type OverloadArgs<O extends { readonly Args: unknown }, A> = A &
   NoInfer<
     [MatchingOverload<O, A>] extends [never]
       ? never
@@ -433,7 +433,7 @@ type OverloadArgs<O extends { readonly Args: unknown }, A> = A &
         }
   >;
 
-type RawRpcOptions = Omit<RpcOptions<unknown>, "returns" | "raw"> & {
+export type RawRpcOptions = Omit<RpcOptions<unknown>, "returns" | "raw"> & {
   readonly raw: true;
 };
 

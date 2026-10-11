@@ -18,7 +18,7 @@ import type { TenantGuard } from "./tenant-scope.ts";
 import { DbException, dbError } from "../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../core/result.ts";
 import { temporalMissing } from "../core/temporal-required.ts";
-import { optionalTemporal } from "../core/temporal.ts";
+import { isInstant, optionalTemporal } from "../core/temporal.ts";
 import { fromStorageError } from "./errors.ts";
 import { inScope } from "./layouts.ts";
 import { sendable, xhrConstructor, xhrUpload } from "./progress.ts";
@@ -578,10 +578,9 @@ export function connectBucket<P extends string, Id extends string>(
         const namespace = optionalTemporal();
         if (namespace === undefined) return err(temporalMissing());
         const now = options.now?.() ?? namespace.Now.instant();
-        const cutoff =
-          options.olderThan instanceof namespace.Instant
-            ? options.olderThan.epochMilliseconds
-            : now.epochMilliseconds - options.olderThan.total("milliseconds");
+        const cutoff = isInstant(options.olderThan)
+          ? options.olderThan.epochMilliseconds
+          : now.epochMilliseconds - options.olderThan.total("milliseconds");
         const scope = scopedWithin(options.within);
         const size = options.batchSize ?? 100;
         const orphans: string[] = [];

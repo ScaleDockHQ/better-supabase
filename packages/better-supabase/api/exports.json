@@ -682,6 +682,7 @@
     ],
     "types": [
       "AuthSourceLike",
+      "CheckSqliteOptions",
       "CrudEntryLike",
       "CrudQueueLike",
       "PowerSyncDatabaseLike",
@@ -1344,6 +1345,7 @@
       "JobContext",
       "JobHandler",
       "Jobs",
+      "JobsOptions",
       "Lease",
       "LeaseOptions",
       "LeaseOutcome",
@@ -2490,6 +2492,22 @@
       "VercelConnectCredentialsOptions",
       "VercelConnectModule",
       "VercelConnectRef"
+    ]
+  },
+  "./better-result": {
+    "values": [
+      "withBetterResult"
+    ],
+    "types": [
+      "BetterResultConverter",
+      "BetterResultDb",
+      "BetterResultErrorsLike",
+      "BetterResultHelpers",
+      "BetterResultMapping",
+      "BetterResultMethods",
+      "BetterResultRepository",
+      "BetterResultRepositoryOf",
+      "ConvertedError"
     ]
   },
   "./blocks/inbox": {

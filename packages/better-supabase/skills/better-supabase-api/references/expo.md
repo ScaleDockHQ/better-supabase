@@ -2,9 +2,11 @@
 
 ## Server (web): `better-supabase/expo`
 
-Needs `expo-server` 55 or later and, in `app.json`, `web.output: "server"`
-plus the `expo-router` plugin options `unstable_useServerDataLoaders` and
-`unstable_useServerMiddleware`.
+Needs `expo-server` 55 or later and, in `app.json`, `web.output: "server"`.
+On Expo SDK 57 and earlier, also set the `expo-router` plugin options
+`unstable_useServerDataLoaders`, `unstable_useServerMiddleware` and
+`unstable_useServerRendering`. SDK 58 needs no opt-in; the three options are
+deprecated there and have no effect.
 
 ```ts title="src/lib/supabase/server.ts"
 import { createExpo } from "better-supabase/expo";
@@ -27,6 +29,7 @@ export default bs.middleware();
 - Loaders run as the caller (bearer token first, then the cookie), so RLS applies.
 - A refused caller and a `DbException` from `.orThrow()` become a `StatusError` with the right status.
 - Only `+middleware.ts` refreshes the session; loaders never do.
+- `bs.loader` returns an `expo-server` `LoaderFunction`. Inside an existing `createServerLoader(async (request, params) => ...)`, call `const { db } = await bs.request(request, { allow })`. Static rendering has no request: use `createStaticLoader` from `expo-server` for public data there.
 - Loader data is JSON: select the columns the screen needs and turn Temporal values into strings.
 - API routes: `export const GET = bs.handler((request, { db }) => db.customers.findMany())` in `+api.ts`.
 

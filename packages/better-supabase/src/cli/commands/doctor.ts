@@ -42,6 +42,7 @@ import { CliError } from "../errors.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { display, writeIfChanged } from "../io.ts";
+import { peerVersions } from "../peers.ts";
 import { withSpinner } from "../prompts.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { type Paint, painter } from "../style.ts";
@@ -102,7 +103,7 @@ const ARGS = {
   "db-url-stdin": {
     type: "boolean",
     description:
-      "Read the connection string from stdin instead of $DATABASE_URL or the config",
+      "Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL",
   },
   "project-ref": {
     type: "string",
@@ -274,6 +275,8 @@ export interface DoctorOptions {
   readonly advisors?: DoctorContext["advisors"];
   /** The live database (tests); otherwise the database being checked. */
   readonly database?: DoctorContext["database"];
+  /** Peers and installed versions (tests); otherwise read from `node_modules`. */
+  readonly peers?: DoctorContext["peers"];
   /** Opens `pg` connections (tests); defaults to `connect`. */
   readonly connect?: typeof connect;
   /** Colors the text report. */
@@ -311,7 +314,7 @@ function openLive(
   const none = { close: () => Promise.resolve() };
   const file = snapshotFile(config, source);
   if (file) {
-    const skipped = `reading the saved snapshot ${file}; set $DATABASE_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
+    const skipped = `reading the saved snapshot ${file}; set $DATABASE_URL or $SUPABASE_DB_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
     return { ...none, advisors: { skipped }, database: { skipped } };
   }
   let opened: Promise<IntrospectionSource> | undefined;
@@ -452,24 +455,32 @@ export async function runDoctor(
             ? {}
             : { database: options.database }),
         };
-  const [snapshot, envFiles, [configToml, sql], gitignore, sources, readSets] =
-    await Promise.all([
-      options.snapshot ?? loadSnapshot(config, env, source, pg, opened.open),
-      Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
-        (files) => files.filter((file): file is TextFile => file !== undefined),
-      ),
-      readSupabaseToml(config.root).then(
-        async (toml) => [toml, await sqlFiles(config.root, toml)] as const,
-      ),
-      readText(config.root, ".gitignore"),
-      sourceFiles(config),
-      compiledReadSets(config).catch((cause: unknown) => ({
-        skipped: cause instanceof Error ? cause.message : String(cause),
-      })),
-    ]).catch(async (cause: unknown) => {
-      await opened.close();
-      throw cause;
-    });
+  const [
+    snapshot,
+    envFiles,
+    [configToml, sql],
+    gitignore,
+    sources,
+    readSets,
+    peers,
+  ] = await Promise.all([
+    options.snapshot ?? loadSnapshot(config, env, source, pg, opened.open),
+    Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
+      (files) => files.filter((file): file is TextFile => file !== undefined),
+    ),
+    readSupabaseToml(config.root).then(
+      async (toml) => [toml, await sqlFiles(config.root, toml)] as const,
+    ),
+    readText(config.root, ".gitignore"),
+    sourceFiles(config),
+    compiledReadSets(config).catch((cause: unknown) => ({
+      skipped: cause instanceof Error ? cause.message : String(cause),
+    })),
+    options.peers ?? peerVersions(config.root).catch(() => []),
+  ]).catch(async (cause: unknown) => {
+    await opened.close();
+    throw cause;
+  });
   const context: DoctorContext = {
     config,
     snapshot,
@@ -479,6 +490,7 @@ export async function runDoctor(
     gitignore: gitignore?.text ?? "",
     sources,
     readSets,
+    peers,
     ...(opened.advisors ? { advisors: opened.advisors } : {}),
     ...(opened.database ? { database: opened.database } : {}),
     ...(stats ? { stats } : {}),
@@ -590,7 +602,7 @@ export const doctorCommand: AnyCommand = defineCliCommand({
           return { code: METADATA_REJECTED, error: cause.message };
         throw cause;
       }
-      const skipped = `reading a GeneratorMetadata document; set $DATABASE_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
+      const skipped = `reading a GeneratorMetadata document; set $DATABASE_URL or $SUPABASE_DB_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
       return runDoctor(config, args, env, {
         snapshot,
         advisors: { skipped },

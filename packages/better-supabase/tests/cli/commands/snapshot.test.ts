@@ -97,6 +97,29 @@ describe("openSource", () => {
       "postgresql://env/db",
     ]);
   });
+
+  it("prefers DATABASE_URL to SUPABASE_DB_URL and reads either alone", async () => {
+    const open = fakeConnect(fakeSql().pg);
+    await openSource(
+      config(),
+      {
+        DATABASE_URL: "postgresql://database-url/db",
+        SUPABASE_DB_URL: "postgresql://supabase-db-url/db",
+      },
+      {},
+      open.connect,
+    );
+    await openSource(
+      config(),
+      { SUPABASE_DB_URL: "postgresql://supabase-db-url/db" },
+      {},
+      open.connect,
+    );
+    expect(open.urls).toEqual([
+      "postgresql://database-url/db",
+      "postgresql://supabase-db-url/db",
+    ]);
+  });
 });
 
 describe("snapshotFile", () => {

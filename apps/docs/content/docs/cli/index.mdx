@@ -61,6 +61,7 @@ fails. Progress and diagnostics go to stderr, so
 | Variable                | Used by                                                                    |
 | ----------------------- | -------------------------------------------------------------------------- |
 | `DATABASE_URL`          | `gen`, `introspect`, `doctor` and `seed --apply`, when nothing else is set |
+| `SUPABASE_DB_URL`       | The same commands, when `DATABASE_URL` is unset too                        |
 | `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `source.projectRef`                                    |
 | `SUPABASE_API_URL`      | Another Management API host                                                |
 | `SUPABASE_BIN`          | The Supabase CLI `env` runs, instead of `supabase` on the `PATH`           |
@@ -69,7 +70,9 @@ fails. Progress and diagnostics go to stderr, so
 The CLI checks these once per run; a malformed URL stops it with
 [`env_invalid`](/docs/cli/errors#env_invalid). Connection strings hold the
 database password, so no command takes one as an argument. Set
-`$DATABASE_URL`, or pipe one in with `--db-url-stdin`.
+`$DATABASE_URL`, or `$SUPABASE_DB_URL` (the name the Supabase CLI and
+`better-supabase env` use), or pipe one in with `--db-url-stdin`. When both
+are set, `$DATABASE_URL` wins.
 
 ## Programmatic use
 

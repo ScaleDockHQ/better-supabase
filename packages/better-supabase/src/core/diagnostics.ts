@@ -61,8 +61,9 @@ function logDiagnostics(events: EventHub): void {
 export function definitionEvents(options: {
   readonly logger?: Logger;
   readonly diagnostics?: boolean;
+  readonly now?: () => Temporal.Instant;
 }): EventHub {
-  const events = new EventHub(options.logger ?? consoleLogger);
+  const events = new EventHub(options.logger ?? consoleLogger, options.now);
   if (options.diagnostics === true) logDiagnostics(events);
   return events;
 }
