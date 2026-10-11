@@ -3,7 +3,7 @@ import type { BlockEvent } from "./block-events.ts";
 import type { DbError } from "./errors.ts";
 import type { MutationIntent, MutationKind, RequestContext } from "./plugin.ts";
 
-import { cloneValue, isPlainObject } from "./clone.ts";
+import { cloneValue, deepFreeze } from "./clone.ts";
 import { consoleLogger, type Logger } from "./logger.ts";
 
 export interface QueryEvent {
@@ -44,14 +44,6 @@ export interface RpcNotice {
 export interface ErrorEvent {
   readonly table?: string;
   readonly error: DbError;
-}
-
-function deepFreeze<T>(value: T): T {
-  if (Array.isArray(value) || isPlainObject(value)) {
-    for (const item of Object.values(value)) deepFreeze(item);
-    Object.freeze(value);
-  }
-  return value;
 }
 
 /**

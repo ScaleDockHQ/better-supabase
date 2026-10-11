@@ -20,3 +20,12 @@ export function cloneValue(value: unknown): unknown {
   }
   return value;
 }
+
+/** Freezes plain objects and arrays in place, recursively, and returns the value. */
+export function deepFreeze<T>(value: T): T {
+  if (Array.isArray(value) || isPlainObject(value)) {
+    for (const item of Object.values(value)) deepFreeze(item);
+    Object.freeze(value);
+  }
+  return value;
+}

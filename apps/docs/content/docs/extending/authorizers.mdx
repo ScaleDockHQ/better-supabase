@@ -79,7 +79,7 @@ a subject, an action, a resource and a context.
 
 | Field      | What it holds                                                                                                          |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `subject`  | The caller, from the verified context only (see below)                                                                 |
+| `subject`  | The caller and its verified token `claims`, from the verified context only (see below)                                 |
 | `action`   | The permission reference                                                                                               |
 | `resource` | What is acted on: `type`, an optional `id`, and `properties`                                                           |
 | `context`  | `tenant` (when the request has one), `aal` (from the token), and `scopes` (the token's `scope` claim, split on spaces) |
@@ -87,7 +87,12 @@ a subject, an action, a resource and a context.
 The subject's `type` is the actor kind (`user` or `service`), or `agent` for
 a user token that carries an `act` claim (a delegated token). Its `id` is the
 actor id, and its `properties` hold `role`, `email` and `impersonator` when
-they are set. A caller without a session is `{ type: "anon", id: "anonymous" }`.
+they are set, plus `claims`: a read-only copy of the verified access-token
+claims, including what your token hook wrote (memberships, roles, the tenant
+claim, `attrs` and `act`). A caller without a session is
+`{ type: "anon", id: "anonymous" }`, with no properties and no claims.
+Adapters read memberships and roles from `subject.properties.claims`, never
+from `resource.properties` or `context`, which can carry caller input.
 Nothing the client sends ends up in the subject.
 
 | Where the permission is declared | `resource`                                                                    |
@@ -157,7 +162,8 @@ against your adapter. It checks that the authorizer targets API v1 and has a
 name, that `key()` returns a stable, non-empty string, that every answer is
 one of the three outcomes and leaves the request unchanged, that
 `evaluations` agrees with `evaluate` and keeps the order, that the decision
-comes from the subject and never from a forged input, and that an unknown
+comes from the subject and never from a forged input (a role, `claims` or
+`memberships` placed in the resource properties or the context), and that an unknown
 permission is never granted:
 
 ```ts title="tests/authorizer.test.ts"

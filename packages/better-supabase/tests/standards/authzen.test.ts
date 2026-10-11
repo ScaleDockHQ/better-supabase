@@ -37,7 +37,10 @@ describe("AuthZEN Authorization API", () => {
       subject: {
         type: "user",
         id: USER,
-        properties: { role: "authenticated" },
+        properties: {
+          role: "authenticated",
+          claims: { aal: "aal2", scope: "read write" },
+        },
       },
       action: "export",
       resource: { type: "customers", id: "c1" },

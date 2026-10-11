@@ -44,6 +44,13 @@ const FORGED = {
   actor: { id: "service", kind: "service", role: "service_role" },
   role: "service_role",
   user_id: "00000000-0000-4000-8000-000000000000",
+  memberships: [{ tenant: "conformance", role: "owner" }],
+  claims: {
+    role: "service_role",
+    user_role: "admin",
+    roles: ["admin"],
+    memberships: [{ tenant: "conformance", role: "owner" }],
+  },
 };
 
 /**
@@ -51,7 +58,8 @@ const FORGED = {
  * string each time (and after a JSON round trip, so references are plain
  * JSON), answers every request with a known outcome without mutating it,
  * keeps the request order in `evaluations`, decides from the subject rather
- * than the input, never grants an unknown permission, and grants
+ * than the input (forged roles, claims and memberships in the resource
+ * properties or the context never turn a denial into a grant), never grants an unknown permission, and grants
  * `options.granted` through `checkPermission`.
  */
 export function testAuthorizer<Ref>(
@@ -159,13 +167,19 @@ export function testAuthorizer<Ref>(
       async () => {
         for (const permission of options.permissions) {
           const plain = await authorizer.evaluate(requestFor(permission, "a"));
-          const forged = await authorizer.evaluate(
+          const forgedResource = await authorizer.evaluate(
             requestFor(permission, "a", FORGED),
           );
-          expect(
-            forged.outcome !== "granted" || plain.outcome === "granted",
-            `input claiming a service caller was granted ${authorizer.key(permission)}`,
-          );
+          const forgedContext = await authorizer.evaluate({
+            ...requestFor(permission, "a"),
+            context: { ...context, ...FORGED },
+          });
+          for (const forged of [forgedResource, forgedContext]) {
+            expect(
+              forged.outcome !== "granted" || plain.outcome === "granted",
+              `input claiming a service caller was granted ${authorizer.key(permission)}`,
+            );
+          }
         }
       },
     ],
@@ -215,7 +229,8 @@ export interface StaticAuthorizerOptions<Ref extends string> {
 
 /**
  * An in-memory `Authorizer` for tests and examples: permissions come from
- * the subject's role and id, never from the request's resource or context.
+ * the subject's `role` and id only, never from the request's resource or
+ * context, and it ignores `subject.properties.claims`.
  */
 export function staticAuthorizer<Ref extends string>(
   options: StaticAuthorizerOptions<Ref>,
