@@ -1080,3 +1080,16 @@ rotate the key.
 **Warning: env file with secrets isn't ignored by git.** An env file holds a
 secret key or database URL but no `.gitignore` pattern matches it. Add the
 file, for example `.env*.local`, to `.gitignore`. `.example` files are skipped.
+
+## Dependencies
+
+### BS601
+
+**Warning: peer outside its range.** An optional peer of better-supabase is
+installed at a version outside the range better-supabase declares, for
+example `@supabase/postgrest-typegen@0.5.0` against `>=0.4.0 <0.5`. With
+`strictPeerDependencies` the install fails, and the subpath that needs the
+peer can break at runtime. Doctor reads the version from the nearest
+`node_modules` above the project root and skips peers that aren't installed.
+Install a version in the range, or remove the package if nothing imports it.
+[Peers](/docs/getting-started/peers) lists which subpath needs which peer.

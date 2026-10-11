@@ -1,0 +1,61 @@
+---
+title: Peers
+description: The optional peer dependencies of better-supabase, the version ranges they accept and the subpaths that need each one.
+---
+
+better-supabase has one required peer, `@supabase/supabase-js`. Every other
+peer is optional: install it only when you import a subpath that needs it.
+Package managers still check an optional peer you have installed for another
+reason, so with `strictPeerDependencies` an install fails when the version is
+outside the range below. [`doctor`](/docs/cli/doctor#bs601) reports such a
+peer as BS601.
+
+| Peer                           | Range                | Needed by                                                                                                                             |
+| ------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `@supabase/supabase-js`        | `^2.116.0`           | Everything (required)                                                                                                                 |
+| `@supabase/postgrest-typegen`  | `>=0.4.0 <0.5`       | The CLI: `gen`, `introspect` and `doctor`                                                                                             |
+| `pg`                           | `>=8.15 <9`          | The CLI's database commands, `better-supabase/postgres`, `better-supabase/workflow-sdk/world`                                         |
+| `oxfmt`                        | `>=0.66.0 <1`        | The CLI, to format `database.types.ts`                                                                                                |
+| `@supabase/config`             | `>=0.9.0 <0.12`      | The CLI, to read `supabase/config.toml` (it falls back to its own parser)                                                             |
+| `temporal-polyfill`            | `>=1`                | Runtimes without a native `Temporal` ([Temporal](/docs/concepts/temporal))                                                            |
+| `react`                        | `^19`                | `better-supabase/react`, `react/native`, `next/client`, `powersync/react` and the `/react` entries of blocks, `ai-sdk` and `chat-sdk` |
+| `@tanstack/query-core`         | `^5.62.0`            | `better-supabase/query`, `react`, `vue`, `solid`, `svelte`, `tanstack-db`                                                             |
+| `vue`                          | `^3.3`               | `better-supabase/vue`                                                                                                                 |
+| `solid-js`                     | `^1.8`               | `better-supabase/solid`                                                                                                               |
+| `svelte`                       | `^5.7`               | `better-supabase/svelte`                                                                                                              |
+| `next`                         | `>=16.3 <17`         | `better-supabase/next`, `next/client`, `next/image`                                                                                   |
+| `@next/playwright`             | `>=16.2 <17`         | `expectInstant` in `better-supabase/testing`                                                                                          |
+| `hono`                         | `>=4 <5`             | `better-supabase/hono`                                                                                                                |
+| `@orpc/server`                 | `>=2.0.0-beta.40 <3` | `better-supabase/orpc`                                                                                                                |
+| `@nestjs/common`               | `>=11 <13`           | `better-supabase/nestjs`                                                                                                              |
+| `expo-server`                  | `>=55 <59`           | `better-supabase/expo`                                                                                                                |
+| `@modelcontextprotocol/server` | `>=2.3.0 <3`         | `better-supabase/mcp/sdk`                                                                                                             |
+| `@opentelemetry/api`           | `>=1.9 <2`           | `better-supabase/otel`                                                                                                                |
+| `stripe`                       | `>=17 <24`           | `better-supabase/blocks/billing`, unless you pass a client                                                                            |
+| `redis`                        | `>=5 <7`             | `better-supabase/streams/redis` with the `url` option                                                                                 |
+| `ai`                           | `>=7 <8`             | `better-supabase/ai-sdk` and its subpaths                                                                                             |
+| `@ai-sdk/react`                | `>=4 <5`             | `better-supabase/ai-sdk/react`, `ai-sdk/workflow/react`                                                                               |
+| `@ai-sdk/mcp`                  | `>=2 <3`             | `better-supabase/ai-sdk/mcp`                                                                                                          |
+| `@ai-sdk/workflow`             | `>=2 <3`             | `better-supabase/ai-sdk/workflow`                                                                                                     |
+| `chat`                         | `>=4.41 <5`          | `better-supabase/chat-sdk`, and the `chat` state of `better-supabase/testing`                                                         |
+| `workflow`                     | `>=5.1 <6`           | `better-supabase/workflow-sdk`, `workflow-sdk/builder`, `ai-sdk/workflow`                                                             |
+| `@workflow/world`              | `>=5.0.2 <5.1`       | `better-supabase/workflow-sdk/world`, `workflow-sdk/builder`                                                                          |
+| `@workflow/world-postgres`     | `>=5.0.2 <5.1`       | `better-supabase/workflow-sdk/world`                                                                                                  |
+| `eve`                          | `>=0.71 <1`          | `better-supabase/eve`                                                                                                                 |
+
+Two ranges are narrower than the rest. `@modelcontextprotocol/server` starts
+at 2.3.0 because the MCP adapter
+imports `verifyBearerToken` and `bearerAuthChallengeResponse`, which earlier
+releases don't have. `@supabase/postgrest-typegen` accepts any 0.4 release,
+but the CLI is tested against 0.4.0: `gen` prints a notice for any other
+release, because `database.types.ts` can then differ from `supabase gen types`
+output. Pin it with `pnpm add -D @supabase/postgrest-typegen@0.4.0`.
+
+When another package in your app needs a version outside a range, and you
+don't import the subpath that needs it, allow it in `pnpm-workspace.yaml`:
+
+```yaml title="pnpm-workspace.yaml"
+peerDependencyRules:
+  allowedVersions:
+    "better-supabase>@modelcontextprotocol/server": "2"
+```

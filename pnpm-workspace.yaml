@@ -194,9 +194,10 @@ catalogs:
     "@opentelemetry/api": ">=1.9 <2"
     "@orpc/server": ">=2.0.0-beta.40 <3"
     "@supabase/config": ">=0.9.0 <0.12"
-    # Exact, like the default catalog (AGENTS.md invariant 11), so
-    # database.types.ts matches `supabase gen types`. Only the CLI loads it.
-    "@supabase/postgrest-typegen": 0.4.0
+    # A range, so a newer patch an app installs doesn't fail strict peer
+    # checks. The default catalog stays exact (AGENTS.md invariant 11), and
+    # `gen` prints a notice for any release but TYPEGEN_VERSION (ADR 0016).
+    "@supabase/postgrest-typegen": ">=0.4.0 <0.5"
     "@supabase/supabase-js": "^2.116.0"
     # 5.62.0 added the error parameter of DataTag (dataTagErrorSymbol) the query keys use.
     "@tanstack/query-core": "^5.62.0"
