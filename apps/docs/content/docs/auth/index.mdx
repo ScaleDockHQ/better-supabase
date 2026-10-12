@@ -25,6 +25,11 @@ switch (auth.kind) {
 }
 ```
 
+Route guards answer 401 for `invalid` before your handler runs. A handler
+that skips the guard and queries through `ctx.db` gets the unauthorized
+`DbError` as a failed `Result`, so a bad token never reads as anon. `ctx.supabase`
+stays a raw client and is not covered by this.
+
 ## No needless work
 
 - A valid token costs **no network call**. It is verified locally against

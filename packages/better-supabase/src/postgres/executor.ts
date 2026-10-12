@@ -210,17 +210,35 @@ async function signatureOf(
   const [found] = await client.queryRaw<{
     returns_set: boolean;
     returns_void: boolean;
+    arg_names: (string | null)[] | null;
+    arg_modes: string[] | null;
+    arg_types: string[] | null;
   }>(
-    "select p.proretset as returns_set, p.prorettype = 'pg_catalog.void'::pg_catalog.regtype as returns_void from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = $1 and p.proname = $2 limit 1",
+    "select p.proretset as returns_set, p.prorettype = 'pg_catalog.void'::pg_catalog.regtype as returns_void, p.proargnames as arg_names, p.proargmodes::text[] as arg_modes, (select array_agg(t.typname::text order by a.ordinality) from unnest(p.proargtypes::oid[]) with ordinality as a(oid, ordinality) join pg_catalog.pg_type t on t.oid = a.oid) as arg_types from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = $1 and p.proname = $2 limit 1",
     [context.schema, name],
   );
-  return found
-    ? {
-        returnsSet: found.returns_set,
-        returnsVoid: found.returns_void,
-        json: new Set(),
-      }
-    : undefined;
+  if (!found) return undefined;
+  const json = new Set<string>();
+  if (found.arg_names && found.arg_types) {
+    const modes = found.arg_modes;
+    // Input parameters are modes i, v and b; no modes means all are inputs.
+    const inputIndexes = modes
+      ? modes.flatMap((mode, index) =>
+          mode === "i" || mode === "v" || mode === "b" ? [index] : [],
+        )
+      : found.arg_names.map((_, index) => index);
+    for (const [position, index] of inputIndexes.entries()) {
+      const argName = found.arg_names[index];
+      const type = found.arg_types[position];
+      if (argName != null && type !== undefined && JSON_TYPES.has(type))
+        json.add(argName);
+    }
+  }
+  return {
+    returnsSet: found.returns_set,
+    returnsVoid: found.returns_void,
+    json,
+  };
 }
 
 function argValue(value: unknown, json: boolean): unknown {

@@ -55,6 +55,7 @@ import { withSession } from "./entries/session.ts";
 import { withSupport } from "./entries/support.ts";
 import { withTenant } from "./entries/tenant.ts";
 import { liteBackend } from "./lite.ts";
+import { refusingExecutor } from "./refusing-executor.ts";
 import {
   DEFAULT_PIN_MS,
   pinnedUntil,
@@ -190,9 +191,11 @@ export function createServer<
     const db = betterSupabase.connect(
       rest,
       { ...authContext(auth), ...context },
-      tunedExecutor
-        ? { executor: postgrestExecutor(rest, executorOptions) }
-        : {},
+      auth.kind === "invalid"
+        ? { executor: refusingExecutor(auth.error) }
+        : tunedExecutor
+          ? { executor: postgrestExecutor(rest, executorOptions) }
+          : {},
     ) as Db<M, F, E, SupabaseClient>;
     return withLazyClient(db, () => (supabase ??= supabaseFor(auth)));
   };
@@ -476,20 +479,22 @@ export function createServer<
           restAt(env().url, auth, headers);
         const connected = betterSupabase.connect(rest, context, {
           stats: recorder,
-          ...(url && replica
-            ? {
-                executor: routedExecutor(
-                  postgrestExecutor(rest, executorOptions),
-                  postgrestExecutor(
-                    restAt(url, auth, headers),
-                    executorOptions,
+          ...(auth.kind === "invalid"
+            ? { executor: refusingExecutor(auth.error) }
+            : url && replica
+              ? {
+                  executor: routedExecutor(
+                    postgrestExecutor(rest, executorOptions),
+                    postgrestExecutor(
+                      restAt(url, auth, headers),
+                      executorOptions,
+                    ),
+                    replica,
                   ),
-                  replica,
-                ),
-              }
-            : tunedExecutor
-              ? { executor: postgrestExecutor(rest, executorOptions) }
-              : {}),
+                }
+              : tunedExecutor
+                ? { executor: postgrestExecutor(rest, executorOptions) }
+                : {}),
         });
         // SAFETY: `$client` is redefined to return the SupabaseClient.
         db = withLazyClient(connected as Db<M, F, E, SupabaseClient>, client);
