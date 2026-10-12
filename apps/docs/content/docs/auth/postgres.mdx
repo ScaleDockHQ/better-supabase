@@ -147,9 +147,12 @@ arguments and returns what PostgREST returns: an array for a set-returning
 or `returns table` function, one value or row otherwise, and `null` for
 `void`. It reads whether the function returns a set from the generated
 metadata, and sends `json` and `jsonb` arguments as JSON; a function the
-metadata doesn't list is looked up in `pg_proc` first. Errors map like any
-other statement, and a function that doesn't exist fails with
-`invalid_request`, as PostgREST's `PGRST202` does.
+metadata doesn't list is looked up in `pg_proc` first. The executor keeps
+that lookup until a call fails with an error that says the function changed
+(SQLSTATE 42883, 42P13 or 42804). Arguments for `OUT` and `TABLE` parameters
+are dropped, as PostgREST drops them. Errors map like any other statement,
+and a function that doesn't exist fails with `invalid_request`, as
+PostgREST's `PGRST202` does.
 
 ## An existing pool
 
