@@ -145,9 +145,11 @@ On the server, `supportOf(session)` returns the same value.
 `sb.on` receives `support.started`, `support.ended` (with `endedBy`: `admin`,
 `expired` or `revoked`) and `support.denied` (with the denial code).
 The SQL module writes `support.started` and `support.ended` to the
-[audit log](/docs/blocks/sql#audit-log), and every row the admin changes in a
-writable session records `impersonated_by` and `support_session_id`, so you
-can list everything one session did.
+[audit log](/docs/blocks/sql#audit-log) with `support_session_id`,
+`impersonated_by` and `impersonation_reason` set, and every row the admin
+changes in a writable session records the same columns, so you can list
+everything one session did, from its start to its end. A session that
+another staff member revokes keeps the session id in the entry's metadata.
 
 `bs.support.list(auth, { active: true })` lists running sessions for an
 admin page, and `bs.support.revoke(auth, id)` ends a session. Both run as the

@@ -387,6 +387,23 @@ select better_supabase.audit_event(
 );
 ```
 
+The impersonation columns come from the caller's `act` claim. An event
+about impersonation that the admin's own token records, such as a support
+session starting or ending, passes them as `support_session`,
+`impersonated_by` and `impersonation_reason`. The service role may pass any
+values; another caller only itself as `impersonated_by`, and only from a
+token without an `act` claim, whose values win otherwise:
+
+```sql
+select better_supabase.audit_event(
+  event_type => 'support.started',
+  category => 'security',
+  support_session => session_id,
+  impersonated_by => auth.uid(),
+  impersonation_reason => reason
+);
+```
+
 An app's own `security definer` function that acts for a client, such as a
 role editor saving permissions, runs as its owner but still carries the
 client's JWT, so `audit_event` would replace its actor context with the

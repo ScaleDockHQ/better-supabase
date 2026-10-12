@@ -54,6 +54,9 @@ describe("createAuditLog", () => {
         requestId: "req-1",
         scope: "tenant",
         metadata: { ticketId: "t1" },
+        supportSessionId: "s1",
+        impersonatedBy: "admin-1",
+        impersonationReason: "ticket 9",
       })
       .orThrow();
     expect(id).toBe("42");
@@ -66,6 +69,9 @@ describe("createAuditLog", () => {
           request_id: "req-1",
           scope: "tenant",
           metadata: { ticketId: "t1" },
+          support_session: "s1",
+          impersonated_by: "admin-1",
+          impersonation_reason: "ticket 9",
         }),
       ],
     ]);

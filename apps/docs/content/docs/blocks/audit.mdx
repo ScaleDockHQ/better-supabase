@@ -45,7 +45,11 @@ const id = await audit
 Its fields are the arguments of `audit_event`. `actorId`, `actorKind`,
 `actorLabel`, `ip`, `userAgent`, `sessionId`, `requestId` and `scope` count
 only for the service role and direct admin connections; any other caller
-gets its own user and the request's id. Pass `ctx.requestId` and
+gets its own user and the request's id. `supportSessionId`, `impersonatedBy`
+and `impersonationReason` fill the impersonation columns, such as for an
+entry about a support session that the admin's own token records. Any
+caller but the service role may only name itself as `impersonatedBy`, from
+a token without an `act` claim; otherwise the claim's values are stored. Pass `ctx.requestId` and
 `ctx.correlationId` from the [server context](/docs/auth/server#request-and-correlation-ids)
 so the event and the row changes of the same action share them; without
 them, `audit_event` reads the request's settings and headers (see
@@ -149,15 +153,16 @@ forwardBlockEvents(betterSupabase, audit.sink(), {
 
 `auditEventOf(event)` is the mapping it uses:
 
-| Audit field      | From the CloudEvent                                                    |
-| ---------------- | ---------------------------------------------------------------------- |
-| `eventType`      | `type` without the `dev.better-supabase.` prefix (`typePrefix` option) |
-| `category`       | `security` for `account.*` and `support.*` (`category` option)         |
-| `record`         | `subject`                                                              |
-| `organizationId` | the `tenant` or `partitionkey` extension, then `data.organizationId`   |
-| `actorId`        | `data.actorId`                                                         |
-| `metadata`       | `data`                                                                 |
-| `idempotencyKey` | `source` and `id`, so a redelivered event is recorded once             |
+| Audit field                                                 | From the CloudEvent                                                       |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `eventType`                                                 | `type` without the `dev.better-supabase.` prefix (`typePrefix` option)    |
+| `category`                                                  | `security` for `account.*` and `support.*` (`category` option)            |
+| `record`                                                    | `subject`                                                                 |
+| `organizationId`                                            | the `tenant` or `partitionkey` extension, then `data.organizationId`      |
+| `actorId`                                                   | `data.actorId`                                                            |
+| `metadata`                                                  | `data`                                                                    |
+| `idempotencyKey`                                            | `source` and `id`, so a redelivered event is recorded once                |
+| `supportSessionId`, `impersonatedBy`, `impersonationReason` | `data.sessionId`, `data.adminId` and `data.reason` of a `support.*` event |
 
 `category` takes the event type without its prefix and returns one of the
 module categories above, or `undefined` for none, so app events land next to

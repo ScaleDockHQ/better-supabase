@@ -25,11 +25,32 @@ const defaultCategory = (eventType: string): AuditCategory | undefined =>
     ? "security"
     : undefined;
 
+/** The impersonation fields of a `support.*` event: its session, admin and reason. */
+function supportFields(
+  eventType: string,
+  data: Readonly<Record<string, unknown>> | undefined,
+): Pick<
+  AuditEventInput,
+  "supportSessionId" | "impersonatedBy" | "impersonationReason"
+> {
+  if (!eventType.startsWith("support.") || data === undefined) return {};
+  const sessionId = textIn(data["sessionId"]);
+  const adminId = textIn(data["adminId"]);
+  const reason = textIn(data["reason"]);
+  return {
+    ...(sessionId === undefined ? {} : { supportSessionId: sessionId }),
+    ...(adminId === undefined ? {} : { impersonatedBy: adminId }),
+    ...(reason === undefined ? {} : { impersonationReason: reason }),
+  };
+}
+
 /**
  * The audit entry for one CloudEvent: its type without the prefix, its
  * subject as the record, the tenant from the `tenant` or `partitionkey`
  * extension (or `data.organizationId`), and the data as metadata. The
  * idempotency key is the event's source and id, so a redelivery records once.
+ * A `support.*` event also fills the impersonation columns from its
+ * `sessionId`, `adminId` and `reason`.
  */
 export function auditEventOf(
   event: CloudEvent,
@@ -56,6 +77,7 @@ export function auditEventOf(
     ...(organizationId === undefined ? {} : { organizationId }),
     ...(actorId === undefined ? {} : { actorId }),
     ...(metadata === undefined ? {} : { metadata }),
+    ...supportFields(eventType, data),
   };
 }
 

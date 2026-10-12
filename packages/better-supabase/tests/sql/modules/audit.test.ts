@@ -384,11 +384,51 @@ describe("audit value mapping", () => {
     expect(body).not.toContain("audit_event.");
     expect(body).toContain("audit_event_trusted.idempotency_key");
     expect(sql).toContain(
-      "revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text) from public, anon, authenticated;",
+      "revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;",
     );
     expect(sql).toContain('to "service_role", "app_owner";');
     const plain = audit();
     expect(plain).toContain("actor_kind := null;");
     expect(plain).toMatch(/audit_event_trusted\([^)]*\) to "service_role";/);
+  });
+
+  it("takes the impersonation columns as arguments, with the act claim first for users", () => {
+    const sql = audit();
+    expect(sql).toContain(
+      "  support_session uuid default null,\n  impersonated_by uuid default null,\n  impersonation_reason text default null\n)",
+    );
+    expect(sql).toContain(
+      "coalesce(audit_event.impersonated_by, case when auth.jwt() -> 'act' ->> 'sub'",
+    );
+    expect(sql).toContain(
+      "coalesce(audit_event.impersonation_reason, auth.jwt() -> 'act' ->> 'reason')",
+    );
+    expect(sql).toContain(
+      "coalesce(audit_event.support_session, case when auth.jwt() -> 'act' ->> 'session_id'",
+    );
+    expect(sql).toContain(
+      "coalesce(audit_event_trusted.support_session, case when",
+    );
+    const plain = sql.slice(
+      sql.indexOf("create or replace function better_supabase.audit_event("),
+    );
+    expect(plain.slice(0, plain.indexOf("$$;"))).toContain(
+      "    if (select auth.jwt()) -> 'act' is not null or impersonated_by is distinct from auth.uid() then\n      support_session := null;",
+    );
+  });
+
+  it("drops the previous signatures of audit_event and audit_event_trusted", () => {
+    const sql = audit();
+    const previous =
+      "text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text)";
+    expect(sql).toContain(
+      `drop function if exists better_supabase.audit_event(${previous};`,
+    );
+    expect(sql).toContain(
+      `drop function if exists better_supabase.audit_event_trusted(${previous};`,
+    );
+    expect(sql).toContain(
+      "grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to",
+    );
   });
 });

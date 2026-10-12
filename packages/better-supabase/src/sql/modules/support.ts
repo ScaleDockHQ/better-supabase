@@ -273,6 +273,9 @@ begin
       metadata:
         "jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only)",
       actor: "admin",
+      supportSession: "session_id",
+      impersonatedBy: "admin",
+      impersonationReason: "reason",
     },
   })}
   return started;
@@ -341,6 +344,9 @@ begin
         "jsonb_build_object('session_id', session_id, 'ended_by', ended_by)",
       actor:
         "case when service then (ended ->> 'admin_id')::uuid else auth.uid() end",
+      supportSession: "session_id",
+      impersonatedBy: "(ended ->> 'admin_id')::uuid",
+      impersonationReason: "ended ->> 'reason'",
     },
   })}
   return true;

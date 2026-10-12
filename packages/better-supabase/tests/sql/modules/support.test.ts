@@ -30,6 +30,16 @@ describe("support-sessions module", () => {
     );
   });
 
+  it("records the session, admin and reason in the impersonation columns", () => {
+    const sql = support();
+    expect(sql).toContain(
+      "    actor_id => admin,\n    support_session => session_id,\n    impersonated_by => admin,\n    impersonation_reason => reason\n  );",
+    );
+    expect(sql).toContain(
+      "    support_session => session_id,\n    impersonated_by => (ended ->> 'admin_id')::uuid,\n    impersonation_reason => ended ->> 'reason'\n  );",
+    );
+  });
+
   it("calls the app's hooks and its access token hook", () => {
     const sql = support({
       hooks: {
