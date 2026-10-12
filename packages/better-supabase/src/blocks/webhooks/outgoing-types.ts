@@ -31,7 +31,8 @@ export interface RetryPolicy {
   readonly maxAttempts?: number;
   /**
    * Seconds before the next attempt. Defaults to 5 seconds, 5 minutes, 30
-   * minutes, 2 hours, 5 hours, then 10 hours, each with full jitter. A
+   * minutes, 2 hours, 5 hours, then 10 hours. Each wait is at least half
+   * its step and at least a second, plus a random share of the rest. A
    * receiver's `Retry-After` wins when it asks for longer, up to a day.
    */
   readonly backoff?: (attempt: number) => number;
