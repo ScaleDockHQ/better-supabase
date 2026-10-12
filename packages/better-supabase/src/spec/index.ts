@@ -32,6 +32,8 @@ export type {
   VersionStatus,
 } from "./format.ts";
 export { defineDocumentFormat } from "./format.ts";
+export type { FunctionRouteOptions } from "./function-route.ts";
+export { functionRoute } from "./function-route.ts";
 export { mergeJson, pointerToken } from "./merge.ts";
 export type * from "./model.ts";
 export type { CustomSecurity, SecurityPreset } from "./presets.ts";

@@ -193,6 +193,24 @@ rendered with `itemSchema` in 3.2 and later. `status` defaults to 200 with
 an output or a stream, and 204 without. The method can also be `query`,
 which only 3.2 and later render. A method outside the HTTP methods throws.
 
+`functionRoute(name, fn, options?)` builds the route of a `defineFunction`
+Edge Function, at `/functions/v1/<name>` with its input as the body and its
+output as the 200 response:
+
+```ts
+import { functionRoute } from "better-supabase/spec";
+
+defineApi(betterSupabase, {
+  info,
+  routes: [
+    functionRoute("create-customer", createCustomer, { tags: ["customers"] }),
+  ],
+});
+```
+
+See [Edge Functions](/docs/platform/edge-functions#document-it-in-the-spec)
+for the options and how `basePath` applies.
+
 ## Fragments
 
 `fragments` are parsed OpenAPI objects (from YAML or JSON) deep-merged over

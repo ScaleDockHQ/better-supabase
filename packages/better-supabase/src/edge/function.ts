@@ -1,5 +1,9 @@
 import type { EdgeHandler } from "../bridges/edge.ts";
-import type { FunctionContract } from "../core/function-contract.ts";
+import type {
+  DescribedFunction,
+  FunctionContract,
+  FunctionDescriptor,
+} from "../core/function-contract.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { MiddlewareOptions } from "../server/respond.ts";
@@ -7,6 +11,7 @@ import type { ServerContext } from "../server/server-types.ts";
 import type { BetterEdge } from "./index.ts";
 
 import { dbError } from "../core/errors.ts";
+import { FUNCTION_DESCRIPTOR } from "../core/function-contract.ts";
 import { err, ok, type Result } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
 import { withExtra } from "../server/extra.ts";
@@ -14,11 +19,12 @@ import { settle } from "../server/respond.ts";
 
 export type { FunctionContract };
 
-/** A fetch handler that carries its contract in its type. */
-export type TypedFunction<In, Out> = EdgeHandler & {
-  /** Type-only: never set at runtime. */
-  readonly "~contract"?: FunctionContract<In, Out>;
-};
+/** A fetch handler that carries its contract in its type and its schemas at runtime. */
+export type TypedFunction<In, Out> = EdgeHandler &
+  DescribedFunction & {
+    /** Type-only: never set at runtime. */
+    readonly "~contract"?: FunctionContract<In, Out>;
+  };
 
 /**
  * The contract of a `defineFunction` handler, for `functions<Contracts>()` in
@@ -52,6 +58,8 @@ export interface FunctionDefinition<
    * answers 500, so a function never sends data its contract doesn't promise.
    */
   readonly output?: StandardSchemaV1<unknown, Out>;
+  /** A one-line summary for the operation `functionRoute` describes in `better-supabase/spec`. */
+  readonly summary?: string;
   /** Runs as the caller with the parsed input. Returns data or a `Result`. */
   readonly handler: (
     input: StandardSchemaV1.InferOutput<I>,
@@ -98,8 +106,8 @@ export function defineFunction<
   edge: Pick<BetterEdge<M, F, E, C, P>, "handler">,
   definition: FunctionDefinition<I, Out, M, F, E, C, P>,
 ): TypedFunction<StandardSchemaV1.InferInput<I>, Out> {
-  const { input, output, handler, ...options } = definition;
-  return edge.handler(async (request, ctx) => {
+  const { input, output, summary, handler, ...options } = definition;
+  const fn = edge.handler(async (request, ctx) => {
     const body = await readInput(request);
     if (!body.ok) return body;
     const parsed = await validate(input, body.data, "input");
@@ -120,4 +128,12 @@ export function defineFunction<
           ),
         );
   }, options);
+  const descriptor: FunctionDescriptor = {
+    input,
+    ...(output ? { output } : {}),
+    ...(summary === undefined ? {} : { summary }),
+  };
+  Object.defineProperty(fn, FUNCTION_DESCRIPTOR, { value: descriptor });
+  // SAFETY: the line above defined the descriptor on fn.
+  return fn as TypedFunction<StandardSchemaV1.InferInput<I>, Out>;
 }

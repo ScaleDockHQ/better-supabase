@@ -114,5 +114,29 @@ installed in the app, write the contract by hand with
 `bs.supabase` of `createClient`, a server's supabase-js client, or a plain
 `createClient` from supabase-js.
 
+## Document it in the spec
+
+`defineFunction` keeps its `input`, `output` and `summary` on the handler, so
+`functionRoute` from `better-supabase/spec` turns the function into a route
+for [`defineApi`](/docs/specs/customize#routes):
+
+```ts title="lib/api.ts"
+import { defineApi, functionRoute } from "better-supabase/spec";
+import { createCustomer } from "../supabase/functions/create-customer/handler.ts";
+
+export const api = defineApi(betterSupabase, {
+  info: { title: "CRM", version: "1.0.0" },
+  servers: [{ url: "https://<project>.supabase.co" }],
+  routes: [functionRoute("create-customer", createCustomer)],
+});
+```
+
+The route is `POST /functions/v1/create-customer`: `input` is the request
+body and `output` the 200 response. The third argument sets `method`,
+`summary` (the function's `summary` by default) and `tags`. `basePath` goes
+in front of the path like any other route, so document functions in an API
+without one when its server is the Supabase project URL. A handler that
+`defineFunction` didn't build throws a `TypeError`.
+
 The [edge example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/edge)
 has the function above and its typed caller.
