@@ -13,5 +13,9 @@ export {
   type RecalledMessage,
 } from "./memory.ts";
 export type { Embedder } from "../knowledge/knowledge.ts";
-export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
+export {
+  dbTransport,
+  rpcTransport,
+  sqlTransport,
+} from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";

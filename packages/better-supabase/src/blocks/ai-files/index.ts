@@ -21,5 +21,9 @@ export {
   type NewAiFile,
   type StoredAiFile,
 } from "./ai-files.ts";
-export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
+export {
+  dbTransport,
+  rpcTransport,
+  sqlTransport,
+} from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";

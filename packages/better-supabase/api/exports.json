@@ -1455,6 +1455,7 @@
       "BLOCK_EVENT_SOURCE",
       "blockFields",
       "createBlocks",
+      "dbTransport",
       "defineTransportMiddleware",
       "extendBlock",
       "FINAL_RUN_STATES",
@@ -1480,6 +1481,8 @@
       "BlockTransportRequest",
       "CreateBlocksOptions",
       "CursorPageOptions",
+      "DbTransportOptions",
+      "DbTransportSource",
       "ExtendBlockOptions",
       "ExtendBlockTools",
       "FieldsOf",
@@ -1495,6 +1498,7 @@
       "auditListQuery",
       "auditSink",
       "createAuditLog",
+      "dbTransport",
       "exportAuditLog",
       "purgeAuditLog",
       "rpcTransport",
@@ -1554,6 +1558,7 @@
   "./blocks/organizations": {
     "values": [
       "createOrganizations",
+      "dbTransport",
       "extendBlock",
       "rpcTransport",
       "sqlTransport",
@@ -1586,6 +1591,7 @@
   "./blocks/profiles": {
     "values": [
       "createProfiles",
+      "dbTransport",
       "extendBlock",
       "rpcTransport",
       "sqlTransport",
@@ -1605,6 +1611,7 @@
   "./blocks/notifications": {
     "values": [
       "createNotifications",
+      "dbTransport",
       "extendBlock",
       "rpcTransport",
       "sqlTransport",
@@ -1894,6 +1901,7 @@
       "createSafeFetch",
       "createWebhooks",
       "databaseChange",
+      "dbTransport",
       "fetchTransport",
       "hmacSigner",
       "hookError",
@@ -1979,6 +1987,7 @@
       "apiKeyClaims",
       "apiKeyResolver",
       "createApiKeys",
+      "dbTransport",
       "parseApiKey",
       "rpcTransport",
       "sqlTransport",
@@ -2004,6 +2013,7 @@
   },
   "./blocks/settings": {
     "values": [
+      "dbTransport",
       "defineSettings",
       "rpcTransport",
       "sqlTransport"
@@ -2026,6 +2036,7 @@
   "./blocks/usage": {
     "values": [
       "createUsage",
+      "dbTransport",
       "reportUsageToStripe",
       "rpcTransport",
       "sqlTransport"
@@ -2053,6 +2064,7 @@
   "./blocks/billing": {
     "values": [
       "createBilling",
+      "dbTransport",
       "rpcTransport",
       "signStripeWebhook",
       "sqlTransport",
@@ -2088,6 +2100,7 @@
       "createFlagAdmin",
       "createFlagClient",
       "createFlagsProvider",
+      "dbTransport",
       "evaluateFlag",
       "flagBucket",
       "flagContext",
@@ -2125,6 +2138,7 @@
       "activityListQuery",
       "activitySink",
       "createComments",
+      "dbTransport",
       "mentionsIn",
       "rpcTransport",
       "sqlTransport"
@@ -2151,6 +2165,7 @@
       "createAttachments",
       "createAttachmentScanner",
       "createObjectScanner",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2180,6 +2195,7 @@
       "createDataExporter",
       "createDataLifecycle",
       "createOrganizationPurger",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2209,6 +2225,7 @@
     "values": [
       "createSso",
       "createSsoAdmin",
+      "dbTransport",
       "dohResolver",
       "matchesScimFilter",
       "parseScimFilter",
@@ -2242,6 +2259,7 @@
   },
   "./blocks/onboarding": {
     "values": [
+      "dbTransport",
       "defineChecklist",
       "rpcTransport",
       "sqlTransport"
@@ -2271,6 +2289,7 @@
   "./blocks/waitlist": {
     "values": [
       "createWaitlist",
+      "dbTransport",
       "generateInviteCode",
       "rpcTransport",
       "sqlTransport",
@@ -2292,6 +2311,7 @@
   "./blocks/workflows": {
     "values": [
       "createWorkflows",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2330,6 +2350,7 @@
       "approvalToken",
       "approved",
       "createBuilder",
+      "dbTransport",
       "diffGraphs",
       "durationMs",
       "evaluateCondition",
@@ -2495,6 +2516,7 @@
   },
   "./streams": {
     "values": [
+      "dbTransport",
       "postgresStreamStore",
       "resumeFromStore",
       "rpcTransport",
@@ -2530,6 +2552,7 @@
     "values": [
       "credentialRefInTenant",
       "credentialRouter",
+      "dbTransport",
       "foreignCredentialRef",
       "revokeIfConfigured",
       "rpcTransport",
@@ -2585,6 +2608,7 @@
   "./blocks/inbox": {
     "values": [
       "createInbox",
+      "dbTransport",
       "INBOX_CHANNELS",
       "rpcTransport",
       "sqlTransport"
@@ -2646,6 +2670,7 @@
       "conversationIdOf",
       "createChatInstallations",
       "createSupabaseState",
+      "dbTransport",
       "deliver",
       "DELIVERY_PARSERS",
       "inboundHandler",
@@ -2711,6 +2736,7 @@
       "aiMessageSchema",
       "createAiChat",
       "createHarnessSessions",
+      "dbTransport",
       "INTERRUPTED_TOOL_OUTPUT",
       "isAiMessage",
       "pathToHistory",
@@ -2810,6 +2836,7 @@
     "values": [
       "aiFileUrl",
       "createAiFiles",
+      "dbTransport",
       "parseAiFileUrl",
       "rpcTransport",
       "sqlTransport"
@@ -2840,6 +2867,7 @@
     "values": [
       "chunk",
       "createKnowledge",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2862,6 +2890,7 @@
   "./blocks/memory": {
     "values": [
       "createMemory",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2884,6 +2913,7 @@
   "./blocks/agents": {
     "values": [
       "createAgents",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2903,6 +2933,7 @@
   "./blocks/connectors": {
     "values": [
       "createConnectors",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2922,6 +2953,7 @@
   "./blocks/ai-tasks": {
     "values": [
       "createAiTasks",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2942,6 +2974,7 @@
     "values": [
       "cacheKey",
       "createAiCache",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -2957,6 +2990,7 @@
   "./blocks/ai-providers": {
     "values": [
       "createAiProviders",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -3217,6 +3251,7 @@
   "./blocks/announcements": {
     "values": [
       "createAnnouncements",
+      "dbTransport",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -3724,6 +3759,7 @@
   "./blocks/push": {
     "values": [
       "createPushDevices",
+      "dbTransport",
       "expoPush",
       "expoPushChannel",
       "registerDevice",

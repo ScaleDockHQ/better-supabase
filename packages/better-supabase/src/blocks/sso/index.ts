@@ -25,5 +25,9 @@ export {
   type ScimFilter,
 } from "./scim-filter.ts";
 export { SCIM_GROUP, SCIM_USER, type ScimAttribute } from "./scim-schema.ts";
-export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
+export {
+  dbTransport,
+  rpcTransport,
+  sqlTransport,
+} from "../../core/block-transport.ts";
 export type { BlockTransport } from "../../core/block-transport.ts";

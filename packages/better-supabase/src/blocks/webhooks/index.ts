@@ -73,5 +73,9 @@ export {
 } from "./safe-fetch.ts";
 export type { SafeFetchOptions } from "./safe-fetch.ts";
 export type { AllowUrl, PublicUrlOptions, ResolveHost } from "./url-policy.ts";
-export { rpcTransport, sqlTransport } from "../../core/block-transport.ts";
+export {
+  dbTransport,
+  rpcTransport,
+  sqlTransport,
+} from "../../core/block-transport.ts";
 export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";

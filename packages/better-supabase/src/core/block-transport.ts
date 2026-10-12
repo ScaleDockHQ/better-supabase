@@ -1,6 +1,8 @@
 import type { SqlClient } from "../postgres/executor.ts";
-import type { RawDbError } from "./errors.ts";
+import type { ErrorMapper, RawDbError } from "./errors.ts";
+import type { Executor } from "./executor.ts";
 
+import { DbException } from "./db-exception.ts";
 import { sqlIdent } from "./template.ts";
 
 /**
@@ -105,6 +107,59 @@ export function rpcTransport(
         throw Object.assign(new Error(message), error);
       }
       return data;
+    },
+  };
+}
+
+/** Options for `dbTransport`. */
+export interface DbTransportOptions {
+  /**
+   * The schema every call goes to instead of the module schema, such as the
+   * API schema from `sql.modules.<module>.api`. Over PostgREST it has to be
+   * exposed; over Postgres any schema the caller may use works.
+   */
+  readonly schema?: string;
+}
+
+/** The part of a `Db` that `dbTransport` uses. */
+export interface DbTransportSource {
+  readonly $executor: Executor;
+}
+
+/**
+ * Calls the functions through a `Db`'s executor, so a block runs wherever
+ * the `Db` does: over PostgREST for `ctx.db` in a normal request, and over
+ * direct Postgres as the target in a support session or for an API key.
+ * Rejects with the raw database error, like the other transports, so the
+ * block's error mappers see the same codes and hints.
+ */
+export function dbTransport(
+  db: DbTransportSource,
+  options: DbTransportOptions = {},
+): BlockTransport {
+  return {
+    async call(schema, fn, args) {
+      const executor = db.$executor;
+      if (!executor.rpc) {
+        throw new TypeError(
+          `dbTransport needs an executor with rpc(); the ${executor.name} executor has none`,
+        );
+      }
+      let raw: RawDbError | undefined;
+      const capture: ErrorMapper = (error) => {
+        raw = error;
+        return;
+      };
+      const defined = Object.fromEntries(
+        Object.entries(args).filter(([, value]) => value !== undefined),
+      );
+      const result = await executor.rpc(fn, defined, {
+        schema: options.schema ?? schema,
+        errorMappers: [capture],
+      });
+      if (result.ok) return result.data;
+      if (raw === undefined) throw new DbException(result.error);
+      throw Object.assign(new Error(raw.message ?? result.error.message), raw);
     },
   };
 }

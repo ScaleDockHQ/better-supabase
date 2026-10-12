@@ -9,6 +9,8 @@ import type {
   SqlClaims,
 } from "../../src/postgres/pool.ts";
 
+import { createOrganizations } from "../../src/blocks/organizations/index.ts";
+import { dbTransport } from "../../src/core/block-transport.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -28,8 +30,8 @@ const signer = await createTestSigner();
 const ADMIN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TARGET = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
-function fakePostgres() {
-  const fake = fakeSql();
+function fakePostgres(rules: Parameters<typeof fakeSql>[0] = []) {
+  const fake = fakeSql(rules);
   const claims: SqlClaims[] = [];
   const sessions: (SessionOptions | undefined)[] = [];
   // SAFETY: the server only calls executorFor; the executor only calls queryRaw.
@@ -54,7 +56,10 @@ const admin = (claims: Record<string, unknown> = {}): AuthState => ({
   expiresAt: null,
 });
 
-function setup(options: Parameters<typeof createServer>[1] = {}) {
+function setup(
+  options: Parameters<typeof createServer>[1] = {},
+  rules: Parameters<typeof fakeSql>[0] = [],
+) {
   const betterSupabase = defineSupabase(schema);
   const events: BlockEvent[] = [];
   betterSupabase.events.on("block", (event) => events.push(event));
@@ -65,7 +70,7 @@ function setup(options: Parameters<typeof createServer>[1] = {}) {
       organization: "o1",
     },
   });
-  const pg = fakePostgres();
+  const pg = fakePostgres(rules);
   const server = createServer(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
@@ -278,6 +283,40 @@ describe("support sessions on the server", () => {
       (await server.support.stop({ kind: "anon", reason: "none" }, "x")).error
         ?.kind,
     ).toBe("unauthorized");
+  });
+
+  it("runs a block over ctx.db as the target with dbTransport", async () => {
+    const { server, pg } = setup({}, [
+      ["pg_catalog.pg_proc", [{ returns_set: false, returns_void: false }]],
+      [
+        "bs_call",
+        () => ({
+          throws: pgError("42501", "Not a member", {
+            hint: "ORGANIZATION_FORBIDDEN",
+          }),
+        }),
+      ],
+    ]);
+    const started = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "ticket 9" })
+      .orThrow();
+    const ctx = await server.context(
+      await request(`bs-support=${started.session.id}`),
+    );
+    expect(() => ctx.db.$client).toThrow(/support session/);
+    const organizations = createOrganizations({
+      transport: dbTransport(ctx.db, { schema: "api" }),
+    });
+    expect(await organizations.leave("o1")).toMatchObject({
+      ok: false,
+      error: { kind: "forbidden", hint: "ORGANIZATION_FORBIDDEN" },
+    });
+    expect(pg.claims[0]).toMatchObject({
+      sub: TARGET,
+      act: { kind: "support", session_id: started.session.id },
+    });
+    expect(pg.sessions[0]).toMatchObject({ readOnly: true });
+    expect(pg.fake.texts().at(-1)).toContain('"api"."leave_organization"(');
   });
 
   it("allows writes only when the policy and the start agree", async () => {

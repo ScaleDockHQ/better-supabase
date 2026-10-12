@@ -25,6 +25,7 @@ export {
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
 export {
+  dbTransport,
   rpcTransport,
   sqlTransport,
   type BlockTransport,
