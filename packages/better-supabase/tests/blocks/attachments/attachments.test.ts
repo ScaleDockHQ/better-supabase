@@ -272,6 +272,66 @@ describe("createAttachments", () => {
     expect(failed.ok).toBe(false);
   });
 
+  it("deletes the pending record when Storage refuses the file", async () => {
+    const file = {
+      organizationId: "org-1",
+      name: "plan.pdf",
+      mimeType: "application/pdf",
+      size: 5,
+    };
+    const refusal = {
+      data: null,
+      error: {
+        name: "StorageApiError",
+        message: "The support session is read-only",
+        status: 403,
+        statusCode: "403",
+        code: "SUPPORT_READ_ONLY",
+      },
+    };
+    const created = () =>
+      fakeTransport({
+        create_attachment: row({ status: "pending", uploaded_at: null }),
+        delete_attachment: true,
+      });
+
+    const signing = created();
+    const refusedUrl = await createAttachments({
+      transport: signing.transport,
+      storage: fakeStorage({ createSignedUploadUrl: refusal }).storage,
+    }).put(file, new Blob(["hello"]));
+    expect(refusedUrl.error).toMatchObject({
+      kind: "forbidden",
+      code: "SUPPORT_READ_ONLY",
+    });
+    expect(signing.calls).toEqual([
+      ["create_attachment", expect.any(Object)],
+      ["delete_attachment", { id: "a1" }],
+    ]);
+
+    const sending = created();
+    const refusedUpload = await createAttachments({
+      transport: sending.transport,
+      storage: fakeStorage({ upload: refusal }).storage,
+    }).put(file, new Blob(["hello"]));
+    expect(refusedUpload.error?.code).toBe("SUPPORT_READ_ONLY");
+    expect(sending.calls.map(([fn]) => fn)).toEqual([
+      "create_attachment",
+      "delete_attachment",
+    ]);
+
+    const cleanupFails = fakeTransport({
+      create_attachment: row({ status: "pending", uploaded_at: null }),
+      delete_attachment: new Error("offline"),
+    });
+    const kept = await createAttachments({
+      transport: cleanupFails.transport,
+      storage: fakeStorage({ createSignedUploadUrl: refusal }).storage,
+    }).upload(file);
+    expect(kept.error?.code).toBe("SUPPORT_READ_ONLY");
+    expect(cleanupFails.calls.at(-1)?.[0]).toBe("delete_attachment");
+  });
+
   it("signs downloads only for scanned files", async () => {
     const storage = fakeStorage();
     const clean = createAttachments({

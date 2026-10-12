@@ -727,6 +727,48 @@ describe("clients over supportStorage", () => {
     ]);
   });
 
+  it("leaves no pending attachment behind a refused put", async () => {
+    const { storage } = docsOf([], { readOnly: false });
+    const called: string[] = [];
+    const attachments = createAttachments({
+      transport: {
+        call: (_schema, fn) => {
+          called.push(fn);
+          return Promise.resolve(
+            fn === "create_attachment"
+              ? {
+                  id: "a2",
+                  organization_id: "org-1",
+                  bucket: "attachments",
+                  object_path: "org-1/attachments/a2",
+                  name: "note.txt",
+                  mime_type: "text/plain",
+                  size: "2",
+                  status: "pending",
+                  created_at: "2026-10-06T12:00:00Z",
+                }
+              : true,
+          );
+        },
+      },
+      storage,
+    });
+    const put = await attachments.put(
+      {
+        organizationId: "org-1",
+        name: "note.txt",
+        mimeType: "text/plain",
+        size: 2,
+      },
+      new Blob(["hi"]),
+    );
+    expect(put.error).toMatchObject({
+      kind: "forbidden",
+      code: "SUPPORT_STORAGE_WRITES",
+    });
+    expect(called).toEqual(["create_attachment", "delete_attachment"]);
+  });
+
   it("signs the data exports the target may read", async () => {
     const { storage } = docsOf(["export-1/public.projects.ndjson"]);
     const lifecycle = createDataLifecycle({

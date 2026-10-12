@@ -4,7 +4,7 @@ import type { EventSink } from "../../events/index.ts";
 import type { JobHandler } from "../jobs/types.ts";
 
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok } from "../../core/result.ts";
+import { AsyncResult, err, ok, type Result } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
 import {
   blockCall,
@@ -118,7 +118,10 @@ export interface AttachmentDownload {
 }
 
 export interface Attachments {
-  /** Creates the pending record and a signed upload URL for its path. */
+  /**
+   * Creates the pending record and a signed upload URL for its path. When
+   * Storage refuses the URL, the record is deleted again.
+   */
   upload(attachment: NewAttachment): AsyncResult<AttachmentUpload>;
   /** Marks the upload done after the file is stored; emits `attachment.uploaded`. */
   confirm(id: string): AsyncResult<Attachment>;
@@ -141,7 +144,8 @@ export interface Attachments {
    * Creates the record, uploads `file` from the server and confirms it, for
    * files the server makes or fetches (an export, a generated PDF, an
    * import). Returns the confirmed attachment, which still waits for the
-   * scan when the module requires one.
+   * scan when the module requires one. When Storage refuses the upload,
+   * the record is deleted again, so no pending record is left behind.
    */
   put(
     attachment: NewAttachment,
@@ -271,6 +275,13 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
           { hint: "ATTACHMENT_NOT_SCANNED" },
         );
   };
+  const discard = async (
+    created: Attachment,
+    error: DbError,
+  ): Promise<Result<never>> => {
+    await call("delete_attachment", { id: created.id }, (value) => value);
+    return err(error);
+  };
   const upload = (attachment: NewAttachment): AsyncResult<AttachmentUpload> =>
     call(
       "create_attachment",
@@ -284,15 +295,17 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
         metadata: attachment.metadata,
       },
       attachmentOf,
-    ).andThen((created) =>
-      stored(bucket(created).createSignedUploadUrl(created.path)).map(
-        (url) => ({
-          attachment: created,
-          signedUrl: url.signedUrl,
-          token: url.token,
-        }),
-      ),
-    );
+    ).andThen(async (created) => {
+      const url = await stored(
+        bucket(created).createSignedUploadUrl(created.path),
+      );
+      if (!url.ok) return discard(created, url.error);
+      return ok({
+        attachment: created,
+        signedUrl: url.data.signedUrl,
+        token: url.data.token,
+      });
+    });
   return {
     upload,
     confirm: (id) => call("confirm_attachment", { id }, attachmentOf),
@@ -323,7 +336,8 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
       upload(attachment).andThen(async ({ attachment: created }) => {
         const target = bucket(created);
         if (!target.upload) {
-          return err(
+          return discard(
+            created,
             dbError("invalid_request", "The storage client has no upload", {
               hint: "ATTACHMENT_STORAGE_CLIENT",
             }),
@@ -335,7 +349,7 @@ export function createAttachments(options: AttachmentsOptions): Attachments {
             upsert: false,
           }),
         );
-        if (!sent.ok) return sent;
+        if (!sent.ok) return discard(created, sent.error);
         return call("confirm_attachment", { id: created.id }, attachmentOf);
       }),
     read: (id) =>
